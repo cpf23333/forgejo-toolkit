@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        // Uncomment the next line to disable all other extensions while debugging.
+        // "--disable-extensions",
+        "--extensionDevelopmentPath=${workspaceFolder}/packages/forgejo-toolkit"
+      ],
+      "outFiles": ["${workspaceFolder}/packages/forgejo-toolkit/out/**/*.js"],
+      "preLaunchTask": "build-extension",
+      "sourceMaps": true
+    }
+  ]
+}

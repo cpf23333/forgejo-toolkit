@@ -1,0 +1,10 @@
+.vscode/**
+node_modules/**
+src/**
+webview/**
+esbuild.js
+tsconfig.json
+.gitignore
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
