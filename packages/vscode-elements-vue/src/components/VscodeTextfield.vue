@@ -22,10 +22,5 @@ function onInput(event: Event) {
 </script>
 
 <template>
-  <vscode-textfield
-    :value="modelValue"
-    :placeholder="placeholder"
-    :type="type"
-    @input="onInput"
-  />
+  <vscode-textfield :value="modelValue" :placeholder="placeholder" :type="type" @input="onInput" />
 </template>

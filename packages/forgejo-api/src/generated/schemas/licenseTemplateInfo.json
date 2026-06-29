@@ -1,0 +1,13 @@
+{
+  "description": "LicensesInfo contains information about a License",
+  "type": "object",
+  "properties": {
+    "body": { "type": "string", "x-go-name": "Body" },
+    "implementation": { "type": "string", "x-go-name": "Implementation" },
+    "key": { "type": "string", "x-go-name": "Key" },
+    "name": { "type": "string", "x-go-name": "Name" },
+    "url": { "type": "string", "x-go-name": "URL" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "LicenseTemplateInfo"
+}

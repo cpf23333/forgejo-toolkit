@@ -1,0 +1,54 @@
+{
+  "type": "array",
+  "items": {
+    "description": "WikiPageMetaData wiki page meta information",
+    "type": "object",
+    "properties": {
+      "html_url": { "type": "string", "x-go-name": "HTMLURL" },
+      "last_commit": {
+        "description": "WikiCommit page commit/revision",
+        "type": "object",
+        "properties": {
+          "author": {
+            "type": "object",
+            "title": "CommitUser contains information of a user in the context of a commit.",
+            "properties": {
+              "date": { "type": "string", "x-go-name": "Date" },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "x-go-name": "Email"
+              },
+              "name": { "type": "string", "x-go-name": "Name" }
+            },
+            "x-go-package": "forgejo.org/modules/structs",
+            "x-readme-ref-name": "CommitUser"
+          },
+          "commiter": {
+            "type": "object",
+            "title": "CommitUser contains information of a user in the context of a commit.",
+            "properties": {
+              "date": { "type": "string", "x-go-name": "Date" },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "x-go-name": "Email"
+              },
+              "name": { "type": "string", "x-go-name": "Name" }
+            },
+            "x-go-package": "forgejo.org/modules/structs",
+            "x-readme-ref-name": "CommitUser"
+          },
+          "message": { "type": "string", "x-go-name": "Message" },
+          "sha": { "type": "string", "x-go-name": "ID" }
+        },
+        "x-go-package": "forgejo.org/modules/structs",
+        "x-readme-ref-name": "WikiCommit"
+      },
+      "sub_url": { "type": "string", "x-go-name": "SubURL" },
+      "title": { "type": "string", "x-go-name": "Title" }
+    },
+    "x-go-package": "forgejo.org/modules/structs",
+    "x-readme-ref-name": "WikiPageMetaData"
+  }
+}

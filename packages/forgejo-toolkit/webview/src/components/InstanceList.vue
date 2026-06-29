@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ForgejoInstance } from '../../../src/config';
-import { VscodeButton } from '@forgejo/vscode-elements-vue/components';
+import type { ForgejoInstance } from '../types/instance';
+import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 
 defineProps<{
   instances: ForgejoInstance[];

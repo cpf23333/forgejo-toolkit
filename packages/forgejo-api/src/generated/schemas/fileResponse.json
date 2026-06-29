@@ -1,0 +1,178 @@
+{
+  "description": "FileResponse contains information about a repo's file",
+  "type": "object",
+  "properties": {
+    "commit": {
+      "type": "object",
+      "title": "FileCommitResponse contains information generated from a Git commit for a repo's file.",
+      "properties": {
+        "author": {
+          "type": "object",
+          "title": "CommitUser contains information of a user in the context of a commit.",
+          "properties": {
+            "date": { "type": "string", "x-go-name": "Date" },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "x-go-name": "Email"
+            },
+            "name": { "type": "string", "x-go-name": "Name" }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "CommitUser"
+        },
+        "committer": {
+          "type": "object",
+          "title": "CommitUser contains information of a user in the context of a commit.",
+          "properties": {
+            "date": { "type": "string", "x-go-name": "Date" },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "x-go-name": "Email"
+            },
+            "name": { "type": "string", "x-go-name": "Name" }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "CommitUser"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "x-go-name": "Created"
+        },
+        "html_url": { "type": "string", "x-go-name": "HTMLURL" },
+        "message": { "type": "string", "x-go-name": "Message" },
+        "parents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "title": "CommitMeta contains meta information of a commit in terms of API.",
+            "properties": {
+              "created": {
+                "type": "string",
+                "format": "date-time",
+                "x-go-name": "Created"
+              },
+              "sha": { "type": "string", "x-go-name": "SHA" },
+              "url": { "type": "string", "x-go-name": "URL" }
+            },
+            "x-go-package": "forgejo.org/modules/structs",
+            "x-readme-ref-name": "CommitMeta"
+          },
+          "x-go-name": "Parents"
+        },
+        "sha": { "type": "string", "x-go-name": "SHA" },
+        "tree": {
+          "type": "object",
+          "title": "CommitMeta contains meta information of a commit in terms of API.",
+          "properties": {
+            "created": {
+              "type": "string",
+              "format": "date-time",
+              "x-go-name": "Created"
+            },
+            "sha": { "type": "string", "x-go-name": "SHA" },
+            "url": { "type": "string", "x-go-name": "URL" }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "CommitMeta"
+        },
+        "url": { "type": "string", "x-go-name": "URL" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "FileCommitResponse"
+    },
+    "content": {
+      "description": "ContentsResponse contains information about a repo's entry's (dir, file, symlink, submodule) metadata and content",
+      "type": "object",
+      "properties": {
+        "_links": {
+          "description": "FileLinksResponse contains the links for a repo's file",
+          "type": "object",
+          "properties": {
+            "git": { "type": "string", "x-go-name": "GitURL" },
+            "html": { "type": "string", "x-go-name": "HTMLURL" },
+            "self": { "type": "string", "x-go-name": "Self" }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "FileLinksResponse"
+        },
+        "content": {
+          "description": "`content` is populated when `type` is `file`, otherwise null",
+          "type": "string",
+          "x-go-name": "Content"
+        },
+        "download_url": { "type": "string", "x-go-name": "DownloadURL" },
+        "encoding": {
+          "description": "`encoding` is populated when `type` is `file`, otherwise null",
+          "type": "string",
+          "x-go-name": "Encoding"
+        },
+        "git_url": { "type": "string", "x-go-name": "GitURL" },
+        "html_url": { "type": "string", "x-go-name": "HTMLURL" },
+        "last_commit_sha": { "type": "string", "x-go-name": "LastCommitSHA" },
+        "last_commit_when": {
+          "type": "string",
+          "format": "date-time",
+          "x-go-name": "LastCommitWhen"
+        },
+        "name": { "type": "string", "x-go-name": "Name" },
+        "path": { "type": "string", "x-go-name": "Path" },
+        "sha": { "type": "string", "x-go-name": "SHA" },
+        "size": { "type": "integer", "format": "int64", "x-go-name": "Size" },
+        "submodule_git_url": {
+          "description": "`submodule_git_url` is populated when `type` is `submodule`, otherwise null",
+          "type": "string",
+          "x-go-name": "SubmoduleGitURL"
+        },
+        "target": {
+          "description": "`target` is populated when `type` is `symlink`, otherwise null",
+          "type": "string",
+          "x-go-name": "Target"
+        },
+        "type": {
+          "description": "`type` will be `file`, `dir`, `symlink`, or `submodule`",
+          "type": "string",
+          "x-go-name": "Type"
+        },
+        "url": { "type": "string", "x-go-name": "URL" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "ContentsResponse"
+    },
+    "verification": {
+      "description": "PayloadCommitVerification represents the GPG verification of a commit",
+      "type": "object",
+      "properties": {
+        "payload": { "type": "string", "x-go-name": "Payload" },
+        "reason": { "type": "string", "x-go-name": "Reason" },
+        "signature": { "type": "string", "x-go-name": "Signature" },
+        "signer": {
+          "description": "PayloadUser represents the author or committer of a commit",
+          "type": "object",
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "x-go-name": "Email"
+            },
+            "name": {
+              "description": "Full name of the commit author",
+              "type": "string",
+              "x-go-name": "Name"
+            },
+            "username": { "type": "string", "x-go-name": "UserName" }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "PayloadUser"
+        },
+        "verified": { "type": "boolean", "x-go-name": "Verified" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "PayloadCommitVerification"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "FileResponse"
+}

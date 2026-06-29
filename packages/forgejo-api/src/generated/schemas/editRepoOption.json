@@ -1,0 +1,228 @@
+{
+  "description": "EditRepoOption options when editing a repository's properties",
+  "type": "object",
+  "properties": {
+    "allow_fast_forward_only_merge": {
+      "description": "either `true` to allow fast-forward-only merging pull requests, or `false` to prevent fast-forward-only merging.",
+      "type": "boolean",
+      "x-go-name": "AllowFastForwardOnly"
+    },
+    "allow_manual_merge": {
+      "description": "either `true` to allow mark pr as merged manually, or `false` to prevent it.",
+      "type": "boolean",
+      "x-go-name": "AllowManualMerge"
+    },
+    "allow_merge_commits": {
+      "description": "either `true` to allow merging pull requests with a merge commit, or `false` to prevent merging pull requests with merge commits.",
+      "type": "boolean",
+      "x-go-name": "AllowMerge"
+    },
+    "allow_rebase": {
+      "description": "either `true` to allow rebase-merging pull requests, or `false` to prevent rebase-merging.",
+      "type": "boolean",
+      "x-go-name": "AllowRebase"
+    },
+    "allow_rebase_explicit": {
+      "description": "either `true` to allow rebase with explicit merge commits (--no-ff), or `false` to prevent rebase with explicit merge commits.",
+      "type": "boolean",
+      "x-go-name": "AllowRebaseMerge"
+    },
+    "allow_rebase_update": {
+      "description": "either `true` to allow updating pull request branch by rebase, or `false` to prevent it.",
+      "type": "boolean",
+      "x-go-name": "AllowRebaseUpdate"
+    },
+    "allow_squash_merge": {
+      "description": "either `true` to allow squash-merging pull requests, or `false` to prevent squash-merging.",
+      "type": "boolean",
+      "x-go-name": "AllowSquash"
+    },
+    "archived": {
+      "description": "set to `true` to archive this repository.",
+      "type": "boolean",
+      "x-go-name": "Archived"
+    },
+    "autodetect_manual_merge": {
+      "description": "either `true` to enable AutodetectManualMerge, or `false` to prevent it. Note: In some special cases, misjudgments can occur.",
+      "type": "boolean",
+      "x-go-name": "AutodetectManualMerge"
+    },
+    "default_allow_maintainer_edit": {
+      "description": "set to `true` to allow edits from maintainers by default",
+      "type": "boolean",
+      "x-go-name": "DefaultAllowMaintainerEdit"
+    },
+    "default_branch": {
+      "description": "sets the default branch for this repository.",
+      "type": "string",
+      "x-go-name": "DefaultBranch"
+    },
+    "default_delete_branch_after_merge": {
+      "description": "set to `true` to delete pr branch after merge by default",
+      "type": "boolean",
+      "x-go-name": "DefaultDeleteBranchAfterMerge"
+    },
+    "default_merge_style": {
+      "description": "set to a merge style to be used by this repository: \"merge\", \"rebase\", \"rebase-merge\", \"squash\", \"fast-forward-only\", \"manually-merged\", or \"rebase-update-only\".",
+      "type": "string",
+      "x-go-name": "DefaultMergeStyle"
+    },
+    "default_update_style": {
+      "description": "set to a update style to be used by this repository: \"rebase\" or \"merge\"",
+      "type": "string",
+      "x-go-name": "DefaultUpdateStyle"
+    },
+    "description": {
+      "description": "a short description of the repository.",
+      "type": "string",
+      "x-go-name": "Description"
+    },
+    "enable_prune": {
+      "description": "enable prune - remove obsolete remote-tracking references when mirroring",
+      "type": "boolean",
+      "x-go-name": "EnablePrune"
+    },
+    "external_tracker": {
+      "description": "ExternalTracker represents settings for external tracker",
+      "type": "object",
+      "properties": {
+        "external_tracker_format": {
+          "description": "External Issue Tracker URL Format. Use the placeholders {user}, {repo} and {index} for the username, repository name and issue index.",
+          "type": "string",
+          "x-go-name": "ExternalTrackerFormat"
+        },
+        "external_tracker_regexp_pattern": {
+          "description": "External Issue Tracker issue regular expression",
+          "type": "string",
+          "x-go-name": "ExternalTrackerRegexpPattern"
+        },
+        "external_tracker_style": {
+          "description": "External Issue Tracker Number Format, either `numeric`, `alphanumeric`, or `regexp`",
+          "type": "string",
+          "x-go-name": "ExternalTrackerStyle"
+        },
+        "external_tracker_url": {
+          "description": "URL of external issue tracker.",
+          "type": "string",
+          "x-go-name": "ExternalTrackerURL"
+        }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "ExternalTracker"
+    },
+    "external_wiki": {
+      "description": "ExternalWiki represents setting for external wiki",
+      "type": "object",
+      "properties": {
+        "external_wiki_url": {
+          "description": "URL of external wiki.",
+          "type": "string",
+          "x-go-name": "ExternalWikiURL"
+        }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "ExternalWiki"
+    },
+    "globally_editable_wiki": {
+      "description": "set the globally editable state of the wiki",
+      "type": "boolean",
+      "x-go-name": "GloballyEditableWiki"
+    },
+    "has_actions": {
+      "description": "either `true` to enable actions unit, or `false` to disable them.",
+      "type": "boolean",
+      "x-go-name": "HasActions"
+    },
+    "has_issues": {
+      "description": "either `true` to enable issues for this repository or `false` to disable them.",
+      "type": "boolean",
+      "x-go-name": "HasIssues"
+    },
+    "has_packages": {
+      "description": "either `true` to enable packages unit, or `false` to disable them.",
+      "type": "boolean",
+      "x-go-name": "HasPackages"
+    },
+    "has_projects": {
+      "description": "either `true` to enable project unit, or `false` to disable them.",
+      "type": "boolean",
+      "x-go-name": "HasProjects"
+    },
+    "has_pull_requests": {
+      "description": "either `true` to allow pull requests, or `false` to prevent pull request.",
+      "type": "boolean",
+      "x-go-name": "HasPullRequests"
+    },
+    "has_releases": {
+      "description": "either `true` to enable releases unit, or `false` to disable them.",
+      "type": "boolean",
+      "x-go-name": "HasReleases"
+    },
+    "has_wiki": {
+      "description": "either `true` to enable the wiki for this repository or `false` to disable it.",
+      "type": "boolean",
+      "x-go-name": "HasWiki"
+    },
+    "ignore_whitespace_conflicts": {
+      "description": "either `true` to ignore whitespace for conflicts, or `false` to not ignore whitespace.",
+      "type": "boolean",
+      "x-go-name": "IgnoreWhitespaceConflicts"
+    },
+    "internal_tracker": {
+      "description": "InternalTracker represents settings for internal tracker",
+      "type": "object",
+      "properties": {
+        "allow_only_contributors_to_track_time": {
+          "description": "Let only contributors track time (Built-in issue tracker)",
+          "type": "boolean",
+          "x-go-name": "AllowOnlyContributorsToTrackTime"
+        },
+        "enable_issue_dependencies": {
+          "description": "Enable dependencies for issues and pull requests (Built-in issue tracker)",
+          "type": "boolean",
+          "x-go-name": "EnableIssueDependencies"
+        },
+        "enable_time_tracker": {
+          "description": "Enable time tracking (Built-in issue tracker)",
+          "type": "boolean",
+          "x-go-name": "EnableTimeTracker"
+        }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "InternalTracker"
+    },
+    "mirror_interval": {
+      "description": "set to a string like `8h30m0s` to set the mirror interval time",
+      "type": "string",
+      "x-go-name": "MirrorInterval"
+    },
+    "name": {
+      "description": "name of the repository",
+      "type": "string",
+      "uniqueItems": true,
+      "x-go-name": "Name"
+    },
+    "private": {
+      "description": "either `true` to make the repository private or `false` to make it public.\nNote: you will get a 422 error if the organization restricts changing repository visibility to organization\nowners and a non-owner tries to change the value of private.",
+      "type": "boolean",
+      "x-go-name": "Private"
+    },
+    "template": {
+      "description": "either `true` to make this repository a template or `false` to make it a normal repository",
+      "type": "boolean",
+      "x-go-name": "Template"
+    },
+    "website": {
+      "description": "a URL with more information about the repository.",
+      "type": "string",
+      "x-go-name": "Website"
+    },
+    "wiki_branch": {
+      "description": "sets the branch used for this repository's wiki.",
+      "type": "string",
+      "x-go-name": "WikiBranch"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "EditRepoOption"
+}

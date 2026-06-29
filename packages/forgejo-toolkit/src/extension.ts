@@ -1,16 +1,21 @@
 import * as vscode from 'vscode';
 import { registerCommands } from './commands';
-import { InstanceTreeProvider } from './providers/instanceTreeProvider';
+import { ForgejoToolkitViewProvider } from './webview/viewProvider';
+import { ConfigManager } from './config';
 
 export function activate(context: vscode.ExtensionContext) {
-    const treeProvider = new InstanceTreeProvider(context);
+  const config = new ConfigManager(context);
 
-    vscode.window.registerTreeDataProvider('forgejoToolkitInstances', treeProvider);
-    registerCommands(context, treeProvider);
+  const viewProvider = new ForgejoToolkitViewProvider(context.extensionUri, config);
+  vscode.window.registerWebviewViewProvider(ForgejoToolkitViewProvider.viewType, viewProvider, {
+    webviewOptions: { retainContextWhenHidden: true },
+  });
 
-    console.log('Forgejo Toolkit extension activated');
+  registerCommands(context, viewProvider);
+
+  console.log('Forgejo Toolkit extension activated');
 }
 
 export function deactivate() {
-    // cleanup if needed
+  // cleanup if needed
 }

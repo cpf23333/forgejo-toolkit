@@ -1,0 +1,40 @@
+{
+  "description": "QuotaUsedPackageList represents a list of packages counting towards a user's quota",
+  "type": "array",
+  "items": {
+    "description": "QuotaUsedPackage represents a package counting towards a user's quota",
+    "type": "object",
+    "properties": {
+      "html_url": {
+        "description": "HTML URL to the package version",
+        "type": "string",
+        "x-go-name": "HTMLURL"
+      },
+      "name": {
+        "description": "Name of the package",
+        "type": "string",
+        "x-go-name": "Name"
+      },
+      "size": {
+        "description": "Size of the package version",
+        "type": "integer",
+        "format": "int64",
+        "x-go-name": "Size"
+      },
+      "type": {
+        "description": "Type of the package",
+        "type": "string",
+        "x-go-name": "Type"
+      },
+      "version": {
+        "description": "Version of the package",
+        "type": "string",
+        "x-go-name": "Version"
+      }
+    },
+    "x-go-package": "forgejo.org/modules/structs",
+    "x-readme-ref-name": "QuotaUsedPackage"
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "QuotaUsedPackageList"
+}

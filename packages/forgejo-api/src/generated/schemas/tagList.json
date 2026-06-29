@@ -1,0 +1,45 @@
+{
+  "type": "array",
+  "items": {
+    "description": "Tag represents a repository tag",
+    "type": "object",
+    "properties": {
+      "archive_download_count": {
+        "description": "TagArchiveDownloadCount counts how many times a archive was downloaded",
+        "type": "object",
+        "properties": {
+          "tar_gz": {
+            "type": "integer",
+            "format": "int64",
+            "x-go-name": "TarGz"
+          },
+          "zip": { "type": "integer", "format": "int64", "x-go-name": "Zip" }
+        },
+        "x-go-package": "forgejo.org/modules/structs",
+        "x-readme-ref-name": "TagArchiveDownloadCount"
+      },
+      "commit": {
+        "type": "object",
+        "title": "CommitMeta contains meta information of a commit in terms of API.",
+        "properties": {
+          "created": {
+            "type": "string",
+            "format": "date-time",
+            "x-go-name": "Created"
+          },
+          "sha": { "type": "string", "x-go-name": "SHA" },
+          "url": { "type": "string", "x-go-name": "URL" }
+        },
+        "x-go-package": "forgejo.org/modules/structs",
+        "x-readme-ref-name": "CommitMeta"
+      },
+      "id": { "type": "string", "x-go-name": "ID" },
+      "message": { "type": "string", "x-go-name": "Message" },
+      "name": { "type": "string", "x-go-name": "Name" },
+      "tarball_url": { "type": "string", "x-go-name": "TarballURL" },
+      "zipball_url": { "type": "string", "x-go-name": "ZipballURL" }
+    },
+    "x-go-package": "forgejo.org/modules/structs",
+    "x-readme-ref-name": "Tag"
+  }
+}

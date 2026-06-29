@@ -1,0 +1,32 @@
+{
+  "description": "CreateUserOption create user options",
+  "type": "object",
+  "required": ["username", "email"],
+  "properties": {
+    "created_at": {
+      "description": "For explicitly setting the user creation timestamp. Useful when users are\nmigrated from other systems. When omitted, the user's creation timestamp\nwill be set to \"now\".",
+      "type": "string",
+      "format": "date-time",
+      "x-go-name": "Created"
+    },
+    "email": { "type": "string", "format": "email", "x-go-name": "Email" },
+    "full_name": { "type": "string", "x-go-name": "FullName" },
+    "login_name": { "type": "string", "x-go-name": "LoginName" },
+    "must_change_password": {
+      "type": "boolean",
+      "x-go-name": "MustChangePassword"
+    },
+    "password": { "type": "string", "x-go-name": "Password" },
+    "restricted": { "type": "boolean", "x-go-name": "Restricted" },
+    "send_notify": { "type": "boolean", "x-go-name": "SendNotify" },
+    "source_id": {
+      "type": "integer",
+      "format": "int64",
+      "x-go-name": "SourceID"
+    },
+    "username": { "type": "string", "x-go-name": "Username" },
+    "visibility": { "type": "string", "x-go-name": "Visibility" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "CreateUserOption"
+}

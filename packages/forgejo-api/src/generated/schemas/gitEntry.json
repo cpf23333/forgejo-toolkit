@@ -1,0 +1,14 @@
+{
+  "description": "GitEntry represents a git tree",
+  "type": "object",
+  "properties": {
+    "mode": { "type": "string", "x-go-name": "Mode" },
+    "path": { "type": "string", "x-go-name": "Path" },
+    "sha": { "type": "string", "x-go-name": "SHA" },
+    "size": { "type": "integer", "format": "int64", "x-go-name": "Size" },
+    "type": { "type": "string", "x-go-name": "Type" },
+    "url": { "type": "string", "x-go-name": "URL" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "GitEntry"
+}

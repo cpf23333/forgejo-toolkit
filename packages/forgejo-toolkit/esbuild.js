@@ -17,9 +17,15 @@ const config = {
 
 async function main() {
   if (watch) {
-    const ctx = await esbuild.context(config);
+    const ctx = await esbuild.context({
+      ...config,
+      banner: {
+        js: '/* forgejo-toolkit extension watch build */',
+      },
+    });
     await ctx.watch();
     console.log('[extension] watching...');
+    console.log('[extension] build complete');
   } else {
     await esbuild.build(config);
     console.log('[extension] build complete');

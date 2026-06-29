@@ -1,0 +1,75 @@
+{
+  "app": {
+    "title": "Forgejo Toolkit"
+  },
+  "dashboard": {
+    "title": "Forgejo Toolkit",
+    "settings": "Settings",
+    "emptyTitle": "No Forgejo instances configured.",
+    "emptyHint": "Click {button} to connect to your Forgejo server.",
+    "connectedInstances": "Connected Instances ({count})",
+    "viewTitle": "Dashboard",
+    "tabs": {
+      "repositories": "Repositories",
+      "issues": "Issues",
+      "pullRequests": "Pull Requests"
+    },
+    "noRepositories": "No repositories",
+    "noIssues": "No issues assigned to you",
+    "noPullRequests": "No pull requests related to you",
+    "loading": "Loading...",
+    "error": "Failed to load: {message}",
+    "owner": "Owner",
+    "branch": "Default branch",
+    "stars": "Stars",
+    "forks": "Forks",
+    "openIssues": "Open Issues",
+    "openPullRequests": "Open PRs",
+    "recentCommits": "Recent Commits",
+    "branches": "Branches",
+    "readme": "README",
+    "noReadme": "No README",
+    "actions": {
+      "open": "Open in Browser",
+      "copyClone": "Copy Clone URL",
+      "copyUrl": "Copy Link"
+    }
+  },
+  "instance": {
+    "url": "URL",
+    "username": "Username"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "languageDescription": "Select display language for the Forgejo Toolkit panel.",
+    "addInstanceTitle": "Add Forgejo Instance",
+    "instanceUrl": "Instance URL",
+    "instanceUrlPlaceholder": "https://forgejo.example.com",
+    "accessToken": "Access Token",
+    "accessTokenPlaceholder": "Enter your Forgejo access token",
+    "testConnection": "Test Connection",
+    "testing": "Testing...",
+    "addInstance": "Add Instance",
+    "saving": "Saving...",
+    "savedInstances": "Saved Instances",
+    "remove": "Remove",
+    "backToDashboard": "← Back to Dashboard",
+    "debug": {
+      "title": "Debug Logging",
+      "description": "Enable request/response logging to the Forgejo Toolkit output channel.",
+      "enable": "Enable debug logging"
+    },
+    "status": {
+      "testing": "Testing connection...",
+      "successConnection": "Connection OK. Username: {username}",
+      "successSaved": "Instance saved successfully",
+      "errorConnection": "Connection failed",
+      "errorSaved": "Failed to save instance"
+    }
+  },
+  "locales": {
+    "en": "English",
+    "zh": "中文"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "description": "SubmitPullReviewOptions are options to submit a pending pull review",
+  "type": "object",
+  "properties": {
+    "body": { "type": "string", "x-go-name": "Body" },
+    "event": {
+      "description": "ReviewStateType review state type",
+      "type": "string",
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "ReviewStateType"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "SubmitPullReviewOptions"
+}

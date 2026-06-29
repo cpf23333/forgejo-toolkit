@@ -1,0 +1,27 @@
+{
+  "description": "CreateBranchRepoOption options when creating a branch in a repository",
+  "type": "object",
+  "required": ["new_branch_name"],
+  "properties": {
+    "new_branch_name": {
+      "description": "Name of the branch to create",
+      "type": "string",
+      "uniqueItems": true,
+      "x-go-name": "BranchName"
+    },
+    "old_branch_name": {
+      "description": "Deprecated: true\nName of the old branch to create from",
+      "type": "string",
+      "uniqueItems": true,
+      "x-go-name": "OldBranchName"
+    },
+    "old_ref_name": {
+      "description": "Name of the old branch/tag/commit to create from",
+      "type": "string",
+      "uniqueItems": true,
+      "x-go-name": "OldRefName"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "CreateBranchRepoOption"
+}

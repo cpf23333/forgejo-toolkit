@@ -1,0 +1,62 @@
+{
+  "type": "array",
+  "items": {
+    "description": "IssueTemplate represents an issue template for a repository",
+    "type": "object",
+    "properties": {
+      "about": { "type": "string", "x-go-name": "About" },
+      "body": {
+        "type": "array",
+        "items": {
+          "description": "IssueFormField represents a form field",
+          "type": "object",
+          "properties": {
+            "attributes": {
+              "type": "object",
+              "additionalProperties": {},
+              "x-go-name": "Attributes"
+            },
+            "id": { "type": "string", "x-go-name": "ID" },
+            "type": {
+              "type": "string",
+              "title": "IssueFormFieldType defines issue form field type, can be \"markdown\", \"textarea\", \"input\", \"dropdown\" or \"checkboxes\"",
+              "x-go-package": "forgejo.org/modules/structs",
+              "x-readme-ref-name": "IssueFormFieldType"
+            },
+            "validations": {
+              "type": "object",
+              "additionalProperties": {},
+              "x-go-name": "Validations"
+            },
+            "visible": {
+              "type": "array",
+              "items": {
+                "description": "IssueFormFieldVisible defines issue form field visible",
+                "type": "string",
+                "x-go-package": "forgejo.org/modules/structs",
+                "x-readme-ref-name": "IssueFormFieldVisible"
+              },
+              "x-go-name": "Visible"
+            }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "IssueFormField"
+        },
+        "x-go-name": "Fields"
+      },
+      "content": { "type": "string", "x-go-name": "Content" },
+      "file_name": { "type": "string", "x-go-name": "FileName" },
+      "labels": {
+        "type": "array",
+        "items": { "type": "string" },
+        "x-go-package": "forgejo.org/modules/structs",
+        "x-readme-ref-name": "IssueTemplateLabels"
+      },
+      "name": { "type": "string", "x-go-name": "Name" },
+      "ref": { "type": "string", "x-go-name": "Ref" },
+      "title": { "type": "string", "x-go-name": "Title" }
+    },
+    "x-go-package": "forgejo.org/modules/structs",
+    "x-readme-ref-name": "IssueTemplate"
+  }
+}

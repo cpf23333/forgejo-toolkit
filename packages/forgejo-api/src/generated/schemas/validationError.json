@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "message": { "type": "string", "x-go-name": "Message" },
+    "url": { "type": "string", "x-go-name": "URL" }
+  },
+  "x-go-package": "forgejo.org/services/context",
+  "x-readme-ref-name": "APIValidationError"
+}

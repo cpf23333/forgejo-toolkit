@@ -1,0 +1,27 @@
+{
+  "description": "PayloadCommitVerification represents the GPG verification of a commit",
+  "type": "object",
+  "properties": {
+    "payload": { "type": "string", "x-go-name": "Payload" },
+    "reason": { "type": "string", "x-go-name": "Reason" },
+    "signature": { "type": "string", "x-go-name": "Signature" },
+    "signer": {
+      "description": "PayloadUser represents the author or committer of a commit",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "x-go-name": "Email" },
+        "name": {
+          "description": "Full name of the commit author",
+          "type": "string",
+          "x-go-name": "Name"
+        },
+        "username": { "type": "string", "x-go-name": "UserName" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "PayloadUser"
+    },
+    "verified": { "type": "boolean", "x-go-name": "Verified" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "PayloadCommitVerification"
+}

@@ -1,0 +1,43 @@
+{
+  "type": "array",
+  "items": {
+    "description": "Hook a hook is a web hook when one repository changed",
+    "type": "object",
+    "properties": {
+      "active": { "type": "boolean", "x-go-name": "Active" },
+      "authorization_header": {
+        "type": "string",
+        "x-go-name": "AuthorizationHeader"
+      },
+      "branch_filter": { "type": "string", "x-go-name": "BranchFilter" },
+      "config": {
+        "description": "Deprecated: use Metadata instead",
+        "type": "object",
+        "additionalProperties": { "type": "string" },
+        "x-go-name": "Config"
+      },
+      "content_type": { "type": "string", "x-go-name": "ContentType" },
+      "created_at": {
+        "type": "string",
+        "format": "date-time",
+        "x-go-name": "Created"
+      },
+      "events": {
+        "type": "array",
+        "items": { "type": "string" },
+        "x-go-name": "Events"
+      },
+      "id": { "type": "integer", "format": "int64", "x-go-name": "ID" },
+      "metadata": { "x-go-name": "Metadata" },
+      "type": { "type": "string", "x-go-name": "Type" },
+      "updated_at": {
+        "type": "string",
+        "format": "date-time",
+        "x-go-name": "Updated"
+      },
+      "url": { "type": "string", "x-go-name": "URL" }
+    },
+    "x-go-package": "forgejo.org/modules/structs",
+    "x-readme-ref-name": "Hook"
+  }
+}

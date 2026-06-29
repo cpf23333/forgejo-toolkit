@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "about": { "type": "string", "x-go-name": "About" },
+    "name": { "type": "string", "x-go-name": "Name" },
+    "url": { "type": "string", "x-go-name": "URL" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "IssueConfigContactLink"
+}

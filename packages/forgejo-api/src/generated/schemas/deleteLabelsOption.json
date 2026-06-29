@@ -1,0 +1,13 @@
+{
+  "description": "DeleteLabelOption options for deleting a label",
+  "type": "object",
+  "properties": {
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "x-go-name": "Updated"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "DeleteLabelsOption"
+}

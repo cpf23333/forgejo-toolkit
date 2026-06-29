@@ -1,0 +1,24 @@
+{
+  "description": "EditHookOption options when modify one hook",
+  "type": "object",
+  "properties": {
+    "active": { "type": "boolean", "x-go-name": "Active" },
+    "authorization_header": {
+      "type": "string",
+      "x-go-name": "AuthorizationHeader"
+    },
+    "branch_filter": { "type": "string", "x-go-name": "BranchFilter" },
+    "config": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "x-go-name": "Config"
+    },
+    "events": {
+      "type": "array",
+      "items": { "type": "string" },
+      "x-go-name": "Events"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "EditHookOption"
+}

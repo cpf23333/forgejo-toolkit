@@ -47,6 +47,23 @@
           "endsPattern": "^.*built in.*$"
         }
       }
+    },
+    {
+      "label": "dev",
+      "type": "shell",
+      "command": "pnpm run dev",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": ".*"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*$",
+          "endsPattern": "^.*build complete.*$|^.*built in.*$"
+        }
+      }
     }
   ]
 }

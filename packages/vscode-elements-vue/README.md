@@ -1,4 +1,4 @@
-# @forgejo/vscode-elements-vue
+# @cpf23333-forgejo-toolkit/vscode-elements-vue
 
 Vue 3 adapter for [@vscode-elements/elements](https://www.npmjs.com/package/@vscode-elements/elements).
 
@@ -15,12 +15,10 @@ Vue 3 adapter for [@vscode-elements/elements](https://www.npmjs.com/package/@vsc
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite';
-import { vscodeElementsVue } from '@forgejo/vscode-elements-vue';
+import { vscodeElementsVue } from '@cpf23333-forgejo-toolkit/vscode-elements-vue';
 
 export default defineConfig({
-  plugins: [
-    vscodeElementsVue(),
-  ],
+  plugins: [vscodeElementsVue()],
 });
 ```
 
@@ -50,7 +48,7 @@ createApp(App).mount('#app');
 
 ```vue
 <script setup lang="ts">
-import { VscodeButton, VscodeTextfield } from '@forgejo/vscode-elements-vue/components';
+import { VscodeButton, VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 </script>
 
 <template>

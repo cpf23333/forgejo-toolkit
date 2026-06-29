@@ -1,0 +1,6 @@
+{
+  "description": "CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\" and \"warning\"",
+  "type": "string",
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "CommitStatusState"
+}

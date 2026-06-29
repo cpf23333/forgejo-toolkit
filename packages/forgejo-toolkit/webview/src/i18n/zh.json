@@ -1,0 +1,75 @@
+{
+  "app": {
+    "title": "Forgejo Toolkit"
+  },
+  "dashboard": {
+    "title": "Forgejo Toolkit",
+    "settings": "设置",
+    "emptyTitle": "尚未配置 Forgejo 实例。",
+    "emptyHint": "点击 {button} 连接到你的 Forgejo 服务器。",
+    "connectedInstances": "已连接实例 ({count})",
+    "viewTitle": "仪表盘",
+    "tabs": {
+      "repositories": "仓库",
+      "issues": "Issues",
+      "pullRequests": "Pull Requests"
+    },
+    "noRepositories": "没有仓库",
+    "noIssues": "没有与你相关的 Issues",
+    "noPullRequests": "没有与你相关的 Pull Requests",
+    "loading": "加载中...",
+    "error": "加载失败：{message}",
+    "owner": "所有者",
+    "branch": "默认分支",
+    "stars": "Star",
+    "forks": "Fork",
+    "openIssues": "Open Issues",
+    "openPullRequests": "Open PRs",
+    "recentCommits": "最近提交",
+    "branches": "分支",
+    "readme": "README",
+    "noReadme": "没有 README",
+    "actions": {
+      "open": "在浏览器打开",
+      "copyClone": "复制克隆地址",
+      "copyUrl": "复制链接"
+    }
+  },
+  "instance": {
+    "url": "地址",
+    "username": "用户名"
+  },
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "languageDescription": "选择 Forgejo Toolkit 面板的显示语言。",
+    "addInstanceTitle": "添加 Forgejo 实例",
+    "instanceUrl": "实例地址",
+    "instanceUrlPlaceholder": "https://forgejo.example.com",
+    "accessToken": "访问令牌",
+    "accessTokenPlaceholder": "请输入 Forgejo 访问令牌",
+    "testConnection": "测试连接",
+    "testing": "测试中...",
+    "addInstance": "添加实例",
+    "saving": "保存中...",
+    "savedInstances": "已保存实例",
+    "remove": "移除",
+    "backToDashboard": "← 返回仪表盘",
+    "debug": {
+      "title": "调试日志",
+      "description": "启用后将在 Forgejo Toolkit 输出通道中记录请求和响应。",
+      "enable": "启用调试日志"
+    },
+    "status": {
+      "testing": "正在测试连接...",
+      "successConnection": "连接成功。用户名：{username}",
+      "successSaved": "实例保存成功",
+      "errorConnection": "连接失败",
+      "errorSaved": "保存实例失败"
+    }
+  },
+  "locales": {
+    "en": "English",
+    "zh": "中文"
+  }
+}

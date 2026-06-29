@@ -1,0 +1,46 @@
+{
+  "description": "CreatePullReviewOptions are options to create a pull review",
+  "type": "object",
+  "properties": {
+    "body": { "type": "string", "x-go-name": "Body" },
+    "comments": {
+      "type": "array",
+      "items": {
+        "description": "CreatePullReviewComment represent a review comment for creation api",
+        "type": "object",
+        "properties": {
+          "body": { "type": "string", "x-go-name": "Body" },
+          "new_position": {
+            "description": "if comment to new file line or 0",
+            "type": "integer",
+            "format": "int64",
+            "x-go-name": "NewLineNum"
+          },
+          "old_position": {
+            "description": "if comment to old file line or 0",
+            "type": "integer",
+            "format": "int64",
+            "x-go-name": "OldLineNum"
+          },
+          "path": {
+            "description": "the tree path",
+            "type": "string",
+            "x-go-name": "Path"
+          }
+        },
+        "x-go-package": "forgejo.org/modules/structs",
+        "x-readme-ref-name": "CreatePullReviewComment"
+      },
+      "x-go-name": "Comments"
+    },
+    "commit_id": { "type": "string", "x-go-name": "CommitID" },
+    "event": {
+      "description": "ReviewStateType review state type",
+      "type": "string",
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "ReviewStateType"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "CreatePullReviewOptions"
+}

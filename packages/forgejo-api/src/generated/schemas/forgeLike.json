@@ -1,0 +1,6 @@
+{
+  "description": "ForgeLike activity data type",
+  "type": "object",
+  "x-go-package": "forgejo.org/modules/forgefed",
+  "x-readme-ref-name": "ForgeLike"
+}

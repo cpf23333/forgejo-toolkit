@@ -6,13 +6,19 @@
   "scripts": {
     "build": "pnpm -r run build",
     "build:extension": "pnpm --filter forgejo-toolkit run build",
-    "build:vscode-elements-vue": "pnpm --filter @forgejo/vscode-elements-vue run build",
+    "build:vscode-elements-vue": "pnpm --filter @cpf23333-forgejo-toolkit/vscode-elements-vue run build",
     "check": "pnpm -r run check",
     "dev": "pnpm -r --parallel run dev",
-    "clean": "pnpm -r run clean"
+    "clean": "pnpm -r run clean",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt ."
   },
   "devDependencies": {
-    "typescript": "^5.6.0"
+    "oxfmt": "^0.56.0",
+    "oxlint": "^1.71.0",
+    "typescript": "^6.0.3"
   },
   "engines": {
     "node": ">=18.0.0"

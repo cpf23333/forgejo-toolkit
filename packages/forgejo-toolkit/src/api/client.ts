@@ -1,43 +1,138 @@
-import type { ForgejoIssue, ForgejoPullRequest, ForgejoUser } from './types';
+import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import {
+  issueSearchIssues,
+  repoGet,
+  repoGetAllCommits,
+  repoGetContents,
+  repoListBranches,
+  userCurrentListRepos,
+  userGetCurrent,
+} from '@cpf23333-forgejo-toolkit/api';
+import type { Logger } from '../logger';
+import type {
+  ForgejoCommit,
+  ForgejoIssue,
+  ForgejoPullRequest,
+  ForgejoRepoDetail,
+  ForgejoRepository,
+  ForgejoUser,
+} from './types';
 
 export class ForgejoClient {
-    constructor(
-        private url: string,
-        private token: string
-    ) {}
+  constructor(
+    private url: string,
+    private token: string,
+    private logger?: Logger,
+  ) {}
 
-    async getCurrentUser(): Promise<ForgejoUser> {
-        return this.request('/user');
-    }
+  getCurrentUser(): Promise<ForgejoUser> {
+    return userGetCurrent({ client: this._client() }) as Promise<ForgejoUser>;
+  }
 
-    async getUserIssues(state: string = 'open'): Promise<ForgejoIssue[]> {
-        return this.request(`/user/issues?state=${encodeURIComponent(state)}`);
-    }
+  getUserRepositories(): Promise<ForgejoRepository[]> {
+    return userCurrentListRepos({ limit: 100 }, { client: this._client() }) as Promise<ForgejoRepository[]>;
+  }
 
-    async getRepoIssues(owner: string, repo: string, state: string = 'open'): Promise<ForgejoIssue[]> {
-        return this.request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=${encodeURIComponent(state)}`);
-    }
+  getUserIssues(state: string = 'open'): Promise<ForgejoIssue[]> {
+    return issueSearchIssues(
+      { state: state as 'open' | 'closed' | 'all', type: 'issues' },
+      { client: this._client() },
+    ) as Promise<ForgejoIssue[]>;
+  }
 
-    async getRepoPulls(owner: string, repo: string, state: string = 'open'): Promise<ForgejoPullRequest[]> {
-        return this.request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=${encodeURIComponent(state)}`);
-    }
+  getUserPullRequests(state: string = 'open'): Promise<ForgejoPullRequest[]> {
+    return issueSearchIssues(
+      { state: state as 'open' | 'closed' | 'all', type: 'pulls' },
+      { client: this._client() },
+    ) as Promise<ForgejoPullRequest[]>;
+  }
 
-    private async request(path: string): Promise<any> {
-        const baseUrl = this.url.replace(/\/$/, '');
-        const url = `${baseUrl}/api/v1${path}`;
+  async getRepoDetail(owner: string, repo: string): Promise<ForgejoRepoDetail> {
+    const [repository, readmeFile, branches, commits] = await Promise.all([
+      repoGet(owner, repo, { client: this._client() }),
+      repoGetContents(owner, repo, 'README.md', undefined, { client: this._client() }).catch(() => undefined),
+      repoListBranches(owner, repo, { limit: 10 }, { client: this._client() }),
+      repoGetAllCommits(owner, repo, { limit: 10 }, { client: this._client() }),
+    ]);
 
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': `token ${this.token}`,
-                'Accept': 'application/json',
+    return {
+      repository: repository as ForgejoRepository,
+      readme: readmeFile?.content ? decodeBase64(readmeFile.content) : undefined,
+      branches: branches?.map((branch) => branch.name ?? '').filter(Boolean) ?? [],
+      recentCommits: (commits ?? []).map(
+        (commit) =>
+          ({
+            sha: commit.sha ?? '',
+            commit: {
+              message: commit.commit?.message ?? '',
+              author: {
+                name: commit.commit?.author?.name ?? '',
+                date: commit.commit?.author?.date ?? '',
+              },
             },
-        });
+            author: commit.author as ForgejoUser | undefined,
+            html_url: commit.html_url ?? '',
+          }) as ForgejoCommit,
+      ),
+    };
+  }
 
-        if (!response.ok) {
-            const text = await response.text().catch(() => '');
-            throw new Error(`Forgejo API error ${response.status}: ${text || response.statusText}`);
+  private _client(): Client {
+    const baseURL = `${this.url.replace(/\/$/, '')}/api/v1`;
+
+    return async <TResponseData, _TError = unknown, TRequestData = unknown>(
+      config: RequestConfig<TRequestData>,
+    ): Promise<ResponseConfig<TResponseData>> => {
+      const method = config.method ?? 'GET';
+      const targetUrl = this._buildDebugUrl(baseURL, config);
+      this.logger?.debug(`Request: ${method} ${targetUrl}`);
+
+      const response = await baseClient<TResponseData>({
+        ...config,
+        baseURL,
+        headers: mergeHeaders(config.headers, { Authorization: `token ${this.token}` }),
+      });
+
+      this.logger?.debug(`Response: ${response.status} ${response.statusText}`);
+      this.logger?.debug(`Response body: ${JSON.stringify(response.data).slice(0, 2000)}`);
+
+      return response;
+    };
+  }
+
+  private _buildDebugUrl(baseURL: string, config: RequestConfig): string {
+    const params = config.params ? new URLSearchParams() : undefined;
+    if (params) {
+      for (const [key, value] of Object.entries(config.params!)) {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
         }
-
-        return response.json();
+      }
     }
+    const query = params?.toString();
+    return `${baseURL}${config.url ?? ''}${query ? `?${query}` : ''}`;
+  }
+}
+
+function mergeHeaders(...headers: Array<RequestConfig['headers'] | undefined>): Record<string, string> {
+  return headers.reduce<Record<string, string>>((merged, h) => {
+    if (!h) {
+      return merged;
+    }
+    const entries = Array.isArray(h) ? h : Object.entries(h);
+    for (const [key, value] of entries) {
+      if (value !== undefined) {
+        merged[key] = String(value);
+      }
+    }
+    return merged;
+  }, {});
+}
+
+function decodeBase64(content: string): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(content, 'base64').toString('utf-8');
+  }
+  return atob(content);
 }

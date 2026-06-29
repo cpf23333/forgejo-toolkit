@@ -1,0 +1,32 @@
+{
+  "description": "MarkupOption markup options",
+  "type": "object",
+  "properties": {
+    "BranchPath": {
+      "description": "The current branch path where the form gets posted\n\nin: body",
+      "type": "string"
+    },
+    "Context": {
+      "description": "Context to render\n\nin: body",
+      "type": "string"
+    },
+    "FilePath": {
+      "description": "File path for detecting extension in file mode\n\nin: body",
+      "type": "string"
+    },
+    "Mode": {
+      "description": "Mode to render (comment, gfm, markdown, file)\n\nin: body",
+      "type": "string"
+    },
+    "Text": {
+      "description": "Text markup to render\n\nin: body",
+      "type": "string"
+    },
+    "Wiki": {
+      "description": "Is it a wiki page ?\n\nin: body",
+      "type": "boolean"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "MarkupOption"
+}

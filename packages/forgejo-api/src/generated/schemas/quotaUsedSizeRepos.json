@@ -1,0 +1,20 @@
+{
+  "description": "QuotaUsedSizeRepos represents the size-based repository quota usage of a user",
+  "type": "object",
+  "properties": {
+    "private": {
+      "description": "Storage size of the user's private repositories",
+      "type": "integer",
+      "format": "int64",
+      "x-go-name": "Private"
+    },
+    "public": {
+      "description": "Storage size of the user's public repositories",
+      "type": "integer",
+      "format": "int64",
+      "x-go-name": "Public"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "QuotaUsedSizeRepos"
+}

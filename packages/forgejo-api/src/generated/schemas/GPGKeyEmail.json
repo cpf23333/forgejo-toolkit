@@ -1,0 +1,10 @@
+{
+  "description": "GPGKeyEmail an email attached to a GPGKey",
+  "type": "object",
+  "properties": {
+    "email": { "type": "string", "x-go-name": "Email" },
+    "verified": { "type": "boolean", "x-go-name": "Verified" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "GPGKeyEmail"
+}

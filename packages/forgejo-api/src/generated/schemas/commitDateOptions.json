@@ -1,0 +1,18 @@
+{
+  "description": "CommitDateOptions store dates for GIT_AUTHOR_DATE and GIT_COMMITTER_DATE",
+  "type": "object",
+  "properties": {
+    "author": {
+      "type": "string",
+      "format": "date-time",
+      "x-go-name": "Author"
+    },
+    "committer": {
+      "type": "string",
+      "format": "date-time",
+      "x-go-name": "Committer"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "CommitDateOptions"
+}

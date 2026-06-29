@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "title": "BlockedUser represents a blocked user.",
+  "properties": {
+    "block_id": {
+      "type": "integer",
+      "format": "int64",
+      "x-go-name": "BlockID"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "x-go-name": "Created"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "BlockedUser"
+}

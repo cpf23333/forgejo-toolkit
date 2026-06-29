@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "attachment": {
+      "description": "attachment to upload",
+      "type": "string",
+      "format": "binary"
+    }
+  },
+  "required": ["attachment"]
+}

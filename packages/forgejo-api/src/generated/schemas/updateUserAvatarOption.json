@@ -1,0 +1,13 @@
+{
+  "description": "UpdateUserAvatarUserOption options when updating the user avatar",
+  "type": "object",
+  "properties": {
+    "image": {
+      "description": "image must be base64 encoded",
+      "type": "string",
+      "x-go-name": "Image"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "UpdateUserAvatarOption"
+}

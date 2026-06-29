@@ -1,0 +1,20 @@
+{
+  "description": "CreateIssueCommentOption options for creating a comment on an issue",
+  "type": "object",
+  "required": ["body"],
+  "properties": {
+    "body": {
+      "description": "The body of the comment",
+      "type": "string",
+      "x-go-name": "Body"
+    },
+    "updated_at": {
+      "description": "The time of the comment's update, needs admin or repository owner permission",
+      "type": "string",
+      "format": "date-time",
+      "x-go-name": "Updated"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "CreateIssueCommentOption"
+}

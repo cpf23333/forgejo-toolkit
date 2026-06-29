@@ -1,0 +1,7 @@
+{
+  "description": "A Duration represents the elapsed time between two instants\nas an int64 nanosecond count. The representation limits the\nlargest representable duration to approximately 290 years.",
+  "type": "integer",
+  "format": "int64",
+  "x-go-package": "time",
+  "x-readme-ref-name": "Duration"
+}

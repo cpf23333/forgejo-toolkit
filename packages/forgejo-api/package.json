@@ -1,0 +1,41 @@
+{
+  "name": "@cpf23333-forgejo-toolkit/api",
+  "version": "0.0.1",
+  "description": "Generated Forgejo API client from OpenAPI spec",
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./mocks": {
+      "types": "./src/mocks/index.ts",
+      "default": "./src/mocks/index.ts"
+    }
+  },
+  "scripts": {
+    "generate": "kubb generate",
+    "check": "tsc --noEmit",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt ."
+  },
+  "dependencies": {
+    "@cpf23333-forgejo-toolkit/shared": "workspace:*",
+    "msw": "^2.14.6"
+  },
+  "devDependencies": {
+    "@kubb/cli": "4.39.2",
+    "@kubb/core": "4.39.2",
+    "@kubb/plugin-client": "^4.39.2",
+    "@kubb/plugin-msw": "^4.39.2",
+    "@kubb/plugin-oas": "^4.39.2",
+    "@kubb/plugin-ts": "^4.39.2",
+    "prettier": "^3.9.3",
+    "typescript": "^6.0.3"
+  }
+}

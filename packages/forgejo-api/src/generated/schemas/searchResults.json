@@ -1,0 +1,14 @@
+{
+  "description": "SearchResults results of a successful search",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "array",
+      "items": { "$ref": "#/components/schemas/Repository" },
+      "x-go-name": "Data"
+    },
+    "ok": { "type": "boolean", "x-go-name": "OK" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "SearchResults"
+}

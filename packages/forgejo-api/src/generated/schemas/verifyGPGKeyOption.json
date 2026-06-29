@@ -1,0 +1,15 @@
+{
+  "description": "VerifyGPGKeyOption options verifies user GPG key",
+  "type": "object",
+  "required": ["key_id"],
+  "properties": {
+    "armored_signature": { "type": "string", "x-go-name": "Signature" },
+    "key_id": {
+      "description": "An Signature for a GPG key token",
+      "type": "string",
+      "x-go-name": "KeyID"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "VerifyGPGKeyOption"
+}

@@ -1,0 +1,12 @@
+{
+  "description": "RepositoryMeta basic repository information",
+  "type": "object",
+  "properties": {
+    "full_name": { "type": "string", "x-go-name": "FullName" },
+    "id": { "type": "integer", "format": "int64", "x-go-name": "ID" },
+    "name": { "type": "string", "x-go-name": "Name" },
+    "owner": { "type": "string", "x-go-name": "Owner" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "RepositoryMeta"
+}

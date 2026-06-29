@@ -1,0 +1,72 @@
+{
+  "description": "CreateFileOptions options for creating files\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)",
+  "type": "object",
+  "required": ["content"],
+  "properties": {
+    "author": {
+      "description": "Identity for a person's identity like an author or committer",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "x-go-name": "Email" },
+        "name": { "type": "string", "x-go-name": "Name" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "Identity"
+    },
+    "branch": {
+      "description": "branch (optional) to base this file from. if not given, the default branch is used",
+      "type": "string",
+      "x-go-name": "BranchName"
+    },
+    "committer": {
+      "description": "Identity for a person's identity like an author or committer",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "x-go-name": "Email" },
+        "name": { "type": "string", "x-go-name": "Name" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "Identity"
+    },
+    "content": {
+      "description": "content must be base64 encoded",
+      "type": "string",
+      "x-go-name": "ContentBase64"
+    },
+    "dates": {
+      "description": "CommitDateOptions store dates for GIT_AUTHOR_DATE and GIT_COMMITTER_DATE",
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": "string",
+          "format": "date-time",
+          "x-go-name": "Author"
+        },
+        "committer": {
+          "type": "string",
+          "format": "date-time",
+          "x-go-name": "Committer"
+        }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "CommitDateOptions"
+    },
+    "message": {
+      "description": "message (optional) for the commit of this file. if not supplied, a default message will be used",
+      "type": "string",
+      "x-go-name": "Message"
+    },
+    "new_branch": {
+      "description": "new_branch (optional) will make a new branch from `branch` before creating the file",
+      "type": "string",
+      "x-go-name": "NewBranchName"
+    },
+    "signoff": {
+      "description": "Add a Signed-off-by trailer by the committer at the end of the commit log message.",
+      "type": "boolean",
+      "x-go-name": "Signoff"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "CreateFileOptions"
+}

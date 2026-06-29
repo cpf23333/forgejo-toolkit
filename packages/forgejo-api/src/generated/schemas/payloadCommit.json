@@ -1,0 +1,96 @@
+{
+  "description": "PayloadCommit represents a commit",
+  "type": "object",
+  "properties": {
+    "added": {
+      "type": "array",
+      "items": { "type": "string" },
+      "x-go-name": "Added"
+    },
+    "author": {
+      "description": "PayloadUser represents the author or committer of a commit",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "x-go-name": "Email" },
+        "name": {
+          "description": "Full name of the commit author",
+          "type": "string",
+          "x-go-name": "Name"
+        },
+        "username": { "type": "string", "x-go-name": "UserName" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "PayloadUser"
+    },
+    "committer": {
+      "description": "PayloadUser represents the author or committer of a commit",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "x-go-name": "Email" },
+        "name": {
+          "description": "Full name of the commit author",
+          "type": "string",
+          "x-go-name": "Name"
+        },
+        "username": { "type": "string", "x-go-name": "UserName" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "PayloadUser"
+    },
+    "id": {
+      "description": "sha1 hash of the commit",
+      "type": "string",
+      "x-go-name": "ID"
+    },
+    "message": { "type": "string", "x-go-name": "Message" },
+    "modified": {
+      "type": "array",
+      "items": { "type": "string" },
+      "x-go-name": "Modified"
+    },
+    "removed": {
+      "type": "array",
+      "items": { "type": "string" },
+      "x-go-name": "Removed"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "x-go-name": "Timestamp"
+    },
+    "url": { "type": "string", "x-go-name": "URL" },
+    "verification": {
+      "description": "PayloadCommitVerification represents the GPG verification of a commit",
+      "type": "object",
+      "properties": {
+        "payload": { "type": "string", "x-go-name": "Payload" },
+        "reason": { "type": "string", "x-go-name": "Reason" },
+        "signature": { "type": "string", "x-go-name": "Signature" },
+        "signer": {
+          "description": "PayloadUser represents the author or committer of a commit",
+          "type": "object",
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "x-go-name": "Email"
+            },
+            "name": {
+              "description": "Full name of the commit author",
+              "type": "string",
+              "x-go-name": "Name"
+            },
+            "username": { "type": "string", "x-go-name": "UserName" }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "PayloadUser"
+        },
+        "verified": { "type": "boolean", "x-go-name": "Verified" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "PayloadCommitVerification"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "PayloadCommit"
+}

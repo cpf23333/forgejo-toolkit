@@ -1,0 +1,49 @@
+{
+  "description": "CreateAccessTokenOption options when create access token",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "name": { "type": "string", "x-go-name": "Name" },
+    "repositories": {
+      "description": "If provided and not-empty, creates an access token with access only to specified repositories.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["owner", "name"],
+        "properties": {
+          "name": {
+            "description": "Name of repository",
+            "type": "string",
+            "x-go-name": "Name"
+          },
+          "owner": {
+            "description": "Name of user or organisation that owns the repository",
+            "type": "string",
+            "x-go-name": "Owner"
+          }
+        },
+        "x-go-package": "forgejo.org/modules/structs",
+        "x-readme-ref-name": "RepoTargetOption"
+      },
+      "x-go-name": "Repositories"
+    },
+    "scopes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "x-go-name": "Scopes",
+      "example": [
+        "all",
+        "read:activitypub",
+        "read:issue",
+        "write:misc",
+        "read:notification",
+        "read:organization",
+        "read:package",
+        "read:repository",
+        "read:user"
+      ]
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "CreateAccessTokenOption"
+}

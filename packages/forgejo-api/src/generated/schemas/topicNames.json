@@ -1,0 +1,13 @@
+{
+  "description": "TopicName a list of repo topic names",
+  "type": "object",
+  "properties": {
+    "topics": {
+      "type": "array",
+      "items": { "type": "string" },
+      "x-go-name": "TopicNames"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "TopicName"
+}

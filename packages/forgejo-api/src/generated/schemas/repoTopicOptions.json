@@ -1,0 +1,14 @@
+{
+  "description": "RepoTopicOptions a collection of repo topic names",
+  "type": "object",
+  "properties": {
+    "topics": {
+      "description": "list of topic names",
+      "type": "array",
+      "items": { "type": "string" },
+      "x-go-name": "Topics"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "RepoTopicOptions"
+}

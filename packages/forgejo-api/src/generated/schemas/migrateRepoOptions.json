@@ -1,0 +1,51 @@
+{
+  "description": "MigrateRepoOptions options for migrating repository's\nthis is used to interact with api v1",
+  "type": "object",
+  "required": ["clone_addr", "repo_name"],
+  "properties": {
+    "auth_password": { "type": "string", "x-go-name": "AuthPassword" },
+    "auth_token": { "type": "string", "x-go-name": "AuthToken" },
+    "auth_username": { "type": "string", "x-go-name": "AuthUsername" },
+    "clone_addr": { "type": "string", "x-go-name": "CloneAddr" },
+    "description": { "type": "string", "x-go-name": "Description" },
+    "issues": { "type": "boolean", "x-go-name": "Issues" },
+    "labels": { "type": "boolean", "x-go-name": "Labels" },
+    "lfs": { "type": "boolean", "x-go-name": "LFS" },
+    "lfs_endpoint": { "type": "string", "x-go-name": "LFSEndpoint" },
+    "milestones": { "type": "boolean", "x-go-name": "Milestones" },
+    "mirror": { "type": "boolean", "x-go-name": "Mirror" },
+    "mirror_interval": { "type": "string", "x-go-name": "MirrorInterval" },
+    "private": { "type": "boolean", "x-go-name": "Private" },
+    "pull_requests": { "type": "boolean", "x-go-name": "PullRequests" },
+    "releases": { "type": "boolean", "x-go-name": "Releases" },
+    "repo_name": { "type": "string", "x-go-name": "RepoName" },
+    "repo_owner": {
+      "description": "Name of User or Organisation who will own Repo after migration",
+      "type": "string",
+      "x-go-name": "RepoOwner"
+    },
+    "service": {
+      "type": "string",
+      "enum": [
+        "git",
+        "github",
+        "gitea",
+        "gitlab",
+        "gogs",
+        "onedev",
+        "gitbucket",
+        "codebase"
+      ],
+      "x-go-name": "Service"
+    },
+    "uid": {
+      "description": "deprecated (only for backwards compatibility)",
+      "type": "integer",
+      "format": "int64",
+      "x-go-name": "RepoOwnerID"
+    },
+    "wiki": { "type": "boolean", "x-go-name": "Wiki" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "MigrateRepoOptions"
+}

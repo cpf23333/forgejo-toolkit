@@ -1,0 +1,54 @@
+{
+  "description": "ActionTaskResponse returns a ActionTask",
+  "type": "object",
+  "properties": {
+    "total_count": {
+      "type": "integer",
+      "format": "int64",
+      "x-go-name": "TotalCount"
+    },
+    "workflow_runs": {
+      "type": "array",
+      "items": {
+        "description": "ActionTask represents a ActionTask",
+        "type": "object",
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "x-go-name": "CreatedAt"
+          },
+          "display_title": { "type": "string", "x-go-name": "DisplayTitle" },
+          "event": { "type": "string", "x-go-name": "Event" },
+          "head_branch": { "type": "string", "x-go-name": "HeadBranch" },
+          "head_sha": { "type": "string", "x-go-name": "HeadSHA" },
+          "id": { "type": "integer", "format": "int64", "x-go-name": "ID" },
+          "name": { "type": "string", "x-go-name": "Name" },
+          "run_number": {
+            "type": "integer",
+            "format": "int64",
+            "x-go-name": "RunNumber"
+          },
+          "run_started_at": {
+            "type": "string",
+            "format": "date-time",
+            "x-go-name": "RunStartedAt"
+          },
+          "status": { "type": "string", "x-go-name": "Status" },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "x-go-name": "UpdatedAt"
+          },
+          "url": { "type": "string", "x-go-name": "URL" },
+          "workflow_id": { "type": "string", "x-go-name": "WorkflowID" }
+        },
+        "x-go-package": "forgejo.org/modules/structs",
+        "x-readme-ref-name": "ActionTask"
+      },
+      "x-go-name": "Entries"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "ActionTaskResponse"
+}

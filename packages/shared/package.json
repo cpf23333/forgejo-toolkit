@@ -1,0 +1,25 @@
+{
+  "name": "@cpf23333-forgejo-toolkit/shared",
+  "version": "0.0.1",
+  "description": "Shared utilities for Forgejo Toolkit packages",
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    "./request": {
+      "types": "./src/request/index.ts",
+      "default": "./src/request/index.ts"
+    }
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt ."
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

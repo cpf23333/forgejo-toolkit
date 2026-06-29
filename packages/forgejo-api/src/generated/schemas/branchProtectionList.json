@@ -1,0 +1,121 @@
+{
+  "type": "array",
+  "items": {
+    "description": "BranchProtection represents a branch protection for a repository",
+    "type": "object",
+    "properties": {
+      "apply_to_admins": { "type": "boolean", "x-go-name": "ApplyToAdmins" },
+      "approvals_whitelist_teams": {
+        "type": "array",
+        "items": { "type": "string" },
+        "x-go-name": "ApprovalsWhitelistTeams"
+      },
+      "approvals_whitelist_username": {
+        "type": "array",
+        "items": { "type": "string" },
+        "x-go-name": "ApprovalsWhitelistUsernames"
+      },
+      "block_on_official_review_requests": {
+        "type": "boolean",
+        "x-go-name": "BlockOnOfficialReviewRequests"
+      },
+      "block_on_outdated_branch": {
+        "type": "boolean",
+        "x-go-name": "BlockOnOutdatedBranch"
+      },
+      "block_on_rejected_reviews": {
+        "type": "boolean",
+        "x-go-name": "BlockOnRejectedReviews"
+      },
+      "branch_name": {
+        "description": "Deprecated: true",
+        "type": "string",
+        "x-go-name": "BranchName"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time",
+        "x-go-name": "Created"
+      },
+      "dismiss_stale_approvals": {
+        "type": "boolean",
+        "x-go-name": "DismissStaleApprovals"
+      },
+      "enable_approvals_whitelist": {
+        "type": "boolean",
+        "x-go-name": "EnableApprovalsWhitelist"
+      },
+      "enable_merge_whitelist": {
+        "type": "boolean",
+        "x-go-name": "EnableMergeWhitelist"
+      },
+      "enable_push": { "type": "boolean", "x-go-name": "EnablePush" },
+      "enable_push_whitelist": {
+        "type": "boolean",
+        "x-go-name": "EnablePushWhitelist"
+      },
+      "enable_status_check": {
+        "type": "boolean",
+        "x-go-name": "EnableStatusCheck"
+      },
+      "ignore_stale_approvals": {
+        "type": "boolean",
+        "x-go-name": "IgnoreStaleApprovals"
+      },
+      "merge_whitelist_teams": {
+        "type": "array",
+        "items": { "type": "string" },
+        "x-go-name": "MergeWhitelistTeams"
+      },
+      "merge_whitelist_usernames": {
+        "type": "array",
+        "items": { "type": "string" },
+        "x-go-name": "MergeWhitelistUsernames"
+      },
+      "protected_file_patterns": {
+        "type": "string",
+        "x-go-name": "ProtectedFilePatterns"
+      },
+      "push_whitelist_deploy_keys": {
+        "type": "boolean",
+        "x-go-name": "PushWhitelistDeployKeys"
+      },
+      "push_whitelist_teams": {
+        "type": "array",
+        "items": { "type": "string" },
+        "x-go-name": "PushWhitelistTeams"
+      },
+      "push_whitelist_usernames": {
+        "type": "array",
+        "items": { "type": "string" },
+        "x-go-name": "PushWhitelistUsernames"
+      },
+      "require_signed_commits": {
+        "type": "boolean",
+        "x-go-name": "RequireSignedCommits"
+      },
+      "required_approvals": {
+        "type": "integer",
+        "format": "int64",
+        "x-go-name": "RequiredApprovals"
+      },
+      "rule_name": { "type": "string", "x-go-name": "RuleName" },
+      "status_check_contexts": {
+        "type": "array",
+        "items": { "type": "string" },
+        "x-go-name": "StatusCheckContexts"
+      },
+      "unprotected_file_patterns": {
+        "type": "string",
+        "x-go-name": "UnprotectedFilePatterns"
+      },
+      "updated_at": {
+        "type": "string",
+        "format": "date-time",
+        "x-go-name": "Updated"
+      }
+    },
+    "x-go-package": "forgejo.org/modules/structs",
+    "x-readme-ref-name": "BranchProtection"
+  }
+}

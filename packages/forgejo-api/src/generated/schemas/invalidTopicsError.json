@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "invalidTopics": {
+      "type": "array",
+      "items": { "type": "string" },
+      "x-go-name": "InvalidTopics"
+    },
+    "message": { "type": "string", "x-go-name": "Message" }
+  },
+  "x-go-package": "forgejo.org/services/context",
+  "x-readme-ref-name": "APIInvalidTopicsError"
+}

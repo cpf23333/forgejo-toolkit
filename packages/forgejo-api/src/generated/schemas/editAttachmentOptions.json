@@ -1,0 +1,14 @@
+{
+  "description": "EditAttachmentOptions options for editing attachments",
+  "type": "object",
+  "properties": {
+    "browser_download_url": {
+      "description": "(Can only be set if existing attachment is of external type)",
+      "type": "string",
+      "x-go-name": "DownloadURL"
+    },
+    "name": { "type": "string", "x-go-name": "Name" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "EditAttachmentOptions"
+}

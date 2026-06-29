@@ -1,0 +1,89 @@
+{
+  "description": "QuotaUsedSize represents the size-based quota usage of a user",
+  "type": "object",
+  "properties": {
+    "assets": {
+      "description": "QuotaUsedSizeAssets represents the size-based asset usage of a user",
+      "type": "object",
+      "properties": {
+        "artifacts": {
+          "description": "Storage size used for the user's artifacts",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Artifacts"
+        },
+        "attachments": {
+          "description": "QuotaUsedSizeAssetsAttachments represents the size-based attachment quota usage of a user",
+          "type": "object",
+          "properties": {
+            "issues": {
+              "description": "Storage size used for the user's issue & comment attachments",
+              "type": "integer",
+              "format": "int64",
+              "x-go-name": "Issues"
+            },
+            "releases": {
+              "description": "Storage size used for the user's release attachments",
+              "type": "integer",
+              "format": "int64",
+              "x-go-name": "Releases"
+            }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "QuotaUsedSizeAssetsAttachments"
+        },
+        "packages": {
+          "description": "QuotaUsedSizeAssetsPackages represents the size-based package quota usage of a user",
+          "type": "object",
+          "properties": {
+            "all": {
+              "description": "Storage suze used for the user's packages",
+              "type": "integer",
+              "format": "int64",
+              "x-go-name": "All"
+            }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "QuotaUsedSizeAssetsPackages"
+        }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "QuotaUsedSizeAssets"
+    },
+    "git": {
+      "description": "QuotaUsedSizeGit represents the size-based git (lfs) quota usage of a user",
+      "type": "object",
+      "properties": {
+        "LFS": {
+          "description": "Storage size of the user's Git LFS objects",
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "QuotaUsedSizeGit"
+    },
+    "repos": {
+      "description": "QuotaUsedSizeRepos represents the size-based repository quota usage of a user",
+      "type": "object",
+      "properties": {
+        "private": {
+          "description": "Storage size of the user's private repositories",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Private"
+        },
+        "public": {
+          "description": "Storage size of the user's public repositories",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Public"
+        }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "QuotaUsedSizeRepos"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "QuotaUsedSize"
+}

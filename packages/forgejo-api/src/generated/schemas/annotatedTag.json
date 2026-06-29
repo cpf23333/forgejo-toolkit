@@ -1,0 +1,79 @@
+{
+  "description": "AnnotatedTag represents an annotated tag",
+  "type": "object",
+  "properties": {
+    "archive_download_count": {
+      "description": "TagArchiveDownloadCount counts how many times a archive was downloaded",
+      "type": "object",
+      "properties": {
+        "tar_gz": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "TarGz"
+        },
+        "zip": { "type": "integer", "format": "int64", "x-go-name": "Zip" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "TagArchiveDownloadCount"
+    },
+    "message": { "type": "string", "x-go-name": "Message" },
+    "object": {
+      "description": "AnnotatedTagObject contains meta information of the tag object",
+      "type": "object",
+      "properties": {
+        "sha": { "type": "string", "x-go-name": "SHA" },
+        "type": { "type": "string", "x-go-name": "Type" },
+        "url": { "type": "string", "x-go-name": "URL" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "AnnotatedTagObject"
+    },
+    "sha": { "type": "string", "x-go-name": "SHA" },
+    "tag": { "type": "string", "x-go-name": "Tag" },
+    "tagger": {
+      "type": "object",
+      "title": "CommitUser contains information of a user in the context of a commit.",
+      "properties": {
+        "date": { "type": "string", "x-go-name": "Date" },
+        "email": { "type": "string", "format": "email", "x-go-name": "Email" },
+        "name": { "type": "string", "x-go-name": "Name" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "CommitUser"
+    },
+    "url": { "type": "string", "x-go-name": "URL" },
+    "verification": {
+      "description": "PayloadCommitVerification represents the GPG verification of a commit",
+      "type": "object",
+      "properties": {
+        "payload": { "type": "string", "x-go-name": "Payload" },
+        "reason": { "type": "string", "x-go-name": "Reason" },
+        "signature": { "type": "string", "x-go-name": "Signature" },
+        "signer": {
+          "description": "PayloadUser represents the author or committer of a commit",
+          "type": "object",
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "x-go-name": "Email"
+            },
+            "name": {
+              "description": "Full name of the commit author",
+              "type": "string",
+              "x-go-name": "Name"
+            },
+            "username": { "type": "string", "x-go-name": "UserName" }
+          },
+          "x-go-package": "forgejo.org/modules/structs",
+          "x-readme-ref-name": "PayloadUser"
+        },
+        "verified": { "type": "boolean", "x-go-name": "Verified" }
+      },
+      "x-go-package": "forgejo.org/modules/structs",
+      "x-readme-ref-name": "PayloadCommitVerification"
+    }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "AnnotatedTag"
+}

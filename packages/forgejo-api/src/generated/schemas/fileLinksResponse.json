@@ -1,0 +1,11 @@
+{
+  "description": "FileLinksResponse contains the links for a repo's file",
+  "type": "object",
+  "properties": {
+    "git": { "type": "string", "x-go-name": "GitURL" },
+    "html": { "type": "string", "x-go-name": "HTMLURL" },
+    "self": { "type": "string", "x-go-name": "Self" }
+  },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "FileLinksResponse"
+}
