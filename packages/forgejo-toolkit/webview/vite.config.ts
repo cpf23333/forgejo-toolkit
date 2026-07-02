@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import path from 'path';
-import { vscodeElementsVue } from '@cpf23333-forgejo-toolkit/vscode-elements-vue';
+import vscodeElementsVue from '@cpf23333-forgejo-toolkit/vscode-elements-vue/vite-plugin';
 
 export default defineConfig({
   plugins: [vscodeElementsVue()],

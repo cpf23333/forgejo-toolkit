@@ -53,7 +53,6 @@ const selectedRepoError = computed(() =>
       >
         {{ state.t('settings.backToDashboard') }}
       </a>
-      <h1>{{ state.t('app.title') }}</h1>
     </header>
     <main>
       <Dashboard

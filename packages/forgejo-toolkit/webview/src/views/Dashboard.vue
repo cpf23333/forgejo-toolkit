@@ -154,11 +154,11 @@ function loadingKey(instanceId: string): string {
         <vscode-collapsible
           v-for="instance in instances"
           :key="instance.id"
+          :heading="instance.url + ' · ' + instance.username"
           :open="expandedInstances.has(instance.id)"
           @toggle="handleToggle(instance.id, $event)"
         >
-          <div slot="heading" class="instance-header">
-            <span>{{ instance.name }}</span>
+          <div slot="decorations" class="instance-header">
             <span class="badge">{{ badgeCount(instance.id) }}</span>
           </div>
 
@@ -171,22 +171,38 @@ function loadingKey(instanceId: string): string {
             </div>
             <div v-else-if="activeTab === 'repositories'" class="item-list">
               <div v-for="repo in repositories.get(instance.id)" :key="repo.id" class="item-card repo-card">
-                <div class="item-title">
+                <div class="item-title repo-title">
                   <a href="#" @click.prevent="openRepo(instance.id, repo)">{{ repo.full_name }}</a>
+                  <span class="repo-actions">
+                    <a
+                      href="#"
+                      :title="t('dashboard.actions.open')"
+                      @click.prevent="emit('openExternal', repo.html_url)"
+                    >
+                      <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path
+                          d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
+                        />
+                      </svg>
+                    </a>
+                    <a
+                      href="#"
+                      :title="t('dashboard.actions.copyClone')"
+                      @click.prevent="emit('copyToClipboard', cloneUrl(instance, repo))"
+                    >
+                      <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path
+                          d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
+                        />
+                      </svg>
+                    </a>
+                  </span>
                 </div>
                 <div v-if="repo.description" class="item-desc">{{ repo.description }}</div>
                 <div class="item-meta">
                   <span>{{ t('dashboard.branch') }}: {{ repo.default_branch }}</span>
                   <span>{{ t('dashboard.stars') }}: {{ repo.stars_count }}</span>
                   <span>{{ t('dashboard.forks') }}: {{ repo.forks_count }}</span>
-                </div>
-                <div class="item-actions">
-                  <vscode-button variant="secondary" @click="emit('openExternal', repo.html_url)">{{
-                    t('dashboard.actions.open')
-                  }}</vscode-button>
-                  <vscode-button variant="secondary" @click="emit('copyToClipboard', cloneUrl(instance, repo))">{{
-                    t('dashboard.actions.copyClone')
-                  }}</vscode-button>
                 </div>
               </div>
               <div v-if="!repositories.get(instance.id)?.length" class="empty-list">
@@ -199,15 +215,23 @@ function loadingKey(instanceId: string): string {
                   <a href="#" @click.prevent="emit('openExternal', issue.html_url)"
                     >#{{ issue.number }} {{ issue.title }}</a
                   >
+                  <span class="issue-actions">
+                    <a
+                      href="#"
+                      :title="t('dashboard.actions.copyUrl')"
+                      @click.prevent="emit('copyToClipboard', issue.html_url)"
+                    >
+                      <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path
+                          d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
+                        />
+                      </svg>
+                    </a>
+                  </span>
                 </div>
                 <div class="item-meta">
                   <span>{{ issue.state }}</span>
                   <span v-if="issue.repository">{{ issue.repository.full_name }}</span>
-                </div>
-                <div class="item-actions">
-                  <vscode-button variant="secondary" @click="emit('copyToClipboard', issue.html_url)">{{
-                    t('dashboard.actions.copyUrl')
-                  }}</vscode-button>
                 </div>
               </div>
               <div v-if="!myIssues.get(instance.id)?.length" class="empty-list">{{ t('dashboard.noIssues') }}</div>
@@ -216,14 +240,22 @@ function loadingKey(instanceId: string): string {
               <div v-for="pr in myPullRequests.get(instance.id)" :key="pr.id" class="item-card">
                 <div class="item-title">
                   <a href="#" @click.prevent="emit('openExternal', pr.html_url)">#{{ pr.number }} {{ pr.title }}</a>
+                  <span class="pr-actions">
+                    <a
+                      href="#"
+                      :title="t('dashboard.actions.copyUrl')"
+                      @click.prevent="emit('copyToClipboard', pr.html_url)"
+                    >
+                      <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path
+                          d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
+                        />
+                      </svg>
+                    </a>
+                  </span>
                 </div>
                 <div class="item-meta">
                   <span>{{ pr.state }}</span>
-                </div>
-                <div class="item-actions">
-                  <vscode-button variant="secondary" @click="emit('copyToClipboard', pr.html_url)">{{
-                    t('dashboard.actions.copyUrl')
-                  }}</vscode-button>
                 </div>
               </div>
               <div v-if="!myPullRequests.get(instance.id)?.length" class="empty-list">
@@ -289,7 +321,30 @@ function loadingKey(instanceId: string): string {
 .instance-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  width: 100%;
+}
+
+.instance-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.instance-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.instance-detail {
+  font-size: 0.75em;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .badge {
@@ -298,6 +353,7 @@ function loadingKey(instanceId: string): string {
   border-radius: 10px;
   padding: 2px 8px;
   font-size: 0.75em;
+  flex-shrink: 0;
 }
 
 .instance-body {
@@ -339,6 +395,44 @@ function loadingKey(instanceId: string): string {
 .item-title {
   font-weight: 600;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.repo-title {
+  justify-content: space-between;
+}
+
+.repo-actions,
+.issue-actions,
+.pr-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.repo-actions a,
+.issue-actions a,
+.pr-actions a {
+  color: var(--vscode-descriptionForeground);
+  text-decoration: none;
+  padding: 2px;
+}
+
+.repo-actions a:hover,
+.issue-actions a:hover,
+.pr-actions a:hover {
+  color: var(--vscode-textLink-foreground);
+}
+
+.repo-actions a svg,
+.issue-actions a svg,
+.pr-actions a svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .item-title a {
@@ -367,6 +461,16 @@ function loadingKey(instanceId: string): string {
 .item-actions {
   display: flex;
   gap: 8px;
+}
+
+.item-actions a {
+  color: var(--vscode-descriptionForeground);
+  text-decoration: none;
+  padding: 2px;
+}
+
+.item-actions a:hover {
+  color: var(--vscode-textLink-foreground);
 }
 
 .repo-card {

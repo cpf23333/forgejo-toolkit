@@ -10,12 +10,13 @@
     "check": "pnpm -r run check",
     "dev": "pnpm -r --parallel run dev",
     "clean": "pnpm -r run clean",
-    "lint": "oxlint .",
-    "lint:fix": "oxlint --fix .",
+    "lint": "oxlint --vue-plugin .",
+    "lint:fix": "oxlint --vue-plugin --fix .",
     "format": "oxfmt --check .",
     "format:fix": "oxfmt ."
   },
   "devDependencies": {
+    "lefthook": "^2.1.9",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.71.0",
     "typescript": "^6.0.3"

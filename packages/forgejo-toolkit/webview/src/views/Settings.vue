@@ -5,7 +5,7 @@ import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/comp
 import type { ForgejoInstance } from '../types/instance';
 import type { Locale } from '../i18n';
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 
 const props = defineProps<{
   instances: ForgejoInstance[];

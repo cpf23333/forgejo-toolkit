@@ -1,2 +1,7 @@
 packages:
-  - 'packages/*'
+  - packages/*
+
+onlyBuiltDependencies:
+  - es5-ext
+  - esbuild
+  - msw

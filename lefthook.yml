@@ -1,0 +1,24 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: '*.{js,ts,mjs,cjs,vue}'
+      run: node node_modules/oxlint/bin/oxlint --vue-plugin {staged_files}
+    format:
+      glob: '*.{js,ts,mjs,cjs,vue}'
+      run: node node_modules/oxfmt/bin/oxfmt --check {staged_files}
+    typecheck-extension:
+      glob: 'packages/forgejo-toolkit/src/**/*.{ts,js}'
+      run: pnpm --filter forgejo-toolkit exec tsc --noEmit
+    typecheck-webview:
+      glob: 'packages/forgejo-toolkit/webview/src/**/*.{ts,vue}'
+      run: pnpm --filter forgejo-toolkit exec vue-tsc -p webview/tsconfig.json --noEmit
+    typecheck-api:
+      glob: 'packages/forgejo-api/src/**/*.ts'
+      run: pnpm --filter @cpf23333-forgejo-toolkit/api exec tsc --noEmit
+    typecheck-shared:
+      glob: 'packages/shared/src/**/*.ts'
+      run: pnpm --filter @cpf23333-forgejo-toolkit/shared exec tsc --noEmit
+    typecheck-vscode-elements-vue:
+      glob: 'packages/vscode-elements-vue/src/**/*.{ts,vue}'
+      run: pnpm --filter @cpf23333-forgejo-toolkit/vscode-elements-vue exec vue-tsc --noEmit
