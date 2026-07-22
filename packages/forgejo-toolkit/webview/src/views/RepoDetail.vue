@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { ForgejoRepoDetail } from '../types/api';
+import type { ForgejoRepoDetail, ForgejoCommit } from '../types/api';
 import { repoDetailKey } from '../composables/useAppState';
 
 const { t } = useI18n();
@@ -18,6 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'openExternal', url: string): void;
   (e: 'copyToClipboard', text: string): void;
+  (e: 'previewReadme', content: string): void;
 }>();
 
 const repoUrl = computed(() => props.detail?.repository.html_url ?? '');
@@ -29,10 +30,42 @@ function commitMessage(message: string): string {
 
 function formatDate(date: string): string {
   try {
-    return new Date(date).toLocaleString();
+    const d = new Date(date);
+    const now = Date.now();
+    const diff = now - d.getTime();
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    const month = 30 * day;
+    const year = 365 * day;
+
+    if (diff < minute) {
+      return t('dashboard.timeAgo.justNow');
+    }
+    if (diff < hour) {
+      return t('dashboard.timeAgo.minutes', { count: Math.floor(diff / minute) });
+    }
+    if (diff < day) {
+      return t('dashboard.timeAgo.hours', { count: Math.floor(diff / hour) });
+    }
+    if (diff < month) {
+      return t('dashboard.timeAgo.days', { count: Math.floor(diff / day) });
+    }
+    if (diff < year) {
+      return t('dashboard.timeAgo.months', { count: Math.floor(diff / month) });
+    }
+    return t('dashboard.timeAgo.years', { count: Math.floor(diff / year) });
   } catch {
     return date;
   }
+}
+
+function committerAvatar(commit: ForgejoCommit): string | undefined {
+  return commit.committer?.avatar_url ?? commit.author?.avatar_url;
+}
+
+function committerName(commit: ForgejoCommit): string {
+  return commit.committer?.login ?? commit.author?.login ?? commit.commit.author.name;
 }
 </script>
 
@@ -61,13 +94,26 @@ function formatDate(date: string): string {
           <vscode-button variant="secondary" @click="emit('copyToClipboard', repoUrl)">{{
             t('dashboard.actions.copyUrl')
           }}</vscode-button>
+          <vscode-button v-if="detail.readme" variant="secondary" @click="emit('previewReadme', detail.readme)">{{
+            t('dashboard.actions.previewReadme')
+          }}</vscode-button>
         </div>
       </div>
 
       <section v-if="detail.branches.length" class="section">
         <h3>{{ t('dashboard.branches') }}</h3>
         <div class="tag-list">
-          <span v-for="branch in detail.branches" :key="branch" class="tag">{{ branch }}</span>
+          <span
+            v-for="branch in detail.branches"
+            :key="branch"
+            class="tag"
+            :class="{ 'tag-primary': branch === detail.repository.default_branch }"
+          >
+            {{ branch }}
+            <span v-if="branch === detail.repository.default_branch" class="default-badge">
+              {{ t('dashboard.defaultBranch') }}
+            </span>
+          </span>
         </div>
       </section>
 
@@ -75,19 +121,23 @@ function formatDate(date: string): string {
         <h3>{{ t('dashboard.recentCommits') }}</h3>
         <div class="commit-list">
           <div v-for="commit in detail.recentCommits" :key="commit.sha" class="commit-item">
-            <a href="#" @click.prevent="emit('openExternal', commit.html_url)">{{ commit.sha.slice(0, 7) }}</a>
             <span class="commit-message">{{ commitMessage(commit.commit.message) }}</span>
-            <span class="commit-author">{{ commit.commit.author.name }}</span>
-            <span class="commit-date">{{ formatDate(commit.commit.author.date) }}</span>
+            <span class="commit-info">
+              <img
+                v-if="committerAvatar(commit)"
+                :src="committerAvatar(commit)"
+                :alt="committerName(commit)"
+                class="commit-avatar"
+              />
+              <span class="commit-author">{{ committerName(commit) }}</span>
+              <span class="commit-date">{{ formatDate(commit.commit.author.date) }}</span>
+            </span>
+            <a href="#" class="commit-sha" @click.prevent="emit('openExternal', commit.html_url)">{{
+              commit.sha.slice(0, 7)
+            }}</a>
           </div>
         </div>
       </section>
-
-      <section v-if="detail.readme" class="section">
-        <h3>{{ t('dashboard.readme') }}</h3>
-        <pre class="readme">{{ detail.readme }}</pre>
-      </section>
-      <div v-else class="no-readme">{{ t('dashboard.noReadme') }}</div>
     </div>
   </div>
 </template>
@@ -169,50 +219,85 @@ function formatDate(date: string): string {
   font-size: 0.8em;
 }
 
+.tag-primary {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.default-badge {
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.75em;
+  opacity: 0.9;
+}
+
 .commit-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
 .commit-item {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
   font-size: 0.85em;
-  flex-wrap: wrap;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background-color 0.1s;
 }
 
-.commit-item a {
-  color: var(--vscode-textLink-foreground);
-  text-decoration: none;
+.commit-item:hover {
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 .commit-message {
   flex: 1;
-  min-width: 120px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-info {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+.commit-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .commit-author {
-  color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
 }
 
 .commit-date {
-  color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
+  flex-shrink: 0;
 }
 
-.readme {
-  background-color: var(--vscode-editor-inactiveSelectionBackground);
-  padding: 12px;
-  border-radius: 4px;
-  overflow: auto;
+.commit-sha {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+  font-family: var(--vscode-editor-font-family), monospace;
   font-size: 0.85em;
-  line-height: 1.5;
+  flex-shrink: 0;
 }
 
-.no-readme {
-  color: var(--vscode-descriptionForeground);
-  font-size: 0.9em;
+.commit-sha:hover {
+  text-decoration: underline;
 }
 </style>

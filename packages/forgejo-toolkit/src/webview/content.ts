@@ -20,7 +20,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionPath: string
   const nonce = getNonce();
   let html = fs.readFileSync(htmlPath, 'utf8');
 
-  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">`;
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src 'self' data: ${webview.cspSource};">`;
   html = html.replace(/<head>/i, `<head>\n    ${cspMeta}`);
 
   const baseUri = webview.asWebviewUri(vscode.Uri.file(webviewDistPath)).toString().replace(/\/$/, '');

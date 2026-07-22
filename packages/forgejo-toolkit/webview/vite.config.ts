@@ -12,6 +12,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  css: {
+    transformer: 'lightningcss',
+  },
   build: {
     outDir: path.resolve(__dirname, '..', 'out', 'webview'),
     emptyOutDir: true,

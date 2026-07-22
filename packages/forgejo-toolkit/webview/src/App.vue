@@ -80,6 +80,7 @@ const selectedRepoError = computed(() =>
         :error="selectedRepoError"
         @open-external="state.openExternal"
         @copy-to-clipboard="state.copyToClipboard"
+        @preview-readme="state.previewReadme"
       />
       <Settings
         v-else

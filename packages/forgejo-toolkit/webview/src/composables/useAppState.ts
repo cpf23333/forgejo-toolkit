@@ -126,6 +126,18 @@ export function useAppState() {
     vscode.postMessage({ command: 'copyToClipboard', text });
   }
 
+  function previewReadme(content: string) {
+    if (!selectedRepo.value) {
+      return;
+    }
+    vscode.postMessage({
+      command: 'previewReadme',
+      owner: selectedRepo.value.owner,
+      repo: selectedRepo.value.repo,
+      content,
+    });
+  }
+
   function testConnection(url: string, token: string) {
     vscode.postMessage({ command: 'testConnection', url, token });
   }
@@ -204,6 +216,7 @@ export function useAppState() {
     debug,
     openExternal,
     copyToClipboard,
+    previewReadme,
     testConnection,
     saveInstance,
     removeInstance,

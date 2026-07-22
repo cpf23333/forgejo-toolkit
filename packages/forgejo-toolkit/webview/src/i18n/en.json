@@ -24,15 +24,25 @@
     "stars": "Stars",
     "forks": "Forks",
     "openIssues": "Open Issues",
+    "timeAgo": {
+      "justNow": "just now",
+      "minutes": "{count} min ago",
+      "hours": "{count}h ago",
+      "days": "{count}d ago",
+      "months": "{count}mo ago",
+      "years": "{count}y ago"
+    },
     "openPullRequests": "Open PRs",
     "recentCommits": "Recent Commits",
     "branches": "Branches",
+    "defaultBranch": "default",
     "readme": "README",
     "noReadme": "No README",
     "actions": {
       "open": "Open in Browser",
       "copyClone": "Copy Clone URL",
-      "copyUrl": "Copy Link"
+      "copyUrl": "Copy Link",
+      "previewReadme": "Preview README in Editor"
     }
   },
   "instance": {

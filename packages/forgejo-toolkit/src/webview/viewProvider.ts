@@ -3,6 +3,8 @@ import { logger } from '../logger';
 import { ForgejoClient } from '../api/client';
 import { ConfigManager, ForgejoInstance } from '../config';
 import { getWebviewContent } from './content';
+import type { ReadmeContentProvider } from '../readmeProvider';
+import { openReadmePreview } from '../readmeProvider';
 
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
@@ -12,6 +14,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _config: ConfigManager,
+    private readonly _readmeProvider: ReadmeContentProvider,
   ) {}
 
   public resolveWebviewView(
@@ -186,7 +189,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             try {
               const client = new ForgejoClient(instance.url, instance.token, logger);
               const detail = await client.getRepoDetail(owner, repo);
-              this._reply('repoDetail', { instanceId: instance.id, owner, repo, detail });
+              const detailWithResolvedAvatars = await this._resolveCommitAvatars(detail);
+              this._reply('repoDetail', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                detail: detailWithResolvedAvatars,
+              });
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`getRepoDetail failed for ${instance.name}/${owner}/${repo}: ${err}`);
@@ -199,6 +208,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             if (typeof text === 'string') {
               await vscode.env.clipboard.writeText(text);
               vscode.window.showInformationMessage('Copied to clipboard');
+            }
+            return;
+          }
+          case 'previewReadme': {
+            const { owner, repo, content } = message;
+            if (typeof owner === 'string' && typeof repo === 'string' && typeof content === 'string') {
+              openReadmePreview(this._readmeProvider, owner, repo, content);
             }
             return;
           }
@@ -253,6 +269,64 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
   private _reply(command: string, data: unknown) {
     this._view?.webview.postMessage({ command, data });
+  }
+
+  private async _resolveCommitAvatars(detail: {
+    repository: unknown;
+    readme?: string;
+    branches: string[];
+    recentCommits: Array<{
+      sha: string;
+      commit: unknown;
+      author?: { avatar_url?: string };
+      committer?: { avatar_url?: string };
+      html_url: string;
+    }>;
+  }): Promise<typeof detail> {
+    const resolvedCommits = await Promise.all(
+      detail.recentCommits.map(async (commit) => {
+        const resolved = { ...commit };
+        if (commit.committer?.avatar_url) {
+          resolved.committer = {
+            ...commit.committer,
+            avatar_url: await this._resolveAvatarUrl(commit.committer.avatar_url),
+          };
+        }
+        if (commit.author?.avatar_url) {
+          resolved.author = {
+            ...commit.author,
+            avatar_url: await this._resolveAvatarUrl(commit.author.avatar_url),
+          };
+        }
+        return resolved;
+      }),
+    );
+    return { ...detail, recentCommits: resolvedCommits };
+  }
+
+  private async _resolveAvatarUrl(url: string): Promise<string> {
+    if (!this._view) {
+      logger.debug(`[avatar] no view, returning original url: ${url}`);
+      return url;
+    }
+    logger.debug(`[avatar] resolving: ${url}`);
+    try {
+      const response = await fetch(url);
+      logger.debug(`[avatar] response status: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        logger.error(`[avatar] fetch failed: ${response.status} ${response.statusText}`);
+        return url;
+      }
+      const buffer = await response.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString('base64');
+      const contentType = response.headers.get('content-type') ?? 'image/png';
+      logger.debug(`[avatar] resolved to data:${contentType};base64,${base64.slice(0, 40)}...`);
+      return `data:${contentType};base64,${base64}`;
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`[avatar] error resolving ${url}: ${err}`);
+      return url;
+    }
   }
 }
 

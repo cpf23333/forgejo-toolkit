@@ -65,5 +65,6 @@ export interface ForgejoCommit {
     };
   };
   author?: ForgejoUser;
+  committer?: ForgejoUser;
   html_url: string;
 }

@@ -48,17 +48,24 @@ export class ForgejoClient {
     ) as Promise<ForgejoPullRequest[]>;
   }
 
+  async getReadme(owner: string, repo: string): Promise<string | undefined> {
+    const readmeFile = await repoGetContents(owner, repo, 'README.md', undefined, {
+      client: this._client(),
+    }).catch(() => undefined);
+    return readmeFile?.content ? decodeBase64(readmeFile.content) : undefined;
+  }
+
   async getRepoDetail(owner: string, repo: string): Promise<ForgejoRepoDetail> {
-    const [repository, readmeFile, branches, commits] = await Promise.all([
+    const [repository, readme, branches, commits] = await Promise.all([
       repoGet(owner, repo, { client: this._client() }),
-      repoGetContents(owner, repo, 'README.md', undefined, { client: this._client() }).catch(() => undefined),
+      this.getReadme(owner, repo),
       repoListBranches(owner, repo, { limit: 10 }, { client: this._client() }),
       repoGetAllCommits(owner, repo, { limit: 10 }, { client: this._client() }),
     ]);
 
     return {
       repository: repository as ForgejoRepository,
-      readme: readmeFile?.content ? decodeBase64(readmeFile.content) : undefined,
+      readme,
       branches: branches?.map((branch) => branch.name ?? '').filter(Boolean) ?? [],
       recentCommits: (commits ?? []).map(
         (commit) =>
@@ -72,6 +79,7 @@ export class ForgejoClient {
               },
             },
             author: commit.author as ForgejoUser | undefined,
+            committer: commit.committer as ForgejoUser | undefined,
             html_url: commit.html_url ?? '',
           }) as ForgejoCommit,
       ),

@@ -8,7 +8,7 @@
       "runtimeExecutable": "${execPath}",
       "args": [
         // Uncomment the next line to disable all other extensions while debugging.
-        // "--disable-extensions",
+        "--disable-extensions",
         "--extensionDevelopmentPath=${workspaceFolder}/packages/forgejo-toolkit"
       ],
       "outFiles": ["${workspaceFolder}/packages/forgejo-toolkit/out/**/*.js"],
