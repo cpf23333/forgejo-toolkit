@@ -20,6 +20,8 @@ const emit = defineEmits<{
   (e: 'openExternal', url: string): void;
   (e: 'copyToClipboard', text: string): void;
   (e: 'openRepo', instanceId: string, owner: string, repo: string): void;
+  (e: 'openIssue', instanceId: string, owner: string, repo: string, index: number): void;
+  (e: 'openPullRequest', instanceId: string, owner: string, repo: string, index: number): void;
   (e: 'loadRepositories', instanceId: string): void;
   (e: 'loadMyIssues', instanceId: string): void;
   (e: 'loadMyPullRequests', instanceId: string): void;
@@ -27,9 +29,61 @@ const emit = defineEmits<{
 
 const activeTab = ref<Tab>('repositories');
 const expandedInstances = ref<Set<string>>(new Set());
+const expandedOwners = ref<Set<string>>(new Set());
 
 function setTab(tab: Tab) {
   activeTab.value = tab;
+}
+
+function ownerKey(instanceId: string, owner: string): string {
+  return `${instanceId}:${owner}`;
+}
+
+function reposByOwner(instanceId: string): Record<string, ForgejoRepository[]> {
+  const repos = props.repositories.get(instanceId) ?? [];
+  const grouped: Record<string, ForgejoRepository[]> = {};
+  for (const repo of repos) {
+    const owner = repo.owner.login;
+    if (!grouped[owner]) {
+      grouped[owner] = [];
+    }
+    grouped[owner].push(repo);
+  }
+  for (const owner of Object.keys(grouped)) {
+    grouped[owner].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return Object.fromEntries(Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function expandOwner(key: string) {
+  if (expandedOwners.value.has(key)) {
+    return;
+  }
+  expandedOwners.value.add(key);
+}
+
+function collapseOwner(key: string) {
+  expandedOwners.value.delete(key);
+}
+
+function handleOwnerToggle(key: string, event: Event) {
+  const customEvent = event as CustomEvent<boolean>;
+  if (customEvent.detail) {
+    expandOwner(key);
+  } else {
+    collapseOwner(key);
+  }
+}
+
+function autoExpandFirstOwner(instanceId: string) {
+  const owners = Object.keys(reposByOwner(instanceId));
+  if (owners.length === 0) {
+    return;
+  }
+  const hasExpandedOwner = Array.from(expandedOwners.value).some((key) => key.startsWith(`${instanceId}:`));
+  if (!hasExpandedOwner) {
+    expandOwner(ownerKey(instanceId, owners[0]));
+  }
 }
 
 function expandInstance(instanceId: string) {
@@ -39,11 +93,17 @@ function expandInstance(instanceId: string) {
   expandedInstances.value.add(instanceId);
   nextTick(() => {
     loadForTab(instanceId);
+    autoExpandFirstOwner(instanceId);
   });
 }
 
 function collapseInstance(instanceId: string) {
   expandedInstances.value.delete(instanceId);
+  for (const key of Array.from(expandedOwners.value)) {
+    if (key.startsWith(`${instanceId}:`)) {
+      expandedOwners.value.delete(key);
+    }
+  }
 }
 
 function handleToggle(instanceId: string, event: Event) {
@@ -70,6 +130,14 @@ watch(activeTab, () => {
 });
 
 watch(
+  () => props.repositories,
+  () => {
+    expandedInstances.value.forEach((id) => autoExpandFirstOwner(id));
+  },
+  { deep: true },
+);
+
+watch(
   () => props.instances,
   (newInstances) => {
     if (newInstances.length > 0 && expandedInstances.value.size === 0) {
@@ -87,6 +155,35 @@ onMounted(() => {
 
 function openRepo(instanceId: string, repo: ForgejoRepository) {
   emit('openRepo', instanceId, repo.owner.login, repo.name);
+}
+
+function parseOwnerRepo(url: string): { owner: string; repo: string } | undefined {
+  try {
+    const path = new URL(url).pathname;
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length >= 2) {
+      return { owner: parts[0], repo: parts[1] };
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+function openIssue(instanceId: string, issue: ForgejoIssue) {
+  const ownerRepo = issue.repository?.full_name
+    ? { owner: issue.repository.full_name.split('/')[0], repo: issue.repository.full_name.split('/')[1] }
+    : parseOwnerRepo(issue.html_url);
+  if (ownerRepo) {
+    emit('openIssue', instanceId, ownerRepo.owner, ownerRepo.repo, issue.number);
+  }
+}
+
+function openPullRequest(instanceId: string, pr: ForgejoPullRequest) {
+  const ownerRepo = parseOwnerRepo(pr.html_url);
+  if (ownerRepo) {
+    emit('openPullRequest', instanceId, ownerRepo.owner, ownerRepo.repo, pr.number);
+  }
 }
 
 function cloneUrl(instance: ForgejoInstance, repo: ForgejoRepository): string {
@@ -170,14 +267,71 @@ function loadingKey(instanceId: string): string {
               {{ formatError(loadingKey(instance.id)) }}
             </div>
             <div v-else-if="activeTab === 'repositories'" class="item-list">
-              <div v-for="repo in repositories.get(instance.id)" :key="repo.id" class="item-card repo-card">
-                <div class="item-title repo-title">
-                  <a href="#" @click.prevent="openRepo(instance.id, repo)">{{ repo.full_name }}</a>
-                  <span class="repo-actions">
+              <div v-if="!repositories.get(instance.id)?.length" class="empty-list">
+                {{ t('dashboard.noRepositories') }}
+              </div>
+              <div v-else class="owner-list">
+                <vscode-collapsible
+                  v-for="(ownerRepos, owner) in reposByOwner(instance.id)"
+                  :key="owner"
+                  class="owner-collapsible"
+                  :heading="owner"
+                  :open="expandedOwners.has(ownerKey(instance.id, owner))"
+                  @toggle="handleOwnerToggle(ownerKey(instance.id, owner), $event)"
+                >
+                  <div slot="decorations" class="owner-header">
+                    <span class="badge">{{ ownerRepos.length }}</span>
+                  </div>
+
+                  <div class="owner-body">
+                    <div v-for="repo in ownerRepos" :key="repo.id" class="item-card repo-card">
+                      <div class="item-title repo-title">
+                        <a href="#" @click.prevent="openRepo(instance.id, repo)">{{ repo.name }}</a>
+                        <span class="repo-actions">
+                          <a
+                            href="#"
+                            :title="t('dashboard.actions.open')"
+                            @click.prevent="emit('openExternal', repo.html_url)"
+                          >
+                            <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                              <path
+                                d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
+                              />
+                            </svg>
+                          </a>
+                          <a
+                            href="#"
+                            :title="t('dashboard.actions.copyClone')"
+                            @click.prevent="emit('copyToClipboard', cloneUrl(instance, repo))"
+                          >
+                            <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                              <path
+                                d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
+                              />
+                            </svg>
+                          </a>
+                        </span>
+                      </div>
+                      <div v-if="repo.description" class="item-desc">{{ repo.description }}</div>
+                      <div class="item-meta">
+                        <span>{{ t('dashboard.branch') }}: {{ repo.default_branch }}</span>
+                        <span>{{ t('dashboard.stars') }}: {{ repo.stars_count }}</span>
+                        <span>{{ t('dashboard.forks') }}: {{ repo.forks_count }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </vscode-collapsible>
+              </div>
+            </div>
+            <div v-else-if="activeTab === 'issues'" class="item-list">
+              <div v-for="issue in myIssues.get(instance.id)" :key="issue.id" class="item-card">
+                <div class="item-title">
+                  <a href="#" @click.prevent="openIssue(instance.id, issue)">#{{ issue.number }} {{ issue.title }}</a>
+                  <span class="issue-actions">
                     <a
                       href="#"
                       :title="t('dashboard.actions.open')"
-                      @click.prevent="emit('openExternal', repo.html_url)"
+                      @click.prevent="emit('openExternal', issue.html_url)"
                     >
                       <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                         <path
@@ -185,37 +339,6 @@ function loadingKey(instanceId: string): string {
                         />
                       </svg>
                     </a>
-                    <a
-                      href="#"
-                      :title="t('dashboard.actions.copyClone')"
-                      @click.prevent="emit('copyToClipboard', cloneUrl(instance, repo))"
-                    >
-                      <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                        <path
-                          d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
-                        />
-                      </svg>
-                    </a>
-                  </span>
-                </div>
-                <div v-if="repo.description" class="item-desc">{{ repo.description }}</div>
-                <div class="item-meta">
-                  <span>{{ t('dashboard.branch') }}: {{ repo.default_branch }}</span>
-                  <span>{{ t('dashboard.stars') }}: {{ repo.stars_count }}</span>
-                  <span>{{ t('dashboard.forks') }}: {{ repo.forks_count }}</span>
-                </div>
-              </div>
-              <div v-if="!repositories.get(instance.id)?.length" class="empty-list">
-                {{ t('dashboard.noRepositories') }}
-              </div>
-            </div>
-            <div v-else-if="activeTab === 'issues'" class="item-list">
-              <div v-for="issue in myIssues.get(instance.id)" :key="issue.id" class="item-card">
-                <div class="item-title">
-                  <a href="#" @click.prevent="emit('openExternal', issue.html_url)"
-                    >#{{ issue.number }} {{ issue.title }}</a
-                  >
-                  <span class="issue-actions">
                     <a
                       href="#"
                       :title="t('dashboard.actions.copyUrl')"
@@ -239,8 +362,15 @@ function loadingKey(instanceId: string): string {
             <div v-else-if="activeTab === 'pullRequests'" class="item-list">
               <div v-for="pr in myPullRequests.get(instance.id)" :key="pr.id" class="item-card">
                 <div class="item-title">
-                  <a href="#" @click.prevent="emit('openExternal', pr.html_url)">#{{ pr.number }} {{ pr.title }}</a>
+                  <a href="#" @click.prevent="openPullRequest(instance.id, pr)">#{{ pr.number }} {{ pr.title }}</a>
                   <span class="pr-actions">
+                    <a href="#" :title="t('dashboard.actions.open')" @click.prevent="emit('openExternal', pr.html_url)">
+                      <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path
+                          d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
+                        />
+                      </svg>
+                    </a>
                     <a
                       href="#"
                       :title="t('dashboard.actions.copyUrl')"
@@ -475,5 +605,30 @@ function loadingKey(instanceId: string): string {
 
 .repo-card {
   cursor: default;
+}
+
+.owner-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.owner-collapsible {
+  --vscode-collapsible-heading-size: 0.9em;
+}
+
+.owner-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.owner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 2px solid var(--vscode-panel-border);
+  margin-left: 4px;
 }
 </style>

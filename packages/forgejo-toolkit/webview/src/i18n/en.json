@@ -17,6 +17,7 @@
     "noRepositories": "No repositories",
     "noIssues": "No issues assigned to you",
     "noPullRequests": "No pull requests related to you",
+    "emptyRepository": "This repository is empty. Push some commits to get started.",
     "loading": "Loading...",
     "error": "Failed to load: {message}",
     "owner": "Owner",
@@ -43,6 +44,29 @@
       "copyClone": "Copy Clone URL",
       "copyUrl": "Copy Link",
       "previewReadme": "Preview README in Editor"
+    },
+    "detail": {
+      "status": "Status",
+      "author": "Author",
+      "createdAt": "Created",
+      "updatedAt": "Updated",
+      "closedAt": "Closed",
+      "mergedAt": "Merged",
+      "labels": "Labels",
+      "milestone": "Milestone",
+      "body": "Description",
+      "noBody": "No description provided.",
+      "branches": "Branches",
+      "base": "base",
+      "head": "head",
+      "changes": "Changes",
+      "additions": "additions",
+      "deletions": "deletions",
+      "changedFiles": "files changed",
+      "mergedBy": "Merged by",
+      "openIssue": "Open Issue in Browser",
+      "openPullRequest": "Open Pull Request in Browser",
+      "copyLink": "Copy Link"
     }
   },
   "instance": {

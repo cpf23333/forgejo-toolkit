@@ -1,10 +1,12 @@
 import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
+  issueGetIssue,
   issueSearchIssues,
   repoGet,
   repoGetAllCommits,
   repoGetContents,
+  repoGetPullRequest,
   repoListBranches,
   userCurrentListRepos,
   userGetCurrent,
@@ -13,7 +15,9 @@ import type { Logger } from '../logger';
 import type {
   ForgejoCommit,
   ForgejoIssue,
+  ForgejoIssueDetail,
   ForgejoPullRequest,
+  ForgejoPullRequestDetail,
   ForgejoRepoDetail,
   ForgejoRepository,
   ForgejoUser,
@@ -56,8 +60,20 @@ export class ForgejoClient {
   }
 
   async getRepoDetail(owner: string, repo: string): Promise<ForgejoRepoDetail> {
-    const [repository, readme, branches, commits] = await Promise.all([
-      repoGet(owner, repo, { client: this._client() }),
+    const repository = await repoGet(owner, repo, { client: this._client() });
+    const isEmpty = (repository as { empty?: boolean }).empty ?? false;
+
+    if (isEmpty) {
+      return {
+        repository: repository as ForgejoRepository,
+        empty: true,
+        readme: undefined,
+        branches: [],
+        recentCommits: [],
+      };
+    }
+
+    const [readme, branches, commits] = await Promise.all([
       this.getReadme(owner, repo),
       repoListBranches(owner, repo, { limit: 10 }, { client: this._client() }),
       repoGetAllCommits(owner, repo, { limit: 10 }, { client: this._client() }),
@@ -65,6 +81,7 @@ export class ForgejoClient {
 
     return {
       repository: repository as ForgejoRepository,
+      empty: false,
       readme,
       branches: branches?.map((branch) => branch.name ?? '').filter(Boolean) ?? [],
       recentCommits: (commits ?? []).map(
@@ -84,6 +101,14 @@ export class ForgejoClient {
           }) as ForgejoCommit,
       ),
     };
+  }
+
+  getIssueDetail(owner: string, repo: string, index: number): Promise<ForgejoIssueDetail> {
+    return issueGetIssue(owner, repo, index, { client: this._client() }) as Promise<ForgejoIssueDetail>;
+  }
+
+  getPullRequestDetail(owner: string, repo: string, index: number): Promise<ForgejoPullRequestDetail> {
+    return repoGetPullRequest(owner, repo, index, { client: this._client() }) as Promise<ForgejoPullRequestDetail>;
   }
 
   private _client(): Client {

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useAppState, repoDetailKey } from './composables/useAppState';
+import { useAppState, repoDetailKey, issueDetailKey, pullRequestDetailKey } from './composables/useAppState';
 import Dashboard from './views/Dashboard.vue';
 import RepoDetail from './views/RepoDetail.vue';
+import IssueDetail from './views/IssueDetail.vue';
+import PullRequestDetail from './views/PullRequestDetail.vue';
 import Settings from './views/Settings.vue';
 
 const state = useAppState();
@@ -40,6 +42,80 @@ const selectedRepoError = computed(() =>
       )
     : undefined,
 );
+
+const selectedIssueDetail = computed(() =>
+  state.selectedIssue.value
+    ? state.issueDetails.value.get(
+        issueDetailKey(
+          state.selectedIssue.value.instanceId,
+          state.selectedIssue.value.owner,
+          state.selectedIssue.value.repo,
+          state.selectedIssue.value.index,
+        ),
+      )
+    : undefined,
+);
+const selectedIssueLoading = computed(() =>
+  state.selectedIssue.value
+    ? (state.loading.value.get(
+        issueDetailKey(
+          state.selectedIssue.value.instanceId,
+          state.selectedIssue.value.owner,
+          state.selectedIssue.value.repo,
+          state.selectedIssue.value.index,
+        ),
+      ) ?? false)
+    : false,
+);
+const selectedIssueError = computed(() =>
+  state.selectedIssue.value
+    ? state.errors.value.get(
+        issueDetailKey(
+          state.selectedIssue.value.instanceId,
+          state.selectedIssue.value.owner,
+          state.selectedIssue.value.repo,
+          state.selectedIssue.value.index,
+        ),
+      )
+    : undefined,
+);
+
+const selectedPullRequestDetail = computed(() =>
+  state.selectedPullRequest.value
+    ? state.pullRequestDetails.value.get(
+        pullRequestDetailKey(
+          state.selectedPullRequest.value.instanceId,
+          state.selectedPullRequest.value.owner,
+          state.selectedPullRequest.value.repo,
+          state.selectedPullRequest.value.index,
+        ),
+      )
+    : undefined,
+);
+const selectedPullRequestLoading = computed(() =>
+  state.selectedPullRequest.value
+    ? (state.loading.value.get(
+        pullRequestDetailKey(
+          state.selectedPullRequest.value.instanceId,
+          state.selectedPullRequest.value.owner,
+          state.selectedPullRequest.value.repo,
+          state.selectedPullRequest.value.index,
+        ),
+      ) ?? false)
+    : false,
+);
+const selectedPullRequestError = computed(() =>
+  state.selectedPullRequest.value
+    ? state.errors.value.get(
+        pullRequestDetailKey(
+          state.selectedPullRequest.value.instanceId,
+          state.selectedPullRequest.value.owner,
+          state.selectedPullRequest.value.repo,
+          state.selectedPullRequest.value.index,
+        ),
+      )
+    : undefined,
+);
 </script>
 
 <template>
@@ -66,6 +142,8 @@ const selectedRepoError = computed(() =>
         @open-external="state.openExternal"
         @copy-to-clipboard="state.copyToClipboard"
         @open-repo="state.openRepoDetail"
+        @open-issue="state.openIssueDetail"
+        @open-pull-request="state.openPullRequestDetail"
         @load-repositories="state.loadRepositories"
         @load-my-issues="state.loadMyIssues"
         @load-my-pull-requests="state.loadMyPullRequests"
@@ -81,6 +159,30 @@ const selectedRepoError = computed(() =>
         @open-external="state.openExternal"
         @copy-to-clipboard="state.copyToClipboard"
         @preview-readme="state.previewReadme"
+      />
+      <IssueDetail
+        v-else-if="state.currentPage.value === 'issueDetail' && state.selectedIssue.value"
+        :instance-id="state.selectedIssue.value.instanceId"
+        :owner="state.selectedIssue.value.owner"
+        :repo="state.selectedIssue.value.repo"
+        :index="state.selectedIssue.value.index"
+        :detail="selectedIssueDetail"
+        :loading="selectedIssueLoading"
+        :error="selectedIssueError"
+        @open-external="state.openExternal"
+        @copy-to-clipboard="state.copyToClipboard"
+      />
+      <PullRequestDetail
+        v-else-if="state.currentPage.value === 'pullRequestDetail' && state.selectedPullRequest.value"
+        :instance-id="state.selectedPullRequest.value.instanceId"
+        :owner="state.selectedPullRequest.value.owner"
+        :repo="state.selectedPullRequest.value.repo"
+        :index="state.selectedPullRequest.value.index"
+        :detail="selectedPullRequestDetail"
+        :loading="selectedPullRequestLoading"
+        :error="selectedPullRequestError"
+        @open-external="state.openExternal"
+        @copy-to-clipboard="state.copyToClipboard"
       />
       <Settings
         v-else

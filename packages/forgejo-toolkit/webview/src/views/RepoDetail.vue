@@ -23,6 +23,8 @@ const emit = defineEmits<{
 
 const repoUrl = computed(() => props.detail?.repository.html_url ?? '');
 const cloneUrl = computed(() => (repoUrl.value ? `${repoUrl.value}.git` : ''));
+const issuesUrl = computed(() => (repoUrl.value ? `${repoUrl.value}/issues` : ''));
+const pullsUrl = computed(() => (repoUrl.value ? `${repoUrl.value}/pulls` : ''));
 
 function commitMessage(message: string): string {
   return message.split('\n')[0];
@@ -94,11 +96,21 @@ function committerName(commit: ForgejoCommit): string {
           <vscode-button variant="secondary" @click="emit('copyToClipboard', repoUrl)">{{
             t('dashboard.actions.copyUrl')
           }}</vscode-button>
+          <vscode-button variant="secondary" @click="emit('openExternal', issuesUrl)"
+            >{{ t('dashboard.openIssues') }} ({{ detail.repository.open_issues_count }})</vscode-button
+          >
+          <vscode-button variant="secondary" @click="emit('openExternal', pullsUrl)"
+            >{{ t('dashboard.openPullRequests') }} ({{ detail.repository.open_pr_counter ?? 0 }})</vscode-button
+          >
           <vscode-button v-if="detail.readme" variant="secondary" @click="emit('previewReadme', detail.readme)">{{
             t('dashboard.actions.previewReadme')
           }}</vscode-button>
         </div>
       </div>
+
+      <section v-if="detail.empty" class="section">
+        <div class="empty-repo">{{ t('dashboard.emptyRepository') }}</div>
+      </section>
 
       <section v-if="detail.branches.length" class="section">
         <h3>{{ t('dashboard.branches') }}</h3>
@@ -299,5 +311,13 @@ function committerName(commit: ForgejoCommit): string {
 
 .commit-sha:hover {
   text-decoration: underline;
+}
+
+.empty-repo {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+  padding: 12px;
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  border-radius: 4px;
 }
 </style>

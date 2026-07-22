@@ -3,9 +3,16 @@ import { useI18n } from 'vue-i18n';
 import type { ForgejoInstance } from '../types/instance';
 import { vscode } from './vscode';
 import type { Locale } from '../i18n';
-import type { ForgejoRepository, ForgejoIssue, ForgejoPullRequest, ForgejoRepoDetail } from '../types/api';
+import type {
+  ForgejoRepository,
+  ForgejoIssue,
+  ForgejoPullRequest,
+  ForgejoRepoDetail,
+  ForgejoIssueDetail,
+  ForgejoPullRequestDetail,
+} from '../types/api';
 
-export type Page = 'dashboard' | 'repoDetail' | 'settings';
+export type Page = 'dashboard' | 'repoDetail' | 'issueDetail' | 'pullRequestDetail' | 'settings';
 
 export function useAppState() {
   const { t, locale } = useI18n();
@@ -17,10 +24,14 @@ export function useAppState() {
   const myIssues = ref<Map<string, ForgejoIssue[]>>(new Map());
   const myPullRequests = ref<Map<string, ForgejoPullRequest[]>>(new Map());
   const repoDetails = ref<Map<string, ForgejoRepoDetail>>(new Map());
+  const issueDetails = ref<Map<string, ForgejoIssueDetail>>(new Map());
+  const pullRequestDetails = ref<Map<string, ForgejoPullRequestDetail>>(new Map());
   const loading = ref<Map<string, boolean>>(new Map());
   const errors = ref<Map<string, string>>(new Map());
 
   const selectedRepo = ref<{ instanceId: string; owner: string; repo: string } | null>(null);
+  const selectedIssue = ref<{ instanceId: string; owner: string; repo: string; index: number } | null>(null);
+  const selectedPullRequest = ref<{ instanceId: string; owner: string; repo: string; index: number } | null>(null);
 
   const debug = ref<boolean>(false);
 
@@ -54,6 +65,12 @@ export function useAppState() {
         break;
       case 'repoDetail':
         handleRepoDetail(message.data);
+        break;
+      case 'issueDetail':
+        handleIssueDetail(message.data);
+        break;
+      case 'pullRequestDetail':
+        handlePullRequestDetail(message.data);
         break;
     }
   }
@@ -105,6 +122,42 @@ export function useAppState() {
     } else if (data.detail) {
       errors.value.delete(key);
       repoDetails.value.set(key, data.detail);
+    }
+  }
+
+  function handleIssueDetail(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    detail?: ForgejoIssueDetail;
+    error?: string;
+  }) {
+    const key = issueDetailKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.value.set(key, false);
+    if (data.error) {
+      errors.value.set(key, data.error);
+    } else if (data.detail) {
+      errors.value.delete(key);
+      issueDetails.value.set(key, data.detail);
+    }
+  }
+
+  function handlePullRequestDetail(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    detail?: ForgejoPullRequestDetail;
+    error?: string;
+  }) {
+    const key = pullRequestDetailKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.value.set(key, false);
+    if (data.error) {
+      errors.value.set(key, data.error);
+    } else if (data.detail) {
+      errors.value.delete(key);
+      pullRequestDetails.value.set(key, data.detail);
     }
   }
 
@@ -162,15 +215,44 @@ export function useAppState() {
 
   function backToDashboard() {
     currentPage.value = 'dashboard';
+    selectedRepo.value = null;
+    selectedIssue.value = null;
+    selectedPullRequest.value = null;
   }
 
   function openRepoDetail(instanceId: string, owner: string, repo: string) {
     selectedRepo.value = { instanceId, owner, repo };
+    selectedIssue.value = null;
+    selectedPullRequest.value = null;
     currentPage.value = 'repoDetail';
     const key = repoDetailKey(instanceId, owner, repo);
     if (!repoDetails.value.has(key)) {
       loading.value.set(key, true);
       vscode.postMessage({ command: 'getRepoDetail', instanceId, owner, repo });
+    }
+  }
+
+  function openIssueDetail(instanceId: string, owner: string, repo: string, index: number) {
+    selectedIssue.value = { instanceId, owner, repo, index };
+    selectedRepo.value = null;
+    selectedPullRequest.value = null;
+    currentPage.value = 'issueDetail';
+    const key = issueDetailKey(instanceId, owner, repo, index);
+    if (!issueDetails.value.has(key)) {
+      loading.value.set(key, true);
+      vscode.postMessage({ command: 'getIssueDetail', instanceId, owner, repo, index });
+    }
+  }
+
+  function openPullRequestDetail(instanceId: string, owner: string, repo: string, index: number) {
+    selectedPullRequest.value = { instanceId, owner, repo, index };
+    selectedRepo.value = null;
+    selectedIssue.value = null;
+    currentPage.value = 'pullRequestDetail';
+    const key = pullRequestDetailKey(instanceId, owner, repo, index);
+    if (!pullRequestDetails.value.has(key)) {
+      loading.value.set(key, true);
+      vscode.postMessage({ command: 'getPullRequestDetail', instanceId, owner, repo, index });
     }
   }
 
@@ -210,9 +292,13 @@ export function useAppState() {
     myIssues,
     myPullRequests,
     repoDetails,
+    issueDetails,
+    pullRequestDetails,
     loading,
     errors,
     selectedRepo,
+    selectedIssue,
+    selectedPullRequest,
     debug,
     openExternal,
     copyToClipboard,
@@ -224,6 +310,8 @@ export function useAppState() {
     changeDebug,
     backToDashboard,
     openRepoDetail,
+    openIssueDetail,
+    openPullRequestDetail,
     loadRepositories,
     loadMyIssues,
     loadMyPullRequests,
@@ -232,4 +320,12 @@ export function useAppState() {
 
 export function repoDetailKey(instanceId: string, owner: string, repo: string): string {
   return `${instanceId}:${owner}/${repo}`;
+}
+
+export function issueDetailKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#issue-${index}`;
+}
+
+export function pullRequestDetailKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#pr-${index}`;
 }

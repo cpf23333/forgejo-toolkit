@@ -17,6 +17,7 @@
     "noRepositories": "没有仓库",
     "noIssues": "没有与你相关的 Issues",
     "noPullRequests": "没有与你相关的 Pull Requests",
+    "emptyRepository": "该仓库为空。推送一些提交后即可开始使用。",
     "loading": "加载中...",
     "error": "加载失败：{message}",
     "owner": "所有者",
@@ -43,6 +44,29 @@
       "copyClone": "复制克隆地址",
       "copyUrl": "复制链接",
       "previewReadme": "在编辑器中预览 README"
+    },
+    "detail": {
+      "status": "状态",
+      "author": "作者",
+      "createdAt": "创建于",
+      "updatedAt": "更新于",
+      "closedAt": "关闭于",
+      "mergedAt": "合并于",
+      "labels": "标签",
+      "milestone": "里程碑",
+      "body": "描述",
+      "noBody": "没有描述。",
+      "branches": "分支",
+      "base": "目标分支",
+      "head": "源分支",
+      "changes": "变更",
+      "additions": "处新增",
+      "deletions": "处删除",
+      "changedFiles": "个文件变更",
+      "mergedBy": "合并人",
+      "openIssue": "在浏览器打开 Issue",
+      "openPullRequest": "在浏览器打开 Pull Request",
+      "copyLink": "复制链接"
     }
   },
   "instance": {

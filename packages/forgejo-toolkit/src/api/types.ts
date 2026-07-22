@@ -48,8 +48,47 @@ export interface ForgejoPullRequest {
   updated_at: string;
 }
 
+export interface ForgejoLabel {
+  name?: string;
+  color?: string;
+}
+
+export interface ForgejoMilestone {
+  title?: string;
+}
+
+export interface ForgejoIssueDetail {
+  id?: number;
+  number?: number;
+  title?: string;
+  state?: string;
+  html_url?: string;
+  user?: ForgejoUser;
+  body?: string;
+  created_at?: string;
+  updated_at?: string;
+  closed_at?: string;
+  labels?: ForgejoLabel[];
+  milestone?: ForgejoMilestone;
+  repository?: { full_name?: string };
+}
+
+export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {
+  base?: { ref?: string; repo?: { full_name?: string } };
+  head?: { ref?: string; repo?: { full_name?: string } };
+  additions?: number;
+  deletions?: number;
+  changed_files?: number;
+  merged?: boolean;
+  merged_at?: string;
+  merged_by?: ForgejoUser;
+  mergeable?: boolean;
+  draft?: boolean;
+}
+
 export interface ForgejoRepoDetail {
   repository: ForgejoRepository;
+  empty: boolean;
   readme?: string;
   branches: string[];
   recentCommits: ForgejoCommit[];

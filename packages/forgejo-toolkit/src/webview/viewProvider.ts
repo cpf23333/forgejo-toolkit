@@ -203,6 +203,70 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'getIssueDetail': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const detail = await client.getIssueDetail(owner, repo, index);
+              this._reply('issueDetail', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                detail,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getIssueDetail failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueDetail', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'getPullRequestDetail': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const detail = await client.getPullRequestDetail(owner, repo, index);
+              this._reply('pullRequestDetail', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                detail,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getPullRequestDetail failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('pullRequestDetail', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
           case 'copyToClipboard': {
             const text = message.text;
             if (typeof text === 'string') {
