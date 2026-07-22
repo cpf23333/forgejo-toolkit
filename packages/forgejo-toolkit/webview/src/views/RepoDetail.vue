@@ -19,12 +19,12 @@ const emit = defineEmits<{
   (e: 'openExternal', url: string): void;
   (e: 'copyToClipboard', text: string): void;
   (e: 'previewReadme', content: string): void;
+  (e: 'openRepoIssues', instanceId: string, owner: string, repo: string): void;
+  (e: 'openRepoPullRequests', instanceId: string, owner: string, repo: string): void;
 }>();
 
 const repoUrl = computed(() => props.detail?.repository.html_url ?? '');
 const cloneUrl = computed(() => (repoUrl.value ? `${repoUrl.value}.git` : ''));
-const issuesUrl = computed(() => (repoUrl.value ? `${repoUrl.value}/issues` : ''));
-const pullsUrl = computed(() => (repoUrl.value ? `${repoUrl.value}/pulls` : ''));
 
 function commitMessage(message: string): string {
   return message.split('\n')[0];
@@ -96,10 +96,10 @@ function committerName(commit: ForgejoCommit): string {
           <vscode-button variant="secondary" @click="emit('copyToClipboard', repoUrl)">{{
             t('dashboard.actions.copyUrl')
           }}</vscode-button>
-          <vscode-button variant="secondary" @click="emit('openExternal', issuesUrl)"
-            >{{ t('dashboard.openIssues') }} ({{ detail.repository.open_issues_count }})</vscode-button
+          <vscode-button variant="secondary" @click="emit('openRepoIssues', instanceId, owner, repo)"
+            >{{ t('dashboard.openIssues') }} ({{ detail.repository.open_issues_count }})点击</vscode-button
           >
-          <vscode-button variant="secondary" @click="emit('openExternal', pullsUrl)"
+          <vscode-button variant="secondary" @click="emit('openRepoPullRequests', instanceId, owner, repo)"
             >{{ t('dashboard.openPullRequests') }} ({{ detail.repository.open_pr_counter ?? 0 }})</vscode-button
           >
           <vscode-button v-if="detail.readme" variant="secondary" @click="emit('previewReadme', detail.readme)">{{

@@ -2,12 +2,14 @@ import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
   issueGetIssue,
+  issueListIssues,
   issueSearchIssues,
   repoGet,
   repoGetAllCommits,
   repoGetContents,
   repoGetPullRequest,
   repoListBranches,
+  repoListPullRequests,
   userCurrentListRepos,
   userGetCurrent,
 } from '@cpf23333-forgejo-toolkit/api';
@@ -107,8 +109,54 @@ export class ForgejoClient {
     return issueGetIssue(owner, repo, index, { client: this._client() }) as Promise<ForgejoIssueDetail>;
   }
 
-  getPullRequestDetail(owner: string, repo: string, index: number): Promise<ForgejoPullRequestDetail> {
-    return repoGetPullRequest(owner, repo, index, { client: this._client() }) as Promise<ForgejoPullRequestDetail>;
+  async getPullRequestDetail(owner: string, repo: string, index: number): Promise<ForgejoPullRequestDetail> {
+    // WORKAROUND: Forgejo's pulls endpoint does not return attachments.
+    // The same underlying object is accessible via the issues endpoint,
+    // which does include the `assets` field. See KNOWN_ISSUES.md.
+    const [pr, issue] = await Promise.all([
+      repoGetPullRequest(owner, repo, index, { client: this._client() }),
+      issueGetIssue(owner, repo, index, { client: this._client() }).catch(() => undefined),
+    ]);
+    return {
+      ...(pr as ForgejoPullRequestDetail),
+      assets: (issue as ForgejoIssueDetail | undefined)?.assets,
+    };
+  }
+
+  getRepoIssues(owner: string, repo: string, state: string = 'open'): Promise<ForgejoIssue[]> {
+    return issueListIssues(
+      owner,
+      repo,
+      { state: state as 'open' | 'closed' | 'all', type: 'issues' },
+      { client: this._client() },
+    ) as Promise<ForgejoIssue[]>;
+  }
+
+  getRepoPullRequests(owner: string, repo: string, state: string = 'open'): Promise<ForgejoPullRequest[]> {
+    return repoListPullRequests(
+      owner,
+      repo,
+      { state: state as 'open' | 'closed' | 'all' },
+      { client: this._client() },
+    ) as Promise<ForgejoPullRequest[]>;
+  }
+
+  async renderMarkdown(text: string, context?: string): Promise<string> {
+    const baseURL = `${this.url.replace(/\/$/, '')}/api/v1`;
+    const response = await fetch(`${baseURL}/markdown`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/html',
+        Authorization: `token ${this.token}`,
+      },
+      body: JSON.stringify({ Text: text, Mode: 'gfm', Context: context }),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Forgejo API error ${response.status}: ${text || response.statusText}`);
+    }
+    return response.text();
   }
 
   private _client(): Client {

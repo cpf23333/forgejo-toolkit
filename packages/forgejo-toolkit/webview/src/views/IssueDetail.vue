@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
+import MarkdownBody from '../components/MarkdownBody.vue';
+import AttachmentList from '../components/AttachmentList.vue';
 import type { ForgejoIssueDetail } from '../types/api';
 
 const { t } = useI18n();
@@ -14,12 +16,43 @@ const props = defineProps<{
   detail?: ForgejoIssueDetail;
   loading: boolean;
   error?: string;
+  baseUrl?: string;
+  renderMarkdownFn: (text: string, context: string) => Promise<string>;
 }>();
 
 const emit = defineEmits<{
   (e: 'openExternal', url: string): void;
   (e: 'copyToClipboard', text: string): void;
 }>();
+
+const renderedBody = ref('');
+const bodyLoading = ref(false);
+const bodyError = ref('');
+
+async function renderBody() {
+  renderedBody.value = '';
+  bodyError.value = '';
+  if (!props.detail?.body) {
+    return;
+  }
+  bodyLoading.value = true;
+  try {
+    const context = `${props.owner}/${props.repo}`;
+    renderedBody.value = await props.renderMarkdownFn(props.detail.body, context);
+  } catch (error) {
+    bodyError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    bodyLoading.value = false;
+  }
+}
+
+watch(
+  () => props.detail?.body,
+  () => {
+    renderBody();
+  },
+  { immediate: true },
+);
 
 const issueUrl = computed(() => props.detail?.html_url ?? '');
 
@@ -120,8 +153,16 @@ function isLightColor(hex: string): boolean {
 
       <div class="detail-section">
         <h3>{{ t('dashboard.detail.body') }}</h3>
-        <div class="body-content">{{ detail.body ?? t('dashboard.detail.noBody') }}</div>
+        <MarkdownBody
+          :html="renderedBody"
+          :loading="bodyLoading"
+          :error="bodyError"
+          :base-url="baseUrl"
+          @open-external="emit('openExternal', $event)"
+        />
       </div>
+
+      <AttachmentList :assets="detail.assets" @open-external="emit('openExternal', $event)" />
 
       <div class="detail-actions">
         <VscodeButton variant="secondary" @click="emit('openExternal', issueUrl)">
@@ -260,6 +301,20 @@ function isLightColor(hex: string): boolean {
   background-color: var(--vscode-editor-inactiveSelectionBackground);
   border-radius: 4px;
   color: var(--vscode-foreground);
+}
+
+.detail-section .markdown-content {
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  padding: 12px;
+  border-radius: 4px;
+}
+
+.detail-section .markdown-loading,
+.detail-section .markdown-empty,
+.detail-section .markdown-error {
+  padding: 12px;
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  border-radius: 4px;
 }
 
 .detail-actions {

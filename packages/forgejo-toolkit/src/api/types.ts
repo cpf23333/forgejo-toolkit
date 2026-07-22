@@ -57,6 +57,15 @@ export interface ForgejoMilestone {
   title?: string;
 }
 
+export interface ForgejoIssueAttachment {
+  id?: number;
+  name?: string;
+  size?: number;
+  uuid?: string;
+  browser_download_url?: string;
+  type?: string;
+}
+
 export interface ForgejoIssueDetail {
   id?: number;
   number?: number;
@@ -71,6 +80,7 @@ export interface ForgejoIssueDetail {
   labels?: ForgejoLabel[];
   milestone?: ForgejoMilestone;
   repository?: { full_name?: string };
+  assets?: ForgejoIssueAttachment[];
 }
 
 export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {

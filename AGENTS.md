@@ -29,3 +29,16 @@ When you need a new element, create its wrapper in `packages/vscode-elements-vue
 ## Type checking
 
 - Run `pnpm check` at the root after any TypeScript or Vue change.
+
+## Internationalization (i18n)
+
+- Keep all UI strings in JSON files under `packages/forgejo-toolkit/webview/src/i18n/`:
+  - `en.json` for English (source of truth)
+  - `zh.json` for Chinese
+- Use namespaced keys that reflect the screen or component, e.g. `dashboard.tabs.repositories`, `settings.addInstanceTitle`, `dashboard.detail.openIssue`.
+- Add new keys to **both** language files in the same PR. Keep English and Chinese translations equivalent in meaning.
+- Do **not** embed user-facing strings directly in `.vue` files or TypeScript code. Exception: purely technical identifiers, log messages, or debug strings that are never shown to users.
+- Do **not** use `<i18n>` blocks inside `.vue` files. Centralized JSON is easier to audit, search, and translate.
+- Prefer flat, readable keys over deeply nested structures. Three levels (`section.group.key`) is usually enough.
+- When reusing the same concept in multiple places, use a shared key rather than duplicating text.
+- Run `pnpm check` after editing i18n files to catch missing interpolation arguments or type mismatches.

@@ -39,6 +39,19 @@
     "defaultBranch": "default",
     "readme": "README",
     "noReadme": "No README",
+    "state": {
+      "open": "Open",
+      "closed": "Closed",
+      "all": "All"
+    },
+    "repoIssues": {
+      "title": "Issues · {repo}",
+      "empty": "No issues match the selected state."
+    },
+    "repoPullRequests": {
+      "title": "Pull Requests · {repo}",
+      "empty": "No pull requests match the selected state."
+    },
     "actions": {
       "open": "Open in Browser",
       "copyClone": "Copy Clone URL",
@@ -66,7 +79,9 @@
       "mergedBy": "Merged by",
       "openIssue": "Open Issue in Browser",
       "openPullRequest": "Open Pull Request in Browser",
-      "copyLink": "Copy Link"
+      "copyLink": "Copy Link",
+      "renderingBody": "Rendering description...",
+      "attachments": "Attachments"
     }
   },
   "instance": {
@@ -89,6 +104,7 @@
     "savedInstances": "Saved Instances",
     "remove": "Remove",
     "backToDashboard": "← Back to Dashboard",
+    "backToRepoDetail": "← Back to Repository",
     "debug": {
       "title": "Debug Logging",
       "description": "Enable request/response logging to the Forgejo Toolkit output channel.",

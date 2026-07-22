@@ -267,6 +267,91 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'getRepoIssues': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const issues = await client.getRepoIssues(owner, repo, message.state ?? 'open');
+              this._reply('repoIssues', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                state: message.state ?? 'open',
+                issues,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getRepoIssues failed for ${instance.name}/${owner}/${repo}: ${err}`);
+              this._reply('repoIssues', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                state: message.state ?? 'open',
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'getRepoPullRequests': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const pullRequests = await client.getRepoPullRequests(owner, repo, message.state ?? 'open');
+              this._reply('repoPullRequests', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                state: message.state ?? 'open',
+                pullRequests,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getRepoPullRequests failed for ${instance.name}/${owner}/${repo}: ${err}`);
+              this._reply('repoPullRequests', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                state: message.state ?? 'open',
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'renderMarkdown': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { text, key } = message;
+            if (typeof text !== 'string' || typeof key !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const html = await client.renderMarkdown(text, message.context);
+              const htmlWithResolvedImages = await this._resolveImageUrls(html, instance);
+              this._reply('renderedMarkdown', { key, html: htmlWithResolvedImages });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`renderMarkdown failed for ${instance.name}: ${err}`);
+              this._reply('renderedMarkdown', { key, error: err });
+            }
+            return;
+          }
           case 'copyToClipboard': {
             const text = message.text;
             if (typeof text === 'string') {
@@ -366,6 +451,55 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       }),
     );
     return { ...detail, recentCommits: resolvedCommits };
+  }
+
+  private async _resolveImageUrls(html: string, instance: ForgejoInstance): Promise<string> {
+    const instanceBaseUrl = instance.url.replace(/\/$/, '');
+    const imgSrcRegex = /<img[^\u003e]*\s+src=["']([^"']+)["'][^\u003e]*>/gi;
+    const replacements: Array<{ start: number; end: number; value: string }> = [];
+    let match;
+    while ((match = imgSrcRegex.exec(html)) !== null) {
+      const src = match[1];
+      if (!src || src.startsWith('data:')) {
+        continue;
+      }
+      let absoluteUrl: string;
+      try {
+        absoluteUrl = new URL(src, instanceBaseUrl).href;
+      } catch {
+        continue;
+      }
+      try {
+        const response = await fetch(absoluteUrl, {
+          headers: { Authorization: `token ${instance.token}` },
+        });
+        if (!response.ok) {
+          continue;
+        }
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        const contentType = response.headers.get('content-type') ?? 'image/png';
+        replacements.push({
+          start: match.index,
+          end: imgSrcRegex.lastIndex,
+          value: `data:${contentType};base64,${base64}`,
+        });
+      } catch {
+        // ignore image fetch errors, keep original url
+      }
+    }
+    let result = html;
+    for (let i = replacements.length - 1; i >= 0; i--) {
+      const { start, end, value } = replacements[i];
+      const original = result.slice(start, end);
+      const srcMatch = /src=["'][^"']+["']/i.exec(original);
+      if (!srcMatch) {
+        continue;
+      }
+      const srcStart = start + srcMatch.index;
+      result = result.slice(0, srcStart + 5) + value + result.slice(srcStart + srcMatch[0].length - 1);
+    }
+    return result;
   }
 
   private async _resolveAvatarUrl(url: string): Promise<string> {

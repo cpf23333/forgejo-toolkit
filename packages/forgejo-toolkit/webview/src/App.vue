@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useAppState, repoDetailKey, issueDetailKey, pullRequestDetailKey } from './composables/useAppState';
+import {
+  useAppState,
+  repoDetailKey,
+  issueDetailKey,
+  pullRequestDetailKey,
+  repoIssuesKey,
+  repoPullRequestsKey,
+} from './composables/useAppState';
 import Dashboard from './views/Dashboard.vue';
 import RepoDetail from './views/RepoDetail.vue';
+import RepoIssues from './views/RepoIssues.vue';
+import RepoPullRequests from './views/RepoPullRequests.vue';
 import IssueDetail from './views/IssueDetail.vue';
 import PullRequestDetail from './views/PullRequestDetail.vue';
 import Settings from './views/Settings.vue';
@@ -79,6 +88,12 @@ const selectedIssueError = computed(() =>
       )
     : undefined,
 );
+const selectedIssueBaseUrl = computed(() => {
+  if (!state.selectedIssue.value) {
+    return undefined;
+  }
+  return state.instances.value.find((i) => i.id === state.selectedIssue.value!.instanceId)?.url;
+});
 
 const selectedPullRequestDetail = computed(() =>
   state.selectedPullRequest.value
@@ -116,18 +131,122 @@ const selectedPullRequestError = computed(() =>
       )
     : undefined,
 );
+const selectedPullRequestBaseUrl = computed(() => {
+  if (!state.selectedPullRequest.value) {
+    return undefined;
+  }
+  return state.instances.value.find((i) => i.id === state.selectedPullRequest.value!.instanceId)?.url;
+});
+const repoDetailPages = ['repoDetail', 'repoIssues', 'repoPullRequests'];
+
+const isRepoContext = computed(() => repoDetailPages.includes(state.currentPage.value));
+
+const backLabel = computed(() =>
+  isRepoContext.value ? state.t('settings.backToRepoDetail') : state.t('settings.backToDashboard'),
+);
+
+function renderIssueMarkdown(text: string, context: string): Promise<string> {
+  if (!state.selectedIssue.value) {
+    return Promise.reject(new Error('No issue selected'));
+  }
+  return state.renderMarkdown(state.selectedIssue.value.instanceId, text, context);
+}
+
+function renderPullRequestMarkdown(text: string, context: string): Promise<string> {
+  if (!state.selectedPullRequest.value) {
+    return Promise.reject(new Error('No pull request selected'));
+  }
+  return state.renderMarkdown(state.selectedPullRequest.value.instanceId, text, context);
+}
+
+function back() {
+  if (isRepoContext.value) {
+    state.backToRepoDetail();
+  } else {
+    state.backToDashboard();
+  }
+}
+
+const selectedRepoIssues = computed(() =>
+  state.selectedRepoIssues.value
+    ? state.repoIssues.value.get(
+        repoIssuesKey(
+          state.selectedRepoIssues.value.instanceId,
+          state.selectedRepoIssues.value.owner,
+          state.selectedRepoIssues.value.repo,
+          state.selectedRepoIssues.value.state,
+        ),
+      )
+    : undefined,
+);
+const selectedRepoIssuesLoading = computed(() =>
+  state.selectedRepoIssues.value
+    ? (state.loading.value.get(
+        repoIssuesKey(
+          state.selectedRepoIssues.value.instanceId,
+          state.selectedRepoIssues.value.owner,
+          state.selectedRepoIssues.value.repo,
+          state.selectedRepoIssues.value.state,
+        ),
+      ) ?? false)
+    : false,
+);
+const selectedRepoIssuesError = computed(() =>
+  state.selectedRepoIssues.value
+    ? state.errors.value.get(
+        repoIssuesKey(
+          state.selectedRepoIssues.value.instanceId,
+          state.selectedRepoIssues.value.owner,
+          state.selectedRepoIssues.value.repo,
+          state.selectedRepoIssues.value.state,
+        ),
+      )
+    : undefined,
+);
+
+const selectedRepoPullRequests = computed(() =>
+  state.selectedRepoPullRequests.value
+    ? state.repoPullRequests.value.get(
+        repoPullRequestsKey(
+          state.selectedRepoPullRequests.value.instanceId,
+          state.selectedRepoPullRequests.value.owner,
+          state.selectedRepoPullRequests.value.repo,
+          state.selectedRepoPullRequests.value.state,
+        ),
+      )
+    : undefined,
+);
+const selectedRepoPullRequestsLoading = computed(() =>
+  state.selectedRepoPullRequests.value
+    ? (state.loading.value.get(
+        repoPullRequestsKey(
+          state.selectedRepoPullRequests.value.instanceId,
+          state.selectedRepoPullRequests.value.owner,
+          state.selectedRepoPullRequests.value.repo,
+          state.selectedRepoPullRequests.value.state,
+        ),
+      ) ?? false)
+    : false,
+);
+const selectedRepoPullRequestsError = computed(() =>
+  state.selectedRepoPullRequests.value
+    ? state.errors.value.get(
+        repoPullRequestsKey(
+          state.selectedRepoPullRequests.value.instanceId,
+          state.selectedRepoPullRequests.value.owner,
+          state.selectedRepoPullRequests.value.repo,
+          state.selectedRepoPullRequests.value.state,
+        ),
+      )
+    : undefined,
+);
 </script>
 
 <template>
   <div class="app">
     <header class="app-header">
-      <a
-        v-if="state.currentPage.value !== 'dashboard'"
-        href="#"
-        class="back-link"
-        @click.prevent="state.backToDashboard"
-      >
-        {{ state.t('settings.backToDashboard') }}
+      <a v-if="state.currentPage.value !== 'dashboard'" href="#" class="back-link" @click.prevent="back">
+        {{ backLabel }}
       </a>
     </header>
     <main>
@@ -159,6 +278,34 @@ const selectedPullRequestError = computed(() =>
         @open-external="state.openExternal"
         @copy-to-clipboard="state.copyToClipboard"
         @preview-readme="state.previewReadme"
+        @open-repo-issues="state.openRepoIssues"
+        @open-repo-pull-requests="state.openRepoPullRequests"
+      />
+      <RepoIssues
+        v-else-if="state.currentPage.value === 'repoIssues' && state.selectedRepoIssues.value"
+        :instance-id="state.selectedRepoIssues.value.instanceId"
+        :owner="state.selectedRepoIssues.value.owner"
+        :repo="state.selectedRepoIssues.value.repo"
+        :state="state.selectedRepoIssues.value.state"
+        :items="selectedRepoIssues ?? []"
+        :loading="selectedRepoIssuesLoading"
+        :error="selectedRepoIssuesError"
+        @open-issue="state.openIssueDetail"
+        @change-state="state.changeRepoIssuesState"
+        @open-external="state.openExternal"
+      />
+      <RepoPullRequests
+        v-else-if="state.currentPage.value === 'repoPullRequests' && state.selectedRepoPullRequests.value"
+        :instance-id="state.selectedRepoPullRequests.value.instanceId"
+        :owner="state.selectedRepoPullRequests.value.owner"
+        :repo="state.selectedRepoPullRequests.value.repo"
+        :state="state.selectedRepoPullRequests.value.state"
+        :items="selectedRepoPullRequests ?? []"
+        :loading="selectedRepoPullRequestsLoading"
+        :error="selectedRepoPullRequestsError"
+        @open-pull-request="state.openPullRequestDetail"
+        @change-state="state.changeRepoPullRequestsState"
+        @open-external="state.openExternal"
       />
       <IssueDetail
         v-else-if="state.currentPage.value === 'issueDetail' && state.selectedIssue.value"
@@ -169,6 +316,8 @@ const selectedPullRequestError = computed(() =>
         :detail="selectedIssueDetail"
         :loading="selectedIssueLoading"
         :error="selectedIssueError"
+        :base-url="selectedIssueBaseUrl"
+        :render-markdown-fn="renderIssueMarkdown"
         @open-external="state.openExternal"
         @copy-to-clipboard="state.copyToClipboard"
       />
@@ -181,6 +330,8 @@ const selectedPullRequestError = computed(() =>
         :detail="selectedPullRequestDetail"
         :loading="selectedPullRequestLoading"
         :error="selectedPullRequestError"
+        :base-url="selectedPullRequestBaseUrl"
+        :render-markdown-fn="renderPullRequestMarkdown"
         @open-external="state.openExternal"
         @copy-to-clipboard="state.copyToClipboard"
       />

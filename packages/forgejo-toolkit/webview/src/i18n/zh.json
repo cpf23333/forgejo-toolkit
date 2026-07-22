@@ -39,6 +39,19 @@
     "defaultBranch": "默认",
     "readme": "README",
     "noReadme": "没有 README",
+    "state": {
+      "open": "打开",
+      "closed": "已关闭",
+      "all": "全部"
+    },
+    "repoIssues": {
+      "title": "Issues · {repo}",
+      "empty": "没有符合当前状态的 Issues。"
+    },
+    "repoPullRequests": {
+      "title": "Pull Requests · {repo}",
+      "empty": "没有符合当前状态的 Pull Requests。"
+    },
     "actions": {
       "open": "在浏览器打开",
       "copyClone": "复制克隆地址",
@@ -66,7 +79,9 @@
       "mergedBy": "合并人",
       "openIssue": "在浏览器打开 Issue",
       "openPullRequest": "在浏览器打开 Pull Request",
-      "copyLink": "复制链接"
+      "copyLink": "复制链接",
+      "renderingBody": "正在渲染描述...",
+      "attachments": "附件"
     }
   },
   "instance": {
@@ -89,6 +104,7 @@
     "savedInstances": "已保存实例",
     "remove": "移除",
     "backToDashboard": "← 返回仪表盘",
+    "backToRepoDetail": "← 返回仓库",
     "debug": {
       "title": "调试日志",
       "description": "启用后将在 Forgejo Toolkit 输出通道中记录请求和响应。",
