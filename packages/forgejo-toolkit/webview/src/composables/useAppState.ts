@@ -56,6 +56,9 @@ export function useAppState() {
       case 'openSettings':
         router.push({ name: 'settings' });
         break;
+      case 'openDashboard':
+        router.push({ name: 'dashboard' });
+        break;
       case 'setLocale':
         locale.value = message.locale;
         break;

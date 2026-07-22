@@ -22,5 +22,9 @@ export function registerCommands(
     vscode.commands.registerCommand('forgejoToolkit.openOnboarding', () => {
       OnboardingWebviewPanel.createOrShow(context, context.extensionUri, config, readmeProvider);
     }),
+
+    vscode.commands.registerCommand('forgejoToolkit.openDashboard', () => {
+      viewProvider.openDashboard();
+    }),
   );
 }

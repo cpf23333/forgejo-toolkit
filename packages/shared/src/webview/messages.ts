@@ -9,6 +9,7 @@ export interface ForgejoInstance {
 export type HostToWebviewMessage =
   | { command: 'instances'; data: ForgejoInstance[] }
   | { command: 'openSettings' }
+  | { command: 'openDashboard' }
   | { command: 'setLocale'; locale: 'en' | 'zh' }
   | { command: 'setDebug'; debug: boolean }
   | { command: 'repositories'; instanceId: string; repositories?: unknown[]; error?: string }

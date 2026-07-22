@@ -1,7 +1,9 @@
 {
   "app": {
     "title": "Forgejo Toolkit",
-    "openOnboarding": "Open Setup Guide"
+    "openOnboarding": "Open Setup Guide",
+    "back": "← Back",
+    "home": "Home"
   },
   "onboarding": {
     "title": "Welcome to Forgejo Toolkit",

@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
 import { useAppState, pullRequestDetailKey } from '../composables/useAppState';
@@ -265,14 +264,14 @@ watch(
 
       <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
 
-      <div class="detail-actions">
-        <VscodeButton variant="secondary" @click="state.openExternal(prUrl)">
+      <div class="actions">
+        <a href="#" class="action-link" @click.prevent="state.openExternal(prUrl)">
           {{ t('dashboard.detail.openPullRequest') }}
-        </VscodeButton>
-        <VscodeButton variant="secondary" @click="state.copyToClipboard(prUrl)">
+        </a>
+        <a href="#" class="action-link" @click.prevent="state.copyToClipboard(prUrl)">
           {{ t('dashboard.detail.copyLink') }}
-        </VscodeButton>
-        <VscodeButton variant="secondary" :disabled="worktreeLoading" @click="openInWorktree">
+        </a>
+        <a href="#" class="action-link" :class="{ disabled: worktreeLoading }" @click.prevent="openInWorktree">
           {{
             worktreeLoading
               ? t('dashboard.worktree.opening')
@@ -280,7 +279,7 @@ watch(
                 ? t('dashboard.worktree.openExisting')
                 : t('dashboard.worktree.openInWorktree')
           }}
-        </VscodeButton>
+        </a>
       </div>
       <div v-if="worktreeStatus" :class="['worktree-status', worktreeStatusType]">{{ worktreeStatus }}</div>
     </div>
@@ -470,10 +469,28 @@ watch(
   border-radius: 4px;
 }
 
-.detail-actions {
+.actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   margin-top: 8px;
+}
+
+.action-link {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.action-link:hover {
+  text-decoration: underline;
+}
+
+.action-link.disabled {
+  color: var(--vscode-descriptionForeground);
+  pointer-events: none;
+  text-decoration: none;
 }
 
 .worktree-status {

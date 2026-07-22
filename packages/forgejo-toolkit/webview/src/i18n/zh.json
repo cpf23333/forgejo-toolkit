@@ -1,7 +1,9 @@
 {
   "app": {
     "title": "Forgejo Toolkit",
-    "openOnboarding": "打开引导设置"
+    "openOnboarding": "打开引导设置",
+    "back": "← 返回",
+    "home": "主页"
   },
   "onboarding": {
     "title": "欢迎使用 Forgejo Toolkit",

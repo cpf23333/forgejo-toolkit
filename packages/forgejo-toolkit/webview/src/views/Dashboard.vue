@@ -54,12 +54,20 @@ function collapseOwner(key: string) {
   expandedOwners.value.delete(key);
 }
 
-function handleOwnerToggle(key: string, event: Event) {
-  const customEvent = event as CustomEvent<boolean>;
-  if (customEvent.detail) {
-    expandOwner(key);
+function handleInstanceClick(instanceId: string) {
+  if (expandedInstances.value.has(instanceId)) {
+    collapseInstance(instanceId);
   } else {
+    expandInstance(instanceId);
+  }
+}
+
+function handleOwnerClick(instanceId: string, owner: string) {
+  const key = ownerKey(instanceId, owner);
+  if (expandedOwners.value.has(key)) {
     collapseOwner(key);
+  } else {
+    expandOwner(key);
   }
 }
 
@@ -91,15 +99,6 @@ function collapseInstance(instanceId: string) {
     if (key.startsWith(`${instanceId}:`)) {
       expandedOwners.value.delete(key);
     }
-  }
-}
-
-function handleToggle(instanceId: string, event: Event) {
-  const customEvent = event as CustomEvent<boolean>;
-  if (customEvent.detail) {
-    expandInstance(instanceId);
-  } else {
-    collapseInstance(instanceId);
   }
 }
 
@@ -141,7 +140,14 @@ onMounted(() => {
   }
 });
 
-function openRepo(instanceId: string, repo: ForgejoRepository) {
+function isActionClick(event: Event): boolean {
+  return !!(event.target as HTMLElement).closest('.tree-actions');
+}
+
+function openRepo(event: Event, instanceId: string, repo: ForgejoRepository) {
+  if (isActionClick(event)) {
+    return;
+  }
   state.openRepoDetail(instanceId, repo.owner.login, repo.name);
 }
 
@@ -158,7 +164,10 @@ function parseOwnerRepo(url: string): { owner: string; repo: string } | undefine
   return undefined;
 }
 
-function openIssue(instanceId: string, issue: ForgejoIssue) {
+function openIssue(event: Event, instanceId: string, issue: ForgejoIssue) {
+  if (isActionClick(event)) {
+    return;
+  }
   const ownerRepo = issue.repository?.full_name
     ? { owner: issue.repository.full_name.split('/')[0], repo: issue.repository.full_name.split('/')[1] }
     : parseOwnerRepo(issue.html_url);
@@ -167,7 +176,10 @@ function openIssue(instanceId: string, issue: ForgejoIssue) {
   }
 }
 
-function openPullRequest(instanceId: string, pr: ForgejoPullRequest) {
+function openPullRequest(event: Event, instanceId: string, pr: ForgejoPullRequest) {
+  if (isActionClick(event)) {
+    return;
+  }
   const ownerRepo = parseOwnerRepo(pr.html_url);
   if (ownerRepo) {
     state.openPullRequestDetail(instanceId, ownerRepo.owner, ownerRepo.repo, pr.number);
@@ -233,6 +245,54 @@ const errors = computed(() => state.errors.value);
     </div>
 
     <div v-else class="dashboard-content">
+      <div class="official-example">
+        <h3>Official Example</h3>
+        <vscode-tree id="tree-basic-example">
+          <vscode-tree-item>
+            Fruits
+            <vscode-tree-item>
+              Citrus Fruits
+              <vscode-tree-item>Orange</vscode-tree-item>
+              <vscode-tree-item>Lemon</vscode-tree-item>
+              <vscode-tree-item>Grapefruit</vscode-tree-item>
+            </vscode-tree-item>
+            <vscode-tree-item>
+              Berries
+              <vscode-tree-item>Strawberry</vscode-tree-item>
+              <vscode-tree-item>Blueberry</vscode-tree-item>
+              <vscode-tree-item>Raspberry</vscode-tree-item>
+            </vscode-tree-item>
+            <vscode-tree-item>
+              Tropical Fruits
+              <vscode-tree-item>Mango</vscode-tree-item>
+              <vscode-tree-item>Pineapple</vscode-tree-item>
+              <vscode-tree-item>Papaya</vscode-tree-item>
+            </vscode-tree-item>
+          </vscode-tree-item>
+          <vscode-tree-item>
+            Vegetables
+            <vscode-tree-item>
+              Leafy Greens
+              <vscode-tree-item>Spinach</vscode-tree-item>
+              <vscode-tree-item>Lettuce</vscode-tree-item>
+              <vscode-tree-item>Kale</vscode-tree-item>
+            </vscode-tree-item>
+            <vscode-tree-item>
+              Root Vegetables
+              <vscode-tree-item>Carrot</vscode-tree-item>
+              <vscode-tree-item>Beetroot</vscode-tree-item>
+              <vscode-tree-item>Radish</vscode-tree-item>
+            </vscode-tree-item>
+            <vscode-tree-item>
+              Nightshades
+              <vscode-tree-item>Tomato</vscode-tree-item>
+              <vscode-tree-item>Eggplant</vscode-tree-item>
+              <vscode-tree-item>Bell Pepper</vscode-tree-item>
+            </vscode-tree-item>
+          </vscode-tree-item>
+        </vscode-tree>
+      </div>
+
       <div class="tabs">
         <button
           v-for="tab in ['repositories', 'issues', 'pullRequests'] as Tab[]"
@@ -246,86 +306,87 @@ const errors = computed(() => state.errors.value);
       </div>
 
       <div class="instances">
-        <vscode-collapsible
-          v-for="instance in instances"
-          :key="instance.id"
-          :heading="instance.url + ' · ' + instance.username"
-          :open="expandedInstances.has(instance.id)"
-          @toggle="handleToggle(instance.id, $event)"
-        >
-          <div slot="decorations" class="instance-header">
-            <span class="badge">{{ badgeCount(instance.id) }}</span>
-          </div>
-
-          <div class="instance-body">
-            <div v-if="loading.get(loadingKey(instance.id))" class="loading">
-              {{ t('dashboard.loading') }}
-            </div>
-            <div v-else-if="errors.get(loadingKey(instance.id))" class="error">
-              {{ formatError(loadingKey(instance.id)) }}
-            </div>
-            <div v-else-if="activeTab === 'repositories'" class="item-list">
-              <div v-if="!repositories.get(instance.id)?.length" class="empty-list">
-                {{ t('dashboard.noRepositories') }}
-              </div>
-              <div v-else class="owner-list">
-                <vscode-collapsible
+        <vscode-tree indent-guides="onHover">
+          <vscode-tree-item
+            v-for="instance in instances"
+            :key="instance.id"
+            branch
+            :open="expandedInstances.has(instance.id)"
+            @click="handleInstanceClick(instance.id)"
+          >
+            {{ instance.url }} · {{ instance.username }}
+            <span class="badge" slot="decoration">{{ badgeCount(instance.id) }}</span>
+            <span slot="description">
+              <span v-if="loading.get(loadingKey(instance.id))" class="loading">{{ t('dashboard.loading') }}</span>
+              <span v-else-if="errors.get(loadingKey(instance.id))" class="error">{{
+                formatError(loadingKey(instance.id))
+              }}</span>
+            </span>
+            <template v-if="activeTab === 'repositories'">
+              <template v-if="!repositories.get(instance.id)?.length">
+                <vscode-tree-item>{{ t('dashboard.noRepositories') }}</vscode-tree-item>
+              </template>
+              <template v-else>
+                <vscode-tree-item
                   v-for="(ownerRepos, owner) in reposByOwner(instance.id)"
                   :key="owner"
-                  class="owner-collapsible"
-                  :heading="owner"
+                  branch
                   :open="expandedOwners.has(ownerKey(instance.id, owner))"
-                  @toggle="handleOwnerToggle(ownerKey(instance.id, owner), $event)"
+                  @click="handleOwnerClick(instance.id, owner)"
                 >
-                  <div slot="decorations" class="owner-header">
-                    <span class="badge">{{ ownerRepos.length }}</span>
-                  </div>
-
-                  <div class="owner-body">
-                    <div v-for="repo in ownerRepos" :key="repo.id" class="item-card repo-card">
-                      <div class="item-title repo-title">
-                        <a href="#" @click.prevent="openRepo(instance.id, repo)">{{ repo.name }}</a>
-                        <span class="repo-actions">
-                          <a
-                            href="#"
-                            :title="t('dashboard.actions.open')"
-                            @click.prevent="state.openExternal(repo.html_url)"
-                          >
-                            <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                              <path
-                                d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
-                              />
-                            </svg>
-                          </a>
-                          <a
-                            href="#"
-                            :title="t('dashboard.actions.copyClone')"
-                            @click.prevent="state.copyToClipboard(cloneUrl(instance, repo))"
-                          >
-                            <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                              <path
-                                d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
-                              />
-                            </svg>
-                          </a>
-                        </span>
-                      </div>
-                      <div v-if="repo.description" class="item-desc">{{ repo.description }}</div>
-                      <div class="item-meta">
-                        <span>{{ t('dashboard.branch') }}: {{ repo.default_branch }}</span>
-                        <span>{{ t('dashboard.stars') }}: {{ repo.stars_count }}</span>
-                        <span>{{ t('dashboard.forks') }}: {{ repo.forks_count }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </vscode-collapsible>
-              </div>
-            </div>
-            <div v-else-if="activeTab === 'issues'" class="item-list">
-              <div v-for="issue in myIssues.get(instance.id)" :key="issue.id" class="item-card">
-                <div class="item-title">
-                  <a href="#" @click.prevent="openIssue(instance.id, issue)">#{{ issue.number }} {{ issue.title }}</a>
-                  <span class="issue-actions">
+                  {{ owner }}
+                  <span class="badge" slot="decoration">{{ ownerRepos.length }}</span>
+                  <vscode-tree-item
+                    v-for="repo in ownerRepos"
+                    :key="repo.id"
+                    @click.capture="openRepo($event, instance.id, repo)"
+                  >
+                    <span class="tree-repo-name">{{ repo.name }}</span>
+                    <span class="tree-repo-meta" slot="description">
+                      {{ t('dashboard.branch') }}: {{ repo.default_branch }} · {{ t('dashboard.stars') }}:
+                      {{ repo.stars_count }} · {{ t('dashboard.forks') }}: {{ repo.forks_count }}
+                    </span>
+                    <span slot="actions" class="tree-actions">
+                      <a
+                        href="#"
+                        :title="t('dashboard.actions.open')"
+                        @click.prevent="state.openExternal(repo.html_url)"
+                      >
+                        <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                          <path
+                            d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
+                          />
+                        </svg>
+                      </a>
+                      <a
+                        href="#"
+                        :title="t('dashboard.actions.copyClone')"
+                        @click.prevent="state.copyToClipboard(cloneUrl(instance, repo))"
+                      >
+                        <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                          <path
+                            d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
+                          />
+                        </svg>
+                      </a>
+                    </span>
+                  </vscode-tree-item>
+                </vscode-tree-item>
+              </template>
+            </template>
+            <template v-else-if="activeTab === 'issues'">
+              <template v-if="!myIssues.get(instance.id)?.length">
+                <vscode-tree-item>{{ t('dashboard.noIssues') }}</vscode-tree-item>
+              </template>
+              <template v-else>
+                <vscode-tree-item
+                  v-for="issue in myIssues.get(instance.id)"
+                  :key="issue.id"
+                  @click.capture="openIssue($event, instance.id, issue)"
+                >
+                  #{{ issue.number }} {{ issue.title }}
+                  <span class="tree-issue-meta" slot="description">{{ issue.state }}</span>
+                  <span slot="actions" class="tree-actions">
                     <a
                       href="#"
                       :title="t('dashboard.actions.open')"
@@ -349,19 +410,22 @@ const errors = computed(() => state.errors.value);
                       </svg>
                     </a>
                   </span>
-                </div>
-                <div class="item-meta">
-                  <span>{{ issue.state }}</span>
-                  <span v-if="issue.repository">{{ issue.repository.full_name }}</span>
-                </div>
-              </div>
-              <div v-if="!myIssues.get(instance.id)?.length" class="empty-list">{{ t('dashboard.noIssues') }}</div>
-            </div>
-            <div v-else-if="activeTab === 'pullRequests'" class="item-list">
-              <div v-for="pr in myPullRequests.get(instance.id)" :key="pr.id" class="item-card">
-                <div class="item-title">
-                  <a href="#" @click.prevent="openPullRequest(instance.id, pr)">#{{ pr.number }} {{ pr.title }}</a>
-                  <span class="pr-actions">
+                </vscode-tree-item>
+              </template>
+            </template>
+            <template v-else-if="activeTab === 'pullRequests'">
+              <template v-if="!myPullRequests.get(instance.id)?.length">
+                <vscode-tree-item>{{ t('dashboard.noPullRequests') }}</vscode-tree-item>
+              </template>
+              <template v-else>
+                <vscode-tree-item
+                  v-for="pr in myPullRequests.get(instance.id)"
+                  :key="pr.id"
+                  @click.capture="openPullRequest($event, instance.id, pr)"
+                >
+                  #{{ pr.number }} {{ pr.title }}
+                  <span class="tree-pr-meta" slot="description">{{ pr.state }}</span>
+                  <span slot="actions" class="tree-actions">
                     <a href="#" :title="t('dashboard.actions.open')" @click.prevent="state.openExternal(pr.html_url)">
                       <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                         <path
@@ -381,17 +445,11 @@ const errors = computed(() => state.errors.value);
                       </svg>
                     </a>
                   </span>
-                </div>
-                <div class="item-meta">
-                  <span>{{ pr.state }}</span>
-                </div>
-              </div>
-              <div v-if="!myPullRequests.get(instance.id)?.length" class="empty-list">
-                {{ t('dashboard.noPullRequests') }}
-              </div>
-            </div>
-          </div>
-        </vscode-collapsible>
+                </vscode-tree-item>
+              </template>
+            </template>
+          </vscode-tree-item>
+        </vscode-tree>
       </div>
     </div>
   </div>
@@ -440,41 +498,6 @@ const errors = computed(() => state.errors.value);
   color: var(--vscode-button-foreground);
 }
 
-.instances {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.instance-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-}
-
-.instance-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.instance-name {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.instance-detail {
-  font-size: 0.75em;
-  color: var(--vscode-descriptionForeground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .badge {
   background-color: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
@@ -484,149 +507,46 @@ const errors = computed(() => state.errors.value);
   flex-shrink: 0;
 }
 
-.instance-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px 0;
-}
-
 .loading {
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
+  padding: 4px 0;
 }
 
 .error {
   color: var(--vscode-testing-iconFailed);
   font-size: 0.9em;
+  padding: 4px 0;
 }
 
-.empty-list {
+.tree-repo-name,
+.tree-repo-meta,
+.tree-issue-meta,
+.tree-pr-meta {
+  font-size: 0.85em;
+}
+
+.tree-repo-meta,
+.tree-issue-meta,
+.tree-pr-meta {
   color: var(--vscode-descriptionForeground);
-  font-size: 0.9em;
-  padding: 12px 0;
 }
 
-.item-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.item-card {
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 4px;
-  padding: 10px;
-  background-color: var(--vscode-editor-inactiveSelectionBackground);
-}
-
-.item-title {
-  font-weight: 600;
-  margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.repo-title {
-  justify-content: space-between;
-}
-
-.repo-actions,
-.issue-actions,
-.pr-actions {
+.tree-actions {
   display: flex;
   gap: 8px;
-  align-items: center;
-  margin-left: auto;
 }
 
-.repo-actions a,
-.issue-actions a,
-.pr-actions a {
-  color: var(--vscode-descriptionForeground);
-  text-decoration: none;
-  padding: 2px;
-}
-
-.repo-actions a:hover,
-.issue-actions a:hover,
-.pr-actions a:hover {
-  color: var(--vscode-textLink-foreground);
-}
-
-.repo-actions a svg,
-.issue-actions a svg,
-.pr-actions a svg {
+.icon-link,
+.icon-copy {
   width: 14px;
   height: 14px;
   display: block;
+  color: var(--vscode-descriptionForeground);
 }
 
-.item-title a {
+.icon-link:hover,
+.icon-copy:hover {
   color: var(--vscode-textLink-foreground);
-  text-decoration: none;
-}
-
-.item-title a:hover {
-  text-decoration: underline;
-}
-
-.item-desc {
-  font-size: 0.85em;
-  color: var(--vscode-descriptionForeground);
-  margin-bottom: 6px;
-}
-
-.item-meta {
-  display: flex;
-  gap: 12px;
-  font-size: 0.8em;
-  color: var(--vscode-descriptionForeground);
-  margin-bottom: 8px;
-}
-
-.item-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.item-actions a {
-  color: var(--vscode-descriptionForeground);
-  text-decoration: none;
-  padding: 2px;
-}
-
-.item-actions a:hover {
-  color: var(--vscode-textLink-foreground);
-}
-
-.repo-card {
-  cursor: default;
-}
-
-.owner-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.owner-collapsible {
-  --vscode-collapsible-heading-size: 0.9em;
-}
-
-.owner-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.owner-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-left: 8px;
-  border-left: 2px solid var(--vscode-panel-border);
-  margin-left: 4px;
 }
 </style>

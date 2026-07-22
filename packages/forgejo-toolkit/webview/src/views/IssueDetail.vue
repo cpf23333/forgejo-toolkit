@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
 import { useAppState, issueDetailKey } from '../composables/useAppState';
@@ -169,13 +168,13 @@ function isLightColor(hex: string): boolean {
 
       <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
 
-      <div class="detail-actions">
-        <VscodeButton variant="secondary" @click="state.openExternal(issueUrl)">
+      <div class="actions">
+        <a href="#" class="action-link" @click.prevent="state.openExternal(issueUrl)">
           {{ t('dashboard.detail.openIssue') }}
-        </VscodeButton>
-        <VscodeButton variant="secondary" @click="state.copyToClipboard(issueUrl)">
+        </a>
+        <a href="#" class="action-link" @click.prevent="state.copyToClipboard(issueUrl)">
           {{ t('dashboard.detail.copyLink') }}
-        </VscodeButton>
+        </a>
       </div>
     </div>
   </div>
@@ -322,9 +321,21 @@ function isLightColor(hex: string): boolean {
   border-radius: 4px;
 }
 
-.detail-actions {
+.actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   margin-top: 8px;
+}
+
+.action-link {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.action-link:hover {
+  text-decoration: underline;
 }
 </style>

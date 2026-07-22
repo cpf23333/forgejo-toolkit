@@ -471,6 +471,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ command: 'openSettings' });
   }
 
+  public openDashboard() {
+    this._view?.webview.postMessage({ command: 'openDashboard' });
+  }
+
   public refresh() {
     this._sendInstances();
   }

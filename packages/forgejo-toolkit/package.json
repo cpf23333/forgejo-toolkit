@@ -90,6 +90,12 @@
     },
     "commands": [
       {
+        "command": "forgejoToolkit.openDashboard",
+        "title": "Open Dashboard",
+        "category": "Forgejo Toolkit",
+        "icon": "$(home)"
+      },
+      {
         "command": "forgejoToolkit.openOnboarding",
         "title": "Open Setup Guide",
         "category": "Forgejo Toolkit",
@@ -130,6 +136,10 @@
     "menus": {
       "commandPalette": [
         {
+          "command": "forgejoToolkit.openDashboard",
+          "when": "false"
+        },
+        {
           "command": "forgejoToolkit.openOnboarding",
           "when": "false"
         },
@@ -144,19 +154,24 @@
       ],
       "view/title": [
         {
-          "command": "forgejoToolkit.openOnboarding",
+          "command": "forgejoToolkit.openDashboard",
           "when": "view == forgejoToolkitView",
           "group": "navigation@0"
         },
         {
-          "command": "forgejoToolkit.openSettings",
+          "command": "forgejoToolkit.openOnboarding",
           "when": "view == forgejoToolkitView",
           "group": "navigation@1"
         },
         {
-          "command": "forgejoToolkit.refreshInstances",
+          "command": "forgejoToolkit.openSettings",
           "when": "view == forgejoToolkitView",
           "group": "navigation@2"
+        },
+        {
+          "command": "forgejoToolkit.refreshInstances",
+          "when": "view == forgejoToolkitView",
+          "group": "navigation@3"
         }
       ]
     }

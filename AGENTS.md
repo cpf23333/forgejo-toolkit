@@ -16,6 +16,10 @@ Every element used from `@vscode-elements/elements` **must** be wrapped by a typ
 
 When you need a new element, create its wrapper in `packages/vscode-elements-vue/src/components` first, then export it from `packages/vscode-elements-vue/src/components/index.ts` and `packages/vscode-elements-vue/src/components/index.d.ts`.
 
+### Exception: `<vscode-tree>` / `<vscode-tree-item>`
+
+`<vscode-tree>` and `<vscode-tree-item>` may be used directly in `packages/forgejo-toolkit/webview/src/views/Dashboard.vue`. The Vue wrapper cannot reliably forward the Lit context that `<vscode-tree-item>` requires, which causes runtime errors and prevents the tree from rendering.
+
 ## License and attribution
 
 - This project is licensed under the MIT License. Do not change the license without explicit approval.
@@ -29,6 +33,11 @@ When you need a new element, create its wrapper in `packages/vscode-elements-vue
 ## Type checking
 
 - Run `pnpm check` at the root after any TypeScript or Vue change.
+
+## Build commands
+
+- Do **not** run `pnpm build`, `pnpm -r run build`, `vite build`, `node esbuild.js`, or any other build command yourself.
+- Only run `pnpm check` (and `pnpm format:fix` when needed). The user will run builds separately.
 
 ## Internationalization (i18n)
 

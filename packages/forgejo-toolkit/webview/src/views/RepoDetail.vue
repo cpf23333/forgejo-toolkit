@@ -91,27 +91,29 @@ function committerName(commit: ForgejoCommit): string {
           <span>{{ t('dashboard.openIssues') }}: {{ detail.repository.open_issues_count }}</span>
         </div>
         <div class="actions">
-          <VscodeButton variant="secondary" @click="state.openExternal(repoUrl)">{{
-            t('dashboard.actions.open')
-          }}</VscodeButton>
-          <VscodeButton variant="secondary" @click="state.copyToClipboard(cloneUrl)">{{
-            t('dashboard.actions.copyClone')
-          }}</VscodeButton>
-          <VscodeButton variant="secondary" @click="state.copyToClipboard(repoUrl)">{{
-            t('dashboard.actions.copyUrl')
-          }}</VscodeButton>
-          <VscodeButton variant="secondary" @click="state.openRepoIssues(instanceId, owner, repo)"
-            >{{ t('dashboard.openIssues') }} ({{ detail.repository.open_issues_count }})</VscodeButton
-          >
-          <VscodeButton variant="secondary" @click="state.openRepoPullRequests(instanceId, owner, repo)"
-            >{{ t('dashboard.openPullRequests') }} ({{ detail.repository.open_pr_counter ?? 0 }})</VscodeButton
-          >
-          <VscodeButton
+          <a href="#" class="action-link" @click.prevent="state.openExternal(repoUrl)">
+            {{ t('dashboard.actions.open') }}
+          </a>
+          <a href="#" class="action-link" @click.prevent="state.copyToClipboard(cloneUrl)">
+            {{ t('dashboard.actions.copyClone') }}
+          </a>
+          <a href="#" class="action-link" @click.prevent="state.copyToClipboard(repoUrl)">
+            {{ t('dashboard.actions.copyUrl') }}
+          </a>
+          <a href="#" class="action-link" @click.prevent="state.openRepoIssues(instanceId, owner, repo)">
+            {{ t('dashboard.openIssues') }} ({{ detail.repository.open_issues_count }})
+          </a>
+          <a href="#" class="action-link" @click.prevent="state.openRepoPullRequests(instanceId, owner, repo)">
+            {{ t('dashboard.openPullRequests') }} ({{ detail.repository.open_pr_counter ?? 0 }})
+          </a>
+          <a
             v-if="detail.readme"
-            variant="secondary"
-            @click="state.previewReadme(owner, repo, detail.readme)"
-            >{{ t('dashboard.actions.previewReadme') }}</VscodeButton
+            href="#"
+            class="action-link"
+            @click.prevent="state.previewReadme(owner, repo, detail.readme)"
           >
+            {{ t('dashboard.actions.previewReadme') }}
+          </a>
         </div>
       </div>
 
@@ -209,8 +211,20 @@ function committerName(commit: ForgejoCommit): string {
 
 .actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   margin-top: 4px;
+}
+
+.action-link {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.action-link:hover {
+  text-decoration: underline;
 }
 
 .section {

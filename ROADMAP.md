@@ -14,6 +14,21 @@
 - 仓库卡片：名称、描述、默认分支、star/fork、右侧图标支持在浏览器打开和复制克隆地址。
 - Issue / PR 卡片：编号、标题、状态、仓库名、复制链接图标。
 - 仓库详情页：README、分支列表、最近 commits、返回 Dashboard。
+- 初次使用引导页：以编辑器页签形式打开，支持语言、服务器、worktree 配置。
+
+### Pull Request Worktree
+
+- 在 PR 详情页提供「在 Worktree 中打开」按钮。
+- 自动 bare clone 源仓库到缓存目录，基于 `refs/pull/<index>/head` 创建本地分支和可编辑 worktree。
+- 支持配置 worktree 打开方式（新窗口 / 当前窗口）和缓存目录。
+- 设置页管理已创建的 worktree（打开、删除）。
+
+### 设置页
+
+- 语言切换、调试日志开关。
+- 添加 / 删除 Forgejo 实例，测试连接。
+- 配置 PR worktree 打开方式和缓存目录，支持文件夹选择器。
+- 列出已创建的 worktree。
 
 ### 国际化
 
@@ -40,7 +55,7 @@
 
 ### 详情与操作
 
-- Issue / PR 详情页：展示评论、diff、时间线。
+- Issue / PR 详情页：展示评论、diff、时间线（目前仅展示基本信息和描述）。
 - 创建 Issue / PR：提供表单提交入口。
 - 编辑 / 关闭 / 重新打开 Issue 和 PR。
 
@@ -48,7 +63,7 @@
 
 - 完整文件浏览器：目录树、文件内容查看、代码高亮。
 - 分支 / 标签 / Release 管理列表。
-- README Markdown 渲染预览。
+- README Markdown 渲染预览（目前已在仓库详情页渲染，可独立预览）。
 
 ### 通知与搜索
 
@@ -71,7 +86,7 @@
 
 ## 长期可能
 
-- 本地仓库关联：将 VS Code 已打开的 workspace 与 Forgejo 仓库关联。
-- Issue / PR 与 Git 分支联动：例如点击 PR 自动检出对应分支到 worktree。
+- 本地仓库关联：将 VS Code 已打开的 workspace 与 Forgejo 仓库关联（目前已支持检测本地仓库作为 worktree 源）。
+- Issue / PR 与 Git 分支联动：例如点击 PR 自动检出对应分支到 worktree（worktree 已支持）。
 - 通知推送：后台轮询 + VS Code 消息提醒。
 - 多账号权限管理：区分只读 / 读写 token。
