@@ -16,6 +16,10 @@ const status = ref('');
 const statusType = ref<'idle' | 'success' | 'error'>('idle');
 const selectedLocale = ref<Locale>(state.locale.value as Locale);
 const debugEnabled = ref<boolean>(state.debug.value);
+const selectedWorktreeOpenMode = ref<'currentWindow' | 'newWindow'>(state.worktreeOpenMode.value);
+const worktreeCacheDirectory = ref<string>(
+  state.worktreeCacheDirectory.value ?? state.worktreeCacheDirectoryDefault.value ?? '',
+);
 
 watch(
   () => state.locale.value,
@@ -28,6 +32,31 @@ watch(
   () => state.debug.value,
   (newDebug) => {
     debugEnabled.value = newDebug;
+  },
+);
+
+watch(
+  () => state.worktreeOpenMode.value,
+  (newMode) => {
+    selectedWorktreeOpenMode.value = newMode;
+  },
+);
+
+watch(
+  () => state.worktreeCacheDirectory.value,
+  (newDir) => {
+    if (newDir) {
+      worktreeCacheDirectory.value = newDir;
+    }
+  },
+);
+
+watch(
+  () => state.worktreeCacheDirectoryDefault.value,
+  (newDefault) => {
+    if (!worktreeCacheDirectory.value && newDefault) {
+      worktreeCacheDirectory.value = newDefault;
+    }
   },
 );
 
@@ -73,6 +102,74 @@ function handleDebugChange(event: Event) {
   state.changeDebug(target.checked);
 }
 
+function handleWorktreeOpenModeChange(event: Event) {
+  const target = event.target as HTMLSelectElement;
+  const mode = target.value as 'currentWindow' | 'newWindow';
+  selectedWorktreeOpenMode.value = mode;
+  state.changeWorktreeOpenMode(mode);
+}
+
+function handleWorktreeCacheDirectoryChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  worktreeCacheDirectory.value = target.value;
+}
+
+function applyWorktreeCacheDirectory() {
+  state.setWorktreeCacheDirectory(worktreeCacheDirectory.value.trim());
+}
+
+function browseWorktreeCacheDirectory() {
+  state.browseWorktreeCacheDirectory();
+}
+
+function restoreDefaultCacheDirectory() {
+  const defaultDir = state.worktreeCacheDirectoryDefault.value;
+  if (defaultDir) {
+    worktreeCacheDirectory.value = defaultDir;
+    state.setWorktreeCacheDirectory('');
+  }
+}
+
+function openWorktree(path: string) {
+  state.openExternal(`file://${path}`);
+}
+
+function deleteWorktree(id: string) {
+  state.removeWorktree(id);
+}
+
+watch(
+  () => state.testConnectionResult.value,
+  (result) => {
+    if (!result) {
+      return;
+    }
+    testing.value = false;
+    if (result.success) {
+      setStatus(t('settings.status.successConnection', { username: result.username ?? '' }), 'success');
+    } else {
+      setStatus(result.error ?? t('settings.status.errorConnection'), 'error');
+    }
+  },
+);
+
+watch(
+  () => state.saveInstanceResult.value,
+  (result) => {
+    if (!result) {
+      return;
+    }
+    saving.value = false;
+    if (result.success) {
+      setStatus(t('settings.status.successSaved'), 'success');
+      url.value = '';
+      token.value = '';
+    } else {
+      setStatus(result.error ?? t('settings.status.errorSaved'), 'error');
+    }
+  },
+);
+
 defineExpose({
   onTestResult(result: { success: boolean; username?: string; error?: string }) {
     testing.value = false;
@@ -116,6 +213,65 @@ defineExpose({
           {{ t('settings.debug.enable') }}
         </vscode-checkbox>
       </div>
+    </section>
+
+    <section class="setting-section">
+      <h2>{{ t('settings.worktree.title') }}</h2>
+      <p class="description">{{ t('settings.worktree.description') }}</p>
+      <div class="form-row">
+        <label for="worktree-open-mode">{{ t('settings.worktree.openMode') }}</label>
+        <vscode-single-select
+          id="worktree-open-mode"
+          :value="selectedWorktreeOpenMode"
+          @change="handleWorktreeOpenModeChange"
+        >
+          <vscode-option value="newWindow">{{ t('settings.worktree.newWindow') }}</vscode-option>
+          <vscode-option value="currentWindow">{{ t('settings.worktree.currentWindow') }}</vscode-option>
+        </vscode-single-select>
+      </div>
+
+      <div class="form-row">
+        <label for="worktree-cache-directory">{{ t('settings.worktree.cacheDirectory') }}</label>
+        <vscode-textfield
+          id="worktree-cache-directory"
+          :value="worktreeCacheDirectory"
+          :placeholder="state.worktreeCacheDirectoryDefault.value ?? ''"
+          @input="handleWorktreeCacheDirectoryChange"
+          @change="applyWorktreeCacheDirectory"
+        />
+        <div class="cache-directory-actions">
+          <VscodeButton variant="secondary" @click="browseWorktreeCacheDirectory">
+            {{ t('settings.worktree.browse') }}
+          </VscodeButton>
+          <VscodeButton variant="secondary" @click="restoreDefaultCacheDirectory">{{
+            t('settings.worktree.restoreDefault')
+          }}</VscodeButton>
+        </div>
+      </div>
+
+      <div v-if="state.worktrees.value.length > 0" class="worktree-list">
+        <h3>{{ t('settings.worktree.savedWorktrees') }}</h3>
+        <ul class="saved-list">
+          <li v-for="worktree in state.worktrees.value" :key="worktree.id" class="saved-item worktree-item">
+            <div class="saved-info">
+              <div class="saved-name">
+                {{ worktree.owner }}/{{ worktree.repo }}#{{ worktree.prIndex }} {{ worktree.prTitle }}
+              </div>
+              <div class="saved-url">{{ worktree.headBranch }} → {{ worktree.baseBranch }}</div>
+              <div class="saved-path">{{ worktree.worktreePath }}</div>
+            </div>
+            <div class="worktree-actions">
+              <VscodeButton variant="secondary" @click="openWorktree(worktree.worktreePath)">{{
+                t('settings.worktree.open')
+              }}</VscodeButton>
+              <VscodeButton variant="icon" @click="deleteWorktree(worktree.id)">{{
+                t('settings.worktree.delete')
+              }}</VscodeButton>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div v-else class="empty-list">{{ t('settings.worktree.noWorktrees') }}</div>
     </section>
 
     <section class="setting-section">
@@ -209,6 +365,12 @@ label {
   color: var(--vscode-foreground);
 }
 
+.cache-directory-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .actions {
   display: flex;
   gap: 8px;
@@ -256,5 +418,38 @@ label {
 .saved-url {
   font-size: 0.85em;
   color: var(--vscode-descriptionForeground);
+}
+
+.saved-path {
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-editor-font-family), monospace;
+}
+
+.worktree-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.worktree-list h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.worktree-item {
+  align-items: flex-start;
+}
+
+.worktree-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.empty-list {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
 }
 </style>

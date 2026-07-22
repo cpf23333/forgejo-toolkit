@@ -2,7 +2,11 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
-export function getWebviewContent(webview: vscode.Webview, extensionPath: string): string {
+export function getWebviewContent(
+  webview: vscode.Webview,
+  extensionPath: string,
+  options?: { panelMode?: boolean },
+): string {
   const webviewDistPath = path.join(extensionPath, 'out', 'webview');
   const htmlPath = path.join(webviewDistPath, 'index.html');
 
@@ -20,8 +24,12 @@ export function getWebviewContent(webview: vscode.Webview, extensionPath: string
   const nonce = getNonce();
   let html = fs.readFileSync(htmlPath, 'utf8');
 
+  const panelModeScript = options?.panelMode
+    ? `<script nonce="${nonce}">window.__FORGEJO_TOOLKIT_PANEL_MODE__ = true;</script>`
+    : '';
+
   const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src 'self' data: ${webview.cspSource} http: https:; connect-src 'self' ${webview.cspSource} http: https:;">`;
-  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}`);
+  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}\n    ${panelModeScript}`);
 
   const baseUri = webview.asWebviewUri(vscode.Uri.file(webviewDistPath)).toString().replace(/\/$/, '');
   html = html.replace(/(src|href)="([^"]*)"/g, (match, attr, value) => {

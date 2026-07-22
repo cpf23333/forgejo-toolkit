@@ -32,6 +32,10 @@ watch(
 
 const prUrl = computed(() => detail.value?.html_url ?? '');
 
+const worktreeLoading = ref(false);
+const worktreeStatus = ref('');
+const worktreeStatusType = ref<'idle' | 'success' | 'error'>('idle');
+
 const renderedBody = ref('');
 const bodyLoading = ref(false);
 const bodyError = ref('');
@@ -125,6 +129,46 @@ function prStateText(state?: string, merged?: boolean): string {
   }
   return state ?? 'open';
 }
+
+const hasWorktree = computed(() =>
+  state.worktrees.value.some(
+    (w) =>
+      w.instanceId === instanceId.value &&
+      w.owner === owner.value &&
+      w.repo === repo.value &&
+      w.prIndex === index.value,
+  ),
+);
+
+function setWorktreeStatus(message: string, type: 'idle' | 'success' | 'error' = 'idle') {
+  worktreeStatus.value = message;
+  worktreeStatusType.value = type;
+}
+
+function openInWorktree() {
+  worktreeLoading.value = true;
+  setWorktreeStatus(t('dashboard.worktree.opening'), 'idle');
+  state.openPrWorktree(instanceId.value, owner.value, repo.value, index.value);
+}
+
+watch(
+  () => state.worktrees.value,
+  () => {
+    if (worktreeLoading.value) {
+      worktreeLoading.value = false;
+      setWorktreeStatus(t('dashboard.worktree.opened'), 'success');
+    }
+  },
+  { deep: true },
+);
+
+watch(
+  () => state.errors.value,
+  () => {
+    // No global error hook for worktree errors yet; status is updated via separate mechanism if needed.
+  },
+  { deep: true },
+);
 </script>
 
 <template>
@@ -228,7 +272,17 @@ function prStateText(state?: string, merged?: boolean): string {
         <VscodeButton variant="secondary" @click="state.copyToClipboard(prUrl)">
           {{ t('dashboard.detail.copyLink') }}
         </VscodeButton>
+        <VscodeButton variant="secondary" :disabled="worktreeLoading" @click="openInWorktree">
+          {{
+            worktreeLoading
+              ? t('dashboard.worktree.opening')
+              : hasWorktree
+                ? t('dashboard.worktree.openExisting')
+                : t('dashboard.worktree.openInWorktree')
+          }}
+        </VscodeButton>
       </div>
+      <div v-if="worktreeStatus" :class="['worktree-status', worktreeStatusType]">{{ worktreeStatus }}</div>
     </div>
   </div>
 </template>
@@ -420,5 +474,20 @@ function prStateText(state?: string, merged?: boolean): string {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+.worktree-status {
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.worktree-status.success {
+  color: var(--vscode-testing-iconPassed);
+}
+
+.worktree-status.error {
+  color: var(--vscode-testing-iconFailed);
 }
 </style>

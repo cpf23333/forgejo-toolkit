@@ -8,12 +8,12 @@ export function activate(context: vscode.ExtensionContext) {
   const config = new ConfigManager(context);
   const readmeProvider = registerReadmeProvider(context);
 
-  const viewProvider = new ForgejoToolkitViewProvider(context.extensionUri, config, readmeProvider);
+  const viewProvider = new ForgejoToolkitViewProvider(context, context.extensionUri, config, readmeProvider);
   vscode.window.registerWebviewViewProvider(ForgejoToolkitViewProvider.viewType, viewProvider, {
     webviewOptions: { retainContextWhenHidden: true },
   });
 
-  registerCommands(context, viewProvider);
+  registerCommands(context, config, readmeProvider, viewProvider);
 
   console.log('Forgejo Toolkit extension activated');
 }

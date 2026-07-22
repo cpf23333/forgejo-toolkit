@@ -1,12 +1,31 @@
 {
   "app": {
-    "title": "Forgejo Toolkit"
+    "title": "Forgejo Toolkit",
+    "openOnboarding": "打开引导设置"
+  },
+  "onboarding": {
+    "title": "欢迎使用 Forgejo Toolkit",
+    "description": "完成以下几步即可开始使用。",
+    "steps": {
+      "language": "选择语言",
+      "server": "连接 Forgejo 服务器",
+      "worktree": "配置 Worktree",
+      "complete": "完成"
+    },
+    "languageDescription": "选择插件面板的显示语言。",
+    "serverDescription": "输入你的 Forgejo 实例地址和访问令牌，测试连接成功后保存。",
+    "worktreeDescription": "选择在本地打开 PR 的方式以及 worktree 的存放位置。",
+    "completeDescription": "基础设置已完成，可以进入仪表盘了。",
+    "prev": "上一步",
+    "next": "下一步",
+    "finish": "进入仪表盘"
   },
   "dashboard": {
     "title": "Forgejo Toolkit",
     "settings": "设置",
     "emptyTitle": "尚未配置 Forgejo 实例。",
     "emptyHint": "点击 {button} 连接到你的 Forgejo 服务器。",
+    "openOnboarding": "打开引导设置",
     "connectedInstances": "已连接实例 ({count})",
     "viewTitle": "仪表盘",
     "tabs": {
@@ -82,6 +101,12 @@
       "copyLink": "复制链接",
       "renderingBody": "正在渲染描述...",
       "attachments": "附件"
+    },
+    "worktree": {
+      "openInWorktree": "在 Worktree 中打开",
+      "openExisting": "打开已有 Worktree",
+      "opening": "正在准备 Worktree...",
+      "opened": "Worktree 已打开"
     }
   },
   "instance": {
@@ -102,6 +127,7 @@
     "addInstance": "添加实例",
     "saving": "保存中...",
     "savedInstances": "已保存实例",
+    "noSavedInstances": "还没有保存的实例。",
     "remove": "移除",
     "backToDashboard": "← 返回仪表盘",
     "backToRepoDetail": "← 返回仓库",
@@ -116,6 +142,21 @@
       "successSaved": "实例保存成功",
       "errorConnection": "连接失败",
       "errorSaved": "保存实例失败"
+    },
+    "worktree": {
+      "title": "Pull Request Worktree",
+      "description": "配置在本地打开 PR 的方式，并管理已创建的 worktree。",
+      "openMode": "打开方式",
+      "newWindow": "新窗口",
+      "currentWindow": "当前窗口",
+      "cacheDirectory": "缓存目录",
+      "restoreDefault": "恢复默认",
+      "defaultDirectory": "使用默认目录",
+      "browse": "浏览",
+      "savedWorktrees": "已创建的 Worktree",
+      "open": "打开",
+      "delete": "删除",
+      "noWorktrees": "还没有创建过 worktree。"
     }
   },
   "locales": {

@@ -11,6 +11,10 @@
     "./request": {
       "types": "./src/request/index.ts",
       "default": "./src/request/index.ts"
+    },
+    "./webview/messages": {
+      "types": "./src/webview/messages.ts",
+      "default": "./src/webview/messages.ts"
     }
   },
   "scripts": {

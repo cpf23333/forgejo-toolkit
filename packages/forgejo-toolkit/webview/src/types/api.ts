@@ -84,8 +84,8 @@ export interface ForgejoIssueDetail {
 }
 
 export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {
-  base?: { ref?: string; repo?: { full_name?: string } };
-  head?: { ref?: string; repo?: { full_name?: string } };
+  base?: { ref?: string; sha?: string; repo?: { full_name?: string } };
+  head?: { ref?: string; sha?: string; repo?: { full_name?: string } };
   additions?: number;
   deletions?: number;
   changed_files?: number;
@@ -94,6 +94,21 @@ export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {
   merged_by?: ForgejoUser;
   mergeable?: boolean;
   draft?: boolean;
+}
+
+export interface ForgejoPullRequestWorktreeInfo {
+  id: string;
+  instanceId: string;
+  owner: string;
+  repo: string;
+  prIndex: number;
+  prTitle: string;
+  headBranch: string;
+  headSha: string;
+  baseBranch: string;
+  sourceRepoPath: string;
+  worktreePath: string;
+  createdAt: number;
 }
 
 export interface ForgejoRepoDetail {

@@ -2,10 +2,16 @@
 import { ref, watch, nextTick, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState } from '../composables/useAppState';
+import { vscode } from '../composables/vscode';
+import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import type { ForgejoRepository, ForgejoIssue, ForgejoPullRequest } from '../types/api';
 
 const { t } = useI18n();
 const state = useAppState();
+
+function openOnboarding() {
+  vscode.postMessage({ command: 'openOnboardingPanel' });
+}
 
 type Tab = 'repositories' | 'issues' | 'pullRequests';
 
@@ -220,7 +226,10 @@ const errors = computed(() => state.errors.value);
   <div class="dashboard">
     <div v-if="instances.length === 0" class="empty">
       <p>{{ t('dashboard.emptyTitle') }}</p>
-      <p>{{ t('dashboard.emptyHint', { button: t('dashboard.settings') }) }}</p>
+      <p>{{ t('dashboard.emptyHint', { button: t('dashboard.openOnboarding') }) }}</p>
+      <VscodeButton variant="primary" @click="openOnboarding">
+        {{ t('dashboard.openOnboarding') }}
+      </VscodeButton>
     </div>
 
     <div v-else class="dashboard-content">

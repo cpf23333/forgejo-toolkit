@@ -67,10 +67,34 @@
           "type": "boolean",
           "default": false,
           "description": "Enable debug logging to the Forgejo Toolkit output channel"
+        },
+        "forgejoToolkit.worktreeOpenMode": {
+          "type": "string",
+          "default": "newWindow",
+          "enum": [
+            "newWindow",
+            "currentWindow"
+          ],
+          "enumDescriptions": [
+            "Open worktrees in a new VS Code window",
+            "Open worktrees in the current VS Code window"
+          ],
+          "description": "How to open a PR worktree after it is created"
+        },
+        "forgejoToolkit.worktreeCacheDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "Custom parent directory for PR worktrees. Leave empty to use the default extension storage location."
         }
       }
     },
     "commands": [
+      {
+        "command": "forgejoToolkit.openOnboarding",
+        "title": "Open Setup Guide",
+        "category": "Forgejo Toolkit",
+        "icon": "$(book)"
+      },
       {
         "command": "forgejoToolkit.openSettings",
         "title": "Open Settings",
@@ -106,6 +130,10 @@
     "menus": {
       "commandPalette": [
         {
+          "command": "forgejoToolkit.openOnboarding",
+          "when": "false"
+        },
+        {
           "command": "forgejoToolkit.openSettings",
           "when": "false"
         },
@@ -115,6 +143,11 @@
         }
       ],
       "view/title": [
+        {
+          "command": "forgejoToolkit.openOnboarding",
+          "when": "view == forgejoToolkitView",
+          "group": "navigation@0"
+        },
         {
           "command": "forgejoToolkit.openSettings",
           "when": "view == forgejoToolkitView",
@@ -129,6 +162,7 @@
     }
   },
   "activationEvents": [
+    "onCommand:forgejoToolkit.openOnboarding",
     "onView:forgejoToolkitView"
   ],
   "engines": {

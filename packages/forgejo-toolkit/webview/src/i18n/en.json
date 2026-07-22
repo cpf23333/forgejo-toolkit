@@ -1,12 +1,31 @@
 {
   "app": {
-    "title": "Forgejo Toolkit"
+    "title": "Forgejo Toolkit",
+    "openOnboarding": "Open Setup Guide"
+  },
+  "onboarding": {
+    "title": "Welcome to Forgejo Toolkit",
+    "description": "Complete the steps below to get started.",
+    "steps": {
+      "language": "Choose Language",
+      "server": "Connect to Forgejo",
+      "worktree": "Configure Worktree",
+      "complete": "Complete"
+    },
+    "languageDescription": "Select the display language for the panel.",
+    "serverDescription": "Enter your Forgejo instance URL and access token. Save after the connection test succeeds.",
+    "worktreeDescription": "Choose how PRs are opened locally and where worktrees are stored.",
+    "completeDescription": "Initial setup is complete. You can now open the dashboard.",
+    "prev": "Previous",
+    "next": "Next",
+    "finish": "Open Dashboard"
   },
   "dashboard": {
     "title": "Forgejo Toolkit",
     "settings": "Settings",
     "emptyTitle": "No Forgejo instances configured.",
     "emptyHint": "Click {button} to connect to your Forgejo server.",
+    "openOnboarding": "Open Setup Guide",
     "connectedInstances": "Connected Instances ({count})",
     "viewTitle": "Dashboard",
     "tabs": {
@@ -82,6 +101,12 @@
       "copyLink": "Copy Link",
       "renderingBody": "Rendering description...",
       "attachments": "Attachments"
+    },
+    "worktree": {
+      "openInWorktree": "Open in Worktree",
+      "openExisting": "Open Existing Worktree",
+      "opening": "Preparing worktree...",
+      "opened": "Worktree opened"
     }
   },
   "instance": {
@@ -102,6 +127,7 @@
     "addInstance": "Add Instance",
     "saving": "Saving...",
     "savedInstances": "Saved Instances",
+    "noSavedInstances": "No saved instances yet.",
     "remove": "Remove",
     "backToDashboard": "← Back to Dashboard",
     "backToRepoDetail": "← Back to Repository",
@@ -116,6 +142,21 @@
       "successSaved": "Instance saved successfully",
       "errorConnection": "Connection failed",
       "errorSaved": "Failed to save instance"
+    },
+    "worktree": {
+      "title": "Pull Request Worktree",
+      "description": "Configure how PRs are opened locally and manage existing worktrees.",
+      "openMode": "Open mode",
+      "newWindow": "New window",
+      "currentWindow": "Current window",
+      "cacheDirectory": "Cache directory",
+      "restoreDefault": "Restore default",
+      "defaultDirectory": "Use default directory",
+      "browse": "Browse",
+      "savedWorktrees": "Saved Worktrees",
+      "open": "Open",
+      "delete": "Delete",
+      "noWorktrees": "No worktrees created yet."
     }
   },
   "locales": {

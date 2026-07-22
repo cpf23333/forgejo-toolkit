@@ -1,21 +1,41 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { logger } from '../logger';
 import { ForgejoClient } from '../api/client';
-import { ConfigManager, ForgejoInstance } from '../config';
+import { ConfigManager } from '../config';
+import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { getWebviewContent } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
+import { WorktreeManager, WorktreeInfo } from '../worktree/worktreeManager';
+import {
+  cloneRepository,
+  createWorktreeFromBranch,
+  fetchPullRequestHead,
+  findLocalRepo,
+  openWorktree,
+} from '../worktree/gitOperations';
+import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
 
   private _view?: vscode.WebviewView;
+  private readonly _worktreeManager: WorktreeManager;
 
   constructor(
+    private readonly _context: vscode.ExtensionContext,
     private readonly _extensionUri: vscode.Uri,
     private readonly _config: ConfigManager,
     private readonly _readmeProvider: ReadmeContentProvider,
-  ) {}
+  ) {
+    this._worktreeManager = new WorktreeManager(
+      _context,
+      () => this._config.getWorktreeCacheDirectory(),
+      () => this._config.getDefaultWorktreeCacheDirectory(),
+    );
+  }
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -367,6 +387,73 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'openPrWorktree': {
+            await this._handleOpenPrWorktree(message);
+            return;
+          }
+          case 'getWorktrees': {
+            this._reply('worktreesList', { worktrees: this._worktreeManager.getWorktrees() });
+            return;
+          }
+          case 'removeWorktree': {
+            const { id } = message;
+            if (typeof id === 'string') {
+              await this._worktreeManager.removeWorktree(id);
+              this._reply('worktreeRemoved', { id });
+              this._reply('worktreesList', { worktrees: this._worktreeManager.getWorktrees() });
+            }
+            return;
+          }
+          case 'getWorktreeOpenMode': {
+            this._reply('worktreeOpenMode', { mode: this._config.getWorktreeOpenMode() });
+            return;
+          }
+          case 'setWorktreeOpenMode': {
+            const mode = message.mode;
+            if (mode === 'currentWindow' || mode === 'newWindow') {
+              await this._config.setWorktreeOpenMode(mode);
+              this._reply('worktreeOpenMode', { mode });
+            }
+            return;
+          }
+          case 'getWorktreeCacheDirectory': {
+            const directory = this._config.getWorktreeCacheDirectory() ?? '';
+            const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
+            this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
+            return;
+          }
+          case 'setWorktreeCacheDirectory': {
+            const directory = message.directory;
+            if (typeof directory === 'string') {
+              await this._config.setWorktreeCacheDirectory(directory);
+              this._reply('worktreeCacheDirectory', {
+                directory: this._config.getWorktreeCacheDirectory() ?? '',
+                defaultDirectory: this._config.getDefaultWorktreeCacheDirectory(),
+              });
+            }
+            return;
+          }
+          case 'browseWorktreeCacheDirectory': {
+            const result = await vscode.window.showOpenDialog({
+              canSelectFiles: false,
+              canSelectFolders: true,
+              canSelectMany: false,
+              openLabel: 'Select Cache Directory',
+            });
+            if (result && result.length > 0) {
+              const directory = result[0].fsPath;
+              await this._config.setWorktreeCacheDirectory(directory);
+              this._reply('worktreeCacheDirectory', {
+                directory: this._config.getWorktreeCacheDirectory() ?? '',
+                defaultDirectory: this._config.getDefaultWorktreeCacheDirectory(),
+              });
+            }
+            return;
+          }
+          case 'openOnboardingPanel': {
+            vscode.commands.executeCommand('forgejoToolkit.openOnboarding');
+            return;
+          }
         }
       },
       undefined,
@@ -409,15 +496,92 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
   private _sendInstances() {
     if (this._view?.visible) {
-      this._view.webview.postMessage({
-        command: 'instances',
-        data: this._config.getInstances(),
-      });
+      this._reply('instances', { data: this._config.getInstances() });
     }
   }
 
-  private _reply(command: string, data: unknown) {
-    this._view?.webview.postMessage({ command, data });
+  private _reply<T extends HostToWebviewMessage['command']>(
+    command: T,
+    data: Omit<Extract<HostToWebviewMessage, { command: T }>, 'command'>,
+  ) {
+    this._view?.webview.postMessage({ command, ...data } as HostToWebviewMessage);
+  }
+
+  private async _handleOpenPrWorktree(message: { instanceId: string; owner: string; repo: string; index: number }) {
+    const { instanceId, owner, repo, index } = message;
+    const instance = this._findInstance(instanceId);
+    if (!instance) {
+      this._reply('worktreeError', { error: 'Instance not found' });
+      return;
+    }
+
+    const existing = this._worktreeManager.findWorktree(instanceId, owner, repo, index);
+    if (existing) {
+      try {
+        await openWorktree(existing.worktreePath, this._config.getWorktreeOpenMode() === 'newWindow');
+        this._reply('worktreeOpened', { worktree: existing, existed: true });
+      } catch (error) {
+        const err = error instanceof Error ? error.message : String(error);
+        this._reply('worktreeError', { error: err });
+      }
+      return;
+    }
+
+    try {
+      const client = new ForgejoClient(instance.url, instance.token, logger);
+      const pr = await client.getPullRequestDetail(owner, repo, index);
+      const headBranch = pr.head?.ref;
+      const headSha = pr.head?.sha;
+      const baseBranch = pr.base?.ref ?? 'main';
+      const prTitle = pr.title ?? `PR #${index}`;
+      if (!headBranch || !headSha) {
+        this._reply('worktreeError', { error: 'Could not determine PR head branch or sha' });
+        return;
+      }
+
+      const cloneUrl = `${instance.url}/${owner}/${repo}.git`;
+      const cacheDir = this._worktreeManager.getCacheDirectory();
+      const localRepo = await findLocalRepo(instance.url, owner, repo);
+      const sourceRepoPath = localRepo ?? path.join(cacheDir, 'repos', `${owner}-${repo}.git`);
+      const sourceRepoExisted = localRepo
+        ? true
+        : await fs.promises
+            .access(sourceRepoPath)
+            .then(() => true)
+            .catch(() => false);
+
+      if (!sourceRepoExisted) {
+        await cloneRepository(cloneUrl, sourceRepoPath, instance.token);
+      }
+
+      const localBranch = `pr-${index}-${headSha.slice(0, 7)}`;
+      await fetchPullRequestHead(sourceRepoPath, 'origin', index, localBranch);
+
+      const worktreePath = path.join(cacheDir, 'worktrees', `${owner}-${repo}-pr-${index}`);
+      await createWorktreeFromBranch(sourceRepoPath, worktreePath, localBranch);
+
+      const worktree: WorktreeInfo = {
+        id: `${instanceId}:${owner}/${repo}#pr-${index}`,
+        instanceId,
+        owner,
+        repo,
+        prIndex: index,
+        prTitle,
+        headBranch,
+        headSha,
+        baseBranch,
+        sourceRepoPath,
+        worktreePath,
+        createdAt: Date.now(),
+      };
+      await this._worktreeManager.addWorktree(worktree);
+      await openWorktree(worktreePath, this._config.getWorktreeOpenMode() === 'newWindow');
+      this._reply('worktreeOpened', { worktree, existed: false });
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`openPrWorktree failed for ${owner}/${repo}#${index}: ${err}`);
+      this._reply('worktreeError', { error: err });
+    }
   }
 
   private async _resolveCommitAvatars(detail: {

@@ -11,7 +11,10 @@ import type {
   ForgejoRepoDetail,
   ForgejoIssueDetail,
   ForgejoPullRequestDetail,
+  ForgejoPullRequestWorktreeInfo,
 } from '../types/api';
+
+import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 export function useAppState() {
   const router = useRouter();
@@ -32,13 +35,19 @@ export function useAppState() {
   const errors = ref<Map<string, string>>(new Map());
 
   const debug = ref<boolean>(false);
+  const worktrees = ref<ForgejoPullRequestWorktreeInfo[]>([]);
+  const worktreeOpenMode = ref<'currentWindow' | 'newWindow'>('newWindow');
+  const worktreeCacheDirectory = ref<string | undefined>(undefined);
+  const worktreeCacheDirectoryDefault = ref<string | undefined>(undefined);
+  const testConnectionResult = ref<{ success: boolean; username?: string; error?: string } | undefined>(undefined);
+  const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
   let renderMarkdownRequestId = 0;
   const pendingRenderMarkdownRequests = new Map<
     string,
     { resolve: (html: string) => void; reject: (error: Error) => void }
   >();
 
-  function handleMessage(event: MessageEvent) {
+  function handleMessage(event: MessageEvent<HostToWebviewMessage>) {
     const message = event.data;
     switch (message.command) {
       case 'instances':
@@ -48,41 +57,106 @@ export function useAppState() {
         router.push({ name: 'settings' });
         break;
       case 'setLocale':
-        if (typeof message.locale === 'string') {
-          locale.value = message.locale;
-        }
+        locale.value = message.locale;
         break;
       case 'setDebug':
-        if (typeof message.debug === 'boolean') {
-          debug.value = message.debug;
-        }
+        debug.value = message.debug;
         break;
       case 'repositories':
-        handleRepositories(message.data);
+        handleRepositories(message as { instanceId: string; repositories?: ForgejoRepository[]; error?: string });
         break;
       case 'myIssues':
-        handleMyIssues(message.data);
+        handleMyIssues(message as { instanceId: string; issues?: ForgejoIssue[]; error?: string });
         break;
       case 'myPullRequests':
-        handleMyPullRequests(message.data);
+        handleMyPullRequests(message as { instanceId: string; pullRequests?: ForgejoPullRequest[]; error?: string });
         break;
       case 'repoDetail':
-        handleRepoDetail(message.data);
+        handleRepoDetail(
+          message as { instanceId: string; owner: string; repo: string; detail?: ForgejoRepoDetail; error?: string },
+        );
         break;
       case 'issueDetail':
-        handleIssueDetail(message.data);
+        handleIssueDetail(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            detail?: ForgejoIssueDetail;
+            error?: string;
+          },
+        );
         break;
       case 'pullRequestDetail':
-        handlePullRequestDetail(message.data);
+        handlePullRequestDetail(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            detail?: ForgejoPullRequestDetail;
+            error?: string;
+          },
+        );
         break;
       case 'repoIssues':
-        handleRepoIssues(message.data);
+        handleRepoIssues(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            state: string;
+            issues?: ForgejoIssue[];
+            error?: string;
+          },
+        );
         break;
       case 'repoPullRequests':
-        handleRepoPullRequests(message.data);
+        handleRepoPullRequests(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            state: string;
+            pullRequests?: ForgejoPullRequest[];
+            error?: string;
+          },
+        );
         break;
       case 'renderedMarkdown':
-        handleRenderedMarkdown(message.data);
+        handleRenderedMarkdown(message as { key: string; html?: string; error?: string });
+        break;
+      case 'worktreesList':
+        worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
+        break;
+      case 'worktreeOpened':
+        if (message.worktree) {
+          const wt = message.worktree as ForgejoPullRequestWorktreeInfo;
+          const list = worktrees.value.filter((w) => w.id !== wt.id);
+          list.push(wt);
+          worktrees.value = list;
+        }
+        break;
+      case 'worktreeRemoved':
+        if (message.id) {
+          worktrees.value = worktrees.value.filter((w) => w.id !== message.id);
+        }
+        break;
+      case 'worktreeOpenMode':
+        if (message.mode === 'currentWindow' || message.mode === 'newWindow') {
+          worktreeOpenMode.value = message.mode;
+        }
+        break;
+      case 'worktreeCacheDirectory':
+        worktreeCacheDirectory.value = message.directory;
+        worktreeCacheDirectoryDefault.value = message.defaultDirectory;
+        break;
+      case 'testConnectionResult':
+        testConnectionResult.value = message;
+        break;
+      case 'saveInstanceResult':
+        saveInstanceResult.value = message;
         break;
     }
   }
@@ -227,6 +301,9 @@ export function useAppState() {
     window.addEventListener('message', handleMessage);
     vscode.postMessage({ command: 'getInstances' });
     vscode.postMessage({ command: 'getLocale' });
+    vscode.postMessage({ command: 'getWorktrees' });
+    vscode.postMessage({ command: 'getWorktreeOpenMode' });
+    vscode.postMessage({ command: 'getWorktreeCacheDirectory' });
   });
 
   onUnmounted(() => {
@@ -320,6 +397,36 @@ export function useAppState() {
     openRepoPullRequests(instanceId, owner, repo, newState);
   }
 
+  function openPrWorktree(instanceId: string, owner: string, repo: string, index: number) {
+    vscode.postMessage({ command: 'openPrWorktree', instanceId, owner, repo, index });
+  }
+
+  function loadWorktrees() {
+    vscode.postMessage({ command: 'getWorktrees' });
+  }
+
+  function removeWorktree(id: string) {
+    vscode.postMessage({ command: 'removeWorktree', id });
+  }
+
+  function changeWorktreeOpenMode(mode: 'currentWindow' | 'newWindow') {
+    worktreeOpenMode.value = mode;
+    vscode.postMessage({ command: 'setWorktreeOpenMode', mode });
+  }
+
+  function getWorktreeCacheDirectory() {
+    vscode.postMessage({ command: 'getWorktreeCacheDirectory' });
+  }
+
+  function setWorktreeCacheDirectory(directory: string) {
+    worktreeCacheDirectory.value = directory;
+    vscode.postMessage({ command: 'setWorktreeCacheDirectory', directory });
+  }
+
+  function browseWorktreeCacheDirectory() {
+    vscode.postMessage({ command: 'browseWorktreeCacheDirectory' });
+  }
+
   function renderMarkdown(instanceId: string, text: string, context?: string): Promise<string> {
     const key = `render-${++renderMarkdownRequestId}`;
     return new Promise((resolve, reject) => {
@@ -370,6 +477,12 @@ export function useAppState() {
     loading,
     errors,
     debug,
+    worktrees,
+    worktreeOpenMode,
+    worktreeCacheDirectory,
+    worktreeCacheDirectoryDefault,
+    testConnectionResult,
+    saveInstanceResult,
     openExternal,
     copyToClipboard,
     previewReadme,
@@ -385,6 +498,13 @@ export function useAppState() {
     openRepoPullRequests,
     changeRepoIssuesState,
     changeRepoPullRequestsState,
+    openPrWorktree,
+    loadWorktrees,
+    removeWorktree,
+    changeWorktreeOpenMode,
+    getWorktreeCacheDirectory,
+    setWorktreeCacheDirectory,
+    browseWorktreeCacheDirectory,
     renderMarkdown,
     loadRepositories,
     loadMyIssues,

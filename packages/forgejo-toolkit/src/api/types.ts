@@ -84,8 +84,8 @@ export interface ForgejoIssueDetail {
 }
 
 export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {
-  base?: { ref?: string; repo?: { full_name?: string } };
-  head?: { ref?: string; repo?: { full_name?: string } };
+  base?: { ref?: string; sha?: string; repo?: { full_name?: string } };
+  head?: { ref?: string; sha?: string; repo?: { full_name?: string } };
   additions?: number;
   deletions?: number;
   changed_files?: number;
