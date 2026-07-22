@@ -2,6 +2,7 @@
   "name": "@cpf23333-forgejo-toolkit/shared",
   "version": "0.0.1",
   "description": "Shared utilities for Forgejo Toolkit packages",
+  "license": "MIT",
   "files": [
     "src"
   ],

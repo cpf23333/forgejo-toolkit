@@ -13,6 +13,7 @@
     "issues",
     "pull requests"
   ],
+  "license": "MIT",
   "publisher": "your-publisher-name",
   "main": "./out/extension.js",
   "scripts": {

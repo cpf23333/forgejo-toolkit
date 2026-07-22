@@ -2,6 +2,7 @@
   "name": "@cpf23333-forgejo-toolkit/api",
   "version": "0.0.1",
   "description": "Generated Forgejo API client from OpenAPI spec",
+  "license": "MIT",
   "files": [
     "src"
   ],

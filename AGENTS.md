@@ -16,10 +16,15 @@ Every element used from `@vscode-elements/elements` **must** be wrapped by a typ
 
 When you need a new element, create its wrapper in `packages/vscode-elements-vue/src/components` first, then export it from `packages/vscode-elements-vue/src/components/index.ts` and `packages/vscode-elements-vue/src/components/index.d.ts`.
 
-## Lint / format
+## License and attribution
 
-- Use `oxlint` and `oxfmt`.
-- Run `pnpm lint` and `pnpm format` at the root before finishing.
+- This project is licensed under the MIT License. Do not change the license without explicit approval.
+- All workspace packages must include `"license": "MIT"` in their `package.json`.
+- The `LICENSE` file at the repository root must be preserved in distributions.
+- When adding new dependencies, run `pnpm licenses list --prod` and ensure no strong copyleft licenses (GPL, AGPL, LGPL, MPL, EPL, etc.) are introduced.
+- The UI/UX is inspired by GitLens in a general sense (commit list layout, repository dashboard), but all code is independently implemented. Do **not** copy code, icons, colors, animations, or distinctive wording from GitLens or any other project without proper attribution and license compatibility.
+- Never copy code from GitLens' proprietary `src/plus/` directory. Only refer to GitLens' MIT-licensed core code if needed, and preserve its copyright notice if any code is adapted.
+- This plugin communicates with Forgejo via its standard REST API. It does not incorporate Forgejo source code and is not an AGPL derivative work. Do not embed Forgejo code unless you are prepared to comply with AGPL.
 
 ## Type checking
 

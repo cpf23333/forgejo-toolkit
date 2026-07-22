@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "description": "Monorepo for Forgejo Toolkit VS Code extension and shared packages",
+  "license": "MIT",
   "scripts": {
     "build": "pnpm -r run build",
     "build:extension": "pnpm --filter forgejo-toolkit run build",
