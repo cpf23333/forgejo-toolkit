@@ -32,7 +32,8 @@
     "@cpf23333-forgejo-toolkit/api": "workspace:*",
     "@cpf23333-forgejo-toolkit/shared": "workspace:*",
     "@cpf23333-forgejo-toolkit/vscode-elements-vue": "workspace:*",
-    "vue-i18n": "^10.0.7"
+    "vue-i18n": "^10.0.7",
+    "vue-router": "^5.2.0"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",

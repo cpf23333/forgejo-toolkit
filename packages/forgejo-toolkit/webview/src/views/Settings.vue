@@ -2,24 +2,11 @@
 import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
-import type { ForgejoInstance } from '../types/instance';
+import { useAppState } from '../composables/useAppState';
 import type { Locale } from '../i18n';
 
 const { t } = useI18n();
-
-const props = defineProps<{
-  instances: ForgejoInstance[];
-  locale: string;
-  debug: boolean;
-}>();
-
-const emit = defineEmits<{
-  (e: 'test', url: string, token: string): void;
-  (e: 'save', url: string, token: string): void;
-  (e: 'remove', id: string): void;
-  (e: 'changeLocale', locale: Locale): void;
-  (e: 'changeDebug', debug: boolean): void;
-}>();
+const state = useAppState();
 
 const url = ref('');
 const token = ref('');
@@ -27,18 +14,18 @@ const testing = ref(false);
 const saving = ref(false);
 const status = ref('');
 const statusType = ref<'idle' | 'success' | 'error'>('idle');
-const selectedLocale = ref<Locale>(props.locale as Locale);
-const debugEnabled = ref<boolean>(props.debug);
+const selectedLocale = ref<Locale>(state.locale.value as Locale);
+const debugEnabled = ref<boolean>(state.debug.value);
 
 watch(
-  () => props.locale,
+  () => state.locale.value,
   (newLocale) => {
     selectedLocale.value = newLocale as Locale;
   },
 );
 
 watch(
-  () => props.debug,
+  () => state.debug.value,
   (newDebug) => {
     debugEnabled.value = newDebug;
   },
@@ -57,7 +44,7 @@ function handleTest() {
   }
   testing.value = true;
   setStatus(t('settings.status.testing'));
-  emit('test', url.value.trim(), token.value.trim());
+  state.testConnection(url.value.trim(), token.value.trim());
 }
 
 function handleSave() {
@@ -66,24 +53,24 @@ function handleSave() {
   }
   saving.value = true;
   setStatus(t('settings.status.testing'));
-  emit('save', url.value.trim(), token.value.trim());
+  state.saveInstance(url.value.trim(), token.value.trim());
 }
 
 function removeInstance(id: string) {
-  emit('remove', id);
+  state.removeInstance(id);
 }
 
 function handleLocaleChange(event: Event) {
   const target = event.target as HTMLSelectElement;
   const newLocale = target.value as Locale;
   selectedLocale.value = newLocale;
-  emit('changeLocale', newLocale);
+  state.changeLocale(newLocale);
 }
 
 function handleDebugChange(event: Event) {
   const target = event.target as HTMLInputElement;
   debugEnabled.value = target.checked;
-  emit('changeDebug', target.checked);
+  state.changeDebug(target.checked);
 }
 
 defineExpose({
@@ -166,10 +153,10 @@ defineExpose({
       <div v-if="status" :class="['status', statusType]">{{ status }}</div>
     </section>
 
-    <section v-if="instances.length > 0" class="setting-section">
+    <section v-if="state.instances.value.length > 0" class="setting-section">
       <h2>{{ t('settings.savedInstances') }}</h2>
       <ul class="saved-list">
-        <li v-for="instance in instances" :key="instance.id" class="saved-item">
+        <li v-for="instance in state.instances.value" :key="instance.id" class="saved-item">
           <div class="saved-info">
             <div class="saved-name">{{ instance.name }}</div>
             <div class="saved-url">{{ instance.url }}</div>

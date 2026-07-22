@@ -72,6 +72,6 @@
 ## 长期可能
 
 - 本地仓库关联：将 VS Code 已打开的 workspace 与 Forgejo 仓库关联。
-- Issue / PR 与 Git 分支联动：例如点击 PR 自动检出对应分支。
+- Issue / PR 与 Git 分支联动：例如点击 PR 自动检出对应分支到 worktree。
 - 通知推送：后台轮询 + VS Code 消息提醒。
 - 多账号权限管理：区分只读 / 读写 token。

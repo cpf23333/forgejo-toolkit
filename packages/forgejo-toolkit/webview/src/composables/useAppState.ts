@@ -1,4 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { ForgejoInstance } from '../types/instance';
 import { vscode } from './vscode';
@@ -12,20 +13,11 @@ import type {
   ForgejoPullRequestDetail,
 } from '../types/api';
 
-export type Page =
-  | 'dashboard'
-  | 'repoDetail'
-  | 'repoIssues'
-  | 'repoPullRequests'
-  | 'issueDetail'
-  | 'pullRequestDetail'
-  | 'settings';
-
 export function useAppState() {
+  const router = useRouter();
   const { t, locale } = useI18n();
 
   const instances = ref<ForgejoInstance[]>([]);
-  const currentPage = ref<Page>('dashboard');
 
   const repositories = ref<Map<string, ForgejoRepository[]>>(new Map());
   const myIssues = ref<Map<string, ForgejoIssue[]>>(new Map());
@@ -38,12 +30,6 @@ export function useAppState() {
   const renderedMarkdown = ref<Map<string, string>>(new Map());
   const loading = ref<Map<string, boolean>>(new Map());
   const errors = ref<Map<string, string>>(new Map());
-
-  const selectedRepo = ref<{ instanceId: string; owner: string; repo: string } | null>(null);
-  const selectedIssue = ref<{ instanceId: string; owner: string; repo: string; index: number } | null>(null);
-  const selectedPullRequest = ref<{ instanceId: string; owner: string; repo: string; index: number } | null>(null);
-  const selectedRepoIssues = ref<{ instanceId: string; owner: string; repo: string; state: string } | null>(null);
-  const selectedRepoPullRequests = ref<{ instanceId: string; owner: string; repo: string; state: string } | null>(null);
 
   const debug = ref<boolean>(false);
   let renderMarkdownRequestId = 0;
@@ -59,7 +45,7 @@ export function useAppState() {
         instances.value = message.data ?? [];
         break;
       case 'openSettings':
-        currentPage.value = 'settings';
+        router.push({ name: 'settings' });
         break;
       case 'setLocale':
         if (typeof message.locale === 'string') {
@@ -255,16 +241,8 @@ export function useAppState() {
     vscode.postMessage({ command: 'copyToClipboard', text });
   }
 
-  function previewReadme(content: string) {
-    if (!selectedRepo.value) {
-      return;
-    }
-    vscode.postMessage({
-      command: 'previewReadme',
-      owner: selectedRepo.value.owner,
-      repo: selectedRepo.value.repo,
-      content,
-    });
+  function previewReadme(owner: string, repo: string, content: string) {
+    vscode.postMessage({ command: 'previewReadme', owner, repo, content });
   }
 
   function testConnection(url: string, token: string) {
@@ -289,34 +267,8 @@ export function useAppState() {
     vscode.postMessage({ command: 'setDebug', debug: newDebug });
   }
 
-  function backToDashboard() {
-    currentPage.value = 'dashboard';
-    selectedRepo.value = null;
-    selectedIssue.value = null;
-    selectedPullRequest.value = null;
-    selectedRepoIssues.value = null;
-    selectedRepoPullRequests.value = null;
-  }
-
-  function backToRepoDetail() {
-    if (!selectedRepo.value) {
-      backToDashboard();
-      return;
-    }
-    selectedIssue.value = null;
-    selectedPullRequest.value = null;
-    selectedRepoIssues.value = null;
-    selectedRepoPullRequests.value = null;
-    currentPage.value = 'repoDetail';
-  }
-
   function openRepoDetail(instanceId: string, owner: string, repo: string) {
-    selectedRepo.value = { instanceId, owner, repo };
-    selectedIssue.value = null;
-    selectedPullRequest.value = null;
-    selectedRepoIssues.value = null;
-    selectedRepoPullRequests.value = null;
-    currentPage.value = 'repoDetail';
+    router.push({ name: 'repoDetail', params: { instanceId, owner, repo } });
     const key = repoDetailKey(instanceId, owner, repo);
     if (!repoDetails.value.has(key)) {
       loading.value.set(key, true);
@@ -325,12 +277,7 @@ export function useAppState() {
   }
 
   function openIssueDetail(instanceId: string, owner: string, repo: string, index: number) {
-    selectedIssue.value = { instanceId, owner, repo, index };
-    selectedRepo.value = null;
-    selectedPullRequest.value = null;
-    selectedRepoIssues.value = null;
-    selectedRepoPullRequests.value = null;
-    currentPage.value = 'issueDetail';
+    router.push({ name: 'issueDetail', params: { instanceId, owner, repo, index: String(index) } });
     const key = issueDetailKey(instanceId, owner, repo, index);
     if (!issueDetails.value.has(key)) {
       loading.value.set(key, true);
@@ -339,12 +286,7 @@ export function useAppState() {
   }
 
   function openPullRequestDetail(instanceId: string, owner: string, repo: string, index: number) {
-    selectedPullRequest.value = { instanceId, owner, repo, index };
-    selectedRepo.value = null;
-    selectedIssue.value = null;
-    selectedRepoIssues.value = null;
-    selectedRepoPullRequests.value = null;
-    currentPage.value = 'pullRequestDetail';
+    router.push({ name: 'pullRequestDetail', params: { instanceId, owner, repo, index: String(index) } });
     const key = pullRequestDetailKey(instanceId, owner, repo, index);
     if (!pullRequestDetails.value.has(key)) {
       loading.value.set(key, true);
@@ -353,11 +295,7 @@ export function useAppState() {
   }
 
   function openRepoIssues(instanceId: string, owner: string, repo: string, state = 'open') {
-    selectedRepoIssues.value = { instanceId, owner, repo, state };
-    selectedRepoPullRequests.value = null;
-    selectedIssue.value = null;
-    selectedPullRequest.value = null;
-    currentPage.value = 'repoIssues';
+    router.push({ name: 'repoIssues', params: { instanceId, owner, repo, state } });
     const key = repoIssuesKey(instanceId, owner, repo, state);
     if (!repoIssues.value.has(key)) {
       loading.value.set(key, true);
@@ -366,11 +304,7 @@ export function useAppState() {
   }
 
   function openRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open') {
-    selectedRepoPullRequests.value = { instanceId, owner, repo, state };
-    selectedRepoIssues.value = null;
-    selectedIssue.value = null;
-    selectedPullRequest.value = null;
-    currentPage.value = 'repoPullRequests';
+    router.push({ name: 'repoPullRequests', params: { instanceId, owner, repo, state } });
     const key = repoPullRequestsKey(instanceId, owner, repo, state);
     if (!repoPullRequests.value.has(key)) {
       loading.value.set(key, true);
@@ -378,28 +312,12 @@ export function useAppState() {
     }
   }
 
-  function changeRepoIssuesState(newState: string) {
-    if (!selectedRepoIssues.value) {
-      return;
-    }
-    openRepoIssues(
-      selectedRepoIssues.value.instanceId,
-      selectedRepoIssues.value.owner,
-      selectedRepoIssues.value.repo,
-      newState,
-    );
+  function changeRepoIssuesState(instanceId: string, owner: string, repo: string, newState: string) {
+    openRepoIssues(instanceId, owner, repo, newState);
   }
 
-  function changeRepoPullRequestsState(newState: string) {
-    if (!selectedRepoPullRequests.value) {
-      return;
-    }
-    openRepoPullRequests(
-      selectedRepoPullRequests.value.instanceId,
-      selectedRepoPullRequests.value.owner,
-      selectedRepoPullRequests.value.repo,
-      newState,
-    );
+  function changeRepoPullRequestsState(instanceId: string, owner: string, repo: string, newState: string) {
+    openRepoPullRequests(instanceId, owner, repo, newState);
   }
 
   function renderMarkdown(instanceId: string, text: string, context?: string): Promise<string> {
@@ -441,7 +359,6 @@ export function useAppState() {
     t,
     locale,
     instances,
-    currentPage,
     repositories,
     myIssues,
     myPullRequests,
@@ -452,11 +369,6 @@ export function useAppState() {
     repoPullRequests,
     loading,
     errors,
-    selectedRepo,
-    selectedIssue,
-    selectedPullRequest,
-    selectedRepoIssues,
-    selectedRepoPullRequests,
     debug,
     openExternal,
     copyToClipboard,
@@ -466,8 +378,6 @@ export function useAppState() {
     removeInstance,
     changeLocale,
     changeDebug,
-    backToDashboard,
-    backToRepoDetail,
     openRepoDetail,
     openIssueDetail,
     openPullRequestDetail,

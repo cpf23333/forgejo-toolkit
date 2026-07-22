@@ -1,29 +1,33 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import type { ForgejoRepoDetail, ForgejoCommit } from '../types/api';
-import { repoDetailKey } from '../composables/useAppState';
+import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
+import { useAppState, repoDetailKey } from '../composables/useAppState';
+import type { ForgejoCommit } from '../types/api';
 
 const { t } = useI18n();
+const route = useRoute();
+const state = useAppState();
 
-const props = defineProps<{
-  instanceId: string;
-  owner: string;
-  repo: string;
-  detail?: ForgejoRepoDetail;
-  loading: boolean;
-  error?: string;
-}>();
+const instanceId = computed(() => String(route.params.instanceId));
+const owner = computed(() => String(route.params.owner));
+const repo = computed(() => String(route.params.repo));
+const key = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
 
-const emit = defineEmits<{
-  (e: 'openExternal', url: string): void;
-  (e: 'copyToClipboard', text: string): void;
-  (e: 'previewReadme', content: string): void;
-  (e: 'openRepoIssues', instanceId: string, owner: string, repo: string): void;
-  (e: 'openRepoPullRequests', instanceId: string, owner: string, repo: string): void;
-}>();
+const detail = computed(() => state.repoDetails.value.get(key.value));
+const loading = computed(() => state.loading.value.get(key.value) ?? false);
+const error = computed(() => state.errors.value.get(key.value));
 
-const repoUrl = computed(() => props.detail?.repository.html_url ?? '');
+watch(
+  [instanceId, owner, repo],
+  () => {
+    state.openRepoDetail(instanceId.value, owner.value, repo.value);
+  },
+  { immediate: true },
+);
+
+const repoUrl = computed(() => detail.value?.repository.html_url ?? '');
 const cloneUrl = computed(() => (repoUrl.value ? `${repoUrl.value}.git` : ''));
 
 function commitMessage(message: string): string {
@@ -87,24 +91,27 @@ function committerName(commit: ForgejoCommit): string {
           <span>{{ t('dashboard.openIssues') }}: {{ detail.repository.open_issues_count }}</span>
         </div>
         <div class="actions">
-          <vscode-button variant="secondary" @click="emit('openExternal', repoUrl)">{{
+          <VscodeButton variant="secondary" @click="state.openExternal(repoUrl)">{{
             t('dashboard.actions.open')
-          }}</vscode-button>
-          <vscode-button variant="secondary" @click="emit('copyToClipboard', cloneUrl)">{{
+          }}</VscodeButton>
+          <VscodeButton variant="secondary" @click="state.copyToClipboard(cloneUrl)">{{
             t('dashboard.actions.copyClone')
-          }}</vscode-button>
-          <vscode-button variant="secondary" @click="emit('copyToClipboard', repoUrl)">{{
+          }}</VscodeButton>
+          <VscodeButton variant="secondary" @click="state.copyToClipboard(repoUrl)">{{
             t('dashboard.actions.copyUrl')
-          }}</vscode-button>
-          <vscode-button variant="secondary" @click="emit('openRepoIssues', instanceId, owner, repo)"
-            >{{ t('dashboard.openIssues') }} ({{ detail.repository.open_issues_count }})点击</vscode-button
+          }}</VscodeButton>
+          <VscodeButton variant="secondary" @click="state.openRepoIssues(instanceId, owner, repo)"
+            >{{ t('dashboard.openIssues') }} ({{ detail.repository.open_issues_count }})</VscodeButton
           >
-          <vscode-button variant="secondary" @click="emit('openRepoPullRequests', instanceId, owner, repo)"
-            >{{ t('dashboard.openPullRequests') }} ({{ detail.repository.open_pr_counter ?? 0 }})</vscode-button
+          <VscodeButton variant="secondary" @click="state.openRepoPullRequests(instanceId, owner, repo)"
+            >{{ t('dashboard.openPullRequests') }} ({{ detail.repository.open_pr_counter ?? 0 }})</VscodeButton
           >
-          <vscode-button v-if="detail.readme" variant="secondary" @click="emit('previewReadme', detail.readme)">{{
-            t('dashboard.actions.previewReadme')
-          }}</vscode-button>
+          <VscodeButton
+            v-if="detail.readme"
+            variant="secondary"
+            @click="state.previewReadme(owner, repo, detail.readme)"
+            >{{ t('dashboard.actions.previewReadme') }}</VscodeButton
+          >
         </div>
       </div>
 
@@ -144,7 +151,7 @@ function committerName(commit: ForgejoCommit): string {
               <span class="commit-author">{{ committerName(commit) }}</span>
               <span class="commit-date">{{ formatDate(commit.commit.author.date) }}</span>
             </span>
-            <a href="#" class="commit-sha" @click.prevent="emit('openExternal', commit.html_url)">{{
+            <a href="#" class="commit-sha" @click.prevent="state.openExternal(commit.html_url)">{{
               commit.sha.slice(0, 7)
             }}</a>
           </div>

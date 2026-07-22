@@ -1,29 +1,35 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { useAppState, repoPullRequestsKey } from '../composables/useAppState';
 import type { ForgejoPullRequest } from '../types/api';
 
 const { t } = useI18n();
+const route = useRoute();
+const state = useAppState();
 
-const props = defineProps<{
-  instanceId: string;
-  owner: string;
-  repo: string;
-  state: string;
-  items: ForgejoPullRequest[];
-  loading: boolean;
-  error?: string;
-}>();
+const instanceId = computed(() => String(route.params.instanceId));
+const owner = computed(() => String(route.params.owner));
+const repo = computed(() => String(route.params.repo));
+const stateParam = computed(() => String(route.params.state || 'open'));
+const key = computed(() => repoPullRequestsKey(instanceId.value, owner.value, repo.value, stateParam.value));
 
-const emit = defineEmits<{
-  (e: 'openPullRequest', instanceId: string, owner: string, repo: string, index: number): void;
-  (e: 'changeState', state: string): void;
-  (e: 'openExternal', url: string): void;
-}>();
+const items = computed(() => state.repoPullRequests.value.get(key.value) ?? []);
+const loading = computed(() => state.loading.value.get(key.value) ?? false);
+const error = computed(() => state.errors.value.get(key.value));
+
+watch(
+  [instanceId, owner, repo, stateParam],
+  () => {
+    state.openRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value);
+  },
+  { immediate: true },
+);
 
 const states = ['open', 'closed', 'all'];
 
-const title = computed(() => `${props.owner}/${props.repo}`);
+const title = computed(() => `${owner.value}/${repo.value}`);
 
 function formatDate(date: string): string {
   try {
@@ -58,7 +64,11 @@ function formatDate(date: string): string {
 }
 
 function openPullRequest(pr: ForgejoPullRequest) {
-  emit('openPullRequest', props.instanceId, props.owner, props.repo, pr.number);
+  state.openPullRequestDetail(instanceId.value, owner.value, repo.value, pr.number);
+}
+
+function changeState(newState: string) {
+  state.changeRepoPullRequestsState(instanceId.value, owner.value, repo.value, newState);
 }
 </script>
 
@@ -71,8 +81,8 @@ function openPullRequest(pr: ForgejoPullRequest) {
           v-for="s in states"
           :key="s"
           class="filter-button"
-          :class="{ active: state === s }"
-          @click="emit('changeState', s)"
+          :class="{ active: stateParam === s }"
+          @click="changeState(s)"
         >
           {{ t(`dashboard.state.${s}`) }}
         </button>
@@ -86,7 +96,7 @@ function openPullRequest(pr: ForgejoPullRequest) {
         <div class="item-title">
           <a href="#" @click.prevent="openPullRequest(pr)">#{{ pr.number }} {{ pr.title }}</a>
           <span class="pr-actions">
-            <a href="#" :title="t('dashboard.actions.open')" @click.prevent="emit('openExternal', pr.html_url)">
+            <a href="#" :title="t('dashboard.actions.open')" @click.prevent="state.openExternal(pr.html_url)">
               <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                 <path
                   d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"

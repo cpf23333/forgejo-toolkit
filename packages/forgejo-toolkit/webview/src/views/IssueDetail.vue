@@ -1,29 +1,34 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
-import type { ForgejoIssueDetail } from '../types/api';
+import { useAppState, issueDetailKey } from '../composables/useAppState';
 
 const { t } = useI18n();
+const route = useRoute();
+const state = useAppState();
 
-const props = defineProps<{
-  instanceId: string;
-  owner: string;
-  repo: string;
-  index: number;
-  detail?: ForgejoIssueDetail;
-  loading: boolean;
-  error?: string;
-  baseUrl?: string;
-  renderMarkdownFn: (text: string, context: string) => Promise<string>;
-}>();
+const instanceId = computed(() => String(route.params.instanceId));
+const owner = computed(() => String(route.params.owner));
+const repo = computed(() => String(route.params.repo));
+const index = computed(() => Number(route.params.index));
+const key = computed(() => issueDetailKey(instanceId.value, owner.value, repo.value, index.value));
 
-const emit = defineEmits<{
-  (e: 'openExternal', url: string): void;
-  (e: 'copyToClipboard', text: string): void;
-}>();
+const detail = computed(() => state.issueDetails.value.get(key.value));
+const loading = computed(() => state.loading.value.get(key.value) ?? false);
+const error = computed(() => state.errors.value.get(key.value));
+const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
+
+watch(
+  [instanceId, owner, repo, index],
+  () => {
+    state.openIssueDetail(instanceId.value, owner.value, repo.value, index.value);
+  },
+  { immediate: true },
+);
 
 const renderedBody = ref('');
 const bodyLoading = ref(false);
@@ -32,13 +37,13 @@ const bodyError = ref('');
 async function renderBody() {
   renderedBody.value = '';
   bodyError.value = '';
-  if (!props.detail?.body) {
+  if (!detail.value?.body) {
     return;
   }
   bodyLoading.value = true;
   try {
-    const context = `${props.owner}/${props.repo}`;
-    renderedBody.value = await props.renderMarkdownFn(props.detail.body, context);
+    const context = `${owner.value}/${repo.value}`;
+    renderedBody.value = await state.renderMarkdown(instanceId.value, detail.value.body, context);
   } catch (error) {
     bodyError.value = error instanceof Error ? error.message : String(error);
   } finally {
@@ -47,14 +52,14 @@ async function renderBody() {
 }
 
 watch(
-  () => props.detail?.body,
+  () => detail.value?.body,
   () => {
     renderBody();
   },
   { immediate: true },
 );
 
-const issueUrl = computed(() => props.detail?.html_url ?? '');
+const issueUrl = computed(() => detail.value?.html_url ?? '');
 
 function formatDate(date: string): string {
   try {
@@ -158,17 +163,17 @@ function isLightColor(hex: string): boolean {
           :loading="bodyLoading"
           :error="bodyError"
           :base-url="baseUrl"
-          @open-external="emit('openExternal', $event)"
+          @open-external="state.openExternal($event)"
         />
       </div>
 
-      <AttachmentList :assets="detail.assets" @open-external="emit('openExternal', $event)" />
+      <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
 
       <div class="detail-actions">
-        <VscodeButton variant="secondary" @click="emit('openExternal', issueUrl)">
+        <VscodeButton variant="secondary" @click="state.openExternal(issueUrl)">
           {{ t('dashboard.detail.openIssue') }}
         </VscodeButton>
-        <VscodeButton variant="secondary" @click="emit('copyToClipboard', issueUrl)">
+        <VscodeButton variant="secondary" @click="state.copyToClipboard(issueUrl)">
           {{ t('dashboard.detail.copyLink') }}
         </VscodeButton>
       </div>

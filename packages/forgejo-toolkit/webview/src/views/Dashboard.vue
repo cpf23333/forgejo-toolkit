@@ -1,31 +1,13 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue';
+import { ref, watch, nextTick, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { ForgejoInstance, ForgejoRepository, ForgejoIssue, ForgejoPullRequest } from '../types/instance';
+import { useAppState } from '../composables/useAppState';
+import type { ForgejoRepository, ForgejoIssue, ForgejoPullRequest } from '../types/api';
 
 const { t } = useI18n();
+const state = useAppState();
 
 type Tab = 'repositories' | 'issues' | 'pullRequests';
-
-const props = defineProps<{
-  instances: ForgejoInstance[];
-  repositories: Map<string, ForgejoRepository[]>;
-  myIssues: Map<string, ForgejoIssue[]>;
-  myPullRequests: Map<string, ForgejoPullRequest[]>;
-  loading: Map<string, boolean>;
-  errors: Map<string, string>;
-}>();
-
-const emit = defineEmits<{
-  (e: 'openExternal', url: string): void;
-  (e: 'copyToClipboard', text: string): void;
-  (e: 'openRepo', instanceId: string, owner: string, repo: string): void;
-  (e: 'openIssue', instanceId: string, owner: string, repo: string, index: number): void;
-  (e: 'openPullRequest', instanceId: string, owner: string, repo: string, index: number): void;
-  (e: 'loadRepositories', instanceId: string): void;
-  (e: 'loadMyIssues', instanceId: string): void;
-  (e: 'loadMyPullRequests', instanceId: string): void;
-}>();
 
 const activeTab = ref<Tab>('repositories');
 const expandedInstances = ref<Set<string>>(new Set());
@@ -40,7 +22,7 @@ function ownerKey(instanceId: string, owner: string): string {
 }
 
 function reposByOwner(instanceId: string): Record<string, ForgejoRepository[]> {
-  const repos = props.repositories.get(instanceId) ?? [];
+  const repos = state.repositories.value.get(instanceId) ?? [];
   const grouped: Record<string, ForgejoRepository[]> = {};
   for (const repo of repos) {
     const owner = repo.owner.login;
@@ -117,11 +99,11 @@ function handleToggle(instanceId: string, event: Event) {
 
 function loadForTab(instanceId: string) {
   if (activeTab.value === 'repositories') {
-    emit('loadRepositories', instanceId);
+    state.loadRepositories(instanceId);
   } else if (activeTab.value === 'issues') {
-    emit('loadMyIssues', instanceId);
+    state.loadMyIssues(instanceId);
   } else {
-    emit('loadMyPullRequests', instanceId);
+    state.loadMyPullRequests(instanceId);
   }
 }
 
@@ -130,7 +112,7 @@ watch(activeTab, () => {
 });
 
 watch(
-  () => props.repositories,
+  () => state.repositories.value,
   () => {
     expandedInstances.value.forEach((id) => autoExpandFirstOwner(id));
   },
@@ -138,7 +120,7 @@ watch(
 );
 
 watch(
-  () => props.instances,
+  () => state.instances.value,
   (newInstances) => {
     if (newInstances.length > 0 && expandedInstances.value.size === 0) {
       expandInstance(newInstances[0].id);
@@ -148,13 +130,13 @@ watch(
 );
 
 onMounted(() => {
-  if (props.instances.length > 0 && expandedInstances.value.size === 0) {
-    expandInstance(props.instances[0].id);
+  if (state.instances.value.length > 0 && expandedInstances.value.size === 0) {
+    expandInstance(state.instances.value[0].id);
   }
 });
 
 function openRepo(instanceId: string, repo: ForgejoRepository) {
-  emit('openRepo', instanceId, repo.owner.login, repo.name);
+  state.openRepoDetail(instanceId, repo.owner.login, repo.name);
 }
 
 function parseOwnerRepo(url: string): { owner: string; repo: string } | undefined {
@@ -175,35 +157,35 @@ function openIssue(instanceId: string, issue: ForgejoIssue) {
     ? { owner: issue.repository.full_name.split('/')[0], repo: issue.repository.full_name.split('/')[1] }
     : parseOwnerRepo(issue.html_url);
   if (ownerRepo) {
-    emit('openIssue', instanceId, ownerRepo.owner, ownerRepo.repo, issue.number);
+    state.openIssueDetail(instanceId, ownerRepo.owner, ownerRepo.repo, issue.number);
   }
 }
 
 function openPullRequest(instanceId: string, pr: ForgejoPullRequest) {
   const ownerRepo = parseOwnerRepo(pr.html_url);
   if (ownerRepo) {
-    emit('openPullRequest', instanceId, ownerRepo.owner, ownerRepo.repo, pr.number);
+    state.openPullRequestDetail(instanceId, ownerRepo.owner, ownerRepo.repo, pr.number);
   }
 }
 
-function cloneUrl(instance: ForgejoInstance, repo: ForgejoRepository): string {
+function cloneUrl(instance: { url: string }, repo: ForgejoRepository): string {
   return `${instance.url}/${repo.full_name}.git`;
 }
 
 function formatError(key: string): string {
-  return t('dashboard.error', { message: props.errors.get(key) ?? '' });
+  return t('dashboard.error', { message: state.errors.value.get(key) ?? '' });
 }
 
 function repoCount(instanceId: string): number {
-  return props.repositories.get(instanceId)?.length ?? 0;
+  return state.repositories.value.get(instanceId)?.length ?? 0;
 }
 
 function issueCount(instanceId: string): number {
-  return props.myIssues.get(instanceId)?.length ?? 0;
+  return state.myIssues.value.get(instanceId)?.length ?? 0;
 }
 
 function prCount(instanceId: string): number {
-  return props.myPullRequests.get(instanceId)?.length ?? 0;
+  return state.myPullRequests.value.get(instanceId)?.length ?? 0;
 }
 
 function badgeCount(instanceId: string): number {
@@ -225,6 +207,13 @@ function loadingKey(instanceId: string): string {
   }
   return `pulls-${instanceId}`;
 }
+
+const instances = computed(() => state.instances.value);
+const repositories = computed(() => state.repositories.value);
+const myIssues = computed(() => state.myIssues.value);
+const myPullRequests = computed(() => state.myPullRequests.value);
+const loading = computed(() => state.loading.value);
+const errors = computed(() => state.errors.value);
 </script>
 
 <template>
@@ -291,7 +280,7 @@ function loadingKey(instanceId: string): string {
                           <a
                             href="#"
                             :title="t('dashboard.actions.open')"
-                            @click.prevent="emit('openExternal', repo.html_url)"
+                            @click.prevent="state.openExternal(repo.html_url)"
                           >
                             <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                               <path
@@ -302,7 +291,7 @@ function loadingKey(instanceId: string): string {
                           <a
                             href="#"
                             :title="t('dashboard.actions.copyClone')"
-                            @click.prevent="emit('copyToClipboard', cloneUrl(instance, repo))"
+                            @click.prevent="state.copyToClipboard(cloneUrl(instance, repo))"
                           >
                             <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                               <path
@@ -331,7 +320,7 @@ function loadingKey(instanceId: string): string {
                     <a
                       href="#"
                       :title="t('dashboard.actions.open')"
-                      @click.prevent="emit('openExternal', issue.html_url)"
+                      @click.prevent="state.openExternal(issue.html_url)"
                     >
                       <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                         <path
@@ -342,7 +331,7 @@ function loadingKey(instanceId: string): string {
                     <a
                       href="#"
                       :title="t('dashboard.actions.copyUrl')"
-                      @click.prevent="emit('copyToClipboard', issue.html_url)"
+                      @click.prevent="state.copyToClipboard(issue.html_url)"
                     >
                       <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                         <path
@@ -364,7 +353,7 @@ function loadingKey(instanceId: string): string {
                 <div class="item-title">
                   <a href="#" @click.prevent="openPullRequest(instance.id, pr)">#{{ pr.number }} {{ pr.title }}</a>
                   <span class="pr-actions">
-                    <a href="#" :title="t('dashboard.actions.open')" @click.prevent="emit('openExternal', pr.html_url)">
+                    <a href="#" :title="t('dashboard.actions.open')" @click.prevent="state.openExternal(pr.html_url)">
                       <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                         <path
                           d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
@@ -374,7 +363,7 @@ function loadingKey(instanceId: string): string {
                     <a
                       href="#"
                       :title="t('dashboard.actions.copyUrl')"
-                      @click.prevent="emit('copyToClipboard', pr.html_url)"
+                      @click.prevent="state.copyToClipboard(pr.html_url)"
                     >
                       <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                         <path
