@@ -39,7 +39,14 @@ watch(
   () => detail.value,
   () => {
     if (detail.value) {
-      state.loadPullRequestFiles(instanceId.value, owner.value, repo.value, index.value);
+      state.loadPullRequestFiles(
+        instanceId.value,
+        owner.value,
+        repo.value,
+        index.value,
+        detail.value.base?.sha,
+        detail.value.head?.sha,
+      );
     }
   },
   { immediate: true },
@@ -47,23 +54,30 @@ watch(
 
 const prUrl = computed(() => detail.value?.html_url ?? '');
 
-function handleOpenDiff(filename: string) {
+function handleOpenDiff(filename: string, status: string) {
   const baseSha = detail.value?.base?.sha;
   const headSha = detail.value?.head?.sha;
   if (!baseSha || !headSha) {
     return;
   }
-  state.openPullRequestDiff(instanceId.value, owner.value, repo.value, index.value, filename, baseSha, headSha);
+  state.openPullRequestDiff(instanceId.value, owner.value, repo.value, index.value, filename, status, baseSha, headSha);
 }
 
-function handleOpenAllDiffs() {
+function handleOpenSelectedDiffs(selectedFiles: { filename: string; status: string }[]) {
   const baseSha = detail.value?.base?.sha;
   const headSha = detail.value?.head?.sha;
-  if (!baseSha || !headSha || files.value.length === 0) {
+  if (!baseSha || !headSha || selectedFiles.length === 0) {
     return;
   }
-  const filenames = files.value.map((file) => file.filename).filter((name): name is string => !!name);
-  state.openAllPullRequestDiffs(instanceId.value, owner.value, repo.value, index.value, filenames, baseSha, headSha);
+  state.openSelectedPullRequestDiffs(
+    instanceId.value,
+    owner.value,
+    repo.value,
+    index.value,
+    selectedFiles,
+    baseSha,
+    headSha,
+  );
 }
 
 const worktreeLoading = ref(false);
@@ -262,7 +276,7 @@ watch(
           :error="filesError"
           :supports-multi-diff="state.supportsMultiDiff.value"
           @open-diff="handleOpenDiff"
-          @open-all-diffs="handleOpenAllDiffs"
+          @open-selected-diffs="handleOpenSelectedDiffs"
         />
       </div>
 

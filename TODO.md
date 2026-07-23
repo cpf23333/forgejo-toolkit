@@ -8,6 +8,8 @@
 
 ## 待开始
 
+- [ ] PR 详情页 diff 增强
+  - [ ] 按提交查看 diff（列出每个 commit 的变更文件，支持单提交 diff）
 - [ ] PR worktree 增强
   - [ ] 判断当前 workspace 是否为 PR base repo
   - [ ] 未设置打开方式时弹窗询问，并支持记住选择

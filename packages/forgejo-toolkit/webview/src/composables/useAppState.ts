@@ -409,12 +409,19 @@ export function useAppState() {
     }
   }
 
-  function loadPullRequestFiles(instanceId: string, owner: string, repo: string, index: number) {
+  function loadPullRequestFiles(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    baseSha?: string,
+    headSha?: string,
+  ) {
     const key = pullRequestFilesKey(instanceId, owner, repo, index);
     if (pullRequestFiles.value.has(key)) {
       return;
     }
-    vscode.postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index });
+    vscode.postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index, baseSha, headSha });
   }
 
   function openPullRequestDiff(
@@ -423,6 +430,7 @@ export function useAppState() {
     repo: string,
     index: number,
     filename: string,
+    status: string,
     baseSha: string,
     headSha: string,
   ) {
@@ -433,22 +441,23 @@ export function useAppState() {
       repo,
       index,
       filename,
+      status,
       baseSha,
       headSha,
     });
   }
 
-  function openAllPullRequestDiffs(
+  function openSelectedPullRequestDiffs(
     instanceId: string,
     owner: string,
     repo: string,
     index: number,
-    files: string[],
+    files: { filename: string; status: string }[],
     baseSha: string,
     headSha: string,
   ) {
     vscode.postMessage({
-      command: 'openAllPullRequestDiffs',
+      command: 'openSelectedPullRequestDiffs',
       instanceId,
       owner,
       repo,
@@ -587,7 +596,7 @@ export function useAppState() {
     openPullRequestDetail,
     loadPullRequestFiles,
     openPullRequestDiff,
-    openAllPullRequestDiffs,
+    openSelectedPullRequestDiffs,
     openRepoIssues,
     openRepoPullRequests,
     changeRepoIssuesState,

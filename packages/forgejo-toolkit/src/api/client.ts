@@ -4,6 +4,7 @@ import {
   issueGetIssue,
   issueListIssues,
   issueSearchIssues,
+  repoCompareDiff,
   repoGet,
   repoGetAllCommits,
   repoGetContents,
@@ -153,9 +154,56 @@ export class ForgejoClient {
   }
 
   getPullRequestFiles(owner: string, repo: string, index: number): Promise<ForgejoChangedFile[]> {
-    return repoGetPullRequestFiles(owner, repo, index, undefined, {
-      client: this._client(),
-    }) as Promise<ForgejoChangedFile[]>;
+    return repoGetPullRequestFiles(
+      owner,
+      repo,
+      index,
+      { limit: 100 },
+      {
+        client: this._client(),
+      },
+    ) as Promise<ForgejoChangedFile[]>;
+  }
+
+  async getPullRequestFilesFromCompare(
+    owner: string,
+    repo: string,
+    baseSha: string,
+    headSha: string,
+  ): Promise<ForgejoChangedFile[]> {
+    const compare = await repoCompareDiff(owner, repo, `${baseSha}..${headSha}`, { client: this._client() });
+    const statusMap = new Map<string, string>();
+    for (const file of compare.files ?? []) {
+      const filename = file.filename ?? '';
+      if (!filename) {
+        continue;
+      }
+      const existing = statusMap.get(filename);
+      const status = file.status ?? 'changed';
+      if (existing) {
+        // If a file is both added and removed across commits, the net change is zero.
+        if ((existing === 'added' && status === 'removed') || (existing === 'removed' && status === 'added')) {
+          statusMap.delete(filename);
+          continue;
+        }
+        // Prefer more specific statuses over generic 'changed'.
+        if (existing === 'changed' || status === 'modified' || status === 'renamed') {
+          statusMap.set(filename, status);
+        }
+      } else {
+        statusMap.set(filename, status);
+      }
+    }
+    return Array.from(statusMap.entries()).map(
+      ([filename, status]) =>
+        ({
+          filename,
+          status,
+          additions: 0,
+          deletions: 0,
+          changes: 0,
+        }) as ForgejoChangedFile,
+    );
   }
 
   async renderMarkdown(text: string, context?: string): Promise<string> {

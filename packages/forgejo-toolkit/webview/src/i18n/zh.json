@@ -100,7 +100,10 @@
       "changedFilesTitle": "变更文件",
       "noChangedFiles": "没有变更的文件",
       "viewDiff": "查看 diff",
-      "viewAllDiffs": "查看全部 diff",
+      "selectAll": "全选",
+      "expandAll": "展开全部",
+      "collapseAll": "折叠全部",
+      "viewSelectedDiffs": "查看选中 diff ({count})",
       "fileStatus": {
         "added": "新增",
         "removed": "删除",

@@ -85,7 +85,15 @@ export type WebviewToHostMessage =
   | { command: 'getRepoDetail'; instanceId: string; owner: string; repo: string }
   | { command: 'getIssueDetail'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'getPullRequestDetail'; instanceId: string; owner: string; repo: string; index: number }
-  | { command: 'getPullRequestFiles'; instanceId: string; owner: string; repo: string; index: number }
+  | {
+      command: 'getPullRequestFiles';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      baseSha?: string;
+      headSha?: string;
+    }
   | {
       command: 'openPullRequestDiff';
       instanceId: string;
@@ -93,16 +101,17 @@ export type WebviewToHostMessage =
       repo: string;
       index: number;
       filename: string;
+      status: string;
       baseSha: string;
       headSha: string;
     }
   | {
-      command: 'openAllPullRequestDiffs';
+      command: 'openSelectedPullRequestDiffs';
       instanceId: string;
       owner: string;
       repo: string;
       index: number;
-      files: string[];
+      files: { filename: string; status: string }[];
       baseSha: string;
       headSha: string;
     }

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../logger';
 import { ForgejoClient } from '../api/client';
+import type { ForgejoChangedFile } from '../api/types';
 import { ConfigManager } from '../config';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { getWebviewContent } from './content';
@@ -292,13 +293,53 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             if (!instance) {
               return;
             }
-            const { owner, repo, index } = message;
+            const { owner, repo, index, baseSha, headSha } = message;
             if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
               return;
             }
             try {
               const client = new ForgejoClient(instance.url, instance.token, logger);
-              const files = await client.getPullRequestFiles(owner, repo, index);
+              let files: ForgejoChangedFile[];
+              if (typeof baseSha === 'string' && typeof headSha === 'string') {
+                try {
+                  files = await client.getPullRequestFilesFromCompare(owner, repo, baseSha, headSha);
+                  logger.info(
+                    `getPullRequestFilesFromCompare returned ${files.length} files for ${instance.name}/${owner}/${repo}#${index}`,
+                  );
+                } catch (compareError) {
+                  const compareErr = compareError instanceof Error ? compareError.message : String(compareError);
+                  logger.info(
+                    `Falling back to JSON file list for ${instance.name}/${owner}/${repo}#${index}: ${compareErr}`,
+                  );
+                  files = await client.getPullRequestFiles(owner, repo, index);
+                }
+              } else {
+                files = await client.getPullRequestFiles(owner, repo, index);
+              }
+
+              // Supplement additions/deletions counts from the JSON endpoint.
+              try {
+                const jsonFiles = await client.getPullRequestFiles(owner, repo, index);
+                const countMap = new Map(jsonFiles.map((f) => [f.filename, f]));
+                files = files.map((file) => {
+                  const counts = countMap.get(file.filename);
+                  if (!counts) {
+                    return file;
+                  }
+                  return {
+                    ...file,
+                    additions: counts.additions ?? file.additions,
+                    deletions: counts.deletions ?? file.deletions,
+                    changes: counts.changes ?? counts.additions ?? 0 + (counts.deletions ?? 0),
+                  };
+                });
+              } catch {
+                // counts are optional
+              }
+
+              logger.info(
+                `getPullRequestFiles returned ${files.length} files for ${instance.name}/${owner}/${repo}#${index}: ${JSON.stringify(files.map((f) => ({ filename: f.filename, status: f.status, additions: f.additions, deletions: f.deletions })))}`,
+              );
               this._reply('pullRequestFiles', {
                 instanceId: instance.id,
                 owner,
@@ -320,21 +361,22 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             return;
           }
           case 'openPullRequestDiff': {
-            const { instanceId, owner, repo, index, filename, baseSha, headSha } = message;
+            const { instanceId, owner, repo, index, filename, status, baseSha, headSha } = message;
             if (
               typeof instanceId !== 'string' ||
               typeof owner !== 'string' ||
               typeof repo !== 'string' ||
               typeof index !== 'number' ||
               typeof filename !== 'string' ||
+              typeof status !== 'string' ||
               typeof baseSha !== 'string' ||
               typeof headSha !== 'string'
             ) {
               return;
             }
             try {
-              const baseUri = this._buildDiffUri(instanceId, owner, repo, baseSha, filename);
-              const headUri = this._buildDiffUri(instanceId, owner, repo, headSha, filename);
+              const baseUri = this._buildDiffUri(instanceId, owner, repo, baseSha, filename, true, status);
+              const headUri = this._buildDiffUri(instanceId, owner, repo, headSha, filename, false, status);
               const title = `${filename} (#${index})`;
               await vscode.commands.executeCommand('vscode.diff', baseUri, headUri, title);
             } catch (error) {
@@ -344,7 +386,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
-          case 'openAllPullRequestDiffs': {
+          case 'openSelectedPullRequestDiffs': {
             const { instanceId, owner, repo, index, files, baseSha, headSha } = message;
             if (
               typeof instanceId !== 'string' ||
@@ -358,18 +400,25 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const resourceList = files.map((filename) => {
-                const baseUri = this._buildDiffUri(instanceId, owner, repo, baseSha, filename);
-                const headUri = this._buildDiffUri(instanceId, owner, repo, headSha, filename);
-                const label = vscode.Uri.parse(`label:${filename}`);
-                return [label, baseUri, headUri];
+              const resourceList = files.map((file) => {
+                const filename = typeof file === 'string' ? file : file.filename;
+                const status = typeof file === 'string' ? 'modified' : file.status;
+                const baseUri = this._buildDiffUri(instanceId, owner, repo, baseSha, filename, true, status);
+                const headUri = this._buildDiffUri(instanceId, owner, repo, headSha, filename, false, status);
+                if (status === 'added') {
+                  return [headUri, undefined, headUri];
+                }
+                if (status === 'removed') {
+                  return [baseUri, baseUri, undefined];
+                }
+                return [headUri, baseUri, headUri];
               });
               const title = `${owner}/${repo}#${index}`;
               await vscode.commands.executeCommand('vscode.changes', title, resourceList);
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
-              logger.error(`openAllPullRequestDiffs failed for ${owner}/${repo}#${index}: ${err}`);
-              vscode.window.showErrorMessage(`Unable to open all diffs: ${err}`);
+              logger.error(`openSelectedPullRequestDiffs failed for ${owner}/${repo}#${index}: ${err}`);
+              vscode.window.showErrorMessage(`Unable to open selected diffs: ${err}`);
             }
             return;
           }
@@ -576,9 +625,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     return this._config.getInstances().find((i) => i.id === id);
   }
 
-  private _buildDiffUri(instanceId: string, owner: string, repo: string, ref: string, filepath: string): vscode.Uri {
-    const encodedPath = [instanceId, owner, repo, ref, filepath].map(encodeURIComponent).join('/');
-    return vscode.Uri.parse(`forgejo-diff:///${encodedPath}`);
+  private _buildDiffUri(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    ref: string,
+    filepath: string,
+    isBase: boolean,
+    status?: string,
+  ): vscode.Uri {
+    const params = { instanceId, owner, repo, ref, isBase, status };
+    return vscode.Uri.from({
+      scheme: 'forgejo-pr',
+      path: `/${filepath}`,
+      query: JSON.stringify(params),
+    });
   }
 
   private _updateViewTitle(locale: 'en' | 'zh') {

@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import FileTreeNode from './FileTreeNode.vue';
 import type { ForgejoChangedFile } from '../types/api';
+import type { FileTreeNode as FileTreeNodeType } from '../types/fileTree';
 
 const { t } = useI18n();
 
@@ -13,51 +16,178 @@ interface Props {
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  openDiff: [filename: string];
-  openAllDiffs: [];
+  openDiff: [filename: string, status: string];
+  openSelectedDiffs: [files: { filename: string; status: string }[]];
 }>();
 
-function statusClass(status?: string): string {
-  switch (status) {
-    case 'added':
-      return 'status-added';
-    case 'removed':
-      return 'status-removed';
-    case 'renamed':
-      return 'status-renamed';
-    case 'modified':
-    default:
-      return 'status-modified';
+function buildFileTree(files: ForgejoChangedFile[]): FileTreeNodeType[] {
+  const root: FileTreeNodeType = {
+    name: '',
+    path: '',
+    type: 'dir',
+    children: [],
+    expanded: true,
+    checked: false,
+    indeterminate: false,
+  };
+  for (const file of files) {
+    const filename = file.filename ?? file.previous_filename ?? '';
+    if (!filename) {
+      continue;
+    }
+    const parts = filename.split('/');
+    let current = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isFile = i === parts.length - 1;
+      const path = parts.slice(0, i + 1).join('/');
+      let child = current.children.find((c) => c.name === part);
+      if (!child) {
+        child = {
+          name: part,
+          path,
+          type: isFile ? 'file' : 'dir',
+          children: [],
+          expanded: true,
+          checked: false,
+          indeterminate: false,
+        };
+        if (isFile) {
+          child.file = file;
+        }
+        current.children.push(child);
+      }
+      current = child;
+    }
+  }
+  return root.children;
+}
+
+function sortTree(nodes: FileTreeNodeType[]): FileTreeNodeType[] {
+  return nodes.sort((a, b) => {
+    if (a.type === b.type) {
+      return a.name.localeCompare(b.name);
+    }
+    return a.type === 'dir' ? -1 : 1;
+  });
+}
+
+function sortTreeRecursively(nodes: FileTreeNodeType[]): FileTreeNodeType[] {
+  const sorted = sortTree(nodes);
+  for (const node of sorted) {
+    if (node.type === 'dir') {
+      node.children = sortTreeRecursively(node.children);
+    }
+  }
+  return sorted;
+}
+
+const tree = ref<FileTreeNodeType[]>([]);
+
+watch(
+  () => props.files,
+  (files) => {
+    tree.value = sortTreeRecursively(buildFileTree(files));
+  },
+  { immediate: true },
+);
+
+const fileCount = computed(() => props.files.length);
+
+const selectedFiles = computed(() => {
+  const result: { filename: string; status: string }[] = [];
+  function collect(nodes: FileTreeNodeType[]) {
+    for (const node of nodes) {
+      if (node.type === 'file' && node.checked && node.file?.filename) {
+        result.push({ filename: node.file.filename, status: node.file.status ?? 'modified' });
+      }
+      if (node.type === 'dir') {
+        collect(node.children);
+      }
+    }
+  }
+  collect(tree.value);
+  return result;
+});
+
+const allSelected = computed(() => {
+  if (fileCount.value === 0) {
+    return false;
+  }
+  return selectedFiles.value.length === fileCount.value;
+});
+
+const someSelected = computed(() => {
+  return selectedFiles.value.length > 0 && selectedFiles.value.length < fileCount.value;
+});
+
+function updateNodeAndDescendants(node: FileTreeNodeType, checked: boolean) {
+  node.checked = checked;
+  node.indeterminate = false;
+  for (const child of node.children) {
+    updateNodeAndDescendants(child, checked);
   }
 }
 
-function statusText(status?: string): string {
-  switch (status) {
-    case 'added':
-      return t('dashboard.detail.fileStatus.added');
-    case 'removed':
-      return t('dashboard.detail.fileStatus.removed');
-    case 'renamed':
-      return t('dashboard.detail.fileStatus.renamed');
-    case 'modified':
-    default:
-      return t('dashboard.detail.fileStatus.modified');
+function updateAncestors(nodes: FileTreeNodeType[], path: string) {
+  function findAndUpdate(nodes: FileTreeNodeType[], path: string): boolean {
+    for (const node of nodes) {
+      if (node.path === path) {
+        return true;
+      }
+      if (node.type === 'dir' && path.startsWith(node.path + '/')) {
+        if (findAndUpdate(node.children, path)) {
+          const allChecked = node.children.length > 0 && node.children.every((c) => c.checked);
+          const someChecked = node.children.some((c) => c.checked || c.indeterminate);
+          node.checked = allChecked;
+          node.indeterminate = !allChecked && someChecked;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  findAndUpdate(nodes, path);
+}
+
+function onNodeCheck(node: FileTreeNodeType, checked: boolean) {
+  updateNodeAndDescendants(node, checked);
+  updateAncestors(tree.value, node.path);
+}
+
+function toggleExpand(node: FileTreeNodeType) {
+  if (node.type === 'dir') {
+    node.expanded = !node.expanded;
   }
 }
 
-function displayName(file: ForgejoChangedFile): string {
-  return file.filename ?? file.previous_filename ?? '';
+function selectAll(checked: boolean) {
+  for (const node of tree.value) {
+    updateNodeAndDescendants(node, checked);
+  }
 }
 
-function openDiff(filename?: string) {
-  if (!filename) {
+function expandAll(expanded: boolean) {
+  function walk(nodes: FileTreeNodeType[]) {
+    for (const node of nodes) {
+      if (node.type === 'dir') {
+        node.expanded = expanded;
+        walk(node.children);
+      }
+    }
+  }
+  walk(tree.value);
+}
+
+function openDiff(filename: string, status: string) {
+  emit('openDiff', filename, status);
+}
+
+function openSelectedDiffs() {
+  if (selectedFiles.value.length === 0) {
     return;
   }
-  emit('openDiff', filename);
-}
-
-function openAllDiffs() {
-  emit('openAllDiffs');
+  emit('openSelectedDiffs', selectedFiles.value);
 }
 </script>
 
@@ -68,27 +198,44 @@ function openAllDiffs() {
     <div v-else-if="props.files.length === 0" class="empty">
       {{ t('dashboard.detail.noChangedFiles') }}
     </div>
-    <div v-else>
-      <div v-if="props.supportsMultiDiff" class="file-list-actions">
-        <a href="#" class="view-all-link" @click.prevent="openAllDiffs">
-          {{ t('dashboard.detail.viewAllDiffs') }}
-        </a>
-      </div>
-      <ul class="file-list">
-        <li v-for="file in props.files" :key="file.filename ?? file.previous_filename" class="file-item">
-          <span class="file-name">
-            {{ displayName(file) }}
-            <span v-if="file.previous_filename && file.filename" class="rename-arrow">←</span>
-          </span>
-          <span class="file-status" :class="statusClass(file.status)">{{ statusText(file.status) }}</span>
-          <span v-if="file.additions !== undefined || file.deletions !== undefined" class="file-stats">
-            <span v-if="file.additions" class="additions">+{{ file.additions }}</span>
-            <span v-if="file.deletions" class="deletions">−{{ file.deletions }}</span>
-          </span>
-          <a href="#" class="view-diff-link" @click.prevent="openDiff(file.filename)">
-            {{ t('dashboard.detail.viewDiff') }}
+    <div v-else class="file-tree-container">
+      <div class="file-tree-toolbar">
+        <label class="toolbar-checkbox">
+          <input
+            type="checkbox"
+            :checked="allSelected"
+            :indeterminate="someSelected"
+            @change="selectAll(!allSelected)"
+          />
+          <span>{{ t('dashboard.detail.selectAll') }}</span>
+        </label>
+        <div class="toolbar-actions">
+          <a href="#" class="toolbar-link" @click.prevent="expandAll(true)">
+            {{ t('dashboard.detail.expandAll') }}
           </a>
-        </li>
+          <a href="#" class="toolbar-link" @click.prevent="expandAll(false)">
+            {{ t('dashboard.detail.collapseAll') }}
+          </a>
+          <a
+            v-if="props.supportsMultiDiff"
+            href="#"
+            class="toolbar-link view-selected-link"
+            :class="{ disabled: selectedFiles.length === 0 }"
+            @click.prevent="openSelectedDiffs"
+          >
+            {{ t('dashboard.detail.viewSelectedDiffs', { count: selectedFiles.length }) }}
+          </a>
+        </div>
+      </div>
+      <ul class="file-tree">
+        <FileTreeNode
+          v-for="node in tree"
+          :key="node.path"
+          :node="node"
+          @toggle-expand="toggleExpand"
+          @check="onNodeCheck"
+          @open-diff="openDiff"
+        />
       </ul>
     </div>
   </div>
@@ -112,104 +259,69 @@ function openAllDiffs() {
   font-size: 0.9em;
 }
 
-.file-list {
+.file-tree-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-tree-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  border-radius: 4px;
+  font-size: 0.85em;
+  flex-wrap: wrap;
+}
+
+.toolbar-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--vscode-foreground);
+}
+
+.toolbar-checkbox input {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar-link {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+}
+
+.toolbar-link:hover {
+  text-decoration: underline;
+}
+
+.toolbar-link.disabled {
+  color: var(--vscode-descriptionForeground);
+  pointer-events: none;
+  text-decoration: none;
+}
+
+.view-selected-link {
+  font-weight: 500;
+}
+
+.file-tree {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.file-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  background-color: var(--vscode-editor-inactiveSelectionBackground);
-  border-radius: 4px;
-  font-size: 0.9em;
-  flex-wrap: wrap;
-}
-
-.file-name {
-  flex: 1 1 auto;
-  word-break: break-all;
-  color: var(--vscode-foreground);
-}
-
-.rename-arrow {
-  color: var(--vscode-descriptionForeground);
-  margin-left: 4px;
-}
-
-.file-status {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 0.75em;
-  text-transform: capitalize;
-  font-weight: 500;
-}
-
-.status-added {
-  background-color: var(--vscode-gitDecoration-addedResourceForeground, #28a745);
-  color: #fff;
-}
-
-.status-removed {
-  background-color: var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
-  color: #fff;
-}
-
-.status-modified {
-  background-color: var(--vscode-gitDecoration-modifiedResourceForeground, #d7ba7d);
-  color: #000;
-}
-
-.status-renamed {
-  background-color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991);
-  color: #000;
-}
-
-.file-stats {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-  font-size: 0.85em;
-}
-
-.additions {
-  color: var(--vscode-gitDecoration-addedResourceForeground, #28a745);
-}
-
-.deletions {
-  color: var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
-}
-
-.file-list-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.view-all-link {
-  color: var(--vscode-textLink-foreground);
-  text-decoration: none;
-  font-size: 0.85em;
-}
-
-.view-all-link:hover {
-  text-decoration: underline;
-}
-
-.view-diff-link {
-  flex-shrink: 0;
-  color: var(--vscode-textLink-foreground);
-  text-decoration: none;
-  font-size: 0.85em;
-}
-
-.view-diff-link:hover {
-  text-decoration: underline;
+  gap: 2px;
 }
 </style>

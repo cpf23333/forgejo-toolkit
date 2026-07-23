@@ -100,7 +100,10 @@
       "changedFilesTitle": "Changed files",
       "noChangedFiles": "No changed files",
       "viewDiff": "View diff",
-      "viewAllDiffs": "View all diffs",
+      "selectAll": "Select all",
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "viewSelectedDiffs": "View selected diffs ({count})",
       "fileStatus": {
         "added": "added",
         "removed": "removed",
