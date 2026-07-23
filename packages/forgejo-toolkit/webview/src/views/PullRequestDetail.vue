@@ -4,7 +4,8 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
-import { useAppState, pullRequestDetailKey } from '../composables/useAppState';
+import DiffFileList from '../components/DiffFileList.vue';
+import { useAppState, pullRequestDetailKey, pullRequestFilesKey } from '../composables/useAppState';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -21,6 +22,11 @@ const loading = computed(() => state.loading.value.get(key.value) ?? false);
 const error = computed(() => state.errors.value.get(key.value));
 const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
 
+const filesKey = computed(() => pullRequestFilesKey(instanceId.value, owner.value, repo.value, index.value));
+const files = computed(() => state.pullRequestFiles.value.get(filesKey.value) ?? []);
+const filesError = computed(() => state.errors.value.get(filesKey.value));
+const filesLoading = computed(() => files.value.length === 0 && !filesError.value);
+
 watch(
   [instanceId, owner, repo, index],
   () => {
@@ -29,7 +35,36 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => detail.value,
+  () => {
+    if (detail.value) {
+      state.loadPullRequestFiles(instanceId.value, owner.value, repo.value, index.value);
+    }
+  },
+  { immediate: true },
+);
+
 const prUrl = computed(() => detail.value?.html_url ?? '');
+
+function handleOpenDiff(filename: string) {
+  const baseSha = detail.value?.base?.sha;
+  const headSha = detail.value?.head?.sha;
+  if (!baseSha || !headSha) {
+    return;
+  }
+  state.openPullRequestDiff(instanceId.value, owner.value, repo.value, index.value, filename, baseSha, headSha);
+}
+
+function handleOpenAllDiffs() {
+  const baseSha = detail.value?.base?.sha;
+  const headSha = detail.value?.head?.sha;
+  if (!baseSha || !headSha || files.value.length === 0) {
+    return;
+  }
+  const filenames = files.value.map((file) => file.filename).filter((name): name is string => !!name);
+  state.openAllPullRequestDiffs(instanceId.value, owner.value, repo.value, index.value, filenames, baseSha, headSha);
+}
 
 const worktreeLoading = ref(false);
 const worktreeStatus = ref('');
@@ -217,6 +252,18 @@ watch(
             {{ detail.changed_files }} {{ t('dashboard.detail.changedFiles') }}
           </span>
         </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>{{ t('dashboard.detail.changedFilesTitle') }}</h3>
+        <DiffFileList
+          :files="files"
+          :loading="filesLoading"
+          :error="filesError"
+          :supports-multi-diff="state.supportsMultiDiff.value"
+          @open-diff="handleOpenDiff"
+          @open-all-diffs="handleOpenAllDiffs"
+        />
       </div>
 
       <div v-if="detail.merged_by" class="detail-section">

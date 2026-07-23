@@ -287,6 +287,92 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'getPullRequestFiles': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const files = await client.getPullRequestFiles(owner, repo, index);
+              this._reply('pullRequestFiles', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                files,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getPullRequestFiles failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('pullRequestFiles', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'openPullRequestDiff': {
+            const { instanceId, owner, repo, index, filename, baseSha, headSha } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof filename !== 'string' ||
+              typeof baseSha !== 'string' ||
+              typeof headSha !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const baseUri = this._buildDiffUri(instanceId, owner, repo, baseSha, filename);
+              const headUri = this._buildDiffUri(instanceId, owner, repo, headSha, filename);
+              const title = `${filename} (#${index})`;
+              await vscode.commands.executeCommand('vscode.diff', baseUri, headUri, title);
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`openPullRequestDiff failed for ${owner}/${repo}#${index} ${filename}: ${err}`);
+              vscode.window.showErrorMessage(`Unable to open diff: ${err}`);
+            }
+            return;
+          }
+          case 'openAllPullRequestDiffs': {
+            const { instanceId, owner, repo, index, files, baseSha, headSha } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              !Array.isArray(files) ||
+              typeof baseSha !== 'string' ||
+              typeof headSha !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const resourceList = files.map((filename) => {
+                const baseUri = this._buildDiffUri(instanceId, owner, repo, baseSha, filename);
+                const headUri = this._buildDiffUri(instanceId, owner, repo, headSha, filename);
+                const label = vscode.Uri.parse(`label:${filename}`);
+                return [label, baseUri, headUri];
+              });
+              const title = `${owner}/${repo}#${index}`;
+              await vscode.commands.executeCommand('vscode.changes', title, resourceList);
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`openAllPullRequestDiffs failed for ${owner}/${repo}#${index}: ${err}`);
+              vscode.window.showErrorMessage(`Unable to open all diffs: ${err}`);
+            }
+            return;
+          }
           case 'getRepoIssues': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {
@@ -488,6 +574,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       return undefined;
     }
     return this._config.getInstances().find((i) => i.id === id);
+  }
+
+  private _buildDiffUri(instanceId: string, owner: string, repo: string, ref: string, filepath: string): vscode.Uri {
+    const encodedPath = [instanceId, owner, repo, ref, filepath].map(encodeURIComponent).join('/');
+    return vscode.Uri.parse(`forgejo-diff:///${encodedPath}`);
   }
 
   private _updateViewTitle(locale: 'en' | 'zh') {

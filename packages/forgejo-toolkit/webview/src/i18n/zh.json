@@ -97,6 +97,16 @@
       "additions": "处新增",
       "deletions": "处删除",
       "changedFiles": "个文件变更",
+      "changedFilesTitle": "变更文件",
+      "noChangedFiles": "没有变更的文件",
+      "viewDiff": "查看 diff",
+      "viewAllDiffs": "查看全部 diff",
+      "fileStatus": {
+        "added": "新增",
+        "removed": "删除",
+        "modified": "修改",
+        "renamed": "重命名"
+      },
       "mergedBy": "合并人",
       "openIssue": "在浏览器打开 Issue",
       "openPullRequest": "在浏览器打开 Pull Request",

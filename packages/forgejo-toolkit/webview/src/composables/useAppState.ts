@@ -1,10 +1,14 @@
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { ForgejoInstance } from '../types/instance';
+import '../types/config';
 import { vscode } from './vscode';
+
+const vscodeVersion = window.__FORGEJO_TOOLKIT_CONFIG__?.vscodeVersion ?? '';
 import type { Locale } from '../i18n';
 import type {
+  ForgejoChangedFile,
   ForgejoRepository,
   ForgejoIssue,
   ForgejoPullRequest,
@@ -30,6 +34,7 @@ export function useAppState() {
   const pullRequestDetails = ref<Map<string, ForgejoPullRequestDetail>>(new Map());
   const repoIssues = ref<Map<string, ForgejoIssue[]>>(new Map());
   const repoPullRequests = ref<Map<string, ForgejoPullRequest[]>>(new Map());
+  const pullRequestFiles = ref<Map<string, ForgejoChangedFile[]>>(new Map());
   const renderedMarkdown = ref<Map<string, string>>(new Map());
   const loading = ref<Map<string, boolean>>(new Map());
   const errors = ref<Map<string, string>>(new Map());
@@ -39,6 +44,7 @@ export function useAppState() {
   const worktreeOpenMode = ref<'currentWindow' | 'newWindow'>('newWindow');
   const worktreeCacheDirectory = ref<string | undefined>(undefined);
   const worktreeCacheDirectoryDefault = ref<string | undefined>(undefined);
+  const supportsMultiDiff = computed(() => isVersionAtLeast(vscodeVersion, '1.86.0'));
   const testConnectionResult = ref<{ success: boolean; username?: string; error?: string } | undefined>(undefined);
   const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
   let renderMarkdownRequestId = 0;
@@ -99,6 +105,18 @@ export function useAppState() {
             repo: string;
             index: number;
             detail?: ForgejoPullRequestDetail;
+            error?: string;
+          },
+        );
+        break;
+      case 'pullRequestFiles':
+        handlePullRequestFiles(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            files?: ForgejoChangedFile[];
             error?: string;
           },
         );
@@ -250,6 +268,23 @@ export function useAppState() {
     }
   }
 
+  function handlePullRequestFiles(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    files?: ForgejoChangedFile[];
+    error?: string;
+  }) {
+    const key = pullRequestFilesKey(data.instanceId, data.owner, data.repo, data.index);
+    if (data.error) {
+      errors.value.set(key, data.error);
+    } else {
+      errors.value.delete(key);
+      pullRequestFiles.value.set(key, data.files ?? []);
+    }
+  }
+
   function handleRepoIssues(data: {
     instanceId: string;
     owner: string;
@@ -374,6 +409,56 @@ export function useAppState() {
     }
   }
 
+  function loadPullRequestFiles(instanceId: string, owner: string, repo: string, index: number) {
+    const key = pullRequestFilesKey(instanceId, owner, repo, index);
+    if (pullRequestFiles.value.has(key)) {
+      return;
+    }
+    vscode.postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index });
+  }
+
+  function openPullRequestDiff(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    filename: string,
+    baseSha: string,
+    headSha: string,
+  ) {
+    vscode.postMessage({
+      command: 'openPullRequestDiff',
+      instanceId,
+      owner,
+      repo,
+      index,
+      filename,
+      baseSha,
+      headSha,
+    });
+  }
+
+  function openAllPullRequestDiffs(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    files: string[],
+    baseSha: string,
+    headSha: string,
+  ) {
+    vscode.postMessage({
+      command: 'openAllPullRequestDiffs',
+      instanceId,
+      owner,
+      repo,
+      index,
+      files,
+      baseSha,
+      headSha,
+    });
+  }
+
   function openRepoIssues(instanceId: string, owner: string, repo: string, state = 'open') {
     router.push({ name: 'repoIssues', params: { instanceId, owner, repo, state } });
     const key = repoIssuesKey(instanceId, owner, repo, state);
@@ -477,6 +562,7 @@ export function useAppState() {
     pullRequestDetails,
     repoIssues,
     repoPullRequests,
+    pullRequestFiles,
     loading,
     errors,
     debug,
@@ -484,6 +570,8 @@ export function useAppState() {
     worktreeOpenMode,
     worktreeCacheDirectory,
     worktreeCacheDirectoryDefault,
+    vscodeVersion,
+    supportsMultiDiff,
     testConnectionResult,
     saveInstanceResult,
     openExternal,
@@ -497,6 +585,9 @@ export function useAppState() {
     openRepoDetail,
     openIssueDetail,
     openPullRequestDetail,
+    loadPullRequestFiles,
+    openPullRequestDiff,
+    openAllPullRequestDiffs,
     openRepoIssues,
     openRepoPullRequests,
     changeRepoIssuesState,
@@ -527,10 +618,31 @@ export function pullRequestDetailKey(instanceId: string, owner: string, repo: st
   return `${instanceId}:${owner}/${repo}#pr-${index}`;
 }
 
+export function pullRequestFilesKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#pr-${index}:files`;
+}
+
 export function repoIssuesKey(instanceId: string, owner: string, repo: string, state: string): string {
   return `${instanceId}:${owner}/${repo}:issues:${state}`;
 }
 
 export function repoPullRequestsKey(instanceId: string, owner: string, repo: string, state: string): string {
   return `${instanceId}:${owner}/${repo}:pulls:${state}`;
+}
+
+function isVersionAtLeast(version: string, minimum: string): boolean {
+  const parse = (v: string) => v.split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const current = parse(version);
+  const required = parse(minimum);
+  for (let i = 0; i < Math.max(current.length, required.length); i++) {
+    const a = current[i] ?? 0;
+    const b = required[i] ?? 0;
+    if (a > b) {
+      return true;
+    }
+    if (a < b) {
+      return false;
+    }
+  }
+  return true;
 }

@@ -8,6 +8,7 @@ import {
   repoGetAllCommits,
   repoGetContents,
   repoGetPullRequest,
+  repoGetPullRequestFiles,
   repoListBranches,
   repoListPullRequests,
   userCurrentListRepos,
@@ -15,6 +16,7 @@ import {
 } from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
 import type {
+  ForgejoChangedFile,
   ForgejoCommit,
   ForgejoIssue,
   ForgejoIssueDetail,
@@ -139,6 +141,21 @@ export class ForgejoClient {
       { state: state as 'open' | 'closed' | 'all' },
       { client: this._client() },
     ) as Promise<ForgejoPullRequest[]>;
+  }
+
+  async getFileContent(owner: string, repo: string, filepath: string, ref: string): Promise<string> {
+    const response = await repoGetContents(owner, repo, filepath, { ref }, { client: this._client() });
+    const content = (response as { content?: string }).content;
+    if (!content) {
+      return '';
+    }
+    return decodeBase64(content);
+  }
+
+  getPullRequestFiles(owner: string, repo: string, index: number): Promise<ForgejoChangedFile[]> {
+    return repoGetPullRequestFiles(owner, repo, index, undefined, {
+      client: this._client(),
+    }) as Promise<ForgejoChangedFile[]>;
   }
 
   async renderMarkdown(text: string, context?: string): Promise<string> {

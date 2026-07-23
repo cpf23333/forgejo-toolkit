@@ -6,12 +6,13 @@ import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/comp
 import { useAppState } from '../composables/useAppState';
 import type { Locale } from '../i18n';
 import { vscode } from '../composables/vscode';
+import '../types/config';
 
 const { t } = useI18n();
 const router = useRouter();
 const state = useAppState();
 
-const isPanelMode = (window as unknown as Record<string, boolean>).__FORGEJO_TOOLKIT_PANEL_MODE__ === true;
+const isPanelMode = window.__FORGEJO_TOOLKIT_CONFIG__?.panelMode === true;
 
 const step = ref(0);
 

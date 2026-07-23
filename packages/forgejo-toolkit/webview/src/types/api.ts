@@ -96,6 +96,18 @@ export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {
   draft?: boolean;
 }
 
+export interface ForgejoChangedFile {
+  additions?: number;
+  changes?: number;
+  contents_url?: string;
+  deletions?: number;
+  filename?: string;
+  html_url?: string;
+  previous_filename?: string;
+  raw_url?: string;
+  status?: string;
+}
+
 export interface ForgejoPullRequestWorktreeInfo {
   id: string;
   instanceId: string;

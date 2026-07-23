@@ -245,54 +245,6 @@ const errors = computed(() => state.errors.value);
     </div>
 
     <div v-else class="dashboard-content">
-      <div class="official-example">
-        <h3>Official Example</h3>
-        <vscode-tree id="tree-basic-example">
-          <vscode-tree-item>
-            Fruits
-            <vscode-tree-item>
-              Citrus Fruits
-              <vscode-tree-item>Orange</vscode-tree-item>
-              <vscode-tree-item>Lemon</vscode-tree-item>
-              <vscode-tree-item>Grapefruit</vscode-tree-item>
-            </vscode-tree-item>
-            <vscode-tree-item>
-              Berries
-              <vscode-tree-item>Strawberry</vscode-tree-item>
-              <vscode-tree-item>Blueberry</vscode-tree-item>
-              <vscode-tree-item>Raspberry</vscode-tree-item>
-            </vscode-tree-item>
-            <vscode-tree-item>
-              Tropical Fruits
-              <vscode-tree-item>Mango</vscode-tree-item>
-              <vscode-tree-item>Pineapple</vscode-tree-item>
-              <vscode-tree-item>Papaya</vscode-tree-item>
-            </vscode-tree-item>
-          </vscode-tree-item>
-          <vscode-tree-item>
-            Vegetables
-            <vscode-tree-item>
-              Leafy Greens
-              <vscode-tree-item>Spinach</vscode-tree-item>
-              <vscode-tree-item>Lettuce</vscode-tree-item>
-              <vscode-tree-item>Kale</vscode-tree-item>
-            </vscode-tree-item>
-            <vscode-tree-item>
-              Root Vegetables
-              <vscode-tree-item>Carrot</vscode-tree-item>
-              <vscode-tree-item>Beetroot</vscode-tree-item>
-              <vscode-tree-item>Radish</vscode-tree-item>
-            </vscode-tree-item>
-            <vscode-tree-item>
-              Nightshades
-              <vscode-tree-item>Tomato</vscode-tree-item>
-              <vscode-tree-item>Eggplant</vscode-tree-item>
-              <vscode-tree-item>Bell Pepper</vscode-tree-item>
-            </vscode-tree-item>
-          </vscode-tree-item>
-        </vscode-tree>
-      </div>
-
       <div class="tabs">
         <button
           v-for="tab in ['repositories', 'issues', 'pullRequests'] as Tab[]"

@@ -97,6 +97,16 @@
       "additions": "additions",
       "deletions": "deletions",
       "changedFiles": "files changed",
+      "changedFilesTitle": "Changed files",
+      "noChangedFiles": "No changed files",
+      "viewDiff": "View diff",
+      "viewAllDiffs": "View all diffs",
+      "fileStatus": {
+        "added": "added",
+        "removed": "removed",
+        "modified": "modified",
+        "renamed": "renamed"
+      },
       "mergedBy": "Merged by",
       "openIssue": "Open Issue in Browser",
       "openPullRequest": "Open Pull Request in Browser",
