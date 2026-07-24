@@ -2,14 +2,11 @@
 
 ## 进行中
 
-- [ ] Issue / PR 详情页：展示评论、diff、时间线
 - [ ] 创建 Issue / PR：提供表单提交入口
 - [ ] 编辑 / 关闭 / 重新打开 Issue 和 PR
 
 ## 待开始
 
-- [ ] PR 详情页 diff 增强
-  - [ ] 按提交查看 diff（列出每个 commit 的变更文件，支持单提交 diff）
 - [ ] PR worktree 增强
   - [ ] 判断当前 workspace 是否为 PR base repo
   - [ ] 未设置打开方式时弹窗询问，并支持记住选择
@@ -31,6 +28,8 @@
 - [x] Dashboard 面板（Repositories / Issues / Pull Requests）
 - [x] 仓库详情页
 - [x] Issue / PR 列表与详情页
+- [x] Issue / PR 详情页：展示评论、diff、时间线
+- [x] PR 详情页 diff 增强（按提交查看 diff）
 - [x] Issue / PR 描述的 Markdown 渲染
 - [x] Issue / PR 附件列表
 - [x] 图片附件 extension-host 代理

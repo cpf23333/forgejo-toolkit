@@ -39,6 +39,21 @@ When you need a new element, create its wrapper in `packages/vscode-elements-vue
 - Do **not** run `pnpm build`, `pnpm -r run build`, `vite build`, `node esbuild.js`, or any other build command yourself.
 - Only run `pnpm check` (and `pnpm format:fix` when needed). The user will run builds separately.
 
+## Project tracking documents
+
+Keep these documents in sync with the actual codebase. Do not let them drift.
+
+- `TODO.md` — short-term task list.
+  - Move items from **进行中** to **已完成** when they ship.
+  - Move dropped ideas to **已完成** with a note, or remove them.
+- `ROADMAP.md` — high-level feature overview.
+  - Move completed features to the **已完成** section.
+  - Remove or rephrase items that are no longer planned.
+- `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md` — documented workarounds and platform limitations.
+  - Add an entry when a bug or limitation is accepted as "won't fix short-term".
+  - Keep both language files in sync: same headings, same structure, equivalent meaning.
+  - Explain _what_ happens, _why_, and the current workaround (if any).
+
 ## Internationalization (i18n)
 
 - Keep all UI strings in JSON files under `packages/forgejo-toolkit/webview/src/i18n/`:

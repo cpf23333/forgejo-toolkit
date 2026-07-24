@@ -51,12 +51,17 @@
 - `@vscode-elements/elements` 组件必须在 `packages/vscode-elements-vue/src/components` 中定义 Vue wrapper 后使用。
 - 使用 `oxlint` + `oxfmt` 作为 lint/format 工具。
 
+### Issue / PR 详情
+
+- Issue / PR 列表与详情页。
+- Issue / PR 描述的 Markdown 渲染与附件列表。
+- Issue / PR 详情页：展示评论、diff、时间线。
+- PR 详情页 diff 增强：按提交查看 diff，列出每个 commit 的变更文件并支持单提交 diff 预览。
+
 ## 待实现
 
 ### 详情与操作
 
-- Issue / PR 详情页：展示评论、diff、时间线（目前仅展示基本信息和描述）。
-- PR 详情页 diff 增强：按提交查看 diff，列出每个 commit 的变更文件并支持单提交 diff 预览。
 - 创建 Issue / PR：提供表单提交入口。
 - 编辑 / 关闭 / 重新打开 Issue 和 PR。
 
