@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
-import { useAppState, repoDetailKey } from '../composables/useAppState';
+import { useAppState, repoBranchCommitsKey, repoDetailKey } from '../composables/useAppState';
 import type { ForgejoCommit } from '../types/api';
 
 const { t } = useI18n();
@@ -18,6 +18,7 @@ const key = computed(() => repoDetailKey(instanceId.value, owner.value, repo.val
 const detail = computed(() => state.repoDetails.value.get(key.value));
 const loading = computed(() => state.loading.value.get(key.value) ?? false);
 const error = computed(() => state.errors.value.get(key.value));
+const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
 
 watch(
   [instanceId, owner, repo],
@@ -29,6 +30,36 @@ watch(
 
 const repoUrl = computed(() => detail.value?.repository.html_url ?? '');
 const cloneUrl = computed(() => (repoUrl.value ? `${repoUrl.value}.git` : ''));
+
+const selectedBranch = ref(detail.value?.repository.default_branch ?? '');
+
+watch(
+  () => detail.value?.repository.default_branch,
+  (defaultBranch) => {
+    if (defaultBranch && !selectedBranch.value) {
+      selectedBranch.value = defaultBranch;
+    }
+  },
+);
+
+const recentCommits = computed(() => {
+  const key = repoBranchCommitsKey(instanceId.value, owner.value, repo.value, selectedBranch.value);
+  return state.repoBranchCommits.value.get(key) ?? detail.value?.recentCommits ?? [];
+});
+
+const recentCommitsLoading = computed(() => {
+  const key = repoBranchCommitsKey(instanceId.value, owner.value, repo.value, selectedBranch.value);
+  return state.loading.value.get(key) ?? false;
+});
+
+function onBranchChange(event: Event) {
+  const target = event.target as HTMLInputElement | null;
+  const value = target?.value;
+  if (value) {
+    selectedBranch.value = value;
+    state.loadRepoBranchCommits(instanceId.value, owner.value, repo.value, value);
+  }
+}
 
 function commitMessage(message: string): string {
   return message.split('\n')[0];
@@ -123,25 +154,26 @@ function committerName(commit: ForgejoCommit): string {
 
       <section v-if="detail.branches.length" class="section">
         <h3>{{ t('dashboard.branches') }}</h3>
-        <div class="tag-list">
-          <span
+        <vscode-single-select filter :value="selectedBranch" class="branch-select" @change="onBranchChange">
+          <vscode-option
             v-for="branch in detail.branches"
             :key="branch"
-            class="tag"
-            :class="{ 'tag-primary': branch === detail.repository.default_branch }"
+            :value="branch"
+            :selected="branch === detail.repository.default_branch"
           >
             {{ branch }}
             <span v-if="branch === detail.repository.default_branch" class="default-badge">
               {{ t('dashboard.defaultBranch') }}
             </span>
-          </span>
-        </div>
+          </vscode-option>
+        </vscode-single-select>
       </section>
 
-      <section v-if="detail.recentCommits.length" class="section">
+      <section v-if="recentCommits.length || recentCommitsLoading" class="section">
         <h3>{{ t('dashboard.recentCommits') }}</h3>
-        <div class="commit-list">
-          <div v-for="commit in detail.recentCommits" :key="commit.sha" class="commit-item">
+        <div v-if="recentCommitsLoading" class="loading">{{ t('dashboard.loading') }}</div>
+        <div v-else class="commit-list">
+          <div v-for="commit in recentCommits" :key="commit.sha" class="commit-item">
             <span class="commit-message">{{ commitMessage(commit.commit.message) }}</span>
             <span class="commit-info">
               <img
@@ -340,5 +372,9 @@ function committerName(commit: ForgejoCommit): string {
   padding: 12px;
   background-color: var(--vscode-editor-inactiveSelectionBackground);
   border-radius: 4px;
+}
+
+.branch-select {
+  max-width: 320px;
 }
 </style>

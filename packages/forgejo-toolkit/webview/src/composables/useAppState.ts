@@ -9,6 +9,7 @@ const vscodeVersion = window.__FORGEJO_TOOLKIT_CONFIG__?.vscodeVersion ?? '';
 import type { Locale } from '../i18n';
 import type {
   ForgejoChangedFile,
+  ForgejoCommit,
   ForgejoRepository,
   ForgejoIssue,
   ForgejoPullRequest,
@@ -36,6 +37,7 @@ export function useAppState() {
   const pullRequestDetails = ref<Map<string, ForgejoPullRequestDetail>>(new Map());
   const repoIssues = ref<Map<string, ForgejoIssue[]>>(new Map());
   const repoPullRequests = ref<Map<string, ForgejoPullRequest[]>>(new Map());
+  const repoBranchCommits = ref<Map<string, ForgejoCommit[]>>(new Map());
   const pullRequestFiles = ref<Map<string, ForgejoChangedFile[]>>(new Map());
   const pullRequestComments = ref<Map<string, ForgejoTimelineComment[]>>(new Map());
   const pullRequestCommits = ref<Map<string, ForgejoPullRequestCommit[]>>(new Map());
@@ -88,6 +90,18 @@ export function useAppState() {
       case 'repoDetail':
         handleRepoDetail(
           message as { instanceId: string; owner: string; repo: string; detail?: ForgejoRepoDetail; error?: string },
+        );
+        break;
+      case 'repoBranchCommits':
+        handleRepoBranchCommits(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            branch: string;
+            commits?: ForgejoCommit[];
+            error?: string;
+          },
         );
         break;
       case 'issueDetail':
@@ -258,6 +272,24 @@ export function useAppState() {
     } else if (data.detail) {
       errors.value.delete(key);
       repoDetails.value.set(key, data.detail);
+    }
+  }
+
+  function handleRepoBranchCommits(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    branch: string;
+    commits?: ForgejoCommit[];
+    error?: string;
+  }) {
+    const key = repoBranchCommitsKey(data.instanceId, data.owner, data.repo, data.branch);
+    loading.value.set(key, false);
+    if (data.error) {
+      errors.value.set(key, data.error);
+    } else {
+      errors.value.delete(key);
+      repoBranchCommits.value.set(key, data.commits ?? []);
     }
   }
 
@@ -456,6 +488,15 @@ export function useAppState() {
       loading.value.set(key, true);
       vscode.postMessage({ command: 'getRepoDetail', instanceId, owner, repo });
     }
+  }
+
+  function loadRepoBranchCommits(instanceId: string, owner: string, repo: string, branch: string) {
+    const key = repoBranchCommitsKey(instanceId, owner, repo, branch);
+    if (repoBranchCommits.value.has(key)) {
+      return;
+    }
+    loading.value.set(key, true);
+    vscode.postMessage({ command: 'getRepoBranchCommits', instanceId, owner, repo, branch });
   }
 
   function openIssueDetail(instanceId: string, owner: string, repo: string, index: number) {
@@ -674,6 +715,7 @@ export function useAppState() {
     pullRequestDetails,
     repoIssues,
     repoPullRequests,
+    repoBranchCommits,
     pullRequestFiles,
     pullRequestComments,
     pullRequestCommits,
@@ -699,6 +741,7 @@ export function useAppState() {
     changeDebug,
     openRepoDetail,
     loadRepoDetail,
+    loadRepoBranchCommits,
     openIssueDetail,
     loadIssueDetail,
     openPullRequestDetail,
@@ -731,6 +774,10 @@ export function useAppState() {
 
 export function repoDetailKey(instanceId: string, owner: string, repo: string): string {
   return `${instanceId}:${owner}/${repo}`;
+}
+
+export function repoBranchCommitsKey(instanceId: string, owner: string, repo: string, branch: string): string {
+  return `${instanceId}:${owner}/${repo}:branch:${branch}`;
 }
 
 export function issueDetailKey(instanceId: string, owner: string, repo: string, index: number): string {

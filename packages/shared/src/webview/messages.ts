@@ -17,6 +17,15 @@ export type HostToWebviewMessage =
   | { command: 'myPullRequests'; instanceId: string; pullRequests?: unknown[]; error?: string }
   | { command: 'repoDetail'; instanceId: string; owner: string; repo: string; detail?: unknown; error?: string }
   | {
+      command: 'repoBranchCommits';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      branch: string;
+      commits?: unknown[];
+      error?: string;
+    }
+  | {
       command: 'issueDetail';
       instanceId: string;
       owner: string;
@@ -101,6 +110,13 @@ export type WebviewToHostMessage =
   | { command: 'getMyIssues'; instanceId: string; state?: string }
   | { command: 'getMyPullRequests'; instanceId: string; state?: string }
   | { command: 'getRepoDetail'; instanceId: string; owner: string; repo: string }
+  | {
+      command: 'getRepoBranchCommits';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      branch: string;
+    }
   | { command: 'getIssueDetail'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'getPullRequestDetail'; instanceId: string; owner: string; repo: string; index: number }
   | {

@@ -17,6 +17,7 @@ import {
   userCurrentListRepos,
   userGetCurrent,
 } from '@cpf23333-forgejo-toolkit/api';
+
 import type { Commit, TimelineComment } from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
 import type {
@@ -109,6 +110,26 @@ export class ForgejoClient {
           }) as ForgejoCommit,
       ),
     };
+  }
+
+  async getRepoBranchCommits(owner: string, repo: string, branch: string): Promise<ForgejoCommit[]> {
+    const commits = await repoGetAllCommits(owner, repo, { sha: branch, limit: 10 }, { client: this._client() });
+    return (commits ?? []).map(
+      (commit) =>
+        ({
+          sha: commit.sha ?? '',
+          commit: {
+            message: commit.commit?.message ?? '',
+            author: {
+              name: commit.commit?.author?.name ?? '',
+              date: commit.commit?.author?.date ?? '',
+            },
+          },
+          author: commit.author as ForgejoUser | undefined,
+          committer: commit.committer as ForgejoUser | undefined,
+          html_url: commit.html_url ?? '',
+        }) as ForgejoCommit,
+    );
   }
 
   getIssueDetail(owner: string, repo: string, index: number): Promise<ForgejoIssueDetail> {

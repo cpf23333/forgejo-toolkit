@@ -224,6 +224,43 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'getRepoBranchCommits': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, branch } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof branch !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const commits = await client.getRepoBranchCommits(owner, repo, branch);
+              const commitsWithResolvedAvatars = await this._resolveCommitAvatars({
+                repository: {},
+                branches: [],
+                recentCommits: commits,
+              });
+              this._reply('repoBranchCommits', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                branch,
+                commits: commitsWithResolvedAvatars.recentCommits,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getRepoBranchCommits failed for ${instance.name}/${owner}/${repo}/${branch}: ${err}`);
+              this._reply('repoBranchCommits', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                branch,
+                error: err,
+              });
+            }
+            return;
+          }
           case 'getIssueDetail': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {
