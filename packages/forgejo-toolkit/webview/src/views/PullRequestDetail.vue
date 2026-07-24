@@ -5,7 +5,15 @@ import { useI18n } from 'vue-i18n';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
 import DiffFileList from '../components/DiffFileList.vue';
-import { useAppState, pullRequestDetailKey, pullRequestFilesKey } from '../composables/useAppState';
+import CommentTimeline from '../components/CommentTimeline.vue';
+import CommitDiffList from '../components/CommitDiffList.vue';
+import {
+  useAppState,
+  pullRequestDetailKey,
+  pullRequestFilesKey,
+  pullRequestCommentsKey,
+  pullRequestCommitsKey,
+} from '../composables/useAppState';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -27,10 +35,20 @@ const files = computed(() => state.pullRequestFiles.value.get(filesKey.value) ??
 const filesError = computed(() => state.errors.value.get(filesKey.value));
 const filesLoading = computed(() => files.value.length === 0 && !filesError.value);
 
+const commentsKey = computed(() => pullRequestCommentsKey(instanceId.value, owner.value, repo.value, index.value));
+const comments = computed(() => state.pullRequestComments.value.get(commentsKey.value) ?? []);
+const commentsError = computed(() => state.errors.value.get(commentsKey.value));
+const commentsLoading = computed(() => !state.pullRequestComments.value.has(commentsKey.value) && !commentsError.value);
+
+const commitsKey = computed(() => pullRequestCommitsKey(instanceId.value, owner.value, repo.value, index.value));
+const commits = computed(() => state.pullRequestCommits.value.get(commitsKey.value) ?? []);
+const commitsError = computed(() => state.errors.value.get(commitsKey.value));
+const commitsLoading = computed(() => !state.pullRequestCommits.value.has(commitsKey.value) && !commitsError.value);
+
 watch(
   [instanceId, owner, repo, index],
   () => {
-    state.openPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
+    state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
   },
   { immediate: true },
 );
@@ -47,6 +65,8 @@ watch(
         detail.value.base?.sha,
         detail.value.head?.sha,
       );
+      state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value);
+      state.loadPullRequestCommits(instanceId.value, owner.value, repo.value, index.value);
     }
   },
   { immediate: true },
@@ -77,6 +97,38 @@ function handleOpenSelectedDiffs(selectedFiles: { filename: string; status: stri
     selectedFiles,
     baseSha,
     headSha,
+  );
+}
+
+function handleCommitOpenDiff(payload: { filename: string; status: string; baseSha: string; headSha: string }) {
+  state.openPullRequestDiff(
+    instanceId.value,
+    owner.value,
+    repo.value,
+    index.value,
+    payload.filename,
+    payload.status,
+    payload.baseSha,
+    payload.headSha,
+  );
+}
+
+function handleCommitOpenSelectedDiffs(payload: {
+  files: { filename: string; status: string }[];
+  baseSha: string;
+  headSha: string;
+}) {
+  if (payload.files.length === 0) {
+    return;
+  }
+  state.openSelectedPullRequestDiffs(
+    instanceId.value,
+    owner.value,
+    repo.value,
+    index.value,
+    payload.files,
+    payload.baseSha,
+    payload.headSha,
   );
 }
 
@@ -221,7 +273,9 @@ watch(
 
 <template>
   <div class="pr-detail">
-    <div v-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
+    <div v-if="loading" class="loading">
+      <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+    </div>
     <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
     <div v-else-if="detail" class="detail-content">
       <div class="detail-header">
@@ -280,6 +334,34 @@ watch(
         />
       </div>
 
+      <div class="detail-section">
+        <h3>{{ t('dashboard.detail.commits') }}</h3>
+        <div v-if="commitsLoading" class="loading">
+          <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+        </div>
+        <div v-else-if="commitsError" class="error">{{ t('dashboard.error', { message: commitsError }) }}</div>
+        <CommitDiffList
+          v-else
+          :commits="commits"
+          :supports-multi-diff="state.supportsMultiDiff.value"
+          @open-diff="handleCommitOpenDiff"
+          @open-selected-diffs="handleCommitOpenSelectedDiffs"
+        />
+      </div>
+
+      <div class="detail-section">
+        <h3>{{ t('dashboard.detail.body') }}</h3>
+        <MarkdownBody
+          :html="renderedBody"
+          :loading="bodyLoading"
+          :error="bodyError"
+          :base-url="baseUrl"
+          @open-external="state.openExternal($event)"
+        />
+      </div>
+
+      <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
+
       <div v-if="detail.merged_by" class="detail-section">
         <h3>{{ t('dashboard.detail.mergedBy') }}</h3>
         <div class="detail-meta">
@@ -313,17 +395,13 @@ watch(
       </div>
 
       <div class="detail-section">
-        <h3>{{ t('dashboard.detail.body') }}</h3>
-        <MarkdownBody
-          :html="renderedBody"
-          :loading="bodyLoading"
-          :error="bodyError"
-          :base-url="baseUrl"
-          @open-external="state.openExternal($event)"
-        />
+        <h3>{{ t('dashboard.detail.commentsAndTimeline') }}</h3>
+        <div v-if="commentsLoading" class="loading">
+          <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+        </div>
+        <div v-else-if="commentsError" class="error">{{ t('dashboard.error', { message: commentsError }) }}</div>
+        <CommentTimeline v-else :comments="comments" :instance-id="instanceId" :base-url="baseUrl" />
       </div>
-
-      <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
 
       <div class="actions">
         <a href="#" class="action-link" @click.prevent="state.openExternal(prUrl)">
@@ -567,5 +645,11 @@ watch(
 
 .worktree-status.error {
   color: var(--vscode-testing-iconFailed);
+}
+
+.detail-loading-ring {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
 }
 </style>

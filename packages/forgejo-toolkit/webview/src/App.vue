@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
@@ -9,10 +9,27 @@ const { t } = useI18n();
 
 const canGoBack = computed(() => route.path !== '/');
 const backLabel = computed(() => t('app.back'));
+const cacheKey = ref(0);
 
 function back() {
   router.back();
 }
+
+function handleMessage(event: MessageEvent) {
+  if (event.data?.command === 'openDashboard') {
+    nextTick(() => {
+      cacheKey.value++;
+    });
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('message', handleMessage);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleMessage);
+});
 </script>
 
 <template>
@@ -23,7 +40,11 @@ function back() {
       </a>
     </header>
     <main>
-      <router-view />
+      <router-view v-slot="{ Component, route }">
+        <keep-alive :max="10">
+          <component :is="Component" :key="`${route.path}-${cacheKey}`" />
+        </keep-alive>
+      </router-view>
     </main>
   </div>
 </template>
@@ -33,7 +54,10 @@ function back() {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-height: 100vh;
+}
+
+body {
+  margin: 0;
 }
 
 .app-header {

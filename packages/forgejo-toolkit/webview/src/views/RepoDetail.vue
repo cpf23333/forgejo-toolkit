@@ -22,7 +22,7 @@ const error = computed(() => state.errors.value.get(key.value));
 watch(
   [instanceId, owner, repo],
   () => {
-    state.openRepoDetail(instanceId.value, owner.value, repo.value);
+    state.loadRepoDetail(instanceId.value, owner.value, repo.value);
   },
   { immediate: true },
 );

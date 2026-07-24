@@ -123,6 +123,33 @@ export interface ForgejoPullRequestWorktreeInfo {
   createdAt: number;
 }
 
+export interface ForgejoTimelineComment {
+  id?: number;
+  type?: string;
+  body?: string;
+  created_at?: string;
+  updated_at?: string;
+  html_url?: string;
+  user?: ForgejoUser;
+  assignee?: ForgejoUser;
+  resolve_doer?: ForgejoUser;
+  ref_commit_sha?: string;
+  ref_comment?: {
+    id?: number;
+    body?: string;
+    user?: ForgejoUser;
+  };
+  new_title?: string;
+  old_title?: string;
+  new_ref?: string;
+  old_ref?: string;
+}
+
+export interface ForgejoPullRequestCommit extends ForgejoCommit {
+  files?: ForgejoChangedFile[];
+  parents?: { sha?: string }[];
+}
+
 export interface ForgejoRepoDetail {
   repository: ForgejoRepository;
   empty: boolean;
@@ -143,4 +170,5 @@ export interface ForgejoCommit {
   author?: ForgejoUser;
   committer?: ForgejoUser;
   html_url: string;
+  created?: string;
 }

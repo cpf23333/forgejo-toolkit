@@ -28,11 +28,21 @@ function onToggleExpand() {
   }
 }
 
-function onOpenDiff(event: Event) {
-  event.preventDefault();
+function openDiff() {
   if (props.node.file?.filename) {
     emit('openDiff', props.node.file.filename, props.node.file.status ?? 'modified');
   }
+}
+
+function onRowClick(event: MouseEvent) {
+  const target = event.target as HTMLElement;
+  if (target.closest('.node-checkbox, .tree-expander, .view-diff-link')) {
+    return;
+  }
+  if (isDir) {
+    return;
+  }
+  openDiff();
 }
 
 function statusClass(status?: string): string {
@@ -104,7 +114,7 @@ function nodeIcon(): string {
 
 <template>
   <li class="tree-node">
-    <div class="tree-row">
+    <div class="tree-row" :class="{ 'is-file': !isDir }" @click="onRowClick">
       <input
         type="checkbox"
         class="node-checkbox"
@@ -133,9 +143,6 @@ function nodeIcon(): string {
         <span v-if="props.node.file.additions" class="additions">+{{ props.node.file.additions }}</span>
         <span v-if="props.node.file.deletions" class="deletions">−{{ props.node.file.deletions }}</span>
       </span>
-      <a v-if="!isDir" href="#" class="view-diff-link" @click.prevent="onOpenDiff">
-        {{ t('dashboard.detail.viewDiff') }}
-      </a>
     </div>
     <ul v-if="isDir && props.node.expanded" class="file-tree-children">
       <FileTreeNode
@@ -163,6 +170,10 @@ function nodeIcon(): string {
 
 .tree-row:hover {
   background-color: var(--vscode-list-hoverBackground);
+}
+
+.tree-row.is-file {
+  cursor: pointer;
 }
 
 .node-checkbox {
@@ -251,17 +262,6 @@ function nodeIcon(): string {
 
 .deletions {
   color: var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
-}
-
-.view-diff-link {
-  flex-shrink: 0;
-  color: var(--vscode-textLink-foreground);
-  text-decoration: none;
-  font-size: 0.85em;
-}
-
-.view-diff-link:hover {
-  text-decoration: underline;
 }
 
 .file-tree-children {

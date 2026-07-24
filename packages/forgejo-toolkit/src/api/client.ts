@@ -1,6 +1,7 @@
 import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
+  issueGetCommentsAndTimeline,
   issueGetIssue,
   issueListIssues,
   issueSearchIssues,
@@ -9,12 +10,14 @@ import {
   repoGetAllCommits,
   repoGetContents,
   repoGetPullRequest,
+  repoGetPullRequestCommits,
   repoGetPullRequestFiles,
   repoListBranches,
   repoListPullRequests,
   userCurrentListRepos,
   userGetCurrent,
 } from '@cpf23333-forgejo-toolkit/api';
+import type { Commit, TimelineComment } from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
 import type {
   ForgejoChangedFile,
@@ -204,6 +207,22 @@ export class ForgejoClient {
           changes: 0,
         }) as ForgejoChangedFile,
     );
+  }
+
+  getPullRequestCommentsAndTimeline(owner: string, repo: string, index: number): Promise<TimelineComment[]> {
+    return issueGetCommentsAndTimeline(owner, repo, index, { limit: 100 }, { client: this._client() }) as Promise<
+      TimelineComment[]
+    >;
+  }
+
+  getPullRequestCommits(owner: string, repo: string, index: number): Promise<Commit[]> {
+    return repoGetPullRequestCommits(
+      owner,
+      repo,
+      index,
+      { files: true, limit: 100 },
+      { client: this._client() },
+    ) as Promise<Commit[]>;
   }
 
   async renderMarkdown(text: string, context?: string): Promise<string> {

@@ -99,7 +99,6 @@
       "changedFiles": "files changed",
       "changedFilesTitle": "Changed files",
       "noChangedFiles": "No changed files",
-      "viewDiff": "View diff",
       "selectAll": "Select all",
       "expandAll": "Expand all",
       "collapseAll": "Collapse all",
@@ -115,7 +114,17 @@
       "openPullRequest": "Open Pull Request in Browser",
       "copyLink": "Copy Link",
       "renderingBody": "Rendering description...",
-      "attachments": "Attachments"
+      "attachments": "Attachments",
+      "commentsAndTimeline": "Comments & Timeline",
+      "commits": "Commits",
+      "noComments": "No comments yet",
+      "commitFilesChanged": "{count} files changed",
+      "viewCommitDiff": "View diff",
+      "timelineEvent": {
+        "comment": "commented",
+        "commit": "referenced commit",
+        "reviewed": "reviewed"
+      }
     },
     "worktree": {
       "openInWorktree": "Open in Worktree",

@@ -15,12 +15,15 @@ function openOnboarding() {
 
 type Tab = 'repositories' | 'issues' | 'pullRequests';
 
-const activeTab = ref<Tab>('repositories');
+const activeTab = computed<Tab>({
+  get: () => state.dashboardActiveTab.value,
+  set: (tab) => state.setDashboardActiveTab(tab),
+});
 const expandedInstances = ref<Set<string>>(new Set());
 const expandedOwners = ref<Set<string>>(new Set());
 
 function setTab(tab: Tab) {
-  activeTab.value = tab;
+  state.setDashboardActiveTab(tab);
 }
 
 function ownerKey(instanceId: string, owner: string): string {
@@ -269,13 +272,20 @@ const errors = computed(() => state.errors.value);
             {{ instance.url }} · {{ instance.username }}
             <span class="badge" slot="decoration">{{ badgeCount(instance.id) }}</span>
             <span slot="description">
-              <span v-if="loading.get(loadingKey(instance.id))" class="loading">{{ t('dashboard.loading') }}</span>
+              <span v-if="loading.get(loadingKey(instance.id))" class="loading">
+                <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
+              </span>
               <span v-else-if="errors.get(loadingKey(instance.id))" class="error">{{
                 formatError(loadingKey(instance.id))
               }}</span>
             </span>
             <template v-if="activeTab === 'repositories'">
-              <template v-if="!repositories.get(instance.id)?.length">
+              <template v-if="loading.get(loadingKey(instance.id))">
+                <vscode-tree-item>
+                  <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
+                </vscode-tree-item>
+              </template>
+              <template v-else-if="!repositories.get(instance.id)?.length">
                 <vscode-tree-item>{{ t('dashboard.noRepositories') }}</vscode-tree-item>
               </template>
               <template v-else>
@@ -327,7 +337,12 @@ const errors = computed(() => state.errors.value);
               </template>
             </template>
             <template v-else-if="activeTab === 'issues'">
-              <template v-if="!myIssues.get(instance.id)?.length">
+              <template v-if="loading.get(loadingKey(instance.id))">
+                <vscode-tree-item>
+                  <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
+                </vscode-tree-item>
+              </template>
+              <template v-else-if="!myIssues.get(instance.id)?.length">
                 <vscode-tree-item>{{ t('dashboard.noIssues') }}</vscode-tree-item>
               </template>
               <template v-else>
@@ -366,7 +381,12 @@ const errors = computed(() => state.errors.value);
               </template>
             </template>
             <template v-else-if="activeTab === 'pullRequests'">
-              <template v-if="!myPullRequests.get(instance.id)?.length">
+              <template v-if="loading.get(loadingKey(instance.id))">
+                <vscode-tree-item>
+                  <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
+                </vscode-tree-item>
+              </template>
+              <template v-else-if="!myPullRequests.get(instance.id)?.length">
                 <vscode-tree-item>{{ t('dashboard.noPullRequests') }}</vscode-tree-item>
               </template>
               <template v-else>
@@ -500,5 +520,11 @@ const errors = computed(() => state.errors.value);
 .icon-link:hover,
 .icon-copy:hover {
   color: var(--vscode-textLink-foreground);
+}
+
+.tab-loading-ring {
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
 }
 </style>

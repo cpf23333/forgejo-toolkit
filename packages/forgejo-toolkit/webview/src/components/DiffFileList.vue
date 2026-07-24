@@ -193,7 +193,9 @@ function openSelectedDiffs() {
 
 <template>
   <div class="diff-file-list">
-    <div v-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
+    <div v-if="loading" class="loading">
+      <vscode-progress-ring class="diff-loading-ring" /> {{ t('dashboard.loading') }}
+    </div>
     <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
     <div v-else-if="props.files.length === 0" class="empty">
       {{ t('dashboard.detail.noChangedFiles') }}
@@ -252,6 +254,12 @@ function openSelectedDiffs() {
 .empty {
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
+}
+
+.diff-loading-ring {
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
 }
 
 .error {

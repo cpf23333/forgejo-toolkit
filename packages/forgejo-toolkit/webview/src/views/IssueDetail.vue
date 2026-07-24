@@ -4,7 +4,8 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
-import { useAppState, issueDetailKey } from '../composables/useAppState';
+import CommentTimeline from '../components/CommentTimeline.vue';
+import { useAppState, issueDetailKey, pullRequestCommentsKey } from '../composables/useAppState';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -21,10 +22,16 @@ const loading = computed(() => state.loading.value.get(key.value) ?? false);
 const error = computed(() => state.errors.value.get(key.value));
 const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
 
+const commentsKey = computed(() => pullRequestCommentsKey(instanceId.value, owner.value, repo.value, index.value));
+const comments = computed(() => state.pullRequestComments.value.get(commentsKey.value) ?? []);
+const commentsError = computed(() => state.errors.value.get(commentsKey.value));
+const commentsLoading = computed(() => !state.pullRequestComments.value.has(commentsKey.value) && !commentsError.value);
+
 watch(
   [instanceId, owner, repo, index],
   () => {
-    state.openIssueDetail(instanceId.value, owner.value, repo.value, index.value);
+    state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value);
+    state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value);
   },
   { immediate: true },
 );
@@ -111,7 +118,9 @@ function isLightColor(hex: string): boolean {
 
 <template>
   <div class="issue-detail">
-    <div v-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
+    <div v-if="loading" class="loading">
+      <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+    </div>
     <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
     <div v-else-if="detail" class="detail-content">
       <div class="detail-header">
@@ -167,6 +176,15 @@ function isLightColor(hex: string): boolean {
       </div>
 
       <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
+
+      <div class="detail-section">
+        <h3>{{ t('dashboard.detail.commentsAndTimeline') }}</h3>
+        <div v-if="commentsLoading" class="loading">
+          <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+        </div>
+        <div v-else-if="commentsError" class="error">{{ t('dashboard.error', { message: commentsError }) }}</div>
+        <CommentTimeline v-else :comments="comments" :instance-id="instanceId" :base-url="baseUrl" />
+      </div>
 
       <div class="actions">
         <a href="#" class="action-link" @click.prevent="state.openExternal(issueUrl)">
@@ -337,5 +355,11 @@ function isLightColor(hex: string): boolean {
 
 .action-link:hover {
   text-decoration: underline;
+}
+
+.detail-loading-ring {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
 }
 </style>

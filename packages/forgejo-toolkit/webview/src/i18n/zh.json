@@ -99,7 +99,6 @@
       "changedFiles": "个文件变更",
       "changedFilesTitle": "变更文件",
       "noChangedFiles": "没有变更的文件",
-      "viewDiff": "查看 diff",
       "selectAll": "全选",
       "expandAll": "展开全部",
       "collapseAll": "折叠全部",
@@ -115,7 +114,17 @@
       "openPullRequest": "在浏览器打开 Pull Request",
       "copyLink": "复制链接",
       "renderingBody": "正在渲染描述...",
-      "attachments": "附件"
+      "attachments": "附件",
+      "commentsAndTimeline": "评论 & 时间线",
+      "commits": "提交",
+      "noComments": "暂无评论",
+      "commitFilesChanged": "{count} 个文件变更",
+      "viewCommitDiff": "查看 diff",
+      "timelineEvent": {
+        "comment": "评论",
+        "commit": "引用了提交",
+        "reviewed": "审查"
+      }
     },
     "worktree": {
       "openInWorktree": "在 Worktree 中打开",

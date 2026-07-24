@@ -360,6 +360,72 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'getPullRequestCommentsAndTimeline': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const comments = await client.getPullRequestCommentsAndTimeline(owner, repo, index);
+              this._reply('pullRequestCommentsAndTimeline', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                comments,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(
+                `getPullRequestCommentsAndTimeline failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`,
+              );
+              this._reply('pullRequestCommentsAndTimeline', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'getPullRequestCommits': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const commits = await client.getPullRequestCommits(owner, repo, index);
+              this._reply('pullRequestCommits', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                commits,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getPullRequestCommits failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('pullRequestCommits', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
           case 'openPullRequestDiff': {
             const { instanceId, owner, repo, index, filename, status, baseSha, headSha } = message;
             if (

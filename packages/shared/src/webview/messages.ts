@@ -44,6 +44,24 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      command: 'pullRequestCommentsAndTimeline';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      comments?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'pullRequestCommits';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      commits?: unknown[];
+      error?: string;
+    }
+  | {
       command: 'repoIssues';
       instanceId: string;
       owner: string;
@@ -93,6 +111,20 @@ export type WebviewToHostMessage =
       index: number;
       baseSha?: string;
       headSha?: string;
+    }
+  | {
+      command: 'getPullRequestCommentsAndTimeline';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
+      command: 'getPullRequestCommits';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
     }
   | {
       command: 'openPullRequestDiff';

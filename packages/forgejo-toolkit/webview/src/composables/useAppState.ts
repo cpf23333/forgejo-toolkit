@@ -16,6 +16,8 @@ import type {
   ForgejoIssueDetail,
   ForgejoPullRequestDetail,
   ForgejoPullRequestWorktreeInfo,
+  ForgejoTimelineComment,
+  ForgejoPullRequestCommit,
 } from '../types/api';
 
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -35,6 +37,8 @@ export function useAppState() {
   const repoIssues = ref<Map<string, ForgejoIssue[]>>(new Map());
   const repoPullRequests = ref<Map<string, ForgejoPullRequest[]>>(new Map());
   const pullRequestFiles = ref<Map<string, ForgejoChangedFile[]>>(new Map());
+  const pullRequestComments = ref<Map<string, ForgejoTimelineComment[]>>(new Map());
+  const pullRequestCommits = ref<Map<string, ForgejoPullRequestCommit[]>>(new Map());
   const renderedMarkdown = ref<Map<string, string>>(new Map());
   const loading = ref<Map<string, boolean>>(new Map());
   const errors = ref<Map<string, string>>(new Map());
@@ -45,6 +49,7 @@ export function useAppState() {
   const worktreeCacheDirectory = ref<string | undefined>(undefined);
   const worktreeCacheDirectoryDefault = ref<string | undefined>(undefined);
   const supportsMultiDiff = computed(() => isVersionAtLeast(vscodeVersion, '1.86.0'));
+  const dashboardActiveTab = ref<'repositories' | 'issues' | 'pullRequests'>('repositories');
   const testConnectionResult = ref<{ success: boolean; username?: string; error?: string } | undefined>(undefined);
   const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
   let renderMarkdownRequestId = 0;
@@ -117,6 +122,30 @@ export function useAppState() {
             repo: string;
             index: number;
             files?: ForgejoChangedFile[];
+            error?: string;
+          },
+        );
+        break;
+      case 'pullRequestCommentsAndTimeline':
+        handlePullRequestCommentsAndTimeline(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            comments?: ForgejoTimelineComment[];
+            error?: string;
+          },
+        );
+        break;
+      case 'pullRequestCommits':
+        handlePullRequestCommits(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            commits?: ForgejoPullRequestCommit[];
             error?: string;
           },
         );
@@ -285,6 +314,40 @@ export function useAppState() {
     }
   }
 
+  function handlePullRequestCommentsAndTimeline(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    comments?: ForgejoTimelineComment[];
+    error?: string;
+  }) {
+    const key = pullRequestCommentsKey(data.instanceId, data.owner, data.repo, data.index);
+    if (data.error) {
+      errors.value.set(key, data.error);
+    } else {
+      errors.value.delete(key);
+      pullRequestComments.value.set(key, data.comments ?? []);
+    }
+  }
+
+  function handlePullRequestCommits(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    commits?: ForgejoPullRequestCommit[];
+    error?: string;
+  }) {
+    const key = pullRequestCommitsKey(data.instanceId, data.owner, data.repo, data.index);
+    if (data.error) {
+      errors.value.set(key, data.error);
+    } else {
+      errors.value.delete(key);
+      pullRequestCommits.value.set(key, data.commits ?? []);
+    }
+  }
+
   function handleRepoIssues(data: {
     instanceId: string;
     owner: string;
@@ -384,6 +447,10 @@ export function useAppState() {
 
   function openRepoDetail(instanceId: string, owner: string, repo: string) {
     router.push({ name: 'repoDetail', params: { instanceId, owner, repo } });
+    loadRepoDetail(instanceId, owner, repo);
+  }
+
+  function loadRepoDetail(instanceId: string, owner: string, repo: string) {
     const key = repoDetailKey(instanceId, owner, repo);
     if (!repoDetails.value.has(key)) {
       loading.value.set(key, true);
@@ -393,6 +460,10 @@ export function useAppState() {
 
   function openIssueDetail(instanceId: string, owner: string, repo: string, index: number) {
     router.push({ name: 'issueDetail', params: { instanceId, owner, repo, index: String(index) } });
+    loadIssueDetail(instanceId, owner, repo, index);
+  }
+
+  function loadIssueDetail(instanceId: string, owner: string, repo: string, index: number) {
     const key = issueDetailKey(instanceId, owner, repo, index);
     if (!issueDetails.value.has(key)) {
       loading.value.set(key, true);
@@ -402,6 +473,10 @@ export function useAppState() {
 
   function openPullRequestDetail(instanceId: string, owner: string, repo: string, index: number) {
     router.push({ name: 'pullRequestDetail', params: { instanceId, owner, repo, index: String(index) } });
+    loadPullRequestDetail(instanceId, owner, repo, index);
+  }
+
+  function loadPullRequestDetail(instanceId: string, owner: string, repo: string, index: number) {
     const key = pullRequestDetailKey(instanceId, owner, repo, index);
     if (!pullRequestDetails.value.has(key)) {
       loading.value.set(key, true);
@@ -422,6 +497,22 @@ export function useAppState() {
       return;
     }
     vscode.postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index, baseSha, headSha });
+  }
+
+  function loadPullRequestComments(instanceId: string, owner: string, repo: string, index: number) {
+    const key = pullRequestCommentsKey(instanceId, owner, repo, index);
+    if (pullRequestComments.value.has(key)) {
+      return;
+    }
+    vscode.postMessage({ command: 'getPullRequestCommentsAndTimeline', instanceId, owner, repo, index });
+  }
+
+  function loadPullRequestCommits(instanceId: string, owner: string, repo: string, index: number) {
+    const key = pullRequestCommitsKey(instanceId, owner, repo, index);
+    if (pullRequestCommits.value.has(key)) {
+      return;
+    }
+    vscode.postMessage({ command: 'getPullRequestCommits', instanceId, owner, repo, index });
   }
 
   function openPullRequestDiff(
@@ -470,6 +561,10 @@ export function useAppState() {
 
   function openRepoIssues(instanceId: string, owner: string, repo: string, state = 'open') {
     router.push({ name: 'repoIssues', params: { instanceId, owner, repo, state } });
+    loadRepoIssues(instanceId, owner, repo, state);
+  }
+
+  function loadRepoIssues(instanceId: string, owner: string, repo: string, state = 'open') {
     const key = repoIssuesKey(instanceId, owner, repo, state);
     if (!repoIssues.value.has(key)) {
       loading.value.set(key, true);
@@ -479,6 +574,10 @@ export function useAppState() {
 
   function openRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open') {
     router.push({ name: 'repoPullRequests', params: { instanceId, owner, repo, state } });
+    loadRepoPullRequests(instanceId, owner, repo, state);
+  }
+
+  function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open') {
     const key = repoPullRequestsKey(instanceId, owner, repo, state);
     if (!repoPullRequests.value.has(key)) {
       loading.value.set(key, true);
@@ -518,6 +617,10 @@ export function useAppState() {
   function setWorktreeCacheDirectory(directory: string) {
     worktreeCacheDirectory.value = directory;
     vscode.postMessage({ command: 'setWorktreeCacheDirectory', directory });
+  }
+
+  function setDashboardActiveTab(tab: 'repositories' | 'issues' | 'pullRequests') {
+    dashboardActiveTab.value = tab;
   }
 
   function browseWorktreeCacheDirectory() {
@@ -572,6 +675,8 @@ export function useAppState() {
     repoIssues,
     repoPullRequests,
     pullRequestFiles,
+    pullRequestComments,
+    pullRequestCommits,
     loading,
     errors,
     debug,
@@ -581,6 +686,7 @@ export function useAppState() {
     worktreeCacheDirectoryDefault,
     vscodeVersion,
     supportsMultiDiff,
+    dashboardActiveTab,
     testConnectionResult,
     saveInstanceResult,
     openExternal,
@@ -592,13 +698,20 @@ export function useAppState() {
     changeLocale,
     changeDebug,
     openRepoDetail,
+    loadRepoDetail,
     openIssueDetail,
+    loadIssueDetail,
     openPullRequestDetail,
+    loadPullRequestDetail,
     loadPullRequestFiles,
+    loadPullRequestComments,
+    loadPullRequestCommits,
     openPullRequestDiff,
     openSelectedPullRequestDiffs,
     openRepoIssues,
+    loadRepoIssues,
     openRepoPullRequests,
+    loadRepoPullRequests,
     changeRepoIssuesState,
     changeRepoPullRequestsState,
     openPrWorktree,
@@ -608,6 +721,7 @@ export function useAppState() {
     getWorktreeCacheDirectory,
     setWorktreeCacheDirectory,
     browseWorktreeCacheDirectory,
+    setDashboardActiveTab,
     renderMarkdown,
     loadRepositories,
     loadMyIssues,
@@ -629,6 +743,14 @@ export function pullRequestDetailKey(instanceId: string, owner: string, repo: st
 
 export function pullRequestFilesKey(instanceId: string, owner: string, repo: string, index: number): string {
   return `${instanceId}:${owner}/${repo}#pr-${index}:files`;
+}
+
+export function pullRequestCommentsKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#pr-${index}:comments`;
+}
+
+export function pullRequestCommitsKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#pr-${index}:commits`;
 }
 
 export function repoIssuesKey(instanceId: string, owner: string, repo: string, state: string): string {
