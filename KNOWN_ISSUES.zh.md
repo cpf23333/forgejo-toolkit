@@ -43,3 +43,9 @@ Forgejo 的 `GET /repos/{owner}/{repo}/pulls/{index}/files` 接口返回的变�
 我们已为自定义的 `forgejo-pr:` scheme 注册 `FileDecorationProvider`，但在此场景下 VS Code 目前只使用内部的 `multi-diff-editor:` 包装 URI 调用它，而不是底层的资源 URI，因此该 provider 无法补上缺失的徽章。我们也尝试过把修改文件的 resource URI 换成本地工作区的 `file:` URI，但同样没有让 VS Code 显示出徽章。
 
 目前要保证 M/R 徽章唯一可行的方案是自己实现一个自定义 diff 预览 webview，而不是使用 `vscode.changes`。短期内没有 workaround。
+
+## 打开的 worktree 会出现在 VS Code 的最近打开文件夹历史里
+
+当扩展使用 `vscode.openFolder` 打开一个 worktree 时，VS Code 会自动把这个文件夹路径加入它自己的「最近打开」历史。扩展 API 没有参数可以在打开文件夹的同时抑制这条记录。
+
+这是 VS Code 的预期行为，不是扩展的 bug。如果你不希望最近列表被填满，可以手动在 VS Code 的**文件 > 最近打开**菜单中移除相关条目。

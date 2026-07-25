@@ -2,16 +2,14 @@
 
 ## 进行中
 
-- [ ] 创建 Issue / PR：提供表单提交入口
-- [ ] 编辑 / 关闭 / 重新打开 Issue 和 PR
-
-## 待开始
-
 - [ ] PR worktree 增强
   - [ ] 判断当前 workspace 是否为 PR base repo
   - [ ] 未设置打开方式时弹窗询问，并支持记住选择
   - [ ] workspace 不匹配时：Clone / 打开已有仓库 / 取消
   - [ ] worktree 目录命名支持 sanitized PR title
+
+## 待开始
+
 - [ ] 完整文件浏览器：目录树、文件内容查看、代码高亮
 - [ ] 分支 / 标签 / Release 管理列表
 - [ ] README Markdown 渲染预览
@@ -46,3 +44,10 @@
   - [x] worktree 已存在时直接打开
   - [x] PR 详情页 UI 入口：在 Worktree 中打开
   - [x] 设置页 worktree 维护面板：列出、打开、删除
+- [x] Issue / PR 创建
+- [x] Issue / PR 编辑、关闭、重新打开
+- [x] Issue / PR 编辑弹窗（不留下路由历史）
+- [x] 富文本编辑器（EasyMDE）与图片上传
+- [x] 富文本图片上传后固定插入 `![image](/attachments/{uuid})` 格式
+- [x] 编辑弹窗内附件上传 / 删除
+- [x] 保存 Issue / PR 后重新获取详情
