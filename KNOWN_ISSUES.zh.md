@@ -14,6 +14,16 @@ Forgejo 附件 URL（例如 `/attachments/{uuid}`）需要认证。VS Code webvi
 
 扩展目前的 workaround 是：使用存储的 access token 在扩展宿主中获取渲染后的 Markdown HTML 里的每张图片，将其转换为 `data:` URL，并在返回 HTML 给 webview 之前替换原始的 `src`。
 
+## Issue/PR 附件上传仅在编辑已有 Issue/PR 时可用
+
+Forgejo 官方 API 只提供了 `POST /repos/{owner}/{repo}/issues/{index}/assets`，该接口要求 Issue 或 Pull Request 已经存在。
+
+Forgejo 网页界面在*创建*新 Issue/PR 时，还会使用一个通用的 `POST /{owner}/{repo}/issues/attachments` 表单接口。但该 Web 路由属于基于 session 的认证组，不接受 API access token（`Authorization: Bearer`/`token`），扩展无法使用，只能退回到官方 API 接口。
+
+因此，图片上传仅在**编辑**已有 Issue/PR 时可用。创建新 Issue/PR 时编辑器仍显示普通的图片链接按钮，但不支持上传文件。
+
+此外，上传附件要求 access token 拥有 **`write:issue`** 权限范围。如果 token 只有只读权限，会返回 403 错误：`token does not have at least one of required scope(s): [write:issue]`。
+
 ## Forgejo 的 PR 文件接口可能会漏掉删除文件
 
 Forgejo 的 `GET /repos/{owner}/{repo}/pulls/{index}/files` 接口返回的变更文件列表，不一定与 Forgejo 网页界面显示的一致。

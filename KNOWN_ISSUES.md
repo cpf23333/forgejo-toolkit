@@ -14,6 +14,16 @@ Forgejo attachment URLs (e.g. `/attachments/{uuid}`) require authentication. The
 
 The extension works around this by fetching each image in the rendered Markdown HTML using the stored access token, converting it to a `data:` URL, and replacing the original `src` before returning the HTML to the webview.
 
+## Issue/PR attachment upload is only available when editing existing issues/PRs
+
+The official Forgejo API only provides `POST /repos/{owner}/{repo}/issues/{index}/assets`, which requires an existing issue or pull request.
+
+Forgejo's web UI also has a generic `POST /{owner}/{repo}/issues/attachments` endpoint used by browser forms when _creating_ a new issue or PR. However, this web route is part of the session-based auth group and does **not** accept API access tokens (`Authorization: Bearer`/`token`). The extension therefore cannot use it and falls back to the official API endpoint.
+
+As a result, image uploads are only available while **editing** an existing issue or PR. When creating a new issue or PR, the editor still shows the normal image link button, but uploading a file is not supported.
+
+Uploading also requires the access token to have the **`write:issue`** scope. If the token only has read scopes, the upload endpoint returns a 403 error: `token does not have at least one of required scope(s): [write:issue]`.
+
 ## Forgejo's pull request files API may omit deleted files
 
 Forgejo's `GET /repos/{owner}/{repo}/pulls/{index}/files` endpoint does not always return the same list of changed files that the Forgejo web UI shows.

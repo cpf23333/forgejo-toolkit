@@ -77,7 +77,15 @@
       "open": "Open in Browser",
       "copyClone": "Copy Clone URL",
       "copyUrl": "Copy Link",
-      "previewReadme": "Preview README"
+      "previewReadme": "Preview README",
+      "newIssue": "New Issue",
+      "newPullRequest": "New Pull Request",
+      "uploadAttachment": "Upload Attachment",
+      "delete": "Delete",
+      "undoDelete": "Undo Delete",
+      "edit": "Edit",
+      "close": "Close",
+      "reopen": "Reopen"
     },
     "detail": {
       "status": "Status",
@@ -131,6 +139,24 @@
       "openExisting": "Open Existing Worktree",
       "opening": "Preparing worktree...",
       "opened": "Worktree opened"
+    },
+    "form": {
+      "title": "Title",
+      "titlePlaceholder": "Enter title",
+      "body": "Description",
+      "bodyPlaceholder": "Enter description (Markdown supported)",
+      "base": "Base branch",
+      "head": "Head branch",
+      "create": "Create",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saving": "Saving...",
+      "imageOnly": "Only image files can be uploaded",
+      "error": "Failed to save: {message}",
+      "newIssue": "New Issue",
+      "editIssue": "Edit Issue",
+      "newPullRequest": "New Pull Request",
+      "editPullRequest": "Edit Pull Request"
     }
   },
   "instance": {
@@ -145,10 +171,14 @@
     "instanceUrl": "Instance URL",
     "instanceUrlPlaceholder": "https://forgejo.example.com",
     "accessToken": "Access Token",
+    "accessTokenDescription": "The token needs at least read:repository, read:issue, and read:pull scopes. To edit/create issues and pull requests or upload attachments, also grant write:issue, write:pull, and write:repository.",
     "accessTokenPlaceholder": "Enter your Forgejo access token",
     "testConnection": "Test Connection",
     "testing": "Testing...",
     "addInstance": "Add Instance",
+    "editInstance": "Edit Instance",
+    "updateInstance": "Update Instance",
+    "cancelEdit": "Cancel Edit",
     "saving": "Saving...",
     "savedInstances": "Saved Instances",
     "noSavedInstances": "No saved instances yet.",

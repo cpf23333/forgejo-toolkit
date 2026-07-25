@@ -7,13 +7,18 @@ import AttachmentList from '../components/AttachmentList.vue';
 import DiffFileList from '../components/DiffFileList.vue';
 import CommentTimeline from '../components/CommentTimeline.vue';
 import CommitDiffList from '../components/CommitDiffList.vue';
+import ModalDialog from '../components/ModalDialog.vue';
+import PullRequestForm from '../components/PullRequestForm.vue';
 import {
   useAppState,
   pullRequestDetailKey,
   pullRequestFilesKey,
   pullRequestCommentsKey,
   pullRequestCommitsKey,
+  pullRequestFormKey,
+  repoDetailKey,
 } from '../composables/useAppState';
+import type { ForgejoIssueAttachment } from '../types/api';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -73,6 +78,128 @@ watch(
 );
 
 const prUrl = computed(() => detail.value?.html_url ?? '');
+const isEditing = ref(false);
+const uploadingAttachment = ref(false);
+const deletingAttachmentId = ref<number | undefined>(undefined);
+const isDeletingAttachments = ref(false);
+const pendingDeleteAttachmentIds = ref<number[]>([]);
+const editFormKey = computed(() => pullRequestFormKey(instanceId.value, owner.value, repo.value, index.value));
+const editLoading = computed(() => state.loading.value.get(editFormKey.value) ?? false);
+const editError = computed(() => state.errors.value.get(editFormKey.value));
+const formLoading = computed(() => editLoading.value || isDeletingAttachments.value);
+const repoKey = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
+const repoDetail = computed(() => state.repoDetails.value.get(repoKey.value));
+const branches = computed(() => repoDetail.value?.branches ?? []);
+
+function openEdit() {
+  state.loadRepoDetail(instanceId.value, owner.value, repo.value);
+  state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
+  isEditing.value = true;
+}
+
+function closeEdit() {
+  pendingDeleteAttachmentIds.value = [];
+  isEditing.value = false;
+}
+
+function handleEditSubmit(title: string, body: string) {
+  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, { title, body });
+}
+
+async function deletePendingAttachments() {
+  const ids = pendingDeleteAttachmentIds.value;
+  if (ids.length === 0) {
+    return;
+  }
+  isDeletingAttachments.value = true;
+  deletingAttachmentId.value = ids[0];
+  try {
+    await Promise.all(
+      ids.map((id) => state.deleteIssueAttachment(instanceId.value, owner.value, repo.value, index.value, id)),
+    );
+    const current = detail.value;
+    if (current?.assets) {
+      current.assets = current.assets.filter((a) => a.id === undefined || !ids.includes(a.id));
+    }
+  } finally {
+    isDeletingAttachments.value = false;
+    deletingAttachmentId.value = undefined;
+  }
+}
+
+async function handleUploadImage(file: File, onSuccess: (url: string) => void, onError: (error: string) => void) {
+  try {
+    const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
+    const current = detail.value;
+    if (current) {
+      if (!current.assets) {
+        current.assets = [];
+      }
+      if (!current.assets.some((a) => a.uuid === attachment.uuid)) {
+        current.assets.push(attachment);
+      }
+    }
+    onSuccess(attachment.uuid ? `/attachments/${attachment.uuid}` : (attachment.browser_download_url ?? ''));
+  } catch (error) {
+    onError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function handleAttachmentUpload(file: File) {
+  uploadingAttachment.value = true;
+  try {
+    const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
+    const current = detail.value;
+    if (current) {
+      if (!current.assets) {
+        current.assets = [];
+      }
+      current.assets.push(attachment);
+    }
+  } finally {
+    uploadingAttachment.value = false;
+  }
+}
+
+function handleAttachmentDelete(asset: ForgejoIssueAttachment) {
+  const attachmentId = asset.id;
+  if (attachmentId === undefined) {
+    return;
+  }
+  const index = pendingDeleteAttachmentIds.value.indexOf(attachmentId);
+  if (index >= 0) {
+    pendingDeleteAttachmentIds.value.splice(index, 1);
+  } else {
+    pendingDeleteAttachmentIds.value.push(attachmentId);
+  }
+}
+
+function toggleState() {
+  const nextState = detail.value?.state === 'open' ? 'closed' : 'open';
+  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, { state: nextState });
+}
+
+watch(
+  () => state.lastSavedPullRequest.value,
+  async (saved) => {
+    if (
+      saved?.instanceId === instanceId.value &&
+      saved.owner === owner.value &&
+      saved.repo === repo.value &&
+      saved.index === index.value
+    ) {
+      try {
+        await deletePendingAttachments();
+        state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value, true);
+        pendingDeleteAttachmentIds.value = [];
+        isEditing.value = false;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        state.errors.value.set(editFormKey.value, t('dashboard.form.error', { message }));
+      }
+    }
+  },
+);
 
 function handleOpenDiff(filename: string, status: string) {
   const baseSha = detail.value?.base?.sha;
@@ -410,6 +537,12 @@ watch(
         <a href="#" class="action-link" @click.prevent="state.copyToClipboard(prUrl)">
           {{ t('dashboard.detail.copyLink') }}
         </a>
+        <a href="#" class="action-link" @click.prevent="openEdit">
+          {{ t('dashboard.actions.edit') }}
+        </a>
+        <a href="#" class="action-link" @click.prevent="toggleState">
+          {{ detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen') }}
+        </a>
         <a href="#" class="action-link" :class="{ disabled: worktreeLoading }" @click.prevent="openInWorktree">
           {{
             worktreeLoading
@@ -421,6 +554,41 @@ watch(
         </a>
       </div>
       <div v-if="worktreeStatus" :class="['worktree-status', worktreeStatusType]">{{ worktreeStatus }}</div>
+
+      <ModalDialog
+        :open="isEditing"
+        :title="t('dashboard.form.editPullRequest')"
+        :loading="formLoading"
+        @close="closeEdit"
+      >
+        <PullRequestForm
+          :initial-title="detail.title"
+          :initial-body="detail.body"
+          :initial-base="detail.base?.ref"
+          :initial-head="detail.head?.ref"
+          :branches="branches"
+          :submit-label="t('dashboard.form.save')"
+          :loading="formLoading"
+          :error="editError"
+          :upload-image="handleUploadImage"
+          @submit="handleEditSubmit"
+          @cancel="closeEdit"
+        >
+          <template #extra>
+            <AttachmentList
+              :assets="detail.assets"
+              :allow-upload="true"
+              :allow-delete="true"
+              :uploading="uploadingAttachment"
+              :deleting-id="deletingAttachmentId"
+              :pending-delete-ids="pendingDeleteAttachmentIds"
+              @open-external="state.openExternal($event)"
+              @upload="handleAttachmentUpload"
+              @delete="handleAttachmentDelete"
+            />
+          </template>
+        </PullRequestForm>
+      </ModalDialog>
     </div>
   </div>
 </template>

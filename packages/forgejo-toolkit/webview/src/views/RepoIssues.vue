@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { useAppState, repoIssuesKey } from '../composables/useAppState';
+import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
+import ModalDialog from '../components/ModalDialog.vue';
+import IssueForm from '../components/IssueForm.vue';
+import { useAppState, issueFormKey, repoIssuesKey } from '../composables/useAppState';
 import type { ForgejoIssue } from '../types/api';
 
 const { t } = useI18n();
@@ -18,6 +21,11 @@ const key = computed(() => repoIssuesKey(instanceId.value, owner.value, repo.val
 const items = computed(() => state.repoIssues.value.get(key.value) ?? []);
 const loading = computed(() => state.loading.value.get(key.value) ?? false);
 const error = computed(() => state.errors.value.get(key.value));
+
+const isCreating = ref(false);
+const createFormKey = computed(() => issueFormKey(instanceId.value, owner.value, repo.value, 0));
+const createLoading = computed(() => state.loading.value.get(createFormKey.value) ?? false);
+const createError = computed(() => state.errors.value.get(createFormKey.value));
 
 watch(
   [instanceId, owner, repo, stateParam],
@@ -70,22 +78,47 @@ function openIssue(issue: ForgejoIssue) {
 function changeState(newState: string) {
   state.changeRepoIssuesState(instanceId.value, owner.value, repo.value, newState);
 }
+
+function openCreateIssue() {
+  isCreating.value = true;
+}
+
+function closeCreateIssue() {
+  isCreating.value = false;
+}
+
+function handleCreateSubmit(title: string, body: string) {
+  state.createIssue(instanceId.value, owner.value, repo.value, title, body);
+}
+
+watch(
+  () => state.lastSavedIssue.value,
+  (saved) => {
+    if (saved?.instanceId === instanceId.value && saved.owner === owner.value && saved.repo === repo.value) {
+      isCreating.value = false;
+      state.loadRepoIssues(instanceId.value, owner.value, repo.value, stateParam.value);
+    }
+  },
+);
 </script>
 
 <template>
   <div class="repo-issues">
     <div class="list-header">
       <h2>{{ t('dashboard.repoIssues.title', { repo: title }) }}</h2>
-      <div class="state-filter">
-        <button
-          v-for="s in states"
-          :key="s"
-          class="filter-button"
-          :class="{ active: stateParam === s }"
-          @click="changeState(s)"
-        >
-          {{ t(`dashboard.state.${s}`) }}
-        </button>
+      <div class="header-actions">
+        <VscodeButton @click="openCreateIssue">{{ t('dashboard.actions.newIssue') }}</VscodeButton>
+        <div class="state-filter">
+          <button
+            v-for="s in states"
+            :key="s"
+            class="filter-button"
+            :class="{ active: stateParam === s }"
+            @click="changeState(s)"
+          >
+            {{ t(`dashboard.state.${s}`) }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -114,6 +147,21 @@ function changeState(newState: string) {
       </div>
     </div>
     <div v-else class="empty-list">{{ t('dashboard.repoIssues.empty') }}</div>
+
+    <ModalDialog
+      :open="isCreating"
+      :title="t('dashboard.form.newIssue')"
+      :loading="createLoading"
+      @close="closeCreateIssue"
+    >
+      <IssueForm
+        :submit-label="t('dashboard.form.create')"
+        :loading="createLoading"
+        :error="createError"
+        @submit="handleCreateSubmit"
+        @cancel="closeCreateIssue"
+      />
+    </ModalDialog>
   </div>
 </template>
 
@@ -135,6 +183,13 @@ function changeState(newState: string) {
 .list-header h2 {
   margin: 0;
   font-size: 1.1rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .state-filter {

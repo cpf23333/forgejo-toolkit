@@ -77,7 +77,15 @@
       "open": "在浏览器打开",
       "copyClone": "复制克隆地址",
       "copyUrl": "复制链接",
-      "previewReadme": "预览 README"
+      "previewReadme": "预览 README",
+      "newIssue": "新建 Issue",
+      "newPullRequest": "新建 Pull Request",
+      "uploadAttachment": "上传附件",
+      "delete": "删除",
+      "undoDelete": "撤销删除",
+      "edit": "编辑",
+      "close": "关闭",
+      "reopen": "重新打开"
     },
     "detail": {
       "status": "状态",
@@ -131,6 +139,24 @@
       "openExisting": "打开已有 Worktree",
       "opening": "正在准备 Worktree...",
       "opened": "Worktree 已打开"
+    },
+    "form": {
+      "title": "标题",
+      "titlePlaceholder": "请输入标题",
+      "body": "描述",
+      "bodyPlaceholder": "请输入描述（支持 Markdown）",
+      "base": "目标分支",
+      "head": "源分支",
+      "create": "创建",
+      "save": "保存",
+      "cancel": "取消",
+      "saving": "保存中...",
+      "imageOnly": "只能上传图片文件",
+      "error": "保存失败：{message}",
+      "newIssue": "新建 Issue",
+      "editIssue": "编辑 Issue",
+      "newPullRequest": "新建 Pull Request",
+      "editPullRequest": "编辑 Pull Request"
     }
   },
   "instance": {
@@ -145,10 +171,14 @@
     "instanceUrl": "实例地址",
     "instanceUrlPlaceholder": "https://forgejo.example.com",
     "accessToken": "访问令牌",
+    "accessTokenDescription": "令牌至少需要有 read:repository、read:issue、read:pull 权限；编辑/创建 Issue、PR 或上传附件还需要 write:issue、write:pull 和 write:repository 权限。",
     "accessTokenPlaceholder": "请输入 Forgejo 访问令牌",
     "testConnection": "测试连接",
     "testing": "测试中...",
     "addInstance": "添加实例",
+    "editInstance": "编辑实例",
+    "updateInstance": "更新实例",
+    "cancelEdit": "取消编辑",
     "saving": "保存中...",
     "savedInstances": "已保存实例",
     "noSavedInstances": "还没有保存的实例。",

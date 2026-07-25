@@ -18,6 +18,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, '..', 'out', 'webview'),
     emptyOutDir: true,
+    assetsInlineLimit: 1024 * 1024,
     rollupOptions: {
       input: path.resolve(__dirname, 'index.html'),
     },

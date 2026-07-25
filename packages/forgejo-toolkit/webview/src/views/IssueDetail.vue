@@ -5,7 +5,10 @@ import { useI18n } from 'vue-i18n';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
 import CommentTimeline from '../components/CommentTimeline.vue';
-import { useAppState, issueDetailKey, pullRequestCommentsKey } from '../composables/useAppState';
+import ModalDialog from '../components/ModalDialog.vue';
+import IssueForm from '../components/IssueForm.vue';
+import { useAppState, issueDetailKey, issueFormKey, pullRequestCommentsKey } from '../composables/useAppState';
+import type { ForgejoIssueAttachment } from '../types/api';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -66,6 +69,124 @@ watch(
 );
 
 const issueUrl = computed(() => detail.value?.html_url ?? '');
+const isEditing = ref(false);
+const uploadingAttachment = ref(false);
+const deletingAttachmentId = ref<number | undefined>(undefined);
+const isDeletingAttachments = ref(false);
+const pendingDeleteAttachmentIds = ref<number[]>([]);
+const editFormKey = computed(() => issueFormKey(instanceId.value, owner.value, repo.value, index.value));
+const editLoading = computed(() => state.loading.value.get(editFormKey.value) ?? false);
+const editError = computed(() => state.errors.value.get(editFormKey.value));
+const formLoading = computed(() => editLoading.value || isDeletingAttachments.value);
+
+function openEdit() {
+  state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value);
+  isEditing.value = true;
+}
+
+function closeEdit() {
+  pendingDeleteAttachmentIds.value = [];
+  isEditing.value = false;
+}
+
+function handleEditSubmit(title: string, body: string) {
+  state.editIssue(instanceId.value, owner.value, repo.value, index.value, { title, body });
+}
+
+async function deletePendingAttachments() {
+  const ids = pendingDeleteAttachmentIds.value;
+  if (ids.length === 0) {
+    return;
+  }
+  isDeletingAttachments.value = true;
+  deletingAttachmentId.value = ids[0];
+  try {
+    await Promise.all(
+      ids.map((id) => state.deleteIssueAttachment(instanceId.value, owner.value, repo.value, index.value, id)),
+    );
+    const current = detail.value;
+    if (current?.assets) {
+      current.assets = current.assets.filter((a) => a.id === undefined || !ids.includes(a.id));
+    }
+  } finally {
+    isDeletingAttachments.value = false;
+    deletingAttachmentId.value = undefined;
+  }
+}
+
+async function handleUploadImage(file: File, onSuccess: (url: string) => void, onError: (error: string) => void) {
+  try {
+    const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
+    const current = detail.value;
+    if (current) {
+      if (!current.assets) {
+        current.assets = [];
+      }
+      if (!current.assets.some((a) => a.uuid === attachment.uuid)) {
+        current.assets.push(attachment);
+      }
+    }
+    onSuccess(attachment.uuid ? `/attachments/${attachment.uuid}` : (attachment.browser_download_url ?? ''));
+  } catch (error) {
+    onError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function handleAttachmentUpload(file: File) {
+  uploadingAttachment.value = true;
+  try {
+    const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
+    const current = detail.value;
+    if (current) {
+      if (!current.assets) {
+        current.assets = [];
+      }
+      current.assets.push(attachment);
+    }
+  } finally {
+    uploadingAttachment.value = false;
+  }
+}
+
+function handleAttachmentDelete(asset: ForgejoIssueAttachment) {
+  const attachmentId = asset.id;
+  if (attachmentId === undefined) {
+    return;
+  }
+  const index = pendingDeleteAttachmentIds.value.indexOf(attachmentId);
+  if (index >= 0) {
+    pendingDeleteAttachmentIds.value.splice(index, 1);
+  } else {
+    pendingDeleteAttachmentIds.value.push(attachmentId);
+  }
+}
+
+function toggleState() {
+  const nextState = detail.value?.state === 'open' ? 'closed' : 'open';
+  state.editIssue(instanceId.value, owner.value, repo.value, index.value, { state: nextState });
+}
+
+watch(
+  () => state.lastSavedIssue.value,
+  async (saved) => {
+    if (
+      saved?.instanceId === instanceId.value &&
+      saved.owner === owner.value &&
+      saved.repo === repo.value &&
+      saved.index === index.value
+    ) {
+      try {
+        await deletePendingAttachments();
+        state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value, true);
+        pendingDeleteAttachmentIds.value = [];
+        isEditing.value = false;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        state.errors.value.set(editFormKey.value, t('dashboard.form.error', { message }));
+      }
+    }
+  },
+);
 
 function formatDate(date: string): string {
   try {
@@ -193,7 +314,40 @@ function isLightColor(hex: string): boolean {
         <a href="#" class="action-link" @click.prevent="state.copyToClipboard(issueUrl)">
           {{ t('dashboard.detail.copyLink') }}
         </a>
+        <a href="#" class="action-link" @click.prevent="openEdit">
+          {{ t('dashboard.actions.edit') }}
+        </a>
+        <a href="#" class="action-link" @click.prevent="toggleState">
+          {{ detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen') }}
+        </a>
       </div>
+
+      <ModalDialog :open="isEditing" :title="t('dashboard.form.editIssue')" :loading="formLoading" @close="closeEdit">
+        <IssueForm
+          :initial-title="detail.title"
+          :initial-body="detail.body"
+          :submit-label="t('dashboard.form.save')"
+          :loading="formLoading"
+          :error="editError"
+          :upload-image="handleUploadImage"
+          @submit="handleEditSubmit"
+          @cancel="closeEdit"
+        >
+          <template #extra>
+            <AttachmentList
+              :assets="detail.assets"
+              :allow-upload="true"
+              :allow-delete="true"
+              :uploading="uploadingAttachment"
+              :deleting-id="deletingAttachmentId"
+              :pending-delete-ids="pendingDeleteAttachmentIds"
+              @open-external="state.openExternal($event)"
+              @upload="handleAttachmentUpload"
+              @delete="handleAttachmentDelete"
+            />
+          </template>
+        </IssueForm>
+      </ModalDialog>
     </div>
   </div>
 </template>

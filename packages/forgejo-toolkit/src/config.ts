@@ -19,6 +19,16 @@ export class ConfigManager {
     await this.context.globalState.update(INSTANCES_KEY, instances);
   }
 
+  async updateInstance(id: string, updates: Partial<Omit<ForgejoInstance, 'id'>>): Promise<void> {
+    const instances = this.getInstances();
+    const index = instances.findIndex((i) => i.id === id);
+    if (index === -1) {
+      return;
+    }
+    instances[index] = { ...instances[index], ...updates };
+    await this.context.globalState.update(INSTANCES_KEY, instances);
+  }
+
   async removeInstance(id: string): Promise<void> {
     const instances = this.getInstances().filter((i) => i.id !== id);
     await this.context.globalState.update(INSTANCES_KEY, instances);

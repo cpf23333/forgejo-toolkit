@@ -44,6 +44,55 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      command: 'issueCreated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      item?: unknown;
+      error?: string;
+    }
+  | {
+      command: 'issueUpdated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      item?: unknown;
+      error?: string;
+    }
+  | {
+      command: 'issueAttachmentCreated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      uuid?: string;
+      name?: string;
+      size?: number;
+      browser_download_url?: string;
+      error?: string;
+      _requestId: string;
+    }
+  | {
+      command: 'pullRequestCreated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      item?: unknown;
+      error?: string;
+    }
+  | {
+      command: 'pullRequestUpdated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      item?: unknown;
+      error?: string;
+    }
+  | {
       command: 'pullRequestFiles';
       instanceId: string;
       owner: string;
@@ -93,6 +142,16 @@ export type HostToWebviewMessage =
   | { command: 'worktreeOpened'; worktree: unknown; existed?: boolean }
   | { command: 'worktreeRemoved'; id: string }
   | { command: 'worktreeError'; error: string }
+  | {
+      command: 'issueAttachmentDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      attachmentId: number;
+      error?: string;
+      _requestId: string;
+    }
   | { command: 'worktreeOpenMode'; mode: 'currentWindow' | 'newWindow' }
   | { command: 'worktreeCacheDirectory'; directory: string; defaultDirectory: string }
   | { command: 'testConnectionResult'; success: boolean; username?: string; error?: string }
@@ -103,7 +162,17 @@ export type WebviewToHostMessage =
   | { command: 'getLocale' }
   | { command: 'testConnection'; url: string; token: string }
   | { command: 'saveInstance'; url: string; token: string }
+  | { command: 'editInstance'; id: string; url: string; token: string }
   | { command: 'removeInstance'; id: string }
+  | {
+      command: 'deleteIssueAttachment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      attachmentId: number;
+      _requestId: string;
+    }
   | { command: 'setLocale'; locale: string }
   | { command: 'setDebug'; debug: boolean }
   | { command: 'getRepositories'; instanceId: string }
@@ -119,6 +188,46 @@ export type WebviewToHostMessage =
     }
   | { command: 'getIssueDetail'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'getPullRequestDetail'; instanceId: string; owner: string; repo: string; index: number }
+  | {
+      command: 'createIssue';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      data: { title: string; body: string };
+    }
+  | {
+      command: 'editIssue';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      data: { title?: string; body?: string; state?: 'open' | 'closed' };
+    }
+  | {
+      command: 'createIssueAttachment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      name: string;
+      data: number[];
+      _requestId: string;
+    }
+  | {
+      command: 'createPullRequest';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      data: { title: string; body: string; base?: string; head?: string };
+    }
+  | {
+      command: 'editPullRequest';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      data: { title?: string; body?: string; state?: 'open' | 'closed' };
+    }
   | {
       command: 'getPullRequestFiles';
       instanceId: string;

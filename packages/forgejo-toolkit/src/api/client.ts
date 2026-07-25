@@ -1,11 +1,18 @@
+import * as vscode from 'vscode';
 import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
+  issueCreateIssue,
+  issueCreateIssueAttachment,
+  issueDeleteIssueAttachment,
+  issueEditIssue,
   issueGetCommentsAndTimeline,
   issueGetIssue,
   issueListIssues,
   issueSearchIssues,
   repoCompareDiff,
+  repoCreatePullRequest,
+  repoEditPullRequest,
   repoGet,
   repoGetAllCommits,
   repoGetContents,
@@ -18,12 +25,20 @@ import {
   userGetCurrent,
 } from '@cpf23333-forgejo-toolkit/api';
 
-import type { Commit, TimelineComment } from '@cpf23333-forgejo-toolkit/api';
+import type {
+  Commit,
+  CreateIssueOption,
+  CreatePullRequestOption,
+  EditIssueOption,
+  EditPullRequestOption,
+  TimelineComment,
+} from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
 import type {
   ForgejoChangedFile,
   ForgejoCommit,
   ForgejoIssue,
+  ForgejoIssueAttachment,
   ForgejoIssueDetail,
   ForgejoPullRequest,
   ForgejoPullRequestDetail,
@@ -168,6 +183,62 @@ export class ForgejoClient {
     ) as Promise<ForgejoPullRequest[]>;
   }
 
+  createIssue(owner: string, repo: string, data: CreateIssueOption): Promise<ForgejoIssue> {
+    return issueCreateIssue(owner, repo, data, { client: this._client() }) as Promise<ForgejoIssue>;
+  }
+
+  editIssue(owner: string, repo: string, index: number, data: EditIssueOption): Promise<ForgejoIssue> {
+    return issueEditIssue(owner, repo, index, data, { client: this._client() }) as Promise<ForgejoIssue>;
+  }
+
+  createIssueAttachment(
+    owner: string,
+    repo: string,
+    index: number,
+    file: Uint8Array,
+    filename: string,
+  ): Promise<ForgejoIssueAttachment> {
+    const attachment = new File([file.buffer as ArrayBuffer], filename);
+    return issueCreateIssueAttachment(
+      owner,
+      repo,
+      index,
+      { attachment },
+      { name: filename },
+      { client: this._client() },
+    ).then((result) => {
+      const data = result as {
+        uuid?: string;
+        name?: string;
+        size?: number;
+        browser_download_url?: string;
+      };
+      return {
+        uuid: data.uuid ?? '',
+        name: data.name ?? filename,
+        size: data.size,
+        browser_download_url: data.browser_download_url ?? `${this.url}/attachments/${data.uuid}`,
+      };
+    });
+  }
+
+  deleteIssueAttachment(owner: string, repo: string, index: number, attachmentId: number): Promise<void> {
+    return issueDeleteIssueAttachment(owner, repo, index, attachmentId, { client: this._client() }) as Promise<void>;
+  }
+
+  createPullRequest(owner: string, repo: string, data: CreatePullRequestOption): Promise<ForgejoPullRequest> {
+    return repoCreatePullRequest(owner, repo, data, { client: this._client() }) as Promise<ForgejoPullRequest>;
+  }
+
+  editPullRequest(
+    owner: string,
+    repo: string,
+    index: number,
+    data: EditPullRequestOption,
+  ): Promise<ForgejoPullRequest> {
+    return repoEditPullRequest(owner, repo, index, data, { client: this._client() }) as Promise<ForgejoPullRequest>;
+  }
+
   async getFileContent(owner: string, repo: string, filepath: string, ref: string): Promise<string> {
     const response = await repoGetContents(owner, repo, filepath, { ref }, { client: this._client() });
     const content = (response as { content?: string }).content;
@@ -274,17 +345,39 @@ export class ForgejoClient {
       const targetUrl = this._buildDebugUrl(baseURL, config);
       this.logger?.debug(`Request: ${method} ${targetUrl}`);
 
-      const response = await baseClient<TResponseData>({
-        ...config,
-        baseURL,
-        headers: mergeHeaders(config.headers, { Authorization: `token ${this.token}` }),
-      });
+      try {
+        const response = await baseClient<TResponseData>({
+          ...config,
+          baseURL,
+          headers: mergeHeaders(config.headers, { Authorization: `token ${this.token}` }),
+        });
 
-      this.logger?.debug(`Response: ${response.status} ${response.statusText}`);
-      this.logger?.debug(`Response body: ${JSON.stringify(response.data).slice(0, 2000)}`);
+        this.logger?.debug(`Response: ${response.status} ${response.statusText}`);
+        this.logger?.debug(`Response body: ${JSON.stringify(response.data).slice(0, 2000)}`);
 
-      return response;
+        return response;
+      } catch (error) {
+        if (error instanceof Error) {
+          this._notifyIfPermissionError(error.message);
+        }
+        throw error;
+      }
     };
+  }
+
+  private _notifyIfPermissionError(errorMessage: string) {
+    const match = errorMessage.match(/Forgejo API error (\d+):\s*(.+)/);
+    if (!match) {
+      return;
+    }
+    const [, status, body] = match;
+    if (status !== '403') {
+      return;
+    }
+    const text = body.trim();
+    if (/required scope|token does not have/i.test(text)) {
+      vscode.window.showErrorMessage(`Forgejo permission error: ${text}`);
+    }
   }
 
   private _buildDebugUrl(baseURL: string, config: RequestConfig): string {

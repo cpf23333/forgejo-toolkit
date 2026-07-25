@@ -120,6 +120,33 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'editInstance': {
+            const { id, url, token } = message;
+            if (typeof id !== 'string' || typeof url !== 'string' || typeof token !== 'string') {
+              this._reply('saveInstanceResult', { success: false, error: 'Invalid input' });
+              return;
+            }
+            try {
+              const client = new ForgejoClient(url, token, logger);
+              const user = await client.getCurrentUser();
+
+              const normalizedUrl = url.replace(/\/$/, '');
+              await this._config.updateInstance(id, {
+                url: normalizedUrl,
+                token,
+                name: `${user.login}@${new URL(normalizedUrl).hostname}`,
+                username: user.login,
+              });
+              this._sendInstances();
+              this._reply('saveInstanceResult', { success: true });
+              vscode.window.showInformationMessage(`Updated Forgejo instance for ${user.login}`);
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`editInstance failed: ${err}`);
+              this._reply('saveInstanceResult', { success: false, error: err });
+            }
+            return;
+          }
           case 'removeInstance': {
             const { id } = message;
             if (typeof id !== 'string') {
@@ -293,6 +320,141 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'createIssue': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, data } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || !data || typeof data.title !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const item = await client.createIssue(owner, repo, data);
+              this._reply('issueCreated', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index: (item as { number?: number }).number ?? 0,
+                item,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`createIssue failed for ${instance.name}/${owner}/${repo}: ${err}`);
+              this._reply('issueCreated', { instanceId: message.instanceId, owner, repo, index: 0, error: err });
+            }
+            return;
+          }
+          case 'editIssue': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, data } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number' || !data) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const item = await client.editIssue(owner, repo, index, data);
+              this._reply('issueUpdated', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                item,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`editIssue failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueUpdated', { instanceId: message.instanceId, owner, repo, index, error: err });
+            }
+            return;
+          }
+          case 'createIssueAttachment': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, name, data } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof name !== 'string' ||
+              !Array.isArray(data)
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const attachment = await client.createIssueAttachment(owner, repo, index, new Uint8Array(data), name);
+              this._reply('issueAttachmentCreated', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                uuid: attachment.uuid,
+                name: attachment.name,
+                size: attachment.size,
+                browser_download_url: attachment.browser_download_url,
+                _requestId: message._requestId,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`createIssueAttachment failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueAttachmentCreated', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+                _requestId: message._requestId,
+              });
+            }
+            return;
+          }
+          case 'deleteIssueAttachment': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, attachmentId } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof attachmentId !== 'number'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.deleteIssueAttachment(owner, repo, index, attachmentId);
+              this._reply('issueAttachmentDeleted', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                attachmentId,
+                _requestId: message._requestId,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`deleteIssueAttachment failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueAttachmentDeleted', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                attachmentId,
+                error: err,
+                _requestId: message._requestId,
+              });
+            }
+            return;
+          }
           case 'getPullRequestDetail': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {
@@ -316,6 +478,70 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`getPullRequestDetail failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
               this._reply('pullRequestDetail', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'createPullRequest': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, data } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || !data || typeof data.title !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const item = await client.createPullRequest(owner, repo, data);
+              this._reply('pullRequestCreated', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index: (item as { number?: number }).number ?? 0,
+                item,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`createPullRequest failed for ${instance.name}/${owner}/${repo}: ${err}`);
+              this._reply('pullRequestCreated', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index: 0,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'editPullRequest': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, data } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number' || !data) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const item = await client.editPullRequest(owner, repo, index, data);
+              this._reply('pullRequestUpdated', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                item,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`editPullRequest failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('pullRequestUpdated', {
                 instanceId: message.instanceId,
                 owner,
                 repo,

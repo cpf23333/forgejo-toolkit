@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState } from '../composables/useAppState';
+import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { Locale } from '../i18n';
 
 const { t } = useI18n();
@@ -14,6 +15,7 @@ const testing = ref(false);
 const saving = ref(false);
 const status = ref('');
 const statusType = ref<'idle' | 'success' | 'error'>('idle');
+const editingInstance = ref<ForgejoInstance | null>(null);
 const selectedLocale = ref<Locale>(state.locale.value as Locale);
 const debugEnabled = ref<boolean>(state.debug.value);
 const selectedWorktreeOpenMode = ref<'currentWindow' | 'newWindow'>(state.worktreeOpenMode.value);
@@ -83,6 +85,29 @@ function handleSave() {
   saving.value = true;
   setStatus(t('settings.status.testing'));
   state.saveInstance(url.value.trim(), token.value.trim());
+}
+
+function handleUpdate() {
+  if (!editingInstance.value || !canSubmit.value) {
+    return;
+  }
+  saving.value = true;
+  setStatus(t('settings.status.testing'));
+  state.editInstance(editingInstance.value.id, url.value.trim(), token.value.trim());
+}
+
+function startEdit(instance: ForgejoInstance) {
+  editingInstance.value = instance;
+  url.value = instance.url;
+  token.value = instance.token;
+  setStatus('');
+}
+
+function cancelEdit() {
+  editingInstance.value = null;
+  url.value = '';
+  token.value = '';
+  setStatus('');
 }
 
 function removeInstance(id: string) {
@@ -164,6 +189,7 @@ watch(
       setStatus(t('settings.status.successSaved'), 'success');
       url.value = '';
       token.value = '';
+      editingInstance.value = null;
     } else {
       setStatus(result.error ?? t('settings.status.errorSaved'), 'error');
     }
@@ -275,7 +301,7 @@ defineExpose({
     </section>
 
     <section class="setting-section">
-      <h2>{{ t('settings.addInstanceTitle') }}</h2>
+      <h2>{{ editingInstance ? t('settings.editInstance') : t('settings.addInstanceTitle') }}</h2>
 
       <div class="form-row">
         <label for="forgejo-url">{{ t('settings.instanceUrl') }}</label>
@@ -295,14 +321,21 @@ defineExpose({
           :placeholder="t('settings.accessTokenPlaceholder')"
           type="password"
         />
+        <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
       </div>
 
       <div class="actions">
         <VscodeButton variant="secondary" :disabled="!canSubmit || testing" @click="handleTest">
           {{ testing ? t('settings.testing') : t('settings.testConnection') }}
         </VscodeButton>
-        <VscodeButton variant="primary" :disabled="!canSubmit || saving" @click="handleSave">
+        <VscodeButton v-if="editingInstance" variant="primary" :disabled="!canSubmit || saving" @click="handleUpdate">
+          {{ saving ? t('settings.saving') : t('settings.updateInstance') }}
+        </VscodeButton>
+        <VscodeButton v-else variant="primary" :disabled="!canSubmit || saving" @click="handleSave">
           {{ saving ? t('settings.saving') : t('settings.addInstance') }}
+        </VscodeButton>
+        <VscodeButton v-if="editingInstance" variant="secondary" @click="cancelEdit">
+          {{ t('settings.cancelEdit') }}
         </VscodeButton>
       </div>
 
@@ -317,7 +350,12 @@ defineExpose({
             <div class="saved-name">{{ instance.name }}</div>
             <div class="saved-url">{{ instance.url }}</div>
           </div>
-          <VscodeButton variant="icon" @click="removeInstance(instance.id)">{{ t('settings.remove') }}</VscodeButton>
+          <div class="saved-actions">
+            <VscodeButton variant="secondary" @click="startEdit(instance)">{{
+              t('settings.editInstance')
+            }}</VscodeButton>
+            <VscodeButton variant="icon" @click="removeInstance(instance.id)">{{ t('settings.remove') }}</VscodeButton>
+          </div>
         </li>
       </ul>
     </section>
@@ -347,6 +385,13 @@ h2 {
   margin: 0;
   font-size: 0.9em;
   color: var(--vscode-descriptionForeground);
+}
+
+.field-description {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.4;
 }
 
 .form-row {
@@ -409,6 +454,12 @@ label {
   border: 1px solid var(--vscode-panel-border);
   border-radius: 4px;
   background-color: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.saved-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .saved-name {

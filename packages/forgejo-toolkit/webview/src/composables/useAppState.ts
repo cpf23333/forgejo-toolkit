@@ -15,6 +15,7 @@ import type {
   ForgejoPullRequest,
   ForgejoRepoDetail,
   ForgejoIssueDetail,
+  ForgejoIssueAttachment,
   ForgejoPullRequestDetail,
   ForgejoPullRequestWorktreeInfo,
   ForgejoTimelineComment,
@@ -54,11 +55,22 @@ export function useAppState() {
   const dashboardActiveTab = ref<'repositories' | 'issues' | 'pullRequests'>('repositories');
   const testConnectionResult = ref<{ success: boolean; username?: string; error?: string } | undefined>(undefined);
   const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
+  const lastSavedIssue = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(undefined);
+  const lastSavedPullRequest = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(
+    undefined,
+  );
   let renderMarkdownRequestId = 0;
   const pendingRenderMarkdownRequests = new Map<
     string,
     { resolve: (html: string) => void; reject: (error: Error) => void }
   >();
+  let attachmentUploadRequestId = 0;
+  const pendingAttachmentUploads = new Map<
+    string,
+    { resolve: (attachment: ForgejoIssueAttachment) => void; reject: (error: Error) => void }
+  >();
+  let attachmentDeleteRequestId = 0;
+  const pendingAttachmentDeletes = new Map<string, { resolve: () => void; reject: (error: Error) => void }>();
 
   function handleMessage(event: MessageEvent<HostToWebviewMessage>) {
     const message = event.data;
@@ -124,6 +136,63 @@ export function useAppState() {
             repo: string;
             index: number;
             detail?: ForgejoPullRequestDetail;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueCreated':
+      case 'issueUpdated':
+        handleIssueSaved(
+          message.command,
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            item?: ForgejoIssue;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueAttachmentCreated':
+        handleIssueAttachmentCreated(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            uuid?: string;
+            name?: string;
+            size?: number;
+            browser_download_url?: string;
+            error?: string;
+            _requestId: string;
+          },
+        );
+        break;
+      case 'issueAttachmentDeleted':
+        handleIssueAttachmentDeleted(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            attachmentId: number;
+            error?: string;
+            _requestId: string;
+          },
+        );
+        break;
+      case 'pullRequestCreated':
+      case 'pullRequestUpdated':
+        handlePullRequestSaved(
+          message.command,
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            item?: ForgejoPullRequest;
             error?: string;
           },
         );
@@ -329,6 +398,118 @@ export function useAppState() {
     }
   }
 
+  function handleIssueAttachmentCreated(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    uuid?: string;
+    name?: string;
+    size?: number;
+    browser_download_url?: string;
+    error?: string;
+    _requestId: string;
+  }) {
+    const pending = pendingAttachmentUploads.get(data._requestId);
+    if (!pending) {
+      return;
+    }
+    pendingAttachmentUploads.delete(data._requestId);
+    if (data.error) {
+      pending.reject(new Error(data.error));
+    } else if (data.uuid) {
+      pending.resolve({
+        uuid: data.uuid,
+        name: data.name ?? data.uuid,
+        size: data.size,
+        browser_download_url: data.browser_download_url ?? `/attachments/${data.uuid}`,
+      });
+    } else {
+      pending.reject(new Error('Attachment upload failed'));
+    }
+  }
+
+  function handleIssueAttachmentDeleted(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    attachmentId: number;
+    error?: string;
+    _requestId: string;
+  }) {
+    const pending = pendingAttachmentDeletes.get(data._requestId);
+    if (!pending) {
+      return;
+    }
+    pendingAttachmentDeletes.delete(data._requestId);
+    if (data.error) {
+      pending.reject(new Error(data.error));
+    } else {
+      pending.resolve();
+    }
+  }
+
+  function handleIssueSaved(
+    command: 'issueCreated' | 'issueUpdated',
+    data: {
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      item?: ForgejoIssue;
+      error?: string;
+    },
+  ) {
+    const formKey = issueFormKey(data.instanceId, data.owner, data.repo, command === 'issueUpdated' ? data.index : 0);
+    loading.value.set(formKey, false);
+    if (data.error) {
+      errors.value.set(formKey, data.error);
+      return;
+    }
+    errors.value.delete(formKey);
+    if (data.item) {
+      repoIssues.value.clear();
+      myIssues.value.clear();
+      lastSavedIssue.value = { instanceId: data.instanceId, owner: data.owner, repo: data.repo, index: data.index };
+    }
+  }
+
+  function handlePullRequestSaved(
+    command: 'pullRequestCreated' | 'pullRequestUpdated',
+    data: {
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      item?: ForgejoPullRequest;
+      error?: string;
+    },
+  ) {
+    const formKey = pullRequestFormKey(
+      data.instanceId,
+      data.owner,
+      data.repo,
+      command === 'pullRequestUpdated' ? data.index : 0,
+    );
+    loading.value.set(formKey, false);
+    if (data.error) {
+      errors.value.set(formKey, data.error);
+      return;
+    }
+    errors.value.delete(formKey);
+    if (data.item) {
+      repoPullRequests.value.clear();
+      myPullRequests.value.clear();
+      lastSavedPullRequest.value = {
+        instanceId: data.instanceId,
+        owner: data.owner,
+        repo: data.repo,
+        index: data.index,
+      };
+    }
+  }
+
   function handlePullRequestFiles(data: {
     instanceId: string;
     owner: string;
@@ -463,6 +644,10 @@ export function useAppState() {
     vscode.postMessage({ command: 'saveInstance', url, token });
   }
 
+  function editInstance(id: string, url: string, token: string) {
+    vscode.postMessage({ command: 'editInstance', id, url, token });
+  }
+
   function removeInstance(id: string) {
     vscode.postMessage({ command: 'removeInstance', id });
   }
@@ -499,14 +684,113 @@ export function useAppState() {
     vscode.postMessage({ command: 'getRepoBranchCommits', instanceId, owner, repo, branch });
   }
 
+  function createIssue(instanceId: string, owner: string, repo: string, title: string, body: string) {
+    const key = issueFormKey(instanceId, owner, repo, 0);
+    loading.value.set(key, true);
+    errors.value.delete(key);
+    vscode.postMessage({ command: 'createIssue', instanceId, owner, repo, data: { title, body } });
+  }
+
+  function editIssue(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    data: { title?: string; body?: string; state?: 'open' | 'closed' },
+  ) {
+    const key = issueFormKey(instanceId, owner, repo, index);
+    loading.value.set(key, true);
+    errors.value.delete(key);
+    vscode.postMessage({ command: 'editIssue', instanceId, owner, repo, index, data });
+  }
+
+  function uploadIssueAttachment(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    file: File,
+  ): Promise<ForgejoIssueAttachment> {
+    return new Promise((resolve, reject) => {
+      const id = `${instanceId}:${owner}/${repo}#issue-${index}:attachment:${++attachmentUploadRequestId}`;
+      pendingAttachmentUploads.set(id, { resolve, reject });
+      const reader = new FileReader();
+      reader.onload = () => {
+        const array = new Uint8Array(reader.result as ArrayBuffer);
+        vscode.postMessage({
+          command: 'createIssueAttachment',
+          instanceId,
+          owner,
+          repo,
+          index,
+          name: file.name,
+          data: Array.from(array),
+          _requestId: id,
+        });
+      };
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function deleteIssueAttachment(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    attachmentId: number,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const id = `${instanceId}:${owner}/${repo}#issue-${index}:attachment-delete:${++attachmentDeleteRequestId}`;
+      pendingAttachmentDeletes.set(id, { resolve, reject });
+      vscode.postMessage({
+        command: 'deleteIssueAttachment',
+        instanceId,
+        owner,
+        repo,
+        index,
+        attachmentId,
+        _requestId: id,
+      });
+    });
+  }
+
+  function createPullRequest(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    title: string,
+    body: string,
+    base?: string,
+    head?: string,
+  ) {
+    const key = pullRequestFormKey(instanceId, owner, repo, 0);
+    loading.value.set(key, true);
+    errors.value.delete(key);
+    vscode.postMessage({ command: 'createPullRequest', instanceId, owner, repo, data: { title, body, base, head } });
+  }
+
+  function editPullRequest(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    data: { title?: string; body?: string; state?: 'open' | 'closed' },
+  ) {
+    const key = pullRequestFormKey(instanceId, owner, repo, index);
+    loading.value.set(key, true);
+    errors.value.delete(key);
+    vscode.postMessage({ command: 'editPullRequest', instanceId, owner, repo, index, data });
+  }
+
   function openIssueDetail(instanceId: string, owner: string, repo: string, index: number) {
     router.push({ name: 'issueDetail', params: { instanceId, owner, repo, index: String(index) } });
     loadIssueDetail(instanceId, owner, repo, index);
   }
 
-  function loadIssueDetail(instanceId: string, owner: string, repo: string, index: number) {
+  function loadIssueDetail(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = issueDetailKey(instanceId, owner, repo, index);
-    if (!issueDetails.value.has(key)) {
+    if (force || !issueDetails.value.has(key)) {
       loading.value.set(key, true);
       vscode.postMessage({ command: 'getIssueDetail', instanceId, owner, repo, index });
     }
@@ -517,9 +801,9 @@ export function useAppState() {
     loadPullRequestDetail(instanceId, owner, repo, index);
   }
 
-  function loadPullRequestDetail(instanceId: string, owner: string, repo: string, index: number) {
+  function loadPullRequestDetail(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = pullRequestDetailKey(instanceId, owner, repo, index);
-    if (!pullRequestDetails.value.has(key)) {
+    if (force || !pullRequestDetails.value.has(key)) {
       loading.value.set(key, true);
       vscode.postMessage({ command: 'getPullRequestDetail', instanceId, owner, repo, index });
     }
@@ -731,19 +1015,28 @@ export function useAppState() {
     dashboardActiveTab,
     testConnectionResult,
     saveInstanceResult,
+    lastSavedIssue,
+    lastSavedPullRequest,
     openExternal,
     copyToClipboard,
     previewReadme,
     testConnection,
     saveInstance,
+    editInstance,
     removeInstance,
     changeLocale,
     changeDebug,
     openRepoDetail,
     loadRepoDetail,
     loadRepoBranchCommits,
+    createIssue,
+    editIssue,
+    uploadIssueAttachment,
+    deleteIssueAttachment,
     openIssueDetail,
     loadIssueDetail,
+    createPullRequest,
+    editPullRequest,
     openPullRequestDetail,
     loadPullRequestDetail,
     loadPullRequestFiles,
@@ -780,8 +1073,16 @@ export function repoBranchCommitsKey(instanceId: string, owner: string, repo: st
   return `${instanceId}:${owner}/${repo}:branch:${branch}`;
 }
 
+export function issueFormKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}:issue-form:${index}`;
+}
+
 export function issueDetailKey(instanceId: string, owner: string, repo: string, index: number): string {
   return `${instanceId}:${owner}/${repo}#issue-${index}`;
+}
+
+export function pullRequestFormKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}:pr-form:${index}`;
 }
 
 export function pullRequestDetailKey(instanceId: string, owner: string, repo: string, index: number): string {

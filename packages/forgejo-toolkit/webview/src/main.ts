@@ -6,6 +6,7 @@ import { createAppRouter } from './router';
 import './types/config';
 import '@vscode-elements/elements/dist/bundled.js';
 import './styles/global.css';
+import 'font-awesome/css/font-awesome.min.css';
 
 const i18n = createI18nInstance();
 

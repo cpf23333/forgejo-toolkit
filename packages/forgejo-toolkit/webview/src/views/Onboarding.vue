@@ -253,6 +253,7 @@ watch(
             :placeholder="t('settings.accessTokenPlaceholder')"
             type="password"
           />
+          <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
         </div>
 
         <div class="actions">
@@ -388,6 +389,13 @@ watch(
   margin: 0;
   font-size: 0.9em;
   color: var(--vscode-descriptionForeground);
+}
+
+.field-description {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.4;
 }
 
 .form-row {

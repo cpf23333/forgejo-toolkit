@@ -32,6 +32,8 @@
     "@cpf23333-forgejo-toolkit/api": "workspace:*",
     "@cpf23333-forgejo-toolkit/shared": "workspace:*",
     "@cpf23333-forgejo-toolkit/vscode-elements-vue": "workspace:*",
+    "easymde": "^2.21.0",
+    "font-awesome": "^4.7.0",
     "vue-i18n": "^10.0.7",
     "vue-router": "^5.2.0"
   },

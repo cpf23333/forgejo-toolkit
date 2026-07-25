@@ -54,7 +54,7 @@ export function getWebviewContent(webview: vscode.Webview, extensionPath: string
   let html = fs.readFileSync(htmlPath, 'utf8');
 
   // Inject CSP meta tag
-  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">`;
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}';">`;
   html = html.replace(/<head>/i, `<head>\n    ${cspMeta}`);
 
   // Rewrite asset URLs to webview URIs and add nonce to scripts

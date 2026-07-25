@@ -1,16 +1,38 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ForgejoIssueAttachment } from '../types/api';
 
 const props = defineProps<{
   assets?: ForgejoIssueAttachment[];
+  allowUpload?: boolean;
+  allowDelete?: boolean;
+  uploading?: boolean;
+  deletingId?: number;
+  pendingDeleteIds?: number[];
 }>();
 
 const emit = defineEmits<{
   (e: 'openExternal', url: string): void;
+  (e: 'upload', file: File): void;
+  (e: 'delete', asset: ForgejoIssueAttachment): void;
 }>();
 
 const { t } = useI18n();
+const fileInputRef = ref<HTMLInputElement | null>(null);
+
+function triggerFileInput() {
+  fileInputRef.value?.click();
+}
+
+function handleFileChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (file) {
+    emit('upload', file);
+  }
+  target.value = '';
+}
 
 function formatFileSize(bytes?: number): string {
   if (bytes === undefined || bytes === null) {
@@ -27,14 +49,38 @@ function formatFileSize(bytes?: number): string {
 </script>
 
 <template>
-  <div v-if="assets?.length" class="detail-section">
-    <h3>{{ t('dashboard.detail.attachments') }}</h3>
-    <ul class="attachment-list">
-      <li v-for="asset in assets" :key="asset.uuid ?? asset.name ?? ''" class="attachment-item">
+  <div v-if="assets?.length || allowUpload" class="detail-section">
+    <div class="attachment-header">
+      <h3>{{ t('dashboard.detail.attachments') }}</h3>
+      <button v-if="allowUpload" type="button" class="upload-button" :disabled="uploading" @click="triggerFileInput">
+        {{ uploading ? t('dashboard.form.saving') : t('dashboard.actions.uploadAttachment') }}
+      </button>
+      <input ref="fileInputRef" type="file" class="file-input" @change="handleFileChange" />
+    </div>
+    <ul v-if="assets?.length" class="attachment-list">
+      <li
+        v-for="asset in assets"
+        :key="asset.uuid ?? asset.name ?? ''"
+        class="attachment-item"
+        :class="{ 'pending-delete': asset.id !== undefined && pendingDeleteIds?.includes(asset.id) }"
+      >
         <span class="attachment-name" @click="emit('openExternal', asset.browser_download_url ?? '')">{{
           asset.name
         }}</span>
         <span v-if="asset.size" class="attachment-size">{{ formatFileSize(asset.size) }}</span>
+        <button
+          v-if="allowDelete"
+          type="button"
+          class="delete-button"
+          :disabled="deletingId !== undefined && deletingId === asset.id"
+          @click="emit('delete', asset)"
+        >
+          {{
+            asset.id !== undefined && pendingDeleteIds?.includes(asset.id)
+              ? t('dashboard.actions.undoDelete')
+              : t('dashboard.actions.delete')
+          }}
+        </button>
       </li>
     </ul>
   </div>
@@ -53,6 +99,57 @@ function formatFileSize(bytes?: number): string {
   color: var(--vscode-foreground);
 }
 
+.attachment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upload-button {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.upload-button:hover:not(:disabled) {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+.upload-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.delete-button {
+  background-color: transparent;
+  color: var(--vscode-errorForeground);
+  border: 1px solid var(--vscode-errorForeground);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.8em;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.delete-button:hover:not(:disabled) {
+  background-color: var(--vscode-errorForeground);
+  color: var(--vscode-button-foreground);
+}
+
+.delete-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.file-input {
+  display: none;
+}
+
 .attachment-list {
   list-style: none;
   margin: 0;
@@ -69,6 +166,15 @@ function formatFileSize(bytes?: number): string {
   padding: 6px 10px;
   background-color: var(--vscode-editor-inactiveSelectionBackground);
   border-radius: 4px;
+}
+
+.attachment-item.pending-delete {
+  opacity: 0.6;
+}
+
+.attachment-item.pending-delete .attachment-name {
+  text-decoration: line-through;
+  color: var(--vscode-descriptionForeground);
 }
 
 .attachment-name {
