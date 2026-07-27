@@ -160,7 +160,7 @@ export class OnboardingWebviewPanel {
           }
           case 'setWorktreeOpenMode': {
             const mode = message.mode;
-            if (mode === 'currentWindow' || mode === 'newWindow') {
+            if (mode === 'ask' || mode === 'currentWindow' || mode === 'newWindow') {
               await this._config.setWorktreeOpenMode(mode);
               this._reply('worktreeOpenMode', { mode });
             }

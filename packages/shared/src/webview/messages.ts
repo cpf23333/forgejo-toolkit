@@ -140,6 +140,7 @@ export type HostToWebviewMessage =
   | { command: 'renderedMarkdown'; key: string; html?: string; error?: string }
   | { command: 'worktreesList'; worktrees: unknown[] }
   | { command: 'worktreeOpened'; worktree: unknown; existed?: boolean }
+  | { command: 'worktreeCancelled'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'worktreeRemoved'; id: string }
   | { command: 'worktreeError'; error: string }
   | {
@@ -152,7 +153,7 @@ export type HostToWebviewMessage =
       error?: string;
       _requestId: string;
     }
-  | { command: 'worktreeOpenMode'; mode: 'currentWindow' | 'newWindow' }
+  | { command: 'worktreeOpenMode'; mode: 'ask' | 'currentWindow' | 'newWindow' }
   | { command: 'worktreeCacheDirectory'; directory: string; defaultDirectory: string }
   | { command: 'testConnectionResult'; success: boolean; username?: string; error?: string }
   | { command: 'saveInstanceResult'; success: boolean; error?: string };
@@ -282,7 +283,7 @@ export type WebviewToHostMessage =
   | { command: 'getWorktrees' }
   | { command: 'removeWorktree'; id: string }
   | { command: 'getWorktreeOpenMode' }
-  | { command: 'setWorktreeOpenMode'; mode: 'currentWindow' | 'newWindow' }
+  | { command: 'setWorktreeOpenMode'; mode: 'ask' | 'currentWindow' | 'newWindow' }
   | { command: 'getWorktreeCacheDirectory' }
   | { command: 'setWorktreeCacheDirectory'; directory: string }
   | { command: 'browseWorktreeCacheDirectory' }

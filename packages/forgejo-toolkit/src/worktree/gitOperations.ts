@@ -90,6 +90,40 @@ export async function createWorktree(repoPath: string, worktreePath: string, bra
   }
 }
 
+export async function isCurrentWorkspaceBaseRepo(
+  instanceUrl: string,
+  owner: string,
+  repo: string,
+): Promise<string | undefined> {
+  const firstFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!firstFolder) {
+    return undefined;
+  }
+  const candidate = firstFolder.uri.fsPath;
+  if (!(await isGitRepository(candidate))) {
+    return undefined;
+  }
+  const remote = await getRemoteUrl(candidate);
+  if (!remote) {
+    return undefined;
+  }
+  const normalizedInstanceUrl = instanceUrl.replace(/\/$/, '');
+  const expectedUrls = [`${normalizedInstanceUrl}/${owner}/${repo}.git`, `${normalizedInstanceUrl}/${owner}/${repo}`];
+  if (expectedUrls.some((url) => normalizeGitUrl(remote) === normalizeGitUrl(url))) {
+    return candidate;
+  }
+  return undefined;
+}
+
+export function sanitizeForPath(title: string): string {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50);
+}
+
 export async function openWorktree(worktreePath: string, openInNewWindow: boolean): Promise<void> {
   const uri = vscode.Uri.file(worktreePath);
   if (openInNewWindow) {
@@ -111,7 +145,7 @@ export async function openWorktree(worktreePath: string, openInNewWindow: boolea
   }
 }
 
-function normalizeGitUrl(url: string): string {
+export function normalizeGitUrl(url: string): string {
   return url
     .replace(/\.git\/$/, '')
     .replace(/\.git$/, '')

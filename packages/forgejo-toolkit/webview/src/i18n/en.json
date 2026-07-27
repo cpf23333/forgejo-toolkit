@@ -201,6 +201,7 @@
       "title": "Pull Request Worktree",
       "description": "Configure how PRs are opened locally and manage existing worktrees.",
       "openMode": "Open mode",
+      "ask": "Ask each time",
       "newWindow": "New window",
       "currentWindow": "Current window",
       "cacheDirectory": "Cache directory",

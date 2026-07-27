@@ -48,7 +48,7 @@ export function useAppState() {
 
   const debug = ref<boolean>(false);
   const worktrees = ref<ForgejoPullRequestWorktreeInfo[]>([]);
-  const worktreeOpenMode = ref<'currentWindow' | 'newWindow'>('newWindow');
+  const worktreeOpenMode = ref<'ask' | 'currentWindow' | 'newWindow'>('ask');
   const worktreeCacheDirectory = ref<string | undefined>(undefined);
   const worktreeCacheDirectoryDefault = ref<string | undefined>(undefined);
   const supportsMultiDiff = computed(() => isVersionAtLeast(vscodeVersion, '1.86.0'));
@@ -57,6 +57,9 @@ export function useAppState() {
   const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
   const lastSavedIssue = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(undefined);
   const lastSavedPullRequest = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(
+    undefined,
+  );
+  const lastWorktreeCancelled = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(
     undefined,
   );
   let renderMarkdownRequestId = 0;
@@ -276,8 +279,16 @@ export function useAppState() {
           worktrees.value = worktrees.value.filter((w) => w.id !== message.id);
         }
         break;
+      case 'worktreeCancelled':
+        lastWorktreeCancelled.value = {
+          instanceId: message.instanceId,
+          owner: message.owner,
+          repo: message.repo,
+          index: message.index,
+        };
+        break;
       case 'worktreeOpenMode':
-        if (message.mode === 'currentWindow' || message.mode === 'newWindow') {
+        if (message.mode === 'ask' || message.mode === 'currentWindow' || message.mode === 'newWindow') {
           worktreeOpenMode.value = message.mode;
         }
         break;
@@ -930,7 +941,7 @@ export function useAppState() {
     vscode.postMessage({ command: 'removeWorktree', id });
   }
 
-  function changeWorktreeOpenMode(mode: 'currentWindow' | 'newWindow') {
+  function changeWorktreeOpenMode(mode: 'ask' | 'currentWindow' | 'newWindow') {
     worktreeOpenMode.value = mode;
     vscode.postMessage({ command: 'setWorktreeOpenMode', mode });
   }
@@ -1017,6 +1028,7 @@ export function useAppState() {
     saveInstanceResult,
     lastSavedIssue,
     lastSavedPullRequest,
+    lastWorktreeCancelled,
     openExternal,
     copyToClipboard,
     previewReadme,

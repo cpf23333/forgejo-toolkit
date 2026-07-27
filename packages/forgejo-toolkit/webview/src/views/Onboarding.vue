@@ -23,7 +23,7 @@ const testing = ref(false);
 const saving = ref(false);
 const connectionStatus = ref('');
 const connectionStatusType = ref<'idle' | 'success' | 'error'>('idle');
-const selectedWorktreeOpenMode = ref<'currentWindow' | 'newWindow'>(state.worktreeOpenMode.value);
+const selectedWorktreeOpenMode = ref<'ask' | 'currentWindow' | 'newWindow'>(state.worktreeOpenMode.value);
 const worktreeCacheDirectory = ref<string>(
   state.worktreeCacheDirectory.value ?? state.worktreeCacheDirectoryDefault.value ?? '',
 );
@@ -95,7 +95,7 @@ function handleSave() {
 
 function handleWorktreeOpenModeChange(event: Event) {
   const target = event.target as HTMLSelectElement;
-  selectedWorktreeOpenMode.value = target.value as 'currentWindow' | 'newWindow';
+  selectedWorktreeOpenMode.value = target.value as 'ask' | 'currentWindow' | 'newWindow';
   state.changeWorktreeOpenMode(selectedWorktreeOpenMode.value);
 }
 
@@ -279,6 +279,7 @@ watch(
             :value="selectedWorktreeOpenMode"
             @change="handleWorktreeOpenModeChange"
           >
+            <vscode-option value="ask">{{ t('settings.worktree.ask') }}</vscode-option>
             <vscode-option value="newWindow">{{ t('settings.worktree.newWindow') }}</vscode-option>
             <vscode-option value="currentWindow">{{ t('settings.worktree.currentWindow') }}</vscode-option>
           </vscode-single-select>
@@ -312,7 +313,7 @@ watch(
           <li>{{ t('settings.savedInstances') }}: {{ state.instances.value.length }}</li>
           <li>
             {{ t('settings.worktree.openMode') }}:
-            {{ t(`settings.worktree.${selectedWorktreeOpenMode === 'newWindow' ? 'newWindow' : 'currentWindow'}`) }}
+            {{ t(`settings.worktree.${selectedWorktreeOpenMode}`) }}
           </li>
           <li>
             {{ t('settings.worktree.cacheDirectory') }}:

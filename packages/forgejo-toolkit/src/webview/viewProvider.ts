@@ -15,7 +15,12 @@ import {
   createWorktreeFromBranch,
   fetchPullRequestHead,
   findLocalRepo,
+  getRemoteUrl,
+  isCurrentWorkspaceBaseRepo,
+  isGitRepository,
+  normalizeGitUrl,
   openWorktree,
+  sanitizeForPath,
 } from '../worktree/gitOperations';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
@@ -874,7 +879,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           }
           case 'setWorktreeOpenMode': {
             const mode = message.mode;
-            if (mode === 'currentWindow' || mode === 'newWindow') {
+            if (mode === 'ask' || mode === 'currentWindow' || mode === 'newWindow') {
               await this._config.setWorktreeOpenMode(mode);
               this._reply('worktreeOpenMode', { mode });
             }
@@ -996,14 +1001,34 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const { instanceId, owner, repo, index } = message;
     const instance = this._findInstance(instanceId);
     if (!instance) {
-      this._reply('worktreeError', { error: 'Instance not found' });
+      this._reply('worktreeError', { error: vscode.l10n.t('Instance not found') });
       return;
     }
+
+    let openMode = this._config.getWorktreeOpenMode();
+    if (openMode === 'ask') {
+      const choice = await vscode.window.showQuickPick(
+        [
+          { label: vscode.l10n.t('New window'), value: 'newWindow' as const },
+          { label: vscode.l10n.t('Current window'), value: 'currentWindow' as const },
+        ],
+        {
+          placeHolder: vscode.l10n.t('How would you like to open the PR worktree?'),
+          ignoreFocusOut: true,
+        },
+      );
+      if (!choice) {
+        this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+        return;
+      }
+      openMode = choice.value;
+    }
+    const openInNewWindow = openMode === 'newWindow';
 
     const existing = this._worktreeManager.findWorktree(instanceId, owner, repo, index);
     if (existing) {
       try {
-        await openWorktree(existing.worktreePath, this._config.getWorktreeOpenMode() === 'newWindow');
+        await openWorktree(existing.worktreePath, openInNewWindow);
         this._reply('worktreeOpened', { worktree: existing, existed: true });
       } catch (error) {
         const err = error instanceof Error ? error.message : String(error);
@@ -1020,29 +1045,91 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const baseBranch = pr.base?.ref ?? 'main';
       const prTitle = pr.title ?? `PR #${index}`;
       if (!headBranch || !headSha) {
-        this._reply('worktreeError', { error: 'Could not determine PR head branch or sha' });
+        this._reply('worktreeError', { error: vscode.l10n.t('Could not determine PR head branch or sha') });
         return;
       }
 
       const cloneUrl = `${instance.url}/${owner}/${repo}.git`;
       const cacheDir = this._worktreeManager.getCacheDirectory();
-      const localRepo = await findLocalRepo(instance.url, owner, repo);
-      const sourceRepoPath = localRepo ?? path.join(cacheDir, 'repos', `${owner}-${repo}.git`);
-      const sourceRepoExisted = localRepo
-        ? true
-        : await fs.promises
-            .access(sourceRepoPath)
-            .then(() => true)
-            .catch(() => false);
 
-      if (!sourceRepoExisted) {
-        await cloneRepository(cloneUrl, sourceRepoPath, instance.token);
+      let sourceRepoPath = await isCurrentWorkspaceBaseRepo(instance.url, owner, repo);
+      if (!sourceRepoPath) {
+        sourceRepoPath = await findLocalRepo(instance.url, owner, repo);
+      }
+
+      if (!sourceRepoPath) {
+        const cacheRepoPath = path.join(cacheDir, 'repos', `${owner}-${repo}.git`);
+        const cacheRepoExisted = await fs.promises
+          .access(cacheRepoPath)
+          .then(() => true)
+          .catch(() => false);
+
+        const choice = await vscode.window.showQuickPick(
+          [
+            {
+              label: cacheRepoExisted
+                ? vscode.l10n.t('Open cached bare repository')
+                : vscode.l10n.t('Clone to cache directory'),
+              value: 'clone' as const,
+            },
+            { label: vscode.l10n.t('Select an existing local repository'), value: 'select' as const },
+            { label: vscode.l10n.t('Cancel'), value: 'cancel' as const },
+          ],
+          {
+            placeHolder: vscode.l10n.t('No local repository found for {owner}/{repo}. What would you like to do?', {
+              owner,
+              repo,
+            }),
+            ignoreFocusOut: true,
+          },
+        );
+        if (!choice || choice.value === 'cancel') {
+          this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+          return;
+        }
+
+        if (choice.value === 'clone') {
+          sourceRepoPath = cacheRepoPath;
+          if (!cacheRepoExisted) {
+            await cloneRepository(cloneUrl, sourceRepoPath, instance.token);
+          }
+        } else {
+          const selected = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: vscode.l10n.t('Select repository'),
+          });
+          if (!selected || selected.length === 0) {
+            this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+            return;
+          }
+          sourceRepoPath = selected[0].fsPath;
+          if (!(await isGitRepository(sourceRepoPath))) {
+            this._reply('worktreeError', { error: vscode.l10n.t('Selected folder is not a git repository') });
+            return;
+          }
+          const remote = await getRemoteUrl(sourceRepoPath);
+          const normalizedInstanceUrl = instance.url.replace(/\/$/, '');
+          const expectedUrls = [
+            `${normalizedInstanceUrl}/${owner}/${repo}.git`,
+            `${normalizedInstanceUrl}/${owner}/${repo}`,
+          ];
+          if (!remote || !expectedUrls.some((url) => normalizeGitUrl(remote) === normalizeGitUrl(url))) {
+            this._reply('worktreeError', {
+              error: vscode.l10n.t('Selected repository does not match the PR base repository'),
+            });
+            return;
+          }
+        }
       }
 
       const localBranch = `pr-${index}-${headSha.slice(0, 7)}`;
       await fetchPullRequestHead(sourceRepoPath, 'origin', index, localBranch);
 
-      const worktreePath = path.join(cacheDir, 'worktrees', `${owner}-${repo}-pr-${index}`);
+      const sanitizedTitle = sanitizeForPath(prTitle);
+      const titleSuffix = sanitizedTitle ? `-${sanitizedTitle}` : '';
+      const worktreePath = path.join(cacheDir, 'worktrees', `${owner}-${repo}-pr-${index}${titleSuffix}`);
       await createWorktreeFromBranch(sourceRepoPath, worktreePath, localBranch);
 
       const worktree: WorktreeInfo = {
@@ -1060,7 +1147,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         createdAt: Date.now(),
       };
       await this._worktreeManager.addWorktree(worktree);
-      await openWorktree(worktreePath, this._config.getWorktreeOpenMode() === 'newWindow');
+      await openWorktree(worktreePath, openInNewWindow);
       this._reply('worktreeOpened', { worktree, existed: false });
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);

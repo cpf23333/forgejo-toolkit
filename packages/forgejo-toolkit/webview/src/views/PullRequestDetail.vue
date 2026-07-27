@@ -390,6 +390,22 @@ watch(
 );
 
 watch(
+  () => state.lastWorktreeCancelled.value,
+  (cancelled) => {
+    if (
+      cancelled?.instanceId === instanceId.value &&
+      cancelled.owner === owner.value &&
+      cancelled.repo === repo.value &&
+      cancelled.index === index.value
+    ) {
+      worktreeLoading.value = false;
+      worktreeStatus.value = '';
+      worktreeStatusType.value = 'idle';
+    }
+  },
+);
+
+watch(
   () => state.errors.value,
   () => {
     // No global error hook for worktree errors yet; status is updated via separate mechanism if needed.

@@ -52,6 +52,7 @@
     "vue": "^3.5.0",
     "vue-tsc": "^3.3.5"
   },
+  "l10n": "./l10n",
   "contributes": {
     "configuration": {
       "title": "Forgejo Toolkit",
@@ -72,12 +73,14 @@
         },
         "forgejoToolkit.worktreeOpenMode": {
           "type": "string",
-          "default": "newWindow",
+          "default": "ask",
           "enum": [
+            "ask",
             "newWindow",
             "currentWindow"
           ],
           "enumDescriptions": [
+            "Ask each time how to open a worktree",
             "Open worktrees in a new VS Code window",
             "Open worktrees in the current VS Code window"
           ],
@@ -131,6 +134,7 @@
           "type": "webview",
           "id": "forgejoToolkitView",
           "name": "Dashboard",
+          "icon": "$(repo)",
           "when": "true"
         }
       ]
@@ -178,10 +182,6 @@
       ]
     }
   },
-  "activationEvents": [
-    "onCommand:forgejoToolkit.openOnboarding",
-    "onView:forgejoToolkitView"
-  ],
   "engines": {
     "vscode": "^1.85.0"
   }

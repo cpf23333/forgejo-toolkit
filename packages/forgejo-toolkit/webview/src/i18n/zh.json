@@ -201,6 +201,7 @@
       "title": "Pull Request Worktree",
       "description": "配置在本地打开 PR 的方式，并管理已创建的 worktree。",
       "openMode": "打开方式",
+      "ask": "每次询问",
       "newWindow": "新窗口",
       "currentWindow": "当前窗口",
       "cacheDirectory": "缓存目录",

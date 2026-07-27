@@ -1,0 +1,15 @@
+{
+  "How would you like to open the PR worktree?": "How would you like to open the PR worktree?",
+  "New window": "New window",
+  "Current window": "Current window",
+  "No local repository found for {owner}/{repo}. What would you like to do?": "No local repository found for {owner}/{repo}. What would you like to do?",
+  "Open cached bare repository": "Open cached bare repository",
+  "Clone to cache directory": "Clone to cache directory",
+  "Select an existing local repository": "Select an existing local repository",
+  "Cancel": "Cancel",
+  "Select repository": "Select repository",
+  "Selected folder is not a git repository": "Selected folder is not a git repository",
+  "Selected repository does not match the PR base repository": "Selected repository does not match the PR base repository",
+  "Instance not found": "Instance not found",
+  "Could not determine PR head branch or sha": "Could not determine PR head branch or sha"
+}

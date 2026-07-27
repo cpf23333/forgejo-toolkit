@@ -1,0 +1,15 @@
+{
+  "How would you like to open the PR worktree?": "你希望如何打开 PR worktree？",
+  "New window": "新窗口",
+  "Current window": "当前窗口",
+  "No local repository found for {owner}/{repo}. What would you like to do?": "未找到 {owner}/{repo} 的本地仓库。你想怎么做？",
+  "Open cached bare repository": "打开已缓存的 bare 仓库",
+  "Clone to cache directory": "Clone 到缓存目录",
+  "Select an existing local repository": "选择本地已有仓库",
+  "Cancel": "取消",
+  "Select repository": "选择仓库",
+  "Selected folder is not a git repository": "所选文件夹不是 git 仓库",
+  "Selected repository does not match the PR base repository": "所选仓库与 PR base 仓库不匹配",
+  "Instance not found": "未找到实例",
+  "Could not determine PR head branch or sha": "无法确定 PR head 分支或 sha"
+}

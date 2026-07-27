@@ -34,12 +34,15 @@ export class ConfigManager {
     await this.context.globalState.update(INSTANCES_KEY, instances);
   }
 
-  getWorktreeOpenMode(): 'currentWindow' | 'newWindow' {
-    const value = vscode.workspace.getConfiguration('forgejoToolkit').get<string>('worktreeOpenMode', 'newWindow');
-    return value === 'currentWindow' ? 'currentWindow' : 'newWindow';
+  getWorktreeOpenMode(): 'ask' | 'currentWindow' | 'newWindow' {
+    const value = vscode.workspace.getConfiguration('forgejoToolkit').get<string>('worktreeOpenMode', 'ask');
+    if (value === 'currentWindow' || value === 'newWindow') {
+      return value;
+    }
+    return 'ask';
   }
 
-  async setWorktreeOpenMode(mode: 'currentWindow' | 'newWindow'): Promise<void> {
+  async setWorktreeOpenMode(mode: 'ask' | 'currentWindow' | 'newWindow'): Promise<void> {
     await vscode.workspace.getConfiguration('forgejoToolkit').update('worktreeOpenMode', mode, true);
   }
 
