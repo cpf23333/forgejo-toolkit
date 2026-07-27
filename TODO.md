@@ -2,11 +2,10 @@
 
 ## 进行中
 
-- [ ] PR worktree 增强
-  - [ ] 判断当前 workspace 是否为 PR base repo
-  - [ ] 未设置打开方式时弹窗询问，并支持记住选择
-  - [ ] workspace 不匹配时：Clone / 打开已有仓库 / 取消
-  - [ ] worktree 目录命名支持 sanitized PR title
+- [ ] 仓库文件浏览器
+  - [ ] 目录树展示
+  - [ ] 文件内容查看
+  - [ ] 代码高亮
 
 ## 待开始
 
@@ -44,6 +43,11 @@
   - [x] worktree 已存在时直接打开
   - [x] PR 详情页 UI 入口：在 Worktree 中打开
   - [x] 设置页 worktree 维护面板：列出、打开、删除
+- [x] PR worktree 增强
+  - [x] 判断当前 workspace 是否为 PR base repo
+  - [x] 未设置打开方式时弹窗询问，并支持记住选择
+  - [x] workspace 不匹配时：Clone / 打开已有仓库 / 取消
+  - [x] worktree 目录命名支持 sanitized PR title
 - [x] Issue / PR 创建
 - [x] Issue / PR 编辑、关闭、重新打开
 - [x] Issue / PR 编辑弹窗（不留下路由历史）

@@ -22,6 +22,10 @@
 - 自动 bare clone 源仓库到缓存目录，基于 `refs/pull/<index>/head` 创建本地分支和可编辑 worktree。
 - 支持配置 worktree 打开方式（新窗口 / 当前窗口）和缓存目录。
 - 设置页管理已创建的 worktree（打开、删除）。
+- 打开 worktree 前检测当前 workspace 是否就是 PR base repo。
+- 未配置打开方式时弹窗询问（新窗口 / 当前窗口），并支持记住选择。
+- 本地没有源仓库时支持：clone 到缓存目录、选择已有本地仓库、取消。
+- worktree 目录命名包含 sanitized PR title。
 
 ### 设置页
 
@@ -98,13 +102,6 @@
 
 - 接入 MSW mock 用于测试或离线开发。
 - 为 API 客户端和 webview 添加单元 / 组件测试。
-
-### PR worktree 增强
-
-- 判断当前 workspace 是否为 PR base repo。
-- 未设置打开方式时弹窗询问，并支持记住选择。
-- workspace 不匹配时：Clone / 打开已有仓库 / 取消。
-- worktree 目录命名支持 sanitized PR title。
 
 ## 长期可能
 
