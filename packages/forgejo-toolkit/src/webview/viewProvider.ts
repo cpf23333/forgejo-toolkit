@@ -9,6 +9,7 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 import { getWebviewContent } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
+import { buildRepoFileUri } from '../repoFileProvider';
 import { WorktreeManager, WorktreeInfo } from '../worktree/worktreeManager';
 import {
   cloneRepository,
@@ -838,6 +839,69 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`renderMarkdown failed for ${instance.name}: ${err}`);
               this._reply('renderedMarkdown', { key, error: err });
+            }
+            return;
+          }
+          case 'getRepoContents': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, path, ref } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof path !== 'string' ||
+              typeof ref !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const entries = await client.getRepoContents(owner, repo, path, ref || undefined);
+              logger.debug(
+                `getRepoContents returned ${entries.length} entries for ${instance.name}/${owner}/${repo}/${path}@${ref}: ${JSON.stringify(entries.map((e) => ({ name: e.name, path: e.path, type: e.type })))}`,
+              );
+              this._reply('repoContents', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                ref,
+                path,
+                entries,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getRepoContents failed for ${instance.name}/${owner}/${repo}/${path}: ${err}`);
+              this._reply('repoContents', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                ref,
+                path,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'openRepoFile': {
+            const { instanceId, owner, repo, path, ref } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof path !== 'string' ||
+              typeof ref !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const uri = buildRepoFileUri({ instanceId, owner, repo, ref, path });
+              await vscode.commands.executeCommand('vscode.open', uri, { preview: false });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`openRepoFile failed for ${owner}/${repo}/${path}: ${err}`);
+              vscode.window.showErrorMessage(`Unable to open file: ${err}`);
             }
             return;
           }

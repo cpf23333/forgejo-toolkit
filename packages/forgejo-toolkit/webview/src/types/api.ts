@@ -158,6 +158,19 @@ export interface ForgejoRepoDetail {
   recentCommits: ForgejoCommit[];
 }
 
+export interface ForgejoContentEntry {
+  name?: string;
+  path?: string;
+  type?: 'file' | 'dir' | 'symlink' | 'submodule' | string;
+  sha?: string;
+  size?: number;
+  content?: string;
+  encoding?: string;
+  download_url?: string;
+  html_url?: string;
+  url?: string;
+}
+
 export interface ForgejoCommit {
   sha: string;
   commit: {

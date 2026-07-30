@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState, repoBranchCommitsKey, repoDetailKey } from '../composables/useAppState';
+import RepoFileBrowser from '../components/RepoFileBrowser.vue';
 import type { ForgejoCommit } from '../types/api';
 
 const { t } = useI18n();
@@ -32,6 +33,7 @@ const repoUrl = computed(() => detail.value?.repository.html_url ?? '');
 const cloneUrl = computed(() => (repoUrl.value ? `${repoUrl.value}.git` : ''));
 
 const selectedBranch = ref(detail.value?.repository.default_branch ?? '');
+const activeTab = ref<'overview' | 'files'>('overview');
 
 watch(
   () => detail.value?.repository.default_branch,
@@ -148,49 +150,70 @@ function committerName(commit: ForgejoCommit): string {
         </div>
       </div>
 
-      <section v-if="detail.empty" class="section">
-        <div class="empty-repo">{{ t('dashboard.emptyRepository') }}</div>
-      </section>
+      <div class="repo-tabs">
+        <button class="tab-button" :class="{ active: activeTab === 'overview' }" @click="activeTab = 'overview'">
+          {{ t('dashboard.overview') }}
+        </button>
+        <button class="tab-button" :class="{ active: activeTab === 'files' }" @click="activeTab = 'files'">
+          {{ t('dashboard.files') }}
+        </button>
+      </div>
 
-      <section v-if="detail.branches.length" class="section">
-        <h3>{{ t('dashboard.branches') }}</h3>
-        <vscode-single-select filter :value="selectedBranch" class="branch-select" @change="onBranchChange">
-          <vscode-option
-            v-for="branch in detail.branches"
-            :key="branch"
-            :value="branch"
-            :selected="branch === detail.repository.default_branch"
-          >
-            {{ branch }}
-            <span v-if="branch === detail.repository.default_branch" class="default-badge">
-              {{ t('dashboard.defaultBranch') }}
-            </span>
-          </vscode-option>
-        </vscode-single-select>
-      </section>
+      <div v-if="activeTab === 'overview'">
+        <section v-if="detail.empty" class="section">
+          <div class="empty-repo">{{ t('dashboard.emptyRepository') }}</div>
+        </section>
 
-      <section v-if="recentCommits.length || recentCommitsLoading" class="section">
-        <h3>{{ t('dashboard.recentCommits') }}</h3>
-        <div v-if="recentCommitsLoading" class="loading">{{ t('dashboard.loading') }}</div>
-        <div v-else class="commit-list">
-          <div v-for="commit in recentCommits" :key="commit.sha" class="commit-item">
-            <span class="commit-message">{{ commitMessage(commit.commit.message) }}</span>
-            <span class="commit-info">
-              <img
-                v-if="committerAvatar(commit)"
-                :src="committerAvatar(commit)"
-                :alt="committerName(commit)"
-                class="commit-avatar"
-              />
-              <span class="commit-author">{{ committerName(commit) }}</span>
-              <span class="commit-date">{{ formatDate(commit.commit.author.date) }}</span>
-            </span>
-            <a href="#" class="commit-sha" @click.prevent="state.openExternal(commit.html_url)">{{
-              commit.sha.slice(0, 7)
-            }}</a>
+        <section v-if="detail.branches.length" class="section">
+          <h3>{{ t('dashboard.branches') }}</h3>
+          <vscode-single-select filter :value="selectedBranch" class="branch-select" @change="onBranchChange">
+            <vscode-option
+              v-for="branch in detail.branches"
+              :key="branch"
+              :value="branch"
+              :selected="branch === detail.repository.default_branch"
+            >
+              {{ branch }}
+              <span v-if="branch === detail.repository.default_branch" class="default-badge">
+                {{ t('dashboard.defaultBranch') }}
+              </span>
+            </vscode-option>
+          </vscode-single-select>
+        </section>
+
+        <section v-if="recentCommits.length || recentCommitsLoading" class="section">
+          <h3>{{ t('dashboard.recentCommits') }}</h3>
+          <div v-if="recentCommitsLoading" class="loading">{{ t('dashboard.loading') }}</div>
+          <div v-else class="commit-list">
+            <div v-for="commit in recentCommits" :key="commit.sha" class="commit-item">
+              <span class="commit-message">{{ commitMessage(commit.commit.message) }}</span>
+              <span class="commit-info">
+                <img
+                  v-if="committerAvatar(commit)"
+                  :src="committerAvatar(commit)"
+                  :alt="committerName(commit)"
+                  class="commit-avatar"
+                />
+                <span class="commit-author">{{ committerName(commit) }}</span>
+                <span class="commit-date">{{ formatDate(commit.commit.author.date) }}</span>
+              </span>
+              <a href="#" class="commit-sha" @click.prevent="state.openExternal(commit.html_url)">{{
+                commit.sha.slice(0, 7)
+              }}</a>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
+
+      <div v-if="activeTab === 'files'" class="files-tab">
+        <RepoFileBrowser
+          :instance-id="instanceId"
+          :owner="owner"
+          :repo="repo"
+          :branches="detail.branches"
+          :default-branch="detail.repository.default_branch"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -376,5 +399,34 @@ function committerName(commit: ForgejoCommit): string {
 
 .branch-select {
   max-width: 320px;
+}
+
+.repo-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 0.95em;
+}
+
+.tab-button:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.tab-button.active {
+  border-bottom-color: var(--vscode-focusBorder);
+  font-weight: 600;
+}
+
+.files-tab {
+  min-height: 400px;
 }
 </style>

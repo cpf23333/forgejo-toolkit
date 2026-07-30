@@ -138,6 +138,16 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | { command: 'renderedMarkdown'; key: string; html?: string; error?: string }
+  | {
+      command: 'repoContents';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      ref: string;
+      path: string;
+      entries?: unknown[];
+      error?: string;
+    }
   | { command: 'worktreesList'; worktrees: unknown[] }
   | { command: 'worktreeOpened'; worktree: unknown; existed?: boolean }
   | { command: 'worktreeCancelled'; instanceId: string; owner: string; repo: string; index: number }
@@ -276,6 +286,8 @@ export type WebviewToHostMessage =
   | { command: 'getRepoIssues'; instanceId: string; owner: string; repo: string; state?: string }
   | { command: 'getRepoPullRequests'; instanceId: string; owner: string; repo: string; state?: string }
   | { command: 'renderMarkdown'; instanceId: string; text: string; context?: string; key: string }
+  | { command: 'getRepoContents'; instanceId: string; owner: string; repo: string; path: string; ref: string }
+  | { command: 'openRepoFile'; instanceId: string; owner: string; repo: string; path: string; ref: string }
   | { command: 'copyToClipboard'; text: string }
   | { command: 'openExternal'; url: string }
   | { command: 'previewReadme'; owner: string; repo: string; content: string }

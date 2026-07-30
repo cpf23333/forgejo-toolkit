@@ -56,6 +56,12 @@
     },
     "openPullRequests": "Open PRs",
     "recentCommits": "Recent Commits",
+    "overview": "Overview",
+    "files": "Files",
+    "fileBrowser": {
+      "emptyDirectory": "This directory is empty.",
+      "refresh": "Refresh"
+    },
     "branches": "Branches",
     "defaultBranch": "default",
     "readme": "README",

@@ -3,12 +3,14 @@ import { registerCommands } from './commands';
 import { ForgejoToolkitViewProvider } from './webview/viewProvider';
 import { ConfigManager } from './config';
 import { registerReadmeProvider } from './readmeProvider';
+import { registerRepoFileProvider } from './repoFileProvider';
 import { FORGEJO_PR_SCHEME, ForgejoPRFileSystemProvider } from './prFileSystemProvider';
 import { ForgejoPRDecorationProvider } from './prDecorationProvider';
 
 export function activate(context: vscode.ExtensionContext) {
   const config = new ConfigManager(context);
   const readmeProvider = registerReadmeProvider(context);
+  registerRepoFileProvider(context, config);
   const prFileSystemProvider = new ForgejoPRFileSystemProvider(config);
 
   context.subscriptions.push(

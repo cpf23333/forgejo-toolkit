@@ -16,6 +16,7 @@ import {
   repoGet,
   repoGetAllCommits,
   repoGetContents,
+  repoGetContentsList,
   repoGetPullRequest,
   repoGetPullRequestCommits,
   repoGetPullRequestFiles,
@@ -37,6 +38,7 @@ import type { Logger } from '../logger';
 import type {
   ForgejoChangedFile,
   ForgejoCommit,
+  ForgejoContentEntry,
   ForgejoIssue,
   ForgejoIssueAttachment,
   ForgejoIssueDetail,
@@ -145,6 +147,17 @@ export class ForgejoClient {
           html_url: commit.html_url ?? '',
         }) as ForgejoCommit,
     );
+  }
+
+  async getRepoContents(owner: string, repo: string, path: string, ref?: string): Promise<ForgejoContentEntry[]> {
+    const params = ref ? { ref } : undefined;
+    if (!path) {
+      const entries = await repoGetContentsList(owner, repo, params, { client: this._client() });
+      return (entries ?? []) as ForgejoContentEntry[];
+    }
+    const result = await repoGetContents(owner, repo, path, params, { client: this._client() });
+    const entries = Array.isArray(result) ? result : [result];
+    return entries as ForgejoContentEntry[];
   }
 
   getIssueDetail(owner: string, repo: string, index: number): Promise<ForgejoIssueDetail> {

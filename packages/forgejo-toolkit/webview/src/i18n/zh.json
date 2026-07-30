@@ -56,6 +56,12 @@
     },
     "openPullRequests": "Open PRs",
     "recentCommits": "最近提交",
+    "overview": "概览",
+    "files": "文件",
+    "fileBrowser": {
+      "emptyDirectory": "该目录为空。",
+      "refresh": "刷新"
+    },
     "branches": "分支",
     "defaultBranch": "默认",
     "readme": "README",

@@ -20,6 +20,7 @@ import type {
   ForgejoPullRequestWorktreeInfo,
   ForgejoTimelineComment,
   ForgejoPullRequestCommit,
+  ForgejoContentEntry,
 } from '../types/api';
 
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -42,6 +43,7 @@ export function useAppState() {
   const pullRequestFiles = ref<Map<string, ForgejoChangedFile[]>>(new Map());
   const pullRequestComments = ref<Map<string, ForgejoTimelineComment[]>>(new Map());
   const pullRequestCommits = ref<Map<string, ForgejoPullRequestCommit[]>>(new Map());
+  const repoContents = ref<Map<string, ForgejoContentEntry[]>>(new Map());
   const renderedMarkdown = ref<Map<string, string>>(new Map());
   const loading = ref<Map<string, boolean>>(new Map());
   const errors = ref<Map<string, string>>(new Map());
@@ -262,6 +264,19 @@ export function useAppState() {
         break;
       case 'renderedMarkdown':
         handleRenderedMarkdown(message as { key: string; html?: string; error?: string });
+        break;
+      case 'repoContents':
+        handleRepoContents(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            ref: string;
+            path: string;
+            entries?: ForgejoContentEntry[];
+            error?: string;
+          },
+        );
         break;
       case 'worktreesList':
         worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
@@ -608,6 +623,25 @@ export function useAppState() {
     }
   }
 
+  function handleRepoContents(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    ref: string;
+    path: string;
+    entries?: ForgejoContentEntry[];
+    error?: string;
+  }) {
+    const key = repoContentsKey(data.instanceId, data.owner, data.repo, data.ref, data.path);
+    loading.value.set(key, false);
+    if (data.error) {
+      errors.value.set(key, data.error);
+    } else {
+      errors.value.delete(key);
+      repoContents.value.set(key, data.entries ?? []);
+    }
+  }
+
   function handleRenderedMarkdown(data: { key: string; html?: string; error?: string }) {
     const pending = pendingRenderMarkdownRequests.get(data.key);
     if (!pending) {
@@ -693,6 +727,20 @@ export function useAppState() {
     }
     loading.value.set(key, true);
     vscode.postMessage({ command: 'getRepoBranchCommits', instanceId, owner, repo, branch });
+  }
+
+  function openRepoFile(instanceId: string, owner: string, repo: string, path: string, ref: string) {
+    vscode.postMessage({ command: 'openRepoFile', instanceId, owner, repo, path, ref });
+  }
+
+  function loadRepoContents(instanceId: string, owner: string, repo: string, path: string, ref: string, force = false) {
+    const key = repoContentsKey(instanceId, owner, repo, ref, path);
+    if (!force && repoContents.value.has(key)) {
+      return;
+    }
+    loading.value.set(key, true);
+    errors.value.delete(key);
+    vscode.postMessage({ command: 'getRepoContents', instanceId, owner, repo, path, ref });
   }
 
   function createIssue(instanceId: string, owner: string, repo: string, title: string, body: string) {
@@ -1014,6 +1062,7 @@ export function useAppState() {
     pullRequestFiles,
     pullRequestComments,
     pullRequestCommits,
+    repoContents,
     loading,
     errors,
     debug,
@@ -1041,6 +1090,8 @@ export function useAppState() {
     openRepoDetail,
     loadRepoDetail,
     loadRepoBranchCommits,
+    loadRepoContents,
+    openRepoFile,
     createIssue,
     editIssue,
     uploadIssueAttachment,
@@ -1119,6 +1170,10 @@ export function repoIssuesKey(instanceId: string, owner: string, repo: string, s
 
 export function repoPullRequestsKey(instanceId: string, owner: string, repo: string, state: string): string {
   return `${instanceId}:${owner}/${repo}:pulls:${state}`;
+}
+
+export function repoContentsKey(instanceId: string, owner: string, repo: string, ref: string, path: string): string {
+  return `${instanceId}:${owner}/${repo}:contents:${ref}:${path}`;
 }
 
 function isVersionAtLeast(version: string, minimum: string): boolean {
