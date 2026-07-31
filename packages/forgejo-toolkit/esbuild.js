@@ -1,3 +1,4 @@
+const fs = require('fs');
 const esbuild = require('esbuild');
 
 const watch = process.argv.includes('--watch');
@@ -11,7 +12,7 @@ const config = {
   format: 'cjs',
   platform: 'node',
   target: 'node18',
-  sourcemap: true,
+  sourcemap: !production,
   minify: production,
 };
 
@@ -27,6 +28,9 @@ async function main() {
     console.log('[extension] watching...');
     console.log('[extension] build complete');
   } else {
+    if (production) {
+      fs.rmSync('out/extension.js.map', { force: true });
+    }
     await esbuild.build(config);
     console.log('[extension] build complete');
   }

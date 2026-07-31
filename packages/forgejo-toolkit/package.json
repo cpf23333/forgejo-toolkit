@@ -14,10 +14,14 @@
     "pull requests"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "http://192.168.1.100:3004/cpf23333/forgejo-toolkit.git"
+  },
   "publisher": "your-publisher-name",
   "main": "./out/extension.js",
   "scripts": {
-    "build": "node esbuild.js && vite build --config webview/vite.config.ts",
+    "build": "node esbuild.js --production && vite build --config webview/vite.config.ts",
     "build:extension": "node esbuild.js",
     "build:webview": "vite build --config webview/vite.config.ts",
     "watch:extension": "node esbuild.js --watch",
@@ -27,8 +31,7 @@
     "test": "vitest run --config webview/vitest.config.ts",
     "test:watch": "vitest --config webview/vitest.config.ts",
     "clean": "rm -rf out node_modules",
-    "vscode:prepublish": "pnpm run build",
-    "package": "vsce package"
+    "package": "pnpm run build && vsce package --no-dependencies"
   },
   "dependencies": {
     "@cpf23333-forgejo-toolkit/api": "workspace:*",
@@ -46,6 +49,7 @@
     "@vitejs/plugin-vue": "^6.0.7",
     "@vscode-elements/elements": "^2.5.1",
     "@vscode/codicons": "^0.0.45",
+    "@vscode/vsce": "^3.3.2",
     "@vue/test-utils": "^2.4.11",
     "@vue/tsconfig": "^0.9.1",
     "concurrently": "^10.0.3",
@@ -188,7 +192,11 @@
       ]
     }
   },
+  "activationEvents": [
+    "onView:forgejoToolkitView"
+  ],
   "engines": {
     "vscode": "^1.85.0"
-  }
+  },
+  "packageManager": "pnpm@11.18.0"
 }

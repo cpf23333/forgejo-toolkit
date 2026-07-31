@@ -2,8 +2,10 @@ packages:
   - packages/*
 
 allowBuilds:
+  '@vscode/vsce-sign': true
   es5-ext: true
   esbuild: true
+  keytar: true
   lefthook: true
   msw: true
 
