@@ -161,13 +161,7 @@ async function removeAttachment(attachment: ForgejoReleaseAttachment) {
   }
   attachmentError.value = '';
   try {
-    await state.deleteReleaseAttachment(
-      props.instanceId,
-      props.owner,
-      props.repo,
-      props.release.id,
-      attachment.id,
-    );
+    await state.deleteReleaseAttachment(props.instanceId, props.owner, props.repo, props.release.id, attachment.id);
     attachments.value = attachments.value.filter((a) => a.id !== attachment.id);
   } catch (err) {
     attachmentError.value = err instanceof Error ? err.message : String(err);
@@ -308,7 +302,13 @@ function title(): string {
         </template>
         <template v-else>
           <VscodeButton type="submit" :disabled="loading || !name.trim()">
-            {{ loading ? t('dashboard.form.saving') : (props.release ? t('dashboard.form.save') : t('dashboard.form.create')) }}
+            {{
+              loading
+                ? t('dashboard.form.saving')
+                : props.release
+                  ? t('dashboard.form.save')
+                  : t('dashboard.form.create')
+            }}
           </VscodeButton>
         </template>
         <VscodeButton type="button" secondary @click="emit('close')">

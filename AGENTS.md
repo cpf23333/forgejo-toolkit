@@ -44,6 +44,7 @@ When you need a new element, create its wrapper in `packages/vscode-elements-vue
 - Do **not** run `git commit`, `git push`, `git reset`, `git rebase`, `git checkout`, or any other git mutation command without explicit user instruction.
 - The user decides when and what to commit. It is safe to stage files (`git add`) only when the user explicitly asks for it.
 - If a commit was made by mistake, stop and ask the user before undoing it.
+- When the user asks to commit, write the commit message in English.
 
 ## Webview runtime limitations
 

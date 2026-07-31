@@ -194,7 +194,7 @@ function cloneUrl(instance: { url: string }, repo: ForgejoRepository): string {
 }
 
 function formatError(key: string): string {
-  return t('dashboard.error', { message: state.errors.value.get(key) ?? '' });
+  return t('dashboard.error', { message: state.errors.get(key) ?? '' });
 }
 
 function repoCount(instanceId: string): number {
@@ -233,8 +233,8 @@ const instances = computed(() => state.instances.value);
 const repositories = computed(() => state.repositories.value);
 const myIssues = computed(() => state.myIssues.value);
 const myPullRequests = computed(() => state.myPullRequests.value);
-const loading = computed(() => state.loading.value);
-const errors = computed(() => state.errors.value);
+const loading = computed(() => state.loading);
+const errors = computed(() => state.errors);
 </script>
 
 <template>

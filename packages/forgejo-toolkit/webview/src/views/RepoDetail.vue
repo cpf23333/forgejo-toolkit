@@ -18,8 +18,8 @@ const repo = computed(() => String(route.params.repo));
 const key = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
 
 const detail = computed(() => state.repoDetails.value.get(key.value));
-const loading = computed(() => state.loading.value.get(key.value) ?? false);
-const error = computed(() => state.errors.value.get(key.value));
+const loading = computed(() => state.loading.get(key.value) ?? false);
+const error = computed(() => state.errors.get(key.value));
 const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
 
 watch(
@@ -52,7 +52,7 @@ const recentCommits = computed(() => {
 
 const recentCommitsLoading = computed(() => {
   const key = repoBranchCommitsKey(instanceId.value, owner.value, repo.value, selectedBranch.value);
-  return state.loading.value.get(key) ?? false;
+  return state.loading.get(key) ?? false;
 });
 
 function onBranchChange(event: Event) {
@@ -169,71 +169,73 @@ function committerName(commit: ForgejoCommit): string {
         </button>
       </div>
 
-      <div v-if="activeTab === 'overview'">
-        <section v-if="detail.empty" class="section">
-          <div class="empty-repo">{{ t('dashboard.emptyRepository') }}</div>
-        </section>
+      <div class="tab-content">
+        <div v-if="activeTab === 'overview'" class="tab-pane overview-pane">
+          <section v-if="detail.empty" class="section">
+            <div class="empty-repo">{{ t('dashboard.emptyRepository') }}</div>
+          </section>
 
-        <section v-if="detail.branches.length" class="section">
-          <h3>{{ t('dashboard.branches') }}</h3>
-          <vscode-single-select filter :value="selectedBranch" class="branch-select" @change="onBranchChange">
-            <vscode-option
-              v-for="branch in detail.branches"
-              :key="branch"
-              :value="branch"
-              :selected="branch === detail.repository.default_branch"
-            >
-              {{ branch }}
-              <span v-if="branch === detail.repository.default_branch" class="default-badge">
-                {{ t('dashboard.defaultBranch') }}
-              </span>
-            </vscode-option>
-          </vscode-single-select>
-        </section>
+          <section v-if="detail.branches.length" class="section">
+            <h3>{{ t('dashboard.branches') }}</h3>
+            <vscode-single-select filter :value="selectedBranch" class="branch-select" @change="onBranchChange">
+              <vscode-option
+                v-for="branch in detail.branches"
+                :key="branch"
+                :value="branch"
+                :selected="branch === detail.repository.default_branch"
+              >
+                {{ branch }}
+                <span v-if="branch === detail.repository.default_branch" class="default-badge">
+                  {{ t('dashboard.defaultBranch') }}
+                </span>
+              </vscode-option>
+            </vscode-single-select>
+          </section>
 
-        <section v-if="recentCommits.length || recentCommitsLoading" class="section">
-          <h3>{{ t('dashboard.recentCommits') }}</h3>
-          <div v-if="recentCommitsLoading" class="loading">{{ t('dashboard.loading') }}</div>
-          <div v-else class="commit-list">
-            <div v-for="commit in recentCommits" :key="commit.sha" class="commit-item">
-              <span class="commit-message">{{ commitMessage(commit.commit.message) }}</span>
-              <span class="commit-info">
-                <img
-                  v-if="committerAvatar(commit)"
-                  :src="committerAvatar(commit)"
-                  :alt="committerName(commit)"
-                  class="commit-avatar"
-                />
-                <span class="commit-author">{{ committerName(commit) }}</span>
-                <span class="commit-date">{{ formatDate(commit.commit.author.date) }}</span>
-              </span>
-              <a href="#" class="commit-sha" @click.prevent="state.openExternal(commit.html_url)">{{
-                commit.sha.slice(0, 7)
-              }}</a>
+          <section v-if="recentCommits.length || recentCommitsLoading" class="section">
+            <h3>{{ t('dashboard.recentCommits') }}</h3>
+            <div v-if="recentCommitsLoading" class="loading">{{ t('dashboard.loading') }}</div>
+            <div v-else class="commit-list">
+              <div v-for="commit in recentCommits" :key="commit.sha" class="commit-item">
+                <span class="commit-message">{{ commitMessage(commit.commit.message) }}</span>
+                <span class="commit-info">
+                  <img
+                    v-if="committerAvatar(commit)"
+                    :src="committerAvatar(commit)"
+                    :alt="committerName(commit)"
+                    class="commit-avatar"
+                  />
+                  <span class="commit-author">{{ committerName(commit) }}</span>
+                  <span class="commit-date">{{ formatDate(commit.commit.author.date) }}</span>
+                </span>
+                <a href="#" class="commit-sha" @click.prevent="state.openExternal(commit.html_url)">{{
+                  commit.sha.slice(0, 7)
+                }}</a>
+              </div>
             </div>
-          </div>
-        </section>
-      </div>
+          </section>
+        </div>
 
-      <div v-if="activeTab === 'files'" class="files-tab">
-        <RepoFileBrowser
-          :instance-id="instanceId"
-          :owner="owner"
-          :repo="repo"
-          :branches="detail.branches"
-          :default-branch="detail.repository.default_branch"
-          :branch="selectedBranch"
-        />
-      </div>
+        <div v-if="activeTab === 'files'" class="tab-pane files-tab">
+          <RepoFileBrowser
+            :instance-id="instanceId"
+            :owner="owner"
+            :repo="repo"
+            :branches="detail.branches"
+            :default-branch="detail.repository.default_branch"
+            :branch="selectedBranch"
+          />
+        </div>
 
-      <div v-if="activeTab === 'refs'" class="refs-tab">
-        <RepoRefs
-          :instance-id="instanceId"
-          :owner="owner"
-          :repo="repo"
-          :default-branch="detail.repository.default_branch"
-          @select-branch="onSelectBranch"
-        />
+        <div v-if="activeTab === 'refs'" class="tab-pane refs-tab">
+          <RepoRefs
+            :instance-id="instanceId"
+            :owner="owner"
+            :repo="repo"
+            :default-branch="detail.repository.default_branch"
+            @select-branch="onSelectBranch"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -244,6 +246,8 @@ function committerName(commit: ForgejoCommit): string {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100%;
+  overflow: hidden;
 }
 
 .loading {
@@ -258,6 +262,8 @@ function committerName(commit: ForgejoCommit): string {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  height: 100%;
+  overflow: hidden;
 }
 
 .repo-header {
@@ -447,11 +453,29 @@ function committerName(commit: ForgejoCommit): string {
   font-weight: 600;
 }
 
+.tab-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
 .files-tab {
-  min-height: 400px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .refs-tab {
-  min-height: 400px;
+  min-height: 0;
+  overflow: auto;
 }
 </style>

@@ -1,7 +1,10 @@
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { ForgejoInstance } from '../types/instance';
+
+const loading = reactive(new Map<string, boolean>());
+const errors = reactive(new Map<string, string>());
 import '../types/config';
 import { vscode } from './vscode';
 
@@ -26,10 +29,11 @@ import type {
   ForgejoRelease,
   ForgejoReleaseAttachment,
 } from '../types/api';
+import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
-export function useAppState() {
+function createAppState() {
   const router = useRouter();
   const { t, locale } = useI18n();
 
@@ -48,10 +52,12 @@ export function useAppState() {
   const pullRequestComments = ref<Map<string, ForgejoTimelineComment[]>>(new Map());
   const pullRequestCommits = ref<Map<string, ForgejoPullRequestCommit[]>>(new Map());
   const repoContents = ref<Map<string, ForgejoContentEntry[]>>(new Map());
-  const repoRefs = ref<Map<string, { branches: ForgejoBranch[]; tags: ForgejoTag[]; releases: ForgejoRelease[] }>>(new Map());
+  const repoRefs = ref<Map<string, { branches: ForgejoBranch[]; tags: ForgejoTag[]; releases: ForgejoRelease[] }>>(
+    new Map(),
+  );
+  const repoFileSearchResults = ref<Map<string, GitEntry[]>>(new Map());
+  const fileHistories = ref<Map<string, ForgejoCommit[]>>(new Map());
   const renderedMarkdown = ref<Map<string, string>>(new Map());
-  const loading = ref<Map<string, boolean>>(new Map());
-  const errors = ref<Map<string, string>>(new Map());
 
   let inputRequestId = 0;
   const inputBoxPromises = new Map<string, (value: string | undefined) => void>();
@@ -292,6 +298,32 @@ export function useAppState() {
           },
         );
         break;
+      case 'repoFilesSearchResult':
+        handleRepoFilesSearchResult(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            ref: string;
+            query: string;
+            files?: GitEntry[];
+            error?: string;
+          },
+        );
+        break;
+      case 'fileHistory':
+        handleFileHistory(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            path: string;
+            ref: string;
+            commits?: ForgejoCommit[];
+            error?: string;
+          },
+        );
+        break;
       case 'repoRefs':
         handleRepoRefs(
           message as {
@@ -320,9 +352,9 @@ export function useAppState() {
         };
         const key = repoRefsKey(instanceId, owner, repo);
         if (error) {
-          errors.value.set(key, error);
+          errors.set(key, error);
         } else {
-          errors.value.delete(key);
+          errors.delete(key);
           loadRepoRefs(instanceId, owner, repo, true);
         }
         break;
@@ -419,33 +451,33 @@ export function useAppState() {
 
   function handleRepositories(data: { instanceId: string; repositories?: ForgejoRepository[]; error?: string }) {
     const key = `repos-${data.instanceId}`;
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       repositories.value.set(data.instanceId, data.repositories ?? []);
     }
   }
 
   function handleMyIssues(data: { instanceId: string; issues?: ForgejoIssue[]; error?: string }) {
     const key = `issues-${data.instanceId}`;
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       myIssues.value.set(data.instanceId, data.issues ?? []);
     }
   }
 
   function handleMyPullRequests(data: { instanceId: string; pullRequests?: ForgejoPullRequest[]; error?: string }) {
     const key = `pulls-${data.instanceId}`;
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       myPullRequests.value.set(data.instanceId, data.pullRequests ?? []);
     }
   }
@@ -458,11 +490,11 @@ export function useAppState() {
     error?: string;
   }) {
     const key = repoDetailKey(data.instanceId, data.owner, data.repo);
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else if (data.detail) {
-      errors.value.delete(key);
+      errors.delete(key);
       repoDetails.value.set(key, data.detail);
     }
   }
@@ -476,11 +508,11 @@ export function useAppState() {
     error?: string;
   }) {
     const key = repoBranchCommitsKey(data.instanceId, data.owner, data.repo, data.branch);
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       repoBranchCommits.value.set(key, data.commits ?? []);
     }
   }
@@ -494,11 +526,11 @@ export function useAppState() {
     error?: string;
   }) {
     const key = issueDetailKey(data.instanceId, data.owner, data.repo, data.index);
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else if (data.detail) {
-      errors.value.delete(key);
+      errors.delete(key);
       issueDetails.value.set(key, data.detail);
     }
   }
@@ -512,11 +544,11 @@ export function useAppState() {
     error?: string;
   }) {
     const key = pullRequestDetailKey(data.instanceId, data.owner, data.repo, data.index);
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else if (data.detail) {
-      errors.value.delete(key);
+      errors.delete(key);
       pullRequestDetails.value.set(key, data.detail);
     }
   }
@@ -585,12 +617,12 @@ export function useAppState() {
     },
   ) {
     const formKey = issueFormKey(data.instanceId, data.owner, data.repo, command === 'issueUpdated' ? data.index : 0);
-    loading.value.set(formKey, false);
+    loading.set(formKey, false);
     if (data.error) {
-      errors.value.set(formKey, data.error);
+      errors.set(formKey, data.error);
       return;
     }
-    errors.value.delete(formKey);
+    errors.delete(formKey);
     if (data.item) {
       repoIssues.value.clear();
       myIssues.value.clear();
@@ -615,12 +647,12 @@ export function useAppState() {
       data.repo,
       command === 'pullRequestUpdated' ? data.index : 0,
     );
-    loading.value.set(formKey, false);
+    loading.set(formKey, false);
     if (data.error) {
-      errors.value.set(formKey, data.error);
+      errors.set(formKey, data.error);
       return;
     }
-    errors.value.delete(formKey);
+    errors.delete(formKey);
     if (data.item) {
       repoPullRequests.value.clear();
       myPullRequests.value.clear();
@@ -643,9 +675,9 @@ export function useAppState() {
   }) {
     const key = pullRequestFilesKey(data.instanceId, data.owner, data.repo, data.index);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       pullRequestFiles.value.set(key, data.files ?? []);
     }
   }
@@ -660,9 +692,9 @@ export function useAppState() {
   }) {
     const key = pullRequestCommentsKey(data.instanceId, data.owner, data.repo, data.index);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       pullRequestComments.value.set(key, data.comments ?? []);
     }
   }
@@ -677,9 +709,9 @@ export function useAppState() {
   }) {
     const key = pullRequestCommitsKey(data.instanceId, data.owner, data.repo, data.index);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       pullRequestCommits.value.set(key, data.commits ?? []);
     }
   }
@@ -693,11 +725,11 @@ export function useAppState() {
     error?: string;
   }) {
     const key = repoIssuesKey(data.instanceId, data.owner, data.repo, data.state);
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       repoIssues.value.set(key, data.issues ?? []);
     }
   }
@@ -711,11 +743,11 @@ export function useAppState() {
     error?: string;
   }) {
     const key = repoPullRequestsKey(data.instanceId, data.owner, data.repo, data.state);
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       repoPullRequests.value.set(key, data.pullRequests ?? []);
     }
   }
@@ -730,12 +762,50 @@ export function useAppState() {
     error?: string;
   }) {
     const key = repoContentsKey(data.instanceId, data.owner, data.repo, data.ref, data.path);
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       repoContents.value.set(key, data.entries ?? []);
+    }
+  }
+
+  function handleRepoFilesSearchResult(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    ref: string;
+    query: string;
+    files?: GitEntry[];
+    error?: string;
+  }) {
+    const key = repoFileSearchKey(data.instanceId, data.owner, data.repo, data.ref, data.query);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      repoFileSearchResults.value.set(key, data.files ?? []);
+    }
+  }
+
+  function handleFileHistory(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    path: string;
+    ref: string;
+    commits?: ForgejoCommit[];
+    error?: string;
+  }) {
+    const key = fileHistoryKey(data.instanceId, data.owner, data.repo, data.path, data.ref);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      fileHistories.value.set(key, data.commits ?? []);
     }
   }
 
@@ -749,11 +819,11 @@ export function useAppState() {
     error?: string;
   }) {
     const key = repoRefsKey(data.instanceId, data.owner, data.repo);
-    loading.value.set(key, false);
+    loading.set(key, false);
     if (data.error) {
-      errors.value.set(key, data.error);
+      errors.set(key, data.error);
     } else {
-      errors.value.delete(key);
+      errors.delete(key);
       repoRefs.value.set(key, {
         branches: data.branches ?? [],
         tags: data.tags ?? [],
@@ -783,10 +853,6 @@ export function useAppState() {
     vscode.postMessage({ command: 'getWorktrees' });
     vscode.postMessage({ command: 'getWorktreeOpenMode' });
     vscode.postMessage({ command: 'getWorktreeCacheDirectory' });
-  });
-
-  onUnmounted(() => {
-    window.removeEventListener('message', handleMessage);
   });
 
   function openExternal(url: string) {
@@ -835,7 +901,7 @@ export function useAppState() {
   function loadRepoDetail(instanceId: string, owner: string, repo: string) {
     const key = repoDetailKey(instanceId, owner, repo);
     if (!repoDetails.value.has(key)) {
-      loading.value.set(key, true);
+      loading.set(key, true);
       vscode.postMessage({ command: 'getRepoDetail', instanceId, owner, repo });
     }
   }
@@ -845,7 +911,7 @@ export function useAppState() {
     if (repoBranchCommits.value.has(key)) {
       return;
     }
-    loading.value.set(key, true);
+    loading.set(key, true);
     vscode.postMessage({ command: 'getRepoBranchCommits', instanceId, owner, repo, branch });
   }
 
@@ -853,14 +919,39 @@ export function useAppState() {
     vscode.postMessage({ command: 'openRepoFile', instanceId, owner, repo, path, ref });
   }
 
+  function openRepoFileDiff(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    path: string,
+    baseRef: string,
+    headRef: string,
+  ) {
+    vscode.postMessage({ command: 'openRepoFileDiff', instanceId, owner, repo, path, baseRef, headRef });
+  }
+
   function loadRepoContents(instanceId: string, owner: string, repo: string, path: string, ref: string, force = false) {
     const key = repoContentsKey(instanceId, owner, repo, ref, path);
     if (!force && repoContents.value.has(key)) {
       return;
     }
-    loading.value.set(key, true);
-    errors.value.delete(key);
+    loading.set(key, true);
+    errors.delete(key);
     vscode.postMessage({ command: 'getRepoContents', instanceId, owner, repo, path, ref });
+  }
+
+  function loadRepoFileSearch(instanceId: string, owner: string, repo: string, ref: string, query: string) {
+    const key = repoFileSearchKey(instanceId, owner, repo, ref, query);
+    loading.set(key, true);
+    errors.delete(key);
+    vscode.postMessage({ command: 'searchRepoFiles', instanceId, owner, repo, ref, query });
+  }
+
+  function loadFileHistory(instanceId: string, owner: string, repo: string, path: string, ref: string) {
+    const key = fileHistoryKey(instanceId, owner, repo, path, ref);
+    loading.set(key, true);
+    errors.delete(key);
+    vscode.postMessage({ command: 'getFileHistory', instanceId, owner, repo, path, ref });
   }
 
   function loadRepoRefs(instanceId: string, owner: string, repo: string, force = false) {
@@ -868,12 +959,18 @@ export function useAppState() {
     if (!force && repoRefs.value.has(key)) {
       return;
     }
-    loading.value.set(key, true);
-    errors.value.delete(key);
+    loading.set(key, true);
+    errors.delete(key);
     vscode.postMessage({ command: 'getRepoRefs', instanceId, owner, repo });
   }
 
-  function createRepoBranch(instanceId: string, owner: string, repo: string, newBranchName: string, oldRefName?: string) {
+  function createRepoBranch(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    newBranchName: string,
+    oldRefName?: string,
+  ) {
     vscode.postMessage({ command: 'createRepoBranch', instanceId, owner, repo, newBranchName, oldRefName });
   }
 
@@ -991,7 +1088,11 @@ export function useAppState() {
     });
   }
 
-  function showInputBox(options: { prompt: string; value?: string; placeHolder?: string }): Promise<string | undefined> {
+  function showInputBox(options: {
+    prompt: string;
+    value?: string;
+    placeHolder?: string;
+  }): Promise<string | undefined> {
     const id = `input-${++inputRequestId}`;
     return new Promise((resolve) => {
       inputBoxPromises.set(id, resolve);
@@ -1009,8 +1110,8 @@ export function useAppState() {
 
   function createIssue(instanceId: string, owner: string, repo: string, title: string, body: string) {
     const key = issueFormKey(instanceId, owner, repo, 0);
-    loading.value.set(key, true);
-    errors.value.delete(key);
+    loading.set(key, true);
+    errors.delete(key);
     vscode.postMessage({ command: 'createIssue', instanceId, owner, repo, data: { title, body } });
   }
 
@@ -1022,8 +1123,8 @@ export function useAppState() {
     data: { title?: string; body?: string; state?: 'open' | 'closed' },
   ) {
     const key = issueFormKey(instanceId, owner, repo, index);
-    loading.value.set(key, true);
-    errors.value.delete(key);
+    loading.set(key, true);
+    errors.delete(key);
     vscode.postMessage({ command: 'editIssue', instanceId, owner, repo, index, data });
   }
 
@@ -1088,8 +1189,8 @@ export function useAppState() {
     head?: string,
   ) {
     const key = pullRequestFormKey(instanceId, owner, repo, 0);
-    loading.value.set(key, true);
-    errors.value.delete(key);
+    loading.set(key, true);
+    errors.delete(key);
     vscode.postMessage({ command: 'createPullRequest', instanceId, owner, repo, data: { title, body, base, head } });
   }
 
@@ -1101,8 +1202,8 @@ export function useAppState() {
     data: { title?: string; body?: string; state?: 'open' | 'closed' },
   ) {
     const key = pullRequestFormKey(instanceId, owner, repo, index);
-    loading.value.set(key, true);
-    errors.value.delete(key);
+    loading.set(key, true);
+    errors.delete(key);
     vscode.postMessage({ command: 'editPullRequest', instanceId, owner, repo, index, data });
   }
 
@@ -1114,7 +1215,7 @@ export function useAppState() {
   function loadIssueDetail(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = issueDetailKey(instanceId, owner, repo, index);
     if (force || !issueDetails.value.has(key)) {
-      loading.value.set(key, true);
+      loading.set(key, true);
       vscode.postMessage({ command: 'getIssueDetail', instanceId, owner, repo, index });
     }
   }
@@ -1127,7 +1228,7 @@ export function useAppState() {
   function loadPullRequestDetail(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = pullRequestDetailKey(instanceId, owner, repo, index);
     if (force || !pullRequestDetails.value.has(key)) {
-      loading.value.set(key, true);
+      loading.set(key, true);
       vscode.postMessage({ command: 'getPullRequestDetail', instanceId, owner, repo, index });
     }
   }
@@ -1215,7 +1316,7 @@ export function useAppState() {
   function loadRepoIssues(instanceId: string, owner: string, repo: string, state = 'open') {
     const key = repoIssuesKey(instanceId, owner, repo, state);
     if (!repoIssues.value.has(key)) {
-      loading.value.set(key, true);
+      loading.set(key, true);
       vscode.postMessage({ command: 'getRepoIssues', instanceId, owner, repo, state });
     }
   }
@@ -1228,7 +1329,7 @@ export function useAppState() {
   function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open') {
     const key = repoPullRequestsKey(instanceId, owner, repo, state);
     if (!repoPullRequests.value.has(key)) {
-      loading.value.set(key, true);
+      loading.set(key, true);
       vscode.postMessage({ command: 'getRepoPullRequests', instanceId, owner, repo, state });
     }
   }
@@ -1287,28 +1388,28 @@ export function useAppState() {
 
   function loadRepositories(instanceId: string) {
     const key = `repos-${instanceId}`;
-    if (loading.value.get(key)) {
+    if (loading.get(key)) {
       return;
     }
-    loading.value.set(key, true);
+    loading.set(key, true);
     vscode.postMessage({ command: 'getRepositories', instanceId });
   }
 
   function loadMyIssues(instanceId: string, state = 'open') {
     const key = `issues-${instanceId}`;
-    if (loading.value.get(key)) {
+    if (loading.get(key)) {
       return;
     }
-    loading.value.set(key, true);
+    loading.set(key, true);
     vscode.postMessage({ command: 'getMyIssues', instanceId, state });
   }
 
   function loadMyPullRequests(instanceId: string, state = 'open') {
     const key = `pulls-${instanceId}`;
-    if (loading.value.get(key)) {
+    if (loading.get(key)) {
       return;
     }
-    loading.value.set(key, true);
+    loading.set(key, true);
     vscode.postMessage({ command: 'getMyPullRequests', instanceId, state });
   }
 
@@ -1330,6 +1431,8 @@ export function useAppState() {
     pullRequestCommits,
     repoContents,
     repoRefs,
+    repoFileSearchResults,
+    fileHistories,
     loading,
     errors,
     debug,
@@ -1358,6 +1461,8 @@ export function useAppState() {
     loadRepoDetail,
     loadRepoBranchCommits,
     loadRepoContents,
+    loadRepoFileSearch,
+    loadFileHistory,
     loadRepoRefs,
     createRepoBranch,
     deleteRepoBranch,
@@ -1371,6 +1476,7 @@ export function useAppState() {
     showInputBox,
     showConfirm,
     openRepoFile,
+    openRepoFileDiff,
     createIssue,
     editIssue,
     uploadIssueAttachment,
@@ -1405,6 +1511,16 @@ export function useAppState() {
     loadMyIssues,
     loadMyPullRequests,
   };
+}
+
+type AppState = ReturnType<typeof createAppState>;
+let sharedState: AppState | undefined;
+
+export function useAppState() {
+  if (!sharedState) {
+    sharedState = createAppState();
+  }
+  return sharedState;
 }
 
 export function repoDetailKey(instanceId: string, owner: string, repo: string): string {
@@ -1457,6 +1573,14 @@ export function repoContentsKey(instanceId: string, owner: string, repo: string,
 
 export function repoRefsKey(instanceId: string, owner: string, repo: string): string {
   return `${instanceId}:${owner}/${repo}:refs`;
+}
+
+export function repoFileSearchKey(instanceId: string, owner: string, repo: string, ref: string, query: string): string {
+  return `${instanceId}:${owner}/${repo}:file-search:${ref}:${query}`;
+}
+
+export function fileHistoryKey(instanceId: string, owner: string, repo: string, path: string, ref: string): string {
+  return `${instanceId}:${owner}/${repo}:file-history:${path}:${ref}`;
 }
 
 function isVersionAtLeast(version: string, minimum: string): boolean {

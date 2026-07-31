@@ -54,6 +54,16 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 16px;
+}
+
+html,
+body,
+#app {
+  height: 100%;
 }
 
 body {
@@ -78,5 +88,7 @@ body {
 
 main {
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
+  getTree,
   issueCreateIssue,
   issueCreateIssueAttachment,
   issueDeleteIssueAttachment,
@@ -48,6 +49,7 @@ import type {
   EditIssueOption,
   EditPullRequestOption,
   EditReleaseOption,
+  GitEntry,
   TimelineComment,
 } from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
@@ -168,6 +170,33 @@ export class ForgejoClient {
     );
   }
 
+  async getFileHistory(owner: string, repo: string, filepath: string, ref: string): Promise<ForgejoCommit[]> {
+    const commits = await repoGetAllCommits(
+      owner,
+      repo,
+      { sha: ref, path: filepath, limit: 50 },
+      { client: this._client() },
+    );
+    return (commits ?? []).map(
+      (commit) =>
+        ({
+          sha: commit.sha ?? '',
+          commit: {
+            message: commit.commit?.message ?? '',
+            author: {
+              name: commit.commit?.author?.name ?? '',
+              date: commit.commit?.author?.date ?? '',
+            },
+          },
+          author: commit.author as ForgejoUser | undefined,
+          committer: commit.committer as ForgejoUser | undefined,
+          html_url: commit.html_url ?? '',
+          parents: commit.parents?.map((parent) => ({ sha: parent.sha })),
+          files: commit.files?.map((file) => ({ filename: file.filename, status: file.status })),
+        }) as ForgejoCommit,
+    );
+  }
+
   async getRepoContents(owner: string, repo: string, path: string, ref?: string): Promise<ForgejoContentEntry[]> {
     const params = ref ? { ref } : undefined;
     if (!path) {
@@ -177,6 +206,49 @@ export class ForgejoClient {
     const result = await repoGetContents(owner, repo, path, params, { client: this._client() });
     const entries = Array.isArray(result) ? result : [result];
     return entries as ForgejoContentEntry[];
+  }
+
+  async searchRepoFiles(owner: string, repo: string, ref: string, query: string): Promise<GitEntry[]> {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    const allFiles: GitEntry[] = [];
+    let page = 1;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const response = await getTree(
+        owner,
+        repo,
+        ref,
+        { recursive: true, page, per_page: 100 },
+        { client: this._client() },
+      );
+      const files = (response?.tree ?? []).filter(
+        (entry): entry is GitEntry =>
+          entry.type === 'blob' && typeof entry.path === 'string' && entry.path.toLowerCase().includes(normalizedQuery),
+      );
+      allFiles.push(...files);
+      if (!(response?.truncated ?? false)) {
+        break;
+      }
+      page += 1;
+    }
+
+    return allFiles.sort((a, b) => {
+      const pathA = a.path?.toLowerCase() ?? '';
+      const pathB = b.path?.toLowerCase() ?? '';
+      const nameA = pathA.split('/').pop() ?? '';
+      const nameB = pathB.split('/').pop() ?? '';
+
+      const scoreA = fileSearchScore(nameA, pathA, normalizedQuery);
+      const scoreB = fileSearchScore(nameB, pathB, normalizedQuery);
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
+      return pathA.localeCompare(pathB);
+    });
   }
 
   async getRepoBranches(owner: string, repo: string): Promise<ForgejoBranch[]> {
@@ -237,8 +309,7 @@ export class ForgejoClient {
       const data = result as Attachment;
       return {
         ...data,
-        browser_download_url:
-          data.browser_download_url ?? `${this.url}/attachments/${data.uuid}`,
+        browser_download_url: data.browser_download_url ?? `${this.url}/attachments/${data.uuid}`,
       };
     });
   }
@@ -518,4 +589,24 @@ function decodeBase64(content: string): string {
     return Buffer.from(content, 'base64').toString('utf-8');
   }
   return atob(content);
+}
+
+function fileSearchScore(name: string, path: string, query: string): number {
+  if (name === query) {
+    return 100;
+  }
+  if (name.startsWith(query)) {
+    return 80;
+  }
+  if (name.includes(query)) {
+    return 60;
+  }
+  const basenameWords = name.split(/[-_.\s]+/);
+  if (basenameWords.some((word) => word.startsWith(query))) {
+    return 40;
+  }
+  if (path.includes(query)) {
+    return 20;
+  }
+  return 0;
 }

@@ -61,7 +61,14 @@
     "refs": "引用",
     "fileBrowser": {
       "emptyDirectory": "该目录为空。",
-      "refresh": "刷新"
+      "refresh": "刷新",
+      "searchPlaceholder": "按文件名搜索",
+      "searchNoResults": "没有匹配的文件。",
+      "clearSearch": "清除搜索",
+      "history": "文件历史",
+      "historyTitle": "历史：{path}",
+      "viewVersion": "查看该版本",
+      "noHistory": "未找到该文件的历史记录。"
     },
     "repoRefs": {
       "branches": "分支",

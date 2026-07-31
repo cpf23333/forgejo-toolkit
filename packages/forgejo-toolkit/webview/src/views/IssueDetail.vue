@@ -21,13 +21,13 @@ const index = computed(() => Number(route.params.index));
 const key = computed(() => issueDetailKey(instanceId.value, owner.value, repo.value, index.value));
 
 const detail = computed(() => state.issueDetails.value.get(key.value));
-const loading = computed(() => state.loading.value.get(key.value) ?? false);
-const error = computed(() => state.errors.value.get(key.value));
+const loading = computed(() => state.loading.get(key.value) ?? false);
+const error = computed(() => state.errors.get(key.value));
 const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
 
 const commentsKey = computed(() => pullRequestCommentsKey(instanceId.value, owner.value, repo.value, index.value));
 const comments = computed(() => state.pullRequestComments.value.get(commentsKey.value) ?? []);
-const commentsError = computed(() => state.errors.value.get(commentsKey.value));
+const commentsError = computed(() => state.errors.get(commentsKey.value));
 const commentsLoading = computed(() => !state.pullRequestComments.value.has(commentsKey.value) && !commentsError.value);
 
 watch(
@@ -75,8 +75,8 @@ const deletingAttachmentId = ref<number | undefined>(undefined);
 const isDeletingAttachments = ref(false);
 const pendingDeleteAttachmentIds = ref<number[]>([]);
 const editFormKey = computed(() => issueFormKey(instanceId.value, owner.value, repo.value, index.value));
-const editLoading = computed(() => state.loading.value.get(editFormKey.value) ?? false);
-const editError = computed(() => state.errors.value.get(editFormKey.value));
+const editLoading = computed(() => state.loading.get(editFormKey.value) ?? false);
+const editError = computed(() => state.errors.get(editFormKey.value));
 const formLoading = computed(() => editLoading.value || isDeletingAttachments.value);
 
 function openEdit() {
@@ -182,7 +182,7 @@ watch(
         isEditing.value = false;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        state.errors.value.set(editFormKey.value, t('dashboard.form.error', { message }));
+        state.errors.set(editFormKey.value, t('dashboard.form.error', { message }));
       }
     }
   },

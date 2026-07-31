@@ -61,7 +61,14 @@
     "refs": "Refs",
     "fileBrowser": {
       "emptyDirectory": "This directory is empty.",
-      "refresh": "Refresh"
+      "refresh": "Refresh",
+      "searchPlaceholder": "Search files by name",
+      "searchNoResults": "No matching files.",
+      "clearSearch": "Clear search",
+      "history": "File history",
+      "historyTitle": "History: {path}",
+      "viewVersion": "View this version",
+      "noHistory": "No history found for this file."
     },
     "repoRefs": {
       "branches": "Branches",

@@ -149,6 +149,26 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      command: 'repoFilesSearchResult';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      ref: string;
+      query: string;
+      files?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'fileHistory';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      path: string;
+      ref: string;
+      commits?: unknown[];
+      error?: string;
+    }
+  | {
       command: 'repoRefs';
       instanceId: string;
       owner: string;
@@ -376,6 +396,31 @@ export type WebviewToHostMessage =
   | { command: 'renderMarkdown'; instanceId: string; text: string; context?: string; key: string }
   | { command: 'getRepoContents'; instanceId: string; owner: string; repo: string; path: string; ref: string }
   | { command: 'openRepoFile'; instanceId: string; owner: string; repo: string; path: string; ref: string }
+  | {
+      command: 'searchRepoFiles';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      ref: string;
+      query: string;
+    }
+  | {
+      command: 'getFileHistory';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      path: string;
+      ref: string;
+    }
+  | {
+      command: 'openRepoFileDiff';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      path: string;
+      baseRef: string;
+      headRef: string;
+    }
   | { command: 'getRepoRefs'; instanceId: string; owner: string; repo: string }
   | {
       command: 'createRepoBranch';

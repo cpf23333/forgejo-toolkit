@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 
 interface Props {
   open?: boolean;
@@ -21,14 +21,24 @@ const emit = defineEmits<{
 
 const dialogRef = ref<HTMLDialogElement | null>(null);
 
+function updateDialog(open: boolean) {
+  if (open) {
+    dialogRef.value?.showModal();
+  } else {
+    dialogRef.value?.close();
+  }
+}
+
+onMounted(() => {
+  if (props.open) {
+    updateDialog(true);
+  }
+});
+
 watch(
   () => props.open,
   (open) => {
-    if (open) {
-      dialogRef.value?.showModal();
-    } else {
-      dialogRef.value?.close();
-    }
+    updateDialog(open);
   },
 );
 

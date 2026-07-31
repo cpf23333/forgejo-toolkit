@@ -19,13 +19,13 @@ const stateParam = computed(() => String(route.params.state || 'open'));
 const key = computed(() => repoIssuesKey(instanceId.value, owner.value, repo.value, stateParam.value));
 
 const items = computed(() => state.repoIssues.value.get(key.value) ?? []);
-const loading = computed(() => state.loading.value.get(key.value) ?? false);
-const error = computed(() => state.errors.value.get(key.value));
+const loading = computed(() => state.loading.get(key.value) ?? false);
+const error = computed(() => state.errors.get(key.value));
 
 const isCreating = ref(false);
 const createFormKey = computed(() => issueFormKey(instanceId.value, owner.value, repo.value, 0));
-const createLoading = computed(() => state.loading.value.get(createFormKey.value) ?? false);
-const createError = computed(() => state.errors.value.get(createFormKey.value));
+const createLoading = computed(() => state.loading.get(createFormKey.value) ?? false);
+const createError = computed(() => state.errors.get(createFormKey.value));
 
 watch(
   [instanceId, owner, repo, stateParam],

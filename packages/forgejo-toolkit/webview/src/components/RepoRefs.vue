@@ -28,8 +28,8 @@ const tabs: Array<{ key: 'branches' | 'tags' | 'releases'; label: string }> = [
 
 const key = computed(() => repoRefsKey(props.instanceId, props.owner, props.repo));
 const data = computed(() => state.repoRefs.value.get(key.value));
-const loading = computed(() => state.loading.value.get(key.value) ?? false);
-const error = computed(() => state.errors.value.get(key.value));
+const loading = computed(() => state.loading.get(key.value) ?? false);
+const error = computed(() => state.errors.get(key.value));
 
 const dialogOpen = ref(false);
 const dialogMode = ref<RepoRefFormMode>('branch');
@@ -177,7 +177,9 @@ async function removeRelease(id?: number) {
     <template v-else>
       <div v-if="activeTab === 'branches'" class="ref-list">
         <div class="ref-actions">
-          <button class="ref-action-button" @click="openDialog('branch')">{{ t('dashboard.repoRefs.createBranch') }}</button>
+          <button class="ref-action-button" @click="openDialog('branch')">
+            {{ t('dashboard.repoRefs.createBranch') }}
+          </button>
         </div>
         <div
           v-for="branch in data?.branches"
@@ -231,7 +233,9 @@ async function removeRelease(id?: number) {
 
       <div v-if="activeTab === 'releases'" class="ref-list">
         <div class="ref-actions">
-          <button class="ref-action-button" @click="openDialog('release')">{{ t('dashboard.repoRefs.createRelease') }}</button>
+          <button class="ref-action-button" @click="openDialog('release')">
+            {{ t('dashboard.repoRefs.createRelease') }}
+          </button>
         </div>
         <div v-for="release in data?.releases" :key="release.id" class="ref-item">
           <div class="ref-main">

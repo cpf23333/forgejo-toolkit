@@ -913,13 +913,115 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
-          case 'getRepoRefs': {
-            const { instanceId, owner, repo } = message;
+          case 'searchRepoFiles': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, ref, query } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof ref !== 'string' ||
+              typeof query !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const files = await client.searchRepoFiles(owner, repo, ref, query);
+              this._reply('repoFilesSearchResult', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                ref,
+                query,
+                files,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`searchRepoFiles failed for ${owner}/${repo}@${ref}: ${err}`);
+              this._reply('repoFilesSearchResult', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                ref,
+                query,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'getFileHistory': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, path, ref } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof path !== 'string' ||
+              typeof ref !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const commits = await client.getFileHistory(owner, repo, path, ref);
+              this._reply('fileHistory', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                path,
+                ref,
+                commits,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getFileHistory failed for ${owner}/${repo}/${path}@${ref}: ${err}`);
+              this._reply('fileHistory', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                path,
+                ref,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'openRepoFileDiff': {
+            const { instanceId, owner, repo, path, baseRef, headRef } = message;
             if (
               typeof instanceId !== 'string' ||
               typeof owner !== 'string' ||
-              typeof repo !== 'string'
+              typeof repo !== 'string' ||
+              typeof path !== 'string' ||
+              typeof baseRef !== 'string' ||
+              typeof headRef !== 'string'
             ) {
+              return;
+            }
+            try {
+              const leftUri = buildRepoFileUri({ instanceId, owner, repo, ref: baseRef, path });
+              const rightUri = buildRepoFileUri({ instanceId, owner, repo, ref: headRef, path });
+              await vscode.commands.executeCommand(
+                'vscode.diff',
+                leftUri,
+                rightUri,
+                `${path} (${baseRef}..${headRef})`,
+              );
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`openRepoFileDiff failed for ${owner}/${repo}/${path}: ${err}`);
+              vscode.window.showErrorMessage(`Unable to open diff: ${err}`);
+            }
+            return;
+          }
+          case 'getRepoRefs': {
+            const { instanceId, owner, repo } = message;
+            if (typeof instanceId !== 'string' || typeof owner !== 'string' || typeof repo !== 'string') {
               return;
             }
             const instance = this._findInstance(instanceId);
@@ -1047,7 +1149,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             return;
           }
           case 'createRepoRelease': {
-            const { instanceId, owner, repo, tagName, name, body, targetCommitish, prerelease, draft, hideArchiveLinks } = message;
+            const {
+              instanceId,
+              owner,
+              repo,
+              tagName,
+              name,
+              body,
+              targetCommitish,
+              prerelease,
+              draft,
+              hideArchiveLinks,
+            } = message;
             if (
               typeof instanceId !== 'string' ||
               typeof owner !== 'string' ||
@@ -1211,7 +1324,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               });
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
-              logger.error(`deleteReleaseAttachment failed for ${owner}/${repo}/releases/${id}/${attachmentId}: ${err}`);
+              logger.error(
+                `deleteReleaseAttachment failed for ${owner}/${repo}/releases/${id}/${attachmentId}: ${err}`,
+              );
               this._reply('releaseAttachmentDeleted', {
                 instanceId,
                 owner,
@@ -1243,12 +1358,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             if (typeof id !== 'string' || typeof confirmMessage !== 'string') {
               return;
             }
-            const result = await vscode.window.showInformationMessage(
-              confirmMessage,
-              { modal: true },
-              'Yes',
-              'No',
-            );
+            const result = await vscode.window.showInformationMessage(confirmMessage, { modal: true }, 'Yes', 'No');
             this._reply('showConfirmResult', { id, confirmed: result === 'Yes' });
             return;
           }

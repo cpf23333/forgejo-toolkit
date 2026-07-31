@@ -31,23 +31,23 @@ const index = computed(() => Number(route.params.index));
 const key = computed(() => pullRequestDetailKey(instanceId.value, owner.value, repo.value, index.value));
 
 const detail = computed(() => state.pullRequestDetails.value.get(key.value));
-const loading = computed(() => state.loading.value.get(key.value) ?? false);
-const error = computed(() => state.errors.value.get(key.value));
+const loading = computed(() => state.loading.get(key.value) ?? false);
+const error = computed(() => state.errors.get(key.value));
 const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
 
 const filesKey = computed(() => pullRequestFilesKey(instanceId.value, owner.value, repo.value, index.value));
 const files = computed(() => state.pullRequestFiles.value.get(filesKey.value) ?? []);
-const filesError = computed(() => state.errors.value.get(filesKey.value));
+const filesError = computed(() => state.errors.get(filesKey.value));
 const filesLoading = computed(() => files.value.length === 0 && !filesError.value);
 
 const commentsKey = computed(() => pullRequestCommentsKey(instanceId.value, owner.value, repo.value, index.value));
 const comments = computed(() => state.pullRequestComments.value.get(commentsKey.value) ?? []);
-const commentsError = computed(() => state.errors.value.get(commentsKey.value));
+const commentsError = computed(() => state.errors.get(commentsKey.value));
 const commentsLoading = computed(() => !state.pullRequestComments.value.has(commentsKey.value) && !commentsError.value);
 
 const commitsKey = computed(() => pullRequestCommitsKey(instanceId.value, owner.value, repo.value, index.value));
 const commits = computed(() => state.pullRequestCommits.value.get(commitsKey.value) ?? []);
-const commitsError = computed(() => state.errors.value.get(commitsKey.value));
+const commitsError = computed(() => state.errors.get(commitsKey.value));
 const commitsLoading = computed(() => !state.pullRequestCommits.value.has(commitsKey.value) && !commitsError.value);
 
 watch(
@@ -84,8 +84,8 @@ const deletingAttachmentId = ref<number | undefined>(undefined);
 const isDeletingAttachments = ref(false);
 const pendingDeleteAttachmentIds = ref<number[]>([]);
 const editFormKey = computed(() => pullRequestFormKey(instanceId.value, owner.value, repo.value, index.value));
-const editLoading = computed(() => state.loading.value.get(editFormKey.value) ?? false);
-const editError = computed(() => state.errors.value.get(editFormKey.value));
+const editLoading = computed(() => state.loading.get(editFormKey.value) ?? false);
+const editError = computed(() => state.errors.get(editFormKey.value));
 const formLoading = computed(() => editLoading.value || isDeletingAttachments.value);
 const repoKey = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
 const repoDetail = computed(() => state.repoDetails.value.get(repoKey.value));
@@ -195,7 +195,7 @@ watch(
         isEditing.value = false;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        state.errors.value.set(editFormKey.value, t('dashboard.form.error', { message }));
+        state.errors.set(editFormKey.value, t('dashboard.form.error', { message }));
       }
     }
   },
@@ -406,7 +406,7 @@ watch(
 );
 
 watch(
-  () => state.errors.value,
+  () => state.errors,
   () => {
     // No global error hook for worktree errors yet; status is updated via separate mechanism if needed.
   },

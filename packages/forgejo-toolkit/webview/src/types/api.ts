@@ -184,6 +184,8 @@ export interface ForgejoCommit {
   committer?: ForgejoUser;
   html_url: string;
   created?: string;
+  parents?: { sha?: string }[];
+  files?: { filename?: string; status?: string }[];
 }
 
 export type ForgejoBranch = {
