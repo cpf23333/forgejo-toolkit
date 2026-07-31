@@ -9,7 +9,7 @@
 - [ ] 实例配置导出 / 导入
 - [ ] 读取仓库 Actions 运行状态和历史
 - [ ] 接入 MSW mock 用于测试或离线开发
-- [ ] 为 API 客户端和 webview 添加单元 / 组件测试
+- [ ] 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试
 
 ## 已完成
 
@@ -57,3 +57,8 @@
 - [x] 分支 / 标签 / Release 管理列表
 - [x] 分支 / 标签 / Release 管理增强（创建 / 删除分支、创建标签 / Release）
 - [x] README Markdown 渲染预览
+- [x] 为 API 客户端和 webview 添加单元 / 组件测试
+  - [x] 配置 Vitest + jsdom 测试环境
+  - [x] 为 shared request 客户端添加单元测试
+  - [x] 为 webview ModalDialog 组件添加测试
+  - [x] 为 webview FileTreeItem 组件添加测试

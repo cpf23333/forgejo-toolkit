@@ -29,7 +29,7 @@ export type Client = <TResponseData, _TError = unknown, TRequestData = unknown>(
   config: RequestConfig<TRequestData>,
 ) => Promise<ResponseConfig<TResponseData>>;
 
-function buildUrl(config: RequestConfig): string {
+export function buildUrl(config: RequestConfig): string {
   const normalizedParams = new URLSearchParams();
   Object.entries(config.params || {}).forEach(([key, value]) => {
     if (value !== undefined) {
@@ -49,7 +49,7 @@ function buildUrl(config: RequestConfig): string {
   return targetUrl;
 }
 
-function mergeHeaders(...headers: Array<RequestConfig['headers'] | undefined>): Record<string, string> {
+export function mergeHeaders(...headers: Array<RequestConfig['headers'] | undefined>): Record<string, string> {
   return headers.reduce<Record<string, string>>((merged, h) => {
     if (!h) {
       return merged;

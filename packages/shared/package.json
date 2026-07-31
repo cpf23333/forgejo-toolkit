@@ -19,12 +19,15 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check .",
     "format:fix": "oxfmt ."
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }

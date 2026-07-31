@@ -85,10 +85,6 @@
 
 ## 待实现
 
-### 仓库浏览
-
-- 文件浏览器增强：文件重命名 / 删除。
-
 ### 通知与搜索
 
 - Forgejo 通知中心（`/notifications` API）。
@@ -107,6 +103,11 @@
 
 - 接入 MSW mock 用于测试或离线开发。
 - 为 API 客户端和 webview 添加单元 / 组件测试。
+  - 配置 Vitest + jsdom 测试环境。
+  - 为 shared request 客户端添加单元测试。
+  - 为 webview `ModalDialog`、`FileTreeItem` 等组件添加测试。
+  - 测试辅助文件统一放到 `__tests__` 目录。
+- 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试。
 
 ## 长期可能
 
@@ -115,3 +116,4 @@
 - Issue / PR 与 Git 分支联动：例如点击 PR 自动检出对应分支到 worktree（worktree 已支持）。
 - 通知推送：后台轮询 + VS Code 消息提醒。
 - 多账号权限管理：区分只读 / 读写 token。
+- 文件浏览器增强：文件重命名 / 删除（目前更推荐本地 clone 后操作）。
