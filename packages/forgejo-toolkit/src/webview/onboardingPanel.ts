@@ -66,10 +66,7 @@ export class OnboardingWebviewPanel {
       async (message) => {
         logger.debug(`Received message from onboarding webview: ${message.command}`);
         switch (message.command) {
-          case 'getInstances':
-            this._reply('instances', { data: this._config.getInstances() });
-            return;
-          case 'getLocale': {
+          case 'getInitialState': {
             const configured = vscode.workspace
               .getConfiguration('forgejoToolkit')
               .get<'en' | 'zh' | undefined>('locale');
@@ -78,10 +75,20 @@ export class OnboardingWebviewPanel {
                 ? configured
                 : resolveLocale(vscode.env.language);
             const debug = vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('debug', false);
-            this._reply('setLocale', { locale });
-            this._reply('setDebug', { debug });
+            const directory = this._config.getWorktreeCacheDirectory() ?? '';
+            const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
+            this._reply('initialState', {
+              instances: this._config.getInstances(),
+              locale,
+              debug,
+              worktrees: [],
+              worktreeOpenMode: this._config.getWorktreeOpenMode(),
+              worktreeCacheDirectory: directory,
+              worktreeCacheDirectoryDefault: defaultDirectory,
+            });
             return;
           }
+
           case 'testConnection': {
             const { url, token } = message;
             if (typeof url !== 'string' || typeof token !== 'string') {
@@ -152,22 +159,12 @@ export class OnboardingWebviewPanel {
             }
             return;
           }
-          case 'getWorktreeOpenMode': {
-            this._reply('worktreeOpenMode', { mode: this._config.getWorktreeOpenMode() });
-            return;
-          }
           case 'setWorktreeOpenMode': {
             const mode = message.mode;
             if (mode === 'ask' || mode === 'currentWindow' || mode === 'newWindow') {
               await this._config.setWorktreeOpenMode(mode);
               this._reply('worktreeOpenMode', { mode });
             }
-            return;
-          }
-          case 'getWorktreeCacheDirectory': {
-            const directory = this._config.getWorktreeCacheDirectory() ?? '';
-            const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
-            this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
             return;
           }
           case 'setWorktreeCacheDirectory': {

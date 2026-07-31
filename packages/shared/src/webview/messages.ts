@@ -8,6 +8,16 @@ export interface ForgejoInstance {
 
 export type HostToWebviewMessage =
   | { command: 'instances'; data: ForgejoInstance[] }
+  | {
+      command: 'initialState';
+      instances: ForgejoInstance[];
+      locale: 'en' | 'zh';
+      debug: boolean;
+      worktrees: unknown[];
+      worktreeOpenMode: 'ask' | 'currentWindow' | 'newWindow';
+      worktreeCacheDirectory: string;
+      worktreeCacheDirectoryDefault: string;
+    }
   | { command: 'openSettings' }
   | { command: 'openDashboard' }
   | { command: 'setLocale'; locale: 'en' | 'zh' }
@@ -277,8 +287,7 @@ export type HostToWebviewMessage =
   | { command: 'saveInstanceResult'; success: boolean; error?: string };
 
 export type WebviewToHostMessage =
-  | { command: 'getInstances' }
-  | { command: 'getLocale' }
+  | { command: 'getInitialState' }
   | { command: 'testConnection'; url: string; token: string }
   | { command: 'saveInstance'; url: string; token: string }
   | { command: 'editInstance'; id: string; url: string; token: string }
@@ -496,11 +505,8 @@ export type WebviewToHostMessage =
   | { command: 'openExternal'; url: string }
   | { command: 'previewReadme'; owner: string; repo: string; content: string }
   | { command: 'openPrWorktree'; instanceId: string; owner: string; repo: string; index: number }
-  | { command: 'getWorktrees' }
   | { command: 'removeWorktree'; id: string }
-  | { command: 'getWorktreeOpenMode' }
   | { command: 'setWorktreeOpenMode'; mode: 'ask' | 'currentWindow' | 'newWindow' }
-  | { command: 'getWorktreeCacheDirectory' }
   | { command: 'setWorktreeCacheDirectory'; directory: string }
   | { command: 'browseWorktreeCacheDirectory' }
   | { command: 'openOnboardingPanel' }

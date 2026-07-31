@@ -100,6 +100,15 @@ function createAppState() {
   function handleMessage(event: MessageEvent<HostToWebviewMessage>) {
     const message = event.data;
     switch (message.command) {
+      case 'initialState':
+        instances.value = message.instances ?? [];
+        locale.value = message.locale;
+        debug.value = message.debug;
+        worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
+        worktreeOpenMode.value = message.worktreeOpenMode;
+        worktreeCacheDirectory.value = message.worktreeCacheDirectory;
+        worktreeCacheDirectoryDefault.value = message.worktreeCacheDirectoryDefault;
+        break;
       case 'instances':
         instances.value = message.data ?? [];
         break;
@@ -848,11 +857,7 @@ function createAppState() {
 
   onMounted(() => {
     window.addEventListener('message', handleMessage);
-    vscode.postMessage({ command: 'getInstances' });
-    vscode.postMessage({ command: 'getLocale' });
-    vscode.postMessage({ command: 'getWorktrees' });
-    vscode.postMessage({ command: 'getWorktreeOpenMode' });
-    vscode.postMessage({ command: 'getWorktreeCacheDirectory' });
+    vscode.postMessage({ command: 'getInitialState' });
   });
 
   function openExternal(url: string) {
@@ -1348,10 +1353,6 @@ function createAppState() {
     vscode.postMessage({ command: 'openPrWorktree', instanceId, owner, repo, index });
   }
 
-  function loadWorktrees() {
-    vscode.postMessage({ command: 'getWorktrees' });
-  }
-
   function removeWorktree(id: string) {
     vscode.postMessage({ command: 'removeWorktree', id });
   }
@@ -1359,10 +1360,6 @@ function createAppState() {
   function changeWorktreeOpenMode(mode: 'ask' | 'currentWindow' | 'newWindow') {
     worktreeOpenMode.value = mode;
     vscode.postMessage({ command: 'setWorktreeOpenMode', mode });
-  }
-
-  function getWorktreeCacheDirectory() {
-    vscode.postMessage({ command: 'getWorktreeCacheDirectory' });
   }
 
   function setWorktreeCacheDirectory(directory: string) {
@@ -1499,10 +1496,8 @@ function createAppState() {
     changeRepoIssuesState,
     changeRepoPullRequestsState,
     openPrWorktree,
-    loadWorktrees,
     removeWorktree,
     changeWorktreeOpenMode,
-    getWorktreeCacheDirectory,
     setWorktreeCacheDirectory,
     browseWorktreeCacheDirectory,
     setDashboardActiveTab,

@@ -70,10 +70,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       async (message) => {
         logger.debug(`Received message from webview: ${message.command}`);
         switch (message.command) {
-          case 'getInstances':
-            this._sendInstances();
-            return;
-          case 'getLocale': {
+          case 'getInitialState': {
             const configured = vscode.workspace
               .getConfiguration('forgejoToolkit')
               .get<'en' | 'zh' | undefined>('locale');
@@ -82,11 +79,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 ? configured
                 : resolveLocale(vscode.env.language);
             const debug = vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('debug', false);
-            this._reply('setLocale', { locale });
-            this._reply('setDebug', { debug });
+            const directory = this._config.getWorktreeCacheDirectory() ?? '';
+            const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
             this._updateViewTitle(locale);
+            this._reply('initialState', {
+              instances: this._config.getInstances(),
+              locale,
+              debug,
+              worktrees: this._worktreeManager.getWorktrees(),
+              worktreeOpenMode: this._config.getWorktreeOpenMode(),
+              worktreeCacheDirectory: directory,
+              worktreeCacheDirectoryDefault: defaultDirectory,
+            });
             return;
           }
+
           case 'testConnection': {
             const { url, token } = message;
             if (typeof url !== 'string' || typeof token !== 'string') {
@@ -1381,10 +1388,6 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             await this._handleOpenPrWorktree(message);
             return;
           }
-          case 'getWorktrees': {
-            this._reply('worktreesList', { worktrees: this._worktreeManager.getWorktrees() });
-            return;
-          }
           case 'removeWorktree': {
             const { id } = message;
             if (typeof id === 'string') {
@@ -1394,22 +1397,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
-          case 'getWorktreeOpenMode': {
-            this._reply('worktreeOpenMode', { mode: this._config.getWorktreeOpenMode() });
-            return;
-          }
           case 'setWorktreeOpenMode': {
             const mode = message.mode;
             if (mode === 'ask' || mode === 'currentWindow' || mode === 'newWindow') {
               await this._config.setWorktreeOpenMode(mode);
               this._reply('worktreeOpenMode', { mode });
             }
-            return;
-          }
-          case 'getWorktreeCacheDirectory': {
-            const directory = this._config.getWorktreeCacheDirectory() ?? '';
-            const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
-            this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
             return;
           }
           case 'setWorktreeCacheDirectory': {
