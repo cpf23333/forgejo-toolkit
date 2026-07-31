@@ -10,6 +10,7 @@
 - [ ] 读取仓库 Actions 运行状态和历史
 - [ ] 接入 MSW mock 用于测试或离线开发
 - [ ] 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试
+- [ ] 评估将 extension host 打包从 esbuild 迁移到 Rolldown，统一构建工具链
 
 ## 已完成
 
@@ -62,3 +63,4 @@
   - [x] 为 shared request 客户端添加单元测试
   - [x] 为 webview ModalDialog 组件添加测试
   - [x] 为 webview FileTreeItem 组件添加测试
+- [x] 接入 Changesets 管理 monorepo 版本号

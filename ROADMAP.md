@@ -54,6 +54,7 @@
 - 使用 `vue-tsc` 推导 `.vue` 组件类型。
 - `@vscode-elements/elements` 组件必须在 `packages/vscode-elements-vue/src/components` 中定义 Vue wrapper 后使用。
 - 使用 `oxlint` + `oxfmt` 作为 lint/format 工具。
+- 使用 Changesets 管理 monorepo 版本号与 CHANGELOG。
 
 ### Issue / PR 详情
 
@@ -98,6 +99,12 @@
 ### CI / Actions
 
 - 读取仓库 Actions 运行状态和历史。
+
+### 构建工具统一
+
+- Vite 8 已默认基于 Rolldown，但 extension host 仍使用 esbuild。
+- 评估将 extension host 的打包从 esbuild 迁移到 Rolldown，统一整个项目的构建工具链，减少依赖和配置差异。
+- 需要验证 Node builtins 处理、CJS 输出、sourcemap、minify、watch 模式等能力。
 
 ### Mock 与测试
 
