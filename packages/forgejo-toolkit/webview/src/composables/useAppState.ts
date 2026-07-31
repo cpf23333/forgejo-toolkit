@@ -24,6 +24,7 @@ import type {
   ForgejoBranch,
   ForgejoTag,
   ForgejoRelease,
+  ForgejoReleaseAttachment,
 } from '../types/api';
 
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -51,6 +52,15 @@ export function useAppState() {
   const renderedMarkdown = ref<Map<string, string>>(new Map());
   const loading = ref<Map<string, boolean>>(new Map());
   const errors = ref<Map<string, string>>(new Map());
+
+  let inputRequestId = 0;
+  const inputBoxPromises = new Map<string, (value: string | undefined) => void>();
+  const confirmPromises = new Map<string, (value: boolean) => void>();
+  const releaseAttachmentPromises = new Map<
+    string,
+    { resolve: (value: ForgejoReleaseAttachment) => void; reject: (error: string) => void }
+  >();
+  const releaseAttachmentDeletePromises = new Map<string, { resolve: () => void; reject: (error: string) => void }>();
 
   const debug = ref<boolean>(false);
   const worktrees = ref<ForgejoPullRequestWorktreeInfo[]>([]);
@@ -295,6 +305,76 @@ export function useAppState() {
           },
         );
         break;
+      case 'repoBranchCreated':
+      case 'repoBranchDeleted':
+      case 'repoTagCreated':
+      case 'repoTagDeleted':
+      case 'repoReleaseCreated':
+      case 'repoReleaseEdited':
+      case 'repoReleaseDeleted': {
+        const { instanceId, owner, repo, error } = message as {
+          instanceId: string;
+          owner: string;
+          repo: string;
+          error?: string;
+        };
+        const key = repoRefsKey(instanceId, owner, repo);
+        if (error) {
+          errors.value.set(key, error);
+        } else {
+          errors.value.delete(key);
+          loadRepoRefs(instanceId, owner, repo, true);
+        }
+        break;
+      }
+      case 'showInputBoxResult': {
+        const { id, value } = message as { id: string; value?: string };
+        const resolve = inputBoxPromises.get(id);
+        if (resolve) {
+          inputBoxPromises.delete(id);
+          resolve(value);
+        }
+        break;
+      }
+      case 'releaseAttachmentCreated': {
+        const { _requestId, attachment, error } = message as {
+          _requestId: string;
+          attachment?: ForgejoReleaseAttachment;
+          error?: string;
+        };
+        const pending = releaseAttachmentPromises.get(_requestId);
+        if (pending) {
+          releaseAttachmentPromises.delete(_requestId);
+          if (error || !attachment) {
+            pending.reject(error || 'Attachment upload failed');
+          } else {
+            pending.resolve(attachment);
+          }
+        }
+        break;
+      }
+      case 'releaseAttachmentDeleted': {
+        const { _requestId, error } = message as { _requestId: string; error?: string };
+        const pending = releaseAttachmentDeletePromises.get(_requestId);
+        if (pending) {
+          releaseAttachmentDeletePromises.delete(_requestId);
+          if (error) {
+            pending.reject(error);
+          } else {
+            pending.resolve();
+          }
+        }
+        break;
+      }
+      case 'showConfirmResult': {
+        const { id, confirmed } = message as { id: string; confirmed: boolean };
+        const resolve = confirmPromises.get(id);
+        if (resolve) {
+          confirmPromises.delete(id);
+          resolve(confirmed);
+        }
+        break;
+      }
       case 'worktreesList':
         worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
         break;
@@ -793,6 +873,140 @@ export function useAppState() {
     vscode.postMessage({ command: 'getRepoRefs', instanceId, owner, repo });
   }
 
+  function createRepoBranch(instanceId: string, owner: string, repo: string, newBranchName: string, oldRefName?: string) {
+    vscode.postMessage({ command: 'createRepoBranch', instanceId, owner, repo, newBranchName, oldRefName });
+  }
+
+  function deleteRepoBranch(instanceId: string, owner: string, repo: string, branch: string) {
+    vscode.postMessage({ command: 'deleteRepoBranch', instanceId, owner, repo, branch });
+  }
+
+  function createRepoTag(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    tagName: string,
+    target?: string,
+    message?: string,
+  ) {
+    vscode.postMessage({ command: 'createRepoTag', instanceId, owner, repo, tagName, target, message });
+  }
+
+  function deleteRepoTag(instanceId: string, owner: string, repo: string, tag: string) {
+    vscode.postMessage({ command: 'deleteRepoTag', instanceId, owner, repo, tag });
+  }
+
+  function createRepoRelease(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    tagName: string,
+    name?: string,
+    body?: string,
+    targetCommitish?: string,
+    prerelease?: boolean,
+    draft?: boolean,
+    hideArchiveLinks?: boolean,
+  ) {
+    vscode.postMessage({
+      command: 'createRepoRelease',
+      instanceId,
+      owner,
+      repo,
+      tagName,
+      name,
+      body,
+      targetCommitish,
+      prerelease,
+      draft,
+      hideArchiveLinks,
+    });
+  }
+
+  function editRepoRelease(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    id: number,
+    data: {
+      tag_name?: string;
+      name?: string;
+      body?: string;
+      target_commitish?: string;
+      prerelease?: boolean;
+      draft?: boolean;
+      hide_archive_links?: boolean;
+    },
+  ) {
+    vscode.postMessage({ command: 'editRepoRelease', instanceId, owner, repo, id, data });
+  }
+
+  function deleteRepoRelease(instanceId: string, owner: string, repo: string, id: number) {
+    vscode.postMessage({ command: 'deleteRepoRelease', instanceId, owner, repo, id });
+  }
+
+  function uploadReleaseAttachment(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    id: number,
+    name: string,
+    data: Uint8Array,
+  ): Promise<ForgejoReleaseAttachment> {
+    const _requestId = `release-attachment-${++inputRequestId}`;
+    return new Promise((resolve, reject) => {
+      releaseAttachmentPromises.set(_requestId, { resolve, reject });
+      vscode.postMessage({
+        command: 'createReleaseAttachment',
+        instanceId,
+        owner,
+        repo,
+        id,
+        name,
+        data: Array.from(data),
+        _requestId,
+      });
+    });
+  }
+
+  function deleteReleaseAttachment(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    id: number,
+    attachmentId: number,
+  ): Promise<void> {
+    const _requestId = `release-attachment-delete-${++inputRequestId}`;
+    return new Promise((resolve, reject) => {
+      releaseAttachmentDeletePromises.set(_requestId, { resolve, reject });
+      vscode.postMessage({
+        command: 'deleteReleaseAttachment',
+        instanceId,
+        owner,
+        repo,
+        id,
+        attachmentId,
+        _requestId,
+      });
+    });
+  }
+
+  function showInputBox(options: { prompt: string; value?: string; placeHolder?: string }): Promise<string | undefined> {
+    const id = `input-${++inputRequestId}`;
+    return new Promise((resolve) => {
+      inputBoxPromises.set(id, resolve);
+      vscode.postMessage({ command: 'showInputBox', id, ...options });
+    });
+  }
+
+  function showConfirm(message: string): Promise<boolean> {
+    const id = `confirm-${++inputRequestId}`;
+    return new Promise((resolve) => {
+      confirmPromises.set(id, resolve);
+      vscode.postMessage({ command: 'showConfirm', id, message });
+    });
+  }
+
   function createIssue(instanceId: string, owner: string, repo: string, title: string, body: string) {
     const key = issueFormKey(instanceId, owner, repo, 0);
     loading.value.set(key, true);
@@ -1145,6 +1359,17 @@ export function useAppState() {
     loadRepoBranchCommits,
     loadRepoContents,
     loadRepoRefs,
+    createRepoBranch,
+    deleteRepoBranch,
+    createRepoTag,
+    deleteRepoTag,
+    createRepoRelease,
+    editRepoRelease,
+    deleteRepoRelease,
+    uploadReleaseAttachment,
+    deleteReleaseAttachment,
+    showInputBox,
+    showConfirm,
     openRepoFile,
     createIssue,
     editIssue,

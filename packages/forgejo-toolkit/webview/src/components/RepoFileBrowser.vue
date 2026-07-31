@@ -10,6 +10,7 @@ const props = defineProps<{
   repo: string;
   branches: string[];
   defaultBranch: string;
+  branch?: string;
 }>();
 
 const state = useAppState();
@@ -62,6 +63,16 @@ watch(
       selectedRef.value = branch;
     }
   },
+);
+
+watch(
+  () => props.branch,
+  (branch) => {
+    if (branch && branch !== selectedRef.value) {
+      selectedRef.value = branch;
+    }
+  },
+  { immediate: true },
 );
 
 watch(

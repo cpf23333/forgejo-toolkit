@@ -64,6 +64,12 @@ function onBranchChange(event: Event) {
   }
 }
 
+function onSelectBranch(branch: string) {
+  selectedBranch.value = branch;
+  activeTab.value = 'files';
+  state.loadRepoBranchCommits(instanceId.value, owner.value, repo.value, branch);
+}
+
 function commitMessage(message: string): string {
   return message.split('\n')[0];
 }
@@ -216,11 +222,18 @@ function committerName(commit: ForgejoCommit): string {
           :repo="repo"
           :branches="detail.branches"
           :default-branch="detail.repository.default_branch"
+          :branch="selectedBranch"
         />
       </div>
 
       <div v-if="activeTab === 'refs'" class="refs-tab">
-        <RepoRefs :instance-id="instanceId" :owner="owner" :repo="repo" />
+        <RepoRefs
+          :instance-id="instanceId"
+          :owner="owner"
+          :repo="repo"
+          :default-branch="detail.repository.default_branch"
+          @select-branch="onSelectBranch"
+        />
       </div>
     </div>
   </div>

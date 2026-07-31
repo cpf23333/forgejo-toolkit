@@ -206,6 +206,14 @@ export type ForgejoTag = {
   };
 };
 
+export type ForgejoReleaseAttachment = {
+  id?: number;
+  uuid?: string;
+  name?: string;
+  size?: number;
+  browser_download_url?: string;
+};
+
 export type ForgejoRelease = {
   id?: number;
   name?: string;
@@ -216,4 +224,5 @@ export type ForgejoRelease = {
   draft?: boolean;
   published_at?: string;
   author?: ForgejoUser;
+  assets?: ForgejoReleaseAttachment[];
 };

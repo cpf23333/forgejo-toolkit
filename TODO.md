@@ -3,7 +3,6 @@
 ## 进行中
 
 ## 待开始
-- [ ] 仓库 Refs 增强：创建 / 删除分支、创建标签 / Release、切换分支浏览文件
 - [ ] Forgejo 通知中心（`/notifications` API）
 - [ ] 全局仓库 / Issue / PR 搜索
 - [ ] 实例配置导出 / 导入
@@ -52,4 +51,5 @@
   - [x] 文件内容查看
   - [x] 代码高亮（由 VS Code 自动处理）
 - [x] 分支 / 标签 / Release 管理列表
+- [x] 分支 / 标签 / Release 管理增强（创建 / 删除分支、创建标签 / Release）
 - [x] README Markdown 渲染预览

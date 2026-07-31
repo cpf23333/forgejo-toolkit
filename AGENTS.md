@@ -45,6 +45,14 @@ When you need a new element, create its wrapper in `packages/vscode-elements-vue
 - The user decides when and what to commit. It is safe to stage files (`git add`) only when the user explicitly asks for it.
 - If a commit was made by mistake, stop and ask the user before undoing it.
 
+## Webview runtime limitations
+
+- VS Code webviews run inside a sandboxed iframe without `allow-modals`. `window.alert`, `window.confirm`, and `window.prompt` are blocked by the browser and must **never** be used in webview code.
+- Always use the host-backed helpers exposed by `useAppState()`:
+  - `showInputBox()` for text input.
+  - `showConfirm()` for yes/no confirmation.
+- The `webview/src/types/webview-window.d.ts` file marks these APIs as `@deprecated` as a reminder.
+
 ## Project tracking documents
 
 Keep these documents in sync with the actual codebase. Do not let them drift.

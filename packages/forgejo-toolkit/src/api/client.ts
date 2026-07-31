@@ -11,8 +11,17 @@ import {
   issueListIssues,
   issueSearchIssues,
   repoCompareDiff,
+  repoCreateBranch,
   repoCreatePullRequest,
+  repoCreateRelease,
+  repoCreateReleaseAttachment,
+  repoCreateTag,
+  repoDeleteBranch,
+  repoDeleteRelease,
+  repoDeleteReleaseAttachment,
+  repoDeleteTag,
   repoEditPullRequest,
+  repoEditRelease,
   repoGet,
   repoGetAllCommits,
   repoGetContents,
@@ -29,11 +38,16 @@ import {
 } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
+  Attachment,
   Commit,
+  CreateBranchRepoOption,
   CreateIssueOption,
   CreatePullRequestOption,
+  CreateReleaseOption,
+  CreateTagOption,
   EditIssueOption,
   EditPullRequestOption,
+  EditReleaseOption,
   TimelineComment,
 } from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
@@ -178,6 +192,63 @@ export class ForgejoClient {
   async getRepoReleases(owner: string, repo: string): Promise<ForgejoRelease[]> {
     const releases = await repoListReleases(owner, repo, { limit: 100 }, { client: this._client() });
     return (releases ?? []) as ForgejoRelease[];
+  }
+
+  createBranch(owner: string, repo: string, data: CreateBranchRepoOption): Promise<ForgejoBranch> {
+    return repoCreateBranch(owner, repo, data, { client: this._client() }) as Promise<ForgejoBranch>;
+  }
+
+  deleteBranch(owner: string, repo: string, branch: string): Promise<void> {
+    return repoDeleteBranch(owner, repo, branch, { client: this._client() }) as Promise<void>;
+  }
+
+  createTag(owner: string, repo: string, data: CreateTagOption): Promise<ForgejoTag> {
+    return repoCreateTag(owner, repo, data, { client: this._client() }) as Promise<ForgejoTag>;
+  }
+
+  deleteTag(owner: string, repo: string, tag: string): Promise<void> {
+    return repoDeleteTag(owner, repo, tag, { client: this._client() }) as Promise<void>;
+  }
+
+  createRelease(owner: string, repo: string, data: CreateReleaseOption): Promise<ForgejoRelease> {
+    return repoCreateRelease(owner, repo, data, { client: this._client() }) as Promise<ForgejoRelease>;
+  }
+
+  editRelease(owner: string, repo: string, id: number, data: EditReleaseOption): Promise<ForgejoRelease> {
+    return repoEditRelease(owner, repo, id, data, { client: this._client() }) as Promise<ForgejoRelease>;
+  }
+
+  createReleaseAttachment(
+    owner: string,
+    repo: string,
+    id: number,
+    file: Uint8Array,
+    filename: string,
+  ): Promise<Attachment> {
+    const attachment = new File([file.buffer as ArrayBuffer], filename);
+    return repoCreateReleaseAttachment(
+      owner,
+      repo,
+      id,
+      { attachment },
+      { name: filename },
+      { client: this._client() },
+    ).then((result) => {
+      const data = result as Attachment;
+      return {
+        ...data,
+        browser_download_url:
+          data.browser_download_url ?? `${this.url}/attachments/${data.uuid}`,
+      };
+    });
+  }
+
+  deleteReleaseAttachment(owner: string, repo: string, id: number, attachmentId: number): Promise<void> {
+    return repoDeleteReleaseAttachment(owner, repo, id, attachmentId, { client: this._client() }) as Promise<void>;
+  }
+
+  deleteRelease(owner: string, repo: string, id: number): Promise<void> {
+    return repoDeleteRelease(owner, repo, id, { client: this._client() }) as Promise<void>;
   }
 
   getIssueDetail(owner: string, repo: string, index: number): Promise<ForgejoIssueDetail> {

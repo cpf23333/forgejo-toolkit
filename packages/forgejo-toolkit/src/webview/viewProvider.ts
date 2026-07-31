@@ -941,6 +941,317 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'createRepoBranch': {
+            const { instanceId, owner, repo, newBranchName, oldRefName } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof newBranchName !== 'string'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const oldRef = typeof oldRefName === 'string' ? oldRefName : undefined;
+              await client.createBranch(owner, repo, { new_branch_name: newBranchName, old_ref_name: oldRef });
+              this._reply('repoBranchCreated', { instanceId, owner, repo, branch: newBranchName });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`createRepoBranch failed for ${owner}/${repo}/${newBranchName}: ${err}`);
+              this._reply('repoBranchCreated', { instanceId, owner, repo, branch: newBranchName, error: err });
+            }
+            return;
+          }
+          case 'deleteRepoBranch': {
+            const { instanceId, owner, repo, branch } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof branch !== 'string'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.deleteBranch(owner, repo, branch);
+              this._reply('repoBranchDeleted', { instanceId, owner, repo, branch });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`deleteRepoBranch failed for ${owner}/${repo}/${branch}: ${err}`);
+              this._reply('repoBranchDeleted', { instanceId, owner, repo, branch, error: err });
+            }
+            return;
+          }
+          case 'createRepoTag': {
+            const { instanceId, owner, repo, tagName, target, message: tagMessage } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof tagName !== 'string'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.createTag(owner, repo, {
+                tag_name: tagName,
+                target: typeof target === 'string' ? target : undefined,
+                message: typeof tagMessage === 'string' ? tagMessage : undefined,
+              });
+              this._reply('repoTagCreated', { instanceId, owner, repo, tag: tagName });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`createRepoTag failed for ${owner}/${repo}/${tagName}: ${err}`);
+              this._reply('repoTagCreated', { instanceId, owner, repo, tag: tagName, error: err });
+            }
+            return;
+          }
+          case 'deleteRepoTag': {
+            const { instanceId, owner, repo, tag } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof tag !== 'string'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.deleteTag(owner, repo, tag);
+              this._reply('repoTagDeleted', { instanceId, owner, repo, tag });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`deleteRepoTag failed for ${owner}/${repo}/${tag}: ${err}`);
+              this._reply('repoTagDeleted', { instanceId, owner, repo, tag, error: err });
+            }
+            return;
+          }
+          case 'createRepoRelease': {
+            const { instanceId, owner, repo, tagName, name, body, targetCommitish, prerelease, draft, hideArchiveLinks } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof tagName !== 'string'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.createRelease(owner, repo, {
+                tag_name: tagName,
+                name: typeof name === 'string' ? name : undefined,
+                body: typeof body === 'string' ? body : undefined,
+                target_commitish: typeof targetCommitish === 'string' ? targetCommitish : undefined,
+                prerelease: typeof prerelease === 'boolean' ? prerelease : undefined,
+                draft: typeof draft === 'boolean' ? draft : undefined,
+                hide_archive_links: typeof hideArchiveLinks === 'boolean' ? hideArchiveLinks : undefined,
+              });
+              this._reply('repoReleaseCreated', { instanceId, owner, repo, release: tagName });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`createRepoRelease failed for ${owner}/${repo}/${tagName}: ${err}`);
+              this._reply('repoReleaseCreated', { instanceId, owner, repo, release: tagName, error: err });
+            }
+            return;
+          }
+          case 'deleteRepoRelease': {
+            const { instanceId, owner, repo, id } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof id !== 'number'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.deleteRelease(owner, repo, id);
+              this._reply('repoReleaseDeleted', { instanceId, owner, repo, release: String(id) });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`deleteRepoRelease failed for ${owner}/${repo}/${id}: ${err}`);
+              this._reply('repoReleaseDeleted', { instanceId, owner, repo, release: String(id), error: err });
+            }
+            return;
+          }
+          case 'editRepoRelease': {
+            const { instanceId, owner, repo, id, data } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof id !== 'number' ||
+              !data ||
+              typeof data !== 'object'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.editRelease(owner, repo, id, {
+                tag_name: typeof data.tag_name === 'string' ? data.tag_name : undefined,
+                name: typeof data.name === 'string' ? data.name : undefined,
+                body: typeof data.body === 'string' ? data.body : undefined,
+                target_commitish: typeof data.target_commitish === 'string' ? data.target_commitish : undefined,
+                prerelease: typeof data.prerelease === 'boolean' ? data.prerelease : undefined,
+                draft: typeof data.draft === 'boolean' ? data.draft : undefined,
+                hide_archive_links: typeof data.hide_archive_links === 'boolean' ? data.hide_archive_links : undefined,
+              });
+              this._reply('repoReleaseEdited', { instanceId, owner, repo, release: String(id) });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`editRepoRelease failed for ${owner}/${repo}/${id}: ${err}`);
+              this._reply('repoReleaseEdited', { instanceId, owner, repo, release: String(id), error: err });
+            }
+            return;
+          }
+          case 'createReleaseAttachment': {
+            const { instanceId, owner, repo, id, name, data, _requestId } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof id !== 'number' ||
+              typeof name !== 'string' ||
+              !Array.isArray(data) ||
+              typeof _requestId !== 'string'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const file = new Uint8Array(data);
+              const attachment = await client.createReleaseAttachment(owner, repo, id, file, name);
+              this._reply('releaseAttachmentCreated', {
+                instanceId,
+                owner,
+                repo,
+                id,
+                attachment,
+                _requestId,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`createReleaseAttachment failed for ${owner}/${repo}/releases/${id}: ${err}`);
+              this._reply('releaseAttachmentCreated', {
+                instanceId,
+                owner,
+                repo,
+                id,
+                error: err,
+                _requestId,
+              });
+            }
+            return;
+          }
+          case 'deleteReleaseAttachment': {
+            const { instanceId, owner, repo, id, attachmentId, _requestId } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof id !== 'number' ||
+              typeof attachmentId !== 'number' ||
+              typeof _requestId !== 'string'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.deleteReleaseAttachment(owner, repo, id, attachmentId);
+              this._reply('releaseAttachmentDeleted', {
+                instanceId,
+                owner,
+                repo,
+                id,
+                attachmentId,
+                _requestId,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`deleteReleaseAttachment failed for ${owner}/${repo}/releases/${id}/${attachmentId}: ${err}`);
+              this._reply('releaseAttachmentDeleted', {
+                instanceId,
+                owner,
+                repo,
+                id,
+                attachmentId,
+                error: err,
+                _requestId,
+              });
+            }
+            return;
+          }
+          case 'showInputBox': {
+            const { id, prompt, value, placeHolder } = message;
+            if (typeof id !== 'string' || typeof prompt !== 'string') {
+              return;
+            }
+            const result = await vscode.window.showInputBox({
+              prompt,
+              value: typeof value === 'string' ? value : undefined,
+              placeHolder: typeof placeHolder === 'string' ? placeHolder : undefined,
+              ignoreFocusOut: true,
+            });
+            this._reply('showInputBoxResult', { id, value: result ?? undefined, cancelled: result === undefined });
+            return;
+          }
+          case 'showConfirm': {
+            const { id, message: confirmMessage } = message;
+            if (typeof id !== 'string' || typeof confirmMessage !== 'string') {
+              return;
+            }
+            const result = await vscode.window.showInformationMessage(
+              confirmMessage,
+              { modal: true },
+              'Yes',
+              'No',
+            );
+            this._reply('showConfirmResult', { id, confirmed: result === 'Yes' });
+            return;
+          }
           case 'copyToClipboard': {
             const text = message.text;
             if (typeof text === 'string') {

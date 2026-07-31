@@ -158,6 +158,84 @@ export type HostToWebviewMessage =
       releases?: unknown[];
       error?: string;
     }
+  | {
+      command: 'repoBranchCreated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      branch?: string;
+      error?: string;
+    }
+  | {
+      command: 'repoBranchDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      branch?: string;
+      error?: string;
+    }
+  | {
+      command: 'repoTagCreated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      tag?: string;
+      error?: string;
+    }
+  | {
+      command: 'repoTagDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      tag?: string;
+      error?: string;
+    }
+  | {
+      command: 'repoReleaseCreated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      release?: string;
+      error?: string;
+    }
+  | {
+      command: 'repoReleaseDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      release?: string;
+      error?: string;
+    }
+  | {
+      command: 'repoReleaseEdited';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      release?: string;
+      error?: string;
+    }
+  | {
+      command: 'releaseAttachmentCreated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      id: number;
+      attachment?: unknown;
+      error?: string;
+      _requestId: string;
+    }
+  | {
+      command: 'releaseAttachmentDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      id: number;
+      attachmentId: number;
+      error?: string;
+      _requestId: string;
+    }
+  | { command: 'showInputBoxResult'; id: string; value?: string; cancelled: boolean }
+  | { command: 'showConfirmResult'; id: string; confirmed: boolean }
   | { command: 'worktreesList'; worktrees: unknown[] }
   | { command: 'worktreeOpened'; worktree: unknown; existed?: boolean }
   | { command: 'worktreeCancelled'; instanceId: string; owner: string; repo: string; index: number }
@@ -299,6 +377,76 @@ export type WebviewToHostMessage =
   | { command: 'getRepoContents'; instanceId: string; owner: string; repo: string; path: string; ref: string }
   | { command: 'openRepoFile'; instanceId: string; owner: string; repo: string; path: string; ref: string }
   | { command: 'getRepoRefs'; instanceId: string; owner: string; repo: string }
+  | {
+      command: 'createRepoBranch';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      newBranchName: string;
+      oldRefName?: string;
+    }
+  | { command: 'deleteRepoBranch'; instanceId: string; owner: string; repo: string; branch: string }
+  | {
+      command: 'createRepoTag';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      tagName: string;
+      target?: string;
+      message?: string;
+    }
+  | { command: 'deleteRepoTag'; instanceId: string; owner: string; repo: string; tag: string }
+  | {
+      command: 'createRepoRelease';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      tagName: string;
+      name?: string;
+      body?: string;
+      targetCommitish?: string;
+      prerelease?: boolean;
+      draft?: boolean;
+      hideArchiveLinks?: boolean;
+    }
+  | { command: 'deleteRepoRelease'; instanceId: string; owner: string; repo: string; id: number }
+  | {
+      command: 'createReleaseAttachment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      id: number;
+      name: string;
+      data: number[];
+      _requestId: string;
+    }
+  | {
+      command: 'deleteReleaseAttachment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      id: number;
+      attachmentId: number;
+      _requestId: string;
+    }
+  | {
+      command: 'editRepoRelease';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      id: number;
+      data: {
+        tag_name?: string;
+        name?: string;
+        body?: string;
+        target_commitish?: string;
+        prerelease?: boolean;
+        draft?: boolean;
+        hide_archive_links?: boolean;
+      };
+    }
+  | { command: 'showInputBox'; id: string; prompt: string; value?: string; placeHolder?: string }
+  | { command: 'showConfirm'; id: string; message: string }
   | { command: 'copyToClipboard'; text: string }
   | { command: 'openExternal'; url: string }
   | { command: 'previewReadme'; owner: string; repo: string; content: string }

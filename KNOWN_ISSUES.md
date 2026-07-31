@@ -49,3 +49,15 @@ At the moment the only way to guarantee M/R badges would be to build a custom di
 When the extension opens a worktree with `vscode.openFolder`, VS Code automatically adds that folder path to its own "Recent" / "Open Recent" history. There is no extension API parameter to open a folder while suppressing this entry.
 
 This is expected VS Code behavior, not a bug in the extension. If you want to avoid cluttering the recent list, you can manually remove entries from VS Code's **File > Open Recent** menu.
+
+## Release attachments can only be uploaded while editing an existing release
+
+The Forgejo API endpoint for uploading release attachments is `POST /repos/{owner}/{repo}/releases/{id}/assets`, which requires the release to already exist. There is no endpoint to attach files during release creation.
+
+Consequently, the release dialog only shows the attachment upload area when editing an existing release. Attachments must be added after the release has been created.
+
+## Release "use title and content as tag message" cannot be replicated through the API
+
+Forgejo's web UI offers a checkbox to copy the release title and body into the underlying tag message when the tag is created automatically. However, the official `CreateReleaseOption` / `EditReleaseOption` schemas do not expose a `tag_message` field.
+
+The extension therefore does not implement this checkbox; the tag message is left to Forgejo's default behavior when it creates the tag from `target_commitish`.

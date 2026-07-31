@@ -7,5 +7,18 @@
     "**/out/**",
     "**/.turbo/**",
     "packages/forgejo-api/src/generated/**"
+  ],
+  "overrides": [
+    {
+      "files": ["packages/forgejo-toolkit/webview/**/*"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          { "name": "alert", "message": "Use useAppState().showConfirm() instead" },
+          { "name": "confirm", "message": "Use useAppState().showConfirm() instead" },
+          { "name": "prompt", "message": "Use useAppState().showInputBox() instead" }
+        ]
+      }
+    }
   ]
 }

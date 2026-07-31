@@ -49,3 +49,15 @@ Forgejo 的 `GET /repos/{owner}/{repo}/pulls/{index}/files` 接口返回的变�
 当扩展使用 `vscode.openFolder` 打开一个 worktree 时，VS Code 会自动把这个文件夹路径加入它自己的「最近打开」历史。扩展 API 没有参数可以在打开文件夹的同时抑制这条记录。
 
 这是 VS Code 的预期行为，不是扩展的 bug。如果你不希望最近列表被填满，可以手动在 VS Code 的**文件 > 最近打开**菜单中移除相关条目。
+
+## Release 附件只能在编辑已有 Release 时上传
+
+Forgejo 上传 Release 附件的 API 端点是 `POST /repos/{owner}/{repo}/releases/{id}/assets`，要求 Release 已经存在。目前没有能在创建 Release 的同时上传附件的接口。
+
+因此，Release 弹窗只在编辑已有 Release 时显示附件上传区域；新建 Release 时无法添加附件，必须先创建完成再编辑添加。
+
+## Release「使用标题和内容作为标签消息」无法通过 API 实现
+
+Forgejo 网页版在创建 Release 时提供了一个复选框，可以把 Release 标题和正文复制到自动创建的标签消息中。但官方的 `CreateReleaseOption` / `EditReleaseOption` 类型里并没有 `tag_message` 字段。
+
+所以扩展没有实现这个复选框；当 Forgejo 根据 `target_commitish` 自动创建标签时，标签消息使用 Forgejo 的默认行为。
