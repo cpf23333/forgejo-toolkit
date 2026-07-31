@@ -116,6 +116,12 @@ export interface ForgejoRepoDetail {
   recentCommits: ForgejoCommit[];
 }
 
+export type ForgejoBranch = import('@cpf23333-forgejo-toolkit/api').Branch;
+
+export type ForgejoTag = import('@cpf23333-forgejo-toolkit/api').Tag;
+
+export type ForgejoRelease = import('@cpf23333-forgejo-toolkit/api').Release;
+
 export interface ForgejoContentEntry {
   name?: string;
   path?: string;

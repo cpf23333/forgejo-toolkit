@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState, repoBranchCommitsKey, repoDetailKey } from '../composables/useAppState';
 import RepoFileBrowser from '../components/RepoFileBrowser.vue';
+import RepoRefs from '../components/RepoRefs.vue';
 import type { ForgejoCommit } from '../types/api';
 
 const { t } = useI18n();
@@ -33,7 +34,7 @@ const repoUrl = computed(() => detail.value?.repository.html_url ?? '');
 const cloneUrl = computed(() => (repoUrl.value ? `${repoUrl.value}.git` : ''));
 
 const selectedBranch = ref(detail.value?.repository.default_branch ?? '');
-const activeTab = ref<'overview' | 'files'>('overview');
+const activeTab = ref<'overview' | 'files' | 'refs'>('overview');
 
 watch(
   () => detail.value?.repository.default_branch,
@@ -157,6 +158,9 @@ function committerName(commit: ForgejoCommit): string {
         <button class="tab-button" :class="{ active: activeTab === 'files' }" @click="activeTab = 'files'">
           {{ t('dashboard.files') }}
         </button>
+        <button class="tab-button" :class="{ active: activeTab === 'refs' }" @click="activeTab = 'refs'">
+          {{ t('dashboard.refs') }}
+        </button>
       </div>
 
       <div v-if="activeTab === 'overview'">
@@ -213,6 +217,10 @@ function committerName(commit: ForgejoCommit): string {
           :branches="detail.branches"
           :default-branch="detail.repository.default_branch"
         />
+      </div>
+
+      <div v-if="activeTab === 'refs'" class="refs-tab">
+        <RepoRefs :instance-id="instanceId" :owner="owner" :repo="repo" />
       </div>
     </div>
   </div>
@@ -427,6 +435,10 @@ function committerName(commit: ForgejoCommit): string {
 }
 
 .files-tab {
+  min-height: 400px;
+}
+
+.refs-tab {
   min-height: 400px;
 }
 </style>

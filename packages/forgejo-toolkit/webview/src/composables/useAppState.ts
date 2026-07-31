@@ -21,6 +21,9 @@ import type {
   ForgejoTimelineComment,
   ForgejoPullRequestCommit,
   ForgejoContentEntry,
+  ForgejoBranch,
+  ForgejoTag,
+  ForgejoRelease,
 } from '../types/api';
 
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -44,6 +47,7 @@ export function useAppState() {
   const pullRequestComments = ref<Map<string, ForgejoTimelineComment[]>>(new Map());
   const pullRequestCommits = ref<Map<string, ForgejoPullRequestCommit[]>>(new Map());
   const repoContents = ref<Map<string, ForgejoContentEntry[]>>(new Map());
+  const repoRefs = ref<Map<string, { branches: ForgejoBranch[]; tags: ForgejoTag[]; releases: ForgejoRelease[] }>>(new Map());
   const renderedMarkdown = ref<Map<string, string>>(new Map());
   const loading = ref<Map<string, boolean>>(new Map());
   const errors = ref<Map<string, string>>(new Map());
@@ -274,6 +278,19 @@ export function useAppState() {
             ref: string;
             path: string;
             entries?: ForgejoContentEntry[];
+            error?: string;
+          },
+        );
+        break;
+      case 'repoRefs':
+        handleRepoRefs(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            branches?: ForgejoBranch[];
+            tags?: ForgejoTag[];
+            releases?: ForgejoRelease[];
             error?: string;
           },
         );
@@ -642,6 +659,29 @@ export function useAppState() {
     }
   }
 
+  function handleRepoRefs(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    branches?: ForgejoBranch[];
+    tags?: ForgejoTag[];
+    releases?: ForgejoRelease[];
+    error?: string;
+  }) {
+    const key = repoRefsKey(data.instanceId, data.owner, data.repo);
+    loading.value.set(key, false);
+    if (data.error) {
+      errors.value.set(key, data.error);
+    } else {
+      errors.value.delete(key);
+      repoRefs.value.set(key, {
+        branches: data.branches ?? [],
+        tags: data.tags ?? [],
+        releases: data.releases ?? [],
+      });
+    }
+  }
+
   function handleRenderedMarkdown(data: { key: string; html?: string; error?: string }) {
     const pending = pendingRenderMarkdownRequests.get(data.key);
     if (!pending) {
@@ -741,6 +781,16 @@ export function useAppState() {
     loading.value.set(key, true);
     errors.value.delete(key);
     vscode.postMessage({ command: 'getRepoContents', instanceId, owner, repo, path, ref });
+  }
+
+  function loadRepoRefs(instanceId: string, owner: string, repo: string, force = false) {
+    const key = repoRefsKey(instanceId, owner, repo);
+    if (!force && repoRefs.value.has(key)) {
+      return;
+    }
+    loading.value.set(key, true);
+    errors.value.delete(key);
+    vscode.postMessage({ command: 'getRepoRefs', instanceId, owner, repo });
   }
 
   function createIssue(instanceId: string, owner: string, repo: string, title: string, body: string) {
@@ -1065,6 +1115,7 @@ export function useAppState() {
     pullRequestComments,
     pullRequestCommits,
     repoContents,
+    repoRefs,
     loading,
     errors,
     debug,
@@ -1093,6 +1144,7 @@ export function useAppState() {
     loadRepoDetail,
     loadRepoBranchCommits,
     loadRepoContents,
+    loadRepoRefs,
     openRepoFile,
     createIssue,
     editIssue,
@@ -1176,6 +1228,10 @@ export function repoPullRequestsKey(instanceId: string, owner: string, repo: str
 
 export function repoContentsKey(instanceId: string, owner: string, repo: string, ref: string, path: string): string {
   return `${instanceId}:${owner}/${repo}:contents:${ref}:${path}`;
+}
+
+export function repoRefsKey(instanceId: string, owner: string, repo: string): string {
+  return `${instanceId}:${owner}/${repo}:refs`;
 }
 
 function isVersionAtLeast(version: string, minimum: string): boolean {

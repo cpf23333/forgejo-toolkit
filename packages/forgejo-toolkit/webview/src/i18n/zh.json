@@ -58,9 +58,21 @@
     "recentCommits": "最近提交",
     "overview": "概览",
     "files": "文件",
+    "refs": "Refs",
     "fileBrowser": {
       "emptyDirectory": "该目录为空。",
       "refresh": "刷新"
+    },
+    "repoRefs": {
+      "branches": "分支",
+      "tags": "标签",
+      "releases": "Release",
+      "protected": "受保护",
+      "prerelease": "预发布",
+      "draft": "草稿",
+      "emptyBranches": "没有分支。",
+      "emptyTags": "没有标签。",
+      "emptyReleases": "没有 Release。"
     },
     "branches": "分支",
     "defaultBranch": "默认",

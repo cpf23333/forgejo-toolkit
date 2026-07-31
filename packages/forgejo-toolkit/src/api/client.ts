@@ -22,6 +22,8 @@ import {
   repoGetPullRequestFiles,
   repoListBranches,
   repoListPullRequests,
+  repoListReleases,
+  repoListTags,
   userCurrentListRepos,
   userGetCurrent,
 } from '@cpf23333-forgejo-toolkit/api';
@@ -36,6 +38,7 @@ import type {
 } from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
 import type {
+  ForgejoBranch,
   ForgejoChangedFile,
   ForgejoCommit,
   ForgejoContentEntry,
@@ -44,8 +47,10 @@ import type {
   ForgejoIssueDetail,
   ForgejoPullRequest,
   ForgejoPullRequestDetail,
+  ForgejoRelease,
   ForgejoRepoDetail,
   ForgejoRepository,
+  ForgejoTag,
   ForgejoUser,
 } from './types';
 
@@ -158,6 +163,21 @@ export class ForgejoClient {
     const result = await repoGetContents(owner, repo, path, params, { client: this._client() });
     const entries = Array.isArray(result) ? result : [result];
     return entries as ForgejoContentEntry[];
+  }
+
+  async getRepoBranches(owner: string, repo: string): Promise<ForgejoBranch[]> {
+    const branches = await repoListBranches(owner, repo, { limit: 100 }, { client: this._client() });
+    return (branches ?? []) as ForgejoBranch[];
+  }
+
+  async getRepoTags(owner: string, repo: string): Promise<ForgejoTag[]> {
+    const tags = await repoListTags(owner, repo, { limit: 100 }, { client: this._client() });
+    return (tags ?? []) as ForgejoTag[];
+  }
+
+  async getRepoReleases(owner: string, repo: string): Promise<ForgejoRelease[]> {
+    const releases = await repoListReleases(owner, repo, { limit: 100 }, { client: this._client() });
+    return (releases ?? []) as ForgejoRelease[];
   }
 
   getIssueDetail(owner: string, repo: string, index: number): Promise<ForgejoIssueDetail> {

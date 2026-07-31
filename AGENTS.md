@@ -39,6 +39,12 @@ When you need a new element, create its wrapper in `packages/vscode-elements-vue
 - Do **not** run `pnpm build`, `pnpm -r run build`, `vite build`, `node esbuild.js`, or any other build command yourself.
 - Only run `pnpm check` (and `pnpm format:fix` when needed). The user will run builds separately.
 
+## Git mutations
+
+- Do **not** run `git commit`, `git push`, `git reset`, `git rebase`, `git checkout`, or any other git mutation command without explicit user instruction.
+- The user decides when and what to commit. It is safe to stage files (`git add`) only when the user explicitly asks for it.
+- If a commit was made by mistake, stop and ask the user before undoing it.
+
 ## Project tracking documents
 
 Keep these documents in sync with the actual codebase. Do not let them drift.

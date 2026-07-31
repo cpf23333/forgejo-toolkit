@@ -185,3 +185,35 @@ export interface ForgejoCommit {
   html_url: string;
   created?: string;
 }
+
+export type ForgejoBranch = {
+  name?: string;
+  commit?: {
+    id?: string;
+    message?: string;
+    url?: string;
+  };
+  protected?: boolean;
+};
+
+export type ForgejoTag = {
+  name?: string;
+  id?: string;
+  message?: string;
+  commit?: {
+    sha?: string;
+    url?: string;
+  };
+};
+
+export type ForgejoRelease = {
+  id?: number;
+  name?: string;
+  tag_name?: string;
+  body?: string;
+  html_url?: string;
+  prerelease?: boolean;
+  draft?: boolean;
+  published_at?: string;
+  author?: ForgejoUser;
+};

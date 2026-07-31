@@ -913,6 +913,34 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'getRepoRefs': {
+            const { instanceId, owner, repo } = message;
+            if (
+              typeof instanceId !== 'string' ||
+              typeof owner !== 'string' ||
+              typeof repo !== 'string'
+            ) {
+              return;
+            }
+            const instance = this._findInstance(instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const [branches, tags, releases] = await Promise.all([
+                client.getRepoBranches(owner, repo),
+                client.getRepoTags(owner, repo),
+                client.getRepoReleases(owner, repo),
+              ]);
+              this._reply('repoRefs', { instanceId, owner, repo, branches, tags, releases });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getRepoRefs failed for ${owner}/${repo}: ${err}`);
+              this._reply('repoRefs', { instanceId, owner, repo, error: err });
+            }
+            return;
+          }
           case 'copyToClipboard': {
             const text = message.text;
             if (typeof text === 'string') {

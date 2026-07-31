@@ -58,9 +58,21 @@
     "recentCommits": "Recent Commits",
     "overview": "Overview",
     "files": "Files",
+    "refs": "Refs",
     "fileBrowser": {
       "emptyDirectory": "This directory is empty.",
       "refresh": "Refresh"
+    },
+    "repoRefs": {
+      "branches": "Branches",
+      "tags": "Tags",
+      "releases": "Releases",
+      "protected": "Protected",
+      "prerelease": "Pre-release",
+      "draft": "Draft",
+      "emptyBranches": "No branches.",
+      "emptyTags": "No tags.",
+      "emptyReleases": "No releases."
     },
     "branches": "Branches",
     "defaultBranch": "default",
