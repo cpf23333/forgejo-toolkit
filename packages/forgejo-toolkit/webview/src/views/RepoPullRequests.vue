@@ -111,7 +111,9 @@ watch(
     <div class="list-header">
       <h2>{{ t('dashboard.repoPullRequests.title', { repo: title }) }}</h2>
       <div class="header-actions">
-        <VscodeButton @click="openCreatePullRequest">{{ t('dashboard.actions.newPullRequest') }}</VscodeButton>
+        <VscodeButton variant="primary" icon="add" @click="openCreatePullRequest">
+          {{ t('dashboard.actions.newPullRequest') }}
+        </VscodeButton>
         <div class="state-filter">
           <button
             v-for="s in states"
@@ -205,12 +207,13 @@ watch(
 
 .filter-button {
   background: transparent;
-  border: 1px solid var(--vscode-panel-border);
+  border: none;
+  border-bottom: 2px solid transparent;
   color: var(--vscode-foreground);
   padding: 4px 10px;
   cursor: pointer;
-  font-size: 0.85em;
-  border-radius: 4px;
+  font-size: 0.9em;
+  border-radius: 0;
 }
 
 .filter-button:hover {
@@ -218,9 +221,8 @@ watch(
 }
 
 .filter-button.active {
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border-color: var(--vscode-button-background);
+  color: var(--vscode-textLink-foreground);
+  border-bottom-color: var(--vscode-textLink-foreground);
 }
 
 .loading {

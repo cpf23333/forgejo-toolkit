@@ -5,7 +5,7 @@ import * as fs from 'fs';
 export function getWebviewContent(
   webview: vscode.Webview,
   extensionPath: string,
-  options?: { panelMode?: boolean },
+  options?: { panelMode?: boolean; codiconCssPath?: string },
 ): string {
   const webviewDistPath = path.join(extensionPath, 'out', 'webview');
   const htmlPath = path.join(webviewDistPath, 'index.html');
@@ -31,7 +31,10 @@ export function getWebviewContent(
   const configScript = `<script nonce="${nonce}">window.__FORGEJO_TOOLKIT_CONFIG__ = ${JSON.stringify(config)};</script>`;
 
   const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src 'self' data: ${webview.cspSource} http: https:; connect-src 'self' ${webview.cspSource} http: https:;">`;
-  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}\n    ${configScript}`);
+  const codiconLink = options?.codiconCssPath
+    ? `<link rel="stylesheet" href="${webview.asWebviewUri(vscode.Uri.file(options.codiconCssPath)).toString()}" id="vscode-codicon-stylesheet">`
+    : '';
+  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}\n    ${codiconLink}\n    ${configScript}`);
 
   const baseUri = webview.asWebviewUri(vscode.Uri.file(webviewDistPath)).toString().replace(/\/$/, '');
   html = html.replace(/(src|href)="([^"]*)"/g, (match, attr, value) => {

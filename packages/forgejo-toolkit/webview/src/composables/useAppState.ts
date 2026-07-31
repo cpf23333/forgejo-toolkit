@@ -970,11 +970,13 @@ export function useAppState() {
   }
 
   function changeRepoIssuesState(instanceId: string, owner: string, repo: string, newState: string) {
-    openRepoIssues(instanceId, owner, repo, newState);
+    router.replace({ name: 'repoIssues', params: { instanceId, owner, repo, state: newState } });
+    loadRepoIssues(instanceId, owner, repo, newState);
   }
 
   function changeRepoPullRequestsState(instanceId: string, owner: string, repo: string, newState: string) {
-    openRepoPullRequests(instanceId, owner, repo, newState);
+    router.replace({ name: 'repoPullRequests', params: { instanceId, owner, repo, state: newState } });
+    loadRepoPullRequests(instanceId, owner, repo, newState);
   }
 
   function openPrWorktree(instanceId: string, owner: string, repo: string, index: number) {

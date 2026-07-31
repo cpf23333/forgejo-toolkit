@@ -9,6 +9,7 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 import { getWebviewContent } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
+import { createRequire } from 'module';
 import { buildRepoFileUri } from '../repoFileProvider';
 import { WorktreeManager, WorktreeInfo } from '../worktree/worktreeManager';
 import {
@@ -51,12 +52,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   ) {
     this._view = webviewView;
 
+    const require = createRequire(__filename);
+    const codiconCssPath = require.resolve('@vscode/codicons/dist/codicon.css');
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'out', 'webview')],
+      localResourceRoots: [
+        vscode.Uri.joinPath(this._extensionUri, 'out', 'webview'),
+        vscode.Uri.file(path.dirname(codiconCssPath)),
+      ],
     };
 
-    webviewView.webview.html = getWebviewContent(webviewView.webview, this._extensionUri.fsPath);
+    webviewView.webview.html = getWebviewContent(webviewView.webview, this._extensionUri.fsPath, {
+      codiconCssPath,
+    });
 
     webviewView.webview.onDidReceiveMessage(
       async (message) => {
@@ -1188,12 +1196,39 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
       }
 
-      const localBranch = `pr-${index}-${headSha.slice(0, 7)}`;
-      await fetchPullRequestHead(sourceRepoPath, 'origin', index, localBranch);
-
       const sanitizedTitle = sanitizeForPath(prTitle);
       const titleSuffix = sanitizedTitle ? `-${sanitizedTitle}` : '';
       const worktreePath = path.join(cacheDir, 'worktrees', `${owner}-${repo}-pr-${index}${titleSuffix}`);
+
+      const worktreeExisted = await fs.promises
+        .access(worktreePath)
+        .then(() => true)
+        .catch(() => false);
+
+      if (worktreeExisted) {
+        const worktree: WorktreeInfo = {
+          id: `${instanceId}:${owner}/${repo}#pr-${index}`,
+          instanceId,
+          owner,
+          repo,
+          prIndex: index,
+          prTitle,
+          headBranch,
+          headSha,
+          baseBranch,
+          sourceRepoPath,
+          worktreePath,
+          createdAt: Date.now(),
+        };
+        await this._worktreeManager.addWorktree(worktree);
+        await openWorktree(worktreePath, openInNewWindow);
+        this._reply('worktreeOpened', { worktree, existed: true });
+        return;
+      }
+
+      const localBranch = `pr-${index}-${headSha.slice(0, 7)}`;
+      await fetchPullRequestHead(sourceRepoPath, 'origin', index, localBranch);
+
       await createWorktreeFromBranch(sourceRepoPath, worktreePath, localBranch);
 
       const worktree: WorktreeInfo = {

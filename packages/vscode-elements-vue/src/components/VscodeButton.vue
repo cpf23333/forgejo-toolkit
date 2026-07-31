@@ -5,6 +5,8 @@ interface Props {
   variant?: 'primary' | 'secondary' | 'icon';
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
+  icon?: string;
+  iconAfter?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -25,6 +27,8 @@ const variantClass = computed(() => `variant-${props.variant}`);
     :class="variantClass"
     :disabled="disabled"
     :type="type"
+    :icon="icon"
+    :icon-after="iconAfter"
     @click="(event) => emit('click', event as MouseEvent)"
   >
     <slot />

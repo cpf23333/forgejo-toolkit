@@ -43,6 +43,7 @@
     "@types/vscode-webview": "^1.57.5",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vscode-elements/elements": "^2.5.1",
+    "@vscode/codicons": "^0.0.45",
     "@vue/tsconfig": "^0.9.1",
     "concurrently": "^10.0.3",
     "esbuild": "^0.28.1",

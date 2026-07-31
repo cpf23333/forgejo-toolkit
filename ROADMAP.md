@@ -80,9 +80,9 @@
 
 ### 仓库浏览
 
-- 完整文件浏览器：目录树、文件内容查看、代码高亮。
 - 分支 / 标签 / Release 管理列表。
 - README Markdown 渲染预览（目前已在仓库详情页渲染，可独立预览）。
+- 文件浏览器增强：文件搜索、文件历史、图片预览优化、文件重命名 / 删除。
 
 ### 通知与搜索
 
@@ -105,6 +105,7 @@
 
 ## 长期可能
 
+- 图标库统一：用 VS Code `codicon` 替代 `font-awesome`，减少依赖并保持与 VS Code 风格一致。当前 `font-awesome` 仅用于文件浏览器刷新按钮和 EasyMDE 工具栏图标，EasyMDE 部分需要自定义按钮才能迁移。
 - 本地仓库关联：将 VS Code 已打开的 workspace 与 Forgejo 仓库关联（目前已支持检测本地仓库作为 worktree 源）。
 - Issue / PR 与 Git 分支联动：例如点击 PR 自动检出对应分支到 worktree（worktree 已支持）。
 - 通知推送：后台轮询 + VS Code 消息提醒。

@@ -143,10 +143,12 @@ function onBranchChange(event: Event) {
 .file-browser-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
 .branch-select {
+  flex: 1;
   min-width: 160px;
 }
 

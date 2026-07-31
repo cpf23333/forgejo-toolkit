@@ -398,7 +398,7 @@ function committerName(commit: ForgejoCommit): string {
 }
 
 .branch-select {
-  max-width: 320px;
+  width: 100%;
 }
 
 .repo-tabs {
