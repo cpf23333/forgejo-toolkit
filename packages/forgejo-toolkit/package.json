@@ -16,8 +16,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "http://192.168.1.100:3004/cpf23333/forgejo-toolkit.git"
+    "url": "https://codeberg.org/cpf23333/forgejo-toolkit.git"
   },
+  "bugs": {
+    "url": "https://codeberg.org/cpf23333/forgejo-toolkit/issues"
+  },
+  "homepage": "https://codeberg.org/cpf23333/forgejo-toolkit",
   "publisher": "your-publisher-name",
   "main": "./out/extension.js",
   "scripts": {

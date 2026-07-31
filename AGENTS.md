@@ -47,6 +47,18 @@ When you need a new element, create its wrapper in `packages/vscode-elements-vue
 - If a commit was made by mistake, stop and ask the user before undoing it.
 - When the user asks to commit, write the commit message in English.
 
+## Codeberg hosting and resource usage
+
+This project is currently hosted on Codeberg. Codeberg's Terms of Use discourage projects whose resource consumption is severely mismatched with their community size, as well as projects that appear to be autonomously maintained by LLM agents.
+
+To keep the project welcome on Codeberg:
+
+- **No autonomous CI agents.** CI must only validate code; it must not commit, push, release, merge, or otherwise modify the repository on its own.
+- **Keep the git repository small.** Do not commit `node_modules`, build outputs (`.vsix`, `out/`, `dist/`), large media files, or generated artifacts. The `.gitignore` already covers these; do not bypass it.
+- **CI must be human-triggered.** CI must not run autonomously on every push or on a schedule. Use `workflow_dispatch` or equivalent manual triggers. The CI itself may run lint, typecheck, tests, builds, or even multi-platform matrix jobs when a human explicitly starts it.
+- **Keep release artifacts off git.** Attach `.vsix` files to Codeberg Releases or the VS Code Marketplace, not to the git repository.
+- **Preserve human maintenance signals.** Commit messages, issue responses, and PR reviews should clearly show human oversight. Do not use bots for auto-merging or autonomous releases.
+
 ## Webview runtime limitations
 
 - VS Code webviews run inside a sandboxed iframe without `allow-modals`. `window.alert`, `window.confirm`, and `window.prompt` are blocked by the browser and must **never** be used in webview code.

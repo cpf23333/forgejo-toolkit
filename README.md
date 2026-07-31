@@ -1,74 +1,78 @@
+English | [中文](./README.zh.md)
+
 # Forgejo Toolkit
 
-一个用于 [Forgejo](https://forgejo.org/) 的 VS Code 扩展，提供基于 Webview 的仪表盘、仓库浏览、Issue / PR 管理、PR worktree 等功能。
+[![Codeberg](https://img.shields.io/badge/Codeberg-forgejo--toolkit-blue.svg)](https://codeberg.org/cpf23333/forgejo-toolkit)
 
-## 功能概览
+A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-based dashboard, repository browsing, Issue / PR management, PR worktree support, and more.
 
-- **多实例管理**：添加、编辑、删除多个 Forgejo/Codeberg 实例，access token 使用 VS Code SecretStorage 保存。
-- **Dashboard 面板**：在 VS Code 侧边栏展示仓库、Issue、Pull Request 列表，按实例折叠。
-- **仓库详情**：查看 README、最近提交、分支 / 标签 / Release 列表、文件浏览器。
-- **文件浏览器**：目录树展示、文件内容查看、文件搜索、单文件历史、文件夹展开 loading 指示器。
-- **Issue / PR 管理**：列表、详情、创建、编辑、关闭 / 重新打开；支持 Markdown 渲染与附件列表。
-- **PR diff**：查看变更文件列表，支持按提交查看 diff，调用 VS Code 原生 diff 编辑器。
-- **PR Worktree**：在 PR 详情页一键检出 `refs/pull/<index>/head` 到本地 worktree，支持配置打开方式和缓存目录。
-- **国际化**：支持中文 / 英文切换。
-- **调试日志**：可选开启 API 请求日志到 `Forgejo Toolkit` Output Channel。
+## Features
 
-## 安装
+- **Multi-instance management**: add, edit, and remove multiple Forgejo/Codeberg instances. Access tokens are stored in VS Code SecretStorage.
+- **Dashboard panel**: display repository, Issue, and Pull Request lists in the VS Code sidebar, grouped by instance.
+- **Repository details**: view README, recent commits, branch / tag / release lists, and a file browser.
+- **File browser**: directory tree, file content preview, file search, single-file history, and loading indicator while expanding folders.
+- **Issue / PR management**: list, detail, create, edit, close / reopen; supports Markdown rendering and attachment lists.
+- **PR diff**: view changed file list, view diff per commit, and open VS Code's native diff editor.
+- **PR Worktree**: check out `refs/pull/<index>/head` to a local worktree from the PR detail page, with configurable open mode and cache directory.
+- **Internationalization**: supports switching between Chinese and English.
+- **Debug logs**: optional API request logging to the `Forgejo Toolkit` Output Channel.
 
-### 从 VSIX 安装
+## Installation
+
+### From VSIX
 
 ```bash
 pnpm --filter forgejo-toolkit package
 ```
 
-然后在 VS Code 中点击 **扩展 → ... → 从 VSIX 安装**，选择生成的 `forgejo-toolkit-0.0.1.vsix`。
+Then in VS Code click **Extensions → ... → Install from VSIX** and select the generated `forgejo-toolkit-0.0.1.vsix`.
 
-### 从 Marketplace 安装
+### From Marketplace
 
-> 暂未发布，后续会上架 VS Code Marketplace。
+> Not yet published. It will be available on the VS Code Marketplace later.
 
-## 使用
+## Usage
 
-1. 安装扩展后，点击左侧活动栏的 **Forgejo Toolkit** 图标打开 Dashboard。
-2. 首次使用会进入引导页，配置 Forgejo 实例地址和 access token。
-3. 在 Dashboard 中浏览仓库、Issue、PR；点击仓库卡片进入仓库详情。
-4. 在 Issue / PR 详情页可以评论、编辑、关闭 / 重新打开。
-5. 在 PR 详情页点击「在 Worktree 中打开」可检出到本地 worktree。
+1. After installing the extension, click the **Forgejo Toolkit** icon in the activity bar to open the Dashboard.
+2. On first use you will enter the onboarding page to configure the Forgejo instance URL and access token.
+3. Browse repositories, Issues, and PRs in the Dashboard; click a repository card to open repository details.
+4. On Issue / PR detail pages you can comment, edit, close / reopen.
+5. On a PR detail page, click "Open in Worktree" to check out to a local worktree.
 
-## 截图
+## Screenshots
 
-> 以下截图占位符对应 `docs/screenshots/` 目录下的图片，发布前请补充实际截图。
+> The following screenshot placeholders correspond to images in the `docs/screenshots/` directory. Replace them with real screenshots before release.
 
 ### Dashboard
 
 ![Dashboard](./docs/screenshots/dashboard.png)
 
-### 仓库详情 - 概览
+### Repository Details - Overview
 
 ![Repository Overview](./docs/screenshots/repo-overview.png)
 
-### 仓库详情 - 文件浏览器
+### Repository Details - File Browser
 
 ![Repository File Browser](./docs/screenshots/repo-file-browser.png)
 
-### 仓库详情 - 分支 / 标签 / Release
+### Repository Details - Branches / Tags / Releases
 
 ![Repository Refs](./docs/screenshots/repo-refs.png)
 
-### Issue 列表与详情
+### Issue List and Detail
 
 ![Issue List and Detail](./docs/screenshots/issue-list-and-detail.png)
 
-### Pull Request 列表与详情
+### Pull Request List and Detail
 
 ![Pull Request List and Detail](./docs/screenshots/pr-list-and-detail.png)
 
-### PR diff
+### PR Diff
 
 ![PR Diff](./docs/screenshots/pr-diff.png)
 
-### Issue / PR 编辑弹窗
+### Issue / PR Edit Dialog
 
 ![Issue PR Edit Dialog](./docs/screenshots/issue-pr-edit-dialog.png)
 
@@ -76,99 +80,99 @@ pnpm --filter forgejo-toolkit package
 
 ![PR Worktree](./docs/screenshots/pr-worktree.png)
 
-### 设置页
+### Settings
 
 ![Settings](./docs/screenshots/settings.png)
 
-## 已知限制
+## Known Limitations
 
-参见 [KNOWN_ISSUES.md](./KNOWN_ISSUES.md)（英文）和 [KNOWN_ISSUES.zh.md](./KNOWN_ISSUES.zh.md)（中文）。
+See [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) (English) and [KNOWN_ISSUES.zh.md](./KNOWN_ISSUES.zh.md) (Chinese).
 
-主要限制包括：
+Main limitations:
 
-- PR 附件需要从 Issue API 获取。
-- Issue / PR 附件上传仅在编辑已有项时可用。
-- 创建 Release 时无法同时上传附件。
-- 多文件 diff 编辑器中修改 / 重命名文件不显示 M/R 徽章。
-- Forgejo 的 PR 文件 API 可能漏掉删除文件（扩展已改用 compare API 规避）。
+- PR attachments must be fetched from the Issue API.
+- Issue / PR attachment upload is only available when editing an existing item.
+- Attachments cannot be uploaded while creating a Release.
+- The multi-file diff editor does not show M/R badges for modified / renamed files.
+- Forgejo's PR files API may omit deleted files (the extension uses the compare API to work around this).
 
-## 开发
+## Development
 
-这是一个 pnpm workspace monorepo。
+This is a pnpm workspace monorepo.
 
-### 包结构
+### Package Structure
 
-| Package                                                          | 说明                                                                                                                          |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit)         | VS Code 扩展主体。                                                                                                            |
-| [`packages/vscode-elements-vue`](./packages/vscode-elements-vue) | Vue 3 适配 [@vscode-elements/elements](https://www.npmjs.com/package/@vscode-elements/elements) 的类型、Vite 插件和包装组件。 |
-| [`packages/shared`](./packages/shared)                           | 共享请求客户端与通用类型。                                                                                                    |
-| [`packages/forgejo-api`](./packages/forgejo-api)                 | 基于 Forgejo OpenAPI 规范生成的 API 客户端。                                                                                  |
+| Package                                                          | Description                                                                                                                  |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit)         | VS Code extension host.                                                                                                      |
+| [`packages/vscode-elements-vue`](./packages/vscode-elements-vue) | Vue 3 adapter for [@vscode-elements/elements](https://www.npmjs.com/package/@vscode-elements/elements) types and components. |
+| [`packages/shared`](./packages/shared)                           | Shared request client and common types.                                                                                      |
+| [`packages/forgejo-api`](./packages/forgejo-api)                 | API client generated from the Forgejo OpenAPI specification.                                                                 |
 
-### 技术栈
+### Tech Stack
 
 - **Extension host**: TypeScript + esbuild (CJS)
 - **Webview UI**: Vue 3 + Vite 6 + @vscode-elements/elements
-- **包管理**: pnpm workspaces
+- **Package management**: pnpm workspaces
 
-### 常用命令
+### Common Commands
 
 ```bash
-# 安装依赖
+# Install dependencies
 pnpm install
 
-# 构建所有包
+# Build all packages
 pnpm run build
 
-# 类型检查
+# Type check
 pnpm run check
 
-# 运行测试
+# Run tests
 pnpm --filter forgejo-toolkit test
 pnpm --filter @cpf23333-forgejo-toolkit/shared test
 
-# 开发模式
+# Development mode
 pnpm run dev
 ```
 
-在 VS Code 中打开 `packages/forgejo-toolkit` 目录，按 `F5` 启动 Extension Host。
+Open the `packages/forgejo-toolkit` directory in VS Code and press `F5` to launch the Extension Host.
 
-### 打包
+### Packaging
 
 ```bash
 pnpm --filter forgejo-toolkit package
 ```
 
-生成的 `.vsix` 文件位于 `packages/forgejo-toolkit/`。
+The generated `.vsix` file is located in `packages/forgejo-toolkit/`.
 
-### 版本管理
+### Version Management
 
-本项目使用 [Changesets](https://github.com/changesets/changesets) 管理 monorepo 版本号。
+This project uses [Changesets](https://github.com/changesets/changesets) to manage monorepo versioning.
 
 ```bash
-# 开发完一个功能后，记录变更
+# After finishing a feature, record the change
 pnpm run changeset
 
-# 准备发版时，自动更新版本号和 CHANGELOG
+# When preparing a release, update versions and CHANGELOG automatically
 pnpm run version-packages
 ```
 
-`pnpm run release` 用于 npm 包发布；VS Code 扩展本身通过 `pnpm --filter forgejo-toolkit package` 打包成 `.vsix`。
+`pnpm run release` is used for npm package publishing; the VS Code extension itself is packaged into a `.vsix` via `pnpm --filter forgejo-toolkit package`.
 
-## 截图清单（发布前补充）
+## Screenshot Checklist (to be added before release)
 
-请在 `docs/screenshots/` 目录下放置以下截图，文件名与 README 中引用保持一致：
+Place the following screenshots in the `docs/screenshots/` directory, keeping the filenames consistent with the README references:
 
-1. `dashboard.png` — Dashboard 面板，展示仓库 / Issue / PR 列表和实例折叠效果。
-2. `repo-overview.png` — 仓库详情「概览」标签页，展示 README、最近提交、默认分支信息。
-3. `repo-file-browser.png` — 仓库详情「文件」标签页，展示目录树、文件搜索或文件历史弹窗。
-4. `repo-refs.png` — 仓库详情「引用」标签页，展示分支 / 标签 / Release 列表。
-5. `issue-list-and-detail.png` — Issue 列表 + Issue 详情页。
-6. `pr-list-and-detail.png` — PR 列表 + PR 详情页。
-7. `pr-diff.png` — PR 详情页的变更文件列表，或 VS Code diff 编辑器。
-8. `issue-pr-edit-dialog.png` — Issue / PR 编辑弹窗，展示 Markdown 编辑器与附件区域。
-9. `pr-worktree.png` — PR 详情页「在 Worktree 中打开」流程，或 worktree 设置面板。
-10. `settings.png` — 设置页，展示实例列表、worktree 配置、语言切换。
+1. `dashboard.png` — Dashboard panel showing repository / Issue / PR lists and instance collapse behavior.
+2. `repo-overview.png` — Repository "Overview" tab showing README, recent commits, and default branch info.
+3. `repo-file-browser.png` — Repository "Files" tab showing directory tree, file search, or file history dialog.
+4. `repo-refs.png` — Repository "Refs" tab showing branch / tag / release lists.
+5. `issue-list-and-detail.png` — Issue list + Issue detail page.
+6. `pr-list-and-detail.png` — PR list + PR detail page.
+7. `pr-diff.png` — Changed file list on the PR detail page, or the VS Code diff editor.
+8. `issue-pr-edit-dialog.png` — Issue / PR edit dialog showing Markdown editor and attachment area.
+9. `pr-worktree.png` — PR detail page "Open in Worktree" flow, or worktree settings panel.
+10. `settings.png` — Settings page showing instance list, worktree config, and language switch.
 
 ## License
 

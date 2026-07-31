@@ -100,6 +100,19 @@
 
 - 读取仓库 Actions 运行状态和历史。
 
+### Issue / PR 评论与合并
+
+当前项目已支持 Issue / PR 的创建、编辑、关闭 / 重新打开，下一步补充：
+
+- 为 Issue / PR 添加评论（当前仅展示评论与时间线）。
+- 合并 PR，支持 merge / squash / rebase 策略。
+- PR 内联 review 评论（行级评论）。
+
+### 本地仓库自动关联
+
+- 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库和对应实例。
+- 在状态栏或侧边栏显示关联仓库的快捷入口。
+
 ### 构建工具统一
 
 - Vite 8 已默认基于 Rolldown，但 extension host 仍使用 esbuild。
