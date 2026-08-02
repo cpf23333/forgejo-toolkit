@@ -2,8 +2,6 @@
 
 ## 进行中
 
-- [x] 为 Issue / PR 添加评论功能
-- [x] 支持合并 PR（merge / squash / rebase）
 - [ ] 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库
 
 ## 待开始
@@ -18,6 +16,8 @@
 
 ## 已完成
 
+- [x] 为 Issue / PR 添加评论功能（支持附件）
+- [x] 支持合并 PR（merge / squash / rebase）
 - [x] 多实例管理
 - [x] Dashboard 面板（Repositories / Issues / Pull Requests）
 - [x] 仓库详情页

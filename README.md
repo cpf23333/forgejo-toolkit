@@ -91,8 +91,6 @@ See [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) (English) and [KNOWN_ISSUES.zh.md](./KN
 Main limitations:
 
 - PR attachments must be fetched from the Issue API.
-- Issue / PR attachment upload is only available when editing an existing item.
-- Attachments cannot be uploaded while creating a Release.
 - The multi-file diff editor does not show M/R badges for modified / renamed files.
 - Forgejo's PR files API may omit deleted files (the extension uses the compare API to work around this).
 
@@ -112,7 +110,7 @@ This is a pnpm workspace monorepo.
 ### Tech Stack
 
 - **Extension host**: TypeScript + esbuild (CJS)
-- **Webview UI**: Vue 3 + Vite 6 + @vscode-elements/elements
+- **Webview UI**: Vue 3 + Vite 8 + @vscode-elements/elements
 - **Package management**: pnpm workspaces
 
 ### Common Commands
@@ -173,6 +171,15 @@ Place the following screenshots in the `docs/screenshots/` directory, keeping th
 8. `issue-pr-edit-dialog.png` — Issue / PR edit dialog showing Markdown editor and attachment area.
 9. `pr-worktree.png` — PR detail page "Open in Worktree" flow, or worktree settings panel.
 10. `settings.png` — Settings page showing instance list, worktree config, and language switch.
+
+## Project Status
+
+This is a personal side project. Features are tested only lightly, so bugs and edge cases are expected. Please open an issue if you run into any problems.
+
+## Feedback & Contributions
+
+Bug reports, feature requests, pull requests, documentation improvements, and any other feedback are welcome.  
+If you have ideas for better interactions, layouts, workflows, or anything else, feel free to open an issue or start a discussion.
 
 ## License
 

@@ -44,6 +44,7 @@ When you need a new element, create its wrapper in `packages/vscode-elements-vue
 - Do **not** run `git commit`, `git push`, `git reset`, `git rebase`, `git checkout`, or any other git mutation command without explicit user instruction.
 - The user decides when and what to commit. It is safe to stage files (`git add`) only when the user explicitly asks for it.
 - **Never auto-commit after finishing a change.** Even if the change looks complete, self-contained, or passing all checks, stop and report the status instead of committing.
+- Reporting that a change is "done" or that checks pass is **not** an implicit request to commit. Wait for an explicit commit instruction such as "提交" or "commit".
 - If a commit was made by mistake, stop and ask the user before undoing it.
 - When the user asks to commit, write the commit message in English.
 

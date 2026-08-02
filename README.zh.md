@@ -91,8 +91,6 @@ pnpm --filter forgejo-toolkit package
 主要限制包括：
 
 - PR 附件需要从 Issue API 获取。
-- Issue / PR 附件上传仅在编辑已有项时可用。
-- 创建 Release 时无法同时上传附件。
 - 多文件 diff 编辑器中修改 / 重命名文件不显示 M/R 徽章。
 - Forgejo 的 PR 文件 API 可能漏掉删除文件（扩展已改用 compare API 规避）。
 
@@ -112,7 +110,7 @@ pnpm --filter forgejo-toolkit package
 ### 技术栈
 
 - **Extension host**: TypeScript + esbuild (CJS)
-- **Webview UI**: Vue 3 + Vite 6 + @vscode-elements/elements
+- **Webview UI**: Vue 3 + Vite 8 + @vscode-elements/elements
 - **包管理**: pnpm workspaces
 
 ### 常用命令
@@ -173,6 +171,15 @@ pnpm run version-packages
 8. `issue-pr-edit-dialog.png` — Issue / PR 编辑弹窗，展示 Markdown 编辑器与附件区域。
 9. `pr-worktree.png` — PR 详情页「在 Worktree 中打开」流程，或 worktree 设置面板。
 10. `settings.png` — 设置页，展示实例列表、worktree 配置、语言切换。
+
+## 项目状态
+
+这是一个个人业余项目，各项功能仅经过简单测试，可能存在 bug 和未覆盖到的边界情况。如遇到问题，欢迎提交 issue。
+
+## 反馈与贡献
+
+欢迎提交 bug 反馈、功能建议、Pull Request、文档改进，以及任何其他形式的反馈。  
+如果你有更好的交互、布局、流程或其他想法，欢迎通过 Issue 或 Discussion 提出。
 
 ## License
 

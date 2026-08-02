@@ -14,13 +14,13 @@ Forgejo 附件 URL（例如 `/attachments/{uuid}`）需要认证。VS Code webvi
 
 扩展目前的 workaround 是：使用存储的 access token 在扩展宿主中获取渲染后的 Markdown HTML 里的每张图片，将其转换为 `data:` URL，并在返回 HTML 给 webview 之前替换原始的 `src`。
 
-## Issue/PR 附件上传仅在编辑已有 Issue/PR 时可用
+## Issue/PR 创建时上传附件需要分两次 API 调用
 
-Forgejo 官方 API 只提供了 `POST /repos/{owner}/{repo}/issues/{index}/assets`，该接口要求 Issue 或 Pull Request 已经存在。
+Forgejo 官方 API 只提供了 `POST /repos/{owner}/{repo}/issues/{index}/assets`，该接口要求 Issue 或 Pull Request 已经存在。没有能在创建 Issue/PR 的同时上传附件的接口。
 
 Forgejo 网页界面在*创建*新 Issue/PR 时，还会使用一个通用的 `POST /{owner}/{repo}/issues/attachments` 表单接口。但该 Web 路由属于基于 session 的认证组，不接受 API access token（`Authorization: Bearer`/`token`），扩展无法使用，只能退回到官方 API 接口。
 
-因此，图片上传仅在**编辑**已有 Issue/PR 时可用。创建新 Issue/PR 时编辑器仍显示普通的图片链接按钮，但不支持上传文件。
+扩展目前的做法是：先创建 Issue/PR，再自动把待上传的附件传上去。对用户来说，创建前可以选择文件，创建后会自动上传。
 
 此外，上传附件要求 access token 拥有 **`write:issue`** 权限范围。如果 token 只有只读权限，会返回 403 错误：`token does not have at least one of required scope(s): [write:issue]`。
 
@@ -50,11 +50,11 @@ Forgejo 的 `GET /repos/{owner}/{repo}/pulls/{index}/files` 接口返回的变�
 
 这是 VS Code 的预期行为，不是扩展的 bug。如果你不希望最近列表被填满，可以手动在 VS Code 的**文件 > 最近打开**菜单中移除相关条目。
 
-## Release 附件只能在编辑已有 Release 时上传
+## Release 创建时上传附件需要分两次 API 调用
 
 Forgejo 上传 Release 附件的 API 端点是 `POST /repos/{owner}/{repo}/releases/{id}/assets`，要求 Release 已经存在。目前没有能在创建 Release 的同时上传附件的接口。
 
-因此，Release 弹窗只在编辑已有 Release 时显示附件上传区域；新建 Release 时无法添加附件，必须先创建完成再编辑添加。
+扩展目前的做法是：先创建 Release，再自动把待上传的附件传上去。对用户来说，创建前可以选择文件，创建后会自动上传。
 
 ## Release「使用标题和内容作为标签消息」无法通过 API 实现
 

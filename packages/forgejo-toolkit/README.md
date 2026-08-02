@@ -12,7 +12,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) with a rich Webview-base
 ## Tech Stack
 
 - **Extension host**: TypeScript + esbuild (CJS)
-- **Webview UI**: Vue 3 + Vite 6 + @vscode-elements/elements + @cpf23333-forgejo-toolkit/vscode-elements-vue
+- **Webview UI**: Vue 3 + Vite 8 + @vscode-elements/elements + @cpf23333-forgejo-toolkit/vscode-elements-vue
 
 ## Development
 

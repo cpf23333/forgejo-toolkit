@@ -14,15 +14,15 @@ Forgejo attachment URLs (e.g. `/attachments/{uuid}`) require authentication. The
 
 The extension works around this by fetching each image in the rendered Markdown HTML using the stored access token, converting it to a `data:` URL, and replacing the original `src` before returning the HTML to the webview.
 
-## Issue/PR attachment upload is only available when editing existing issues/PRs
+## Issue/PR attachment upload during creation requires two API calls
 
-The official Forgejo API only provides `POST /repos/{owner}/{repo}/issues/{index}/assets`, which requires an existing issue or pull request.
+The official Forgejo API only provides `POST /repos/{owner}/{repo}/issues/{index}/assets`, which requires an existing issue or pull request. There is no endpoint to attach files while creating the issue or PR.
 
-Forgejo's web UI also has a generic `POST /{owner}/{repo}/issues/attachments` endpoint used by browser forms when _creating_ a new issue or PR. However, this web route is part of the session-based auth group and does **not** accept API access tokens (`Authorization: Bearer`/`token`). The extension therefore cannot use it and falls back to the official API endpoint.
+Forgejo's web UI has a generic `POST /{owner}/{repo}/issues/attachments` endpoint used by browser forms when _creating_ a new issue or PR. However, this web route is part of the session-based auth group and does **not** accept API access tokens (`Authorization: Bearer`/`token`). The extension therefore cannot use it and falls back to the official API endpoint.
 
-As a result, image uploads are only available while **editing** an existing issue or PR. When creating a new issue or PR, the editor still shows the normal image link button, but uploading a file is not supported.
+The extension works around this by creating the issue or PR first and then uploading the pending attachments in a second step. From the user's perspective, files can be selected before creation and are uploaded automatically after the item is created.
 
-Uploading also requires the access token to have the **`write:issue`** scope. If the token only has read scopes, the upload endpoint returns a 403 error: `token does not have at least one of required scope(s): [write:issue]`.
+Uploading still requires the access token to have the **`write:issue`** scope. If the token only has read scopes, the upload endpoint returns a 403 error: `token does not have at least one of required scope(s): [write:issue]`.
 
 ## Forgejo's pull request files API may omit deleted files
 
@@ -50,11 +50,11 @@ When the extension opens a worktree with `vscode.openFolder`, VS Code automatica
 
 This is expected VS Code behavior, not a bug in the extension. If you want to avoid cluttering the recent list, you can manually remove entries from VS Code's **File > Open Recent** menu.
 
-## Release attachments can only be uploaded while editing an existing release
+## Release attachment upload during creation requires two API calls
 
 The Forgejo API endpoint for uploading release attachments is `POST /repos/{owner}/{repo}/releases/{id}/assets`, which requires the release to already exist. There is no endpoint to attach files during release creation.
 
-Consequently, the release dialog only shows the attachment upload area when editing an existing release. Attachments must be added after the release has been created.
+The extension works around this by creating the release first and then uploading the pending attachments in a second step. From the user's perspective, files can be selected before creation and are uploaded automatically after the release is created.
 
 ## Release "use title and content as tag message" cannot be replicated through the API
 

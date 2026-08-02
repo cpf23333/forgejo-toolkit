@@ -40,13 +40,7 @@ The generated file is located at `packages/forgejo-toolkit/forgejo-toolkit-<vers
 
 ### 4. Publish to VS Code Marketplace
 
-Install `vsce` if you have not already:
-
-```bash
-pnpm add -D @vscode/vsce
-```
-
-Publish the extension:
+`@vscode/vsce` is already included as a dev dependency, so you can publish directly:
 
 ```bash
 pnpm exec vsce publish --packagePath packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix

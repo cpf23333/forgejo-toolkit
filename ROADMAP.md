@@ -68,6 +68,8 @@
 - 创建 Issue / PR：仓库 Issue/PR 列表页提供新建弹窗。
 - 编辑 / 关闭 / 重新打开 Issue 和 PR：详情页弹窗编辑，保存成功后重新获取详情。
 - 编辑弹窗使用原生 `<dialog>` 封装，不留下路由历史。
+- 为 Issue / PR 添加评论，支持附件上传。
+- 合并 PR，支持 merge / squash / rebase 策略。
 
 ### 富文本编辑器与附件
 
@@ -76,6 +78,9 @@
 - 编辑弹窗内支持附件上传与删除。
 - 附件删除改为 pending 模式：标记后随保存一起提交，取消编辑则放弃删除。
 - 保存成功后重新获取详情，确保附件等数据最新。
+- Issue / PR / Release / 评论创建时支持 pending 附件，创建实体后自动上传。
+- 新建 Release 时支持多文件附件选择。
+- 提取 PendingAttachmentList 组件，统一 pending 附件列表的展示与 object URL 管理。
 
 ### 仓库浏览
 
@@ -85,13 +90,6 @@
 - README Markdown 渲染预览：在仓库详情页点击「预览 README」，通过 VS Code 原生 Markdown 预览打开。
 
 ## 当前迭代
-
-### Issue / PR 评论与合并
-
-当前项目已支持 Issue / PR 的创建、编辑、关闭 / 重新打开，下一步补充：
-
-- 为 Issue / PR 添加评论（当前仅展示评论与时间线）。
-- 合并 PR，支持 merge / squash / rebase 策略。
 
 ### 本地仓库自动关联
 
@@ -129,6 +127,12 @@
 - 接入 MSW mock 用于测试或离线开发。
 - 为 webview `ModalDialog`、`FileTreeItem` 等组件添加更多测试。
 - 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试。
+
+### 旧版本 Forgejo / Gitea 兼容
+
+- 测试并兼容不同 Forgejo 版本（如 1.x、7.x、9.x）的 API 差异。
+- 评估对 Gitea 的兼容支持，处理 API 路径、字段、认证方式的差异。
+- 在设置中允许用户声明服务器版本或自动探测。
 
 ## 长期可能
 
