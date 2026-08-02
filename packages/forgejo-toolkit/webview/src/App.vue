@@ -53,11 +53,11 @@ onUnmounted(() => {
 .app {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   height: 100%;
   overflow: hidden;
   box-sizing: border-box;
-  padding: 16px;
+  padding: 12px;
 }
 
 html,

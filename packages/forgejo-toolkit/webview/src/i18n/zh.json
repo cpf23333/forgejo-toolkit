@@ -41,6 +41,7 @@
     "emptyRepository": "该仓库为空。推送一些提交后即可开始使用。",
     "loading": "加载中...",
     "error": "加载失败：{message}",
+    "retry": "重试",
     "owner": "所有者",
     "branch": "默认分支",
     "stars": "Star",

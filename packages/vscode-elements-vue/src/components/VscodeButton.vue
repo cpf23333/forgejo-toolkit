@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useSlots } from 'vue';
 
 interface Props {
   variant?: 'primary' | 'secondary' | 'icon';
@@ -19,7 +19,10 @@ const emit = defineEmits<{
   (e: 'click', event: MouseEvent): void;
 }>();
 
+const slots = useSlots();
 const variantClass = computed(() => `variant-${props.variant}`);
+const isSecondary = computed(() => props.variant === 'secondary');
+const isIconOnly = computed(() => props.variant === 'icon' && !slots.default);
 </script>
 
 <template>
@@ -29,6 +32,8 @@ const variantClass = computed(() => `variant-${props.variant}`);
     :type="type"
     :icon="icon"
     :icon-after="iconAfter"
+    :secondary="isSecondary ? true : undefined"
+    :icon-only="isIconOnly ? true : undefined"
     @click="(event) => emit('click', event as MouseEvent)"
   >
     <slot />

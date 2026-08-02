@@ -6,6 +6,7 @@ import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/comp
 import { useAppState, repoBranchCommitsKey, repoDetailKey } from '../composables/useAppState';
 import RepoFileBrowser from '../components/RepoFileBrowser.vue';
 import RepoRefs from '../components/RepoRefs.vue';
+import ViewTabs from '../components/ViewTabs.vue';
 import type { ForgejoCommit } from '../types/api';
 
 const { t } = useI18n();
@@ -113,66 +114,115 @@ function committerAvatar(commit: ForgejoCommit): string | undefined {
 function committerName(commit: ForgejoCommit): string {
   return commit.committer?.login ?? commit.author?.login ?? commit.commit.author.name;
 }
+
+function reloadRepo() {
+  state.repoDetails.value.delete(key.value);
+  state.loadRepoDetail(instanceId.value, owner.value, repo.value);
+}
 </script>
 
 <template>
   <div class="repo-detail">
-    <div v-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
-    <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
+    <div v-if="loading" class="loading-state">
+      <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+    </div>
+    <div v-else-if="error" class="error-state">
+      <span>{{ t('dashboard.error', { message: error }) }}</span>
+      <VscodeButton variant="secondary" icon="refresh" @click="reloadRepo">
+        {{ t('dashboard.retry') }}
+      </VscodeButton>
+    </div>
     <div v-else-if="detail" class="detail-content">
       <div class="repo-header">
         <h2>{{ detail.repository.full_name }}</h2>
         <p v-if="detail.repository.description" class="description">{{ detail.repository.description }}</p>
         <div class="meta">
-          <span>{{ t('dashboard.owner') }}: {{ detail.repository.owner.login }}</span>
-          <span>{{ t('dashboard.branch') }}: {{ detail.repository.default_branch }}</span>
-          <span>{{ t('dashboard.stars') }}: {{ detail.repository.stars_count }}</span>
-          <span>{{ t('dashboard.forks') }}: {{ detail.repository.forks_count }}</span>
-          <span>{{ t('dashboard.openIssues') }}: {{ detail.repository.open_issues_count }}</span>
-        </div>
-        <div class="actions">
-          <a href="#" class="action-link" @click.prevent="state.openExternal(repoUrl)">
-            {{ t('dashboard.actions.open') }}
-          </a>
-          <a href="#" class="action-link" @click.prevent="state.copyToClipboard(cloneUrl)">
-            {{ t('dashboard.actions.copyClone') }}
-          </a>
-          <a href="#" class="action-link" @click.prevent="state.copyToClipboard(repoUrl)">
-            {{ t('dashboard.actions.copyUrl') }}
-          </a>
-          <a href="#" class="action-link" @click.prevent="state.openRepoIssues(instanceId, owner, repo)">
-            {{ t('dashboard.openIssues') }} ({{ detail.repository.open_issues_count }})
-          </a>
-          <a href="#" class="action-link" @click.prevent="state.openRepoPullRequests(instanceId, owner, repo)">
-            {{ t('dashboard.openPullRequests') }} ({{ detail.repository.open_pr_counter ?? 0 }})
+          <span class="meta-item" :title="t('dashboard.owner')">
+            <vscode-icon name="account" class="meta-icon" />
+            {{ detail.repository.owner.login }}
+          </span>
+          <span class="meta-item" :title="t('dashboard.branch')">
+            <vscode-icon name="git-branch" class="meta-icon" />
+            {{ detail.repository.default_branch }}
+          </span>
+          <span class="meta-item" :title="t('dashboard.stars')">
+            <vscode-icon name="star-full" class="meta-icon" />
+            {{ detail.repository.stars_count }}
+          </span>
+          <span class="meta-item" :title="t('dashboard.forks')">
+            <vscode-icon name="repo-forked" class="meta-icon" />
+            {{ detail.repository.forks_count }}
+          </span>
+          <a
+            href="#"
+            class="meta-item meta-link"
+            :title="t('dashboard.openIssues')"
+            @click.prevent="state.openRepoIssues(instanceId, owner, repo)"
+          >
+            <vscode-icon name="issues" class="meta-icon" />
+            {{ detail.repository.open_issues_count }}
           </a>
           <a
-            v-if="detail.readme"
             href="#"
-            class="action-link"
-            @click.prevent="state.previewReadme(owner, repo, detail.readme)"
+            class="meta-item meta-link"
+            :title="t('dashboard.openPullRequests')"
+            @click.prevent="state.openRepoPullRequests(instanceId, owner, repo)"
           >
-            {{ t('dashboard.actions.previewReadme') }}
+            <vscode-icon name="git-pull-request" class="meta-icon" />
+            {{ detail.repository.open_pr_counter ?? 0 }}
           </a>
+        </div>
+        <div class="actions">
+          <div class="action-group primary-actions">
+            <VscodeButton variant="secondary" icon="link-external" @click="state.openExternal(repoUrl)">
+              {{ t('dashboard.actions.open') }}
+            </VscodeButton>
+            <VscodeButton
+              v-if="detail.readme"
+              variant="secondary"
+              icon="preview"
+              @click="state.previewReadme(owner, repo, detail.readme)"
+            >
+              {{ t('dashboard.actions.previewReadme') }}
+            </VscodeButton>
+          </div>
+          <div class="action-group secondary-actions">
+            <VscodeButton
+              variant="icon"
+              icon="copy"
+              :title="t('dashboard.actions.copyClone')"
+              :aria-label="t('dashboard.actions.copyClone')"
+              @click="state.copyToClipboard(cloneUrl)"
+            />
+            <VscodeButton
+              variant="icon"
+              icon="link"
+              :title="t('dashboard.actions.copyUrl')"
+              :aria-label="t('dashboard.actions.copyUrl')"
+              @click="state.copyToClipboard(repoUrl)"
+            />
+          </div>
         </div>
       </div>
 
-      <div class="repo-tabs">
-        <button class="tab-button" :class="{ active: activeTab === 'overview' }" @click="activeTab = 'overview'">
-          {{ t('dashboard.overview') }}
-        </button>
-        <button class="tab-button" :class="{ active: activeTab === 'files' }" @click="activeTab = 'files'">
-          {{ t('dashboard.files') }}
-        </button>
-        <button class="tab-button" :class="{ active: activeTab === 'refs' }" @click="activeTab = 'refs'">
-          {{ t('dashboard.refs') }}
-        </button>
-      </div>
+      <ViewTabs
+        v-model="activeTab"
+        :tabs="[
+          { key: 'overview', label: t('dashboard.overview') },
+          { key: 'files', label: t('dashboard.files') },
+          { key: 'refs', label: t('dashboard.refs') },
+        ]"
+      />
 
       <div class="tab-content">
         <div v-if="activeTab === 'overview'" class="tab-pane overview-pane">
           <section v-if="detail.empty" class="section">
-            <div class="empty-repo">{{ t('dashboard.emptyRepository') }}</div>
+            <div class="empty-repo">
+              <p>{{ t('dashboard.emptyRepository') }}</p>
+              <VscodeButton variant="secondary" icon="link-external" @click="state.openExternal(repoUrl)">
+                {{ t('dashboard.actions.open') }}
+              </VscodeButton>
+            </div>
           </section>
 
           <section v-if="detail.branches.length" class="section">
@@ -250,12 +300,16 @@ function committerName(commit: ForgejoCommit): string {
   overflow: hidden;
 }
 
-.loading {
+.loading-state,
+.error-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--vscode-descriptionForeground);
 }
 
-.error {
-  color: var(--vscode-testing-iconFailed);
+.error-state {
+  flex-wrap: wrap;
 }
 
 .detail-content {
@@ -291,22 +345,42 @@ function committerName(commit: ForgejoCommit): string {
   color: var(--vscode-descriptionForeground);
 }
 
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meta-icon {
+  color: var(--vscode-foreground);
+}
+
+.meta-link {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.meta-link:hover {
+  text-decoration: underline;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  align-items: center;
+  gap: 12px;
   margin-top: 4px;
 }
 
-.action-link {
-  color: var(--vscode-textLink-foreground);
-  text-decoration: none;
-  font-size: 0.9em;
-  white-space: nowrap;
+.action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.action-link:hover {
-  text-decoration: underline;
+.secondary-actions {
+  gap: 4px;
 }
 
 .section {
@@ -356,10 +430,10 @@ function committerName(commit: ForgejoCommit): string {
 
 .commit-item {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   font-size: 0.85em;
-  white-space: nowrap;
   overflow: hidden;
   padding: 4px 6px;
   border-radius: 4px;
@@ -375,6 +449,7 @@ function committerName(commit: ForgejoCommit): string {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .commit-info {
@@ -417,6 +492,9 @@ function committerName(commit: ForgejoCommit): string {
 }
 
 .empty-repo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
   padding: 12px;
@@ -424,33 +502,18 @@ function committerName(commit: ForgejoCommit): string {
   border-radius: 4px;
 }
 
+.empty-repo p {
+  margin: 0;
+}
+
 .branch-select {
   width: 100%;
 }
 
-.repo-tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-}
-
-.tab-button {
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 8px 16px;
-  color: var(--vscode-foreground);
-  cursor: pointer;
-  font-size: 0.95em;
-}
-
-.tab-button:hover {
-  background-color: var(--vscode-list-hoverBackground);
-}
-
-.tab-button.active {
-  border-bottom-color: var(--vscode-focusBorder);
-  font-weight: 600;
+.detail-loading-ring {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
 }
 
 .tab-content {

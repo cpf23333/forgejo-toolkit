@@ -41,6 +41,7 @@
     "emptyRepository": "This repository is empty. Push some commits to get started.",
     "loading": "Loading...",
     "error": "Failed to load: {message}",
+    "retry": "Retry",
     "owner": "Owner",
     "branch": "Default branch",
     "stars": "Stars",

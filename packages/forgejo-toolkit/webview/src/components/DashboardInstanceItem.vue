@@ -230,12 +230,19 @@ function loadingKey(): string {
 <template>
   <vscode-tree-item ref="treeItemRef" branch>
     {{ instance.url }} · {{ instance.username }}
-    <span class="badge" slot="decoration">{{ badgeCount() }}</span>
+    <span v-if="!loading.get(loadingKey()) && dataLoaded()" class="badge" slot="decoration">{{ badgeCount() }}</span>
     <span slot="description">
-      <span v-if="loading.get(loadingKey())" class="loading">
-        <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
+      <span v-if="errors.get(loadingKey())" class="error">
+        {{ formatError(loadingKey()) }}
+        <vscode-icon
+          name="refresh"
+          action-icon
+          size="16"
+          :title="t('dashboard.retry')"
+          :aria-label="t('dashboard.retry')"
+          @click.stop.prevent="loadForTab(true)"
+        />
       </span>
-      <span v-else-if="errors.get(loadingKey())" class="error">{{ formatError(loadingKey()) }}</span>
     </span>
     <template v-if="activeTab === 'repositories'">
       <template v-if="loading.get(loadingKey())">
@@ -263,24 +270,22 @@ function loadingKey(): string {
               {{ repo.stars_count }} · {{ t('dashboard.forks') }}: {{ repo.forks_count }}
             </span>
             <span slot="actions" class="tree-actions">
-              <a href="#" :title="t('dashboard.actions.open')" @click.prevent="state.openExternal(repo.html_url)">
-                <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
-                  />
-                </svg>
-              </a>
-              <a
-                href="#"
+              <vscode-icon
+                name="link-external"
+                action-icon
+                size="16"
+                :title="t('dashboard.actions.open')"
+                :aria-label="t('dashboard.actions.open')"
+                @click.prevent="state.openExternal(repo.html_url)"
+              />
+              <vscode-icon
+                name="copy"
+                action-icon
+                size="16"
                 :title="t('dashboard.actions.copyClone')"
+                :aria-label="t('dashboard.actions.copyClone')"
                 @click.prevent="state.copyToClipboard(cloneUrl(repo))"
-              >
-                <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
-                  />
-                </svg>
-              </a>
+              />
             </span>
           </vscode-tree-item>
         </vscode-tree-item>
@@ -300,20 +305,22 @@ function loadingKey(): string {
           #{{ issue.number }} {{ issue.title }}
           <span class="tree-issue-meta" slot="description">{{ issue.state }}</span>
           <span slot="actions" class="tree-actions">
-            <a href="#" :title="t('dashboard.actions.open')" @click.prevent="state.openExternal(issue.html_url)">
-              <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
-                />
-              </svg>
-            </a>
-            <a href="#" :title="t('dashboard.actions.copyUrl')" @click.prevent="state.copyToClipboard(issue.html_url)">
-              <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
-                />
-              </svg>
-            </a>
+            <vscode-icon
+              name="link-external"
+              action-icon
+              size="16"
+              :title="t('dashboard.actions.open')"
+              :aria-label="t('dashboard.actions.open')"
+              @click.prevent="state.openExternal(issue.html_url)"
+            />
+            <vscode-icon
+              name="copy"
+              action-icon
+              size="16"
+              :title="t('dashboard.actions.copyUrl')"
+              :aria-label="t('dashboard.actions.copyUrl')"
+              @click.prevent="state.copyToClipboard(issue.html_url)"
+            />
           </span>
         </vscode-tree-item>
       </template>
@@ -332,20 +339,22 @@ function loadingKey(): string {
           #{{ pr.number }} {{ pr.title }}
           <span class="tree-pr-meta" slot="description">{{ pr.state }}</span>
           <span slot="actions" class="tree-actions">
-            <a href="#" :title="t('dashboard.actions.open')" @click.prevent="state.openExternal(pr.html_url)">
-              <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
-                />
-              </svg>
-            </a>
-            <a href="#" :title="t('dashboard.actions.copyUrl')" @click.prevent="state.copyToClipboard(pr.html_url)">
-              <svg class="icon-copy" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 8.75 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"
-                />
-              </svg>
-            </a>
+            <vscode-icon
+              name="link-external"
+              action-icon
+              size="16"
+              :title="t('dashboard.actions.open')"
+              :aria-label="t('dashboard.actions.open')"
+              @click.prevent="state.openExternal(pr.html_url)"
+            />
+            <vscode-icon
+              name="copy"
+              action-icon
+              size="16"
+              :title="t('dashboard.actions.copyUrl')"
+              :aria-label="t('dashboard.actions.copyUrl')"
+              @click.prevent="state.copyToClipboard(pr.html_url)"
+            />
           </span>
         </vscode-tree-item>
       </template>
@@ -386,5 +395,11 @@ function loadingKey(): string {
 .tree-issue-meta,
 .tree-pr-meta {
   color: var(--vscode-descriptionForeground);
+}
+
+.tree-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 </style>

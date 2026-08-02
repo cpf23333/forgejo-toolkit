@@ -8,6 +8,14 @@
 
 - Do **not** include explicit IP addresses in source code, tests, fixtures, or documentation examples. Use placeholder domain names such as `forgejo.example.com`, `codeberg.org`, or `example.com` instead.
 
+## UI/UX skill
+
+This project includes the `impeccable` UI/UX skill at `.agents/skills/impeccable/SKILL.md`. Load and follow it when doing design, redesign, critique, or polish work on webview interfaces.
+
+When applying that skill, keep the VS Code native look and feel: prefer `vscode-elements` components, Codicons, and VS Code theme tokens over custom branding or marketing-style visuals.
+
+Review and update `.agents/skills/impeccable/` periodically or whenever its guidance conflicts with this project's constraints or a newer version provides better rules.
+
 ## `@vscode-elements/elements` usage rule
 
 Do **not** use any `@vscode-elements/elements` web component directly in `forgejo-toolkit` webview code (e.g. `<vscode-collapsible>`, `<vscode-button>`, `<vscode-textfield>`, etc.).

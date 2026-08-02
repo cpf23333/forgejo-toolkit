@@ -1,6 +1,6 @@
 body {
   margin: 0;
-  padding: 16px;
+  padding: 0;
   font-family: var(--vscode-font-family), system-ui, sans-serif;
   font-size: var(--vscode-font-size);
   color: var(--vscode-foreground);

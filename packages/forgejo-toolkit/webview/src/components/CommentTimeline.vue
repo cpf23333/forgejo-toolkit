@@ -306,6 +306,12 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           :alt="comment.user.login"
           class="user-avatar"
         />
+        <vscode-icon
+          v-else-if="comment.user"
+          name="account"
+          class="user-avatar avatar-fallback"
+          :title="comment.user.login"
+        />
         <span v-if="comment.user" class="user-name">{{ comment.user.login }}</span>
         <span class="event-type">{{ eventText(comment) }}</span>
         <span v-if="comment.created_at" class="meta-item">{{ formatDate(comment.created_at) }}</span>
@@ -424,6 +430,14 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
   height: 20px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.user-avatar.avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
 }
 
 .user-name {

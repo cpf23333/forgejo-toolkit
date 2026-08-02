@@ -5,6 +5,7 @@ import { useAppState } from '../composables/useAppState';
 import { vscode } from '../composables/vscode';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import DashboardInstanceItem from '../components/DashboardInstanceItem.vue';
+import ViewTabs from '../components/ViewTabs.vue';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -19,10 +20,6 @@ const activeTab = computed<Tab>({
   get: () => state.dashboardActiveTab.value,
   set: (tab) => state.setDashboardActiveTab(tab),
 });
-
-function setTab(tab: Tab) {
-  state.setDashboardActiveTab(tab);
-}
 
 const instances = computed(() => state.instances.value);
 const linkedRepository = computed(() => state.linkedRepository.value);
@@ -51,7 +48,7 @@ const linkedRepository = computed(() => state.linkedRepository.value);
           </div>
           <div class="linked-repo-actions">
             <VscodeButton
-              appearance="secondary"
+              variant="secondary"
               icon="repo"
               :title="t('dashboard.linkedRepository.openRepo')"
               @click="state.openLinkedRepositoryDetail()"
@@ -59,7 +56,7 @@ const linkedRepository = computed(() => state.linkedRepository.value);
               {{ t('dashboard.linkedRepository.openRepo') }}
             </VscodeButton>
             <VscodeButton
-              appearance="secondary"
+              variant="secondary"
               icon="issues"
               :title="t('dashboard.linkedRepository.openIssues')"
               @click="state.openLinkedRepositoryIssues()"
@@ -67,7 +64,7 @@ const linkedRepository = computed(() => state.linkedRepository.value);
               {{ t('dashboard.linkedRepository.openIssues') }}
             </VscodeButton>
             <VscodeButton
-              appearance="secondary"
+              variant="secondary"
               icon="git-pull-request"
               :title="t('dashboard.linkedRepository.openPullRequests')"
               @click="state.openLinkedRepositoryPullRequests()"
@@ -78,17 +75,14 @@ const linkedRepository = computed(() => state.linkedRepository.value);
         </div>
       </div>
 
-      <div class="tabs">
-        <button
-          v-for="tab in ['repositories', 'issues', 'pullRequests'] as Tab[]"
-          :key="tab"
-          class="tab-button"
-          :class="{ active: activeTab === tab }"
-          @click="setTab(tab)"
-        >
-          {{ t(`dashboard.tabs.${tab}`) }}
-        </button>
-      </div>
+      <ViewTabs
+        v-model="activeTab"
+        :tabs="[
+          { key: 'repositories', label: t('dashboard.tabs.repositories') },
+          { key: 'issues', label: t('dashboard.tabs.issues') },
+          { key: 'pullRequests', label: t('dashboard.tabs.pullRequests') },
+        ]"
+      />
 
       <div class="instances">
         <vscode-tree indent-guides="onHover">
@@ -109,7 +103,7 @@ const linkedRepository = computed(() => state.linkedRepository.value);
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .empty {
@@ -125,20 +119,20 @@ const linkedRepository = computed(() => state.linkedRepository.value);
 .dashboard-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .linked-repo-card {
   background-color: var(--vscode-editor-inactiveSelectionBackground);
   border: 1px solid var(--vscode-panel-border);
   border-radius: 6px;
-  padding: 12px;
+  padding: 10px 8px;
 }
 
 .linked-repo-main {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .linked-repo-info {
@@ -159,8 +153,6 @@ const linkedRepository = computed(() => state.linkedRepository.value);
   color: var(--vscode-descriptionForeground);
   font-size: 0.85em;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
 }
 
 .linked-repo-path {
@@ -192,34 +184,11 @@ const linkedRepository = computed(() => state.linkedRepository.value);
   flex-wrap: wrap;
 }
 
-.tabs {
-  display: flex;
-  gap: 8px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-  padding: 0 12px 8px;
-}
-
-.tab-button {
-  background: transparent;
-  border: none;
-  color: var(--vscode-foreground);
-  padding: 6px 12px;
-  cursor: pointer;
-  font-size: 0.9em;
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
-}
-
-.tab-button:hover {
-  background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.tab-button.active {
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+.view-tabs {
+  padding: 0 8px;
 }
 
 .instances {
-  padding: 0 12px;
+  padding: 0 8px;
 }
 </style>

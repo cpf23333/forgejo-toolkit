@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
 import PendingAttachmentList from '../components/PendingAttachmentList.vue';
@@ -320,27 +321,73 @@ function labelStyle(color?: string): string {
 
 function isLightColor(hex: string): boolean {
   const normalized = hex.replace('#', '');
-  const r = parseInt(normalized.substring(0, 2), 16);
-  const g = parseInt(normalized.substring(2, 4), 16);
-  const b = parseInt(normalized.substring(4, 6), 16);
-  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-  return brightness > 128;
+  const r = parseInt(normalized.substring(0, 2), 16) / 255;
+  const g = parseInt(normalized.substring(2, 4), 16) / 255;
+  const b = parseInt(normalized.substring(4, 6), 16) / 255;
+  const luminance = 0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b);
+  return luminance > 0.5;
+}
+
+function channelLuminance(channel: number): number {
+  return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+}
+
+function reloadIssue() {
+  state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value, true);
+  state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value, true);
 }
 </script>
 
 <template>
   <div class="issue-detail">
-    <div v-if="loading" class="loading">
+    <div v-if="loading" class="loading-state">
       <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
     </div>
-    <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
+    <div v-else-if="error" class="error-state">
+      <span>{{ t('dashboard.error', { message: error }) }}</span>
+      <VscodeButton variant="secondary" icon="refresh" @click="reloadIssue">
+        {{ t('dashboard.retry') }}
+      </VscodeButton>
+    </div>
     <div v-else-if="detail" class="detail-content">
       <div class="detail-header">
         <h2 class="detail-title">
           <span class="detail-number">#{{ detail.number }}</span>
           {{ detail.title }}
         </h2>
-        <span class="state-badge" :class="`state-${detail.state ?? 'open'}`">{{ detail.state }}</span>
+        <div class="header-actions">
+          <span class="state-badge" :class="`state-${detail.state ?? 'open'}`">{{ detail.state }}</span>
+          <VscodeButton
+            variant="icon"
+            icon="link-external"
+            :title="t('dashboard.detail.openIssue')"
+            :aria-label="t('dashboard.detail.openIssue')"
+            @click="state.openExternal(issueUrl)"
+          />
+          <VscodeButton
+            variant="icon"
+            icon="copy"
+            :title="t('dashboard.detail.copyLink')"
+            :aria-label="t('dashboard.detail.copyLink')"
+            @click="state.copyToClipboard(issueUrl)"
+          />
+          <template v-if="canManageIssue">
+            <VscodeButton
+              variant="icon"
+              icon="edit"
+              :title="t('dashboard.actions.edit')"
+              :aria-label="t('dashboard.actions.edit')"
+              @click="openEdit"
+            />
+            <VscodeButton
+              variant="icon"
+              :icon="detail.state === 'open' ? 'close' : 'refresh'"
+              :title="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
+              :aria-label="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
+              @click="toggleState"
+            />
+          </template>
+        </div>
       </div>
 
       <div class="detail-meta">
@@ -349,6 +396,12 @@ function isLightColor(hex: string): boolean {
           :src="detail.user.avatar_url"
           :alt="detail.user.login"
           class="user-avatar"
+        />
+        <vscode-icon
+          v-else-if="detail.user"
+          name="account"
+          class="user-avatar avatar-fallback"
+          :title="detail.user.login"
         />
         <span v-if="detail.user" class="user-name">{{ detail.user.login }}</span>
         <span v-if="detail.created_at" class="meta-item">{{ formatDate(detail.created_at) }}</span>
@@ -421,7 +474,8 @@ function isLightColor(hex: string): boolean {
           />
           <PendingAttachmentList :files="pendingCommentAttachments" @remove="removePendingCommentAttachment($event)" />
           <div class="comment-form-actions">
-            <vscode-button
+            <VscodeButton
+              variant="primary"
               :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
               @click="handleCommentSubmit"
             >
@@ -430,25 +484,10 @@ function isLightColor(hex: string): boolean {
                   ? t('dashboard.form.saving')
                   : t('dashboard.detail.postComment')
               }}
-            </vscode-button>
+            </VscodeButton>
           </div>
           <div v-if="commentError" class="error">{{ t('dashboard.error', { message: commentError }) }}</div>
         </div>
-      </div>
-
-      <div class="actions">
-        <a href="#" class="action-link" @click.prevent="state.openExternal(issueUrl)">
-          {{ t('dashboard.detail.openIssue') }}
-        </a>
-        <a href="#" class="action-link" @click.prevent="state.copyToClipboard(issueUrl)">
-          {{ t('dashboard.detail.copyLink') }}
-        </a>
-        <a v-if="canManageIssue" href="#" class="action-link" @click.prevent="openEdit">
-          {{ t('dashboard.actions.edit') }}
-        </a>
-        <a v-if="canManageIssue" href="#" class="action-link" @click.prevent="toggleState">
-          {{ detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen') }}
-        </a>
       </div>
 
       <ModalDialog :open="isEditing" :title="t('dashboard.form.editIssue')" :loading="formLoading" @close="closeEdit">
@@ -490,12 +529,16 @@ function isLightColor(hex: string): boolean {
   overflow: auto;
 }
 
-.loading {
+.loading-state,
+.error-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--vscode-descriptionForeground);
 }
 
-.error {
-  color: var(--vscode-testing-iconFailed);
+.error-state {
+  flex-wrap: wrap;
 }
 
 .detail-content {
@@ -506,9 +549,9 @@ function isLightColor(hex: string): boolean {
 
 .detail-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
 .detail-title {
@@ -524,22 +567,29 @@ function isLightColor(hex: string): boolean {
   font-weight: 400;
 }
 
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .state-badge {
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 2px;
   font-size: 0.8em;
   font-weight: 600;
   text-transform: capitalize;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
 }
 
 .state-open {
-  background-color: var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
-  color: #fff;
+  border-left: 3px solid var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
 }
 
 .state-closed {
-  background-color: var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
-  color: #fff;
+  border-left: 3px solid var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
 }
 
 .detail-meta {
@@ -555,6 +605,14 @@ function isLightColor(hex: string): boolean {
   height: 20px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.user-avatar.avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
 }
 
 .user-name {
@@ -622,24 +680,6 @@ function isLightColor(hex: string): boolean {
   padding: 12px;
   background-color: var(--vscode-editor-inactiveSelectionBackground);
   border-radius: 4px;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin-top: 8px;
-}
-
-.action-link {
-  color: var(--vscode-textLink-foreground);
-  text-decoration: none;
-  font-size: 0.9em;
-  white-space: nowrap;
-}
-
-.action-link:hover {
-  text-decoration: underline;
 }
 
 .detail-loading-ring {
