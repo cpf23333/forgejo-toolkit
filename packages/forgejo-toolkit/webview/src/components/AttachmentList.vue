@@ -3,15 +3,21 @@ import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ForgejoIssueAttachment } from '../types/api';
 
-const props = defineProps<{
-  assets?: ForgejoIssueAttachment[];
-  allowUpload?: boolean;
-  allowDelete?: boolean;
-  uploading?: boolean;
-  deletingId?: number;
-  deletingIds?: number[];
-  pendingDeleteIds?: number[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    assets?: ForgejoIssueAttachment[];
+    allowUpload?: boolean;
+    allowDelete?: boolean;
+    uploading?: boolean;
+    deletingId?: number;
+    deletingIds?: number[];
+    pendingDeleteIds?: number[];
+    showHeader?: boolean;
+  }>(),
+  {
+    showHeader: true,
+  },
+);
 
 function isDeleting(id?: number): boolean {
   if (id === undefined) {
@@ -63,7 +69,7 @@ function formatFileSize(bytes?: number): string {
 
 <template>
   <div v-if="assets?.length || allowUpload" class="detail-section">
-    <div class="attachment-header">
+    <div v-if="showHeader" class="attachment-header">
       <h3>{{ t('dashboard.detail.attachments') }}</h3>
       <button v-if="allowUpload" type="button" class="upload-button" :disabled="uploading" @click="triggerFileInput">
         {{ uploading ? t('dashboard.form.saving') : t('dashboard.actions.uploadAttachment') }}

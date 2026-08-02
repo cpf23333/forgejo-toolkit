@@ -255,6 +255,8 @@ async function handleCreateSubmit(title: string, body: string) {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100%;
+  overflow: auto;
 }
 
 .list-header {

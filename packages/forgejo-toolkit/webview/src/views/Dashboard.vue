@@ -104,6 +104,8 @@ const linkedRepository = computed(() => state.linkedRepository.value);
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100%;
+  overflow: auto;
 }
 
 .empty {

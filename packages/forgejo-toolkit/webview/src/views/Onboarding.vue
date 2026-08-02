@@ -339,6 +339,8 @@ watch(
   flex-direction: column;
   gap: 24px;
   max-width: 600px;
+  height: 100%;
+  overflow: auto;
 }
 
 .onboarding-header h1 {

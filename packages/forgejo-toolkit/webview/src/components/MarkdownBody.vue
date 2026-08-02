@@ -90,19 +90,27 @@ const safeHtml = computed(() => (props.html ? sanitizeHtml(props.html) : ''));
 
 function handleClick(event: MouseEvent) {
   const target = event.target as HTMLElement;
+
   const anchor = target.closest('a') as HTMLAnchorElement | null;
-  if (!anchor) {
+  if (anchor) {
+    const children = Array.from(anchor.childNodes);
+    const onlyImage =
+      children.length === 1 &&
+      children[0].nodeType === Node.ELEMENT_NODE &&
+      (children[0] as Element).tagName.toLowerCase() === 'img';
+    if (onlyImage) {
+      event.preventDefault();
+      return;
+    }
+
+    const href = anchor.getAttribute('href');
+    if (!href || href.startsWith('#')) {
+      return;
+    }
+    event.preventDefault();
+    emit('openExternal', anchor.href);
     return;
   }
-  const href = anchor.getAttribute('href');
-  if (!href) {
-    return;
-  }
-  if (href.startsWith('#')) {
-    return;
-  }
-  event.preventDefault();
-  emit('openExternal', anchor.href);
 }
 </script>
 
@@ -262,6 +270,7 @@ function handleClick(event: MouseEvent) {
 .markdown-content :deep(img) {
   max-width: 100%;
   height: auto;
+  pointer-events: none;
 }
 
 .markdown-content :deep(.task-list-item) {

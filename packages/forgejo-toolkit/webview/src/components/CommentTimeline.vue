@@ -350,6 +350,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           :assets="comment.assets"
           :allow-upload="false"
           :allow-delete="false"
+          :show-header="false"
           @open-external="openExternal"
         />
       </div>
