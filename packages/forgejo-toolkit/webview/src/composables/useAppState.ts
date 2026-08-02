@@ -31,7 +31,8 @@ import type {
 } from '../types/api';
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
-import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { HostToWebviewMessage, LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { createTimedCache } from '../utils/createTimedCache';
 
 function createAppState() {
   const router = useRouter();
@@ -59,6 +60,22 @@ function createAppState() {
   const fileHistories = ref<Map<string, ForgejoCommit[]>>(new Map());
   const renderedMarkdown = ref<Map<string, string>>(new Map());
 
+  const repositoriesCache = createTimedCache<ForgejoRepository[]>(30_000);
+  const myIssuesCache = createTimedCache<ForgejoIssue[]>(30_000);
+  const myPullRequestsCache = createTimedCache<ForgejoPullRequest[]>(30_000);
+
+  const repoContentsCache = createTimedCache<ForgejoContentEntry[]>(30_000);
+  const repoRefsCache = createTimedCache<{ branches: ForgejoBranch[]; tags: ForgejoTag[]; releases: ForgejoRelease[] }>(
+    30_000,
+  );
+  const repoBranchCommitsCache = createTimedCache<ForgejoCommit[]>(30_000);
+  const pullRequestFilesCache = createTimedCache<ForgejoChangedFile[]>(30_000);
+  const pullRequestCommitsCache = createTimedCache<ForgejoPullRequestCommit[]>(30_000);
+
+  const issueDetailCache = createTimedCache<ForgejoIssueDetail>(5_000);
+  const pullRequestDetailCache = createTimedCache<ForgejoPullRequestDetail>(5_000);
+  const pullRequestCommentsCache = createTimedCache<ForgejoTimelineComment[]>(5_000);
+
   let inputRequestId = 0;
   const inputBoxPromises = new Map<string, (value: string | undefined) => void>();
   const confirmPromises = new Map<string, (value: boolean) => void>();
@@ -75,6 +92,7 @@ function createAppState() {
   const worktreeCacheDirectoryDefault = ref<string | undefined>(undefined);
   const supportsMultiDiff = computed(() => isVersionAtLeast(vscodeVersion, '1.86.0'));
   const dashboardActiveTab = ref<'repositories' | 'issues' | 'pullRequests'>('repositories');
+  const linkedRepository = ref<LinkedRepository | undefined>(undefined);
   const testConnectionResult = ref<{ success: boolean; username?: string; error?: string } | undefined>(undefined);
   const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
   const lastSavedIssue = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(undefined);
@@ -128,6 +146,10 @@ function createAppState() {
         worktreeOpenMode.value = message.worktreeOpenMode;
         worktreeCacheDirectory.value = message.worktreeCacheDirectory;
         worktreeCacheDirectoryDefault.value = message.worktreeCacheDirectoryDefault;
+        loadLinkedRepository();
+        break;
+      case 'linkedRepository':
+        linkedRepository.value = (message as { linked?: LinkedRepository }).linked;
         break;
       case 'instances':
         instances.value = message.data ?? [];
@@ -589,7 +611,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      repositories.value.set(data.instanceId, data.repositories ?? []);
+      const list = data.repositories ?? [];
+      repositories.value.set(data.instanceId, list);
+      repositoriesCache.set(data.instanceId, list);
     }
   }
 
@@ -600,7 +624,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      myIssues.value.set(data.instanceId, data.issues ?? []);
+      const list = data.issues ?? [];
+      myIssues.value.set(data.instanceId, list);
+      myIssuesCache.set(data.instanceId, list);
     }
   }
 
@@ -611,7 +637,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      myPullRequests.value.set(data.instanceId, data.pullRequests ?? []);
+      const list = data.pullRequests ?? [];
+      myPullRequests.value.set(data.instanceId, list);
+      myPullRequestsCache.set(data.instanceId, list);
     }
   }
 
@@ -646,7 +674,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      repoBranchCommits.value.set(key, data.commits ?? []);
+      const list = data.commits ?? [];
+      repoBranchCommits.value.set(key, list);
+      repoBranchCommitsCache.set(key, list);
     }
   }
 
@@ -665,6 +695,7 @@ function createAppState() {
     } else if (data.detail) {
       errors.delete(key);
       issueDetails.value.set(key, data.detail);
+      issueDetailCache.set(key, data.detail);
     }
   }
 
@@ -683,6 +714,7 @@ function createAppState() {
     } else if (data.detail) {
       errors.delete(key);
       pullRequestDetails.value.set(key, data.detail);
+      pullRequestDetailCache.set(key, data.detail);
     }
   }
 
@@ -773,6 +805,7 @@ function createAppState() {
     if (data.item) {
       repoIssues.value.clear();
       myIssues.value.clear();
+      myIssuesCache.clear();
       lastSavedIssue.value = { instanceId: data.instanceId, owner: data.owner, repo: data.repo, index: data.index };
     }
   }
@@ -966,6 +999,7 @@ function createAppState() {
     }
     repoPullRequests.value.clear();
     myPullRequests.value.clear();
+    myPullRequestsCache.clear();
   }
 
   function handlePullRequestSaved(
@@ -1008,6 +1042,7 @@ function createAppState() {
     if (data.item) {
       repoPullRequests.value.clear();
       myPullRequests.value.clear();
+      myPullRequestsCache.clear();
       lastSavedPullRequest.value = {
         instanceId: data.instanceId,
         owner: data.owner,
@@ -1030,7 +1065,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      pullRequestFiles.value.set(key, data.files ?? []);
+      const list = data.files ?? [];
+      pullRequestFiles.value.set(key, list);
+      pullRequestFilesCache.set(key, list);
     }
   }
 
@@ -1047,7 +1084,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      pullRequestComments.value.set(key, data.comments ?? []);
+      const list = data.comments ?? [];
+      pullRequestComments.value.set(key, list);
+      pullRequestCommentsCache.set(key, list);
     }
   }
 
@@ -1064,7 +1103,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      pullRequestCommits.value.set(key, data.commits ?? []);
+      const list = data.commits ?? [];
+      pullRequestCommits.value.set(key, list);
+      pullRequestCommitsCache.set(key, list);
     }
   }
 
@@ -1119,7 +1160,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      repoContents.value.set(key, data.entries ?? []);
+      const list = data.entries ?? [];
+      repoContents.value.set(key, list);
+      repoContentsCache.set(key, list);
     }
   }
 
@@ -1176,11 +1219,13 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      repoRefs.value.set(key, {
+      const value = {
         branches: data.branches ?? [],
         tags: data.tags ?? [],
         releases: data.releases ?? [],
-      });
+      };
+      repoRefs.value.set(key, value);
+      repoRefsCache.set(key, value);
     }
   }
 
@@ -1254,9 +1299,9 @@ function createAppState() {
     }
   }
 
-  function loadRepoBranchCommits(instanceId: string, owner: string, repo: string, branch: string) {
+  function loadRepoBranchCommits(instanceId: string, owner: string, repo: string, branch: string, force = false) {
     const key = repoBranchCommitsKey(instanceId, owner, repo, branch);
-    if (repoBranchCommits.value.has(key)) {
+    if (!force && repoBranchCommitsCache.has(key)) {
       return;
     }
     loading.set(key, true);
@@ -1280,7 +1325,7 @@ function createAppState() {
 
   function loadRepoContents(instanceId: string, owner: string, repo: string, path: string, ref: string, force = false) {
     const key = repoContentsKey(instanceId, owner, repo, ref, path);
-    if (!force && repoContents.value.has(key)) {
+    if (!force && repoContentsCache.has(key)) {
       return;
     }
     loading.set(key, true);
@@ -1304,7 +1349,7 @@ function createAppState() {
 
   function loadRepoRefs(instanceId: string, owner: string, repo: string, force = false) {
     const key = repoRefsKey(instanceId, owner, repo);
-    if (!force && repoRefs.value.has(key)) {
+    if (!force && repoRefsCache.has(key)) {
       return;
     }
     loading.set(key, true);
@@ -1692,7 +1737,7 @@ function createAppState() {
 
   function loadIssueDetail(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = issueDetailKey(instanceId, owner, repo, index);
-    if (force || !issueDetails.value.has(key)) {
+    if (force || !issueDetailCache.has(key)) {
       loading.set(key, true);
       vscode.postMessage({ command: 'getIssueDetail', instanceId, owner, repo, index });
     }
@@ -1705,7 +1750,7 @@ function createAppState() {
 
   function loadPullRequestDetail(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = pullRequestDetailKey(instanceId, owner, repo, index);
-    if (force || !pullRequestDetails.value.has(key)) {
+    if (force || !pullRequestDetailCache.has(key)) {
       loading.set(key, true);
       vscode.postMessage({ command: 'getPullRequestDetail', instanceId, owner, repo, index });
     }
@@ -1718,9 +1763,10 @@ function createAppState() {
     index: number,
     baseSha?: string,
     headSha?: string,
+    force = false,
   ) {
     const key = pullRequestFilesKey(instanceId, owner, repo, index);
-    if (pullRequestFiles.value.has(key)) {
+    if (!force && pullRequestFilesCache.has(key)) {
       return;
     }
     vscode.postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index, baseSha, headSha });
@@ -1728,15 +1774,15 @@ function createAppState() {
 
   function loadPullRequestComments(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = pullRequestCommentsKey(instanceId, owner, repo, index);
-    if (!force && pullRequestComments.value.has(key)) {
+    if (!force && pullRequestCommentsCache.has(key)) {
       return;
     }
     vscode.postMessage({ command: 'getPullRequestCommentsAndTimeline', instanceId, owner, repo, index });
   }
 
-  function loadPullRequestCommits(instanceId: string, owner: string, repo: string, index: number) {
+  function loadPullRequestCommits(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = pullRequestCommitsKey(instanceId, owner, repo, index);
-    if (pullRequestCommits.value.has(key)) {
+    if (!force && pullRequestCommitsCache.has(key)) {
       return;
     }
     vscode.postMessage({ command: 'getPullRequestCommits', instanceId, owner, repo, index });
@@ -1822,6 +1868,34 @@ function createAppState() {
     loadRepoPullRequests(instanceId, owner, repo, newState);
   }
 
+  function loadLinkedRepository() {
+    vscode.postMessage({ command: 'getLinkedRepository' });
+  }
+
+  function openLinkedRepositoryDetail() {
+    const linked = linkedRepository.value;
+    if (!linked) {
+      return;
+    }
+    openRepoDetail(linked.instanceId, linked.owner, linked.repo);
+  }
+
+  function openLinkedRepositoryIssues() {
+    const linked = linkedRepository.value;
+    if (!linked) {
+      return;
+    }
+    openRepoIssues(linked.instanceId, linked.owner, linked.repo);
+  }
+
+  function openLinkedRepositoryPullRequests() {
+    const linked = linkedRepository.value;
+    if (!linked) {
+      return;
+    }
+    openRepoPullRequests(linked.instanceId, linked.owner, linked.repo);
+  }
+
   function openPrWorktree(instanceId: string, owner: string, repo: string, index: number) {
     vscode.postMessage({ command: 'openPrWorktree', instanceId, owner, repo, index });
   }
@@ -1856,17 +1930,26 @@ function createAppState() {
     });
   }
 
-  function loadRepositories(instanceId: string) {
+  function loadRepositories(instanceId: string, force = false) {
+    console.log('[useAppState] loadRepositories', instanceId);
     const key = `repos-${instanceId}`;
+    if (!force && repositoriesCache.has(instanceId)) {
+      console.log('[useAppState] loadRepositories skipped, cached', instanceId);
+      return;
+    }
     if (loading.get(key)) {
+      console.log('[useAppState] loadRepositories skipped, already loading', instanceId);
       return;
     }
     loading.set(key, true);
     vscode.postMessage({ command: 'getRepositories', instanceId });
   }
 
-  function loadMyIssues(instanceId: string, state = 'open') {
+  function loadMyIssues(instanceId: string, state = 'open', force = false) {
     const key = `issues-${instanceId}`;
+    if (!force && myIssuesCache.has(instanceId)) {
+      return;
+    }
     if (loading.get(key)) {
       return;
     }
@@ -1874,8 +1957,11 @@ function createAppState() {
     vscode.postMessage({ command: 'getMyIssues', instanceId, state });
   }
 
-  function loadMyPullRequests(instanceId: string, state = 'open') {
+  function loadMyPullRequests(instanceId: string, state = 'open', force = false) {
     const key = `pulls-${instanceId}`;
+    if (!force && myPullRequestsCache.has(instanceId)) {
+      return;
+    }
     if (loading.get(key)) {
       return;
     }
@@ -1888,8 +1974,11 @@ function createAppState() {
     locale,
     instances,
     repositories,
+    repositoriesCache,
     myIssues,
+    myIssuesCache,
     myPullRequests,
+    myPullRequestsCache,
     repoDetails,
     issueDetails,
     pullRequestDetails,
@@ -1913,6 +2002,7 @@ function createAppState() {
     vscodeVersion,
     supportsMultiDiff,
     dashboardActiveTab,
+    linkedRepository,
     testConnectionResult,
     saveInstanceResult,
     lastSavedIssue,
@@ -1974,6 +2064,10 @@ function createAppState() {
     loadRepoPullRequests,
     changeRepoIssuesState,
     changeRepoPullRequestsState,
+    loadLinkedRepository,
+    openLinkedRepositoryDetail,
+    openLinkedRepositoryIssues,
+    openLinkedRepositoryPullRequests,
     openPrWorktree,
     removeWorktree,
     changeWorktreeOpenMode,
