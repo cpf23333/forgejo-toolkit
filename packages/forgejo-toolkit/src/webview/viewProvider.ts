@@ -1421,12 +1421,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               prerelease,
               draft,
               hideArchiveLinks,
+              _requestId,
             } = message;
             if (
               typeof instanceId !== 'string' ||
               typeof owner !== 'string' ||
               typeof repo !== 'string' ||
-              typeof tagName !== 'string'
+              typeof tagName !== 'string' ||
+              typeof _requestId !== 'string'
             ) {
               return;
             }
@@ -1436,7 +1438,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             try {
               const client = new ForgejoClient(instance.url, instance.token, logger);
-              await client.createRelease(owner, repo, {
+              const release = await client.createRelease(owner, repo, {
                 tag_name: tagName,
                 name: typeof name === 'string' ? name : undefined,
                 body: typeof body === 'string' ? body : undefined,
@@ -1445,11 +1447,25 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 draft: typeof draft === 'boolean' ? draft : undefined,
                 hide_archive_links: typeof hideArchiveLinks === 'boolean' ? hideArchiveLinks : undefined,
               });
-              this._reply('repoReleaseCreated', { instanceId, owner, repo, release: tagName });
+              this._reply('repoReleaseCreated', {
+                instanceId,
+                owner,
+                repo,
+                release: tagName,
+                item: release,
+                _requestId,
+              });
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`createRepoRelease failed for ${owner}/${repo}/${tagName}: ${err}`);
-              this._reply('repoReleaseCreated', { instanceId, owner, repo, release: tagName, error: err });
+              this._reply('repoReleaseCreated', {
+                instanceId,
+                owner,
+                repo,
+                release: tagName,
+                error: err,
+                _requestId,
+              });
             }
             return;
           }

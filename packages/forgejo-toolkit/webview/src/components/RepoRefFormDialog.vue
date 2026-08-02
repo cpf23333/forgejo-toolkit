@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { VscodeButton, VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import ModalDialog from './ModalDialog.vue';
 import EasyMdeEditor from './EasyMdeEditor.vue';
+import PendingAttachmentList from './PendingAttachmentList.vue';
 import { useAppState } from '../composables/useAppState';
 import type { ForgejoRelease, ForgejoReleaseAttachment } from '../types/api';
 
@@ -21,13 +22,18 @@ interface Props {
   release?: ForgejoRelease;
   branches?: string[];
   tags?: string[];
+  pendingAttachments?: File[];
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  pendingAttachments: () => [],
+});
 
 const emit = defineEmits<{
   close: [];
   submit: [data: Record<string, unknown>];
+  'upload-pending': [file: File];
+  'remove-pending': [index: number];
 }>();
 
 const { t } = useI18n();
@@ -132,27 +138,39 @@ function submitWithDraft(draft: boolean) {
 
 async function handleAttachmentSelected(event: Event) {
   const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file || props.mode !== 'release' || !props.release?.id) {
+  const files = input.files;
+  if (!files || files.length === 0 || props.mode !== 'release') {
     return;
   }
   attachmentError.value = '';
-  try {
-    const buffer = await file.arrayBuffer();
-    const attachment = await state.uploadReleaseAttachment(
-      props.instanceId,
-      props.owner,
-      props.repo,
-      props.release.id,
-      file.name,
-      new Uint8Array(buffer),
-    );
-    attachments.value.push(attachment);
-  } catch (err) {
-    attachmentError.value = err instanceof Error ? err.message : String(err);
-  } finally {
+  if (!props.release?.id) {
+    for (const file of files) {
+      emit('upload-pending', file);
+    }
     input.value = '';
+    return;
   }
+  for (const file of files) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const attachment = await state.uploadReleaseAttachment(
+        props.instanceId,
+        props.owner,
+        props.repo,
+        props.release.id,
+        file.name,
+        new Uint8Array(buffer),
+      );
+      attachments.value.push(attachment);
+    } catch (err) {
+      attachmentError.value = err instanceof Error ? err.message : String(err);
+    }
+  }
+  input.value = '';
+}
+
+function handleRemovePendingAttachment(index: number) {
+  emit('remove-pending', index);
 }
 
 async function removeAttachment(attachment: ForgejoReleaseAttachment) {
@@ -251,20 +269,25 @@ function title(): string {
           <EasyMdeEditor v-model="releaseBody" :placeholder="t('dashboard.repoRefs.releaseBodyLabel')" />
         </div>
 
-        <div v-if="release" class="form-field attachment-field">
+        <div v-if="mode === 'release'" class="form-field attachment-field">
           <label>{{ t('dashboard.repoRefs.attachmentsLabel') }}</label>
-          <input ref="fileInputRef" type="file" hidden @change="handleAttachmentSelected" />
-          <VscodeButton type="button" secondary @click="fileInputRef?.click()">
+          <input ref="fileInputRef" type="file" multiple hidden @change="handleAttachmentSelected" />
+          <VscodeButton type="button" secondary class="add-attachment-button" @click="fileInputRef?.click()">
             {{ t('dashboard.repoRefs.addAttachment') }}
           </VscodeButton>
           <div v-if="attachmentError" class="attachment-error">{{ attachmentError }}</div>
-          <ul v-if="attachments.length" class="attachment-list">
+          <ul v-if="release && attachments.length" class="attachment-list">
             <li v-for="att in attachments" :key="att.id" class="attachment-item">
               <a :href="att.browser_download_url" target="_blank" class="attachment-name">{{ att.name }}</a>
               <span class="attachment-size">{{ formatBytes(att.size) }}</span>
               <button type="button" class="attachment-delete" @click="removeAttachment(att)">×</button>
             </li>
           </ul>
+          <PendingAttachmentList
+            v-if="!release"
+            :files="pendingAttachments"
+            @remove="handleRemovePendingAttachment($event)"
+          />
         </div>
 
         <div class="form-field checkbox-field">
@@ -399,6 +422,10 @@ function title(): string {
 
 .attachment-field {
   gap: 8px;
+}
+
+.add-attachment-button {
+  align-self: flex-start;
 }
 
 .attachment-list {

@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
+import PendingAttachmentList from '../components/PendingAttachmentList.vue';
 import CommentTimeline from '../components/CommentTimeline.vue';
 import ModalDialog from '../components/ModalDialog.vue';
 import IssueForm from '../components/IssueForm.vue';
@@ -106,6 +107,10 @@ const uploadingCommentAttachmentCount = ref(0);
 
 function handleCommentAttachmentUpload(file: File) {
   pendingCommentAttachments.value.push(file);
+}
+
+function removePendingCommentAttachment(index: number) {
+  pendingCommentAttachments.value.splice(index, 1);
 }
 
 async function handleCommentImageUpload(
@@ -414,18 +419,7 @@ function isLightColor(hex: string): boolean {
             :uploading="uploadingCommentAttachmentCount > 0"
             @upload="handleCommentAttachmentUpload($event)"
           />
-          <ul v-if="pendingCommentAttachments.length > 0" class="pending-attachment-list">
-            <li
-              v-for="(file, idx) in pendingCommentAttachments"
-              :key="`${file.name}-${idx}`"
-              class="pending-attachment-item"
-            >
-              <span class="pending-attachment-name">{{ file.name }}</span>
-              <button type="button" class="pending-attachment-remove" @click="pendingCommentAttachments.splice(idx, 1)">
-                {{ t('dashboard.remove') }}
-              </button>
-            </li>
-          </ul>
+          <PendingAttachmentList :files="pendingCommentAttachments" @remove="removePendingCommentAttachment($event)" />
           <div class="comment-form-actions">
             <vscode-button
               :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
@@ -664,44 +658,5 @@ function isLightColor(hex: string): boolean {
 .comment-form-actions {
   display: flex;
   justify-content: flex-end;
-}
-
-.pending-attachment-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.pending-attachment-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px;
-  background-color: var(--vscode-editor-inactiveSelectionBackground);
-  border-radius: 4px;
-}
-
-.pending-attachment-name {
-  font-size: 0.9em;
-  color: var(--vscode-foreground);
-}
-
-.pending-attachment-remove {
-  background-color: transparent;
-  color: var(--vscode-errorForeground);
-  border: 1px solid var(--vscode-errorForeground);
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: 0.8em;
-  cursor: pointer;
-}
-
-.pending-attachment-remove:hover {
-  background-color: var(--vscode-errorForeground);
-  color: var(--vscode-button-foreground);
 }
 </style>

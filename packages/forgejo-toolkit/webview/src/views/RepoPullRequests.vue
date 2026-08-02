@@ -6,8 +6,8 @@ import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/comp
 import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
 import AttachmentList from '../components/AttachmentList.vue';
+import PendingAttachmentList from '../components/PendingAttachmentList.vue';
 import { useAppState, pullRequestFormKey, repoDetailKey, repoPullRequestsKey } from '../composables/useAppState';
-import { isImageFile } from '../utils/file';
 import type { ForgejoPullRequest } from '../types/api';
 
 const { t } = useI18n();
@@ -108,29 +108,9 @@ function closeCreatePullRequest() {
 
 function handleIssueAttachmentUpload(file: File) {
   pendingIssueAttachments.value.push(file);
-  if (isImageFile(file)) {
-    pendingImageObjectUrls.value.set(URL.createObjectURL(file), file);
-  }
-}
-
-function getObjectUrlForFile(file: File): string | undefined {
-  for (const [url, pendingFile] of pendingImageObjectUrls.value) {
-    if (pendingFile === file) {
-      return url;
-    }
-  }
-  return undefined;
 }
 
 function removePendingAttachment(index: number) {
-  const file = pendingIssueAttachments.value[index];
-  if (file) {
-    const objectUrl = getObjectUrlForFile(file);
-    if (objectUrl) {
-      URL.revokeObjectURL(objectUrl);
-      pendingImageObjectUrls.value.delete(objectUrl);
-    }
-  }
   pendingIssueAttachments.value.splice(index, 1);
 }
 
@@ -269,24 +249,7 @@ async function handleCreateSubmit(title: string, body: string, base: string, hea
             :uploading="uploadingIssueAttachmentCount > 0"
             @upload="handleIssueAttachmentUpload($event)"
           />
-          <ul v-if="pendingIssueAttachments.length > 0" class="pending-attachment-list">
-            <li
-              v-for="(file, idx) in pendingIssueAttachments"
-              :key="`${file.name}-${idx}`"
-              class="pending-attachment-item"
-            >
-              <img
-                v-if="isImageFile(file)"
-                :src="getObjectUrlForFile(file)"
-                :alt="file.name"
-                class="pending-attachment-preview"
-              />
-              <span class="pending-attachment-name">{{ file.name }}</span>
-              <button type="button" class="pending-attachment-remove" @click="removePendingAttachment(idx)">
-                {{ t('dashboard.remove') }}
-              </button>
-            </li>
-          </ul>
+          <PendingAttachmentList :files="pendingIssueAttachments" @remove="removePendingAttachment($event)" />
         </template>
       </PullRequestForm>
     </ModalDialog>
@@ -448,56 +411,5 @@ async function handleCreateSubmit(title: string, body: string, base: string, hea
   height: 16px;
   border-radius: 50%;
   object-fit: cover;
-}
-
-.pending-attachment-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.pending-attachment-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background-color: var(--vscode-editor-inactiveSelectionBackground);
-  border-radius: 4px;
-}
-
-.pending-attachment-preview {
-  width: 32px;
-  height: 32px;
-  object-fit: cover;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-.pending-attachment-name {
-  font-size: 0.9em;
-  color: var(--vscode-foreground);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pending-attachment-remove {
-  background-color: transparent;
-  color: var(--vscode-errorForeground);
-  border: 1px solid var(--vscode-errorForeground);
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: 0.8em;
-  cursor: pointer;
-}
-
-.pending-attachment-remove:hover {
-  background-color: var(--vscode-errorForeground);
-  color: var(--vscode-button-foreground);
 }
 </style>

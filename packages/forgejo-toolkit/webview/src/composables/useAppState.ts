@@ -111,6 +111,11 @@ function createAppState() {
     string,
     { resolve: (pr: ForgejoPullRequest) => void; reject: (error: Error) => void }
   >();
+  let releaseCreationRequestId = 0;
+  const pendingReleaseCreations = new Map<
+    string,
+    { resolve: (release: ForgejoRelease) => void; reject: (error: Error) => void }
+  >();
 
   function handleMessage(event: MessageEvent<HostToWebviewMessage>) {
     const message = event.data;
@@ -442,7 +447,6 @@ function createAppState() {
       case 'repoBranchDeleted':
       case 'repoTagCreated':
       case 'repoTagDeleted':
-      case 'repoReleaseCreated':
       case 'repoReleaseEdited':
       case 'repoReleaseDeleted': {
         const { instanceId, owner, repo, error } = message as {
@@ -452,6 +456,34 @@ function createAppState() {
           error?: string;
         };
         const key = repoRefsKey(instanceId, owner, repo);
+        if (error) {
+          errors.set(key, error);
+        } else {
+          errors.delete(key);
+          loadRepoRefs(instanceId, owner, repo, true);
+        }
+        break;
+      }
+      case 'repoReleaseCreated': {
+        const { instanceId, owner, repo, item, error, _requestId } = message as {
+          instanceId: string;
+          owner: string;
+          repo: string;
+          item?: unknown;
+          error?: string;
+          _requestId: string;
+        };
+        const pending = pendingReleaseCreations.get(_requestId);
+        if (pending) {
+          pendingReleaseCreations.delete(_requestId);
+          if (error || !item) {
+            pending.reject(new Error(error || 'Failed to create release'));
+          } else {
+            pending.resolve(item as ForgejoRelease);
+          }
+        }
+        const key = repoRefsKey(instanceId, owner, repo);
+        loading.set(key, false);
         if (error) {
           errors.set(key, error);
         } else {
@@ -1320,19 +1352,27 @@ function createAppState() {
     prerelease?: boolean,
     draft?: boolean,
     hideArchiveLinks?: boolean,
-  ) {
-    vscode.postMessage({
-      command: 'createRepoRelease',
-      instanceId,
-      owner,
-      repo,
-      tagName,
-      name,
-      body,
-      targetCommitish,
-      prerelease,
-      draft,
-      hideArchiveLinks,
+  ): Promise<ForgejoRelease> {
+    const key = repoRefsKey(instanceId, owner, repo);
+    loading.set(key, true);
+    errors.delete(key);
+    const _requestId = `release-create-${++releaseCreationRequestId}`;
+    return new Promise((resolve, reject) => {
+      pendingReleaseCreations.set(_requestId, { resolve, reject });
+      vscode.postMessage({
+        command: 'createRepoRelease',
+        instanceId,
+        owner,
+        repo,
+        tagName,
+        name,
+        body,
+        targetCommitish,
+        prerelease,
+        draft,
+        hideArchiveLinks,
+        _requestId,
+      });
     });
   }
 

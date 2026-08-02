@@ -288,7 +288,9 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       release?: string;
+      item?: unknown;
       error?: string;
+      _requestId: string;
     }
   | {
       command: 'repoReleaseDeleted';
@@ -578,6 +580,7 @@ export type WebviewToHostMessage =
       prerelease?: boolean;
       draft?: boolean;
       hideArchiveLinks?: boolean;
+      _requestId: string;
     }
   | { command: 'deleteRepoRelease'; instanceId: string; owner: string; repo: string; id: number }
   | {

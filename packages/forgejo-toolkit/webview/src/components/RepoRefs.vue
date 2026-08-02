@@ -35,6 +35,9 @@ const dialogOpen = ref(false);
 const dialogMode = ref<RepoRefFormMode>('branch');
 const editingRelease = ref<ForgejoRelease | undefined>(undefined);
 const isSubmitting = ref(false);
+const pendingReleaseAttachments = ref<File[]>([]);
+const uploadingReleaseAttachmentCount = ref(0);
+const isUploadingReleaseAttachments = ref(false);
 
 watch(
   () => [props.instanceId, props.owner, props.repo],
@@ -45,7 +48,7 @@ watch(
 );
 
 watch(loading, (value) => {
-  if (!value && isSubmitting.value) {
+  if (!value && isSubmitting.value && !isUploadingReleaseAttachments.value) {
     isSubmitting.value = false;
     if (!error.value) {
       closeDialog();
@@ -70,15 +73,25 @@ function selectBranch(name?: string) {
 function openDialog(mode: RepoRefFormMode, release?: ForgejoRelease) {
   dialogMode.value = mode;
   editingRelease.value = release;
+  pendingReleaseAttachments.value = [];
   dialogOpen.value = true;
 }
 
 function closeDialog() {
   dialogOpen.value = false;
   editingRelease.value = undefined;
+  pendingReleaseAttachments.value = [];
 }
 
-function handleSubmit(data: Record<string, unknown>) {
+function handleReleaseAttachmentUpload(file: File) {
+  pendingReleaseAttachments.value.push(file);
+}
+
+function removePendingReleaseAttachment(index: number) {
+  pendingReleaseAttachments.value.splice(index, 1);
+}
+
+async function handleSubmit(data: Record<string, unknown>) {
   isSubmitting.value = true;
   switch (dialogMode.value) {
     case 'branch':
@@ -112,18 +125,49 @@ function handleSubmit(data: Record<string, unknown>) {
           hide_archive_links: Boolean(data.hideArchiveLinks),
         });
       } else {
-        state.createRepoRelease(
-          props.instanceId,
-          props.owner,
-          props.repo,
-          String(data.tagName),
-          data.name ? String(data.name) : undefined,
-          data.body ? String(data.body) : undefined,
-          data.targetCommitish ? String(data.targetCommitish) : undefined,
-          Boolean(data.prerelease),
-          Boolean(data.draft),
-          Boolean(data.hideArchiveLinks),
-        );
+        isUploadingReleaseAttachments.value = true;
+        try {
+          const release = await state.createRepoRelease(
+            props.instanceId,
+            props.owner,
+            props.repo,
+            String(data.tagName),
+            data.name ? String(data.name) : undefined,
+            data.body ? String(data.body) : undefined,
+            data.targetCommitish ? String(data.targetCommitish) : undefined,
+            Boolean(data.prerelease),
+            Boolean(data.draft),
+            Boolean(data.hideArchiveLinks),
+          );
+          const files = pendingReleaseAttachments.value;
+          const releaseId = release.id;
+          if (releaseId !== undefined && files.length > 0) {
+            await Promise.all(
+              files.map(async (file) => {
+                uploadingReleaseAttachmentCount.value += 1;
+                try {
+                  const buffer = await file.arrayBuffer();
+                  await state.uploadReleaseAttachment(
+                    props.instanceId,
+                    props.owner,
+                    props.repo,
+                    releaseId,
+                    file.name,
+                    new Uint8Array(buffer),
+                  );
+                } finally {
+                  uploadingReleaseAttachmentCount.value -= 1;
+                }
+              }),
+            );
+          }
+          pendingReleaseAttachments.value = [];
+          state.loadRepoRefs(props.instanceId, props.owner, props.repo, true);
+        } catch {
+          isSubmitting.value = false;
+        } finally {
+          isUploadingReleaseAttachments.value = false;
+        }
       }
       break;
   }
@@ -273,13 +317,16 @@ async function removeRelease(id?: number) {
       :owner="owner"
       :repo="repo"
       :default-branch="defaultBranch"
-      :loading="loading && isSubmitting"
+      :loading="(loading && isSubmitting) || isUploadingReleaseAttachments || uploadingReleaseAttachmentCount > 0"
       :error="error"
       :release="editingRelease"
       :branches="data?.branches.map((b) => b.name ?? '').filter(Boolean)"
       :tags="data?.tags.map((t) => t.name ?? '').filter(Boolean)"
+      :pending-attachments="pendingReleaseAttachments"
       @close="closeDialog"
       @submit="handleSubmit"
+      @upload-pending="handleReleaseAttachmentUpload"
+      @remove-pending="removePendingReleaseAttachment"
     />
   </div>
 </template>
