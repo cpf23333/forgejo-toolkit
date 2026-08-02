@@ -89,12 +89,13 @@
 - 分支 / 标签 / Release 管理：在仓库详情页展示列表、切换标签页查看，并支持创建 / 删除分支、创建标签 / Release。
 - README Markdown 渲染预览：在仓库详情页点击「预览 README」，通过 VS Code 原生 Markdown 预览打开。
 
-## 当前迭代
-
 ### 本地仓库自动关联
 
 - 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库和对应实例。
-- 在状态栏或侧边栏显示关联仓库的快捷入口。
+- 在 Dashboard 顶部显示关联仓库卡片，支持快捷打开仓库、Issues、Pull Requests。
+- workspace 文件夹变化或实例增删时自动重新检测。
+
+## 当前迭代
 
 ## 后续迭代
 

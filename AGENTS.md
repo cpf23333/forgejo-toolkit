@@ -4,6 +4,10 @@
 
 - Use `@cpf23333-forgejo-toolkit/` for all workspace packages, not `@forgejo/`.
 
+## Code content
+
+- Do **not** include explicit IP addresses in source code, tests, fixtures, or documentation examples. Use placeholder domain names such as `forgejo.example.com`, `codeberg.org`, or `example.com` instead.
+
 ## `@vscode-elements/elements` usage rule
 
 Do **not** use any `@vscode-elements/elements` web component directly in `forgejo-toolkit` webview code (e.g. `<vscode-collapsible>`, `<vscode-button>`, `<vscode-textfield>`, etc.).

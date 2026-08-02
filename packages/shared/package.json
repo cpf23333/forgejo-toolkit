@@ -15,6 +15,10 @@
     "./webview/messages": {
       "types": "./src/webview/messages.ts",
       "default": "./src/webview/messages.ts"
+    },
+    "./git/url": {
+      "types": "./src/git/url.ts",
+      "default": "./src/git/url.ts"
     }
   },
   "scripts": {

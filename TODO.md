@@ -1,8 +1,8 @@
 # TODO
 
-## 进行中
+## 已完成
 
-- [ ] 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库
+- [x] 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库并在 Dashboard 显示快捷入口
 
 ## 待开始
 
