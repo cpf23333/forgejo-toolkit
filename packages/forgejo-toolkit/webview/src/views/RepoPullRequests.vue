@@ -5,7 +5,9 @@ import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
+import AttachmentList from '../components/AttachmentList.vue';
 import { useAppState, pullRequestFormKey, repoDetailKey, repoPullRequestsKey } from '../composables/useAppState';
+import { isImageFile } from '../utils/file';
 import type { ForgejoPullRequest } from '../types/api';
 
 const { t } = useI18n();
@@ -23,9 +25,14 @@ const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
 
 const isCreating = ref(false);
+const createFormResetKey = ref(0);
 const createFormKey = computed(() => pullRequestFormKey(instanceId.value, owner.value, repo.value, 0));
 const createLoading = computed(() => state.loading.get(createFormKey.value) ?? false);
 const createError = computed(() => state.errors.get(createFormKey.value));
+const pendingIssueAttachments = ref<File[]>([]);
+const pendingImageObjectUrls = ref<Map<string, File>>(new Map());
+const uploadingIssueAttachmentCount = ref(0);
+const createDialogLoading = computed(() => createLoading.value || uploadingIssueAttachmentCount.value > 0);
 const repoKey = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
 const repoDetail = computed(() => state.repoDetails.value.get(repoKey.value));
 const branches = computed(() => repoDetail.value?.branches ?? []);
@@ -83,27 +90,110 @@ function changeState(newState: string) {
 }
 
 function openCreatePullRequest() {
+  createFormResetKey.value += 1;
+  state.errors.delete(createFormKey.value);
   state.loadRepoDetail(instanceId.value, owner.value, repo.value);
   isCreating.value = true;
 }
 
 function closeCreatePullRequest() {
+  for (const url of pendingImageObjectUrls.value.keys()) {
+    URL.revokeObjectURL(url);
+  }
+  pendingImageObjectUrls.value.clear();
+  pendingIssueAttachments.value = [];
+  state.errors.delete(createFormKey.value);
   isCreating.value = false;
 }
 
-function handleCreateSubmit(title: string, body: string, base: string, head: string) {
-  state.createPullRequest(instanceId.value, owner.value, repo.value, title, body, base, head);
+function handleIssueAttachmentUpload(file: File) {
+  pendingIssueAttachments.value.push(file);
+  if (isImageFile(file)) {
+    pendingImageObjectUrls.value.set(URL.createObjectURL(file), file);
+  }
 }
 
-watch(
-  () => state.lastSavedPullRequest.value,
-  (saved) => {
-    if (saved?.instanceId === instanceId.value && saved.owner === owner.value && saved.repo === repo.value) {
-      isCreating.value = false;
-      state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value);
+function getObjectUrlForFile(file: File): string | undefined {
+  for (const [url, pendingFile] of pendingImageObjectUrls.value) {
+    if (pendingFile === file) {
+      return url;
     }
-  },
-);
+  }
+  return undefined;
+}
+
+function removePendingAttachment(index: number) {
+  const file = pendingIssueAttachments.value[index];
+  if (file) {
+    const objectUrl = getObjectUrlForFile(file);
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      pendingImageObjectUrls.value.delete(objectUrl);
+    }
+  }
+  pendingIssueAttachments.value.splice(index, 1);
+}
+
+function handleUploadImageForCreate(file: File, onSuccess: (url: string) => void, _onError: (error: string) => void) {
+  const objectUrl = URL.createObjectURL(file);
+  pendingImageObjectUrls.value.set(objectUrl, file);
+  pendingIssueAttachments.value.push(file);
+  onSuccess(objectUrl);
+}
+
+async function handleCreateSubmit(title: string, body: string, base: string, head: string) {
+  try {
+    const pr = await state.createPullRequest(instanceId.value, owner.value, repo.value, title, body, base, head);
+    const files = pendingIssueAttachments.value;
+    const replacements = new Map<string, string>();
+    if (files.length > 0) {
+      await Promise.all(
+        files.map(async (file) => {
+          uploadingIssueAttachmentCount.value += 1;
+          try {
+            const attachment = await state.uploadIssueAttachment(
+              instanceId.value,
+              owner.value,
+              repo.value,
+              pr.number,
+              file,
+            );
+            if (attachment.uuid) {
+              for (const [objectUrl, pendingFile] of pendingImageObjectUrls.value) {
+                if (pendingFile === file) {
+                  replacements.set(objectUrl, `/attachments/${attachment.uuid}`);
+                  break;
+                }
+              }
+            }
+          } finally {
+            uploadingIssueAttachmentCount.value -= 1;
+          }
+        }),
+      );
+    }
+    let updatedBody = body;
+    for (const [objectUrl, attachmentUrl] of replacements) {
+      updatedBody = updatedBody.replaceAll(objectUrl, attachmentUrl);
+    }
+    if (updatedBody !== body) {
+      state.editPullRequest(instanceId.value, owner.value, repo.value, pr.number, {
+        title,
+        body: updatedBody,
+      });
+    }
+    for (const url of pendingImageObjectUrls.value.keys()) {
+      URL.revokeObjectURL(url);
+    }
+    pendingImageObjectUrls.value.clear();
+    pendingIssueAttachments.value = [];
+    isCreating.value = false;
+    state.openPullRequestDetail(instanceId.value, owner.value, repo.value, pr.number);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.errors.set(createFormKey.value, message);
+  }
+}
 </script>
 
 <template>
@@ -157,18 +247,48 @@ watch(
     <ModalDialog
       :open="isCreating"
       :title="t('dashboard.form.newPullRequest')"
-      :loading="createLoading"
+      :loading="createDialogLoading"
       @close="closeCreatePullRequest"
     >
       <PullRequestForm
+        :key="createFormResetKey"
         :initial-base="repoDetail?.repository.default_branch"
         :branches="branches"
         :submit-label="t('dashboard.form.create')"
-        :loading="createLoading"
+        :loading="createDialogLoading"
         :error="createError"
+        :upload-image="handleUploadImageForCreate"
         @submit="handleCreateSubmit"
         @cancel="closeCreatePullRequest"
-      />
+      >
+        <template #extra>
+          <AttachmentList
+            :assets="[]"
+            :allow-upload="true"
+            :allow-delete="false"
+            :uploading="uploadingIssueAttachmentCount > 0"
+            @upload="handleIssueAttachmentUpload($event)"
+          />
+          <ul v-if="pendingIssueAttachments.length > 0" class="pending-attachment-list">
+            <li
+              v-for="(file, idx) in pendingIssueAttachments"
+              :key="`${file.name}-${idx}`"
+              class="pending-attachment-item"
+            >
+              <img
+                v-if="isImageFile(file)"
+                :src="getObjectUrlForFile(file)"
+                :alt="file.name"
+                class="pending-attachment-preview"
+              />
+              <span class="pending-attachment-name">{{ file.name }}</span>
+              <button type="button" class="pending-attachment-remove" @click="removePendingAttachment(idx)">
+                {{ t('dashboard.remove') }}
+              </button>
+            </li>
+          </ul>
+        </template>
+      </PullRequestForm>
     </ModalDialog>
   </div>
 </template>
@@ -328,5 +448,56 @@ watch(
   height: 16px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.pending-attachment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pending-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  border-radius: 4px;
+}
+
+.pending-attachment-preview {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.pending-attachment-name {
+  font-size: 0.9em;
+  color: var(--vscode-foreground);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-attachment-remove {
+  background-color: transparent;
+  color: var(--vscode-errorForeground);
+  border: 1px solid var(--vscode-errorForeground);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.pending-attachment-remove:hover {
+  background-color: var(--vscode-errorForeground);
+  color: var(--vscode-button-foreground);
 }
 </style>

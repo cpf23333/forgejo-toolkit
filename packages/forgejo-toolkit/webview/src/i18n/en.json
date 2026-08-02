@@ -112,6 +112,7 @@
     "defaultBranch": "default",
     "readme": "README",
     "noReadme": "No README",
+    "remove": "Remove",
     "state": {
       "open": "Open",
       "closed": "Closed",

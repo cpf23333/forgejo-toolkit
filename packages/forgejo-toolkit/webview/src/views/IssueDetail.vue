@@ -101,23 +101,69 @@ const commentFormKey = computed(() => issueCommentFormKey(instanceId.value, owne
 const commentLoading = computed(() => state.loading.get(commentFormKey.value) ?? false);
 const commentError = computed(() => state.errors.get(commentFormKey.value));
 const commentBody = ref('');
+const pendingCommentAttachments = ref<File[]>([]);
+const uploadingCommentAttachmentCount = ref(0);
 
-function handleCommentSubmit() {
+function handleCommentAttachmentUpload(file: File) {
+  pendingCommentAttachments.value.push(file);
+}
+
+async function handleCommentImageUpload(
+  file: File,
+  onSuccess: (url: string) => void,
+  onError: (error: string) => void,
+) {
+  try {
+    const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
+    const url = attachment.uuid ? `/attachments/${attachment.uuid}` : (attachment.browser_download_url ?? '');
+    if (!url) {
+      onError('Failed to upload image');
+      return;
+    }
+    onSuccess(url);
+  } catch (error) {
+    onError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function handleCommentSubmit() {
   const body = commentBody.value.trim();
   if (!body) {
     return;
   }
-  state.createIssueComment(instanceId.value, owner.value, repo.value, index.value, body);
-}
-
-watch(
-  () => commentLoading.value,
-  (next, prev) => {
-    if (prev && !next && !commentError.value) {
-      commentBody.value = '';
+  try {
+    const comment = await state.createIssueComment(instanceId.value, owner.value, repo.value, index.value, body);
+    if (comment.id === undefined) {
+      throw new Error('Created comment missing id');
     }
-  },
-);
+    const commentId = comment.id;
+    const files = pendingCommentAttachments.value;
+    if (files.length > 0) {
+      await Promise.all(
+        files.map(async (file) => {
+          uploadingCommentAttachmentCount.value += 1;
+          try {
+            await state.uploadIssueCommentAttachment(
+              instanceId.value,
+              owner.value,
+              repo.value,
+              index.value,
+              commentId,
+              file,
+            );
+          } finally {
+            uploadingCommentAttachmentCount.value -= 1;
+          }
+        }),
+      );
+    }
+    commentBody.value = '';
+    pendingCommentAttachments.value = [];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.errors.set(commentFormKey.value, message);
+  }
+}
 
 function openEdit() {
   state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value);
@@ -359,10 +405,37 @@ function isLightColor(hex: string): boolean {
             v-model="commentBody"
             :placeholder="t('dashboard.detail.addCommentPlaceholder')"
             :disabled="commentLoading"
+            :upload-image="handleCommentImageUpload"
           />
+          <AttachmentList
+            :assets="[]"
+            :allow-upload="true"
+            :allow-delete="false"
+            :uploading="uploadingCommentAttachmentCount > 0"
+            @upload="handleCommentAttachmentUpload($event)"
+          />
+          <ul v-if="pendingCommentAttachments.length > 0" class="pending-attachment-list">
+            <li
+              v-for="(file, idx) in pendingCommentAttachments"
+              :key="`${file.name}-${idx}`"
+              class="pending-attachment-item"
+            >
+              <span class="pending-attachment-name">{{ file.name }}</span>
+              <button type="button" class="pending-attachment-remove" @click="pendingCommentAttachments.splice(idx, 1)">
+                {{ t('dashboard.remove') }}
+              </button>
+            </li>
+          </ul>
           <div class="comment-form-actions">
-            <vscode-button :disabled="!commentBody.trim() || commentLoading" @click="handleCommentSubmit">
-              {{ commentLoading ? t('dashboard.form.saving') : t('dashboard.detail.postComment') }}
+            <vscode-button
+              :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
+              @click="handleCommentSubmit"
+            >
+              {{
+                commentLoading || uploadingCommentAttachmentCount > 0
+                  ? t('dashboard.form.saving')
+                  : t('dashboard.detail.postComment')
+              }}
             </vscode-button>
           </div>
           <div v-if="commentError" class="error">{{ t('dashboard.error', { message: commentError }) }}</div>
@@ -591,5 +664,44 @@ function isLightColor(hex: string): boolean {
 .comment-form-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.pending-attachment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pending-attachment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  border-radius: 4px;
+}
+
+.pending-attachment-name {
+  font-size: 0.9em;
+  color: var(--vscode-foreground);
+}
+
+.pending-attachment-remove {
+  background-color: transparent;
+  color: var(--vscode-errorForeground);
+  border: 1px solid var(--vscode-errorForeground);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.pending-attachment-remove:hover {
+  background-color: var(--vscode-errorForeground);
+  color: var(--vscode-button-foreground);
 }
 </style>

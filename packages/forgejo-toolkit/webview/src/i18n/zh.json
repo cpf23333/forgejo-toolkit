@@ -112,6 +112,7 @@
     "defaultBranch": "默认",
     "readme": "README",
     "noReadme": "没有 README",
+    "remove": "移除",
     "state": {
       "open": "打开",
       "closed": "已关闭",

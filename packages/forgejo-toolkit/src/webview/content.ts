@@ -30,7 +30,7 @@ export function getWebviewContent(
   };
   const configScript = `<script nonce="${nonce}">window.__FORGEJO_TOOLKIT_CONFIG__ = ${JSON.stringify(config)};</script>`;
 
-  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src 'self' data: ${webview.cspSource} http: https:; connect-src 'self' ${webview.cspSource} http: https:;">`;
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src 'self' blob: data: ${webview.cspSource} http: https:; connect-src 'self' ${webview.cspSource} http: https:;">`;
   const codiconLink = options?.codiconCssPath
     ? `<link rel="stylesheet" href="${webview.asWebviewUri(vscode.Uri.file(options.codiconCssPath)).toString()}" id="vscode-codicon-stylesheet">`
     : '';

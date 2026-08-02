@@ -96,6 +96,21 @@ function createAppState() {
   >();
   let attachmentDeleteRequestId = 0;
   const pendingAttachmentDeletes = new Map<string, { resolve: () => void; reject: (error: Error) => void }>();
+  let issueCommentCreationRequestId = 0;
+  const pendingIssueCommentCreations = new Map<
+    string,
+    { resolve: (comment: ForgejoTimelineComment) => void; reject: (error: Error) => void }
+  >();
+  let issueCreationRequestId = 0;
+  const pendingIssueCreations = new Map<
+    string,
+    { resolve: (issue: ForgejoIssue) => void; reject: (error: Error) => void }
+  >();
+  let pullRequestCreationRequestId = 0;
+  const pendingPullRequestCreations = new Map<
+    string,
+    { resolve: (pr: ForgejoPullRequest) => void; reject: (error: Error) => void }
+  >();
 
   function handleMessage(event: MessageEvent<HostToWebviewMessage>) {
     const message = event.data;
@@ -197,6 +212,7 @@ function createAppState() {
             index: number;
             comment?: ForgejoTimelineComment;
             error?: string;
+            _requestId: string;
           },
         );
         break;
@@ -699,10 +715,24 @@ function createAppState() {
       index: number;
       item?: ForgejoIssue;
       error?: string;
+      _requestId?: string;
     },
   ) {
     const formKey = issueFormKey(data.instanceId, data.owner, data.repo, command === 'issueUpdated' ? data.index : 0);
     loading.set(formKey, false);
+    if (command === 'issueCreated' && data._requestId) {
+      const pending = pendingIssueCreations.get(data._requestId);
+      if (pending) {
+        pendingIssueCreations.delete(data._requestId);
+        if (data.error) {
+          pending.reject(new Error(data.error));
+        } else if (data.item) {
+          pending.resolve(data.item);
+        } else {
+          pending.reject(new Error('Issue creation failed'));
+        }
+      }
+    }
     if (data.error) {
       errors.set(formKey, data.error);
       return;
@@ -722,9 +752,21 @@ function createAppState() {
     index: number;
     comment?: ForgejoTimelineComment;
     error?: string;
+    _requestId: string;
   }) {
     const formKey = issueCommentFormKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(formKey, false);
+    const pending = pendingIssueCommentCreations.get(data._requestId);
+    if (pending) {
+      pendingIssueCommentCreations.delete(data._requestId);
+      if (data.error) {
+        pending.reject(new Error(data.error));
+      } else if (data.comment) {
+        pending.resolve(data.comment);
+      } else {
+        pending.reject(new Error('Comment creation failed'));
+      }
+    }
     if (data.error) {
       errors.set(formKey, data.error);
       return;
@@ -903,6 +945,7 @@ function createAppState() {
       index: number;
       item?: ForgejoPullRequest;
       error?: string;
+      _requestId?: string;
     },
   ) {
     const formKey = pullRequestFormKey(
@@ -912,6 +955,19 @@ function createAppState() {
       command === 'pullRequestUpdated' ? data.index : 0,
     );
     loading.set(formKey, false);
+    if (command === 'pullRequestCreated' && data._requestId) {
+      const pending = pendingPullRequestCreations.get(data._requestId);
+      if (pending) {
+        pendingPullRequestCreations.delete(data._requestId);
+        if (data.error) {
+          pending.reject(new Error(data.error));
+        } else if (data.item) {
+          pending.resolve(data.item);
+        } else {
+          pending.reject(new Error('Pull request creation failed'));
+        }
+      }
+    }
     if (data.error) {
       errors.set(formKey, data.error);
       return;
@@ -1368,11 +1424,21 @@ function createAppState() {
     });
   }
 
-  function createIssue(instanceId: string, owner: string, repo: string, title: string, body: string) {
+  function createIssue(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    title: string,
+    body: string,
+  ): Promise<ForgejoIssue> {
     const key = issueFormKey(instanceId, owner, repo, 0);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'createIssue', instanceId, owner, repo, data: { title, body } });
+    const _requestId = `issue-create-${++issueCreationRequestId}`;
+    return new Promise((resolve, reject) => {
+      pendingIssueCreations.set(_requestId, { resolve, reject });
+      vscode.postMessage({ command: 'createIssue', instanceId, owner, repo, data: { title, body }, _requestId });
+    });
   }
 
   function editIssue(
@@ -1388,11 +1454,21 @@ function createAppState() {
     vscode.postMessage({ command: 'editIssue', instanceId, owner, repo, index, data });
   }
 
-  function createIssueComment(instanceId: string, owner: string, repo: string, index: number, body: string) {
+  function createIssueComment(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    body: string,
+  ): Promise<ForgejoTimelineComment> {
     const key = issueCommentFormKey(instanceId, owner, repo, index);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'createIssueComment', instanceId, owner, repo, index, body });
+    const _requestId = `issue-comment-create-${++issueCommentCreationRequestId}`;
+    return new Promise((resolve, reject) => {
+      pendingIssueCommentCreations.set(_requestId, { resolve, reject });
+      vscode.postMessage({ command: 'createIssueComment', instanceId, owner, repo, index, body, _requestId });
+    });
   }
 
   function editIssueComment(instanceId: string, owner: string, repo: string, commentId: number, body: string) {
@@ -1538,11 +1614,22 @@ function createAppState() {
     body: string,
     base?: string,
     head?: string,
-  ) {
+  ): Promise<ForgejoPullRequest> {
     const key = pullRequestFormKey(instanceId, owner, repo, 0);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'createPullRequest', instanceId, owner, repo, data: { title, body, base, head } });
+    const _requestId = `pull-request-create-${++pullRequestCreationRequestId}`;
+    return new Promise((resolve, reject) => {
+      pendingPullRequestCreations.set(_requestId, { resolve, reject });
+      vscode.postMessage({
+        command: 'createPullRequest',
+        instanceId,
+        owner,
+        repo,
+        data: { title, body, base, head },
+        _requestId,
+      });
+    });
   }
 
   function editPullRequest(

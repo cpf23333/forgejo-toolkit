@@ -359,11 +359,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 repo,
                 index: (item as { number?: number }).number ?? 0,
                 item,
+                _requestId: message._requestId,
               });
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`createIssue failed for ${instance.name}/${owner}/${repo}: ${err}`);
-              this._reply('issueCreated', { instanceId: message.instanceId, owner, repo, index: 0, error: err });
+              this._reply('issueCreated', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index: 0,
+                error: err,
+                _requestId: message._requestId,
+              });
             }
             return;
           }
@@ -416,6 +424,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 repo,
                 index,
                 comment,
+                _requestId: message._requestId,
               });
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
@@ -426,6 +435,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 repo,
                 index,
                 error: err,
+                _requestId: message._requestId,
               });
             }
             return;
@@ -768,6 +778,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 repo,
                 index: (item as { number?: number }).number ?? 0,
                 item,
+                _requestId: message._requestId,
               });
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
@@ -778,6 +789,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 repo,
                 index: 0,
                 error: err,
+                _requestId: message._requestId,
               });
             }
             return;

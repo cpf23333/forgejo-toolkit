@@ -61,6 +61,7 @@ export type HostToWebviewMessage =
       index: number;
       item?: unknown;
       error?: string;
+      _requestId: string;
     }
   | {
       command: 'issueUpdated';
@@ -79,6 +80,7 @@ export type HostToWebviewMessage =
       index: number;
       comment?: unknown;
       error?: string;
+      _requestId: string;
     }
   | {
       command: 'issueCommentEdited';
@@ -151,6 +153,7 @@ export type HostToWebviewMessage =
       index: number;
       item?: unknown;
       error?: string;
+      _requestId: string;
     }
   | {
       command: 'pullRequestUpdated';
@@ -381,6 +384,7 @@ export type WebviewToHostMessage =
       owner: string;
       repo: string;
       data: { title: string; body: string };
+      _requestId: string;
     }
   | {
       command: 'editIssue';
@@ -397,6 +401,7 @@ export type WebviewToHostMessage =
       repo: string;
       index: number;
       body: string;
+      _requestId: string;
     }
   | {
       command: 'editIssueComment';
@@ -457,6 +462,7 @@ export type WebviewToHostMessage =
       owner: string;
       repo: string;
       data: { title: string; body: string; base?: string; head?: string };
+      _requestId: string;
     }
   | {
       command: 'editPullRequest';

@@ -235,10 +235,10 @@ watch(
   },
 );
 
-async function uploadAttachmentForEdit(file: File) {
+async function uploadAttachmentForEdit(file: File): Promise<ForgejoIssueAttachment | undefined> {
   const commentId = editingComment.value?.id;
   if (commentId === undefined) {
-    return;
+    return undefined;
   }
   uploadingCommentCount.value += 1;
   delete uploadErrors[commentId];
@@ -254,10 +254,30 @@ async function uploadAttachmentForEdit(file: File) {
     if (editingComment.value && attachment) {
       editingComment.value.assets = [...(editingComment.value.assets ?? []), attachment];
     }
+    return attachment;
   } catch (error) {
     uploadErrors[commentId] = error instanceof Error ? error.message : String(error);
+    return undefined;
   } finally {
     uploadingCommentCount.value -= 1;
+  }
+}
+
+async function handleUploadImageForEdit(
+  file: File,
+  onSuccess: (url: string) => void,
+  onError: (error: string) => void,
+) {
+  try {
+    const attachment = await uploadAttachmentForEdit(file);
+    const url = attachment?.uuid ? `/attachments/${attachment.uuid}` : (attachment?.browser_download_url ?? '');
+    if (!url) {
+      onError('Failed to upload image');
+      return;
+    }
+    onSuccess(url);
+  } catch (error) {
+    onError(error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -340,6 +360,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           v-model="editBody"
           :placeholder="t('dashboard.detail.addCommentPlaceholder')"
           :disabled="editLoading"
+          :upload-image="handleUploadImageForEdit"
         />
         <div v-if="editingComment?.id !== undefined" class="edit-comment-attachments">
           <AttachmentList

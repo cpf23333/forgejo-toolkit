@@ -497,13 +497,14 @@ export class ForgejoClient {
   }
 
   async getPullRequestCommentsAndTimeline(owner: string, repo: string, index: number): Promise<TimelineComment[]> {
-    const comments = (await issueGetCommentsAndTimeline(
+    const response = (await issueGetCommentsAndTimeline(
       owner,
       repo,
       index,
       { limit: 100 },
       { client: this._client() },
-    )) as TimelineComment[];
+    )) as TimelineComment[] | null | undefined;
+    const comments = response ?? [];
     const commentIds = comments.map((c) => c.id).filter((id): id is number => id !== undefined);
     const assetsMap = new Map<number, ForgejoIssueAttachment[]>();
     await Promise.all(
