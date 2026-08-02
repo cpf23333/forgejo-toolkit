@@ -197,7 +197,9 @@
     }
   },
   "activationEvents": [
-    "onView:forgejoToolkitView"
+    "onView:forgejoToolkitView",
+    "onFileSystem:cpf23333-forgejo-toolkit-repofile",
+    "onFileSystem:forgejo-pr"
   ],
   "engines": {
     "vscode": "^1.85.0"
