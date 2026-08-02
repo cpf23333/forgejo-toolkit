@@ -59,6 +59,12 @@
     "overview": "概览",
     "files": "文件",
     "refs": "引用",
+    "linkedRepository": {
+      "title": "关联仓库",
+      "openRepo": "打开仓库",
+      "openIssues": "Issues",
+      "openPullRequests": "Pull Requests"
+    },
     "fileBrowser": {
       "emptyDirectory": "该目录为空。",
       "refresh": "刷新",

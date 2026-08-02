@@ -15,15 +15,16 @@ import { WorktreeManager, WorktreeInfo } from '../worktree/worktreeManager';
 import {
   cloneRepository,
   createWorktreeFromBranch,
+  detectLinkedRepository,
   fetchPullRequestHead,
   findLocalRepo,
   getRemoteUrl,
   isCurrentWorkspaceBaseRepo,
   isGitRepository,
-  normalizeGitUrl,
   openWorktree,
   sanitizeForPath,
 } from '../worktree/gitOperations';
+import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
@@ -66,6 +67,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       codiconCssPath,
     });
 
+    this._context.subscriptions.push(
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this._detectAndSendLinkedRepository()),
+    );
+
     webviewView.webview.onDidReceiveMessage(
       async (message) => {
         logger.debug(`Received message from webview: ${message.command}`);
@@ -91,6 +96,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               worktreeCacheDirectory: directory,
               worktreeCacheDirectoryDefault: defaultDirectory,
             });
+            this._detectAndSendLinkedRepository();
+            return;
+          }
+          case 'getLinkedRepository': {
+            this._detectAndSendLinkedRepository();
             return;
           }
 
@@ -132,6 +142,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
               await this._config.addInstance(instance);
               this._sendInstances();
+              this._detectAndSendLinkedRepository();
               this._reply('saveInstanceResult', { success: true });
               vscode.window.showInformationMessage(`Connected to Forgejo as ${user.login}`);
             } catch (error) {
@@ -159,6 +170,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 username: user.login,
               });
               this._sendInstances();
+              this._detectAndSendLinkedRepository();
               this._reply('saveInstanceResult', { success: true });
               vscode.window.showInformationMessage(`Updated Forgejo instance for ${user.login}`);
             } catch (error) {
@@ -175,6 +187,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             await this._config.removeInstance(id);
             this._sendInstances();
+            this._detectAndSendLinkedRepository();
             return;
           }
           case 'setLocale': {
@@ -206,6 +219,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             try {
               const client = new ForgejoClient(instance.url, instance.token, logger);
               const repos = await client.getUserRepositories();
+              logger.info(`getRepositories returned ${repos.length} repos for ${instance.name}`);
               this._reply('repositories', { instanceId: instance.id, repositories: repos });
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
@@ -1716,6 +1730,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
         this._sendInstances();
+        this._detectAndSendLinkedRepository();
       }
     });
   }
@@ -1772,6 +1787,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     if (this._view?.visible) {
       this._reply('instances', { data: this._config.getInstances() });
     }
+  }
+
+  private async _detectAndSendLinkedRepository() {
+    if (!this._view?.visible) {
+      return;
+    }
+    const linked = await detectLinkedRepository(this._config.getInstances());
+    this._reply('linkedRepository', { linked });
   }
 
   private _reply<T extends HostToWebviewMessage['command']>(

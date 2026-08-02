@@ -6,6 +6,14 @@ export interface ForgejoInstance {
   username: string;
 }
 
+export interface LinkedRepository {
+  instanceId: string;
+  owner: string;
+  repo: string;
+  localPath: string;
+  remoteUrl: string;
+}
+
 export type HostToWebviewMessage =
   | { command: 'instances'; data: ForgejoInstance[] }
   | {
@@ -348,10 +356,12 @@ export type HostToWebviewMessage =
   | { command: 'worktreeOpenMode'; mode: 'ask' | 'currentWindow' | 'newWindow' }
   | { command: 'worktreeCacheDirectory'; directory: string; defaultDirectory: string }
   | { command: 'testConnectionResult'; success: boolean; username?: string; error?: string }
-  | { command: 'saveInstanceResult'; success: boolean; error?: string };
+  | { command: 'saveInstanceResult'; success: boolean; error?: string }
+  | { command: 'linkedRepository'; linked?: LinkedRepository };
 
 export type WebviewToHostMessage =
   | { command: 'getInitialState' }
+  | { command: 'getLinkedRepository' }
   | { command: 'testConnection'; url: string; token: string }
   | { command: 'saveInstance'; url: string; token: string }
   | { command: 'editInstance'; id: string; url: string; token: string }

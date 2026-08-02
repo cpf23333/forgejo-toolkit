@@ -59,6 +59,12 @@
     "overview": "Overview",
     "files": "Files",
     "refs": "Refs",
+    "linkedRepository": {
+      "title": "Linked Repository",
+      "openRepo": "Open Repo",
+      "openIssues": "Issues",
+      "openPullRequests": "Pull Requests"
+    },
     "fileBrowser": {
       "emptyDirectory": "This directory is empty.",
       "refresh": "Refresh",

@@ -3,13 +3,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { promisify } from 'util';
+import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { normalizeGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
+import { logger } from '../logger';
 
 const exec = promisify(cp.exec);
 
 export async function isGitRepository(dirPath: string): Promise<boolean> {
   try {
-    const stat = await fs.promises.stat(path.join(dirPath, '.git'));
-    return stat.isDirectory();
+    await fs.promises.access(path.join(dirPath, '.git'));
+    return true;
   } catch {
     return false;
   }
@@ -145,12 +148,72 @@ export async function openWorktree(worktreePath: string, openInNewWindow: boolea
   }
 }
 
-export function normalizeGitUrl(url: string): string {
-  return url
-    .replace(/\.git\/$/, '')
-    .replace(/\.git$/, '')
-    .replace(/\/+$/, '')
-    .toLowerCase();
+async function findGitRoot(startPath: string): Promise<string | undefined> {
+  let current = startPath;
+  const root = path.parse(current).root;
+  while (current !== root) {
+    if (await isGitRepository(current)) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return undefined;
+}
+
+export async function detectLinkedRepository(instances: ForgejoInstance[]): Promise<LinkedRepository | undefined> {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  logger.debug(`[detectLinkedRepository] workspace folders: ${folders.map((f) => f.uri.fsPath).join(', ')}`);
+  logger.debug(`[detectLinkedRepository] instances: ${instances.map((i) => `${i.id}=${i.url}`).join(', ')}`);
+
+  const candidates = new Set<string>();
+  for (const folder of folders) {
+    candidates.add(folder.uri.fsPath);
+    const gitRoot = await findGitRoot(folder.uri.fsPath);
+    if (gitRoot) {
+      candidates.add(gitRoot);
+    }
+  }
+  logger.debug(`[detectLinkedRepository] candidates: ${Array.from(candidates).join(', ')}`);
+
+  for (const dirPath of candidates) {
+    const remoteUrl = await getRemoteUrl(dirPath);
+    logger.debug(`[detectLinkedRepository] remote for ${dirPath}: ${remoteUrl ?? 'none'}`);
+    if (!remoteUrl) {
+      continue;
+    }
+    const remoteInfo = normalizeGitRemote(remoteUrl);
+    logger.debug(`[detectLinkedRepository] normalized remote: ${remoteInfo?.normalized ?? 'invalid'}`);
+    if (!remoteInfo) {
+      continue;
+    }
+
+    for (const instance of instances) {
+      let instanceHostPath: string;
+      try {
+        const parsed = new URL(instance.url);
+        instanceHostPath = normalizeGitUrl(`${parsed.host}${parsed.pathname}`);
+      } catch {
+        continue;
+      }
+      logger.debug(`[detectLinkedRepository] compare ${remoteInfo.normalized} vs ${instanceHostPath}`);
+      if (remoteInfo.normalized === instanceHostPath || remoteInfo.normalized.startsWith(`${instanceHostPath}/`)) {
+        logger.debug(`[detectLinkedRepository] matched ${instance.id}`);
+        return {
+          instanceId: instance.id,
+          owner: remoteInfo.owner,
+          repo: remoteInfo.repo,
+          localPath: dirPath,
+          remoteUrl,
+        };
+      }
+    }
+  }
+  logger.debug('[detectLinkedRepository] no match');
+  return undefined;
 }
 
 function injectTokenIntoUrl(url: string, token: string): string {
