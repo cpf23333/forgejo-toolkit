@@ -2,6 +2,10 @@
 
 ## 进行中
 
+- [x] 为 Issue / PR 添加评论功能
+- [x] 支持合并 PR（merge / squash / rebase）
+- [ ] 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库
+
 ## 待开始
 
 - [ ] Forgejo 通知中心（`/notifications` API）
@@ -11,9 +15,6 @@
 - [ ] 接入 MSW mock 用于测试或离线开发
 - [ ] 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试
 - [ ] 评估将 extension host 打包从 esbuild 迁移到 Rolldown，统一构建工具链
-- [ ] 为 Issue / PR 添加评论功能
-- [ ] 支持合并 PR（merge / squash / rebase）
-- [ ] 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库
 
 ## 已完成
 

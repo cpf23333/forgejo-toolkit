@@ -136,6 +136,7 @@
       "delete": "Delete",
       "undoDelete": "Undo Delete",
       "edit": "Edit",
+      "more": "More",
       "close": "Close",
       "reopen": "Reopen"
     },
@@ -178,6 +179,19 @@
       "commentsAndTimeline": "Comments & Timeline",
       "commits": "Commits",
       "noComments": "No comments yet",
+      "addCommentPlaceholder": "Write a comment...",
+      "postComment": "Post comment",
+      "editComment": "Edit comment",
+      "deleteComment": "Delete comment",
+      "confirmDeleteComment": "Are you sure you want to delete this comment?",
+      "mergePullRequest": "Merge Pull Request",
+      "merge": "Merge",
+      "merging": "Merging...",
+      "mergeStrategy": {
+        "merge": "Create a merge commit",
+        "squash": "Squash and merge",
+        "rebase": "Rebase and merge"
+      },
       "commitFilesChanged": "{count} files changed",
       "viewCommitDiff": "View diff",
       "timelineEvent": {

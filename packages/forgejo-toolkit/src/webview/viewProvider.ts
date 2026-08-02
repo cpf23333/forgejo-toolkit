@@ -393,6 +393,248 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'createIssueComment': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, body } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof body !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const comment = await client.createIssueComment(owner, repo, index, body);
+              this._reply('issueCommentCreated', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                comment,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`createIssueComment failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueCommentCreated', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'createIssueCommentAttachment': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, commentId, name, data } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof commentId !== 'number' ||
+              typeof name !== 'string' ||
+              !Array.isArray(data)
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const attachment = await client.createIssueCommentAttachment(
+                owner,
+                repo,
+                commentId,
+                new Uint8Array(data),
+                name,
+              );
+              this._reply('issueCommentAttachmentCreated', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                commentId,
+                id: attachment.id,
+                uuid: attachment.uuid,
+                name: attachment.name,
+                size: attachment.size,
+                browser_download_url: attachment.browser_download_url,
+                _requestId: message._requestId,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(
+                `createIssueCommentAttachment failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`,
+              );
+              this._reply('issueCommentAttachmentCreated', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                commentId,
+                error: err,
+                _requestId: message._requestId,
+              });
+            }
+            return;
+          }
+          case 'editIssueComment': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, commentId, body } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof commentId !== 'number' ||
+              typeof body !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const comment = await client.editIssueComment(owner, repo, commentId, body);
+              this._reply('issueCommentEdited', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                commentId,
+                comment,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(
+                `editIssueComment failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`,
+              );
+              this._reply('issueCommentEdited', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                commentId,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'deleteIssueComment': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, commentId } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof commentId !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.deleteIssueComment(owner, repo, commentId);
+              this._reply('issueCommentDeleted', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                commentId,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(
+                `deleteIssueComment failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`,
+              );
+              this._reply('issueCommentDeleted', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                commentId,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'deleteIssueCommentAttachment': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, commentId, attachmentId } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof commentId !== 'number' ||
+              typeof attachmentId !== 'number'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.deleteIssueCommentAttachment(owner, repo, commentId, attachmentId);
+              this._reply('issueCommentAttachmentDeleted', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                commentId,
+                attachmentId,
+                _requestId: message._requestId,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(
+                `deleteIssueCommentAttachment failed for ${instance.name}/${owner}/${repo}/comments/${commentId}/assets/${attachmentId}: ${err}`,
+              );
+              this._reply('issueCommentAttachmentDeleted', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                commentId,
+                attachmentId,
+                error: err,
+                _requestId: message._requestId,
+              });
+            }
+            return;
+          }
+          case 'mergePullRequest': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, strategy } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              !['merge', 'rebase', 'squash'].includes(strategy)
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.mergePullRequest(owner, repo, index, strategy);
+              this._reply('pullRequestMerged', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`mergePullRequest failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('pullRequestMerged', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
           case 'createIssueAttachment': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {

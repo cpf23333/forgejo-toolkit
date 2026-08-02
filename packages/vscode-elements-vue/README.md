@@ -15,7 +15,7 @@ Vue 3 adapter for [@vscode-elements/elements](https://www.npmjs.com/package/@vsc
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite';
-import { vscodeElementsVue } from '@cpf23333-forgejo-toolkit/vscode-elements-vue';
+import vscodeElementsVue from '@cpf23333-forgejo-toolkit/vscode-elements-vue/vite-plugin';
 
 export default defineConfig({
   plugins: [vscodeElementsVue()],

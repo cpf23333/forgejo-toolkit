@@ -9,6 +9,7 @@ import CommentTimeline from '../components/CommentTimeline.vue';
 import CommitDiffList from '../components/CommitDiffList.vue';
 import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
+import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import {
   useAppState,
   pullRequestDetailKey,
@@ -16,6 +17,8 @@ import {
   pullRequestCommentsKey,
   pullRequestCommitsKey,
   pullRequestFormKey,
+  pullRequestMergeFormKey,
+  issueCommentFormKey,
   repoDetailKey,
 } from '../composables/useAppState';
 import type { ForgejoIssueAttachment } from '../types/api';
@@ -34,6 +37,17 @@ const detail = computed(() => state.pullRequestDetails.value.get(key.value));
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
 const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
+const currentUsername = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.username);
+const isPullRequestAuthor = computed(
+  () => detail.value?.user?.login === currentUsername.value && currentUsername.value !== undefined,
+);
+const canManagePullRequest = computed(() => {
+  if (isPullRequestAuthor.value) {
+    return true;
+  }
+  const permissions = detail.value?.repoPermissions;
+  return permissions?.admin === true || permissions?.push === true;
+});
 
 const filesKey = computed(() => pullRequestFilesKey(instanceId.value, owner.value, repo.value, index.value));
 const files = computed(() => state.pullRequestFiles.value.get(filesKey.value) ?? []);
@@ -79,7 +93,7 @@ watch(
 
 const prUrl = computed(() => detail.value?.html_url ?? '');
 const isEditing = ref(false);
-const uploadingAttachment = ref(false);
+const uploadingAttachmentCount = ref(0);
 const deletingAttachmentId = ref<number | undefined>(undefined);
 const isDeletingAttachments = ref(false);
 const pendingDeleteAttachmentIds = ref<number[]>([]);
@@ -87,6 +101,42 @@ const editFormKey = computed(() => pullRequestFormKey(instanceId.value, owner.va
 const editLoading = computed(() => state.loading.get(editFormKey.value) ?? false);
 const editError = computed(() => state.errors.get(editFormKey.value));
 const formLoading = computed(() => editLoading.value || isDeletingAttachments.value);
+
+const commentFormKey = computed(() => issueCommentFormKey(instanceId.value, owner.value, repo.value, index.value));
+const commentLoading = computed(() => state.loading.get(commentFormKey.value) ?? false);
+const commentError = computed(() => state.errors.get(commentFormKey.value));
+const commentBody = ref('');
+
+function handleCommentSubmit() {
+  const body = commentBody.value.trim();
+  if (!body) {
+    return;
+  }
+  state.createIssueComment(instanceId.value, owner.value, repo.value, index.value, body);
+}
+
+watch(
+  () => commentLoading.value,
+  (next, prev) => {
+    if (prev && !next && !commentError.value) {
+      commentBody.value = '';
+    }
+  },
+);
+
+const mergeFormKey = computed(() => pullRequestMergeFormKey(instanceId.value, owner.value, repo.value, index.value));
+const mergeLoading = computed(() => state.loading.get(mergeFormKey.value) ?? false);
+const mergeError = computed(() => state.errors.get(mergeFormKey.value));
+const mergeStrategy = ref<'merge' | 'rebase' | 'squash'>('merge');
+const canMerge = computed(() => detail.value?.state === 'open' && !detail.value?.merged && canManagePullRequest.value);
+
+function handleMerge() {
+  if (!canMerge.value) {
+    return;
+  }
+  state.mergePullRequest(instanceId.value, owner.value, repo.value, index.value, mergeStrategy.value);
+}
+
 const repoKey = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
 const repoDetail = computed(() => state.repoDetails.value.get(repoKey.value));
 const branches = computed(() => repoDetail.value?.branches ?? []);
@@ -146,7 +196,7 @@ async function handleUploadImage(file: File, onSuccess: (url: string) => void, o
 }
 
 async function handleAttachmentUpload(file: File) {
-  uploadingAttachment.value = true;
+  uploadingAttachmentCount.value += 1;
   try {
     const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
     const current = detail.value;
@@ -157,7 +207,7 @@ async function handleAttachmentUpload(file: File) {
       current.assets.push(attachment);
     }
   } finally {
-    uploadingAttachment.value = false;
+    uploadingAttachmentCount.value -= 1;
   }
 }
 
@@ -543,7 +593,29 @@ watch(
           <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
         </div>
         <div v-else-if="commentsError" class="error">{{ t('dashboard.error', { message: commentsError }) }}</div>
-        <CommentTimeline v-else :comments="comments" :instance-id="instanceId" :base-url="baseUrl" />
+        <CommentTimeline
+          v-else
+          :comments="comments"
+          :instance-id="instanceId"
+          :owner="owner"
+          :repo="repo"
+          :index="index"
+          :base-url="baseUrl"
+        />
+
+        <div class="comment-form">
+          <EasyMdeEditor
+            v-model="commentBody"
+            :placeholder="t('dashboard.detail.addCommentPlaceholder')"
+            :disabled="commentLoading"
+          />
+          <div class="comment-form-actions">
+            <vscode-button :disabled="!commentBody.trim() || commentLoading" @click="handleCommentSubmit">
+              {{ commentLoading ? t('dashboard.form.saving') : t('dashboard.detail.postComment') }}
+            </vscode-button>
+          </div>
+          <div v-if="commentError" class="error">{{ t('dashboard.error', { message: commentError }) }}</div>
+        </div>
       </div>
 
       <div class="actions">
@@ -553,10 +625,10 @@ watch(
         <a href="#" class="action-link" @click.prevent="state.copyToClipboard(prUrl)">
           {{ t('dashboard.detail.copyLink') }}
         </a>
-        <a href="#" class="action-link" @click.prevent="openEdit">
+        <a v-if="canManagePullRequest" href="#" class="action-link" @click.prevent="openEdit">
           {{ t('dashboard.actions.edit') }}
         </a>
-        <a href="#" class="action-link" @click.prevent="toggleState">
+        <a v-if="canManagePullRequest" href="#" class="action-link" @click.prevent="toggleState">
           {{ detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen') }}
         </a>
         <a href="#" class="action-link" :class="{ disabled: worktreeLoading }" @click.prevent="openInWorktree">
@@ -569,6 +641,22 @@ watch(
           }}
         </a>
       </div>
+
+      <div v-if="canMerge" class="merge-section">
+        <h3>{{ t('dashboard.detail.mergePullRequest') }}</h3>
+        <div class="merge-form">
+          <vscode-select v-model="mergeStrategy">
+            <vscode-option value="merge">{{ t('dashboard.detail.mergeStrategy.merge') }}</vscode-option>
+            <vscode-option value="squash">{{ t('dashboard.detail.mergeStrategy.squash') }}</vscode-option>
+            <vscode-option value="rebase">{{ t('dashboard.detail.mergeStrategy.rebase') }}</vscode-option>
+          </vscode-select>
+          <vscode-button :disabled="mergeLoading" @click="handleMerge">
+            {{ mergeLoading ? t('dashboard.detail.merging') : t('dashboard.detail.merge') }}
+          </vscode-button>
+        </div>
+        <div v-if="mergeError" class="error">{{ t('dashboard.error', { message: mergeError }) }}</div>
+      </div>
+
       <div v-if="worktreeStatus" :class="['worktree-status', worktreeStatusType]">{{ worktreeStatus }}</div>
 
       <ModalDialog
@@ -595,7 +683,7 @@ watch(
               :assets="detail.assets"
               :allow-upload="true"
               :allow-delete="true"
-              :uploading="uploadingAttachment"
+              :uploading="uploadingAttachmentCount > 0"
               :deleting-id="deletingAttachmentId"
               :pending-delete-ids="pendingDeleteAttachmentIds"
               @open-external="state.openExternal($event)"
@@ -614,6 +702,8 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100%;
+  overflow: auto;
 }
 
 .loading {
@@ -835,5 +925,36 @@ watch(
   width: 16px;
   height: 16px;
   vertical-align: middle;
+}
+
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.comment-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.merge-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.merge-section h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--vscode-foreground);
+}
+
+.merge-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 </style>

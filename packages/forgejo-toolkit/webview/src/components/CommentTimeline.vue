@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import MarkdownBody from './MarkdownBody.vue';
-import type { ForgejoTimelineComment } from '../types/api';
-import { useAppState } from '../composables/useAppState';
+import AttachmentList from './AttachmentList.vue';
+import ModalDialog from './ModalDialog.vue';
+import EasyMdeEditor from './EasyMdeEditor.vue';
+import type { ForgejoTimelineComment, ForgejoIssueAttachment } from '../types/api';
+import { useAppState, issueCommentEditFormKey } from '../composables/useAppState';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -11,12 +14,35 @@ const state = useAppState();
 interface Props {
   comments: ForgejoTimelineComment[];
   instanceId: string;
+  owner: string;
+  repo: string;
+  index: number;
   baseUrl?: string;
 }
 
 const props = defineProps<Props>();
 const renderedBodies = reactive<Record<string, string>>({});
 const loadingIds = ref<Set<string>>(new Set());
+const uploadingCommentCount = ref(0);
+const uploadErrors = reactive<Record<number, string>>({});
+const editingComment = ref<ForgejoTimelineComment | undefined>(undefined);
+const editBody = ref('');
+const pendingDeleteAttachmentIds = ref<number[]>([]);
+const deletingAttachmentIds = ref<Set<number>>(new Set());
+const isSavingEdit = ref(false);
+
+const currentUsername = computed(() => {
+  return state.instances.value.find((i) => i.id === props.instanceId)?.username;
+});
+
+const editFormKey = computed(() => {
+  if (editingComment.value?.id === undefined) {
+    return '';
+  }
+  return issueCommentEditFormKey(props.instanceId, props.owner, props.repo, editingComment.value.id);
+});
+const editLoading = computed(() => (editFormKey.value ? (state.loading.get(editFormKey.value) ?? false) : false));
+const editError = computed(() => (editFormKey.value ? state.errors.get(editFormKey.value) : undefined));
 
 function commentKey(comment: ForgejoTimelineComment): string {
   return String(comment.id ?? `${comment.type ?? 'event'}-${comment.created_at ?? ''}-${comment.user?.login ?? ''}`);
@@ -90,6 +116,163 @@ function eventText(comment: ForgejoTimelineComment): string {
   }
   return comment.type ?? 'event';
 }
+
+async function uploadAttachment(comment: ForgejoTimelineComment, file: File) {
+  const commentId = comment.id;
+  if (commentId === undefined) {
+    return;
+  }
+  uploadingCommentCount.value += 1;
+  delete uploadErrors[commentId];
+  try {
+    await state.uploadIssueCommentAttachment(props.instanceId, props.owner, props.repo, props.index, commentId, file);
+  } catch (error) {
+    uploadErrors[commentId] = error instanceof Error ? error.message : String(error);
+  } finally {
+    uploadingCommentCount.value -= 1;
+  }
+}
+
+const menuRefs = ref<Map<number, HTMLElement>>(new Map());
+
+function openExternal(url: string) {
+  state.openExternal(url);
+}
+
+function isOwnComment(comment: ForgejoTimelineComment): boolean {
+  return comment.user?.login === currentUsername.value && comment.id !== undefined;
+}
+
+function setMenuRef(comment: ForgejoTimelineComment, el: unknown) {
+  if (comment.id !== undefined && el) {
+    menuRefs.value.set(comment.id, el as HTMLElement);
+  }
+}
+
+function openMenu(comment: ForgejoTimelineComment, event: MouseEvent) {
+  const menu = comment.id !== undefined ? menuRefs.value.get(comment.id) : undefined;
+  if (!menu) {
+    return;
+  }
+  const menuEl = menu as HTMLElement & { data?: unknown[]; show?: boolean };
+  menuEl.data = [
+    { label: t('dashboard.actions.edit'), value: 'edit' },
+    { label: t('dashboard.actions.delete'), value: 'delete' },
+  ];
+  const rect = (event.target as HTMLElement).getBoundingClientRect();
+  menuEl.style.position = 'fixed';
+  menuEl.style.left = `${rect.left}px`;
+  menuEl.style.top = `${rect.bottom + 4}px`;
+  menuEl.style.zIndex = '1000';
+  menuEl.show = true;
+}
+
+function handleMenuSelect(event: Event, comment: ForgejoTimelineComment) {
+  const value = (event as CustomEvent<{ value: string }>).detail.value;
+  if (value === 'edit') {
+    openEdit(comment);
+  } else if (value === 'delete' && comment.id !== undefined) {
+    state.deleteIssueComment(props.instanceId, props.owner, props.repo, comment.id);
+  }
+}
+
+function openEdit(comment: ForgejoTimelineComment) {
+  editingComment.value = comment;
+  editBody.value = comment.body ?? '';
+  pendingDeleteAttachmentIds.value = [];
+}
+
+function closeEdit() {
+  editingComment.value = undefined;
+  editBody.value = '';
+  pendingDeleteAttachmentIds.value = [];
+  isSavingEdit.value = false;
+}
+
+async function saveEdit() {
+  const commentId = editingComment.value?.id;
+  if (commentId === undefined) {
+    return;
+  }
+  isSavingEdit.value = true;
+  state.editIssueComment(props.instanceId, props.owner, props.repo, commentId, editBody.value.trim());
+}
+
+watch(
+  () => editLoading.value,
+  async (next, prev) => {
+    if (!prev || next || !isSavingEdit.value) {
+      return;
+    }
+    if (editError.value) {
+      isSavingEdit.value = false;
+      return;
+    }
+    const commentId = editingComment.value?.id;
+    if (commentId === undefined) {
+      closeEdit();
+      return;
+    }
+    const idsToDelete = [...pendingDeleteAttachmentIds.value];
+    if (idsToDelete.length > 0) {
+      for (const attachmentId of idsToDelete) {
+        deletingAttachmentIds.value.add(attachmentId);
+      }
+      try {
+        await Promise.all(
+          idsToDelete.map((attachmentId) =>
+            state
+              .deleteIssueCommentAttachment(props.instanceId, props.owner, props.repo, commentId, attachmentId)
+              .finally(() => deletingAttachmentIds.value.delete(attachmentId)),
+          ),
+        );
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to delete comment attachments', error);
+      }
+    }
+    closeEdit();
+  },
+);
+
+async function uploadAttachmentForEdit(file: File) {
+  const commentId = editingComment.value?.id;
+  if (commentId === undefined) {
+    return;
+  }
+  uploadingCommentCount.value += 1;
+  delete uploadErrors[commentId];
+  try {
+    const attachment = await state.uploadIssueCommentAttachment(
+      props.instanceId,
+      props.owner,
+      props.repo,
+      props.index,
+      commentId,
+      file,
+    );
+    if (editingComment.value && attachment) {
+      editingComment.value.assets = [...(editingComment.value.assets ?? []), attachment];
+    }
+  } catch (error) {
+    uploadErrors[commentId] = error instanceof Error ? error.message : String(error);
+  } finally {
+    uploadingCommentCount.value -= 1;
+  }
+}
+
+function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
+  const attachmentId = asset.id;
+  if (attachmentId === undefined) {
+    return;
+  }
+  const index = pendingDeleteAttachmentIds.value.indexOf(attachmentId);
+  if (index >= 0) {
+    pendingDeleteAttachmentIds.value.splice(index, 1);
+  } else {
+    pendingDeleteAttachmentIds.value.push(attachmentId);
+  }
+}
 </script>
 
 <template>
@@ -106,6 +289,19 @@ function eventText(comment: ForgejoTimelineComment): string {
         <span v-if="comment.user" class="user-name">{{ comment.user.login }}</span>
         <span class="event-type">{{ eventText(comment) }}</span>
         <span v-if="comment.created_at" class="meta-item">{{ formatDate(comment.created_at) }}</span>
+        <div v-if="isOwnComment(comment)" class="comment-menu-wrapper">
+          <vscode-icon
+            name="kebab-vertical"
+            size="16"
+            action-icon
+            :title="t('dashboard.actions.more')"
+            @click="openMenu(comment, $event)"
+          />
+          <vscode-context-menu
+            :ref="(el: unknown) => setMenuRef(comment, el)"
+            @vsc-context-menu-select="handleMenuSelect($event, comment)"
+          />
+        </div>
       </div>
       <div v-if="comment.type === 'comment'" class="comment-body">
         <div v-if="loadingIds.has(commentKey(comment))" class="loading">{{ t('dashboard.detail.renderingBody') }}</div>
@@ -120,7 +316,56 @@ function eventText(comment: ForgejoTimelineComment): string {
         <span v-if="comment.ref_commit_sha" class="commit-ref">{{ comment.ref_commit_sha.slice(0, 7) }}</span>
         <span v-else-if="comment.ref_comment" class="comment-ref">#{{ comment.ref_comment.id }}</span>
       </div>
+      <div
+        v-if="comment.type === 'comment' && comment.id !== undefined && comment.assets?.length"
+        class="comment-attachments"
+      >
+        <AttachmentList
+          :assets="comment.assets"
+          :allow-upload="false"
+          :allow-delete="false"
+          @open-external="openExternal"
+        />
+      </div>
     </div>
+
+    <ModalDialog
+      :open="editingComment !== undefined"
+      :title="t('dashboard.detail.editComment')"
+      :loading="editLoading"
+      @close="closeEdit"
+    >
+      <div class="edit-comment-form">
+        <EasyMdeEditor
+          v-model="editBody"
+          :placeholder="t('dashboard.detail.addCommentPlaceholder')"
+          :disabled="editLoading"
+        />
+        <div v-if="editingComment?.id !== undefined" class="edit-comment-attachments">
+          <AttachmentList
+            :assets="editingComment.assets"
+            :allow-upload="true"
+            :allow-delete="true"
+            :uploading="uploadingCommentCount > 0"
+            :pending-delete-ids="pendingDeleteAttachmentIds"
+            :deleting-ids="Array.from(deletingAttachmentIds)"
+            @open-external="openExternal"
+            @upload="uploadAttachmentForEdit($event)"
+            @delete="markAttachmentForDelete($event)"
+          />
+          <div v-if="uploadErrors[editingComment.id]" class="upload-error">{{ uploadErrors[editingComment.id] }}</div>
+        </div>
+        <div v-if="editError" class="error">{{ t('dashboard.error', { message: editError }) }}</div>
+        <div class="edit-comment-actions">
+          <vscode-button :disabled="editLoading" @click="saveEdit">
+            {{ editLoading ? t('dashboard.form.saving') : t('dashboard.form.save') }}
+          </vscode-button>
+          <vscode-button secondary :disabled="editLoading" @click="closeEdit">
+            {{ t('dashboard.form.cancel') }}
+          </vscode-button>
+        </div>
+      </div>
+    </ModalDialog>
   </div>
 </template>
 
@@ -190,5 +435,75 @@ function eventText(comment: ForgejoTimelineComment): string {
 .commit-ref,
 .comment-ref {
   font-family: var(--vscode-editor-font-family), monospace;
+}
+
+.comment-attachments {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.upload-error {
+  color: var(--vscode-testing-iconFailed);
+  font-size: 0.85em;
+  margin-top: 4px;
+}
+
+.comment-menu-wrapper {
+  margin-left: auto;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.comment-menu-wrapper vscode-icon {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.comment-menu-wrapper vscode-icon:hover {
+  opacity: 1;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.action-link {
+  background: transparent;
+  border: none;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  font-size: 0.85em;
+  padding: 0;
+}
+
+.action-link:hover {
+  text-decoration: underline;
+}
+
+.edit-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.edit-comment-attachments {
+  padding-top: 8px;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.edit-comment-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.error {
+  color: var(--vscode-testing-iconFailed);
+  font-size: 0.9em;
 }
 </style>

@@ -13,15 +13,15 @@
     "issues",
     "pull requests"
   ],
+  "homepage": "https://codeberg.org/cpf23333/forgejo-toolkit",
+  "bugs": {
+    "url": "https://codeberg.org/cpf23333/forgejo-toolkit/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://codeberg.org/cpf23333/forgejo-toolkit.git"
   },
-  "bugs": {
-    "url": "https://codeberg.org/cpf23333/forgejo-toolkit/issues"
-  },
-  "homepage": "https://codeberg.org/cpf23333/forgejo-toolkit",
   "publisher": "your-publisher-name",
   "main": "./out/extension.js",
   "scripts": {

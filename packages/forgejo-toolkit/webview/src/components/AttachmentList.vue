@@ -9,8 +9,19 @@ const props = defineProps<{
   allowDelete?: boolean;
   uploading?: boolean;
   deletingId?: number;
+  deletingIds?: number[];
   pendingDeleteIds?: number[];
 }>();
+
+function isDeleting(id?: number): boolean {
+  if (id === undefined) {
+    return false;
+  }
+  if (props.deletingIds?.includes(id)) {
+    return true;
+  }
+  return props.deletingId !== undefined && props.deletingId === id;
+}
 
 const emit = defineEmits<{
   (e: 'openExternal', url: string): void;
@@ -27,9 +38,11 @@ function triggerFileInput() {
 
 function handleFileChange(event: Event) {
   const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (file) {
-    emit('upload', file);
+  const files = target.files;
+  if (files) {
+    for (const file of files) {
+      emit('upload', file);
+    }
   }
   target.value = '';
 }
@@ -55,7 +68,7 @@ function formatFileSize(bytes?: number): string {
       <button v-if="allowUpload" type="button" class="upload-button" :disabled="uploading" @click="triggerFileInput">
         {{ uploading ? t('dashboard.form.saving') : t('dashboard.actions.uploadAttachment') }}
       </button>
-      <input ref="fileInputRef" type="file" class="file-input" @change="handleFileChange" />
+      <input ref="fileInputRef" type="file" multiple class="file-input" @change="handleFileChange" />
     </div>
     <ul v-if="assets?.length" class="attachment-list">
       <li
@@ -72,7 +85,7 @@ function formatFileSize(bytes?: number): string {
           v-if="allowDelete"
           type="button"
           class="delete-button"
-          :disabled="deletingId !== undefined && deletingId === asset.id"
+          :disabled="asset.id !== undefined && isDeleting(asset.id)"
           @click="emit('delete', asset)"
         >
           {{

@@ -84,7 +84,21 @@
 - 分支 / 标签 / Release 管理：在仓库详情页展示列表、切换标签页查看，并支持创建 / 删除分支、创建标签 / Release。
 - README Markdown 渲染预览：在仓库详情页点击「预览 README」，通过 VS Code 原生 Markdown 预览打开。
 
-## 待实现
+## 当前迭代
+
+### Issue / PR 评论与合并
+
+当前项目已支持 Issue / PR 的创建、编辑、关闭 / 重新打开，下一步补充：
+
+- 为 Issue / PR 添加评论（当前仅展示评论与时间线）。
+- 合并 PR，支持 merge / squash / rebase 策略。
+
+### 本地仓库自动关联
+
+- 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库和对应实例。
+- 在状态栏或侧边栏显示关联仓库的快捷入口。
+
+## 后续迭代
 
 ### 通知与搜索
 
@@ -100,18 +114,9 @@
 
 - 读取仓库 Actions 运行状态和历史。
 
-### Issue / PR 评论与合并
+### PR Review
 
-当前项目已支持 Issue / PR 的创建、编辑、关闭 / 重新打开，下一步补充：
-
-- 为 Issue / PR 添加评论（当前仅展示评论与时间线）。
-- 合并 PR，支持 merge / squash / rebase 策略。
 - PR 内联 review 评论（行级评论）。
-
-### 本地仓库自动关联
-
-- 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库和对应实例。
-- 在状态栏或侧边栏显示关联仓库的快捷入口。
 
 ### 构建工具统一
 
@@ -122,11 +127,7 @@
 ### Mock 与测试
 
 - 接入 MSW mock 用于测试或离线开发。
-- 为 API 客户端和 webview 添加单元 / 组件测试。
-  - 配置 Vitest + jsdom 测试环境。
-  - 为 shared request 客户端添加单元测试。
-  - 为 webview `ModalDialog`、`FileTreeItem` 等组件添加测试。
-  - 测试辅助文件统一放到 `__tests__` 目录。
+- 为 webview `ModalDialog`、`FileTreeItem` 等组件添加更多测试。
 - 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试。
 
 ## 长期可能

@@ -188,6 +188,82 @@ function createAppState() {
           },
         );
         break;
+      case 'issueCommentCreated':
+        handleIssueCommentCreated(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            comment?: ForgejoTimelineComment;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueCommentEdited':
+        handleIssueCommentEdited(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            commentId: number;
+            comment?: ForgejoTimelineComment;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueCommentAttachmentCreated':
+        handleIssueCommentAttachmentCreated(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            commentId: number;
+            uuid?: string;
+            name?: string;
+            size?: number;
+            browser_download_url?: string;
+            error?: string;
+            _requestId: string;
+          },
+        );
+        break;
+      case 'issueCommentDeleted':
+        handleIssueCommentDeleted(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            commentId: number;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueCommentAttachmentDeleted':
+        handleIssueCommentAttachmentDeleted(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            commentId: number;
+            attachmentId: number;
+            error?: string;
+            _requestId: string;
+          },
+        );
+        break;
+      case 'pullRequestMerged':
+        handlePullRequestMerged(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            error?: string;
+          },
+        );
+        break;
       case 'issueAttachmentCreated':
         handleIssueAttachmentCreated(
           message as {
@@ -637,6 +713,185 @@ function createAppState() {
       myIssues.value.clear();
       lastSavedIssue.value = { instanceId: data.instanceId, owner: data.owner, repo: data.repo, index: data.index };
     }
+  }
+
+  function handleIssueCommentCreated(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    comment?: ForgejoTimelineComment;
+    error?: string;
+  }) {
+    const formKey = issueCommentFormKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(formKey, false);
+    if (data.error) {
+      errors.set(formKey, data.error);
+      return;
+    }
+    errors.delete(formKey);
+    if (data.comment) {
+      const commentsKey = pullRequestCommentsKey(data.instanceId, data.owner, data.repo, data.index);
+      const existing = pullRequestComments.value.get(commentsKey) ?? [];
+      const timelineComment: ForgejoTimelineComment = { ...data.comment, type: 'comment' };
+      pullRequestComments.value.set(commentsKey, [...existing, timelineComment]);
+    }
+  }
+
+  function handleIssueCommentEdited(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    commentId: number;
+    comment?: ForgejoTimelineComment;
+    error?: string;
+  }) {
+    const formKey = issueCommentEditFormKey(data.instanceId, data.owner, data.repo, data.commentId);
+    loading.set(formKey, false);
+    if (data.error) {
+      errors.set(formKey, data.error);
+      return;
+    }
+    errors.delete(formKey);
+    if (!data.comment) {
+      return;
+    }
+    for (const key of pullRequestComments.value.keys()) {
+      const comments = pullRequestComments.value.get(key);
+      if (!comments) {
+        continue;
+      }
+      const index = comments.findIndex((c) => c.id === data.commentId);
+      if (index !== -1) {
+        comments[index] = { ...data.comment, type: 'comment', assets: comments[index].assets };
+        pullRequestComments.value.set(key, [...comments]);
+        break;
+      }
+    }
+  }
+
+  function handleIssueCommentAttachmentCreated(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    commentId: number;
+    id?: number;
+    uuid?: string;
+    name?: string;
+    size?: number;
+    browser_download_url?: string;
+    error?: string;
+    _requestId: string;
+  }) {
+    const promise = pendingAttachmentUploads.get(data._requestId);
+    if (!promise) {
+      return;
+    }
+    if (data.error) {
+      promise.reject(new Error(data.error));
+      pendingAttachmentUploads.delete(data._requestId);
+      return;
+    }
+    const attachment: ForgejoIssueAttachment = {
+      id: data.id,
+      uuid: data.uuid ?? '',
+      name: data.name ?? '',
+      size: data.size,
+      browser_download_url: data.browser_download_url ?? '',
+    };
+    promise.resolve(attachment);
+    pendingAttachmentUploads.delete(data._requestId);
+
+    const commentsKey = pullRequestCommentsKey(data.instanceId, data.owner, data.repo, data.index);
+    const comments = pullRequestComments.value.get(commentsKey);
+    if (!comments) {
+      return;
+    }
+    const updatedComments = comments.map((comment) => {
+      if (comment.id !== data.commentId) {
+        return comment;
+      }
+      return { ...comment, assets: [...(comment.assets ?? []), attachment] };
+    });
+    pullRequestComments.value.set(commentsKey, updatedComments);
+  }
+
+  function handleIssueCommentAttachmentDeleted(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    commentId: number;
+    attachmentId: number;
+    error?: string;
+    _requestId: string;
+  }) {
+    const promise = pendingAttachmentDeletes.get(data._requestId);
+    if (!promise) {
+      return;
+    }
+    if (data.error) {
+      promise.reject(new Error(data.error));
+      pendingAttachmentDeletes.delete(data._requestId);
+      return;
+    }
+    promise.resolve();
+    pendingAttachmentDeletes.delete(data._requestId);
+
+    for (const comments of pullRequestComments.value.values()) {
+      const comment = comments.find((c) => c.id === data.commentId);
+      if (comment && comment.assets) {
+        comment.assets = comment.assets.filter((a) => a.id !== data.attachmentId);
+      }
+    }
+  }
+
+  function handleIssueCommentDeleted(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    commentId: number;
+    error?: string;
+  }) {
+    const formKey = issueCommentDeleteFormKey(data.instanceId, data.owner, data.repo, data.commentId);
+    loading.set(formKey, false);
+    if (data.error) {
+      errors.set(formKey, data.error);
+      return;
+    }
+    errors.delete(formKey);
+    for (const [key, comments] of pullRequestComments.value.entries()) {
+      const index = comments.findIndex((c) => c.id === data.commentId);
+      if (index !== -1) {
+        comments.splice(index, 1);
+        pullRequestComments.value.set(key, [...comments]);
+        break;
+      }
+    }
+  }
+
+  function handlePullRequestMerged(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    error?: string;
+  }) {
+    const formKey = pullRequestMergeFormKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(formKey, false);
+    if (data.error) {
+      errors.set(formKey, data.error);
+      return;
+    }
+    errors.delete(formKey);
+    const detailKey = pullRequestDetailKey(data.instanceId, data.owner, data.repo, data.index);
+    const detail = pullRequestDetails.value.get(detailKey);
+    if (detail) {
+      detail.state = 'closed';
+      detail.merged = true;
+    }
+    repoPullRequests.value.clear();
+    myPullRequests.value.clear();
   }
 
   function handlePullRequestSaved(
@@ -1133,6 +1388,66 @@ function createAppState() {
     vscode.postMessage({ command: 'editIssue', instanceId, owner, repo, index, data });
   }
 
+  function createIssueComment(instanceId: string, owner: string, repo: string, index: number, body: string) {
+    const key = issueCommentFormKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    vscode.postMessage({ command: 'createIssueComment', instanceId, owner, repo, index, body });
+  }
+
+  function editIssueComment(instanceId: string, owner: string, repo: string, commentId: number, body: string) {
+    const key = issueCommentEditFormKey(instanceId, owner, repo, commentId);
+    loading.set(key, true);
+    errors.delete(key);
+    vscode.postMessage({ command: 'editIssueComment', instanceId, owner, repo, commentId, body });
+  }
+
+  async function deleteIssueComment(instanceId: string, owner: string, repo: string, commentId: number) {
+    const confirmed = await showConfirm(t('dashboard.detail.confirmDeleteComment'));
+    if (!confirmed) {
+      return;
+    }
+    const key = issueCommentDeleteFormKey(instanceId, owner, repo, commentId);
+    loading.set(key, true);
+    errors.delete(key);
+    vscode.postMessage({ command: 'deleteIssueComment', instanceId, owner, repo, commentId });
+  }
+
+  function deleteIssueCommentAttachment(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    commentId: number,
+    attachmentId: number,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const id = `${instanceId}:${owner}/${repo}:comment-${commentId}:attachment-delete:${++attachmentDeleteRequestId}`;
+      pendingAttachmentDeletes.set(id, { resolve, reject });
+      vscode.postMessage({
+        command: 'deleteIssueCommentAttachment',
+        instanceId,
+        owner,
+        repo,
+        commentId,
+        attachmentId,
+        _requestId: id,
+      });
+    });
+  }
+
+  function mergePullRequest(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    strategy: 'merge' | 'rebase' | 'squash',
+  ) {
+    const key = pullRequestMergeFormKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    vscode.postMessage({ command: 'mergePullRequest', instanceId, owner, repo, index, strategy });
+  }
+
   function uploadIssueAttachment(
     instanceId: string,
     owner: string,
@@ -1152,6 +1467,37 @@ function createAppState() {
           owner,
           repo,
           index,
+          name: file.name,
+          data: Array.from(array),
+          _requestId: id,
+        });
+      };
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function uploadIssueCommentAttachment(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    commentId: number,
+    file: File,
+  ): Promise<ForgejoIssueAttachment> {
+    return new Promise((resolve, reject) => {
+      const id = `${instanceId}:${owner}/${repo}#issue-${index}:comment-${commentId}:attachment:${++attachmentUploadRequestId}`;
+      pendingAttachmentUploads.set(id, { resolve, reject });
+      const reader = new FileReader();
+      reader.onload = () => {
+        const array = new Uint8Array(reader.result as ArrayBuffer);
+        vscode.postMessage({
+          command: 'createIssueCommentAttachment',
+          instanceId,
+          owner,
+          repo,
+          index,
+          commentId,
           name: file.name,
           data: Array.from(array),
           _requestId: id,
@@ -1253,9 +1599,9 @@ function createAppState() {
     vscode.postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index, baseSha, headSha });
   }
 
-  function loadPullRequestComments(instanceId: string, owner: string, repo: string, index: number) {
+  function loadPullRequestComments(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = pullRequestCommentsKey(instanceId, owner, repo, index);
-    if (pullRequestComments.value.has(key)) {
+    if (!force && pullRequestComments.value.has(key)) {
       return;
     }
     vscode.postMessage({ command: 'getPullRequestCommentsAndTimeline', instanceId, owner, repo, index });
@@ -1476,12 +1822,18 @@ function createAppState() {
     openRepoFileDiff,
     createIssue,
     editIssue,
+    createIssueComment,
+    editIssueComment,
+    deleteIssueComment,
     uploadIssueAttachment,
+    uploadIssueCommentAttachment,
     deleteIssueAttachment,
+    deleteIssueCommentAttachment,
     openIssueDetail,
     loadIssueDetail,
     createPullRequest,
     editPullRequest,
+    mergePullRequest,
     openPullRequestDetail,
     loadPullRequestDetail,
     loadPullRequestFiles,
@@ -1534,8 +1886,24 @@ export function issueDetailKey(instanceId: string, owner: string, repo: string, 
   return `${instanceId}:${owner}/${repo}#issue-${index}`;
 }
 
+export function issueCommentFormKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#issue-${index}:comment-form`;
+}
+
+export function issueCommentEditFormKey(instanceId: string, owner: string, repo: string, commentId: number): string {
+  return `${instanceId}:${owner}/${repo}:comment-${commentId}:edit-form`;
+}
+
+export function issueCommentDeleteFormKey(instanceId: string, owner: string, repo: string, commentId: number): string {
+  return `${instanceId}:${owner}/${repo}:comment-${commentId}:delete-form`;
+}
+
 export function pullRequestFormKey(instanceId: string, owner: string, repo: string, index: number): string {
   return `${instanceId}:${owner}/${repo}:pr-form:${index}`;
+}
+
+export function pullRequestMergeFormKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#pr-${index}:merge-form`;
 }
 
 export function pullRequestDetailKey(instanceId: string, owner: string, repo: string, index: number): string {

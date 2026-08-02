@@ -12,11 +12,13 @@ interface Props {
   modelValue?: string;
   placeholder?: string;
   uploadImage?: (file: File, onSuccess: (url: string) => void, onError: (error: string) => void) => void;
+  disabled?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   placeholder: '',
+  disabled: false,
 });
 
 const emit = defineEmits<{
@@ -96,6 +98,10 @@ onMounted(() => {
     emit('update:modelValue', easyMDE?.value() ?? '');
   });
 
+  if (props.disabled) {
+    easyMDE.codemirror.setOption('readOnly', true);
+  }
+
   if (wrapperRef.value) {
     visibilityObserver = new IntersectionObserver((entries) => {
       for (const entry of entries) {
@@ -121,6 +127,13 @@ watch(
     if (easyMDE && easyMDE.value() !== value) {
       easyMDE.value(value);
     }
+  },
+);
+
+watch(
+  () => props.disabled,
+  (disabled) => {
+    easyMDE?.codemirror.setOption('readOnly', disabled);
   },
 );
 </script>

@@ -72,6 +72,65 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      command: 'issueCommentCreated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      comment?: unknown;
+      error?: string;
+    }
+  | {
+      command: 'issueCommentEdited';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+      comment?: unknown;
+      error?: string;
+    }
+  | {
+      command: 'issueCommentDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+      error?: string;
+    }
+  | {
+      command: 'issueCommentAttachmentDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+      attachmentId: number;
+      error?: string;
+      _requestId: string;
+    }
+  | {
+      command: 'issueCommentAttachmentCreated';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      commentId: number;
+      id?: number;
+      uuid?: string;
+      name?: string;
+      size?: number;
+      browser_download_url?: string;
+      error?: string;
+      _requestId: string;
+    }
+  | {
+      command: 'pullRequestMerged';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      error?: string;
+    }
+  | {
       command: 'issueAttachmentCreated';
       instanceId: string;
       owner: string;
@@ -330,6 +389,57 @@ export type WebviewToHostMessage =
       repo: string;
       index: number;
       data: { title?: string; body?: string; state?: 'open' | 'closed' };
+    }
+  | {
+      command: 'createIssueComment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      body: string;
+    }
+  | {
+      command: 'editIssueComment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+      body: string;
+    }
+  | {
+      command: 'deleteIssueComment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+    }
+  | {
+      command: 'deleteIssueCommentAttachment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+      attachmentId: number;
+      _requestId: string;
+    }
+  | {
+      command: 'createIssueCommentAttachment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      commentId: number;
+      name: string;
+      data: number[];
+      _requestId: string;
+    }
+  | {
+      command: 'mergePullRequest';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      strategy: 'merge' | 'rebase' | 'squash';
     }
   | {
       command: 'createIssueAttachment';

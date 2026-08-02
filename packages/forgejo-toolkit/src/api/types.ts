@@ -66,6 +66,12 @@ export interface ForgejoIssueAttachment {
   type?: string;
 }
 
+export interface ForgejoRepoPermissions {
+  admin?: boolean;
+  push?: boolean;
+  pull?: boolean;
+}
+
 export interface ForgejoIssueDetail {
   id?: number;
   number?: number;
@@ -81,6 +87,7 @@ export interface ForgejoIssueDetail {
   milestone?: ForgejoMilestone;
   repository?: { full_name?: string };
   assets?: ForgejoIssueAttachment[];
+  repoPermissions?: ForgejoRepoPermissions;
 }
 
 export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {

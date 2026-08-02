@@ -3,12 +3,18 @@ import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
   getTree,
+  issueCreateComment,
   issueCreateIssue,
   issueCreateIssueAttachment,
+  issueCreateIssueCommentAttachment,
+  issueDeleteComment,
   issueDeleteIssueAttachment,
+  issueDeleteIssueCommentAttachment,
+  issueEditComment,
   issueEditIssue,
   issueGetCommentsAndTimeline,
   issueGetIssue,
+  issueListIssueCommentAttachments,
   issueListIssues,
   issueSearchIssues,
   repoCompareDiff,
@@ -34,6 +40,7 @@ import {
   repoListPullRequests,
   repoListReleases,
   repoListTags,
+  repoMergePullRequest,
   userCurrentListRepos,
   userGetCurrent,
 } from '@cpf23333-forgejo-toolkit/api';
@@ -322,21 +329,34 @@ export class ForgejoClient {
     return repoDeleteRelease(owner, repo, id, { client: this._client() }) as Promise<void>;
   }
 
-  getIssueDetail(owner: string, repo: string, index: number): Promise<ForgejoIssueDetail> {
-    return issueGetIssue(owner, repo, index, { client: this._client() }) as Promise<ForgejoIssueDetail>;
+  async getIssueDetail(owner: string, repo: string, index: number): Promise<ForgejoIssueDetail> {
+    const [issue, repoInfo] = await Promise.all([
+      issueGetIssue(owner, repo, index, { client: this._client() }),
+      repoGet(owner, repo, { client: this._client() }).catch(() => undefined),
+    ]);
+    const permissions = (repoInfo as { permissions?: { admin?: boolean; push?: boolean; pull?: boolean } } | undefined)
+      ?.permissions;
+    return {
+      ...(issue as ForgejoIssueDetail),
+      repoPermissions: permissions,
+    };
   }
 
   async getPullRequestDetail(owner: string, repo: string, index: number): Promise<ForgejoPullRequestDetail> {
     // WORKAROUND: Forgejo's pulls endpoint does not return attachments.
     // The same underlying object is accessible via the issues endpoint,
     // which does include the `assets` field. See KNOWN_ISSUES.md.
-    const [pr, issue] = await Promise.all([
+    const [pr, issue, repoInfo] = await Promise.all([
       repoGetPullRequest(owner, repo, index, { client: this._client() }),
       issueGetIssue(owner, repo, index, { client: this._client() }).catch(() => undefined),
+      repoGet(owner, repo, { client: this._client() }).catch(() => undefined),
     ]);
+    const permissions = (repoInfo as { permissions?: { admin?: boolean; push?: boolean; pull?: boolean } } | undefined)
+      ?.permissions;
     return {
       ...(pr as ForgejoPullRequestDetail),
       assets: (issue as ForgejoIssueDetail | undefined)?.assets,
+      repoPermissions: permissions,
     };
   }
 
@@ -476,10 +496,100 @@ export class ForgejoClient {
     );
   }
 
-  getPullRequestCommentsAndTimeline(owner: string, repo: string, index: number): Promise<TimelineComment[]> {
-    return issueGetCommentsAndTimeline(owner, repo, index, { limit: 100 }, { client: this._client() }) as Promise<
-      TimelineComment[]
-    >;
+  async getPullRequestCommentsAndTimeline(owner: string, repo: string, index: number): Promise<TimelineComment[]> {
+    const comments = (await issueGetCommentsAndTimeline(
+      owner,
+      repo,
+      index,
+      { limit: 100 },
+      { client: this._client() },
+    )) as TimelineComment[];
+    const commentIds = comments.map((c) => c.id).filter((id): id is number => id !== undefined);
+    const assetsMap = new Map<number, ForgejoIssueAttachment[]>();
+    await Promise.all(
+      commentIds.map(async (commentId) => {
+        try {
+          const assets = (await issueListIssueCommentAttachments(owner, repo, commentId, {
+            client: this._client(),
+          })) as {
+            id?: number;
+            uuid?: string;
+            name?: string;
+            size?: number;
+            browser_download_url?: string;
+          }[];
+          assetsMap.set(
+            commentId,
+            assets.map((a) => ({
+              id: a.id,
+              uuid: a.uuid ?? '',
+              name: a.name ?? '',
+              size: a.size,
+              browser_download_url: a.browser_download_url ?? `${this.url}/attachments/${a.uuid}`,
+            })),
+          );
+        } catch {
+          assetsMap.set(commentId, []);
+        }
+      }),
+    );
+    return comments.map((c) => {
+      if (c.id === undefined) {
+        return c;
+      }
+      return { ...c, assets: assetsMap.get(c.id) ?? [] };
+    });
+  }
+
+  createIssueComment(owner: string, repo: string, index: number, body: string): Promise<TimelineComment> {
+    return issueCreateComment(owner, repo, index, { body }, { client: this._client() }) as Promise<TimelineComment>;
+  }
+
+  editIssueComment(owner: string, repo: string, commentId: number, body: string): Promise<TimelineComment> {
+    return issueEditComment(owner, repo, commentId, { body }, { client: this._client() }) as Promise<TimelineComment>;
+  }
+
+  deleteIssueComment(owner: string, repo: string, commentId: number): Promise<void> {
+    return issueDeleteComment(owner, repo, commentId, { client: this._client() }) as Promise<void>;
+  }
+
+  deleteIssueCommentAttachment(owner: string, repo: string, commentId: number, attachmentId: number): Promise<void> {
+    return issueDeleteIssueCommentAttachment(owner, repo, commentId, attachmentId, {
+      client: this._client(),
+    }) as Promise<void>;
+  }
+
+  createIssueCommentAttachment(
+    owner: string,
+    repo: string,
+    commentId: number,
+    file: Uint8Array,
+    filename: string,
+  ): Promise<ForgejoIssueAttachment> {
+    const attachment = new File([file.buffer as ArrayBuffer], filename);
+    return issueCreateIssueCommentAttachment(
+      owner,
+      repo,
+      commentId,
+      { attachment },
+      { name: filename },
+      { client: this._client() },
+    ).then((result) => {
+      const data = result as {
+        id?: number;
+        uuid?: string;
+        name?: string;
+        size?: number;
+        browser_download_url?: string;
+      };
+      return {
+        id: data.id,
+        uuid: data.uuid ?? '',
+        name: data.name ?? filename,
+        size: data.size,
+        browser_download_url: data.browser_download_url ?? `${this.url}/attachments/${data.uuid}`,
+      };
+    });
   }
 
   getPullRequestCommits(owner: string, repo: string, index: number): Promise<Commit[]> {
@@ -490,6 +600,10 @@ export class ForgejoClient {
       { files: true, limit: 100 },
       { client: this._client() },
     ) as Promise<Commit[]>;
+  }
+
+  mergePullRequest(owner: string, repo: string, index: number, strategy: 'merge' | 'rebase' | 'squash'): Promise<void> {
+    return repoMergePullRequest(owner, repo, index, { Do: strategy }, { client: this._client() }) as Promise<void>;
   }
 
   async renderMarkdown(text: string, context?: string): Promise<string> {
