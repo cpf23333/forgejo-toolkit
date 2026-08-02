@@ -4,6 +4,28 @@ const OUTPUT_CHANNEL_NAME = 'Forgejo Toolkit';
 
 export class Logger {
   private channel?: vscode.OutputChannel;
+  private _debugEnabled = false;
+  private _configSubscription?: vscode.Disposable;
+
+  constructor() {
+    this._refreshDebugEnabled();
+  }
+
+  watch(): void {
+    this._configSubscription?.dispose();
+    this._configSubscription = vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('forgejoToolkit.debug')) {
+        this._refreshDebugEnabled();
+      }
+    });
+  }
+
+  dispose(): void {
+    this._configSubscription?.dispose();
+    this._configSubscription = undefined;
+    this.channel?.dispose();
+    this.channel = undefined;
+  }
 
   private get outputChannel(): vscode.OutputChannel {
     if (!this.channel) {
@@ -12,8 +34,12 @@ export class Logger {
     return this.channel;
   }
 
-  private isDebugEnabled(): boolean {
-    return vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('debug', false);
+  private _refreshDebugEnabled(): void {
+    this._debugEnabled = vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('debug', false);
+  }
+
+  isDebugEnabled(): boolean {
+    return this._debugEnabled;
   }
 
   info(message: string): void {
@@ -21,7 +47,7 @@ export class Logger {
   }
 
   debug(message: string): void {
-    if (!this.isDebugEnabled()) {
+    if (!this._debugEnabled) {
       return;
     }
     this.outputChannel.appendLine(`[DEBUG] ${new Date().toISOString()} ${message}`);
@@ -33,11 +59,6 @@ export class Logger {
 
   show(): void {
     this.outputChannel.show();
-  }
-
-  dispose(): void {
-    this.channel?.dispose();
-    this.channel = undefined;
   }
 }
 

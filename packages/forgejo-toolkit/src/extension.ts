@@ -6,8 +6,12 @@ import { registerReadmeProvider } from './readmeProvider';
 import { registerRepoFileProvider } from './repoFileProvider';
 import { FORGEJO_PR_SCHEME, ForgejoPRFileSystemProvider } from './prFileSystemProvider';
 import { ForgejoPRDecorationProvider } from './prDecorationProvider';
+import { logger } from './logger';
 
 export function activate(context: vscode.ExtensionContext) {
+  logger.watch();
+  context.subscriptions.push({ dispose: () => logger.dispose() });
+
   const config = new ConfigManager(context);
   const readmeProvider = registerReadmeProvider(context);
   registerRepoFileProvider(context, config);

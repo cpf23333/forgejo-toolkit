@@ -16,9 +16,8 @@ export interface RepoFileUriParams {
 export function buildRepoFileUri(params: RepoFileUriParams): vscode.Uri {
   return vscode.Uri.from({
     scheme: REPO_FILE_SCHEME,
-    path: `/${params.owner}/${params.repo}/${params.path}`,
+    path: `/${params.instanceId}/${params.owner}/${params.repo}/${params.path}`,
     query: JSON.stringify({
-      instanceId: params.instanceId,
       ref: params.ref,
     }),
   });
@@ -26,17 +25,17 @@ export function buildRepoFileUri(params: RepoFileUriParams): vscode.Uri {
 
 function parseRepoFileUri(uri: vscode.Uri): RepoFileUriParams | undefined {
   try {
-    const pathMatch = uri.path.match(/^\/([^/]+)\/([^/]+)\/(.+)$/);
-    if (!pathMatch) {
+    const match = uri.path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
+    if (!match) {
       return undefined;
     }
-    const [, owner, repo, path] = pathMatch;
-    const query = JSON.parse(uri.query) as { instanceId?: string; ref?: string };
-    if (!query.instanceId || !query.ref) {
+    const [, instanceId, owner, repo, path] = match;
+    const query = JSON.parse(uri.query) as { ref?: string };
+    if (!query.ref) {
       return undefined;
     }
     return {
-      instanceId: query.instanceId,
+      instanceId,
       owner,
       repo,
       ref: query.ref,

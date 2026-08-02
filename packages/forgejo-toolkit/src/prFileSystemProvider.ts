@@ -8,6 +8,7 @@ export interface ForgejoPrUriParams {
   owner: string;
   repo: string;
   ref: string;
+  path: string;
   isBase: boolean;
   status?: string;
 }
@@ -61,7 +62,7 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
 
     try {
       const client = new ForgejoClient(instance.url, instance.token, logger);
-      const content = await client.getFileContent(owner, repo, uri.path.replace(/^\//, ''), ref);
+      const content = await client.getFileContent(owner, repo, params.path, ref);
       return new TextEncoder().encode(content);
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);
@@ -69,7 +70,7 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
         return new TextEncoder().encode('');
       }
       logger.error(`Failed to fetch Forgejo PR file content for ${uri.toString()}: ${err}`);
-      throw new Error(`Failed to fetch ${uri.path}@${ref}: ${err}`);
+      throw new Error(`Failed to fetch ${params.path}@${ref}: ${err}`);
     }
   }
 
@@ -90,7 +91,21 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
       return undefined;
     }
     try {
-      return JSON.parse(uri.query) as ForgejoPrUriParams;
+      const query = JSON.parse(uri.query) as Partial<ForgejoPrUriParams>;
+      const pathMatch = uri.path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
+      if (!pathMatch) {
+        return undefined;
+      }
+      const [, instanceId, owner, repo, filepath] = pathMatch;
+      return {
+        instanceId,
+        owner,
+        repo,
+        ref: query.ref ?? '',
+        path: filepath,
+        isBase: query.isBase ?? false,
+        status: query.status,
+      };
     } catch {
       return undefined;
     }

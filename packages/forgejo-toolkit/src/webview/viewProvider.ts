@@ -38,12 +38,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     private readonly _extensionUri: vscode.Uri,
     private readonly _config: ConfigManager,
     private readonly _readmeProvider: ReadmeContentProvider,
+    worktreeManager?: WorktreeManager,
   ) {
-    this._worktreeManager = new WorktreeManager(
-      _context,
-      () => this._config.getWorktreeCacheDirectory(),
-      () => this._config.getDefaultWorktreeCacheDirectory(),
-    );
+    this._worktreeManager =
+      worktreeManager ??
+      new WorktreeManager(
+        _context,
+        () => this._config.getWorktreeCacheDirectory(),
+        () => this._config.getDefaultWorktreeCacheDirectory(),
+      );
   }
 
   public resolveWebviewView(
@@ -132,11 +135,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               const user = await client.getCurrentUser();
 
               const normalizedUrl = url.replace(/\/$/, '');
+              const instanceHost = new URL(normalizedUrl).host;
               const instance: ForgejoInstance = {
-                id: `${new URL(normalizedUrl).hostname}-${user.login}`,
+                id: `${instanceHost}-${user.login}`,
                 url: normalizedUrl,
                 token,
-                name: `${user.login}@${new URL(normalizedUrl).hostname}`,
+                name: `${user.login}@${instanceHost}`,
                 username: user.login,
               };
 
@@ -166,7 +170,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               await this._config.updateInstance(id, {
                 url: normalizedUrl,
                 token,
-                name: `${user.login}@${new URL(normalizedUrl).hostname}`,
+                name: `${user.login}@${new URL(normalizedUrl).host}`,
                 username: user.login,
               });
               this._sendInstances();
@@ -1767,10 +1771,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     isBase: boolean,
     status?: string,
   ): vscode.Uri {
-    const params = { instanceId, owner, repo, ref, isBase, status };
+    const params = { ref, isBase, status };
     return vscode.Uri.from({
       scheme: 'forgejo-pr',
-      path: `/${filepath}`,
+      path: `/${instanceId}/${owner}/${repo}/${filepath}`,
       query: JSON.stringify(params),
     });
   }

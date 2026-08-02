@@ -633,6 +633,8 @@ export class ForgejoClient {
     ): Promise<ResponseConfig<TResponseData>> => {
       const method = config.method ?? 'GET';
       const targetUrl = this._buildDebugUrl(baseURL, config);
+      const debugEnabled = this.logger?.isDebugEnabled() ?? false;
+      const start = debugEnabled ? Date.now() : 0;
       this.logger?.debug(`Request: ${method} ${targetUrl}`);
 
       try {
@@ -642,11 +644,18 @@ export class ForgejoClient {
           headers: mergeHeaders(config.headers, { Authorization: `token ${this.token}` }),
         });
 
-        this.logger?.debug(`Response: ${response.status} ${response.statusText}`);
-        this.logger?.debug(`Response body: ${JSON.stringify(response.data).slice(0, 2000)}`);
+        if (debugEnabled) {
+          const duration = Date.now() - start;
+          this.logger?.debug(`Response: ${response.status} ${response.statusText} (${duration}ms)`);
+          this.logger?.debug(`Response body: ${JSON.stringify(response.data).slice(0, 2000)}`);
+        }
 
         return response;
       } catch (error) {
+        if (debugEnabled) {
+          const duration = Date.now() - start;
+          this.logger?.debug(`Request failed after ${duration}ms: ${method} ${targetUrl}`);
+        }
         if (error instanceof Error) {
           this._notifyIfPermissionError(error.message);
         }
