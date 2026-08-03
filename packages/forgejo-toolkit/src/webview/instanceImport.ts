@@ -1,0 +1,85 @@
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
+import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+
+export function decryptExportData(
+  payload: { salt: string; iv: string; authTag: string; data: string; iterations?: number },
+  password: string,
+): unknown {
+  const iterations = payload.iterations ?? 100_000;
+  const salt = Buffer.from(payload.salt, 'base64');
+  const iv = Buffer.from(payload.iv, 'base64');
+  const authTag = Buffer.from(payload.authTag, 'base64');
+  const encrypted = Buffer.from(payload.data, 'base64');
+  const key = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(authTag);
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return JSON.parse(decrypted.toString('utf8'));
+}
+
+export interface ExportData {
+  instances: ForgejoInstance[];
+  settings?: ExportSettings;
+}
+
+export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData> {
+  const content = await fs.promises.readFile(uri.fsPath, 'utf8');
+  const parsed = JSON.parse(content) as {
+    encrypted?: boolean;
+    instances?: unknown[];
+    settings?: unknown;
+    [key: string]: unknown;
+  };
+  let raw: unknown;
+  if (parsed.encrypted === true) {
+    const password = await vscode.window.showInputBox({
+      prompt: vscode.l10n.t('Enter import password'),
+      password: true,
+      ignoreFocusOut: true,
+    });
+    if (!password) {
+      throw new Error('Import cancelled');
+    }
+    try {
+      raw = decryptExportData(
+        parsed as { salt: string; iv: string; authTag: string; data: string; iterations?: number },
+        password,
+      );
+    } catch {
+      throw new Error(vscode.l10n.t('Incorrect password or corrupted file'));
+    }
+  } else {
+    raw = parsed;
+  }
+  const data: { instances?: unknown[]; settings?: unknown } =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as { instances?: unknown[]; settings?: unknown })
+      : { instances: Array.isArray(raw) ? raw : undefined, settings: undefined };
+  const instances = Array.isArray(data.instances) ? data.instances : [];
+  const validInstances: ForgejoInstance[] = [];
+  for (const item of instances) {
+    const instance = item as Record<string, unknown>;
+    if (
+      typeof instance.id === 'string' &&
+      typeof instance.url === 'string' &&
+      typeof instance.token === 'string' &&
+      typeof instance.name === 'string' &&
+      typeof instance.username === 'string'
+    ) {
+      validInstances.push({
+        id: instance.id,
+        url: instance.url,
+        token: instance.token,
+        name: instance.name,
+        username: instance.username,
+      });
+    }
+  }
+  if (validInstances.length === 0) {
+    throw new Error('No valid instances found in file');
+  }
+  const settings = data.settings as ExportSettings | undefined;
+  return { instances: validInstances, settings };
+}

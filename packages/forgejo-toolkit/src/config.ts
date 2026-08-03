@@ -7,6 +7,9 @@ export type { ForgejoInstance };
 const INSTANCES_KEY = 'forgejoToolkit.instances';
 
 export class ConfigManager {
+  private readonly _onInstancesChanged = new vscode.EventEmitter<ForgejoInstance[]>();
+  readonly onInstancesChanged = this._onInstancesChanged.event;
+
   constructor(private context: vscode.ExtensionContext) {}
 
   getInstances(): ForgejoInstance[] {
@@ -17,6 +20,7 @@ export class ConfigManager {
     const instances = this.getInstances().filter((i) => i.id !== instance.id);
     instances.push(instance);
     await this.context.globalState.update(INSTANCES_KEY, instances);
+    this._onInstancesChanged.fire(instances);
   }
 
   async updateInstance(id: string, updates: Partial<Omit<ForgejoInstance, 'id'>>): Promise<void> {
@@ -27,11 +31,13 @@ export class ConfigManager {
     }
     instances[index] = { ...instances[index], ...updates };
     await this.context.globalState.update(INSTANCES_KEY, instances);
+    this._onInstancesChanged.fire(instances);
   }
 
   async removeInstance(id: string): Promise<void> {
     const instances = this.getInstances().filter((i) => i.id !== id);
     await this.context.globalState.update(INSTANCES_KEY, instances);
+    this._onInstancesChanged.fire(instances);
   }
 
   getWorktreeOpenMode(): 'ask' | 'currentWindow' | 'newWindow' {

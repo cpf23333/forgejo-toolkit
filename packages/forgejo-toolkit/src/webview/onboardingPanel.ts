@@ -6,7 +6,8 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 import { getWebviewContent } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
-import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { readExportDataFromUri } from './instanceImport';
 
 export class OnboardingWebviewPanel {
   public static readonly viewType = 'forgejoToolkitOnboarding';
@@ -61,6 +62,8 @@ export class OnboardingWebviewPanel {
     this._update();
 
     this._panel.onDidDispose(() => this._dispose(), null, this._disposables);
+
+    this._disposables.push(this._config.onInstancesChanged(() => this._sendInstances()));
 
     this._panel.webview.onDidReceiveMessage(
       async (message) => {
@@ -236,6 +239,18 @@ export class OnboardingWebviewPanel {
             }
             return;
           }
+          case 'previewImportInstances': {
+            await this._previewImportInstances();
+            return;
+          }
+          case 'importInstances': {
+            const instancesToImport = Array.isArray((message as { instances?: unknown[] }).instances)
+              ? ((message as { instances?: ForgejoInstance[] }).instances as ForgejoInstance[])
+              : undefined;
+            const settings = (message as { settings?: ExportSettings }).settings;
+            await this._importInstances(instancesToImport, settings);
+            return;
+          }
           case 'closeOnboarding': {
             this._panel.dispose();
             vscode.commands.executeCommand('forgejoToolkitView.focus');
@@ -246,6 +261,110 @@ export class OnboardingWebviewPanel {
       undefined,
       this._disposables,
     );
+  }
+
+  private async _previewImportInstances() {
+    const uris = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: false,
+      filters: { JSON: ['json'] },
+    });
+    if (!uris || uris.length === 0) {
+      return;
+    }
+    try {
+      const { instances, settings } = await readExportDataFromUri(uris[0]);
+      const existingInstances = this._config.getInstances();
+      const existingIds = existingInstances.map((instance) => instance.id);
+      const existingTokens = existingInstances.map((instance) => instance.token);
+      this._reply('importInstancesPreview', { instances, existingIds, existingTokens, settings });
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`onboarding previewImportInstances failed: ${err}`);
+      this._reply('importInstancesPreview', {
+        instances: [],
+        existingIds: [],
+        existingTokens: [],
+        settings: undefined,
+        error: err,
+      });
+    }
+  }
+
+  private async _importInstances(instancesToImport?: ForgejoInstance[], settings?: ExportSettings) {
+    let instances: ForgejoInstance[];
+    if (instancesToImport) {
+      instances = instancesToImport;
+    } else {
+      const uris = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: false,
+        canSelectMany: false,
+        filters: { JSON: ['json'] },
+      });
+      if (!uris || uris.length === 0) {
+        this._reply('instancesImported', { success: false });
+        return;
+      }
+      try {
+        const data = await readExportDataFromUri(uris[0]);
+        instances = data.instances;
+        if (data.settings) {
+          settings = data.settings;
+        }
+      } catch (error) {
+        const err = error instanceof Error ? error.message : String(error);
+        logger.error(`onboarding importInstances failed: ${err}`);
+        this._reply('instancesImported', { success: false, error: err });
+        return;
+      }
+    }
+    try {
+      for (const instance of instances) {
+        await this._config.addInstance(instance);
+      }
+      await this._applyImportSettings(settings);
+      this._reply('instances', { data: this._config.getInstances() });
+      this._reply('instancesImported', { success: true, count: instances.length });
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`onboarding importInstances failed: ${err}`);
+      this._reply('instancesImported', { success: false, error: err });
+    }
+  }
+
+  private async _applyImportSettings(settings: ExportSettings | undefined) {
+    if (!settings) {
+      return;
+    }
+    const configuration = vscode.workspace.getConfiguration('forgejoToolkit');
+    if (settings.locale === 'en' || settings.locale === 'zh') {
+      await configuration.update('locale', settings.locale, true);
+      this._reply('setLocale', { locale: settings.locale });
+    }
+    if (typeof settings.debug === 'boolean') {
+      await configuration.update('debug', settings.debug, true);
+      this._reply('setDebug', { debug: settings.debug });
+    }
+    if (
+      settings.worktreeOpenMode === 'ask' ||
+      settings.worktreeOpenMode === 'currentWindow' ||
+      settings.worktreeOpenMode === 'newWindow'
+    ) {
+      await this._config.setWorktreeOpenMode(settings.worktreeOpenMode);
+      this._reply('worktreeOpenMode', { mode: settings.worktreeOpenMode });
+    }
+    if (typeof settings.worktreeCacheDirectory === 'string') {
+      await this._config.setWorktreeCacheDirectory(settings.worktreeCacheDirectory);
+      const directory = this._config.getWorktreeCacheDirectory() ?? '';
+      const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
+      this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
+    }
+  }
+
+  private _sendInstances() {
+    this._reply('instances', { data: this._config.getInstances() });
   }
 
   private _findInstance(id: unknown): ForgejoInstance | undefined {

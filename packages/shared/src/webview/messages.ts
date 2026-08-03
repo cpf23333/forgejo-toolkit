@@ -6,6 +6,13 @@ export interface ForgejoInstance {
   username: string;
 }
 
+export interface ExportSettings {
+  locale?: string;
+  debug?: boolean;
+  worktreeOpenMode?: 'ask' | 'currentWindow' | 'newWindow';
+  worktreeCacheDirectory?: string;
+}
+
 export interface LinkedRepository {
   instanceId: string;
   owner: string;
@@ -385,6 +392,26 @@ export type HostToWebviewMessage =
       command: 'allNotificationsMarkedRead';
       instanceId: string;
       error?: string;
+    }
+  | {
+      command: 'instancesExported';
+      success: boolean;
+      path?: string;
+      error?: string;
+    }
+  | {
+      command: 'instancesImported';
+      success: boolean;
+      count?: number;
+      error?: string;
+    }
+  | {
+      command: 'importInstancesPreview';
+      instances: ForgejoInstance[];
+      existingIds: string[];
+      existingTokens?: string[];
+      settings?: ExportSettings;
+      error?: string;
     };
 
 export type WebviewToHostMessage =
@@ -691,4 +718,12 @@ export type WebviewToHostMessage =
   | {
       command: 'markAllNotificationsRead';
       instanceId: string;
+    }
+  | { command: 'exportInstances'; ids?: string[] }
+  | { command: 'copyInstancesToClipboard'; ids?: string[] }
+  | { command: 'previewImportInstances' }
+  | {
+      command: 'importInstances';
+      instances?: ForgejoInstance[];
+      settings?: ExportSettings;
     };

@@ -1,13 +1,25 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState } from '../composables/useAppState';
+import ModalDialog from '../components/ModalDialog.vue';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { Locale } from '../i18n';
 
 const { t } = useI18n();
 const state = useAppState();
+const router = useRouter();
+
+watch(
+  () => state.importPreview.value,
+  (preview) => {
+    if (preview && router.currentRoute.value.name !== 'importPreview') {
+      router.replace({ name: 'importPreview' });
+    }
+  },
+);
 
 const url = ref('');
 const token = ref('');
@@ -16,6 +28,10 @@ const saving = ref(false);
 const status = ref('');
 const statusType = ref<'idle' | 'success' | 'error'>('idle');
 const editingInstance = ref<ForgejoInstance | null>(null);
+const exportStatus = ref<{ message: string; type: 'success' | 'error' } | null>(null);
+const importStatus = ref<{ message: string; type: 'success' | 'error' } | null>(null);
+const exportDialogOpen = ref(false);
+const selectedExportIds = ref<Set<string>>(new Set());
 const selectedLocale = ref<Locale>(state.locale.value as Locale);
 const debugEnabled = ref<boolean>(state.debug.value);
 const selectedWorktreeOpenMode = ref<'ask' | 'currentWindow' | 'newWindow'>(state.worktreeOpenMode.value);
@@ -110,8 +126,60 @@ function cancelEdit() {
   setStatus('');
 }
 
-function removeInstance(id: string) {
-  state.removeInstance(id);
+async function removeInstance(id: string) {
+  const instance = state.instances.value.find((i) => i.id === id);
+  if (!instance) {
+    return;
+  }
+  const confirmed = await state.showConfirm(t('settings.removeConfirm', { name: instance.name }));
+  if (confirmed) {
+    state.removeInstance(id);
+  }
+}
+
+function handleExportInstances() {
+  exportStatus.value = null;
+  if (state.instances.value.length === 0) {
+    return;
+  }
+  selectedExportIds.value = new Set(state.instances.value.map((instance) => instance.id));
+  exportDialogOpen.value = true;
+}
+
+function confirmExport() {
+  const ids = [...selectedExportIds.value];
+  exportDialogOpen.value = false;
+  if (ids.length > 0) {
+    state.exportInstances(ids);
+  }
+}
+
+function copyExportToClipboard() {
+  const ids = [...selectedExportIds.value];
+  exportDialogOpen.value = false;
+  if (ids.length > 0) {
+    state.copyInstancesToClipboard(ids);
+  }
+}
+
+function cancelExport() {
+  exportDialogOpen.value = false;
+}
+
+function toggleExportSelection(instance: ForgejoInstance, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const next = new Set(selectedExportIds.value);
+  if (checked) {
+    next.add(instance.id);
+  } else {
+    next.delete(instance.id);
+  }
+  selectedExportIds.value = next;
+}
+
+function handleImportInstances() {
+  importStatus.value = null;
+  state.previewImportInstances();
 }
 
 function handleLocaleChange(event: Event) {
@@ -192,6 +260,47 @@ watch(
       editingInstance.value = null;
     } else {
       setStatus(result.error ?? t('settings.status.errorSaved'), 'error');
+    }
+  },
+);
+
+watch(
+  () => state.exportInstancesResult.value,
+  (result) => {
+    if (!result) {
+      return;
+    }
+    if (result.success) {
+      exportStatus.value = {
+        message: result.path ? t('settings.exportSuccess', { path: result.path }) : t('settings.exportCopied'),
+        type: 'success',
+      };
+    } else {
+      exportStatus.value = {
+        message: result.error ?? t('settings.exportError'),
+        type: 'error',
+      };
+    }
+  },
+);
+
+watch(
+  () => state.importInstancesResult.value,
+  (result) => {
+    if (!result) {
+      return;
+    }
+    if (result.success) {
+      importStatus.value = {
+        message: t('settings.importSuccess', { count: result.count ?? 0 }),
+        type: 'success',
+      };
+      router.replace({ name: 'dashboard' });
+    } else {
+      importStatus.value = {
+        message: result.error ?? t('settings.importError'),
+        type: 'error',
+      };
     }
   },
 );
@@ -343,9 +452,26 @@ defineExpose({
       <div v-if="status" :class="['status', statusType]">{{ status }}</div>
     </section>
 
-    <section v-if="state.instances.value.length > 0" class="setting-section">
-      <h2>{{ t('settings.savedInstances') }}</h2>
-      <ul class="saved-list">
+    <section class="setting-section">
+      <div class="section-header">
+        <h2>{{ t('settings.savedInstances') }}</h2>
+        <div class="section-actions">
+          <VscodeButton
+            v-if="state.instances.value.length > 0"
+            variant="secondary"
+            icon="desktop-download"
+            @click="handleExportInstances"
+          >
+            {{ t('settings.exportInstances') }}
+          </VscodeButton>
+          <VscodeButton variant="secondary" icon="file-directory" @click="handleImportInstances">
+            {{ t('settings.importInstances') }}
+          </VscodeButton>
+        </div>
+      </div>
+      <div v-if="exportStatus" :class="['status', exportStatus.type]">{{ exportStatus.message }}</div>
+      <div v-if="importStatus" :class="['status', importStatus.type]">{{ importStatus.message }}</div>
+      <ul v-if="state.instances.value.length > 0" class="saved-list">
         <li v-for="instance in state.instances.value" :key="instance.id" class="saved-item">
           <div class="saved-info">
             <div class="saved-name">{{ instance.name }}</div>
@@ -359,7 +485,38 @@ defineExpose({
           </div>
         </li>
       </ul>
+      <div v-else class="empty-list">{{ t('settings.noSavedInstances') }}</div>
     </section>
+
+    <ModalDialog :open="exportDialogOpen" :title="t('settings.exportDialogTitle')" @close="cancelExport">
+      <div class="export-dialog-content">
+        <p class="description">{{ t('settings.exportDialogDescription') }}</p>
+        <ul class="saved-list">
+          <li v-for="instance in state.instances.value" :key="instance.id" class="saved-item">
+            <vscode-checkbox
+              :checked="selectedExportIds.has(instance.id)"
+              @change="toggleExportSelection(instance, $event)"
+            >
+              <div class="saved-info">
+                <div class="saved-name">{{ instance.name }}</div>
+                <div class="saved-url">{{ instance.url }}</div>
+              </div>
+            </vscode-checkbox>
+          </li>
+        </ul>
+        <div class="export-dialog-actions">
+          <VscodeButton variant="secondary" @click="cancelExport">
+            {{ t('settings.exportDialogCancel') }}
+          </VscodeButton>
+          <VscodeButton variant="secondary" :disabled="selectedExportIds.size === 0" @click="copyExportToClipboard">
+            {{ t('settings.copyToClipboard') }}
+          </VscodeButton>
+          <VscodeButton variant="primary" :disabled="selectedExportIds.size === 0" @click="confirmExport">
+            {{ t('settings.exportSelected', { count: selectedExportIds.size }) }}
+          </VscodeButton>
+        </div>
+      </div>
+    </ModalDialog>
   </div>
 </template>
 
@@ -376,6 +533,19 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 h2 {
@@ -505,5 +675,18 @@ label {
 .empty-list {
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
+}
+
+.export-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.export-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }
 </style>

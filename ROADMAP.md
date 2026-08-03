@@ -95,16 +95,22 @@
 - 在 Dashboard 顶部显示关联仓库卡片，支持快捷打开仓库、Issues、Pull Requests。
 - workspace 文件夹变化或实例增删时自动重新检测。
 
+### 通知与搜索
+
+- Forgejo 通知中心：未读角标、按状态和类型筛选、标记已读/全部已读、Issue/PR 通知直接跳转详情。
+- 全局仓库 / Issue / PR 搜索：跨实例搜索，支持实例、类型、状态筛选。
+
+### 设置与数据
+
+- 实例配置导出 / 导入：支持将已保存实例（含 access token）导出为 JSON 文件，或从 JSON 文件导入并覆盖已有实例。
+
 ## 当前迭代
 
 ## 后续迭代
 
-### 通知与搜索
-
-- Forgejo 通知中心（`/notifications` API）。
-- 全局仓库 / Issue / PR 搜索。
-
 ### 设置与数据
+
+- 设置同步（可选 VS Code Settings Sync）。
 
 - 实例配置导出 / 导入。
 - 设置同步（可选 VS Code Settings Sync）。

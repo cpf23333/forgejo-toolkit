@@ -33,7 +33,11 @@ import type {
 } from '../types/api';
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
-import type { HostToWebviewMessage, LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type {
+  ExportSettings,
+  HostToWebviewMessage,
+  LinkedRepository,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { createTimedCache } from '../utils/createTimedCache';
 
 function createAppState() {
@@ -101,6 +105,17 @@ function createAppState() {
   const linkedRepository = ref<LinkedRepository | undefined>(undefined);
   const testConnectionResult = ref<{ success: boolean; username?: string; error?: string } | undefined>(undefined);
   const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
+  const exportInstancesResult = ref<{ success: boolean; path?: string; error?: string } | undefined>(undefined);
+  const importInstancesResult = ref<{ success: boolean; count?: number; error?: string } | undefined>(undefined);
+  const importPreview = ref<
+    | {
+        instances: ForgejoInstance[];
+        existingIds: string[];
+        existingTokens?: string[];
+        settings?: ExportSettings;
+      }
+    | undefined
+  >(undefined);
   const lastSavedIssue = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(undefined);
   const lastSavedPullRequest = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(
     undefined,
@@ -629,6 +644,20 @@ function createAppState() {
         break;
       case 'saveInstanceResult':
         saveInstanceResult.value = message;
+        break;
+      case 'instancesExported':
+        exportInstancesResult.value = message;
+        break;
+      case 'instancesImported':
+        importInstancesResult.value = message;
+        break;
+      case 'importInstancesPreview':
+        importPreview.value = {
+          instances: (message as { instances?: ForgejoInstance[] }).instances ?? [],
+          existingIds: (message as { existingIds?: string[] }).existingIds ?? [],
+          existingTokens: (message as { existingTokens?: string[] }).existingTokens ?? [],
+          settings: (message as { settings?: ExportSettings }).settings,
+        };
         break;
     }
   }
@@ -1369,6 +1398,26 @@ function createAppState() {
 
   function removeInstance(id: string) {
     vscode.postMessage({ command: 'removeInstance', id });
+  }
+
+  function exportInstances(ids?: string[]) {
+    vscode.postMessage({ command: 'exportInstances', ids });
+  }
+
+  function copyInstancesToClipboard(ids?: string[]) {
+    vscode.postMessage({ command: 'copyInstancesToClipboard', ids });
+  }
+
+  function previewImportInstances() {
+    vscode.postMessage({ command: 'previewImportInstances' });
+  }
+
+  function confirmImportInstances(instances: ForgejoInstance[], settings?: ExportSettings) {
+    vscode.postMessage({
+      command: 'importInstances',
+      instances: instances.map((instance) => ({ ...instance })),
+      settings: settings ? { ...settings } : undefined,
+    });
   }
 
   function changeLocale(newLocale: Locale) {
@@ -2159,6 +2208,9 @@ function createAppState() {
     linkedRepository,
     testConnectionResult,
     saveInstanceResult,
+    exportInstancesResult,
+    importInstancesResult,
+    importPreview,
     lastSavedIssue,
     lastSavedPullRequest,
     lastWorktreeCancelled,
@@ -2169,6 +2221,10 @@ function createAppState() {
     saveInstance,
     editInstance,
     removeInstance,
+    exportInstances,
+    copyInstancesToClipboard,
+    previewImportInstances,
+    confirmImportInstances,
     changeLocale,
     changeDebug,
     openRepoDetail,

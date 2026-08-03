@@ -11,5 +11,14 @@
   "Selected folder is not a git repository": "Selected folder is not a git repository",
   "Selected repository does not match the PR base repository": "Selected repository does not match the PR base repository",
   "Instance not found": "Instance not found",
-  "Could not determine PR head branch or sha": "Could not determine PR head branch or sha"
+  "Could not determine PR head branch or sha": "Could not determine PR head branch or sha",
+  "Export": "Export",
+  "Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.": "Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.",
+  "Encrypt with password": "Encrypt with password",
+  "Plain text": "Plain text",
+  "Enter export password": "Enter export password",
+  "Confirm export password": "Confirm export password",
+  "Passwords do not match": "Passwords do not match",
+  "Enter import password": "Enter import password",
+  "Incorrect password or corrupted file": "Incorrect password or corrupted file"
 }

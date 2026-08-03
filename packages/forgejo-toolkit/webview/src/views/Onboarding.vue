@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState } from '../composables/useAppState';
+import ImportPreview from './ImportPreview.vue';
 import type { Locale } from '../i18n';
 import { vscode } from '../composables/vscode';
 import '../types/config';
@@ -91,6 +92,21 @@ function handleSave() {
   saving.value = true;
   setConnectionStatus(t('settings.status.testing'));
   state.saveInstance(url.value.trim(), token.value.trim());
+}
+
+function handleImport() {
+  state.previewImportInstances();
+}
+
+async function handleRemoveInstance(id: string) {
+  const instance = state.instances.value.find((i) => i.id === id);
+  if (!instance) {
+    return;
+  }
+  const confirmed = await state.showConfirm(t('settings.removeConfirm', { name: instance.name }));
+  if (confirmed) {
+    state.removeInstance(id);
+  }
 }
 
 function handleWorktreeOpenModeChange(event: Event) {
@@ -186,150 +202,175 @@ watch(
     }
   },
 );
+
+watch(
+  () => state.importPreview.value,
+  (preview) => {
+    if (preview && !isPanelMode && router && router.currentRoute.value.name !== 'importPreview') {
+      router.replace({ name: 'importPreview' });
+    }
+  },
+);
+
+watch(
+  () => state.importInstancesResult.value,
+  (result) => {
+    if (result?.success && isPanelMode) {
+      vscode.postMessage({ command: 'closeOnboarding' });
+    }
+  },
+);
 </script>
 
 <template>
   <div class="onboarding">
-    <div class="onboarding-header">
-      <h1>{{ t('onboarding.title') }}</h1>
-      <p class="description">{{ t('onboarding.description') }}</p>
-    </div>
-
-    <div class="steps">
-      <div
-        v-for="s in 4"
-        :key="s - 1"
-        class="step-indicator"
-        :class="{ active: step === s - 1, completed: step > s - 1 }"
-      >
-        {{ s }}
+    <template v-if="!(isPanelMode && state.importPreview.value)">
+      <div class="onboarding-header">
+        <h1>{{ t('onboarding.title') }}</h1>
+        <p class="description">{{ t('onboarding.description') }}</p>
       </div>
-    </div>
 
-    <div class="step-content">
-      <section v-if="step === 0">
-        <h2>{{ t('onboarding.steps.language') }}</h2>
-        <p class="description">{{ t('onboarding.languageDescription') }}</p>
-        <div class="form-row">
-          <vscode-single-select :value="selectedLocale" @change="handleLocaleChange">
-            <vscode-option value="zh">{{ t('locales.zh') }}</vscode-option>
-            <vscode-option value="en">{{ t('locales.en') }}</vscode-option>
-          </vscode-single-select>
+      <div class="steps">
+        <div
+          v-for="s in 4"
+          :key="s - 1"
+          class="step-indicator"
+          :class="{ active: step === s - 1, completed: step > s - 1 }"
+        >
+          {{ s }}
         </div>
-      </section>
+      </div>
 
-      <section v-else-if="step === 1">
-        <h2>{{ t('onboarding.steps.server') }}</h2>
-        <p class="description">{{ t('onboarding.serverDescription') }}</p>
+      <div class="step-content">
+        <section v-if="step === 0">
+          <h2>{{ t('onboarding.steps.language') }}</h2>
+          <p class="description">{{ t('onboarding.languageDescription') }}</p>
+          <div class="form-row">
+            <vscode-single-select :value="selectedLocale" @change="handleLocaleChange">
+              <vscode-option value="zh">{{ t('locales.zh') }}</vscode-option>
+              <vscode-option value="en">{{ t('locales.en') }}</vscode-option>
+            </vscode-single-select>
+          </div>
+        </section>
 
-        <div v-if="state.instances.value.length > 0" class="saved-instances">
-          <h3>{{ t('settings.savedInstances') }}</h3>
-          <ul class="instance-list">
-            <li v-for="instance in state.instances.value" :key="instance.id" class="instance-item">
-              <span class="instance-name">{{ instance.name }}</span>
-              <span class="instance-url">{{ instance.url }}</span>
-              <VscodeButton variant="secondary" @click="state.removeInstance(instance.id)">
-                {{ t('settings.remove') }}
-              </VscodeButton>
-            </li>
-          </ul>
-        </div>
+        <section v-else-if="step === 1">
+          <h2>{{ t('onboarding.steps.server') }}</h2>
+          <p class="description">{{ t('onboarding.serverDescription') }}</p>
+          <p class="description import-hint">
+            {{ t('onboarding.importHint') }}
+            <a href="#" @click.prevent="handleImport">{{ t('onboarding.importFromFile') }}</a>
+          </p>
 
-        <div class="form-row">
-          <label for="onboarding-url">{{ t('settings.instanceUrl') }}</label>
-          <vscode-textfield
-            id="onboarding-url"
-            v-model="url"
-            :placeholder="t('settings.instanceUrlPlaceholder')"
-            type="url"
-          />
-        </div>
+          <div v-if="state.instances.value.length > 0" class="saved-instances">
+            <h3>{{ t('settings.savedInstances') }}</h3>
+            <ul class="instance-list">
+              <li v-for="instance in state.instances.value" :key="instance.id" class="instance-item">
+                <span class="instance-name">{{ instance.name }}</span>
+                <span class="instance-url">{{ instance.url }}</span>
+                <VscodeButton variant="secondary" @click="handleRemoveInstance(instance.id)">
+                  {{ t('settings.remove') }}
+                </VscodeButton>
+              </li>
+            </ul>
+          </div>
 
-        <div class="form-row">
-          <label for="onboarding-token">{{ t('settings.accessToken') }}</label>
-          <vscode-textfield
-            id="onboarding-token"
-            v-model="token"
-            :placeholder="t('settings.accessTokenPlaceholder')"
-            type="password"
-          />
-          <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
-        </div>
+          <div class="form-row">
+            <label for="onboarding-url">{{ t('settings.instanceUrl') }}</label>
+            <vscode-textfield
+              id="onboarding-url"
+              v-model="url"
+              :placeholder="t('settings.instanceUrlPlaceholder')"
+              type="url"
+            />
+          </div>
 
-        <div class="actions">
-          <VscodeButton variant="secondary" :disabled="!canTest || testing" @click="handleTest">
-            {{ testing ? t('settings.testing') : t('settings.testConnection') }}
-          </VscodeButton>
-          <VscodeButton variant="primary" :disabled="!canSaveInstance || saving" @click="handleSave">
-            {{ saving ? t('settings.saving') : t('settings.addInstance') }}
-          </VscodeButton>
-        </div>
+          <div class="form-row">
+            <label for="onboarding-token">{{ t('settings.accessToken') }}</label>
+            <vscode-textfield
+              id="onboarding-token"
+              v-model="token"
+              :placeholder="t('settings.accessTokenPlaceholder')"
+              type="password"
+            />
+            <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
+          </div>
 
-        <div v-if="connectionStatus" :class="['status', connectionStatusType]">{{ connectionStatus }}</div>
-      </section>
-
-      <section v-else-if="step === 2">
-        <h2>{{ t('onboarding.steps.worktree') }}</h2>
-        <p class="description">{{ t('onboarding.worktreeDescription') }}</p>
-
-        <div class="form-row">
-          <label for="onboarding-worktree-open-mode">{{ t('settings.worktree.openMode') }}</label>
-          <vscode-single-select
-            id="onboarding-worktree-open-mode"
-            :value="selectedWorktreeOpenMode"
-            @change="handleWorktreeOpenModeChange"
-          >
-            <vscode-option value="ask">{{ t('settings.worktree.ask') }}</vscode-option>
-            <vscode-option value="newWindow">{{ t('settings.worktree.newWindow') }}</vscode-option>
-            <vscode-option value="currentWindow">{{ t('settings.worktree.currentWindow') }}</vscode-option>
-          </vscode-single-select>
-        </div>
-
-        <div class="form-row">
-          <label for="onboarding-worktree-cache-directory">{{ t('settings.worktree.cacheDirectory') }}</label>
-          <vscode-textfield
-            id="onboarding-worktree-cache-directory"
-            :value="worktreeCacheDirectory"
-            :placeholder="state.worktreeCacheDirectoryDefault.value ?? ''"
-            @input="handleWorktreeCacheDirectoryChange"
-            @change="applyWorktreeCacheDirectory"
-          />
-          <div class="cache-directory-actions">
-            <VscodeButton variant="secondary" @click="browseWorktreeCacheDirectory">
-              {{ t('settings.worktree.browse') }}
+          <div class="actions">
+            <VscodeButton variant="secondary" :disabled="!canTest || testing" @click="handleTest">
+              {{ testing ? t('settings.testing') : t('settings.testConnection') }}
             </VscodeButton>
-            <VscodeButton variant="secondary" @click="restoreDefaultCacheDirectory">
-              {{ t('settings.worktree.restoreDefault') }}
+            <VscodeButton variant="primary" :disabled="!canSaveInstance || saving" @click="handleSave">
+              {{ saving ? t('settings.saving') : t('settings.addInstance') }}
             </VscodeButton>
           </div>
-        </div>
-      </section>
 
-      <section v-else-if="step === 3">
-        <h2>{{ t('onboarding.steps.complete') }}</h2>
-        <p class="description">{{ t('onboarding.completeDescription') }}</p>
-        <ul class="summary">
-          <li>{{ t('settings.language') }}: {{ t(`locales.${selectedLocale}`) }}</li>
-          <li>{{ t('settings.savedInstances') }}: {{ state.instances.value.length }}</li>
-          <li>
-            {{ t('settings.worktree.openMode') }}:
-            {{ t(`settings.worktree.${selectedWorktreeOpenMode}`) }}
-          </li>
-          <li>
-            {{ t('settings.worktree.cacheDirectory') }}:
-            {{ worktreeCacheDirectory || t('settings.worktree.defaultDirectory') }}
-          </li>
-        </ul>
-      </section>
-    </div>
+          <div v-if="connectionStatus" :class="['status', connectionStatusType]">{{ connectionStatus }}</div>
+        </section>
 
-    <div class="step-actions">
-      <VscodeButton v-if="step > 0" variant="secondary" @click="prevStep">{{ t('onboarding.prev') }}</VscodeButton>
-      <VscodeButton v-if="step < 3" variant="secondary" @click="nextStep">{{ t('onboarding.next') }}</VscodeButton>
-      <VscodeButton v-else variant="primary" :disabled="!canFinish" @click="finish">
-        {{ t('onboarding.finish') }}
-      </VscodeButton>
-    </div>
+        <section v-else-if="step === 2">
+          <h2>{{ t('onboarding.steps.worktree') }}</h2>
+          <p class="description">{{ t('onboarding.worktreeDescription') }}</p>
+
+          <div class="form-row">
+            <label for="onboarding-worktree-open-mode">{{ t('settings.worktree.openMode') }}</label>
+            <vscode-single-select
+              id="onboarding-worktree-open-mode"
+              :value="selectedWorktreeOpenMode"
+              @change="handleWorktreeOpenModeChange"
+            >
+              <vscode-option value="ask">{{ t('settings.worktree.ask') }}</vscode-option>
+              <vscode-option value="newWindow">{{ t('settings.worktree.newWindow') }}</vscode-option>
+              <vscode-option value="currentWindow">{{ t('settings.worktree.currentWindow') }}</vscode-option>
+            </vscode-single-select>
+          </div>
+
+          <div class="form-row">
+            <label for="onboarding-worktree-cache-directory">{{ t('settings.worktree.cacheDirectory') }}</label>
+            <vscode-textfield
+              id="onboarding-worktree-cache-directory"
+              :value="worktreeCacheDirectory"
+              :placeholder="state.worktreeCacheDirectoryDefault.value ?? ''"
+              @input="handleWorktreeCacheDirectoryChange"
+              @change="applyWorktreeCacheDirectory"
+            />
+            <div class="cache-directory-actions">
+              <VscodeButton variant="secondary" @click="browseWorktreeCacheDirectory">
+                {{ t('settings.worktree.browse') }}
+              </VscodeButton>
+              <VscodeButton variant="secondary" @click="restoreDefaultCacheDirectory">
+                {{ t('settings.worktree.restoreDefault') }}
+              </VscodeButton>
+            </div>
+          </div>
+        </section>
+
+        <section v-else-if="step === 3">
+          <h2>{{ t('onboarding.steps.complete') }}</h2>
+          <p class="description">{{ t('onboarding.completeDescription') }}</p>
+          <ul class="summary">
+            <li>{{ t('settings.language') }}: {{ t(`locales.${selectedLocale}`) }}</li>
+            <li>{{ t('settings.savedInstances') }}: {{ state.instances.value.length }}</li>
+            <li>
+              {{ t('settings.worktree.openMode') }}:
+              {{ t(`settings.worktree.${selectedWorktreeOpenMode}`) }}
+            </li>
+            <li>
+              {{ t('settings.worktree.cacheDirectory') }}:
+              {{ worktreeCacheDirectory || t('settings.worktree.defaultDirectory') }}
+            </li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="step-actions">
+        <VscodeButton v-if="step > 0" variant="secondary" @click="prevStep">{{ t('onboarding.prev') }}</VscodeButton>
+        <VscodeButton v-if="step < 3" variant="secondary" @click="nextStep">{{ t('onboarding.next') }}</VscodeButton>
+        <VscodeButton v-else variant="primary" :disabled="!canFinish" @click="finish">
+          {{ t('onboarding.finish') }}
+        </VscodeButton>
+      </div>
+    </template>
+    <ImportPreview v-else />
   </div>
 </template>
 
@@ -392,6 +433,15 @@ watch(
   margin: 0;
   font-size: 0.9em;
   color: var(--vscode-descriptionForeground);
+}
+
+.import-hint a {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+}
+
+.import-hint a:hover {
+  text-decoration: underline;
 }
 
 .field-description {

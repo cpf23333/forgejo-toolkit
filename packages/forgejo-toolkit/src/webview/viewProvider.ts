@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { logger } from '../logger';
 import { ForgejoClient } from '../api/client';
 import type { ForgejoChangedFile } from '../api/types';
 import { ConfigManager } from '../config';
-import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { getWebviewContent } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
@@ -26,6 +27,7 @@ import {
 } from '../worktree/gitOperations';
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { decryptExportData, readExportDataFromUri } from './instanceImport';
 
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
@@ -47,6 +49,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         () => this._config.getWorktreeCacheDirectory(),
         () => this._config.getDefaultWorktreeCacheDirectory(),
       );
+
+    this._context.subscriptions.push(this._config.onInstancesChanged(() => this._sendInstances()));
   }
 
   public resolveWebviewView(
@@ -192,6 +196,32 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             await this._config.removeInstance(id);
             this._sendInstances();
             this._detectAndSendLinkedRepository();
+            return;
+          }
+          case 'exportInstances': {
+            const ids = Array.isArray((message as { ids?: unknown[] }).ids)
+              ? ((message as { ids?: string[] }).ids as string[])
+              : undefined;
+            await this._exportInstances(ids);
+            return;
+          }
+          case 'copyInstancesToClipboard': {
+            const ids = Array.isArray((message as { ids?: unknown[] }).ids)
+              ? ((message as { ids?: string[] }).ids as string[])
+              : undefined;
+            await this._copyInstancesToClipboard(ids);
+            return;
+          }
+          case 'previewImportInstances': {
+            await this._previewImportInstances();
+            return;
+          }
+          case 'importInstances': {
+            const instancesToImport = Array.isArray((message as { instances?: unknown[] }).instances)
+              ? ((message as { instances?: ForgejoInstance[] }).instances as ForgejoInstance[])
+              : undefined;
+            const settings = (message as { settings?: ExportSettings }).settings;
+            await this._importInstances(instancesToImport, settings);
             return;
           }
           case 'setLocale': {
@@ -1909,6 +1939,256 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   private _sendInstances() {
     if (this._view?.visible) {
       this._reply('instances', { data: this._config.getInstances() });
+    }
+  }
+
+  private async _exportInstances(ids?: string[]) {
+    if (!this._view) {
+      return;
+    }
+    const encryptLabel = vscode.l10n.t('Encrypt with password');
+    const plainTextLabel = vscode.l10n.t('Plain text');
+    const choice = await vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        'Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.',
+      ),
+      { modal: true },
+      encryptLabel,
+      plainTextLabel,
+    );
+    if (choice !== encryptLabel && choice !== plainTextLabel) {
+      this._reply('instancesExported', { success: false });
+      return;
+    }
+    let password: string | undefined;
+    if (choice === encryptLabel) {
+      password = await this._promptExportPassword();
+      if (!password) {
+        this._reply('instancesExported', { success: false });
+        return;
+      }
+    }
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file('forgejo-toolkit-instances.json'),
+      filters: { JSON: ['json'] },
+    });
+    if (!uri) {
+      this._reply('instancesExported', { success: false });
+      return;
+    }
+    try {
+      let data: object = this._buildExportData(ids);
+      if (password) {
+        data = this._encryptExportData(data, password);
+      }
+      await fs.promises.writeFile(uri.fsPath, JSON.stringify(data, null, 2), 'utf8');
+      this._reply('instancesExported', { success: true, path: uri.fsPath });
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`exportInstances failed: ${err}`);
+      this._reply('instancesExported', { success: false, error: err });
+    }
+  }
+
+  private _buildExportData(ids?: string[]): object {
+    const allInstances = this._config.getInstances();
+    const instances = ids ? allInstances.filter((instance) => ids.includes(instance.id)) : allInstances;
+    const configuration = vscode.workspace.getConfiguration('forgejoToolkit');
+    const settings: ExportSettings = {
+      locale: configuration.get<string>('locale') ?? undefined,
+      debug: configuration.get<boolean>('debug') ?? undefined,
+      worktreeOpenMode: this._config.getWorktreeOpenMode(),
+      worktreeCacheDirectory: this._config.getWorktreeCacheDirectory() ?? undefined,
+    };
+    return { version: 2, instances, settings };
+  }
+
+  private async _copyInstancesToClipboard(ids?: string[]) {
+    if (!this._view) {
+      return;
+    }
+    const encryptLabel = vscode.l10n.t('Encrypt with password');
+    const plainTextLabel = vscode.l10n.t('Plain text');
+    const choice = await vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        'Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.',
+      ),
+      { modal: true },
+      encryptLabel,
+      plainTextLabel,
+    );
+    if (choice !== encryptLabel && choice !== plainTextLabel) {
+      this._reply('instancesExported', { success: false });
+      return;
+    }
+    let password: string | undefined;
+    if (choice === encryptLabel) {
+      password = await this._promptExportPassword();
+      if (!password) {
+        this._reply('instancesExported', { success: false });
+        return;
+      }
+    }
+    try {
+      let data: object = this._buildExportData(ids);
+      if (password) {
+        data = this._encryptExportData(data, password);
+      }
+      await vscode.env.clipboard.writeText(JSON.stringify(data, null, 2));
+      this._reply('instancesExported', { success: true });
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`copyInstancesToClipboard failed: ${err}`);
+      this._reply('instancesExported', { success: false, error: err });
+    }
+  }
+
+  private async _promptExportPassword(): Promise<string | undefined> {
+    const password = await vscode.window.showInputBox({
+      prompt: vscode.l10n.t('Enter export password'),
+      password: true,
+      ignoreFocusOut: true,
+    });
+    if (!password) {
+      return undefined;
+    }
+    const confirm = await vscode.window.showInputBox({
+      prompt: vscode.l10n.t('Confirm export password'),
+      password: true,
+      ignoreFocusOut: true,
+    });
+    if (password !== confirm) {
+      await vscode.window.showErrorMessage(vscode.l10n.t('Passwords do not match'));
+      return undefined;
+    }
+    return password;
+  }
+
+  private _encryptExportData(data: object, password: string): object {
+    const iterations = 100_000;
+    const salt = crypto.randomBytes(16);
+    const iv = crypto.randomBytes(16);
+    const key = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256');
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const plaintext = JSON.stringify(data);
+    const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+    return {
+      version: 2,
+      encrypted: true,
+      iterations,
+      salt: salt.toString('base64'),
+      iv: iv.toString('base64'),
+      authTag: authTag.toString('base64'),
+      data: encrypted.toString('base64'),
+    };
+  }
+
+  private async _previewImportInstances() {
+    if (!this._view) {
+      return;
+    }
+    const uris = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: false,
+      filters: { JSON: ['json'] },
+    });
+    if (!uris || uris.length === 0) {
+      return;
+    }
+    try {
+      const { instances, settings } = await readExportDataFromUri(uris[0]);
+      const existingInstances = this._config.getInstances();
+      const existingIds = existingInstances.map((instance) => instance.id);
+      const existingTokens = existingInstances.map((instance) => instance.token);
+      this._reply('importInstancesPreview', { instances, existingIds, existingTokens, settings });
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`previewImportInstances failed: ${err}`);
+      this._reply('importInstancesPreview', {
+        instances: [],
+        existingIds: [],
+        existingTokens: [],
+        settings: undefined,
+        error: err,
+      });
+    }
+  }
+
+  private async _importInstances(instancesToImport?: ForgejoInstance[], settings?: ExportSettings) {
+    if (!this._view) {
+      return;
+    }
+    let instances: ForgejoInstance[];
+    if (instancesToImport) {
+      instances = instancesToImport;
+    } else {
+      const uris = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: false,
+        canSelectMany: false,
+        filters: { JSON: ['json'] },
+      });
+      if (!uris || uris.length === 0) {
+        this._reply('instancesImported', { success: false });
+        return;
+      }
+      try {
+        const data = await readExportDataFromUri(uris[0]);
+        instances = data.instances;
+        if (data.settings) {
+          settings = data.settings;
+        }
+      } catch (error) {
+        const err = error instanceof Error ? error.message : String(error);
+        logger.error(`importInstances failed: ${err}`);
+        this._reply('instancesImported', { success: false, error: err });
+        return;
+      }
+    }
+    try {
+      for (const instance of instances) {
+        await this._config.addInstance(instance);
+      }
+      await this._applyImportSettings(settings);
+      this._sendInstances();
+      this._detectAndSendLinkedRepository();
+      this._reply('instancesImported', { success: true, count: instances.length });
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`importInstances failed: ${err}`);
+      this._reply('instancesImported', { success: false, error: err });
+    }
+  }
+
+  private async _applyImportSettings(settings: ExportSettings | undefined) {
+    if (!settings) {
+      return;
+    }
+    const configuration = vscode.workspace.getConfiguration('forgejoToolkit');
+    if (settings.locale === 'en' || settings.locale === 'zh') {
+      await configuration.update('locale', settings.locale, true);
+      this._reply('setLocale', { locale: settings.locale });
+      this._updateViewTitle(settings.locale);
+    }
+    if (typeof settings.debug === 'boolean') {
+      await configuration.update('debug', settings.debug, true);
+      this._reply('setDebug', { debug: settings.debug });
+    }
+    if (
+      settings.worktreeOpenMode === 'ask' ||
+      settings.worktreeOpenMode === 'currentWindow' ||
+      settings.worktreeOpenMode === 'newWindow'
+    ) {
+      await this._config.setWorktreeOpenMode(settings.worktreeOpenMode);
+      this._reply('worktreeOpenMode', { mode: settings.worktreeOpenMode });
+    }
+    if (typeof settings.worktreeCacheDirectory === 'string') {
+      await this._config.setWorktreeCacheDirectory(settings.worktreeCacheDirectory);
+      const directory = this._config.getWorktreeCacheDirectory() ?? '';
+      const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
+      this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
     }
   }
 

@@ -1,14 +1,7 @@
 # TODO
 
-## 已完成
-
-- [x] 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库并在 Dashboard 显示快捷入口
-
 ## 待开始
 
-- [ ] Forgejo 通知中心（`/notifications` API）
-- [ ] 全局仓库 / Issue / PR 搜索
-- [ ] 实例配置导出 / 导入
 - [ ] 读取仓库 Actions 运行状态和历史
 - [ ] 接入 MSW mock 用于测试或离线开发
 - [ ] 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试
@@ -16,21 +9,64 @@
 
 ## 已完成
 
-- [x] 为 Issue / PR 添加评论功能（支持附件）
-- [x] 支持合并 PR（merge / squash / rebase）
+### 导入导出
+
+- [x] 实例配置导出支持选择具体实例（而非全部导出）
+- [x] 实例配置导出包含语言、调试开关、worktree 配置等完整设置
+- [x] 导入预览页显示「已存在」实例的旧值与新值对比
+- [x] 导入预览页检测 Token 冲突
+- [x] 实例配置导出支持「复制到剪贴板」
+- [x] 导出加密时增加密码确认输入
+- [x] 导入成功后根据场景自动跳转（onboarding 关闭引导、Settings 去仪表盘）
+- [x] 导入/导出文件格式增加 `version` 字段
+
+### 实例与设置
+
 - [x] 多实例管理
+- [x] 移除实例二次确认
+- [x] onboarding 导入配置后侧栏主视图自动刷新
+
+### 仓库与代码
+
+- [x] 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库并在 Dashboard 显示快捷入口
 - [x] Dashboard 面板（Repositories / Issues / Pull Requests）
 - [x] 仓库详情页
+- [x] 仓库文件浏览器
+  - [x] 目录树展示
+  - [x] 文件内容查看
+  - [x] 代码高亮（由 VS Code 自动处理）
+  - [x] 文件搜索
+  - [x] 文件历史
+  - [x] 文件夹展开 loading 指示器
+- [x] 分支 / 标签 / Release 管理列表
+- [x] 分支 / 标签 / Release 管理增强（创建 / 删除分支、创建标签 / Release）
+- [x] README Markdown 渲染预览
+
+### Issue / PR
+
 - [x] Issue / PR 列表与详情页
 - [x] Issue / PR 详情页：展示评论、diff、时间线
 - [x] PR 详情页 diff 增强（按提交查看 diff）
 - [x] Issue / PR 描述的 Markdown 渲染
 - [x] Issue / PR 附件列表
 - [x] 图片附件 extension-host 代理
-- [x] 国际化（中/英）
-- [x] 调试日志开关
-- [x] 工程规范与类型检查
-- [x] 初次使用引导页（Onboarding）
+- [x] 为 Issue / PR 添加评论功能（支持附件）
+- [x] 支持合并 PR（merge / squash / rebase）
+- [x] Issue / PR 创建
+- [x] Issue / PR 编辑、关闭、重新打开
+- [x] Issue / PR 编辑弹窗（不留下路由历史）
+- [x] 富文本编辑器（EasyMDE）与图片上传
+- [x] 富文本图片上传后固定插入 `![image](/attachments/{uuid})` 格式
+- [x] 编辑弹窗内附件上传 / 删除
+- [x] 保存 Issue / PR 后重新获取详情
+
+### 通知与搜索
+
+- [x] Forgejo 通知中心（`/notifications` API）
+- [x] 全局仓库 / Issue / PR 搜索
+
+### Worktree
+
 - [x] PR worktree 基础功能
   - [x] 支持 `git worktree add` 检出 PR (`refs/pull/<index>/head`)
   - [x] worktree 目录命名：`{owner}-{repo}-pr-{number}`
@@ -45,23 +81,13 @@
   - [x] 未设置打开方式时弹窗询问，并支持记住选择
   - [x] workspace 不匹配时：Clone / 打开已有仓库 / 取消
   - [x] worktree 目录命名支持 sanitized PR title
-- [x] Issue / PR 创建
-- [x] Issue / PR 编辑、关闭、重新打开
-- [x] Issue / PR 编辑弹窗（不留下路由历史）
-- [x] 富文本编辑器（EasyMDE）与图片上传
-- [x] 富文本图片上传后固定插入 `![image](/attachments/{uuid})` 格式
-- [x] 编辑弹窗内附件上传 / 删除
-- [x] 保存 Issue / PR 后重新获取详情
-- [x] 仓库文件浏览器
-  - [x] 目录树展示
-  - [x] 文件内容查看
-  - [x] 代码高亮（由 VS Code 自动处理）
-  - [x] 文件搜索
-  - [x] 文件历史
-  - [x] 文件夹展开 loading 指示器
-- [x] 分支 / 标签 / Release 管理列表
-- [x] 分支 / 标签 / Release 管理增强（创建 / 删除分支、创建标签 / Release）
-- [x] README Markdown 渲染预览
+
+### 工程与体验
+
+- [x] 国际化（中/英）
+- [x] 调试日志开关
+- [x] 工程规范与类型检查
+- [x] 初次使用引导页（Onboarding）
 - [x] 为 API 客户端和 webview 添加单元 / 组件测试
   - [x] 配置 Vitest + jsdom 测试环境
   - [x] 为 shared request 客户端添加单元测试
