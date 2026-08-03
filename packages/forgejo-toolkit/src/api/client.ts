@@ -41,6 +41,7 @@ import {
   repoListReleases,
   repoListTags,
   repoMergePullRequest,
+  repoSearch,
   userCurrentListRepos,
   userGetCurrent,
 } from '@cpf23333-forgejo-toolkit/api';
@@ -102,6 +103,26 @@ export class ForgejoClient {
   getUserPullRequests(state: string = 'open'): Promise<ForgejoPullRequest[]> {
     return issueSearchIssues(
       { state: state as 'open' | 'closed' | 'all', type: 'pulls' },
+      { client: this._client() },
+    ) as Promise<ForgejoPullRequest[]>;
+  }
+
+  searchRepositories(query: string, limit: number = 20): Promise<ForgejoRepository[]> {
+    return repoSearch({ q: query, limit }, { client: this._client() }).then(
+      (result) => (result?.data ?? []) as ForgejoRepository[],
+    );
+  }
+
+  searchIssues(query: string, state: string = 'open', limit: number = 20): Promise<ForgejoIssue[]> {
+    return issueSearchIssues(
+      { q: query, state: state as 'open' | 'closed' | 'all', type: 'issues', limit },
+      { client: this._client() },
+    ) as Promise<ForgejoIssue[]>;
+  }
+
+  searchPullRequests(query: string, state: string = 'open', limit: number = 20): Promise<ForgejoPullRequest[]> {
+    return issueSearchIssues(
+      { q: query, state: state as 'open' | 'closed' | 'all', type: 'pulls', limit },
       { client: this._client() },
     ) as Promise<ForgejoPullRequest[]>;
   }

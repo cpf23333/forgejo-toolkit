@@ -357,7 +357,18 @@ export type HostToWebviewMessage =
   | { command: 'worktreeCacheDirectory'; directory: string; defaultDirectory: string }
   | { command: 'testConnectionResult'; success: boolean; username?: string; error?: string }
   | { command: 'saveInstanceResult'; success: boolean; error?: string }
-  | { command: 'linkedRepository'; linked?: LinkedRepository };
+  | { command: 'linkedRepository'; linked?: LinkedRepository }
+  | {
+      command: 'globalSearchResult';
+      instanceId: string;
+      scope: 'all' | 'repositories' | 'issues' | 'pullRequests';
+      query: string;
+      state: string;
+      repositories?: unknown[];
+      issues?: unknown[];
+      pullRequests?: unknown[];
+      error?: string;
+    };
 
 export type WebviewToHostMessage =
   | { command: 'getInitialState' }
@@ -639,4 +650,12 @@ export type WebviewToHostMessage =
   | { command: 'setWorktreeCacheDirectory'; directory: string }
   | { command: 'browseWorktreeCacheDirectory' }
   | { command: 'openOnboardingPanel' }
-  | { command: 'closeOnboarding' };
+  | { command: 'closeOnboarding' }
+  | {
+      command: 'globalSearch';
+      instanceId: string;
+      scope: 'all' | 'repositories' | 'issues' | 'pullRequests';
+      query: string;
+      state: string;
+      limit?: number;
+    };

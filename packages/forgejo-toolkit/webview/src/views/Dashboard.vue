@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
 import { vscode } from '../composables/vscode';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
@@ -9,9 +10,14 @@ import ViewTabs from '../components/ViewTabs.vue';
 
 const { t } = useI18n();
 const state = useAppState();
+const router = useRouter();
 
 function openOnboarding() {
   vscode.postMessage({ command: 'openOnboardingPanel' });
+}
+
+function openSearch() {
+  router.push({ name: 'globalSearch' });
 }
 
 type Tab = 'repositories' | 'issues' | 'pullRequests';
@@ -75,14 +81,26 @@ const linkedRepository = computed(() => state.linkedRepository.value);
         </div>
       </div>
 
-      <ViewTabs
-        v-model="activeTab"
-        :tabs="[
-          { key: 'repositories', label: t('dashboard.tabs.repositories') },
-          { key: 'issues', label: t('dashboard.tabs.issues') },
-          { key: 'pullRequests', label: t('dashboard.tabs.pullRequests') },
-        ]"
-      />
+      <div class="dashboard-toolbar">
+        <ViewTabs
+          v-model="activeTab"
+          class="dashboard-tabs"
+          :tabs="[
+            { key: 'repositories', label: t('dashboard.tabs.repositories') },
+            { key: 'issues', label: t('dashboard.tabs.issues') },
+            { key: 'pullRequests', label: t('dashboard.tabs.pullRequests') },
+          ]"
+        />
+        <VscodeButton
+          variant="secondary"
+          icon="search"
+          :title="t('dashboard.search.title')"
+          :aria-label="t('dashboard.search.title')"
+          @click="openSearch"
+        >
+          {{ t('dashboard.search.searchButton') }}
+        </VscodeButton>
+      </div>
 
       <div class="instances">
         <vscode-tree indent-guides="onHover">
@@ -184,6 +202,19 @@ const linkedRepository = computed(() => state.linkedRepository.value);
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 8px;
+}
+
+.dashboard-tabs {
+  flex: 1;
+  min-width: 0;
 }
 
 .view-tabs {

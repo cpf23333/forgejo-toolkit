@@ -1,5 +1,6 @@
 import { createRouter, createMemoryHistory } from 'vue-router';
 import Dashboard from '../views/Dashboard.vue';
+import GlobalSearch from '../views/GlobalSearch.vue';
 import RepoDetail from '../views/RepoDetail.vue';
 import RepoIssues from '../views/RepoIssues.vue';
 import RepoPullRequests from '../views/RepoPullRequests.vue';
@@ -9,6 +10,7 @@ import Settings from '../views/Settings.vue';
 
 export const routes = [
   { path: '/', component: Dashboard, name: 'dashboard' },
+  { path: '/search', component: GlobalSearch, name: 'globalSearch' },
   { path: '/repo/:instanceId/:owner/:repo', component: RepoDetail, name: 'repoDetail' },
   {
     path: '/repo/:instanceId/:owner/:repo/issues/:state?',

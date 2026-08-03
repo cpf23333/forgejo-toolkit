@@ -77,6 +77,22 @@
       "viewVersion": "View this version",
       "noHistory": "No history found for this file."
     },
+    "search": {
+      "title": "Global Search",
+      "description": "Search across repositories, issues, and pull requests on all configured Forgejo instances.",
+      "placeholder": "Search across repositories, issues, and pull requests",
+      "searchButton": "Search",
+      "tabs": {
+        "all": "All"
+      },
+      "hint": "Enter a keyword and press Enter or click Search.",
+      "noResults": "No results found.",
+      "noInstances": "No Forgejo instances configured. Add an instance in Settings first.",
+      "instanceFilter": "Instances",
+      "allInstances": "All instances",
+      "stateFilter": "State",
+      "stateFilterDescription": "Only applies to Issues and Pull Requests. Repository search is not affected by state."
+    },
     "repoRefs": {
       "branches": "Branches",
       "tags": "Tags",

@@ -77,6 +77,22 @@
       "viewVersion": "查看该版本",
       "noHistory": "未找到该文件的历史记录。"
     },
+    "search": {
+      "title": "全局搜索",
+      "description": "在所有已配置的 Forgejo 实例中搜索仓库、Issues 和 Pull Requests。",
+      "placeholder": "跨仓库、Issues 和 Pull Requests 搜索",
+      "searchButton": "搜索",
+      "tabs": {
+        "all": "全部"
+      },
+      "hint": "输入关键词后按回车或点击搜索按钮。",
+      "noResults": "未找到结果。",
+      "noInstances": "尚未配置 Forgejo 实例，请先前往设置添加。",
+      "instanceFilter": "实例",
+      "allInstances": "全部实例",
+      "stateFilter": "状态",
+      "stateFilterDescription": "仅对 Issues 和 Pull Requests 生效，仓库搜索不受状态影响。"
+    },
     "repoRefs": {
       "branches": "分支",
       "tags": "标签",

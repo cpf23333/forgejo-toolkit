@@ -264,6 +264,60 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'globalSearch': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { scope: rawScope, query, state: searchState, limit } = message;
+            if (
+              typeof rawScope !== 'string' ||
+              typeof query !== 'string' ||
+              typeof searchState !== 'string' ||
+              !['all', 'repositories', 'issues', 'pullRequests'].includes(rawScope)
+            ) {
+              return;
+            }
+            const scope = rawScope as 'all' | 'repositories' | 'issues' | 'pullRequests';
+            const state = ['open', 'closed', 'all'].includes(searchState) ? searchState : 'all';
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const [repositories, issues, pullRequests] = await Promise.all([
+                scope === 'all' || scope === 'repositories'
+                  ? client.searchRepositories(query, limit ?? 20)
+                  : Promise.resolve(undefined),
+                scope === 'all' || scope === 'issues'
+                  ? client.searchIssues(query, state, limit ?? 20)
+                  : Promise.resolve(undefined),
+                scope === 'all' || scope === 'pullRequests'
+                  ? client.searchPullRequests(query, state, limit ?? 20)
+                  : Promise.resolve(undefined),
+              ]);
+              logger.info(
+                `globalSearch [${scope}] "${query}" (${state}) for ${instance.name}: repos=${repositories?.length ?? 0}, issues=${issues?.length ?? 0}, pulls=${pullRequests?.length ?? 0}`,
+              );
+              this._reply('globalSearchResult', {
+                instanceId: instance.id,
+                scope,
+                query,
+                state,
+                repositories,
+                issues,
+                pullRequests,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`globalSearch failed for ${instance.name}: ${err}`);
+              this._reply('globalSearchResult', {
+                instanceId: message.instanceId,
+                scope,
+                query,
+                state,
+                error: err,
+              });
+            }
+            return;
+          }
           case 'getRepoDetail': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {

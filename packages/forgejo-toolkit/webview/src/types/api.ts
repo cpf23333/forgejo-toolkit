@@ -236,3 +236,9 @@ export type ForgejoRelease = {
   author?: ForgejoUser;
   assets?: ForgejoReleaseAttachment[];
 };
+
+export interface GlobalSearchResult {
+  repositories: ForgejoRepository[];
+  issues: ForgejoIssue[];
+  pullRequests: ForgejoPullRequest[];
+}

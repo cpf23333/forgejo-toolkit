@@ -28,6 +28,7 @@ import type {
   ForgejoTag,
   ForgejoRelease,
   ForgejoReleaseAttachment,
+  GlobalSearchResult,
 } from '../types/api';
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
@@ -59,6 +60,9 @@ function createAppState() {
   const repoFileSearchResults = ref<Map<string, GitEntry[]>>(new Map());
   const fileHistories = ref<Map<string, ForgejoCommit[]>>(new Map());
   const renderedMarkdown = ref<Map<string, string>>(new Map());
+  const globalSearchResults = ref<Map<string, GlobalSearchResult>>(new Map());
+  const globalSearchActiveScope = ref<'all' | 'repositories' | 'issues' | 'pullRequests'>('all');
+  const globalSearchQuery = ref<string>('');
 
   const repositoriesCache = createTimedCache<ForgejoRepository[]>(30_000);
   const myIssuesCache = createTimedCache<ForgejoIssue[]>(30_000);
@@ -435,6 +439,20 @@ function createAppState() {
             ref: string;
             query: string;
             files?: GitEntry[];
+            error?: string;
+          },
+        );
+        break;
+      case 'globalSearchResult':
+        handleGlobalSearchResult(
+          message as {
+            instanceId: string;
+            scope: 'all' | 'repositories' | 'issues' | 'pullRequests';
+            query: string;
+            state: string;
+            repositories?: ForgejoRepository[];
+            issues?: ForgejoIssue[];
+            pullRequests?: ForgejoPullRequest[];
             error?: string;
           },
         );
@@ -1183,6 +1201,35 @@ function createAppState() {
       errors.delete(key);
       repoFileSearchResults.value.set(key, data.files ?? []);
     }
+  }
+
+  function handleGlobalSearchResult(data: {
+    instanceId: string;
+    scope: 'all' | 'repositories' | 'issues' | 'pullRequests';
+    query: string;
+    state: string;
+    repositories?: ForgejoRepository[];
+    issues?: ForgejoIssue[];
+    pullRequests?: ForgejoPullRequest[];
+    error?: string;
+  }) {
+    const key = globalSearchKey(data.instanceId, data.scope, data.query, data.state);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+      return;
+    }
+    errors.delete(key);
+    const existing = globalSearchResults.value.get(key) ?? {
+      repositories: [],
+      issues: [],
+      pullRequests: [],
+    };
+    globalSearchResults.value.set(key, {
+      repositories: data.repositories ?? existing.repositories,
+      issues: data.issues ?? existing.issues,
+      pullRequests: data.pullRequests ?? existing.pullRequests,
+    });
   }
 
   function handleFileHistory(data: {
@@ -1969,6 +2016,33 @@ function createAppState() {
     vscode.postMessage({ command: 'getMyPullRequests', instanceId, state });
   }
 
+  function loadGlobalSearch(
+    instanceId: string,
+    scope: 'all' | 'repositories' | 'issues' | 'pullRequests',
+    query: string,
+    state: string = 'all',
+  ) {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return;
+    }
+    const key = globalSearchKey(instanceId, scope, trimmed, state);
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    errors.delete(key);
+    vscode.postMessage({ command: 'globalSearch', instanceId, scope, query: trimmed, state, limit: 20 });
+  }
+
+  function setGlobalSearchScope(scope: 'all' | 'repositories' | 'issues' | 'pullRequests') {
+    globalSearchActiveScope.value = scope;
+  }
+
+  function setGlobalSearchQuery(query: string) {
+    globalSearchQuery.value = query;
+  }
+
   return {
     t,
     locale,
@@ -1992,6 +2066,9 @@ function createAppState() {
     repoRefs,
     repoFileSearchResults,
     fileHistories,
+    globalSearchResults,
+    globalSearchActiveScope,
+    globalSearchQuery,
     loading,
     errors,
     debug,
@@ -2078,6 +2155,9 @@ function createAppState() {
     loadRepositories,
     loadMyIssues,
     loadMyPullRequests,
+    loadGlobalSearch,
+    setGlobalSearchScope,
+    setGlobalSearchQuery,
   };
 }
 
@@ -2165,6 +2245,15 @@ export function repoFileSearchKey(instanceId: string, owner: string, repo: strin
 
 export function fileHistoryKey(instanceId: string, owner: string, repo: string, path: string, ref: string): string {
   return `${instanceId}:${owner}/${repo}:file-history:${path}:${ref}`;
+}
+
+export function globalSearchKey(
+  instanceId: string,
+  scope: 'all' | 'repositories' | 'issues' | 'pullRequests',
+  query: string,
+  state: string = 'all',
+): string {
+  return `${instanceId}:global-search:${scope}:${state}:${query}`;
 }
 
 function isVersionAtLeast(version: string, minimum: string): boolean {
