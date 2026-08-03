@@ -48,6 +48,24 @@ export interface ForgejoPullRequest {
   updated_at: string;
 }
 
+export interface ForgejoNotification {
+  id?: number;
+  pinned?: boolean;
+  repository?: ForgejoRepository;
+  subject?: {
+    title?: string;
+    type?: string;
+    state?: string;
+    html_url?: string;
+    url?: string;
+    latest_comment_html_url?: string;
+    latest_comment_url?: string;
+  };
+  unread?: boolean;
+  updated_at?: string;
+  url?: string;
+}
+
 export interface ForgejoLabel {
   name?: string;
   color?: string;

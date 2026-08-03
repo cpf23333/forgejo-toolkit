@@ -368,6 +368,23 @@ export type HostToWebviewMessage =
       issues?: unknown[];
       pullRequests?: unknown[];
       error?: string;
+    }
+  | {
+      command: 'notifications';
+      instanceId: string;
+      notifications?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'notificationMarkedRead';
+      instanceId: string;
+      id: number;
+      error?: string;
+    }
+  | {
+      command: 'allNotificationsMarkedRead';
+      instanceId: string;
+      error?: string;
     };
 
 export type WebviewToHostMessage =
@@ -658,4 +675,20 @@ export type WebviewToHostMessage =
       query: string;
       state: string;
       limit?: number;
+    }
+  | {
+      command: 'getNotifications';
+      instanceId: string;
+      statusTypes?: string[];
+      subjectType?: string[];
+      limit?: number;
+    }
+  | {
+      command: 'markNotificationRead';
+      instanceId: string;
+      id: number;
+    }
+  | {
+      command: 'markAllNotificationsRead';
+      instanceId: string;
     };

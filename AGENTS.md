@@ -1,5 +1,17 @@
 # Forgejo Toolkit — Agent Guidelines
 
+## Agent self-check on every resumed or compacted session
+
+The runtime may compact or drop earlier context, including the cached copy of this file. As a result, the system prompt's "applicable AGENTS.md instructions" block can appear empty or stale after a long session.
+
+**Before any code change, build, or git mutation:**
+
+1. Re-read `AGENTS.md` from disk if it is not clearly present in the current context.
+2. Verify whether the intended action is allowed by the rules below.
+3. When in doubt, stop and ask the user instead of assuming prior permission still applies.
+
+This rule takes precedence over any compacted summary, TODO list, or earlier user instruction that may have been lost or simplified.
+
 ## Package scope
 
 - Use `@cpf23333-forgejo-toolkit/` for all workspace packages, not `@forgejo/`.
@@ -18,19 +30,11 @@ Review and update `.agents/skills/impeccable/` periodically or whenever its guid
 
 ## `@vscode-elements/elements` usage rule
 
-Do **not** use any `@vscode-elements/elements` web component directly in `forgejo-toolkit` webview code (e.g. `<vscode-collapsible>`, `<vscode-button>`, `<vscode-textfield>`, etc.).
+`@vscode-elements/elements` web components may be used directly in `forgejo-toolkit` webview code. Using Vue wrappers from `packages/vscode-elements-vue/src/components` is preferred when they exist and work reliably, but it is **not required**.
 
-Every element used from `@vscode-elements/elements` **must** be wrapped by a typed Vue component defined in `packages/vscode-elements-vue/src/components`. Import and use the wrapper component instead. This ensures:
+If a wrapper exists and behaves correctly, use it to get better `vue-tsc` checking and Vue-specific bindings (`v-model`, scoped slots, event modifiers). If a wrapper is missing, buggy, or cannot forward the Lit context a component needs (as with `<vscode-tree>` / `<vscode-tree-item>`), use the underlying web component directly instead.
 
-- Prop/emit/slot types are checked by `vue-tsc`.
-- Vue-specific bindings (`v-model`, scoped slots, event modifiers) behave correctly.
-- The public API of each element is explicit and stable across `@vscode-elements/elements` updates.
-
-When you need a new element, create its wrapper in `packages/vscode-elements-vue/src/components` first, then export it from `packages/vscode-elements-vue/src/components/index.ts` and `packages/vscode-elements-vue/src/components/index.d.ts`.
-
-### Exception: `<vscode-tree>` / `<vscode-tree-item>`
-
-`<vscode-tree>` and `<vscode-tree-item>` may be used directly in `packages/forgejo-toolkit/webview/src/views/Dashboard.vue`. The Vue wrapper cannot reliably forward the Lit context that `<vscode-tree-item>` requires, which causes runtime errors and prevents the tree from rendering.
+When you need a new wrapper, create it in `packages/vscode-elements-vue/src/components`, then export it from `packages/vscode-elements-vue/src/components/index.ts` (and add a matching declaration if the project uses an `index.d.ts`).
 
 ## License and attribution
 

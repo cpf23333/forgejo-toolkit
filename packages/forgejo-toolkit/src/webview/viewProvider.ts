@@ -318,6 +318,71 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'getNotifications': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { statusTypes, subjectType, limit } = message;
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const notifications = await client.getNotifications(
+                Array.isArray(statusTypes) ? statusTypes : undefined,
+                Array.isArray(subjectType)
+                  ? (subjectType.filter((t): t is 'issue' | 'pull' | 'repository' =>
+                      ['issue', 'pull', 'repository'].includes(t as string),
+                    ) as ('issue' | 'pull' | 'repository')[])
+                  : undefined,
+                typeof limit === 'number' ? limit : 50,
+              );
+              logger.info(`getNotifications returned ${notifications.length} items for ${instance.name}`);
+              this._reply('notifications', {
+                instanceId: instance.id,
+                notifications,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getNotifications failed for ${instance.name}: ${err}`);
+              this._reply('notifications', { instanceId: message.instanceId, error: err });
+            }
+            return;
+          }
+          case 'markNotificationRead': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { id } = message;
+            if (typeof id !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.markNotificationRead(id);
+              this._reply('notificationMarkedRead', { instanceId: instance.id, id });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`markNotificationRead failed for ${instance.name}/${id}: ${err}`);
+              this._reply('notificationMarkedRead', { instanceId: message.instanceId, id, error: err });
+            }
+            return;
+          }
+          case 'markAllNotificationsRead': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.markAllNotificationsRead();
+              this._reply('allNotificationsMarkedRead', { instanceId: instance.id });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`markAllNotificationsRead failed for ${instance.name}: ${err}`);
+              this._reply('allNotificationsMarkedRead', { instanceId: message.instanceId, error: err });
+            }
+            return;
+          }
           case 'getRepoDetail': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {

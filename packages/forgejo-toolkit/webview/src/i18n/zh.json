@@ -93,6 +93,20 @@
       "stateFilter": "状态",
       "stateFilterDescription": "仅对 Issues 和 Pull Requests 生效，仓库搜索不受状态影响。"
     },
+    "notifications": {
+      "title": "通知",
+      "empty": "没有符合当前筛选条件的通知。",
+      "noInstances": "尚未配置 Forgejo 实例，请先前往设置添加。",
+      "filterStatus": "状态",
+      "filterType": "类型",
+      "unread": "未读",
+      "read": "已读",
+      "all": "全部",
+      "allTypes": "全部类型",
+      "markAsRead": "标记为已读",
+      "markAllAsRead": "全部已读",
+      "untitled": "无标题"
+    },
     "repoRefs": {
       "branches": "分支",
       "tags": "标签",

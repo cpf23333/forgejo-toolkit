@@ -20,6 +20,10 @@ function openSearch() {
   router.push({ name: 'globalSearch' });
 }
 
+function openNotifications() {
+  router.push({ name: 'notifications' });
+}
+
 type Tab = 'repositories' | 'issues' | 'pullRequests';
 
 const activeTab = computed<Tab>({
@@ -91,15 +95,29 @@ const linkedRepository = computed(() => state.linkedRepository.value);
             { key: 'pullRequests', label: t('dashboard.tabs.pullRequests') },
           ]"
         />
-        <VscodeButton
-          variant="secondary"
-          icon="search"
-          :title="t('dashboard.search.title')"
-          :aria-label="t('dashboard.search.title')"
-          @click="openSearch"
-        >
-          {{ t('dashboard.search.searchButton') }}
-        </VscodeButton>
+        <div class="dashboard-toolbar-actions">
+          <VscodeButton
+            variant="secondary"
+            icon="bell"
+            :title="t('dashboard.notifications.title')"
+            :aria-label="t('dashboard.notifications.title')"
+            @click="openNotifications"
+          >
+            {{ t('dashboard.notifications.title') }}
+            <span v-if="state.unreadNotificationCount.value > 0" class="notification-badge">
+              {{ state.unreadNotificationCount.value }}
+            </span>
+          </VscodeButton>
+          <VscodeButton
+            variant="secondary"
+            icon="search"
+            :title="t('dashboard.search.title')"
+            :aria-label="t('dashboard.search.title')"
+            @click="openSearch"
+          >
+            {{ t('dashboard.search.searchButton') }}
+          </VscodeButton>
+        </div>
       </div>
 
       <div class="instances">
@@ -212,9 +230,24 @@ const linkedRepository = computed(() => state.linkedRepository.value);
   padding: 0 8px;
 }
 
+.dashboard-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .dashboard-tabs {
   flex: 1;
   min-width: 0;
+}
+
+.notification-badge {
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 0.75em;
+  margin-left: 4px;
 }
 
 .view-tabs {

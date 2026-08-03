@@ -1,0 +1,476 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
+import { useAppState, notificationsKey } from '../composables/useAppState';
+import type { ForgejoNotification } from '../types/api';
+import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
+
+const { t } = useI18n();
+const state = useAppState();
+const router = useRouter();
+
+const statusFilter = ref<'unread' | 'read' | 'all'>('unread');
+const typeFilter = ref<'all' | 'issue' | 'pull' | 'repository'>('all');
+
+const instances = computed(() => state.instances.value);
+const loading = computed(() => state.loading);
+const errors = computed(() => state.errors);
+const notifications = computed(() => state.notifications.value);
+const unreadCount = computed(() => state.unreadNotificationCount.value);
+
+const statusTypes = computed<string[]>(() => {
+  if (statusFilter.value === 'unread') {
+    return ['unread', 'pinned'];
+  }
+  if (statusFilter.value === 'read') {
+    return ['read'];
+  }
+  return ['unread', 'read', 'pinned'];
+});
+
+const subjectType = computed<string[] | undefined>(() => {
+  if (typeFilter.value === 'all') {
+    return undefined;
+  }
+  return [typeFilter.value];
+});
+
+function key(instanceId: string): string {
+  return notificationsKey(instanceId);
+}
+
+function listFor(instanceId: string): ForgejoNotification[] {
+  return notifications.value.get(key(instanceId)) ?? [];
+}
+
+function filteredList(instanceId: string): ForgejoNotification[] {
+  return listFor(instanceId).filter((notification) => {
+    if (statusFilter.value === 'unread') {
+      return notification.unread;
+    }
+    if (statusFilter.value === 'read') {
+      return !notification.unread;
+    }
+    return true;
+  });
+}
+
+function isLoading(): boolean {
+  for (const instance of instances.value) {
+    if (loading.value.get(key(instance.id))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasLoaded(): boolean {
+  for (const instance of instances.value) {
+    if (notifications.value.has(key(instance.id)) || errors.value.has(key(instance.id))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasVisibleNotifications(): boolean {
+  for (const instance of instances.value) {
+    if (filteredList(instance.id).length > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function visibleInstances(): ForgejoInstance[] {
+  return instances.value.filter((instance) => filteredList(instance.id).length > 0);
+}
+
+function loadAll() {
+  for (const instance of instances.value) {
+    state.loadNotifications(instance.id, statusTypes.value, subjectType.value);
+  }
+}
+
+function formatError(instanceId: string): string {
+  return t('dashboard.error', { message: errors.value.get(key(instanceId)) ?? '' });
+}
+
+function notificationTypeIcon(notification: ForgejoNotification): string {
+  const type = notification.subject?.type?.toLowerCase();
+  if (type === 'issue') {
+    return 'issues';
+  }
+  if (type === 'pullrequest' || type === 'pull') {
+    return 'git-pull-request';
+  }
+  if (type === 'repository') {
+    return 'repo';
+  }
+  if (type === 'commit') {
+    return 'git-commit';
+  }
+  return 'bell';
+}
+
+function parseOwnerRepo(url: string): { owner: string; repo: string } | undefined {
+  try {
+    const path = new URL(url).pathname;
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length >= 2) {
+      return { owner: parts[0], repo: parts[1] };
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+function extractIndex(htmlUrl: string): number | undefined {
+  try {
+    const parts = new URL(htmlUrl).pathname.split('/').filter(Boolean);
+    const last = parts[parts.length - 1];
+    const index = Number.parseInt(last ?? '', 10);
+    if (!Number.isNaN(index)) {
+      return index;
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+function openNotification(event: Event, notification: ForgejoNotification, instanceId: string) {
+  if ((event.target as HTMLElement).closest('.notification-actions')) {
+    return;
+  }
+  const htmlUrl = notification.subject?.html_url;
+  if (!htmlUrl) {
+    return;
+  }
+  const ownerRepo = notification.repository?.full_name
+    ? {
+        owner: notification.repository.full_name.split('/')[0],
+        repo: notification.repository.full_name.split('/')[1],
+      }
+    : parseOwnerRepo(htmlUrl);
+  if (!ownerRepo) {
+    return;
+  }
+  const type = notification.subject?.type?.toLowerCase();
+  const index = extractIndex(htmlUrl);
+  if (type === 'issue' && index !== undefined) {
+    state.openIssueDetail(instanceId, ownerRepo.owner, ownerRepo.repo, index);
+  } else if ((type === 'pullrequest' || type === 'pull') && index !== undefined) {
+    state.openPullRequestDetail(instanceId, ownerRepo.owner, ownerRepo.repo, index);
+  } else {
+    state.openExternal(htmlUrl);
+  }
+}
+
+function markAsRead(event: Event, instanceId: string, notification: ForgejoNotification) {
+  event.stopPropagation();
+  if (notification.id === undefined) {
+    return;
+  }
+  state.markNotificationRead(instanceId, notification.id);
+}
+
+function markAllAsRead() {
+  for (const instance of instances.value) {
+    state.markAllNotificationsRead(instance.id);
+  }
+}
+
+function formatTime(time?: string): string {
+  if (!time) {
+    return '';
+  }
+  const date = new Date(time);
+  if (Number.isNaN(date.getTime())) {
+    return time;
+  }
+  return date.toLocaleString();
+}
+
+function notificationMeta(notification: ForgejoNotification): string {
+  const parts: string[] = [];
+  if (notification.repository?.full_name) {
+    parts.push(notification.repository.full_name);
+  }
+  if (notification.subject?.type) {
+    parts.push(notification.subject.type);
+  }
+  if (notification.updated_at) {
+    parts.push(formatTime(notification.updated_at));
+  }
+  return parts.join(' · ');
+}
+
+watch([statusFilter, typeFilter], () => {
+  loadAll();
+});
+
+onMounted(() => {
+  loadAll();
+});
+</script>
+
+<template>
+  <div class="notifications">
+    <div class="notifications-header">
+      <div class="notifications-toolbar">
+        <h1 class="notifications-title">{{ t('dashboard.notifications.title') }}</h1>
+        <div class="notifications-toolbar-actions">
+          <VscodeButton
+            variant="secondary"
+            icon="check-all"
+            :disabled="isLoading() || unreadCount === 0"
+            :title="t('dashboard.notifications.markAllAsRead')"
+            @click="markAllAsRead"
+          >
+            {{ t('dashboard.notifications.markAllAsRead') }}
+          </VscodeButton>
+          <VscodeButton
+            variant="secondary"
+            icon="refresh"
+            :disabled="isLoading()"
+            :title="t('dashboard.retry')"
+            @click="loadAll"
+          >
+            {{ t('dashboard.retry') }}
+          </VscodeButton>
+        </div>
+      </div>
+
+      <div class="notifications-filters">
+        <div class="filter-group">
+          <label for="notification-status-filter" class="filter-label">
+            {{ t('dashboard.notifications.filterStatus') }}
+          </label>
+          <vscode-single-select
+            id="notification-status-filter"
+            class="filter-select"
+            :value="statusFilter"
+            @change="statusFilter = ($event.target as HTMLInputElement).value as typeof statusFilter"
+          >
+            <vscode-option value="unread">{{ t('dashboard.notifications.unread') }}</vscode-option>
+            <vscode-option value="read">{{ t('dashboard.notifications.read') }}</vscode-option>
+            <vscode-option value="all">{{ t('dashboard.notifications.all') }}</vscode-option>
+          </vscode-single-select>
+        </div>
+        <div class="filter-group">
+          <label for="notification-type-filter" class="filter-label">
+            {{ t('dashboard.notifications.filterType') }}
+          </label>
+          <vscode-single-select
+            id="notification-type-filter"
+            class="filter-select"
+            :value="typeFilter"
+            @change="typeFilter = ($event.target as HTMLInputElement).value as typeof typeFilter"
+          >
+            <vscode-option value="all">{{ t('dashboard.notifications.allTypes') }}</vscode-option>
+            <vscode-option value="issue">{{ t('dashboard.tabs.issues') }}</vscode-option>
+            <vscode-option value="pull">{{ t('dashboard.tabs.pullRequests') }}</vscode-option>
+            <vscode-option value="repository">{{ t('dashboard.tabs.repositories') }}</vscode-option>
+          </vscode-single-select>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="instances.length === 0" class="empty-state">
+      {{ t('dashboard.notifications.noInstances') }}
+    </div>
+
+    <div v-else-if="isLoading() && !hasLoaded()" class="empty-state">
+      <vscode-progress-ring class="notifications-loading-ring" />
+      {{ t('dashboard.loading') }}
+    </div>
+
+    <div v-else-if="hasLoaded() && !hasVisibleNotifications()" class="empty-state">
+      {{ t('dashboard.notifications.empty') }}
+    </div>
+
+    <div v-else class="notifications-list">
+      <vscode-tree v-for="instance in visibleInstances()" :key="instance.id" indent-guides="onHover">
+        <vscode-tree-item branch open>
+          {{ instance.url }} · {{ instance.username }}
+          <vscode-tree-item
+            v-for="notification in filteredList(instance.id)"
+            :key="notification.id ?? notification.subject?.html_url"
+            @click.capture="openNotification($event, notification, instance.id)"
+          >
+            <span class="notification-title" :class="{ unread: notification.unread }">
+              <vscode-icon class="notification-type-icon" :name="notificationTypeIcon(notification)" size="16" />
+              <span v-if="notification.unread" class="unread-dot" />
+              {{ notification.subject?.title ?? t('dashboard.notifications.untitled') }}
+            </span>
+            <span slot="description" class="notification-meta">
+              {{ notificationMeta(notification) }}
+            </span>
+            <span slot="actions" class="notification-actions">
+              <vscode-icon
+                v-if="notification.unread"
+                name="check"
+                action-icon
+                size="16"
+                :title="t('dashboard.notifications.markAsRead')"
+                :aria-label="t('dashboard.notifications.markAsRead')"
+                @click.stop.prevent="markAsRead($event, instance.id, notification)"
+              />
+              <vscode-icon
+                name="link-external"
+                action-icon
+                size="16"
+                :title="t('dashboard.actions.open')"
+                :aria-label="t('dashboard.actions.open')"
+                @click.stop.prevent="state.openExternal(notification.subject?.html_url ?? '')"
+              />
+            </span>
+          </vscode-tree-item>
+          <vscode-tree-item v-if="errors.get(key(instance.id))">
+            <span class="error">{{ formatError(instance.id) }}</span>
+            <vscode-icon
+              slot="actions"
+              name="refresh"
+              action-icon
+              size="16"
+              :title="t('dashboard.retry')"
+              :aria-label="t('dashboard.retry')"
+              @click.stop.prevent="state.loadNotifications(instance.id, statusTypes, subjectType)"
+            />
+          </vscode-tree-item>
+        </vscode-tree-item>
+      </vscode-tree>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.notifications {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow: auto;
+}
+
+.notifications-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 8px;
+}
+
+.notifications-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notifications-title {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+.notifications-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notifications-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 0.85em;
+  color: var(--vscode-foreground);
+  font-weight: 600;
+}
+
+.filter-select {
+  --vscode-settings-dropdownBackground: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --vscode-settings-dropdownBorder: transparent;
+  --vscode-settings-dropdownListBorder: var(--vscode-panel-border, transparent);
+  width: auto;
+  min-width: 120px;
+  font-size: 0.85em;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: var(--vscode-descriptionForeground);
+  flex-direction: column;
+}
+
+.notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.notification-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+}
+
+.notification-title.unread {
+  font-weight: 600;
+}
+
+.unread-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--vscode-notificationCenter-border, var(--vscode-focusBorder));
+  flex-shrink: 0;
+}
+
+.notification-type-icon {
+  color: var(--vscode-descriptionForeground);
+  flex-shrink: 0;
+}
+
+.notification-meta {
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.notification-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.error {
+  color: var(--vscode-testing-iconFailed);
+  font-size: 0.9em;
+}
+
+.notifications-loading-ring {
+  width: 16px;
+  height: 16px;
+}
+</style>

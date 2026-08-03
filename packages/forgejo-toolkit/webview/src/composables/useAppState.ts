@@ -29,6 +29,7 @@ import type {
   ForgejoRelease,
   ForgejoReleaseAttachment,
   GlobalSearchResult,
+  ForgejoNotification,
 } from '../types/api';
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
@@ -63,6 +64,7 @@ function createAppState() {
   const globalSearchResults = ref<Map<string, GlobalSearchResult>>(new Map());
   const globalSearchActiveScope = ref<'all' | 'repositories' | 'issues' | 'pullRequests'>('all');
   const globalSearchQuery = ref<string>('');
+  const notifications = ref<Map<string, ForgejoNotification[]>>(new Map());
 
   const repositoriesCache = createTimedCache<ForgejoRepository[]>(30_000);
   const myIssuesCache = createTimedCache<ForgejoIssue[]>(30_000);
@@ -456,6 +458,15 @@ function createAppState() {
             error?: string;
           },
         );
+        break;
+      case 'notifications':
+        handleNotifications(message as { instanceId: string; notifications?: ForgejoNotification[]; error?: string });
+        break;
+      case 'notificationMarkedRead':
+        handleNotificationMarkedRead(message as { instanceId: string; id: number; error?: string });
+        break;
+      case 'allNotificationsMarkedRead':
+        handleAllNotificationsMarkedRead(message as { instanceId: string; error?: string });
         break;
       case 'fileHistory':
         handleFileHistory(
@@ -1230,6 +1241,43 @@ function createAppState() {
       issues: data.issues ?? existing.issues,
       pullRequests: data.pullRequests ?? existing.pullRequests,
     });
+  }
+
+  function handleNotifications(data: { instanceId: string; notifications?: ForgejoNotification[]; error?: string }) {
+    const key = notificationsKey(data.instanceId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+      return;
+    }
+    errors.delete(key);
+    notifications.value.set(key, data.notifications ?? []);
+  }
+
+  function handleNotificationMarkedRead(data: { instanceId: string; id: number; error?: string }) {
+    const key = notificationsKey(data.instanceId);
+    if (data.error) {
+      errors.set(key, data.error);
+      return;
+    }
+    const list = notifications.value.get(key) ?? [];
+    notifications.value.set(
+      key,
+      list.map((notification) => (notification.id === data.id ? { ...notification, unread: false } : notification)),
+    );
+  }
+
+  function handleAllNotificationsMarkedRead(data: { instanceId: string; error?: string }) {
+    const key = notificationsKey(data.instanceId);
+    if (data.error) {
+      errors.set(key, data.error);
+      return;
+    }
+    const list = notifications.value.get(key) ?? [];
+    notifications.value.set(
+      key,
+      list.map((notification) => ({ ...notification, unread: false })),
+    );
   }
 
   function handleFileHistory(data: {
@@ -2043,6 +2091,33 @@ function createAppState() {
     globalSearchQuery.value = query;
   }
 
+  function loadNotifications(instanceId: string, statusTypes: string[] = ['unread', 'pinned'], subjectType?: string[]) {
+    const key = notificationsKey(instanceId);
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    errors.delete(key);
+    vscode.postMessage({ command: 'getNotifications', instanceId, statusTypes, subjectType, limit: 50 });
+  }
+
+  function markNotificationRead(instanceId: string, id: number) {
+    vscode.postMessage({ command: 'markNotificationRead', instanceId, id });
+  }
+
+  function markAllNotificationsRead(instanceId: string) {
+    vscode.postMessage({ command: 'markAllNotificationsRead', instanceId });
+  }
+
+  const unreadNotificationCount = computed(() => {
+    let count = 0;
+    for (const instance of instances.value) {
+      const list = notifications.value.get(notificationsKey(instance.id)) ?? [];
+      count += list.filter((notification) => notification.unread).length;
+    }
+    return count;
+  });
+
   return {
     t,
     locale,
@@ -2069,6 +2144,8 @@ function createAppState() {
     globalSearchResults,
     globalSearchActiveScope,
     globalSearchQuery,
+    notifications,
+    unreadNotificationCount,
     loading,
     errors,
     debug,
@@ -2158,6 +2235,9 @@ function createAppState() {
     loadGlobalSearch,
     setGlobalSearchScope,
     setGlobalSearchQuery,
+    loadNotifications,
+    markNotificationRead,
+    markAllNotificationsRead,
   };
 }
 
@@ -2254,6 +2334,10 @@ export function globalSearchKey(
   state: string = 'all',
 ): string {
   return `${instanceId}:global-search:${scope}:${state}:${query}`;
+}
+
+export function notificationsKey(instanceId: string): string {
+  return `${instanceId}:notifications`;
 }
 
 function isVersionAtLeast(version: string, minimum: string): boolean {

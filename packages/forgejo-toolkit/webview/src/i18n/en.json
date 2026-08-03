@@ -93,6 +93,20 @@
       "stateFilter": "State",
       "stateFilterDescription": "Only applies to Issues and Pull Requests. Repository search is not affected by state."
     },
+    "notifications": {
+      "title": "Notifications",
+      "empty": "No notifications match the selected filters.",
+      "noInstances": "No Forgejo instances configured. Add an instance in Settings first.",
+      "filterStatus": "Status",
+      "filterType": "Type",
+      "unread": "Unread",
+      "read": "Read",
+      "all": "All",
+      "allTypes": "All types",
+      "markAsRead": "Mark as read",
+      "markAllAsRead": "Mark all as read",
+      "untitled": "Untitled"
+    },
     "repoRefs": {
       "branches": "Branches",
       "tags": "Tags",

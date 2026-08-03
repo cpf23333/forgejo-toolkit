@@ -17,6 +17,9 @@ import {
   issueListIssueCommentAttachments,
   issueListIssues,
   issueSearchIssues,
+  notifyGetList,
+  notifyReadList,
+  notifyReadThread,
   repoCompareDiff,
   repoCreateBranch,
   repoCreatePullRequest,
@@ -69,6 +72,7 @@ import type {
   ForgejoIssue,
   ForgejoIssueAttachment,
   ForgejoIssueDetail,
+  ForgejoNotification,
   ForgejoPullRequest,
   ForgejoPullRequestDetail,
   ForgejoRelease,
@@ -125,6 +129,30 @@ export class ForgejoClient {
       { q: query, state: state as 'open' | 'closed' | 'all', type: 'pulls', limit },
       { client: this._client() },
     ) as Promise<ForgejoPullRequest[]>;
+  }
+
+  async getNotifications(
+    statusTypes: string[] = ['unread', 'pinned'],
+    subjectType?: ('issue' | 'pull' | 'repository')[],
+    limit: number = 50,
+  ): Promise<ForgejoNotification[]> {
+    const notifications = await notifyGetList(
+      {
+        'status-types': statusTypes,
+        ...(subjectType ? { 'subject-type': subjectType } : {}),
+        limit,
+      },
+      { client: this._client() },
+    );
+    return (notifications ?? []) as ForgejoNotification[];
+  }
+
+  async markNotificationRead(id: number): Promise<void> {
+    await notifyReadThread(id, undefined, { client: this._client() });
+  }
+
+  async markAllNotificationsRead(): Promise<void> {
+    await notifyReadList({ all: true, 'to-status': 'read' }, { client: this._client() });
   }
 
   async getReadme(owner: string, repo: string): Promise<string | undefined> {
