@@ -212,21 +212,22 @@ function openSelectedDiffs() {
           <span>{{ t('dashboard.detail.selectAll') }}</span>
         </label>
         <div class="toolbar-actions">
-          <a href="#" class="toolbar-link" @click.prevent="expandAll(true)">
+          <button type="button" class="toolbar-link link-button" @click="expandAll(true)">
             {{ t('dashboard.detail.expandAll') }}
-          </a>
-          <a href="#" class="toolbar-link" @click.prevent="expandAll(false)">
+          </button>
+          <button type="button" class="toolbar-link link-button" @click="expandAll(false)">
             {{ t('dashboard.detail.collapseAll') }}
-          </a>
-          <a
+          </button>
+          <button
             v-if="props.supportsMultiDiff"
-            href="#"
-            class="toolbar-link view-selected-link"
+            type="button"
+            class="toolbar-link view-selected-link link-button"
             :class="{ disabled: selectedFiles.length === 0 }"
-            @click.prevent="openSelectedDiffs"
+            :disabled="selectedFiles.length === 0"
+            @click="openSelectedDiffs"
           >
             {{ t('dashboard.detail.viewSelectedDiffs', { count: selectedFiles.length }) }}
-          </a>
+          </button>
         </div>
       </div>
       <ul class="file-tree">

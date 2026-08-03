@@ -374,7 +374,7 @@ watch(
 
 .step-indicator.completed {
   background-color: var(--vscode-testing-iconPassed);
-  color: #fff;
+  color: var(--vscode-button-foreground);
 }
 
 .step-content {

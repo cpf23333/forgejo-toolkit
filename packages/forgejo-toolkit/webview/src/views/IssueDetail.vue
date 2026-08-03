@@ -585,11 +585,15 @@ function reloadIssue() {
 }
 
 .state-open {
-  border-left: 3px solid var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
 }
 
 .state-closed {
-  border-left: 3px solid var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
 }
 
 .detail-meta {

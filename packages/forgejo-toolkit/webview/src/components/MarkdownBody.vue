@@ -235,7 +235,7 @@ function handleClick(event: MouseEvent) {
 .markdown-content :deep(blockquote) {
   margin: 0 0 12px;
   padding: 4px 12px;
-  border-left: 4px solid var(--vscode-panel-border);
+  border-left: 2px solid var(--vscode-panel-border);
   color: var(--vscode-descriptionForeground);
 }
 

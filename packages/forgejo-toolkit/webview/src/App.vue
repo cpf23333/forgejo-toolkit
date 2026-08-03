@@ -35,9 +35,9 @@ onUnmounted(() => {
 <template>
   <div class="app">
     <header v-if="canGoBack" class="app-header">
-      <a href="#" class="back-link" @click.prevent="back">
+      <button type="button" class="back-link link-button" @click="back">
         {{ backLabel }}
-      </a>
+      </button>
     </header>
     <main>
       <router-view v-slot="{ Component, route }">

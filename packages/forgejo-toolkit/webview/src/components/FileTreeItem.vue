@@ -43,7 +43,12 @@ function onHistoryClick(event: Event) {
     <span class="tree-label">{{ entry.name }}</span>
     <span v-if="!isDir && error" class="tree-status error" :title="error">{{ error }}</span>
     <span v-if="!isDir" slot="actions">
-      <button class="tree-action" :title="state.t('dashboard.fileBrowser.history')" @click="onHistoryClick">
+      <button
+        class="tree-action"
+        :title="state.t('dashboard.fileBrowser.history')"
+        :aria-label="state.t('dashboard.fileBrowser.history')"
+        @click="onHistoryClick"
+      >
         <i class="codicon codicon-history"></i>
       </button>
     </span>

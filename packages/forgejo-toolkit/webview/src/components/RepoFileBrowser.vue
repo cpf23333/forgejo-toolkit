@@ -179,7 +179,9 @@ onUnmounted(() => {
       <button
         class="refresh-button"
         :disabled="rootLoading"
+        type="button"
         :title="state.t('dashboard.fileBrowser.refresh')"
+        :aria-label="state.t('dashboard.fileBrowser.refresh')"
         @click="loadRoot(true)"
       >
         <i class="fa fa-refresh" :class="{ 'fa-spin': rootLoading }"></i>
@@ -196,7 +198,9 @@ onUnmounted(() => {
       <button
         v-if="hasSearchQuery"
         class="search-clear"
+        type="button"
         :title="state.t('dashboard.fileBrowser.clearSearch')"
+        :aria-label="state.t('dashboard.fileBrowser.clearSearch')"
         @click="clearSearch"
       >
         <i class="codicon codicon-close"></i>

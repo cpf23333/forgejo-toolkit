@@ -230,23 +230,27 @@ function nodeIcon(): string {
 }
 
 .status-added {
-  background-color: var(--vscode-gitDecoration-addedResourceForeground, #28a745);
-  color: #fff;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-addedResourceForeground, #28a745);
 }
 
 .status-removed {
-  background-color: var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
-  color: #fff;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
 }
 
 .status-modified {
-  background-color: var(--vscode-gitDecoration-modifiedResourceForeground, #d7ba7d);
-  color: #000;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-modifiedResourceForeground, #d7ba7d);
 }
 
 .status-renamed {
-  background-color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991);
-  color: #000;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-renamedResourceForeground, #73c991);
 }
 
 .node-stats {

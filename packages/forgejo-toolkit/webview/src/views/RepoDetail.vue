@@ -153,24 +153,24 @@ function reloadRepo() {
             <vscode-icon name="repo-forked" class="meta-icon" />
             {{ detail.repository.forks_count }}
           </span>
-          <a
-            href="#"
-            class="meta-item meta-link"
+          <button
+            type="button"
+            class="meta-item meta-link link-button"
             :title="t('dashboard.openIssues')"
-            @click.prevent="state.openRepoIssues(instanceId, owner, repo)"
+            @click="state.openRepoIssues(instanceId, owner, repo)"
           >
             <vscode-icon name="issues" class="meta-icon" />
             {{ detail.repository.open_issues_count }}
-          </a>
-          <a
-            href="#"
-            class="meta-item meta-link"
+          </button>
+          <button
+            type="button"
+            class="meta-item meta-link link-button"
             :title="t('dashboard.openPullRequests')"
-            @click.prevent="state.openRepoPullRequests(instanceId, owner, repo)"
+            @click="state.openRepoPullRequests(instanceId, owner, repo)"
           >
             <vscode-icon name="git-pull-request" class="meta-icon" />
             {{ detail.repository.open_pr_counter ?? 0 }}
-          </a>
+          </button>
         </div>
         <div class="actions">
           <div class="action-group primary-actions">
@@ -258,9 +258,9 @@ function reloadRepo() {
                   <span class="commit-author">{{ committerName(commit) }}</span>
                   <span class="commit-date">{{ formatDate(commit.commit.author.date) }}</span>
                 </span>
-                <a href="#" class="commit-sha" @click.prevent="state.openExternal(commit.html_url)">{{
-                  commit.sha.slice(0, 7)
-                }}</a>
+                <button type="button" class="commit-sha link-button" @click="state.openExternal(commit.html_url)">
+                  {{ commit.sha.slice(0, 7) }}
+                </button>
               </div>
             </div>
           </section>

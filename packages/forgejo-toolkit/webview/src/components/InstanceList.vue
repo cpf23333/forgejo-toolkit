@@ -19,9 +19,9 @@ const emit = defineEmits<{
       <li v-for="instance in instances" :key="instance.id" class="instance-card">
         <div class="name">{{ instance.name }}</div>
         <div class="meta">
-          <a href="#" @click.prevent="emit('openExternal', instance.url)">
+          <button type="button" class="link-button" @click="emit('openExternal', instance.url)">
             {{ instance.url }}
-          </a>
+          </button>
         </div>
       </li>
     </ul>

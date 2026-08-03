@@ -321,6 +321,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
             size="16"
             action-icon
             :title="t('dashboard.actions.more')"
+            :aria-label="t('dashboard.actions.more')"
             @click="openMenu(comment, $event)"
           />
           <vscode-context-menu

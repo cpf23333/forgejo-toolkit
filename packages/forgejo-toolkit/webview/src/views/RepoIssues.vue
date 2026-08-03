@@ -199,15 +199,23 @@ async function handleCreateSubmit(title: string, body: string) {
     <div v-else-if="items.length" class="item-list">
       <div v-for="issue in items" :key="issue.id" class="item-card">
         <div class="item-title">
-          <a href="#" @click.prevent="openIssue(issue)">#{{ issue.number }} {{ issue.title }}</a>
+          <button type="button" class="link-button" @click="openIssue(issue)">
+            #{{ issue.number }} {{ issue.title }}
+          </button>
           <span class="issue-actions">
-            <a href="#" :title="t('dashboard.actions.open')" @click.prevent="state.openExternal(issue.html_url)">
+            <button
+              type="button"
+              class="link-button"
+              :title="t('dashboard.actions.open')"
+              :aria-label="t('dashboard.actions.open')"
+              @click="state.openExternal(issue.html_url)"
+            >
               <svg class="icon-link" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                 <path
                   d="M1.5 1.75a.25.25 0 0 1 .25-.25h6.5a.75.75 0 0 0 0-1.5h-6.5C.786 0 0 .784 0 1.75v12.5C0 15.216.784 16 1.75 16h12.5A1.75 1.75 0 0 0 16 14.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25V1.75zM12.5 0a.75.75 0 0 0 0 1.5h2.19L6.22 9.97a.75.75 0 1 0 1.06 1.06L15.5 2.56v2.19a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5z"
                 />
               </svg>
-            </a>
+            </button>
           </span>
         </div>
         <div class="item-meta">
@@ -339,12 +347,12 @@ async function handleCreateSubmit(title: string, body: string) {
   gap: 8px;
 }
 
-.item-title a {
+.item-title .link-button {
   color: var(--vscode-textLink-foreground);
   text-decoration: none;
 }
 
-.item-title a:hover {
+.item-title .link-button:hover {
   text-decoration: underline;
 }
 
@@ -355,17 +363,17 @@ async function handleCreateSubmit(title: string, body: string) {
   margin-left: auto;
 }
 
-.issue-actions a {
+.issue-actions .link-button {
   color: var(--vscode-descriptionForeground);
   text-decoration: none;
   padding: 2px;
 }
 
-.issue-actions a:hover {
+.issue-actions .link-button:hover {
   color: var(--vscode-textLink-foreground);
 }
 
-.issue-actions a svg {
+.issue-actions .link-button svg {
   width: 14px;
   height: 14px;
   display: block;
@@ -388,18 +396,21 @@ async function handleCreateSubmit(title: string, body: string) {
 }
 
 .state-open {
-  background-color: var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
-  color: #fff;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
 }
 
 .state-closed {
-  background-color: var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
-  color: #fff;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
 }
 
 .state-all {
   background-color: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-panel-border);
 }
 
 .user-avatar {

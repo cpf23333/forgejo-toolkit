@@ -686,19 +686,25 @@ watch(
       </div>
 
       <div class="actions">
-        <a href="#" class="action-link" @click.prevent="state.openExternal(prUrl)">
+        <button type="button" class="action-link link-button" @click="state.openExternal(prUrl)">
           {{ t('dashboard.detail.openPullRequest') }}
-        </a>
-        <a href="#" class="action-link" @click.prevent="state.copyToClipboard(prUrl)">
+        </button>
+        <button type="button" class="action-link link-button" @click="state.copyToClipboard(prUrl)">
           {{ t('dashboard.detail.copyLink') }}
-        </a>
-        <a v-if="canManagePullRequest" href="#" class="action-link" @click.prevent="openEdit">
+        </button>
+        <button v-if="canManagePullRequest" type="button" class="action-link link-button" @click="openEdit">
           {{ t('dashboard.actions.edit') }}
-        </a>
-        <a v-if="canManagePullRequest" href="#" class="action-link" @click.prevent="toggleState">
+        </button>
+        <button v-if="canManagePullRequest" type="button" class="action-link link-button" @click="toggleState">
           {{ detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen') }}
-        </a>
-        <a href="#" class="action-link" :class="{ disabled: worktreeLoading }" @click.prevent="openInWorktree">
+        </button>
+        <button
+          type="button"
+          class="action-link link-button"
+          :class="{ disabled: worktreeLoading }"
+          :disabled="worktreeLoading"
+          @click="openInWorktree"
+        >
           {{
             worktreeLoading
               ? t('dashboard.worktree.opening')
@@ -706,7 +712,7 @@ watch(
                 ? t('dashboard.worktree.openExisting')
                 : t('dashboard.worktree.openInWorktree')
           }}
-        </a>
+        </button>
       </div>
 
       <div v-if="canMerge" class="merge-section">
@@ -816,18 +822,21 @@ watch(
 }
 
 .state-open {
-  background-color: var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
-  color: #fff;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
 }
 
 .state-closed {
-  background-color: var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
-  color: #fff;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-deletedResourceForeground, #d73a49);
 }
 
 .state-merged {
-  background-color: var(--vscode-gitDecoration-addedResourceForeground, #8957e5);
-  color: #fff;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-addedResourceForeground, #8957e5);
 }
 
 .detail-meta {

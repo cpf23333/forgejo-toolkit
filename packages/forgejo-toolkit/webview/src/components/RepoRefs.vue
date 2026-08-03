@@ -237,7 +237,9 @@ async function removeRelease(id?: number) {
             <button
               v-if="branch.name !== defaultBranch"
               class="ref-delete-button"
+              type="button"
               :title="t('dashboard.repoRefs.deleteBranch')"
+              :aria-label="t('dashboard.repoRefs.deleteBranch')"
               @click.stop="removeBranch(branch.name)"
             >
               ×
@@ -259,7 +261,9 @@ async function removeRelease(id?: number) {
             <span class="ref-name">{{ tag.name }}</span>
             <button
               class="ref-delete-button"
+              type="button"
               :title="t('dashboard.repoRefs.deleteTag')"
+              :aria-label="t('dashboard.repoRefs.deleteTag')"
               @click.stop="removeTag(tag.name)"
             >
               ×
@@ -288,14 +292,18 @@ async function removeRelease(id?: number) {
             <span v-else-if="release.draft" class="badge draft">{{ t('dashboard.repoRefs.draft') }}</span>
             <button
               class="ref-edit-button"
+              type="button"
               :title="t('dashboard.repoRefs.editRelease')"
+              :aria-label="t('dashboard.repoRefs.editRelease')"
               @click.stop="openDialog('release', release)"
             >
               ✎
             </button>
             <button
               class="ref-delete-button"
+              type="button"
               :title="t('dashboard.repoRefs.deleteRelease')"
+              :aria-label="t('dashboard.repoRefs.deleteRelease')"
               @click.stop="removeRelease(release.id)"
             >
               ×
@@ -469,18 +477,21 @@ async function removeRelease(id?: number) {
 }
 
 .badge.protected {
-  background-color: var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
-  color: #fff;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-untrackedResourceForeground, #28a745);
 }
 
 .badge.prerelease {
-  background-color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
-  color: #000;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d);
 }
 
 .badge.draft {
   background-color: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
+  border: 1px solid var(--vscode-panel-border);
 }
 
 .status {
