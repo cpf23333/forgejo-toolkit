@@ -27,7 +27,7 @@ import {
 } from '../worktree/gitOperations';
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { decryptExportData, readExportDataFromUri } from './instanceImport';
+import { readExportDataFromUri } from './instanceImport';
 
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
