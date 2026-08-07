@@ -6,7 +6,7 @@ import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/comp
 import { useAppState } from '../composables/useAppState';
 import ImportPreview from './ImportPreview.vue';
 import type { Locale } from '../i18n';
-import { vscode } from '../composables/vscode';
+import { postMessage } from '../composables/vscode';
 import '../types/config';
 
 const { t } = useI18n();
@@ -150,7 +150,7 @@ function prevStep() {
 
 function finish() {
   if (isPanelMode) {
-    vscode.postMessage({ command: 'closeOnboarding' });
+    postMessage({ command: 'closeOnboarding' });
   } else {
     router.push({ name: 'dashboard' });
   }
@@ -216,7 +216,7 @@ watch(
   () => state.importInstancesResult.value,
   (result) => {
     if (result?.success && isPanelMode) {
-      vscode.postMessage({ command: 'closeOnboarding' });
+      postMessage({ command: 'closeOnboarding' });
     }
   },
 );

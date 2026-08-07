@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
-import { vscode } from '../composables/vscode';
+import { postMessage } from '../composables/vscode';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import DashboardInstanceItem from '../components/DashboardInstanceItem.vue';
 import ViewTabs from '../components/ViewTabs.vue';
@@ -13,7 +13,7 @@ const state = useAppState();
 const router = useRouter();
 
 function openOnboarding() {
-  vscode.postMessage({ command: 'openOnboardingPanel' });
+  postMessage({ command: 'openOnboardingPanel' });
 }
 
 function openSearch() {

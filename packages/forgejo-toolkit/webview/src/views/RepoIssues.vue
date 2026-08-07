@@ -7,7 +7,15 @@ import ModalDialog from '../components/ModalDialog.vue';
 import IssueForm from '../components/IssueForm.vue';
 import AttachmentList from '../components/AttachmentList.vue';
 import PendingAttachmentList from '../components/PendingAttachmentList.vue';
-import { useAppState, issueFormKey, repoIssuesKey } from '../composables/useAppState';
+import {
+  useAppState,
+  issueFormKey,
+  repoIssuesKey,
+  repoLabelsKey,
+  repoAssigneesKey,
+  repoMilestonesKey,
+  repoRefsKey,
+} from '../composables/useAppState';
 import type { ForgejoIssue } from '../types/api';
 
 const { t } = useI18n();
@@ -34,10 +42,28 @@ const pendingImageObjectUrls = ref<Map<string, File>>(new Map());
 const uploadingIssueAttachmentCount = ref(0);
 const createDialogLoading = computed(() => createLoading.value || uploadingIssueAttachmentCount.value > 0);
 
+const labelsKey = computed(() => repoLabelsKey(instanceId.value, owner.value, repo.value));
+const assigneesKey = computed(() => repoAssigneesKey(instanceId.value, owner.value, repo.value));
+const milestonesKey = computed(() => repoMilestonesKey(instanceId.value, owner.value, repo.value));
+const refsKey = computed(() => repoRefsKey(instanceId.value, owner.value, repo.value));
+
+const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? []);
+const assignees = computed(() => state.repoAssignees.value.get(assigneesKey.value) ?? []);
+const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.value) ?? []);
+const refs = computed(() => state.repoRefs.value.get(refsKey.value));
+const branches = computed(
+  () => refs.value?.branches.map((b) => b.name).filter((name): name is string => Boolean(name)) ?? [],
+);
+const tags = computed(() => refs.value?.tags.map((t) => t.name).filter((name): name is string => Boolean(name)) ?? []);
+
 watch(
   [instanceId, owner, repo, stateParam],
   () => {
     state.loadRepoIssues(instanceId.value, owner.value, repo.value, stateParam.value);
+    state.loadRepoLabels(instanceId.value, owner.value, repo.value);
+    state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
+    state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
+    state.loadRepoRefs(instanceId.value, owner.value, repo.value);
   },
   { immediate: true },
 );
@@ -117,9 +143,17 @@ function handleUploadImageForCreate(file: File, onSuccess: (url: string) => void
   onSuccess(objectUrl);
 }
 
-async function handleCreateSubmit(title: string, body: string) {
+async function handleCreateSubmit(data: {
+  title: string;
+  body: string;
+  ref?: string;
+  labels?: number[];
+  assignees?: string[];
+  milestone?: number;
+  dueDate?: string;
+}) {
   try {
-    const issue = await state.createIssue(instanceId.value, owner.value, repo.value, title, body);
+    const issue = await state.createIssue(instanceId.value, owner.value, repo.value, data);
     const files = pendingIssueAttachments.value;
     const replacements = new Map<string, string>();
     if (files.length > 0) {
@@ -148,13 +182,13 @@ async function handleCreateSubmit(title: string, body: string) {
         }),
       );
     }
-    let updatedBody = body;
+    let updatedBody = data.body;
     for (const [objectUrl, attachmentUrl] of replacements) {
       updatedBody = updatedBody.replaceAll(objectUrl, attachmentUrl);
     }
-    if (updatedBody !== body) {
+    if (updatedBody !== data.body) {
       state.editIssue(instanceId.value, owner.value, repo.value, issue.number, {
-        title,
+        title: data.title,
         body: updatedBody,
       });
     }
@@ -236,9 +270,15 @@ async function handleCreateSubmit(title: string, body: string) {
     >
       <IssueForm
         :key="createFormResetKey"
+        mode="create"
         :submit-label="t('dashboard.form.create')"
         :loading="createDialogLoading"
         :error="createError"
+        :labels="labels"
+        :assignees="assignees"
+        :milestones="milestones"
+        :branches="branches"
+        :tags="tags"
         :upload-image="handleUploadImageForCreate"
         @submit="handleCreateSubmit"
         @cancel="closeCreateIssue"
