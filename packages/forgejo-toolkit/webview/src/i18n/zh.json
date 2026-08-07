@@ -236,7 +236,9 @@
       "durationSeconds": "{count} 秒",
       "dependencies": "依赖议题",
       "noDependencies": "未设置依赖项。",
-      "dependencyPlaceholder": "议题编号",
+      "dependencyPlaceholder": "选择议题...",
+      "dependencyLoading": "加载中...",
+      "dependencyEmpty": "无可用议题",
       "addDependency": "添加",
       "participants": "参与者",
       "references": "引用",
@@ -253,6 +255,18 @@
       "mergePullRequest": "合并 Pull Request",
       "merge": "合并",
       "merging": "正在合并...",
+      "mergeableStatus": {
+        "mergeable": "可以合并",
+        "unknown": "合并状态未知",
+        "blocker": {
+          "draft": "当前 PR 为草稿",
+          "closed": "PR 已关闭",
+          "no_permission": "你没有合并权限",
+          "conflicts": "存在冲突，无法自动合并",
+          "required_approvals": "需要 {count} 个审查通过",
+          "required_status_checks": "状态检查未通过（当前状态：{state}）"
+        }
+      },
       "mergeStrategy": {
         "merge": "创建合并提交",
         "squash": "压缩后合并",

@@ -2405,10 +2405,16 @@ function createAppState() {
     instanceId: string,
     owner: string,
     repo: string,
-    title: string,
-    body: string,
-    base?: string,
-    head?: string,
+    data: {
+      title: string;
+      body: string;
+      base?: string;
+      head?: string;
+      assignees?: string[];
+      labels?: number[];
+      milestone?: number;
+      dueDate?: string;
+    },
   ): Promise<ForgejoPullRequest> {
     const key = pullRequestFormKey(instanceId, owner, repo, 0);
     loading.set(key, true);
@@ -2421,7 +2427,16 @@ function createAppState() {
         instanceId,
         owner,
         repo,
-        data: { title, body, base, head },
+        data: {
+          title: data.title,
+          body: data.body,
+          base: data.base,
+          head: data.head,
+          assignees: data.assignees,
+          labels: data.labels,
+          milestone: data.milestone,
+          due_date: data.dueDate,
+        },
         _requestId,
       });
     });
@@ -2432,12 +2447,39 @@ function createAppState() {
     owner: string,
     repo: string,
     index: number,
-    data: { title?: string; body?: string; state?: 'open' | 'closed' },
+    data: {
+      title?: string;
+      body?: string;
+      state?: 'open' | 'closed';
+      base?: string;
+      assignees?: string[];
+      labels?: number[];
+      milestone?: number;
+      dueDate?: string;
+      unsetDueDate?: boolean;
+    },
   ) {
     const key = pullRequestFormKey(instanceId, owner, repo, index);
     loading.set(key, true);
     errors.delete(key);
-    postMessage({ command: 'editPullRequest', instanceId, owner, repo, index, data });
+    postMessage({
+      command: 'editPullRequest',
+      instanceId,
+      owner,
+      repo,
+      index,
+      data: {
+        title: data.title,
+        body: data.body,
+        state: data.state,
+        base: data.base,
+        assignees: data.assignees,
+        labels: data.labels,
+        milestone: data.milestone,
+        due_date: data.dueDate,
+        unset_due_date: data.unsetDueDate,
+      },
+    });
   }
 
   function openIssueDetail(instanceId: string, owner: string, repo: string, index: number) {

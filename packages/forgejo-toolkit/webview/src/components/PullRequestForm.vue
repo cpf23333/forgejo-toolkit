@@ -4,15 +4,25 @@ import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import EasyMdeEditor from './EasyMdeEditor.vue';
+import { VscodeDateField, VscodeSingleSelect } from '../vscode-controls';
+import type { ForgejoLabel, ForgejoMilestone } from '../types/api';
 
 const { t } = useI18n();
 
 interface Props {
+  mode?: 'create' | 'edit';
   initialTitle?: string;
   initialBody?: string;
   initialBase?: string;
   initialHead?: string;
+  initialLabelIds?: number[];
+  initialAssignees?: string[];
+  initialMilestoneId?: number;
+  initialDueDate?: string;
   branches?: string[];
+  labels?: ForgejoLabel[];
+  assignees?: string[];
+  milestones?: ForgejoMilestone[];
   submitLabel: string;
   loading?: boolean;
   error?: string;
@@ -20,24 +30,45 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  mode: 'create',
   initialTitle: '',
   initialBody: '',
   initialBase: '',
   initialHead: '',
+  initialLabelIds: () => [],
+  initialAssignees: () => [],
+  labels: () => [],
+  assignees: () => [],
+  milestones: () => [],
   branches: () => [],
   loading: false,
   error: '',
 });
 
 const emit = defineEmits<{
-  submit: [title: string, body: string, base: string, head: string];
+  submit: [
+    data: {
+      title: string;
+      body: string;
+      base?: string;
+      head?: string;
+      assignees: string[];
+      labels: number[];
+      milestone?: number;
+      dueDate?: string;
+    },
+  ];
   cancel: [];
 }>();
 
 const title = ref(props.initialTitle);
 const body = ref(props.initialBody);
-const base = ref(props.initialBase);
-const head = ref(props.initialHead);
+const base = ref<string | undefined>(props.initialBase || undefined);
+const head = ref<string | undefined>(props.initialHead || undefined);
+const selectedLabelIds = ref<number[]>([...props.initialLabelIds]);
+const selectedAssignees = ref<string[]>([...props.initialAssignees]);
+const selectedMilestoneId = ref<number | undefined>(props.initialMilestoneId);
+const dueDate = ref<string | undefined>(props.initialDueDate);
 
 watch(
   () => props.initialTitle,
@@ -56,19 +87,74 @@ watch(
 watch(
   () => props.initialBase,
   (value) => {
-    base.value = value;
+    base.value = value || undefined;
   },
 );
 
 watch(
   () => props.initialHead,
   (value) => {
-    head.value = value;
+    head.value = value || undefined;
   },
 );
 
+watch(
+  () => props.initialLabelIds,
+  (value) => {
+    selectedLabelIds.value = [...value];
+  },
+);
+
+watch(
+  () => props.initialAssignees,
+  (value) => {
+    selectedAssignees.value = [...value];
+  },
+);
+
+watch(
+  () => props.initialMilestoneId,
+  (value) => {
+    selectedMilestoneId.value = value;
+  },
+);
+
+watch(
+  () => props.initialDueDate,
+  (value) => {
+    dueDate.value = value;
+  },
+);
+
+function toggleLabel(id: number) {
+  const idx = selectedLabelIds.value.indexOf(id);
+  if (idx >= 0) {
+    selectedLabelIds.value.splice(idx, 1);
+  } else {
+    selectedLabelIds.value.push(id);
+  }
+}
+
+function toggleAssignee(login: string) {
+  const idx = selectedAssignees.value.indexOf(login);
+  if (idx >= 0) {
+    selectedAssignees.value.splice(idx, 1);
+  } else {
+    selectedAssignees.value.push(login);
+  }
+}
+
 function handleSubmit() {
-  emit('submit', title.value, body.value, base.value, head.value);
+  emit('submit', {
+    title: title.value,
+    body: body.value,
+    base: base.value,
+    head: props.mode === 'create' ? head.value : undefined,
+    assignees: selectedAssignees.value,
+    labels: selectedLabelIds.value,
+    milestone: selectedMilestoneId.value,
+    dueDate: dueDate.value || undefined,
+  });
 }
 </script>
 
@@ -92,7 +178,7 @@ function handleSubmit() {
           </vscode-option>
         </vscode-single-select>
       </div>
-      <div class="form-field">
+      <div v-if="mode === 'create'" class="form-field">
         <label>{{ t('dashboard.form.head') }}</label>
         <vscode-single-select
           filter
@@ -107,13 +193,65 @@ function handleSubmit() {
       </div>
     </div>
     <div class="form-field">
+      <label>{{ t('dashboard.form.assignees') }}</label>
+      <div class="option-list">
+        <button
+          v-for="login in assignees"
+          :key="login"
+          type="button"
+          class="option-tag"
+          :class="{ selected: selectedAssignees.includes(login) }"
+          @click="toggleAssignee(login)"
+        >
+          {{ login }}
+        </button>
+      </div>
+    </div>
+    <div class="form-field">
+      <label>{{ t('dashboard.form.labels') }}</label>
+      <div class="option-list">
+        <button
+          v-for="label in labels"
+          :key="label.name ?? ''"
+          type="button"
+          class="option-tag label-option"
+          :class="{ selected: selectedLabelIds.includes(label.id ?? -1) }"
+          :style="label.color ? `background-color: #${label.color};` : ''"
+          @click="toggleLabel(label.id ?? -1)"
+        >
+          {{ label.name }}
+        </button>
+      </div>
+    </div>
+    <div class="form-field">
+      <label>{{ t('dashboard.form.milestone') }}</label>
+      <VscodeSingleSelect
+        :value="selectedMilestoneId === undefined ? '' : String(selectedMilestoneId)"
+        @change="selectedMilestoneId = Number(($event.target as HTMLInputElement).value) || undefined"
+      >
+        <vscode-option value="">{{ t('dashboard.form.noMilestone') }}</vscode-option>
+        <vscode-option
+          v-for="milestone in milestones"
+          :key="milestone.id"
+          :value="String(milestone.id)"
+          :selected="milestone.id === selectedMilestoneId"
+        >
+          {{ milestone.title }}
+        </vscode-option>
+      </VscodeSingleSelect>
+    </div>
+    <div class="form-field">
+      <label>{{ t('dashboard.form.dueDate') }}</label>
+      <VscodeDateField v-model="dueDate" />
+    </div>
+    <div class="form-field">
       <label>{{ t('dashboard.form.body') }}</label>
       <EasyMdeEditor v-model="body" :placeholder="t('dashboard.form.bodyPlaceholder')" :upload-image="uploadImage" />
     </div>
     <div v-if="error" class="form-error">{{ t('dashboard.form.error', { message: error }) }}</div>
     <slot name="extra" />
     <div class="form-actions">
-      <VscodeButton type="submit" :disabled="loading || !title.trim() || !base || !head">
+      <VscodeButton type="submit" :disabled="loading || !title.trim() || !base || (mode === 'create' && !head)">
         {{ loading ? t('dashboard.form.saving') : submitLabel }}
       </VscodeButton>
       <VscodeButton type="button" secondary @click="emit('cancel')">
@@ -132,7 +270,7 @@ function handleSubmit() {
 
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
@@ -156,6 +294,31 @@ function handleSubmit() {
 
 .branch-select {
   min-width: 0;
+}
+
+.option-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.option-tag {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-button-secondaryBackground);
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.option-tag.selected {
+  border-color: var(--vscode-button-background);
+  outline: 1px solid var(--vscode-button-background);
+}
+
+.label-option {
+  color: #fff;
 }
 
 .form-error {

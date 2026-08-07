@@ -57,6 +57,8 @@ import {
   repoGet,
   repoGetAllCommits,
   repoGetAssignees,
+  repoGetBranchProtection,
+  repoGetCombinedStatusByRef,
   repoGetContents,
   repoGetContentsList,
   repoGetPullRequest,
@@ -105,6 +107,7 @@ import type {
   ForgejoIssue,
   ForgejoIssueAttachment,
   ForgejoIssueDetail,
+  MergeBlocker,
   ForgejoNotification,
   ForgejoPullRequest,
   ForgejoPullRequestDetail,
@@ -439,11 +442,69 @@ export class ForgejoClient {
     ]);
     const permissions = (repoInfo as { permissions?: { admin?: boolean; push?: boolean; pull?: boolean } } | undefined)
       ?.permissions;
+    const prDetail = pr as ForgejoPullRequestDetail;
+    const mergeBlockers = await this._getMergeBlockers(owner, repo, prDetail, permissions);
     return {
-      ...(pr as ForgejoPullRequestDetail),
+      ...prDetail,
       assets: (issue as ForgejoIssueDetail | undefined)?.assets,
       repoPermissions: permissions,
+      mergeBlockers,
     };
+  }
+
+  private async _getMergeBlockers(
+    owner: string,
+    repo: string,
+    pr: ForgejoPullRequestDetail,
+    permissions?: { admin?: boolean; push?: boolean; pull?: boolean },
+  ): Promise<MergeBlocker[]> {
+    const blockers: MergeBlocker[] = [];
+
+    if (pr.draft) {
+      blockers.push({ type: 'draft' });
+    }
+    if (pr.state !== 'open') {
+      blockers.push({ type: 'closed' });
+    }
+    if (!permissions?.admin && !permissions?.push) {
+      blockers.push({ type: 'no_permission' });
+    }
+
+    const baseRef = pr.base?.ref;
+    const headSha = pr.head?.sha;
+    if (!baseRef) {
+      if (pr.mergeable === false && blockers.length === 0) {
+        blockers.push({ type: 'conflicts' });
+      }
+      return blockers;
+    }
+
+    const [protection, combinedStatus] = await Promise.all([
+      repoGetBranchProtection(owner, repo, baseRef, { client: this._client() }).catch(() => undefined),
+      headSha
+        ? repoGetCombinedStatusByRef(owner, repo, headSha, undefined, { client: this._client() }).catch(() => undefined)
+        : Promise.resolve(undefined),
+    ]);
+
+    const canBypassProtection = permissions?.admin === true && protection?.apply_to_admins !== true;
+    if (protection && !canBypassProtection) {
+      const requiredApprovals = protection.required_approvals;
+      if (requiredApprovals && requiredApprovals > 0) {
+        blockers.push({ type: 'required_approvals', requiredApprovals });
+      }
+      if (protection.enable_status_check && (protection.status_check_contexts?.length ?? 0) > 0) {
+        const state = combinedStatus?.state;
+        if (state !== 'success') {
+          blockers.push({ type: 'required_status_checks', statusState: state });
+        }
+      }
+    }
+
+    if (pr.mergeable === false && !blockers.some((b) => b.type === 'required_status_checks')) {
+      blockers.push({ type: 'conflicts' });
+    }
+
+    return blockers;
   }
 
   getRepoIssues(owner: string, repo: string, state: string = 'open'): Promise<ForgejoIssue[]> {
@@ -544,12 +605,12 @@ export class ForgejoClient {
   }
 
   createIssueDependency(owner: string, repo: string, index: number, dependencyIndex: number): Promise<unknown> {
-    const data: IssueMeta = { index: dependencyIndex };
+    const data: IssueMeta = { index: dependencyIndex, owner, repo };
     return issueCreateIssueDependencies(owner, repo, index, data, { client: this._client() });
   }
 
   removeIssueDependency(owner: string, repo: string, index: number, dependencyIndex: number): Promise<unknown> {
-    const data: IssueMeta = { index: dependencyIndex };
+    const data: IssueMeta = { index: dependencyIndex, owner, repo };
     return issueRemoveIssueDependencies(owner, repo, index, data, { client: this._client() });
   }
 

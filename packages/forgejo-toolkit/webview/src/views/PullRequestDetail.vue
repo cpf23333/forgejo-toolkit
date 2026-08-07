@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
 import PendingAttachmentList from '../components/PendingAttachmentList.vue';
@@ -11,6 +12,8 @@ import CommitDiffList from '../components/CommitDiffList.vue';
 import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
+import ReactionBar from '../components/ReactionBar.vue';
+import { CollapsibleSection, VscodeDateField } from '../vscode-controls';
 import {
   useAppState,
   pullRequestDetailKey,
@@ -21,8 +24,17 @@ import {
   pullRequestMergeFormKey,
   issueCommentFormKey,
   repoDetailKey,
+  repoLabelsKey,
+  repoAssigneesKey,
+  repoMilestonesKey,
+  repoIssuesKey,
+  issueSubscriptionKey,
+  issueTrackedTimesKey,
+  userStopwatchesKey,
+  issueDependenciesKey,
+  issueReactionsKey,
 } from '../composables/useAppState';
-import type { ForgejoIssueAttachment } from '../types/api';
+import type { ForgejoIssueAttachment, MergeBlocker } from '../types/api';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -65,10 +77,72 @@ const commits = computed(() => state.pullRequestCommits.value.get(commitsKey.val
 const commitsError = computed(() => state.errors.get(commitsKey.value));
 const commitsLoading = computed(() => !state.pullRequestCommits.value.has(commitsKey.value) && !commitsError.value);
 
+const labelsKey = computed(() => repoLabelsKey(instanceId.value, owner.value, repo.value));
+const assigneesKey = computed(() => repoAssigneesKey(instanceId.value, owner.value, repo.value));
+const milestonesKey = computed(() => repoMilestonesKey(instanceId.value, owner.value, repo.value));
+const subscriptionKey = computed(() => issueSubscriptionKey(instanceId.value, owner.value, repo.value, index.value));
+const trackedTimesKey = computed(() => issueTrackedTimesKey(instanceId.value, owner.value, repo.value, index.value));
+const stopwatchesKey = computed(() => userStopwatchesKey(instanceId.value));
+const dependenciesKey = computed(() => issueDependenciesKey(instanceId.value, owner.value, repo.value, index.value));
+const repoIssuesKeyValue = computed(() => repoIssuesKey(instanceId.value, owner.value, repo.value, 'open'));
+const reactionsKey = computed(() => issueReactionsKey(instanceId.value, owner.value, repo.value, index.value));
+
+const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? []);
+const assignees = computed(() => state.repoAssignees.value.get(assigneesKey.value) ?? []);
+const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.value) ?? []);
+const subscription = computed(() => state.issueSubscriptions.value.get(subscriptionKey.value));
+const trackedTimes = computed(() => state.issueTrackedTimes.value.get(trackedTimesKey.value) ?? []);
+const stopwatches = computed(() => state.userStopwatches.value.get(stopwatchesKey.value) ?? []);
+const isStopwatchRunning = computed(() =>
+  stopwatches.value.some(
+    (sw) => sw.repo_owner_name === owner.value && sw.repo_name === repo.value && sw.issue_index === index.value,
+  ),
+);
+const dependencies = computed(() => state.issueDependencies.value.get(dependenciesKey.value) ?? []);
+const repoIssues = computed(() => state.repoIssues.value.get(repoIssuesKeyValue.value) ?? []);
+const repoIssuesLoading = computed(() => state.loading.get(repoIssuesKeyValue.value) ?? false);
+const availableDependencies = computed(() =>
+  repoIssues.value.filter(
+    (issue) => issue.number !== index.value && !dependencies.value.some((dep) => dep.number === issue.number),
+  ),
+);
+const reactions = computed(() => state.issueReactions.value.get(reactionsKey.value) ?? []);
+const reactionsLoading = computed(() => state.loading.get(reactionsKey.value) ?? false);
+const participants = computed(() => {
+  const users = new Map<string, { login?: string; avatar_url?: string }>();
+  if (detail.value?.user) {
+    users.set(detail.value.user.login, detail.value.user);
+  }
+  for (const user of detail.value?.assignees ?? []) {
+    if (user.login) {
+      users.set(user.login, user);
+    }
+  }
+  for (const comment of comments.value) {
+    if (comment.user?.login) {
+      users.set(comment.user.login, comment.user);
+    }
+  }
+  return Array.from(users.values());
+});
+const prReference = computed(() => {
+  const fullName = detail.value?.repository?.full_name ?? `${owner.value}/${repo.value}`;
+  return `${fullName}#${detail.value?.number ?? index.value}`;
+});
+
 watch(
   [instanceId, owner, repo, index],
   () => {
     state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
+    state.loadRepoLabels(instanceId.value, owner.value, repo.value);
+    state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
+    state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
+    state.loadRepoIssues(instanceId.value, owner.value, repo.value, 'open');
+    state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
+    state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
+    state.loadUserStopwatches(instanceId.value);
+    state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value);
+    state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value);
   },
   { immediate: true },
 );
@@ -109,6 +183,12 @@ const commentError = computed(() => state.errors.get(commentFormKey.value));
 const commentBody = ref('');
 const pendingCommentAttachments = ref<File[]>([]);
 const uploadingCommentAttachmentCount = ref(0);
+
+const manualTimeHours = ref(0);
+const manualTimeMinutes = ref(0);
+const selectedDependencyNumber = ref<number | undefined>(undefined);
+const isEditingDueDate = ref(false);
+const dueDateValue = ref<string | undefined>(undefined);
 
 function handleCommentAttachmentUpload(file: File) {
   pendingCommentAttachments.value.push(file);
@@ -180,6 +260,24 @@ const mergeLoading = computed(() => state.loading.get(mergeFormKey.value) ?? fal
 const mergeError = computed(() => state.errors.get(mergeFormKey.value));
 const mergeStrategy = ref<'merge' | 'rebase' | 'squash'>('merge');
 const canMerge = computed(() => detail.value?.state === 'open' && !detail.value?.merged && canManagePullRequest.value);
+const isMergeable = computed(() => detail.value?.mergeable === true);
+const mergeBlockers = computed(() => detail.value?.mergeBlockers ?? []);
+const hasMergeBlockers = computed(() => mergeBlockers.value.length > 0);
+
+function blockerText(blocker: MergeBlocker): string {
+  switch (blocker.type) {
+    case 'required_approvals':
+      return t('dashboard.detail.mergeableStatus.blocker.required_approvals', {
+        count: blocker.requiredApprovals ?? 0,
+      });
+    case 'required_status_checks':
+      return t('dashboard.detail.mergeableStatus.blocker.required_status_checks', {
+        state: blocker.statusState ?? '-',
+      });
+    default:
+      return t(`dashboard.detail.mergeableStatus.blocker.${blocker.type}`);
+  }
+}
 
 function handleMerge() {
   if (!canMerge.value) {
@@ -203,8 +301,24 @@ function closeEdit() {
   isEditing.value = false;
 }
 
-function handleEditSubmit(title: string, body: string) {
-  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, { title, body });
+function handleEditSubmit(data: {
+  title: string;
+  body: string;
+  base?: string;
+  assignees: string[];
+  labels: number[];
+  milestone?: number;
+  dueDate?: string;
+}) {
+  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, {
+    title: data.title,
+    body: data.body,
+    base: data.base,
+    assignees: data.assignees,
+    labels: data.labels,
+    milestone: data.milestone,
+    dueDate: data.dueDate,
+  });
 }
 
 async function deletePendingAttachments() {
@@ -267,9 +381,9 @@ function handleAttachmentDelete(asset: ForgejoIssueAttachment) {
   if (attachmentId === undefined) {
     return;
   }
-  const index = pendingDeleteAttachmentIds.value.indexOf(attachmentId);
-  if (index >= 0) {
-    pendingDeleteAttachmentIds.value.splice(index, 1);
+  const idx = pendingDeleteAttachmentIds.value.indexOf(attachmentId);
+  if (idx >= 0) {
+    pendingDeleteAttachmentIds.value.splice(idx, 1);
   } else {
     pendingDeleteAttachmentIds.value.push(attachmentId);
   }
@@ -278,6 +392,64 @@ function handleAttachmentDelete(asset: ForgejoIssueAttachment) {
 function toggleState() {
   const nextState = detail.value?.state === 'open' ? 'closed' : 'open';
   state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, { state: nextState });
+}
+
+function toggleSubscription() {
+  const user = currentUsername.value;
+  if (!user) {
+    return;
+  }
+  const subscribe = !subscription.value?.subscribed;
+  state.changeIssueSubscription(instanceId.value, owner.value, repo.value, index.value, user, subscribe);
+}
+
+function handleIssueReactionToggle(content: string, add: boolean) {
+  state.changeIssueReaction(instanceId.value, owner.value, repo.value, index.value, content, add);
+}
+
+function addManualTime() {
+  const hours = manualTimeHours.value || 0;
+  const minutes = manualTimeMinutes.value || 0;
+  const seconds = hours * 3600 + minutes * 60;
+  if (seconds <= 0) {
+    return;
+  }
+  state.addIssueTime(instanceId.value, owner.value, repo.value, index.value, seconds);
+  manualTimeHours.value = 0;
+  manualTimeMinutes.value = 0;
+}
+
+function addDependency() {
+  const dependencyIndex = selectedDependencyNumber.value;
+  if (dependencyIndex === undefined || dependencyIndex <= 0) {
+    return;
+  }
+  state.createIssueDependency(instanceId.value, owner.value, repo.value, index.value, dependencyIndex);
+  selectedDependencyNumber.value = undefined;
+}
+
+function startEditDueDate() {
+  dueDateValue.value = detail.value?.due_date;
+  isEditingDueDate.value = true;
+}
+
+function cancelEditDueDate() {
+  isEditingDueDate.value = false;
+  dueDateValue.value = undefined;
+}
+
+function saveDueDate() {
+  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, {
+    dueDate: dueDateValue.value || undefined,
+  });
+  isEditingDueDate.value = false;
+  dueDateValue.value = undefined;
+}
+
+function clearDueDate() {
+  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, {
+    unsetDueDate: true,
+  });
 }
 
 watch(
@@ -425,6 +597,31 @@ function formatDate(date: string): string {
   }
 }
 
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  const parts: string[] = [];
+  if (hours > 0) {
+    parts.push(t('dashboard.detail.durationHours', { count: hours }));
+  }
+  if (minutes > 0 || (hours > 0 && secs > 0)) {
+    parts.push(t('dashboard.detail.durationMinutes', { count: minutes }));
+  }
+  if (secs > 0 && hours === 0) {
+    parts.push(t('dashboard.detail.durationSeconds', { count: secs }));
+  }
+  return parts.length > 0 ? parts.join(' ') : t('dashboard.detail.durationSeconds', { count: 0 });
+}
+
+function formatAbsoluteDate(date: string): string {
+  try {
+    return new Date(date).toLocaleDateString();
+  } catch {
+    return date;
+  }
+}
+
 function labelStyle(color?: string): string {
   if (!color) {
     return '';
@@ -513,224 +710,513 @@ watch(
   },
   { deep: true },
 );
+
+function reloadPullRequest() {
+  state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value, true);
+  state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value, true);
+}
 </script>
 
 <template>
   <div class="pr-detail">
-    <div v-if="loading" class="loading">
+    <div v-if="loading" class="loading-state">
       <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
     </div>
-    <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
+    <div v-else-if="error" class="error-state">
+      <span>{{ t('dashboard.error', { message: error }) }}</span>
+      <VscodeButton variant="secondary" icon="refresh" @click="reloadPullRequest">
+        {{ t('dashboard.retry') }}
+      </VscodeButton>
+    </div>
     <div v-else-if="detail" class="detail-content">
-      <div class="detail-header">
-        <h2 class="detail-title">
-          <span class="detail-number">#{{ detail.number }}</span>
-          {{ detail.title }}
-        </h2>
-        <span class="state-badge" :class="prStateClass(detail.state, detail.merged)">
-          {{ prStateText(detail.state, detail.merged) }}
-        </span>
-      </div>
-
-      <div class="detail-meta">
-        <img
-          v-if="detail.user?.avatar_url"
-          :src="detail.user.avatar_url"
-          :alt="detail.user.login"
-          class="user-avatar"
-        />
-        <span v-if="detail.user" class="user-name">{{ detail.user.login }}</span>
-        <span v-if="detail.created_at" class="meta-item">{{ formatDate(detail.created_at) }}</span>
-        <span v-if="detail.merged_at" class="meta-item">
-          {{ t('dashboard.detail.mergedAt') }} {{ formatDate(detail.merged_at) }}
-        </span>
-      </div>
-
-      <div v-if="detail.base || detail.head" class="detail-section">
-        <h3>{{ t('dashboard.detail.branches') }}</h3>
-        <div class="branch-info">
-          <span class="branch-tag">{{ t('dashboard.detail.base') }}: {{ detail.base?.ref ?? '-' }}</span>
-          <span class="branch-arrow">←</span>
-          <span class="branch-tag">{{ t('dashboard.detail.head') }}: {{ detail.head?.ref ?? '-' }}</span>
+      <div class="detail-main">
+        <div class="detail-header">
+          <h2 class="detail-title">
+            <span class="detail-number">#{{ detail.number }}</span>
+            {{ detail.title }}
+          </h2>
+          <div class="header-actions">
+            <span class="state-badge" :class="prStateClass(detail.state, detail.merged)">
+              {{ prStateText(detail.state, detail.merged) }}
+            </span>
+            <VscodeButton
+              variant="icon"
+              icon="link-external"
+              :title="t('dashboard.detail.openPullRequest')"
+              :aria-label="t('dashboard.detail.openPullRequest')"
+              @click="state.openExternal(prUrl)"
+            />
+            <VscodeButton
+              variant="icon"
+              icon="copy"
+              :title="t('dashboard.detail.copyLink')"
+              :aria-label="t('dashboard.detail.copyLink')"
+              @click="state.copyToClipboard(prUrl)"
+            />
+            <template v-if="canManagePullRequest">
+              <VscodeButton
+                variant="icon"
+                icon="edit"
+                :title="t('dashboard.actions.edit')"
+                :aria-label="t('dashboard.actions.edit')"
+                @click="openEdit"
+              />
+              <VscodeButton
+                variant="icon"
+                :icon="detail.state === 'open' ? 'close' : 'refresh'"
+                :title="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
+                :aria-label="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
+                @click="toggleState"
+              />
+            </template>
+          </div>
         </div>
-      </div>
 
-      <div v-if="detail.additions !== undefined || detail.deletions !== undefined" class="detail-section">
-        <h3>{{ t('dashboard.detail.changes') }}</h3>
-        <div class="change-stats">
-          <span class="additions">+{{ detail.additions ?? 0 }} {{ t('dashboard.detail.additions') }}</span>
-          <span class="deletions">−{{ detail.deletions ?? 0 }} {{ t('dashboard.detail.deletions') }}</span>
-          <span v-if="detail.changed_files" class="files">
-            {{ detail.changed_files }} {{ t('dashboard.detail.changedFiles') }}
-          </span>
-        </div>
-      </div>
-
-      <div class="detail-section">
-        <h3>{{ t('dashboard.detail.changedFilesTitle') }}</h3>
-        <DiffFileList
-          :files="files"
-          :loading="filesLoading"
-          :error="filesError"
-          :supports-multi-diff="state.supportsMultiDiff.value"
-          @open-diff="handleOpenDiff"
-          @open-selected-diffs="handleOpenSelectedDiffs"
-        />
-      </div>
-
-      <div class="detail-section">
-        <h3>{{ t('dashboard.detail.commits') }}</h3>
-        <div v-if="commitsLoading" class="loading">
-          <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
-        </div>
-        <div v-else-if="commitsError" class="error">{{ t('dashboard.error', { message: commitsError }) }}</div>
-        <CommitDiffList
-          v-else
-          :commits="commits"
-          :supports-multi-diff="state.supportsMultiDiff.value"
-          @open-diff="handleCommitOpenDiff"
-          @open-selected-diffs="handleCommitOpenSelectedDiffs"
-        />
-      </div>
-
-      <div class="detail-section">
-        <h3>{{ t('dashboard.detail.body') }}</h3>
-        <MarkdownBody
-          :html="renderedBody"
-          :loading="bodyLoading"
-          :error="bodyError"
-          :base-url="baseUrl"
-          @open-external="state.openExternal($event)"
-        />
-      </div>
-
-      <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
-
-      <div v-if="detail.merged_by" class="detail-section">
-        <h3>{{ t('dashboard.detail.mergedBy') }}</h3>
         <div class="detail-meta">
           <img
-            v-if="detail.merged_by?.avatar_url"
-            :src="detail.merged_by.avatar_url"
-            :alt="detail.merged_by.login"
+            v-if="detail.user?.avatar_url"
+            :src="detail.user.avatar_url"
+            :alt="detail.user.login"
             class="user-avatar"
           />
-          <span class="user-name">{{ detail.merged_by.login }}</span>
-        </div>
-      </div>
-
-      <div v-if="detail.labels?.length" class="detail-section">
-        <h3>{{ t('dashboard.detail.labels') }}</h3>
-        <div class="label-list">
-          <span
-            v-for="label in detail.labels"
-            :key="label.name ?? ''"
-            class="label-tag"
-            :style="labelStyle(label.color)"
-          >
-            {{ label.name }}
+          <vscode-icon
+            v-else-if="detail.user"
+            name="account"
+            class="user-avatar avatar-fallback"
+            :title="detail.user.login"
+          />
+          <span v-if="detail.user" class="user-name">{{ detail.user.login }}</span>
+          <span v-if="detail.created_at" class="meta-item">{{ formatDate(detail.created_at) }}</span>
+          <span v-if="detail.merged_at" class="meta-item">
+            {{ t('dashboard.detail.mergedAt') }} {{ formatDate(detail.merged_at) }}
           </span>
         </div>
-      </div>
 
-      <div v-if="detail.milestone" class="detail-section">
-        <h3>{{ t('dashboard.detail.milestone') }}</h3>
-        <span class="milestone-tag">{{ detail.milestone.title }}</span>
-      </div>
-
-      <div class="detail-section">
-        <h3>{{ t('dashboard.detail.commentsAndTimeline') }}</h3>
-        <div v-if="commentsLoading" class="loading">
-          <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+        <div v-if="detail.base || detail.head" class="detail-section">
+          <h3>{{ t('dashboard.detail.branches') }}</h3>
+          <div class="branch-info">
+            <span class="branch-tag">{{ t('dashboard.detail.base') }}: {{ detail.base?.ref ?? '-' }}</span>
+            <span class="branch-arrow">←</span>
+            <span class="branch-tag">{{ t('dashboard.detail.head') }}: {{ detail.head?.ref ?? '-' }}</span>
+          </div>
         </div>
-        <div v-else-if="commentsError" class="error">{{ t('dashboard.error', { message: commentsError }) }}</div>
-        <CommentTimeline
-          v-else
-          :comments="comments"
-          :instance-id="instanceId"
-          :owner="owner"
-          :repo="repo"
-          :index="index"
-          :base-url="baseUrl"
-        />
 
-        <div class="comment-form">
-          <EasyMdeEditor
-            v-model="commentBody"
-            :placeholder="t('dashboard.detail.addCommentPlaceholder')"
-            :disabled="commentLoading"
-            :upload-image="handleCommentImageUpload"
+        <div v-if="detail.additions !== undefined || detail.deletions !== undefined" class="detail-section">
+          <h3>{{ t('dashboard.detail.changes') }}</h3>
+          <div class="change-stats">
+            <span class="additions">+{{ detail.additions ?? 0 }} {{ t('dashboard.detail.additions') }}</span>
+            <span class="deletions">−{{ detail.deletions ?? 0 }} {{ t('dashboard.detail.deletions') }}</span>
+            <span v-if="detail.changed_files" class="files">
+              {{ detail.changed_files }} {{ t('dashboard.detail.changedFiles') }}
+            </span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>{{ t('dashboard.detail.changedFilesTitle') }}</h3>
+          <DiffFileList
+            :files="files"
+            :loading="filesLoading"
+            :error="filesError"
+            :supports-multi-diff="state.supportsMultiDiff.value"
+            @open-diff="handleOpenDiff"
+            @open-selected-diffs="handleOpenSelectedDiffs"
           />
-          <AttachmentList
-            :assets="[]"
-            :allow-upload="true"
-            :allow-delete="false"
-            :uploading="uploadingCommentAttachmentCount > 0"
-            @upload="handleCommentAttachmentUpload($event)"
+        </div>
+
+        <div class="detail-section">
+          <h3>{{ t('dashboard.detail.commits') }}</h3>
+          <div v-if="commitsLoading" class="loading">
+            <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+          </div>
+          <div v-else-if="commitsError" class="error">{{ t('dashboard.error', { message: commitsError }) }}</div>
+          <CommitDiffList
+            v-else
+            :commits="commits"
+            :supports-multi-diff="state.supportsMultiDiff.value"
+            @open-diff="handleCommitOpenDiff"
+            @open-selected-diffs="handleCommitOpenSelectedDiffs"
           />
-          <PendingAttachmentList :files="pendingCommentAttachments" @remove="removePendingCommentAttachment($event)" />
-          <div class="comment-form-actions">
-            <vscode-button
-              :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
-              @click="handleCommentSubmit"
+        </div>
+
+        <div class="detail-section">
+          <h3>{{ t('dashboard.detail.body') }}</h3>
+          <MarkdownBody
+            :html="renderedBody"
+            :loading="bodyLoading"
+            :error="bodyError"
+            :base-url="baseUrl"
+            @open-external="state.openExternal($event)"
+          />
+          <ReactionBar
+            class="issue-reactions"
+            :reactions="reactions"
+            :current-username="currentUsername"
+            :loading="reactionsLoading"
+            @toggle="handleIssueReactionToggle"
+          />
+        </div>
+
+        <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
+
+        <div v-if="detail.merged_by" class="detail-section">
+          <h3>{{ t('dashboard.detail.mergedBy') }}</h3>
+          <div class="detail-meta">
+            <img
+              v-if="detail.merged_by?.avatar_url"
+              :src="detail.merged_by.avatar_url"
+              :alt="detail.merged_by.login"
+              class="user-avatar"
+            />
+            <span class="user-name">{{ detail.merged_by.login }}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>{{ t('dashboard.detail.commentsAndTimeline') }}</h3>
+          <div v-if="commentsLoading" class="loading">
+            <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+          </div>
+          <div v-else-if="commentsError" class="error">{{ t('dashboard.error', { message: commentsError }) }}</div>
+          <CommentTimeline
+            v-else
+            :comments="comments"
+            :instance-id="instanceId"
+            :owner="owner"
+            :repo="repo"
+            :index="index"
+            :base-url="baseUrl"
+          />
+
+          <div class="comment-form">
+            <EasyMdeEditor
+              v-model="commentBody"
+              :placeholder="t('dashboard.detail.addCommentPlaceholder')"
+              :disabled="commentLoading"
+              :upload-image="handleCommentImageUpload"
+            />
+            <AttachmentList
+              :assets="[]"
+              :allow-upload="true"
+              :allow-delete="false"
+              :uploading="uploadingCommentAttachmentCount > 0"
+              @upload="handleCommentAttachmentUpload($event)"
+            />
+            <PendingAttachmentList
+              :files="pendingCommentAttachments"
+              @remove="removePendingCommentAttachment($event)"
+            />
+            <div class="comment-form-actions">
+              <VscodeButton
+                variant="primary"
+                :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
+                @click="handleCommentSubmit"
+              >
+                {{
+                  commentLoading || uploadingCommentAttachmentCount > 0
+                    ? t('dashboard.form.saving')
+                    : t('dashboard.detail.postComment')
+                }}
+              </VscodeButton>
+            </div>
+            <div v-if="commentError" class="error">{{ t('dashboard.error', { message: commentError }) }}</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="action-link link-button" @click="state.openExternal(prUrl)">
+            {{ t('dashboard.detail.openPullRequest') }}
+          </button>
+          <button type="button" class="action-link link-button" @click="state.copyToClipboard(prUrl)">
+            {{ t('dashboard.detail.copyLink') }}
+          </button>
+          <button
+            type="button"
+            class="action-link link-button"
+            :class="{ disabled: worktreeLoading }"
+            :disabled="worktreeLoading"
+            @click="openInWorktree"
+          >
+            {{
+              worktreeLoading
+                ? t('dashboard.worktree.opening')
+                : hasWorktree
+                  ? t('dashboard.worktree.openExisting')
+                  : t('dashboard.worktree.openInWorktree')
+            }}
+          </button>
+        </div>
+
+        <div v-if="canMerge" class="merge-section">
+          <h3>{{ t('dashboard.detail.mergePullRequest') }}</h3>
+          <div class="merge-status-list">
+            <div v-if="!hasMergeBlockers && isMergeable" class="merge-status mergeable">
+              <vscode-icon name="check" />
+              <span>{{ t('dashboard.detail.mergeableStatus.mergeable') }}</span>
+            </div>
+            <div
+              v-for="(blocker, blockerIndex) in mergeBlockers"
+              :key="blockerIndex"
+              :class="['merge-status', 'blocked', blocker.type]"
             >
-              {{
-                commentLoading || uploadingCommentAttachmentCount > 0
-                  ? t('dashboard.form.saving')
-                  : t('dashboard.detail.postComment')
-              }}
+              <vscode-icon :name="blocker.type === 'conflicts' ? 'warning' : 'error'" />
+              <span>{{ blockerText(blocker) }}</span>
+            </div>
+            <div v-if="!hasMergeBlockers && !isMergeable" class="merge-status unknown">
+              <vscode-icon name="question" />
+              <span>{{ t('dashboard.detail.mergeableStatus.unknown') }}</span>
+            </div>
+          </div>
+          <div class="merge-form">
+            <vscode-select v-model="mergeStrategy">
+              <vscode-option value="merge">{{ t('dashboard.detail.mergeStrategy.merge') }}</vscode-option>
+              <vscode-option value="squash">{{ t('dashboard.detail.mergeStrategy.squash') }}</vscode-option>
+              <vscode-option value="rebase">{{ t('dashboard.detail.mergeStrategy.rebase') }}</vscode-option>
+            </vscode-select>
+            <vscode-button :disabled="mergeLoading || !isMergeable || hasMergeBlockers" @click="handleMerge">
+              {{ mergeLoading ? t('dashboard.detail.merging') : t('dashboard.detail.merge') }}
             </vscode-button>
           </div>
-          <div v-if="commentError" class="error">{{ t('dashboard.error', { message: commentError }) }}</div>
+          <div v-if="mergeError" class="error">{{ t('dashboard.error', { message: mergeError }) }}</div>
         </div>
+
+        <div v-if="worktreeStatus" :class="['worktree-status', worktreeStatusType]">{{ worktreeStatus }}</div>
       </div>
 
-      <div class="actions">
-        <button type="button" class="action-link link-button" @click="state.openExternal(prUrl)">
-          {{ t('dashboard.detail.openPullRequest') }}
-        </button>
-        <button type="button" class="action-link link-button" @click="state.copyToClipboard(prUrl)">
-          {{ t('dashboard.detail.copyLink') }}
-        </button>
-        <button v-if="canManagePullRequest" type="button" class="action-link link-button" @click="openEdit">
-          {{ t('dashboard.actions.edit') }}
-        </button>
-        <button v-if="canManagePullRequest" type="button" class="action-link link-button" @click="toggleState">
-          {{ detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen') }}
-        </button>
-        <button
-          type="button"
-          class="action-link link-button"
-          :class="{ disabled: worktreeLoading }"
-          :disabled="worktreeLoading"
-          @click="openInWorktree"
-        >
-          {{
-            worktreeLoading
-              ? t('dashboard.worktree.opening')
-              : hasWorktree
-                ? t('dashboard.worktree.openExisting')
-                : t('dashboard.worktree.openInWorktree')
-          }}
-        </button>
-      </div>
+      <div class="detail-sidebar">
+        <CollapsibleSection v-if="detail.labels?.length" :title="t('dashboard.detail.labels')">
+          <div class="label-list">
+            <span
+              v-for="label in detail.labels"
+              :key="label.name ?? ''"
+              class="label-tag"
+              :style="labelStyle(label.color)"
+            >
+              {{ label.name }}
+            </span>
+          </div>
+        </CollapsibleSection>
 
-      <div v-if="canMerge" class="merge-section">
-        <h3>{{ t('dashboard.detail.mergePullRequest') }}</h3>
-        <div class="merge-form">
-          <vscode-select v-model="mergeStrategy">
-            <vscode-option value="merge">{{ t('dashboard.detail.mergeStrategy.merge') }}</vscode-option>
-            <vscode-option value="squash">{{ t('dashboard.detail.mergeStrategy.squash') }}</vscode-option>
-            <vscode-option value="rebase">{{ t('dashboard.detail.mergeStrategy.rebase') }}</vscode-option>
-          </vscode-select>
-          <vscode-button :disabled="mergeLoading" @click="handleMerge">
-            {{ mergeLoading ? t('dashboard.detail.merging') : t('dashboard.detail.merge') }}
-          </vscode-button>
-        </div>
-        <div v-if="mergeError" class="error">{{ t('dashboard.error', { message: mergeError }) }}</div>
-      </div>
+        <CollapsibleSection v-if="detail.milestone" :title="t('dashboard.detail.milestone')">
+          <span class="milestone-tag">{{ detail.milestone.title }}</span>
+        </CollapsibleSection>
 
-      <div v-if="worktreeStatus" :class="['worktree-status', worktreeStatusType]">{{ worktreeStatus }}</div>
+        <CollapsibleSection v-if="detail.assignees?.length" :title="t('dashboard.detail.assignees')">
+          <div class="assignee-list">
+            <div v-for="user in detail.assignees" :key="user.login" class="assignee-item">
+              <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.login" class="user-avatar-small" />
+              <vscode-icon v-else name="account" class="user-avatar-small avatar-fallback" />
+              <span class="assignee-name">{{ user.login }}</span>
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection :title="t('dashboard.detail.dueDate')">
+          <div v-if="isEditingDueDate" class="due-date-edit">
+            <VscodeDateField v-model="dueDateValue" />
+            <div class="due-date-edit-actions">
+              <button type="button" class="link-button" :title="t('dashboard.actions.save')" @click="saveDueDate">
+                <vscode-icon name="check" />
+              </button>
+              <button
+                type="button"
+                class="link-button"
+                :title="t('dashboard.actions.cancel')"
+                @click="cancelEditDueDate"
+              >
+                <vscode-icon name="close" />
+              </button>
+            </div>
+          </div>
+          <div v-else class="due-date-row">
+            <template v-if="detail.due_date">
+              <vscode-icon name="calendar" />
+              <span class="due-date">{{ formatAbsoluteDate(detail.due_date) }}</span>
+              <button
+                v-if="canManagePullRequest"
+                type="button"
+                class="link-button"
+                :title="t('dashboard.actions.edit')"
+                @click="startEditDueDate"
+              >
+                <vscode-icon name="edit" />
+              </button>
+              <button
+                v-if="canManagePullRequest"
+                type="button"
+                class="link-button"
+                :title="t('dashboard.actions.delete')"
+                @click="clearDueDate"
+              >
+                <vscode-icon name="trash" />
+              </button>
+            </template>
+            <template v-else>
+              <span class="due-date-empty">{{ t('dashboard.detail.noDueDate') }}</span>
+              <button
+                v-if="canManagePullRequest"
+                type="button"
+                class="link-button"
+                :title="t('dashboard.actions.set')"
+                @click="startEditDueDate"
+              >
+                <vscode-icon name="edit" />
+              </button>
+            </template>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection :title="t('dashboard.detail.participants', { count: participants.length })">
+          <div class="participant-list">
+            <template v-for="user in participants" :key="user.login">
+              <img
+                v-if="user.avatar_url"
+                :src="user.avatar_url"
+                :alt="user.login"
+                class="user-avatar-small"
+                :title="user.login"
+              />
+              <vscode-icon v-else name="account" class="user-avatar-small avatar-fallback" :title="user.login" />
+            </template>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection :title="t('dashboard.detail.references')">
+          <div class="reference-row">
+            <span class="reference-text">{{ prReference }}</span>
+            <button
+              type="button"
+              class="link-button"
+              :title="t('dashboard.actions.copyUrl')"
+              @click="state.copyToClipboard(prReference)"
+            >
+              <vscode-icon name="copy" />
+            </button>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection :title="t('dashboard.detail.subscription')">
+          <div v-if="subscription === undefined" class="loading-inline">{{ t('dashboard.loading') }}</div>
+          <div v-else class="subscription-actions">
+            <VscodeButton
+              variant="secondary"
+              :icon="subscription.subscribed ? 'bell-slash' : 'bell'"
+              @click="toggleSubscription"
+            >
+              {{ subscription.subscribed ? t('dashboard.detail.unsubscribe') : t('dashboard.detail.subscribe') }}
+            </VscodeButton>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection :title="t('dashboard.detail.timeTracking')">
+          <div class="time-tracking-summary">
+            <span class="tracked-time">{{
+              formatDuration(trackedTimes.reduce((sum, t) => sum + (t.time ?? 0), 0))
+            }}</span>
+          </div>
+          <div class="time-tracking-actions">
+            <VscodeButton
+              v-if="!isStopwatchRunning"
+              variant="secondary"
+              icon="play"
+              @click="state.startIssueStopwatch(instanceId, owner, repo, index)"
+            >
+              {{ t('dashboard.detail.startStopwatch') }}
+            </VscodeButton>
+            <VscodeButton
+              v-else
+              variant="secondary"
+              icon="debug-pause"
+              @click="state.stopIssueStopwatch(instanceId, owner, repo, index)"
+            >
+              {{ t('dashboard.detail.stopStopwatch') }}
+            </VscodeButton>
+          </div>
+          <div class="time-tracking-form">
+            <vscode-textfield
+              type="number"
+              :value="String(manualTimeHours)"
+              min="0"
+              @input="manualTimeHours = Number(($event.target as HTMLInputElement).value)"
+            />
+            <span>{{ t('dashboard.detail.hours') }}</span>
+            <vscode-textfield
+              type="number"
+              :value="String(manualTimeMinutes)"
+              min="0"
+              max="59"
+              @input="manualTimeMinutes = Number(($event.target as HTMLInputElement).value)"
+            />
+            <span>{{ t('dashboard.detail.minutes') }}</span>
+            <VscodeButton variant="secondary" icon="add" @click="addManualTime">
+              {{ t('dashboard.detail.addTime') }}
+            </VscodeButton>
+          </div>
+          <div v-if="trackedTimes.length" class="tracked-time-list">
+            <div v-for="time in trackedTimes" :key="time.id" class="tracked-time-item">
+              <span>{{ formatDuration(time.time ?? 0) }}</span>
+              <span v-if="time.user_name" class="tracked-time-user">{{ time.user_name }}</span>
+              <button
+                type="button"
+                class="link-button"
+                :title="t('dashboard.actions.delete')"
+                @click="state.deleteIssueTime(instanceId, owner, repo, index, time.id ?? 0)"
+              >
+                <vscode-icon name="trash" />
+              </button>
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection :title="t('dashboard.detail.dependencies')">
+          <div v-if="dependencies.length" class="dependency-list">
+            <div v-for="dep in dependencies" :key="dep.id" class="dependency-item">
+              <button
+                type="button"
+                class="link-button"
+                @click="state.openIssueDetail(instanceId, owner, repo, dep.number)"
+              >
+                #{{ dep.number }} {{ dep.title }}
+              </button>
+              <button
+                type="button"
+                class="link-button"
+                :title="t('dashboard.actions.delete')"
+                @click="state.removeIssueDependency(instanceId, owner, repo, index, dep.number)"
+              >
+                <vscode-icon name="trash" />
+              </button>
+            </div>
+          </div>
+          <div v-else class="empty-list">{{ t('dashboard.detail.noDependencies') }}</div>
+          <div class="dependency-form">
+            <div v-if="repoIssuesLoading" class="dependency-status">{{ t('dashboard.detail.dependencyLoading') }}</div>
+            <template v-else>
+              <select
+                :value="selectedDependencyNumber === undefined ? '' : String(selectedDependencyNumber)"
+                class="dependency-select"
+                @change="selectedDependencyNumber = Number(($event.target as HTMLSelectElement).value) || undefined"
+              >
+                <option value="">{{ t('dashboard.detail.dependencyPlaceholder') }}</option>
+                <option v-for="issue in availableDependencies" :key="issue.id" :value="String(issue.number)">
+                  #{{ issue.number }} {{ issue.title }}
+                </option>
+              </select>
+              <VscodeButton
+                variant="secondary"
+                icon="add"
+                :disabled="!selectedDependencyNumber || availableDependencies.length === 0"
+                @click="addDependency"
+              >
+                {{ t('dashboard.detail.addDependency') }}
+              </VscodeButton>
+            </template>
+          </div>
+          <div v-if="!repoIssuesLoading && availableDependencies.length === 0" class="dependency-status empty">
+            {{ t('dashboard.detail.dependencyEmpty') }}
+          </div>
+        </CollapsibleSection>
+      </div>
 
       <ModalDialog
         :open="isEditing"
@@ -739,11 +1225,21 @@ watch(
         @close="closeEdit"
       >
         <PullRequestForm
+          mode="edit"
           :initial-title="detail.title"
           :initial-body="detail.body"
           :initial-base="detail.base?.ref"
           :initial-head="detail.head?.ref"
+          :initial-label-ids="
+            (detail.labels ?? []).map((label) => label.id).filter((id): id is number => id !== undefined)
+          "
+          :initial-assignees="(detail.assignees ?? []).map((user) => user.login ?? '').filter(Boolean)"
+          :initial-milestone-id="detail.milestone?.id"
+          :initial-due-date="detail.due_date"
           :branches="branches"
+          :labels="labels"
+          :assignees="assignees"
+          :milestones="milestones"
           :submit-label="t('dashboard.form.save')"
           :loading="formLoading"
           :error="editError"
@@ -779,25 +1275,54 @@ watch(
   overflow: auto;
 }
 
-.loading {
+.loading-state,
+.error-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--vscode-descriptionForeground);
 }
 
-.error {
-  color: var(--vscode-testing-iconFailed);
+.error-state {
+  flex-wrap: wrap;
 }
 
 .detail-content {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .detail-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail-main {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
+}
+
+.detail-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: sticky;
+  top: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .detail-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
 .detail-title {
@@ -811,6 +1336,13 @@ watch(
 .detail-number {
   color: var(--vscode-descriptionForeground);
   font-weight: 400;
+}
+
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .state-badge {
@@ -852,6 +1384,14 @@ watch(
   height: 20px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.user-avatar.avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
 }
 
 .user-name {
@@ -1032,5 +1572,212 @@ watch(
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.merge-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.merge-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+}
+
+.merge-status.mergeable {
+  color: var(--vscode-testing-iconPassed, var(--vscode-gitDecoration-addedResourceForeground));
+}
+
+.merge-status.blocked {
+  color: var(--vscode-testing-iconFailed, var(--vscode-gitDecoration-conflictingResourceForeground));
+}
+
+.merge-status.blocked.conflicts {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-gitDecoration-conflictingResourceForeground));
+}
+
+.merge-status.unknown {
+  color: var(--vscode-descriptionForeground);
+}
+
+.loading-inline {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.subscription-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.time-tracking-summary {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.time-tracking-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.time-tracking-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.time-tracking-form vscode-textfield {
+  width: 60px;
+}
+
+.tracked-time-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tracked-time-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.tracked-time-user {
+  color: var(--vscode-descriptionForeground);
+}
+
+.dependency-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.dependency-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dependency-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dependency-form vscode-textfield {
+  flex: 1;
+}
+
+.dependency-select {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  font-size: 0.9em;
+}
+
+.dependency-status {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.dependency-status.empty {
+  margin-top: 8px;
+}
+
+.assignee-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assignee-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.user-avatar-small {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-avatar-small.avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+
+.due-date {
+  font-size: 0.9em;
+  color: var(--vscode-foreground);
+}
+
+.due-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.due-date-empty {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.due-date-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.due-date-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.participant-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reference-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.reference-text {
+  font-family: var(--vscode-editor-font-family), monospace;
+  color: var(--vscode-foreground);
+  word-break: break-all;
+}
+
+.issue-reactions {
+  margin-top: 12px;
+}
+
+.empty-list {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+  margin-bottom: 12px;
 }
 </style>

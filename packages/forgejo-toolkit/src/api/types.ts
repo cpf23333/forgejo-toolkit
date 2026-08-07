@@ -119,6 +119,20 @@ export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {
   merged_by?: ForgejoUser;
   mergeable?: boolean;
   draft?: boolean;
+  mergeBlockers?: MergeBlocker[];
+}
+
+export interface MergeBlocker {
+  type:
+    | 'draft'
+    | 'closed'
+    | 'no_permission'
+    | 'conflicts'
+    | 'required_approvals'
+    | 'required_status_checks'
+    | 'unknown';
+  requiredApprovals?: number;
+  statusState?: string;
 }
 
 export interface ForgejoChangedFile {

@@ -21,6 +21,7 @@ import {
   repoLabelsKey,
   repoAssigneesKey,
   repoMilestonesKey,
+  repoIssuesKey,
   issueSubscriptionKey,
   issueTrackedTimesKey,
   userStopwatchesKey,
@@ -67,6 +68,7 @@ const subscriptionKey = computed(() => issueSubscriptionKey(instanceId.value, ow
 const trackedTimesKey = computed(() => issueTrackedTimesKey(instanceId.value, owner.value, repo.value, index.value));
 const stopwatchesKey = computed(() => userStopwatchesKey(instanceId.value));
 const dependenciesKey = computed(() => issueDependenciesKey(instanceId.value, owner.value, repo.value, index.value));
+const repoIssuesKeyValue = computed(() => repoIssuesKey(instanceId.value, owner.value, repo.value, 'open'));
 const reactionsKey = computed(() => issueReactionsKey(instanceId.value, owner.value, repo.value, index.value));
 
 const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? []);
@@ -81,6 +83,13 @@ const isStopwatchRunning = computed(() =>
   ),
 );
 const dependencies = computed(() => state.issueDependencies.value.get(dependenciesKey.value) ?? []);
+const repoIssues = computed(() => state.repoIssues.value.get(repoIssuesKeyValue.value) ?? []);
+const repoIssuesLoading = computed(() => state.loading.get(repoIssuesKeyValue.value) ?? false);
+const availableDependencies = computed(() =>
+  repoIssues.value.filter(
+    (issue) => issue.number !== index.value && !dependencies.value.some((dep) => dep.number === issue.number),
+  ),
+);
 const reactions = computed(() => state.issueReactions.value.get(reactionsKey.value) ?? []);
 const reactionsLoading = computed(() => state.loading.get(reactionsKey.value) ?? false);
 const participants = computed(() => {
@@ -113,6 +122,7 @@ watch(
     state.loadRepoLabels(instanceId.value, owner.value, repo.value);
     state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
     state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
+    state.loadRepoIssues(instanceId.value, owner.value, repo.value, 'open');
     state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
     state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
     state.loadUserStopwatches(instanceId.value);
@@ -277,7 +287,7 @@ function handleIssueReactionToggle(content: string, add: boolean) {
 
 const manualTimeHours = ref(0);
 const manualTimeMinutes = ref(0);
-const newDependencyIndex = ref<number | undefined>(undefined);
+const selectedDependencyNumber = ref<number | undefined>(undefined);
 const isEditingDueDate = ref(false);
 const dueDateValue = ref<string | undefined>(undefined);
 
@@ -294,12 +304,12 @@ function addManualTime() {
 }
 
 function addDependency() {
-  const dependencyIndex = newDependencyIndex.value;
+  const dependencyIndex = selectedDependencyNumber.value;
   if (dependencyIndex === undefined || dependencyIndex <= 0) {
     return;
   }
   state.createIssueDependency(instanceId.value, owner.value, repo.value, index.value, dependencyIndex);
-  newDependencyIndex.value = undefined;
+  selectedDependencyNumber.value = undefined;
 }
 
 function startEditDueDate() {
@@ -856,16 +866,30 @@ function reloadIssue() {
           </div>
           <div v-else class="empty-list">{{ t('dashboard.detail.noDependencies') }}</div>
           <div class="dependency-form">
-            <vscode-textfield
-              type="number"
-              :value="newDependencyIndex === undefined ? '' : String(newDependencyIndex)"
-              min="1"
-              :placeholder="t('dashboard.detail.dependencyPlaceholder')"
-              @input="newDependencyIndex = Number(($event.target as HTMLInputElement).value) || undefined"
-            />
-            <VscodeButton variant="secondary" icon="add" @click="addDependency">
-              {{ t('dashboard.detail.addDependency') }}
-            </VscodeButton>
+            <div v-if="repoIssuesLoading" class="dependency-status">{{ t('dashboard.detail.dependencyLoading') }}</div>
+            <template v-else>
+              <select
+                :value="selectedDependencyNumber === undefined ? '' : String(selectedDependencyNumber)"
+                class="dependency-select"
+                @change="selectedDependencyNumber = Number(($event.target as HTMLSelectElement).value) || undefined"
+              >
+                <option value="">{{ t('dashboard.detail.dependencyPlaceholder') }}</option>
+                <option v-for="issue in availableDependencies" :key="issue.id" :value="String(issue.number)">
+                  #{{ issue.number }} {{ issue.title }}
+                </option>
+              </select>
+              <VscodeButton
+                variant="secondary"
+                icon="add"
+                :disabled="!selectedDependencyNumber || availableDependencies.length === 0"
+                @click="addDependency"
+              >
+                {{ t('dashboard.detail.addDependency') }}
+              </VscodeButton>
+            </template>
+          </div>
+          <div v-if="!repoIssuesLoading && availableDependencies.length === 0" class="dependency-status empty">
+            {{ t('dashboard.detail.dependencyEmpty') }}
           </div>
         </CollapsibleSection>
       </div>
@@ -1190,6 +1214,26 @@ function reloadIssue() {
 
 .dependency-form vscode-textfield {
   flex: 1;
+}
+
+.dependency-select {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  font-size: 0.9em;
+}
+
+.dependency-status {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.dependency-status.empty {
+  margin-top: 8px;
 }
 
 .assignee-list {

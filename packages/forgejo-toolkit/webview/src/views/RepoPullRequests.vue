@@ -7,7 +7,15 @@ import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
 import AttachmentList from '../components/AttachmentList.vue';
 import PendingAttachmentList from '../components/PendingAttachmentList.vue';
-import { useAppState, pullRequestFormKey, repoDetailKey, repoPullRequestsKey } from '../composables/useAppState';
+import {
+  useAppState,
+  pullRequestFormKey,
+  repoDetailKey,
+  repoLabelsKey,
+  repoAssigneesKey,
+  repoMilestonesKey,
+  repoPullRequestsKey,
+} from '../composables/useAppState';
 import type { ForgejoPullRequest } from '../types/api';
 
 const { t } = useI18n();
@@ -36,6 +44,12 @@ const createDialogLoading = computed(() => createLoading.value || uploadingIssue
 const repoKey = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
 const repoDetail = computed(() => state.repoDetails.value.get(repoKey.value));
 const branches = computed(() => repoDetail.value?.branches ?? []);
+const labelsKey = computed(() => repoLabelsKey(instanceId.value, owner.value, repo.value));
+const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? []);
+const assigneesKey = computed(() => repoAssigneesKey(instanceId.value, owner.value, repo.value));
+const assignees = computed(() => state.repoAssignees.value.get(assigneesKey.value) ?? []);
+const milestonesKey = computed(() => repoMilestonesKey(instanceId.value, owner.value, repo.value));
+const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.value) ?? []);
 
 watch(
   [instanceId, owner, repo, stateParam],
@@ -93,6 +107,9 @@ function openCreatePullRequest() {
   createFormResetKey.value += 1;
   state.errors.delete(createFormKey.value);
   state.loadRepoDetail(instanceId.value, owner.value, repo.value);
+  state.loadRepoLabels(instanceId.value, owner.value, repo.value);
+  state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
+  state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
   isCreating.value = true;
 }
 
@@ -121,9 +138,18 @@ function handleUploadImageForCreate(file: File, onSuccess: (url: string) => void
   onSuccess(objectUrl);
 }
 
-async function handleCreateSubmit(title: string, body: string, base: string, head: string) {
+async function handleCreateSubmit(data: {
+  title: string;
+  body: string;
+  base?: string;
+  head?: string;
+  assignees: string[];
+  labels: number[];
+  milestone?: number;
+  dueDate?: string;
+}) {
   try {
-    const pr = await state.createPullRequest(instanceId.value, owner.value, repo.value, title, body, base, head);
+    const pr = await state.createPullRequest(instanceId.value, owner.value, repo.value, data);
     const files = pendingIssueAttachments.value;
     const replacements = new Map<string, string>();
     if (files.length > 0) {
@@ -152,13 +178,13 @@ async function handleCreateSubmit(title: string, body: string, base: string, hea
         }),
       );
     }
-    let updatedBody = body;
+    let updatedBody = data.body;
     for (const [objectUrl, attachmentUrl] of replacements) {
       updatedBody = updatedBody.replaceAll(objectUrl, attachmentUrl);
     }
-    if (updatedBody !== body) {
+    if (updatedBody !== data.body) {
       state.editPullRequest(instanceId.value, owner.value, repo.value, pr.number, {
-        title,
+        title: data.title,
         body: updatedBody,
       });
     }
@@ -242,6 +268,9 @@ async function handleCreateSubmit(title: string, body: string, base: string, hea
         :key="createFormResetKey"
         :initial-base="repoDetail?.repository.default_branch"
         :branches="branches"
+        :labels="labels"
+        :assignees="assignees"
+        :milestones="milestones"
         :submit-label="t('dashboard.form.create')"
         :loading="createDialogLoading"
         :error="createError"

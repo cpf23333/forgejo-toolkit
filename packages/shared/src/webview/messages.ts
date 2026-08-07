@@ -694,7 +694,16 @@ export type WebviewToHostMessage =
       instanceId: string;
       owner: string;
       repo: string;
-      data: { title: string; body: string; base?: string; head?: string };
+      data: {
+        title: string;
+        body: string;
+        base?: string;
+        head?: string;
+        assignees?: string[];
+        labels?: number[];
+        milestone?: number;
+        due_date?: string;
+      };
       _requestId: string;
     }
   | {
@@ -703,7 +712,17 @@ export type WebviewToHostMessage =
       owner: string;
       repo: string;
       index: number;
-      data: { title?: string; body?: string; state?: 'open' | 'closed' };
+      data: {
+        title?: string;
+        body?: string;
+        state?: 'open' | 'closed';
+        base?: string;
+        assignees?: string[];
+        labels?: number[];
+        milestone?: number;
+        due_date?: string;
+        unset_due_date?: boolean;
+      };
     }
   | {
       command: 'getPullRequestFiles';

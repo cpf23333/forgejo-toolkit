@@ -236,7 +236,9 @@
       "durationSeconds": "{count}s",
       "dependencies": "Dependencies",
       "noDependencies": "No dependencies set.",
-      "dependencyPlaceholder": "Issue number",
+      "dependencyPlaceholder": "Select an issue...",
+      "dependencyLoading": "Loading...",
+      "dependencyEmpty": "No available issues",
       "addDependency": "Add",
       "participants": "Participants",
       "references": "References",
@@ -253,6 +255,18 @@
       "mergePullRequest": "Merge Pull Request",
       "merge": "Merge",
       "merging": "Merging...",
+      "mergeableStatus": {
+        "mergeable": "Ready to merge",
+        "unknown": "Merge status unknown",
+        "blocker": {
+          "draft": "This pull request is a draft",
+          "closed": "This pull request is closed",
+          "no_permission": "You do not have permission to merge",
+          "conflicts": "This pull request has conflicts and cannot be merged automatically",
+          "required_approvals": "{count} approval(s) required",
+          "required_status_checks": "Required status checks have not passed (state: {state})"
+        }
+      },
       "mergeStrategy": {
         "merge": "Create a merge commit",
         "squash": "Squash and merge",
