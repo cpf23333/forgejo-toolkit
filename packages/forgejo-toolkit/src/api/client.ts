@@ -38,7 +38,6 @@ import {
   issueSearchIssues,
   issueStartStopWatch,
   issueStopStopWatch,
-  issueSubscriptions,
   issueTrackedTimes,
   notifyGetList,
   notifyReadList,
