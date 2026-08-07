@@ -6,6 +6,12 @@
 - [ ] 接入 MSW mock 用于测试或离线开发
 - [ ] 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试
 - [ ] 评估将 extension host 打包从 esbuild 迁移到 Rolldown，统一构建工具链
+- [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
+- [ ] Issue 创建表单支持指定分支或标签（`ref`）
+- [ ] Issue 详情页支持订阅 / 取消订阅通知
+- [ ] Issue 详情页支持时间追踪（查看、手动添加、启动/停止计时器）
+- [ ] Issue 详情页支持依赖议题管理（添加/移除依赖、查看阻塞关系）
+- [ ] 调研并补齐 Project 相关 API（当前生成的 client 中无 `/projects` 端点）
 
 ## 已完成
 
