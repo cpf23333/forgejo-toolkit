@@ -54,6 +54,35 @@ export interface ForgejoNotification {
   url?: string;
 }
 
+export interface ForgejoTrackedTime {
+  id?: number;
+  created?: string;
+  time?: number;
+  user_name?: string;
+  issue_id?: number;
+}
+
+export interface ForgejoStopWatch {
+  issue_index?: number;
+  issue_title?: string;
+  repo_name?: string;
+  repo_owner_name?: string;
+  seconds?: number;
+  created?: string;
+}
+
+export interface ForgejoWatchInfo {
+  subscribed?: boolean;
+  ignored?: boolean;
+  created_at?: string;
+}
+
+export interface ForgejoReaction {
+  content?: string;
+  created_at?: string;
+  user?: ForgejoUser;
+}
+
 export interface ForgejoPullRequest {
   id: number;
   number: number;
@@ -67,11 +96,13 @@ export interface ForgejoPullRequest {
 }
 
 export interface ForgejoLabel {
+  id?: number;
   name?: string;
   color?: string;
 }
 
 export interface ForgejoMilestone {
+  id?: number;
   title?: string;
 }
 
@@ -101,7 +132,9 @@ export interface ForgejoIssueDetail {
   created_at?: string;
   updated_at?: string;
   closed_at?: string;
+  due_date?: string;
   labels?: ForgejoLabel[];
+  assignees?: ForgejoUser[];
   milestone?: ForgejoMilestone;
   repository?: { full_name?: string };
   assets?: ForgejoIssueAttachment[];

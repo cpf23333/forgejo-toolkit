@@ -6,7 +6,7 @@ import type { ForgejoInstance } from '../types/instance';
 const loading = reactive(new Map<string, boolean>());
 const errors = reactive(new Map<string, string>());
 import '../types/config';
-import { vscode } from './vscode';
+import { postMessage } from './vscode';
 
 const vscodeVersion = window.__FORGEJO_TOOLKIT_CONFIG__?.vscodeVersion ?? '';
 import type { Locale } from '../i18n';
@@ -30,6 +30,12 @@ import type {
   ForgejoReleaseAttachment,
   GlobalSearchResult,
   ForgejoNotification,
+  ForgejoLabel,
+  ForgejoMilestone,
+  ForgejoReaction,
+  ForgejoStopWatch,
+  ForgejoTrackedTime,
+  ForgejoWatchInfo,
 } from '../types/api';
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
@@ -69,6 +75,15 @@ function createAppState() {
   const globalSearchActiveScope = ref<'all' | 'repositories' | 'issues' | 'pullRequests'>('all');
   const globalSearchQuery = ref<string>('');
   const notifications = ref<Map<string, ForgejoNotification[]>>(new Map());
+  const repoLabels = ref<Map<string, ForgejoLabel[]>>(new Map());
+  const repoAssignees = ref<Map<string, string[]>>(new Map());
+  const repoMilestones = ref<Map<string, ForgejoMilestone[]>>(new Map());
+  const issueSubscriptions = ref<Map<string, ForgejoWatchInfo>>(new Map());
+  const issueTrackedTimes = ref<Map<string, ForgejoTrackedTime[]>>(new Map());
+  const issueDependencies = ref<Map<string, ForgejoIssue[]>>(new Map());
+  const issueReactions = ref<Map<string, ForgejoReaction[]>>(new Map());
+  const commentReactions = ref<Map<string, ForgejoReaction[]>>(new Map());
+  const userStopwatches = ref<Map<string, ForgejoStopWatch[]>>(new Map());
 
   const repositoriesCache = createTimedCache<ForgejoRepository[]>(30_000);
   const myIssuesCache = createTimedCache<ForgejoIssue[]>(30_000);
@@ -221,6 +236,206 @@ function createAppState() {
             repo: string;
             index: number;
             detail?: ForgejoIssueDetail;
+            error?: string;
+          },
+        );
+        break;
+      case 'repoLabels':
+        handleRepoLabels(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            labels?: ForgejoLabel[];
+            error?: string;
+          },
+        );
+        break;
+      case 'repoAssignees':
+        handleRepoAssignees(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            assignees?: string[];
+            error?: string;
+          },
+        );
+        break;
+      case 'repoMilestones':
+        handleRepoMilestones(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            milestones?: ForgejoMilestone[];
+            error?: string;
+          },
+        );
+        break;
+      case 'issueSubscriptionChecked':
+        handleIssueSubscriptionChecked(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            subscribed?: boolean;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueSubscriptionChanged':
+        handleIssueSubscriptionChanged(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            subscribed?: boolean;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueStopwatchChanged':
+        handleIssueStopwatchChanged(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            action: 'start' | 'stop' | 'delete';
+            error?: string;
+          },
+        );
+        break;
+      case 'userStopwatches':
+        handleUserStopwatches(
+          message as {
+            instanceId: string;
+            stopwatches?: ForgejoStopWatch[];
+            error?: string;
+          },
+        );
+        break;
+      case 'issueTrackedTimes':
+        handleIssueTrackedTimes(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            times?: ForgejoTrackedTime[];
+            error?: string;
+          },
+        );
+        break;
+      case 'issueTimeAdded':
+        handleIssueTimeAdded(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            time?: ForgejoTrackedTime;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueTimeReset':
+        handleIssueTimeReset(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueTimeDeleted':
+        handleIssueTimeDeleted(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            id: number;
+            error?: string;
+          },
+        );
+        break;
+      case 'issueDependencies':
+        handleIssueDependencies(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            dependencies?: ForgejoIssue[];
+            error?: string;
+          },
+        );
+        break;
+      case 'issueDependencyChanged':
+        handleIssueDependencyChanged(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            dependencyIndex: number;
+            action: 'add' | 'remove';
+            error?: string;
+          },
+        );
+        break;
+      case 'issueReactions':
+        handleIssueReactions(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            reactions?: ForgejoReaction[];
+            error?: string;
+          },
+        );
+        break;
+      case 'issueReactionChanged':
+        handleIssueReactionChanged(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            content: string;
+            action: 'add' | 'remove';
+            error?: string;
+          },
+        );
+        break;
+      case 'commentReactions':
+        handleCommentReactions(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            commentId: number;
+            reactions?: ForgejoReaction[];
+            error?: string;
+          },
+        );
+        break;
+      case 'commentReactionChanged':
+        handleCommentReactionChanged(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            commentId: number;
+            content: string;
+            action: 'add' | 'remove';
             error?: string;
           },
         );
@@ -754,6 +969,310 @@ function createAppState() {
       errors.delete(key);
       issueDetails.value.set(key, data.detail);
       issueDetailCache.set(key, data.detail);
+    }
+  }
+
+  function handleRepoLabels(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    labels?: ForgejoLabel[];
+    error?: string;
+  }) {
+    const key = repoLabelsKey(data.instanceId, data.owner, data.repo);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      repoLabels.value.set(key, data.labels ?? []);
+    }
+  }
+
+  function handleRepoAssignees(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    assignees?: string[];
+    error?: string;
+  }) {
+    const key = repoAssigneesKey(data.instanceId, data.owner, data.repo);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      repoAssignees.value.set(key, data.assignees ?? []);
+    }
+  }
+
+  function handleRepoMilestones(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    milestones?: ForgejoMilestone[];
+    error?: string;
+  }) {
+    const key = repoMilestonesKey(data.instanceId, data.owner, data.repo);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      repoMilestones.value.set(key, data.milestones ?? []);
+    }
+  }
+
+  function handleIssueSubscriptionChecked(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    subscribed?: boolean;
+    error?: string;
+  }) {
+    const key = issueSubscriptionKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      issueSubscriptions.value.set(key, { subscribed: data.subscribed });
+    }
+  }
+
+  function handleIssueSubscriptionChanged(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    subscribed?: boolean;
+    error?: string;
+  }) {
+    const key = issueSubscriptionKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      issueSubscriptions.value.set(key, { subscribed: data.subscribed });
+      loadIssueSubscription(data.instanceId, data.owner, data.repo, data.index, true);
+    }
+  }
+
+  function handleIssueStopwatchChanged(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    action: 'start' | 'stop' | 'delete';
+    error?: string;
+  }) {
+    const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      loadIssueTrackedTimes(data.instanceId, data.owner, data.repo, data.index, true);
+      loadUserStopwatches(data.instanceId, true);
+    }
+  }
+
+  function handleUserStopwatches(data: { instanceId: string; stopwatches?: ForgejoStopWatch[]; error?: string }) {
+    const key = userStopwatchesKey(data.instanceId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      userStopwatches.value.set(key, data.stopwatches ?? []);
+    }
+  }
+
+  function handleIssueTrackedTimes(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    times?: ForgejoTrackedTime[];
+    error?: string;
+  }) {
+    const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      issueTrackedTimes.value.set(key, data.times ?? []);
+    }
+  }
+
+  function handleIssueTimeAdded(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    time?: ForgejoTrackedTime;
+    error?: string;
+  }) {
+    const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      loadIssueTrackedTimes(data.instanceId, data.owner, data.repo, data.index, true);
+    }
+  }
+
+  function handleIssueTimeReset(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    error?: string;
+  }) {
+    const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      issueTrackedTimes.value.set(key, []);
+    }
+  }
+
+  function handleIssueTimeDeleted(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    id: number;
+    error?: string;
+  }) {
+    const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      const list = issueTrackedTimes.value.get(key) ?? [];
+      issueTrackedTimes.value.set(
+        key,
+        list.filter((t) => t.id !== data.id),
+      );
+    }
+  }
+
+  function handleIssueDependencies(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    dependencies?: ForgejoIssue[];
+    error?: string;
+  }) {
+    const key = issueDependenciesKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      issueDependencies.value.set(key, data.dependencies ?? []);
+    }
+  }
+
+  function handleIssueDependencyChanged(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    dependencyIndex: number;
+    action: 'add' | 'remove';
+    error?: string;
+  }) {
+    const key = issueDependenciesKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      loadIssueDependencies(data.instanceId, data.owner, data.repo, data.index, true);
+    }
+  }
+
+  function handleIssueReactions(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    reactions?: ForgejoReaction[];
+    error?: string;
+  }) {
+    const key = issueReactionsKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      issueReactions.value.set(key, data.reactions ?? []);
+    }
+  }
+
+  function handleIssueReactionChanged(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    content: string;
+    action: 'add' | 'remove';
+    error?: string;
+  }) {
+    const key = issueReactionsKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      loadIssueReactions(data.instanceId, data.owner, data.repo, data.index, true);
+    }
+  }
+
+  function handleCommentReactions(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    commentId: number;
+    reactions?: ForgejoReaction[];
+    error?: string;
+  }) {
+    const key = commentReactionsKey(data.instanceId, data.owner, data.repo, data.commentId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      commentReactions.value.set(key, data.reactions ?? []);
+    }
+  }
+
+  function handleCommentReactionChanged(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    commentId: number;
+    content: string;
+    action: 'add' | 'remove';
+    error?: string;
+  }) {
+    const key = commentReactionsKey(data.instanceId, data.owner, data.repo, data.commentId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      loadCommentReactions(data.instanceId, data.owner, data.repo, data.commentId, true);
     }
   }
 
@@ -1369,51 +1888,51 @@ function createAppState() {
 
   onMounted(() => {
     window.addEventListener('message', handleMessage);
-    vscode.postMessage({ command: 'getInitialState' });
+    postMessage({ command: 'getInitialState' });
   });
 
   function openExternal(url: string) {
-    vscode.postMessage({ command: 'openExternal', url });
+    postMessage({ command: 'openExternal', url });
   }
 
   function copyToClipboard(text: string) {
-    vscode.postMessage({ command: 'copyToClipboard', text });
+    postMessage({ command: 'copyToClipboard', text });
   }
 
   function previewReadme(owner: string, repo: string, content: string) {
-    vscode.postMessage({ command: 'previewReadme', owner, repo, content });
+    postMessage({ command: 'previewReadme', owner, repo, content });
   }
 
   function testConnection(url: string, token: string) {
-    vscode.postMessage({ command: 'testConnection', url, token });
+    postMessage({ command: 'testConnection', url, token });
   }
 
   function saveInstance(url: string, token: string) {
-    vscode.postMessage({ command: 'saveInstance', url, token });
+    postMessage({ command: 'saveInstance', url, token });
   }
 
   function editInstance(id: string, url: string, token: string) {
-    vscode.postMessage({ command: 'editInstance', id, url, token });
+    postMessage({ command: 'editInstance', id, url, token });
   }
 
   function removeInstance(id: string) {
-    vscode.postMessage({ command: 'removeInstance', id });
+    postMessage({ command: 'removeInstance', id });
   }
 
   function exportInstances(ids?: string[]) {
-    vscode.postMessage({ command: 'exportInstances', ids });
+    postMessage({ command: 'exportInstances', ids });
   }
 
   function copyInstancesToClipboard(ids?: string[]) {
-    vscode.postMessage({ command: 'copyInstancesToClipboard', ids });
+    postMessage({ command: 'copyInstancesToClipboard', ids });
   }
 
   function previewImportInstances() {
-    vscode.postMessage({ command: 'previewImportInstances' });
+    postMessage({ command: 'previewImportInstances' });
   }
 
   function confirmImportInstances(instances: ForgejoInstance[], settings?: ExportSettings) {
-    vscode.postMessage({
+    postMessage({
       command: 'importInstances',
       instances: instances.map((instance) => ({ ...instance })),
       settings: settings ? { ...settings } : undefined,
@@ -1422,12 +1941,12 @@ function createAppState() {
 
   function changeLocale(newLocale: Locale) {
     locale.value = newLocale;
-    vscode.postMessage({ command: 'setLocale', locale: newLocale });
+    postMessage({ command: 'setLocale', locale: newLocale });
   }
 
   function changeDebug(newDebug: boolean) {
     debug.value = newDebug;
-    vscode.postMessage({ command: 'setDebug', debug: newDebug });
+    postMessage({ command: 'setDebug', debug: newDebug });
   }
 
   function openRepoDetail(instanceId: string, owner: string, repo: string) {
@@ -1439,7 +1958,7 @@ function createAppState() {
     const key = repoDetailKey(instanceId, owner, repo);
     if (!repoDetails.value.has(key)) {
       loading.set(key, true);
-      vscode.postMessage({ command: 'getRepoDetail', instanceId, owner, repo });
+      postMessage({ command: 'getRepoDetail', instanceId, owner, repo });
     }
   }
 
@@ -1449,11 +1968,11 @@ function createAppState() {
       return;
     }
     loading.set(key, true);
-    vscode.postMessage({ command: 'getRepoBranchCommits', instanceId, owner, repo, branch });
+    postMessage({ command: 'getRepoBranchCommits', instanceId, owner, repo, branch });
   }
 
   function openRepoFile(instanceId: string, owner: string, repo: string, path: string, ref: string) {
-    vscode.postMessage({ command: 'openRepoFile', instanceId, owner, repo, path, ref });
+    postMessage({ command: 'openRepoFile', instanceId, owner, repo, path, ref });
   }
 
   function openRepoFileDiff(
@@ -1464,7 +1983,7 @@ function createAppState() {
     baseRef: string,
     headRef: string,
   ) {
-    vscode.postMessage({ command: 'openRepoFileDiff', instanceId, owner, repo, path, baseRef, headRef });
+    postMessage({ command: 'openRepoFileDiff', instanceId, owner, repo, path, baseRef, headRef });
   }
 
   function loadRepoContents(instanceId: string, owner: string, repo: string, path: string, ref: string, force = false) {
@@ -1474,21 +1993,21 @@ function createAppState() {
     }
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'getRepoContents', instanceId, owner, repo, path, ref });
+    postMessage({ command: 'getRepoContents', instanceId, owner, repo, path, ref });
   }
 
   function loadRepoFileSearch(instanceId: string, owner: string, repo: string, ref: string, query: string) {
     const key = repoFileSearchKey(instanceId, owner, repo, ref, query);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'searchRepoFiles', instanceId, owner, repo, ref, query });
+    postMessage({ command: 'searchRepoFiles', instanceId, owner, repo, ref, query });
   }
 
   function loadFileHistory(instanceId: string, owner: string, repo: string, path: string, ref: string) {
     const key = fileHistoryKey(instanceId, owner, repo, path, ref);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'getFileHistory', instanceId, owner, repo, path, ref });
+    postMessage({ command: 'getFileHistory', instanceId, owner, repo, path, ref });
   }
 
   function loadRepoRefs(instanceId: string, owner: string, repo: string, force = false) {
@@ -1498,7 +2017,7 @@ function createAppState() {
     }
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'getRepoRefs', instanceId, owner, repo });
+    postMessage({ command: 'getRepoRefs', instanceId, owner, repo });
   }
 
   function createRepoBranch(
@@ -1508,11 +2027,11 @@ function createAppState() {
     newBranchName: string,
     oldRefName?: string,
   ) {
-    vscode.postMessage({ command: 'createRepoBranch', instanceId, owner, repo, newBranchName, oldRefName });
+    postMessage({ command: 'createRepoBranch', instanceId, owner, repo, newBranchName, oldRefName });
   }
 
   function deleteRepoBranch(instanceId: string, owner: string, repo: string, branch: string) {
-    vscode.postMessage({ command: 'deleteRepoBranch', instanceId, owner, repo, branch });
+    postMessage({ command: 'deleteRepoBranch', instanceId, owner, repo, branch });
   }
 
   function createRepoTag(
@@ -1523,11 +2042,11 @@ function createAppState() {
     target?: string,
     message?: string,
   ) {
-    vscode.postMessage({ command: 'createRepoTag', instanceId, owner, repo, tagName, target, message });
+    postMessage({ command: 'createRepoTag', instanceId, owner, repo, tagName, target, message });
   }
 
   function deleteRepoTag(instanceId: string, owner: string, repo: string, tag: string) {
-    vscode.postMessage({ command: 'deleteRepoTag', instanceId, owner, repo, tag });
+    postMessage({ command: 'deleteRepoTag', instanceId, owner, repo, tag });
   }
 
   function createRepoRelease(
@@ -1548,7 +2067,7 @@ function createAppState() {
     const _requestId = `release-create-${++releaseCreationRequestId}`;
     return new Promise((resolve, reject) => {
       pendingReleaseCreations.set(_requestId, { resolve, reject });
-      vscode.postMessage({
+      postMessage({
         command: 'createRepoRelease',
         instanceId,
         owner,
@@ -1580,11 +2099,11 @@ function createAppState() {
       hide_archive_links?: boolean;
     },
   ) {
-    vscode.postMessage({ command: 'editRepoRelease', instanceId, owner, repo, id, data });
+    postMessage({ command: 'editRepoRelease', instanceId, owner, repo, id, data });
   }
 
   function deleteRepoRelease(instanceId: string, owner: string, repo: string, id: number) {
-    vscode.postMessage({ command: 'deleteRepoRelease', instanceId, owner, repo, id });
+    postMessage({ command: 'deleteRepoRelease', instanceId, owner, repo, id });
   }
 
   function uploadReleaseAttachment(
@@ -1598,7 +2117,7 @@ function createAppState() {
     const _requestId = `release-attachment-${++inputRequestId}`;
     return new Promise((resolve, reject) => {
       releaseAttachmentPromises.set(_requestId, { resolve, reject });
-      vscode.postMessage({
+      postMessage({
         command: 'createReleaseAttachment',
         instanceId,
         owner,
@@ -1621,7 +2140,7 @@ function createAppState() {
     const _requestId = `release-attachment-delete-${++inputRequestId}`;
     return new Promise((resolve, reject) => {
       releaseAttachmentDeletePromises.set(_requestId, { resolve, reject });
-      vscode.postMessage({
+      postMessage({
         command: 'deleteReleaseAttachment',
         instanceId,
         owner,
@@ -1641,7 +2160,7 @@ function createAppState() {
     const id = `input-${++inputRequestId}`;
     return new Promise((resolve) => {
       inputBoxPromises.set(id, resolve);
-      vscode.postMessage({ command: 'showInputBox', id, ...options });
+      postMessage({ command: 'showInputBox', id, ...options });
     });
   }
 
@@ -1649,7 +2168,7 @@ function createAppState() {
     const id = `confirm-${++inputRequestId}`;
     return new Promise((resolve) => {
       confirmPromises.set(id, resolve);
-      vscode.postMessage({ command: 'showConfirm', id, message });
+      postMessage({ command: 'showConfirm', id, message });
     });
   }
 
@@ -1657,8 +2176,15 @@ function createAppState() {
     instanceId: string,
     owner: string,
     repo: string,
-    title: string,
-    body: string,
+    data: {
+      title: string;
+      body: string;
+      ref?: string;
+      labels?: number[];
+      assignees?: string[];
+      milestone?: number;
+      dueDate?: string;
+    },
   ): Promise<ForgejoIssue> {
     const key = issueFormKey(instanceId, owner, repo, 0);
     loading.set(key, true);
@@ -1666,7 +2192,22 @@ function createAppState() {
     const _requestId = `issue-create-${++issueCreationRequestId}`;
     return new Promise((resolve, reject) => {
       pendingIssueCreations.set(_requestId, { resolve, reject });
-      vscode.postMessage({ command: 'createIssue', instanceId, owner, repo, data: { title, body }, _requestId });
+      postMessage({
+        command: 'createIssue',
+        instanceId,
+        owner,
+        repo,
+        data: {
+          title: data.title,
+          body: data.body,
+          ref: data.ref,
+          labels: data.labels,
+          assignees: data.assignees,
+          milestone: data.milestone,
+          due_date: data.dueDate,
+        },
+        _requestId,
+      });
     });
   }
 
@@ -1675,12 +2216,37 @@ function createAppState() {
     owner: string,
     repo: string,
     index: number,
-    data: { title?: string; body?: string; state?: 'open' | 'closed' },
+    data: {
+      title?: string;
+      body?: string;
+      state?: 'open' | 'closed';
+      labels?: number[];
+      assignees?: string[];
+      milestone?: number;
+      dueDate?: string;
+      unsetDueDate?: boolean;
+    },
   ) {
     const key = issueFormKey(instanceId, owner, repo, index);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'editIssue', instanceId, owner, repo, index, data });
+    postMessage({
+      command: 'editIssue',
+      instanceId,
+      owner,
+      repo,
+      index,
+      data: {
+        title: data.title,
+        body: data.body,
+        state: data.state,
+        labels: data.labels,
+        assignees: data.assignees,
+        milestone: data.milestone,
+        due_date: data.dueDate,
+        unset_due_date: data.unsetDueDate,
+      },
+    });
   }
 
   function createIssueComment(
@@ -1696,7 +2262,7 @@ function createAppState() {
     const _requestId = `issue-comment-create-${++issueCommentCreationRequestId}`;
     return new Promise((resolve, reject) => {
       pendingIssueCommentCreations.set(_requestId, { resolve, reject });
-      vscode.postMessage({ command: 'createIssueComment', instanceId, owner, repo, index, body, _requestId });
+      postMessage({ command: 'createIssueComment', instanceId, owner, repo, index, body, _requestId });
     });
   }
 
@@ -1704,7 +2270,7 @@ function createAppState() {
     const key = issueCommentEditFormKey(instanceId, owner, repo, commentId);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'editIssueComment', instanceId, owner, repo, commentId, body });
+    postMessage({ command: 'editIssueComment', instanceId, owner, repo, commentId, body });
   }
 
   async function deleteIssueComment(instanceId: string, owner: string, repo: string, commentId: number) {
@@ -1715,7 +2281,7 @@ function createAppState() {
     const key = issueCommentDeleteFormKey(instanceId, owner, repo, commentId);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'deleteIssueComment', instanceId, owner, repo, commentId });
+    postMessage({ command: 'deleteIssueComment', instanceId, owner, repo, commentId });
   }
 
   function deleteIssueCommentAttachment(
@@ -1728,7 +2294,7 @@ function createAppState() {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}:comment-${commentId}:attachment-delete:${++attachmentDeleteRequestId}`;
       pendingAttachmentDeletes.set(id, { resolve, reject });
-      vscode.postMessage({
+      postMessage({
         command: 'deleteIssueCommentAttachment',
         instanceId,
         owner,
@@ -1750,7 +2316,7 @@ function createAppState() {
     const key = pullRequestMergeFormKey(instanceId, owner, repo, index);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'mergePullRequest', instanceId, owner, repo, index, strategy });
+    postMessage({ command: 'mergePullRequest', instanceId, owner, repo, index, strategy });
   }
 
   function uploadIssueAttachment(
@@ -1766,7 +2332,7 @@ function createAppState() {
       const reader = new FileReader();
       reader.onload = () => {
         const array = new Uint8Array(reader.result as ArrayBuffer);
-        vscode.postMessage({
+        postMessage({
           command: 'createIssueAttachment',
           instanceId,
           owner,
@@ -1796,7 +2362,7 @@ function createAppState() {
       const reader = new FileReader();
       reader.onload = () => {
         const array = new Uint8Array(reader.result as ArrayBuffer);
-        vscode.postMessage({
+        postMessage({
           command: 'createIssueCommentAttachment',
           instanceId,
           owner,
@@ -1823,7 +2389,7 @@ function createAppState() {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}#issue-${index}:attachment-delete:${++attachmentDeleteRequestId}`;
       pendingAttachmentDeletes.set(id, { resolve, reject });
-      vscode.postMessage({
+      postMessage({
         command: 'deleteIssueAttachment',
         instanceId,
         owner,
@@ -1850,7 +2416,7 @@ function createAppState() {
     const _requestId = `pull-request-create-${++pullRequestCreationRequestId}`;
     return new Promise((resolve, reject) => {
       pendingPullRequestCreations.set(_requestId, { resolve, reject });
-      vscode.postMessage({
+      postMessage({
         command: 'createPullRequest',
         instanceId,
         owner,
@@ -1871,7 +2437,7 @@ function createAppState() {
     const key = pullRequestFormKey(instanceId, owner, repo, index);
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'editPullRequest', instanceId, owner, repo, index, data });
+    postMessage({ command: 'editPullRequest', instanceId, owner, repo, index, data });
   }
 
   function openIssueDetail(instanceId: string, owner: string, repo: string, index: number) {
@@ -1883,7 +2449,7 @@ function createAppState() {
     const key = issueDetailKey(instanceId, owner, repo, index);
     if (force || !issueDetailCache.has(key)) {
       loading.set(key, true);
-      vscode.postMessage({ command: 'getIssueDetail', instanceId, owner, repo, index });
+      postMessage({ command: 'getIssueDetail', instanceId, owner, repo, index });
     }
   }
 
@@ -1896,7 +2462,7 @@ function createAppState() {
     const key = pullRequestDetailKey(instanceId, owner, repo, index);
     if (force || !pullRequestDetailCache.has(key)) {
       loading.set(key, true);
-      vscode.postMessage({ command: 'getPullRequestDetail', instanceId, owner, repo, index });
+      postMessage({ command: 'getPullRequestDetail', instanceId, owner, repo, index });
     }
   }
 
@@ -1913,7 +2479,7 @@ function createAppState() {
     if (!force && pullRequestFilesCache.has(key)) {
       return;
     }
-    vscode.postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index, baseSha, headSha });
+    postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index, baseSha, headSha });
   }
 
   function loadPullRequestComments(instanceId: string, owner: string, repo: string, index: number, force = false) {
@@ -1921,7 +2487,7 @@ function createAppState() {
     if (!force && pullRequestCommentsCache.has(key)) {
       return;
     }
-    vscode.postMessage({ command: 'getPullRequestCommentsAndTimeline', instanceId, owner, repo, index });
+    postMessage({ command: 'getPullRequestCommentsAndTimeline', instanceId, owner, repo, index });
   }
 
   function loadPullRequestCommits(instanceId: string, owner: string, repo: string, index: number, force = false) {
@@ -1929,7 +2495,7 @@ function createAppState() {
     if (!force && pullRequestCommitsCache.has(key)) {
       return;
     }
-    vscode.postMessage({ command: 'getPullRequestCommits', instanceId, owner, repo, index });
+    postMessage({ command: 'getPullRequestCommits', instanceId, owner, repo, index });
   }
 
   function openPullRequestDiff(
@@ -1942,7 +2508,7 @@ function createAppState() {
     baseSha: string,
     headSha: string,
   ) {
-    vscode.postMessage({
+    postMessage({
       command: 'openPullRequestDiff',
       instanceId,
       owner,
@@ -1964,7 +2530,7 @@ function createAppState() {
     baseSha: string,
     headSha: string,
   ) {
-    vscode.postMessage({
+    postMessage({
       command: 'openSelectedPullRequestDiffs',
       instanceId,
       owner,
@@ -1985,8 +2551,202 @@ function createAppState() {
     const key = repoIssuesKey(instanceId, owner, repo, state);
     if (!repoIssues.value.has(key)) {
       loading.set(key, true);
-      vscode.postMessage({ command: 'getRepoIssues', instanceId, owner, repo, state });
+      postMessage({ command: 'getRepoIssues', instanceId, owner, repo, state });
     }
+  }
+
+  function loadRepoLabels(instanceId: string, owner: string, repo: string) {
+    const key = repoLabelsKey(instanceId, owner, repo);
+    if (!repoLabels.value.has(key)) {
+      loading.set(key, true);
+      postMessage({ command: 'getRepoLabels', instanceId, owner, repo });
+    }
+  }
+
+  function loadRepoAssignees(instanceId: string, owner: string, repo: string) {
+    const key = repoAssigneesKey(instanceId, owner, repo);
+    if (!repoAssignees.value.has(key)) {
+      loading.set(key, true);
+      postMessage({ command: 'getRepoAssignees', instanceId, owner, repo });
+    }
+  }
+
+  function loadRepoMilestones(instanceId: string, owner: string, repo: string) {
+    const key = repoMilestonesKey(instanceId, owner, repo);
+    if (!repoMilestones.value.has(key)) {
+      loading.set(key, true);
+      postMessage({ command: 'getRepoMilestones', instanceId, owner, repo });
+    }
+  }
+
+  function loadIssueSubscription(instanceId: string, owner: string, repo: string, index: number, force = false) {
+    const key = issueSubscriptionKey(instanceId, owner, repo, index);
+    if (!force && issueSubscriptions.value.has(key)) {
+      return;
+    }
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'checkIssueSubscription', instanceId, owner, repo, index });
+  }
+
+  function changeIssueSubscription(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    user: string,
+    subscribe: boolean,
+  ) {
+    const key = issueSubscriptionKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'changeIssueSubscription', instanceId, owner, repo, index, user, subscribe });
+  }
+
+  function loadUserStopwatches(instanceId: string, force = false) {
+    const key = userStopwatchesKey(instanceId);
+    if (!force && userStopwatches.value.has(key)) {
+      return;
+    }
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getUserStopwatches', instanceId });
+  }
+
+  function loadIssueTrackedTimes(instanceId: string, owner: string, repo: string, index: number, force = false) {
+    const key = issueTrackedTimesKey(instanceId, owner, repo, index);
+    if (!force && issueTrackedTimes.value.has(key)) {
+      return;
+    }
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getIssueTrackedTimes', instanceId, owner, repo, index });
+  }
+
+  function startIssueStopwatch(instanceId: string, owner: string, repo: string, index: number) {
+    const key = issueTrackedTimesKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'startIssueStopwatch', instanceId, owner, repo, index });
+  }
+
+  function stopIssueStopwatch(instanceId: string, owner: string, repo: string, index: number) {
+    const key = issueTrackedTimesKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'stopIssueStopwatch', instanceId, owner, repo, index });
+  }
+
+  function deleteIssueStopwatch(instanceId: string, owner: string, repo: string, index: number) {
+    const key = issueTrackedTimesKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'deleteIssueStopwatch', instanceId, owner, repo, index });
+  }
+
+  function addIssueTime(instanceId: string, owner: string, repo: string, index: number, time: number) {
+    const key = issueTrackedTimesKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'addIssueTime', instanceId, owner, repo, index, time });
+  }
+
+  function resetIssueTime(instanceId: string, owner: string, repo: string, index: number) {
+    const key = issueTrackedTimesKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'resetIssueTime', instanceId, owner, repo, index });
+  }
+
+  function deleteIssueTime(instanceId: string, owner: string, repo: string, index: number, id: number) {
+    const key = issueTrackedTimesKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'deleteIssueTime', instanceId, owner, repo, index, id });
+  }
+
+  function loadIssueDependencies(instanceId: string, owner: string, repo: string, index: number, force = false) {
+    const key = issueDependenciesKey(instanceId, owner, repo, index);
+    if (!force && issueDependencies.value.has(key)) {
+      return;
+    }
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getIssueDependencies', instanceId, owner, repo, index });
+  }
+
+  function createIssueDependency(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    dependencyIndex: number,
+  ) {
+    const key = issueDependenciesKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'createIssueDependency', instanceId, owner, repo, index, dependencyIndex });
+  }
+
+  function removeIssueDependency(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    dependencyIndex: number,
+  ) {
+    const key = issueDependenciesKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'removeIssueDependency', instanceId, owner, repo, index, dependencyIndex });
+  }
+
+  function loadIssueReactions(instanceId: string, owner: string, repo: string, index: number, force = false) {
+    const key = issueReactionsKey(instanceId, owner, repo, index);
+    if (!force && issueReactions.value.has(key)) {
+      return;
+    }
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getIssueReactions', instanceId, owner, repo, index });
+  }
+
+  function changeIssueReaction(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    content: string,
+    add: boolean,
+  ) {
+    const key = issueReactionsKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'changeIssueReaction', instanceId, owner, repo, index, content, add });
+  }
+
+  function loadCommentReactions(instanceId: string, owner: string, repo: string, commentId: number, force = false) {
+    const key = commentReactionsKey(instanceId, owner, repo, commentId);
+    if (!force && commentReactions.value.has(key)) {
+      return;
+    }
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getCommentReactions', instanceId, owner, repo, commentId });
+  }
+
+  function changeCommentReaction(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    commentId: number,
+    content: string,
+    add: boolean,
+  ) {
+    const key = commentReactionsKey(instanceId, owner, repo, commentId);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'changeCommentReaction', instanceId, owner, repo, commentId, content, add });
   }
 
   function openRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open') {
@@ -1998,7 +2758,7 @@ function createAppState() {
     const key = repoPullRequestsKey(instanceId, owner, repo, state);
     if (!repoPullRequests.value.has(key)) {
       loading.set(key, true);
-      vscode.postMessage({ command: 'getRepoPullRequests', instanceId, owner, repo, state });
+      postMessage({ command: 'getRepoPullRequests', instanceId, owner, repo, state });
     }
   }
 
@@ -2013,7 +2773,7 @@ function createAppState() {
   }
 
   function loadLinkedRepository() {
-    vscode.postMessage({ command: 'getLinkedRepository' });
+    postMessage({ command: 'getLinkedRepository' });
   }
 
   function openLinkedRepositoryDetail() {
@@ -2041,21 +2801,21 @@ function createAppState() {
   }
 
   function openPrWorktree(instanceId: string, owner: string, repo: string, index: number) {
-    vscode.postMessage({ command: 'openPrWorktree', instanceId, owner, repo, index });
+    postMessage({ command: 'openPrWorktree', instanceId, owner, repo, index });
   }
 
   function removeWorktree(id: string) {
-    vscode.postMessage({ command: 'removeWorktree', id });
+    postMessage({ command: 'removeWorktree', id });
   }
 
   function changeWorktreeOpenMode(mode: 'ask' | 'currentWindow' | 'newWindow') {
     worktreeOpenMode.value = mode;
-    vscode.postMessage({ command: 'setWorktreeOpenMode', mode });
+    postMessage({ command: 'setWorktreeOpenMode', mode });
   }
 
   function setWorktreeCacheDirectory(directory: string) {
     worktreeCacheDirectory.value = directory;
-    vscode.postMessage({ command: 'setWorktreeCacheDirectory', directory });
+    postMessage({ command: 'setWorktreeCacheDirectory', directory });
   }
 
   function setDashboardActiveTab(tab: 'repositories' | 'issues' | 'pullRequests') {
@@ -2063,14 +2823,14 @@ function createAppState() {
   }
 
   function browseWorktreeCacheDirectory() {
-    vscode.postMessage({ command: 'browseWorktreeCacheDirectory' });
+    postMessage({ command: 'browseWorktreeCacheDirectory' });
   }
 
   function renderMarkdown(instanceId: string, text: string, context?: string): Promise<string> {
     const key = `render-${++renderMarkdownRequestId}`;
     return new Promise((resolve, reject) => {
       pendingRenderMarkdownRequests.set(key, { resolve, reject });
-      vscode.postMessage({ command: 'renderMarkdown', instanceId, text, context, key });
+      postMessage({ command: 'renderMarkdown', instanceId, text, context, key });
     });
   }
 
@@ -2086,7 +2846,7 @@ function createAppState() {
       return;
     }
     loading.set(key, true);
-    vscode.postMessage({ command: 'getRepositories', instanceId });
+    postMessage({ command: 'getRepositories', instanceId });
   }
 
   function loadMyIssues(instanceId: string, state = 'open', force = false) {
@@ -2098,7 +2858,7 @@ function createAppState() {
       return;
     }
     loading.set(key, true);
-    vscode.postMessage({ command: 'getMyIssues', instanceId, state });
+    postMessage({ command: 'getMyIssues', instanceId, state });
   }
 
   function loadMyPullRequests(instanceId: string, state = 'open', force = false) {
@@ -2110,7 +2870,7 @@ function createAppState() {
       return;
     }
     loading.set(key, true);
-    vscode.postMessage({ command: 'getMyPullRequests', instanceId, state });
+    postMessage({ command: 'getMyPullRequests', instanceId, state });
   }
 
   function loadGlobalSearch(
@@ -2129,7 +2889,7 @@ function createAppState() {
     }
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'globalSearch', instanceId, scope, query: trimmed, state, limit: 20 });
+    postMessage({ command: 'globalSearch', instanceId, scope, query: trimmed, state, limit: 20 });
   }
 
   function setGlobalSearchScope(scope: 'all' | 'repositories' | 'issues' | 'pullRequests') {
@@ -2147,15 +2907,15 @@ function createAppState() {
     }
     loading.set(key, true);
     errors.delete(key);
-    vscode.postMessage({ command: 'getNotifications', instanceId, statusTypes, subjectType, limit: 50 });
+    postMessage({ command: 'getNotifications', instanceId, statusTypes, subjectType, limit: 50 });
   }
 
   function markNotificationRead(instanceId: string, id: number) {
-    vscode.postMessage({ command: 'markNotificationRead', instanceId, id });
+    postMessage({ command: 'markNotificationRead', instanceId, id });
   }
 
   function markAllNotificationsRead(instanceId: string) {
-    vscode.postMessage({ command: 'markAllNotificationsRead', instanceId });
+    postMessage({ command: 'markAllNotificationsRead', instanceId });
   }
 
   const unreadNotificationCount = computed(() => {
@@ -2195,6 +2955,15 @@ function createAppState() {
     globalSearchQuery,
     notifications,
     unreadNotificationCount,
+    repoLabels,
+    repoAssignees,
+    repoMilestones,
+    issueSubscriptions,
+    issueTrackedTimes,
+    issueDependencies,
+    issueReactions,
+    commentReactions,
+    userStopwatches,
     loading,
     errors,
     debug,
@@ -2270,6 +3039,26 @@ function createAppState() {
     openSelectedPullRequestDiffs,
     openRepoIssues,
     loadRepoIssues,
+    loadRepoLabels,
+    loadRepoAssignees,
+    loadRepoMilestones,
+    loadIssueSubscription,
+    changeIssueSubscription,
+    loadIssueTrackedTimes,
+    loadUserStopwatches,
+    startIssueStopwatch,
+    stopIssueStopwatch,
+    deleteIssueStopwatch,
+    addIssueTime,
+    resetIssueTime,
+    deleteIssueTime,
+    loadIssueDependencies,
+    createIssueDependency,
+    removeIssueDependency,
+    loadIssueReactions,
+    changeIssueReaction,
+    loadCommentReactions,
+    changeCommentReaction,
     openRepoPullRequests,
     loadRepoPullRequests,
     changeRepoIssuesState,
@@ -2361,6 +3150,42 @@ export function pullRequestCommitsKey(instanceId: string, owner: string, repo: s
 
 export function repoIssuesKey(instanceId: string, owner: string, repo: string, state: string): string {
   return `${instanceId}:${owner}/${repo}:issues:${state}`;
+}
+
+export function repoLabelsKey(instanceId: string, owner: string, repo: string): string {
+  return `${instanceId}:${owner}/${repo}:labels`;
+}
+
+export function repoAssigneesKey(instanceId: string, owner: string, repo: string): string {
+  return `${instanceId}:${owner}/${repo}:assignees`;
+}
+
+export function repoMilestonesKey(instanceId: string, owner: string, repo: string): string {
+  return `${instanceId}:${owner}/${repo}:milestones`;
+}
+
+export function issueSubscriptionKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#issue-${index}:subscription`;
+}
+
+export function issueTrackedTimesKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#issue-${index}:tracked-times`;
+}
+
+export function userStopwatchesKey(instanceId: string): string {
+  return `${instanceId}:user-stopwatches`;
+}
+
+export function issueDependenciesKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#issue-${index}:dependencies`;
+}
+
+export function issueReactionsKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}#issue-${index}:reactions`;
+}
+
+export function commentReactionsKey(instanceId: string, owner: string, repo: string, commentId: number): string {
+  return `${instanceId}:${owner}/${repo}:comment-${commentId}:reactions`;
 }
 
 export function repoPullRequestsKey(instanceId: string, owner: string, repo: string, state: string): string {

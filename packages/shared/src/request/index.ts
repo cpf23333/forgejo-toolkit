@@ -95,10 +95,13 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
     throw new Error(`Forgejo API error ${response.status}: ${text || response.statusText}`);
   }
 
-  const data =
-    [204, 205, 304].includes(response.status) || !response.body
-      ? ({} as TResponseData)
-      : ((await response.json()) as TResponseData);
+  let data: TResponseData;
+  if ([204, 205, 304].includes(response.status)) {
+    data = {} as TResponseData;
+  } else {
+    const text = await response.text();
+    data = text ? (JSON.parse(text) as unknown as TResponseData) : ({} as TResponseData);
+  }
 
   return {
     data,

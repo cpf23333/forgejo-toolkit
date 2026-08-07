@@ -224,6 +224,30 @@ export type HostToWebviewMessage =
       pullRequests?: unknown[];
       error?: string;
     }
+  | {
+      command: 'repoLabels';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      labels?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'repoAssignees';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      assignees?: string[];
+      error?: string;
+    }
+  | {
+      command: 'repoMilestones';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      milestones?: unknown[];
+      error?: string;
+    }
   | { command: 'renderedMarkdown'; key: string; html?: string; error?: string }
   | {
       command: 'repoContents';
@@ -412,6 +436,131 @@ export type HostToWebviewMessage =
       existingTokens?: string[];
       settings?: ExportSettings;
       error?: string;
+    }
+  | {
+      command: 'issueSubscriptionChecked';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      subscribed?: boolean;
+      error?: string;
+    }
+  | {
+      command: 'issueSubscriptionChanged';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      subscribed?: boolean;
+      error?: string;
+    }
+  | {
+      command: 'issueStopwatchChanged';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      action: 'start' | 'stop' | 'delete';
+      error?: string;
+    }
+  | {
+      command: 'userStopwatches';
+      instanceId: string;
+      stopwatches?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'issueTrackedTimes';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      times?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'issueTimeAdded';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      time?: unknown;
+      error?: string;
+    }
+  | {
+      command: 'issueTimeReset';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      error?: string;
+    }
+  | {
+      command: 'issueTimeDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      id: number;
+      error?: string;
+    }
+  | {
+      command: 'issueDependencies';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      dependencies?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'issueDependencyChanged';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      dependencyIndex: number;
+      action: 'add' | 'remove';
+      error?: string;
+    }
+  | {
+      command: 'issueReactions';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      reactions?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'issueReactionChanged';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      content: string;
+      action: 'add' | 'remove';
+      error?: string;
+    }
+  | {
+      command: 'commentReactions';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+      reactions?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'commentReactionChanged';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+      content: string;
+      action: 'add' | 'remove';
+      error?: string;
     };
 
 export type WebviewToHostMessage =
@@ -450,7 +599,15 @@ export type WebviewToHostMessage =
       instanceId: string;
       owner: string;
       repo: string;
-      data: { title: string; body: string };
+      data: {
+        title: string;
+        body: string;
+        ref?: string;
+        labels?: number[];
+        assignees?: string[];
+        milestone?: number;
+        due_date?: string;
+      };
       _requestId: string;
     }
   | {
@@ -459,7 +616,16 @@ export type WebviewToHostMessage =
       owner: string;
       repo: string;
       index: number;
-      data: { title?: string; body?: string; state?: 'open' | 'closed' };
+      data: {
+        title?: string;
+        body?: string;
+        state?: 'open' | 'closed';
+        labels?: number[];
+        assignees?: string[];
+        milestone?: number;
+        due_date?: string;
+        unset_due_date?: boolean;
+      };
     }
   | {
       command: 'createIssueComment';
@@ -585,6 +751,9 @@ export type WebviewToHostMessage =
     }
   | { command: 'getRepoIssues'; instanceId: string; owner: string; repo: string; state?: string }
   | { command: 'getRepoPullRequests'; instanceId: string; owner: string; repo: string; state?: string }
+  | { command: 'getRepoLabels'; instanceId: string; owner: string; repo: string }
+  | { command: 'getRepoAssignees'; instanceId: string; owner: string; repo: string }
+  | { command: 'getRepoMilestones'; instanceId: string; owner: string; repo: string }
   | { command: 'renderMarkdown'; instanceId: string; text: string; context?: string; key: string }
   | { command: 'getRepoContents'; instanceId: string; owner: string; repo: string; path: string; ref: string }
   | { command: 'openRepoFile'; instanceId: string; owner: string; repo: string; path: string; ref: string }
@@ -726,4 +895,130 @@ export type WebviewToHostMessage =
       command: 'importInstances';
       instances?: ForgejoInstance[];
       settings?: ExportSettings;
+    }
+  | {
+      command: 'checkIssueSubscription';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
+      command: 'changeIssueSubscription';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      user: string;
+      subscribe: boolean;
+    }
+  | {
+      command: 'startIssueStopwatch';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
+      command: 'stopIssueStopwatch';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
+      command: 'deleteIssueStopwatch';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
+      command: 'getUserStopwatches';
+      instanceId: string;
+    }
+  | {
+      command: 'getIssueTrackedTimes';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
+      command: 'addIssueTime';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      time: number;
+    }
+  | {
+      command: 'resetIssueTime';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
+      command: 'deleteIssueTime';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      id: number;
+    }
+  | {
+      command: 'getIssueDependencies';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
+      command: 'createIssueDependency';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      dependencyIndex: number;
+    }
+  | {
+      command: 'removeIssueDependency';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      dependencyIndex: number;
+    }
+  | {
+      command: 'getIssueReactions';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
+      command: 'changeIssueReaction';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      content: string;
+      add: boolean;
+    }
+  | {
+      command: 'getCommentReactions';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+    }
+  | {
+      command: 'changeCommentReaction';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      commentId: number;
+      content: string;
+      add: boolean;
     };

@@ -553,7 +553,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             try {
               const client = new ForgejoClient(instance.url, instance.token, logger);
-              const item = await client.editIssue(owner, repo, index, data);
+              const { labels, ...issueData } = data as {
+                title?: string;
+                body?: string;
+                state?: string;
+                labels?: number[];
+                assignees?: string[];
+                milestone?: number;
+                due_date?: string;
+                unset_due_date?: boolean;
+              };
+              const item = await client.editIssue(owner, repo, index, issueData);
+              if (Array.isArray(labels)) {
+                await client.replaceIssueLabels(owner, repo, index, labels);
+              }
               this._reply('issueUpdated', {
                 instanceId: instance.id,
                 owner,
@@ -565,6 +578,518 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`editIssue failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
               this._reply('issueUpdated', { instanceId: message.instanceId, owner, repo, index, error: err });
+            }
+            return;
+          }
+          case 'checkIssueSubscription': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const info = await client.checkIssueSubscription(owner, repo, index);
+              this._reply('issueSubscriptionChecked', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                subscribed: info.subscribed,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`checkIssueSubscription failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueSubscriptionChecked', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'changeIssueSubscription': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, user, subscribe } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof user !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              if (subscribe) {
+                await client.addIssueSubscription(owner, repo, index, user);
+              } else {
+                await client.deleteIssueSubscription(owner, repo, index, user);
+              }
+              this._reply('issueSubscriptionChanged', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                subscribed: subscribe,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`changeIssueSubscription failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueSubscriptionChanged', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'startIssueStopwatch':
+          case 'stopIssueStopwatch':
+          case 'deleteIssueStopwatch': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              let action: 'start' | 'stop' | 'delete';
+              if (message.command === 'startIssueStopwatch') {
+                action = 'start';
+                await client.startIssueStopwatch(owner, repo, index);
+              } else if (message.command === 'stopIssueStopwatch') {
+                action = 'stop';
+                await client.stopIssueStopwatch(owner, repo, index);
+              } else {
+                action = 'delete';
+                await client.deleteIssueStopwatch(owner, repo, index);
+              }
+              this._reply('issueStopwatchChanged', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                action,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`${message.command} failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueStopwatchChanged', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                action: 'start',
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'getUserStopwatches': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const stopwatches = await client.getUserStopWatches();
+              this._reply('userStopwatches', {
+                instanceId: instance.id,
+                stopwatches,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getUserStopWatches failed for ${instance.name}: ${err}`);
+              this._reply('userStopwatches', {
+                instanceId: message.instanceId,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'getIssueTrackedTimes': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const times = await client.listIssueTrackedTimes(owner, repo, index);
+              this._reply('issueTrackedTimes', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                times,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getIssueTrackedTimes failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueTrackedTimes', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'addIssueTime': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, time } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof time !== 'number'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const trackedTime = await client.addIssueTime(owner, repo, index, time);
+              this._reply('issueTimeAdded', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                time: trackedTime,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`addIssueTime failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueTimeAdded', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'resetIssueTime': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.resetIssueTime(owner, repo, index);
+              this._reply('issueTimeReset', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`resetIssueTime failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueTimeReset', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'deleteIssueTime': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, id } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof id !== 'number'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.deleteIssueTime(owner, repo, index, id);
+              this._reply('issueTimeDeleted', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                id,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`deleteIssueTime failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueTimeDeleted', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                id,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'getIssueDependencies': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const dependencies = await client.listIssueDependencies(owner, repo, index);
+              this._reply('issueDependencies', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                dependencies,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getIssueDependencies failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueDependencies', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'createIssueDependency':
+          case 'removeIssueDependency': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, dependencyIndex } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof dependencyIndex !== 'number'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const action = message.command === 'createIssueDependency' ? ('add' as const) : ('remove' as const);
+              if (message.command === 'createIssueDependency') {
+                await client.createIssueDependency(owner, repo, index, dependencyIndex);
+              } else {
+                await client.removeIssueDependency(owner, repo, index, dependencyIndex);
+              }
+              this._reply('issueDependencyChanged', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                dependencyIndex,
+                action,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`${message.command} failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueDependencyChanged', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                dependencyIndex,
+                action: 'add',
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'getIssueReactions': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const reactions = await client.getIssueReactions(owner, repo, index);
+              this._reply('issueReactions', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                reactions,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getIssueReactions failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueReactions', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'changeIssueReaction': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, content, add } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof content !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              if (add) {
+                await client.addIssueReaction(owner, repo, index, content);
+              } else {
+                await client.removeIssueReaction(owner, repo, index, content);
+              }
+              this._reply('issueReactionChanged', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                content,
+                action: add ? 'add' : 'remove',
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`changeIssueReaction failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueReactionChanged', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                content,
+                action: 'add',
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'getCommentReactions': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, commentId } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof commentId !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const reactions = await client.getCommentReactions(owner, repo, commentId);
+              this._reply('commentReactions', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                commentId,
+                reactions,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(
+                `getCommentReactions failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`,
+              );
+              this._reply('commentReactions', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                commentId,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'changeCommentReaction': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, commentId, content, add } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof commentId !== 'number' ||
+              typeof content !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              if (add) {
+                await client.addCommentReaction(owner, repo, commentId, content);
+              } else {
+                await client.removeCommentReaction(owner, repo, commentId, content);
+              }
+              this._reply('commentReactionChanged', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                commentId,
+                content,
+                action: add ? 'add' : 'remove',
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(
+                `changeCommentReaction failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`,
+              );
+              this._reply('commentReactionChanged', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                commentId,
+                content,
+                action: 'add',
+                error: err,
+              });
             }
             return;
           }
@@ -1222,6 +1747,66 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 state: message.state ?? 'open',
                 error: err,
               });
+            }
+            return;
+          }
+          case 'getRepoLabels': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const labels = await client.getRepoLabels(owner, repo);
+              this._reply('repoLabels', { instanceId: instance.id, owner, repo, labels });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getRepoLabels failed for ${instance.name}/${owner}/${repo}: ${err}`);
+              this._reply('repoLabels', { instanceId: message.instanceId, owner, repo, error: err });
+            }
+            return;
+          }
+          case 'getRepoAssignees': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const assignees = await client.getRepoAssignees(owner, repo);
+              this._reply('repoAssignees', { instanceId: instance.id, owner, repo, assignees });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getRepoAssignees failed for ${instance.name}/${owner}/${repo}: ${err}`);
+              this._reply('repoAssignees', { instanceId: message.instanceId, owner, repo, error: err });
+            }
+            return;
+          }
+          case 'getRepoMilestones': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const milestones = await client.getRepoMilestones(owner, repo);
+              this._reply('repoMilestones', { instanceId: instance.id, owner, repo, milestones });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getRepoMilestones failed for ${instance.name}/${owner}/${repo}: ${err}`);
+              this._reply('repoMilestones', { instanceId: message.instanceId, owner, repo, error: err });
             }
             return;
           }

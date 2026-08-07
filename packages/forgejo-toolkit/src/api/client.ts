@@ -3,20 +3,43 @@ import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
   getTree,
+  issueAddSubscription,
+  issueAddTime,
+  issueCheckSubscription,
   issueCreateComment,
   issueCreateIssue,
   issueCreateIssueAttachment,
   issueCreateIssueCommentAttachment,
+  issueCreateIssueDependencies,
   issueDeleteComment,
+  issueDeleteCommentReaction,
   issueDeleteIssueAttachment,
   issueDeleteIssueCommentAttachment,
+  issueDeleteIssueReaction,
+  issueDeleteStopWatch,
+  issueDeleteSubscription,
+  issueDeleteTime,
   issueEditComment,
   issueEditIssue,
+  issueGetCommentReactions,
   issueGetCommentsAndTimeline,
   issueGetIssue,
+  issueGetIssueReactions,
+  issueGetMilestonesList,
   issueListIssueCommentAttachments,
+  issueListIssueDependencies,
   issueListIssues,
+  issueListLabels,
+  issuePostCommentReaction,
+  issuePostIssueReaction,
+  issueRemoveIssueDependencies,
+  issueReplaceLabels,
+  issueResetTime,
   issueSearchIssues,
+  issueStartStopWatch,
+  issueStopStopWatch,
+  issueSubscriptions,
+  issueTrackedTimes,
   notifyGetList,
   notifyReadList,
   notifyReadThread,
@@ -34,6 +57,7 @@ import {
   repoEditRelease,
   repoGet,
   repoGetAllCommits,
+  repoGetAssignees,
   repoGetContents,
   repoGetContentsList,
   repoGetPullRequest,
@@ -47,9 +71,11 @@ import {
   repoSearch,
   userCurrentListRepos,
   userGetCurrent,
+  userGetStopWatches,
 } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
+  AddTimeOption,
   Attachment,
   Commit,
   CreateBranchRepoOption,
@@ -61,7 +87,15 @@ import type {
   EditPullRequestOption,
   EditReleaseOption,
   GitEntry,
+  IssueMeta,
+  Label,
+  Milestone,
+  Reaction,
+  StopWatch,
   TimelineComment,
+  TrackedTime,
+  User,
+  WatchInfo,
 } from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
 import type {
@@ -91,6 +125,10 @@ export class ForgejoClient {
 
   getCurrentUser(): Promise<ForgejoUser> {
     return userGetCurrent({ client: this._client() }) as Promise<ForgejoUser>;
+  }
+
+  getUserStopWatches(): Promise<StopWatch[]> {
+    return userGetStopWatches(undefined, { client: this._client() }) as Promise<StopWatch[]>;
   }
 
   getUserRepositories(): Promise<ForgejoRepository[]> {
@@ -418,6 +456,26 @@ export class ForgejoClient {
     ) as Promise<ForgejoIssue[]>;
   }
 
+  async getRepoLabels(owner: string, repo: string): Promise<Label[]> {
+    const labels = await issueListLabels(owner, repo, { limit: 100 }, { client: this._client() });
+    return (labels ?? []) as Label[];
+  }
+
+  async getRepoAssignees(owner: string, repo: string): Promise<string[]> {
+    const users = await repoGetAssignees(owner, repo, { client: this._client() });
+    return ((users ?? []) as User[]).map((user) => user.login ?? '').filter(Boolean);
+  }
+
+  async getRepoMilestones(owner: string, repo: string): Promise<Milestone[]> {
+    const milestones = await issueGetMilestonesList(
+      owner,
+      repo,
+      { state: 'open', limit: 100 },
+      { client: this._client() },
+    );
+    return (milestones ?? []) as Milestone[];
+  }
+
   getRepoPullRequests(owner: string, repo: string, state: string = 'open'): Promise<ForgejoPullRequest[]> {
     return repoListPullRequests(
       owner,
@@ -433,6 +491,97 @@ export class ForgejoClient {
 
   editIssue(owner: string, repo: string, index: number, data: EditIssueOption): Promise<ForgejoIssue> {
     return issueEditIssue(owner, repo, index, data, { client: this._client() }) as Promise<ForgejoIssue>;
+  }
+
+  replaceIssueLabels(owner: string, repo: string, index: number, labels: number[]): Promise<Label[]> {
+    return issueReplaceLabels(owner, repo, index, { labels }, { client: this._client() }) as Promise<Label[]>;
+  }
+
+  checkIssueSubscription(owner: string, repo: string, index: number): Promise<WatchInfo> {
+    return issueCheckSubscription(owner, repo, index, { client: this._client() }) as Promise<WatchInfo>;
+  }
+
+  addIssueSubscription(owner: string, repo: string, index: number, user: string): Promise<unknown> {
+    return issueAddSubscription(owner, repo, index, user, { client: this._client() });
+  }
+
+  deleteIssueSubscription(owner: string, repo: string, index: number, user: string): Promise<unknown> {
+    return issueDeleteSubscription(owner, repo, index, user, { client: this._client() });
+  }
+
+  startIssueStopwatch(owner: string, repo: string, index: number): Promise<unknown> {
+    return issueStartStopWatch(owner, repo, index, { client: this._client() });
+  }
+
+  stopIssueStopwatch(owner: string, repo: string, index: number): Promise<unknown> {
+    return issueStopStopWatch(owner, repo, index, { client: this._client() });
+  }
+
+  deleteIssueStopwatch(owner: string, repo: string, index: number): Promise<unknown> {
+    return issueDeleteStopWatch(owner, repo, index, { client: this._client() });
+  }
+
+  listIssueTrackedTimes(owner: string, repo: string, index: number): Promise<TrackedTime[]> {
+    return issueTrackedTimes(owner, repo, index, undefined, { client: this._client() }) as Promise<TrackedTime[]>;
+  }
+
+  addIssueTime(owner: string, repo: string, index: number, time: number): Promise<TrackedTime> {
+    const data: AddTimeOption = { time };
+    return issueAddTime(owner, repo, index, data, { client: this._client() }) as Promise<TrackedTime>;
+  }
+
+  resetIssueTime(owner: string, repo: string, index: number): Promise<unknown> {
+    return issueResetTime(owner, repo, index, { client: this._client() });
+  }
+
+  deleteIssueTime(owner: string, repo: string, index: number, id: number): Promise<unknown> {
+    return issueDeleteTime(owner, repo, index, id, { client: this._client() });
+  }
+
+  listIssueDependencies(owner: string, repo: string, index: number): Promise<ForgejoIssue[]> {
+    return issueListIssueDependencies(owner, repo, index, undefined, { client: this._client() }) as Promise<
+      ForgejoIssue[]
+    >;
+  }
+
+  createIssueDependency(owner: string, repo: string, index: number, dependencyIndex: number): Promise<unknown> {
+    const data: IssueMeta = { index: dependencyIndex };
+    return issueCreateIssueDependencies(owner, repo, index, data, { client: this._client() });
+  }
+
+  removeIssueDependency(owner: string, repo: string, index: number, dependencyIndex: number): Promise<unknown> {
+    const data: IssueMeta = { index: dependencyIndex };
+    return issueRemoveIssueDependencies(owner, repo, index, data, { client: this._client() });
+  }
+
+  getIssueReactions(owner: string, repo: string, index: number): Promise<Reaction[]> {
+    return issueGetIssueReactions(owner, repo, index, undefined, { client: this._client() }) as Promise<Reaction[]>;
+  }
+
+  addIssueReaction(owner: string, repo: string, index: number, content: string): Promise<Reaction> {
+    return issuePostIssueReaction(owner, repo, index, { content }, { client: this._client() }) as Promise<Reaction>;
+  }
+
+  removeIssueReaction(owner: string, repo: string, index: number, content: string): Promise<unknown> {
+    return issueDeleteIssueReaction(owner, repo, index, { content }, { client: this._client() });
+  }
+
+  getCommentReactions(owner: string, repo: string, commentId: number): Promise<Reaction[]> {
+    return issueGetCommentReactions(owner, repo, commentId, { client: this._client() }) as Promise<Reaction[]>;
+  }
+
+  addCommentReaction(owner: string, repo: string, commentId: number, content: string): Promise<Reaction> {
+    return issuePostCommentReaction(
+      owner,
+      repo,
+      commentId,
+      { content },
+      { client: this._client() },
+    ) as Promise<Reaction>;
+  }
+
+  removeCommentReaction(owner: string, repo: string, commentId: number, content: string): Promise<unknown> {
+    return issueDeleteCommentReaction(owner, repo, commentId, { content }, { client: this._client() });
   }
 
   createIssueAttachment(
