@@ -5,8 +5,9 @@ import MarkdownBody from './MarkdownBody.vue';
 import AttachmentList from './AttachmentList.vue';
 import ModalDialog from './ModalDialog.vue';
 import EasyMdeEditor from './EasyMdeEditor.vue';
+import ReactionBar from './ReactionBar.vue';
 import type { ForgejoTimelineComment, ForgejoIssueAttachment } from '../types/api';
-import { useAppState, issueCommentEditFormKey } from '../composables/useAppState';
+import { useAppState, issueCommentEditFormKey, commentReactionsKey } from '../composables/useAppState';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -71,10 +72,37 @@ watch(
       if (comment.type === 'comment' && comment.body) {
         renderComment(comment);
       }
+      if (comment.type === 'comment' && comment.id !== undefined) {
+        state.loadCommentReactions(props.instanceId, props.owner, props.repo, comment.id);
+      }
     }
   },
   { immediate: true, deep: true },
 );
+
+function getCommentReactionsKey(comment: ForgejoTimelineComment): string {
+  if (comment.id === undefined) {
+    return '';
+  }
+  return commentReactionsKey(props.instanceId, props.owner, props.repo, comment.id);
+}
+
+function getCommentReactions(comment: ForgejoTimelineComment) {
+  const key = getCommentReactionsKey(comment);
+  return key ? (state.commentReactions.value.get(key) ?? []) : [];
+}
+
+function getCommentReactionsLoading(comment: ForgejoTimelineComment) {
+  const key = getCommentReactionsKey(comment);
+  return key ? (state.loading.get(key) ?? false) : false;
+}
+
+function handleCommentReactionToggle(comment: ForgejoTimelineComment, content: string, add: boolean) {
+  if (comment.id === undefined) {
+    return;
+  }
+  state.changeCommentReaction(props.instanceId, props.owner, props.repo, comment.id, content, add);
+}
 
 function formatDate(date: string): string {
   try {
@@ -355,6 +383,14 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           @open-external="openExternal"
         />
       </div>
+      <ReactionBar
+        v-if="comment.type === 'comment' && comment.id !== undefined"
+        class="comment-reactions"
+        :reactions="getCommentReactions(comment)"
+        :current-username="currentUsername"
+        :loading="getCommentReactionsLoading(comment)"
+        @toggle="(content, add) => handleCommentReactionToggle(comment, content, add)"
+      />
     </div>
 
     <ModalDialog
@@ -537,6 +573,10 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.comment-reactions {
+  margin-top: 8px;
 }
 
 .error {
