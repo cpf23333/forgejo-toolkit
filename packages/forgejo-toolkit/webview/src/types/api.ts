@@ -153,6 +153,22 @@ export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {
   mergeable?: boolean;
   draft?: boolean;
   mergeBlockers?: MergeBlocker[];
+  statusChecks?: ForgejoStatusChecks;
+}
+
+export interface ForgejoStatusChecks {
+  state?: string;
+  statuses: ForgejoStatusCheck[];
+}
+
+export interface ForgejoStatusCheck {
+  id?: number;
+  context?: string;
+  description?: string;
+  status?: string;
+  target_url?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface MergeBlocker {

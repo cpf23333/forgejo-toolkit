@@ -267,6 +267,16 @@
           "required_status_checks": "状态检查未通过（当前状态：{state}）"
         }
       },
+      "checks": "状态检查",
+      "checksEmpty": "没有状态检查",
+      "checksState": {
+        "success": "通过",
+        "pending": "进行中",
+        "failure": "失败",
+        "error": "错误",
+        "warning": "警告",
+        "unknown": "未知"
+      },
       "mergeStrategy": {
         "merge": "创建合并提交",
         "squash": "压缩后合并",

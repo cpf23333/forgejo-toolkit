@@ -267,6 +267,16 @@
           "required_status_checks": "Required status checks have not passed (state: {state})"
         }
       },
+      "checks": "Checks",
+      "checksEmpty": "No checks",
+      "checksState": {
+        "success": "Passed",
+        "pending": "Pending",
+        "failure": "Failed",
+        "error": "Error",
+        "warning": "Warning",
+        "unknown": "Unknown"
+      },
       "mergeStrategy": {
         "merge": "Create a merge commit",
         "squash": "Squash and merge",

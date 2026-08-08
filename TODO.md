@@ -2,7 +2,7 @@
 
 ## 待开始
 
-- [ ] 读取仓库 Actions 运行状态和历史
+- [ ] 读取仓库 Actions 运行状态和历史（仓库详情页 / Actions 标签页）
 - [ ] 接入 MSW mock 用于测试或离线开发
 - [ ] 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试
 - [ ] 评估将 extension host 打包从 esbuild 迁移到 Rolldown，统一构建工具链
@@ -73,6 +73,7 @@
 - [x] PR 详情页支持依赖议题管理
 - [x] PR 编辑表单支持负责人、标签、里程碑、到期时间、引用
 - [x] PR 详情页显示合并状态及具体阻塞原因
+- [x] PR 详情页展示状态检查（status checks）列表
 
 ### 通知与搜索
 

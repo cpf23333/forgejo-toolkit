@@ -12,6 +12,12 @@ The runtime may compact or drop earlier context, including the cached copy of th
 
 This rule takes precedence over any compacted summary, TODO list, or earlier user instruction that may have been lost or simplified.
 
+## 最高优先级规则（不可在压缩中忽略）
+
+- 每次会话恢复、上下文压缩、或本文件内容未在上下文中清晰呈现时，必须重新从磁盘读取本文件。
+- 在重新读取并确认本文件内容之前，不得执行任何 build、commit、push、reset、rebase、checkout 或代码修改。
+- 如果本文件中的规则与任何压缩摘要、TODO 列表或用户之前的口头授权相冲突，以本文件为准；不确定时停止并询问用户。
+
 ## Package scope
 
 - Use `@cpf23333-forgejo-toolkit/` for all workspace packages, not `@forgejo/`.

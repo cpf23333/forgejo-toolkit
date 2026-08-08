@@ -279,6 +279,29 @@ function blockerText(blocker: MergeBlocker): string {
   }
 }
 
+const statusChecks = computed(() => detail.value?.statusChecks);
+const hasStatusChecks = computed(() => (statusChecks.value?.statuses.length ?? 0) > 0);
+
+function checkStatusIcon(status?: string): string {
+  switch (status) {
+    case 'success':
+      return 'check';
+    case 'pending':
+      return 'watch';
+    case 'failure':
+    case 'error':
+      return 'error';
+    case 'warning':
+      return 'warning';
+    default:
+      return 'question';
+  }
+}
+
+function checkStatusClass(status?: string): string {
+  return status ?? 'unknown';
+}
+
 function handleMerge() {
   if (!canMerge.value) {
     return;
@@ -947,6 +970,41 @@ function reloadPullRequest() {
           </button>
         </div>
 
+        <div v-if="hasStatusChecks" class="checks-section">
+          <h3>{{ t('dashboard.detail.checks') }}</h3>
+          <div class="checks-summary">
+            <vscode-icon
+              :class="['check-icon', checkStatusClass(statusChecks?.state)]"
+              :name="checkStatusIcon(statusChecks?.state)"
+            />
+            <span>{{ t(`dashboard.detail.checksState.${statusChecks?.state ?? 'unknown'}`) }}</span>
+          </div>
+          <div class="checks-list">
+            <div v-for="check in statusChecks?.statuses" :key="check.id ?? check.context" class="check-item">
+              <a
+                v-if="check.target_url"
+                class="check-row link-button"
+                :href="check.target_url"
+                @click.prevent="state.openExternal(check.target_url)"
+              >
+                <vscode-icon
+                  :class="['check-icon', checkStatusClass(check.status)]"
+                  :name="checkStatusIcon(check.status)"
+                />
+                <span class="check-context">{{ check.context }}</span>
+              </a>
+              <div v-else class="check-row">
+                <vscode-icon
+                  :class="['check-icon', checkStatusClass(check.status)]"
+                  :name="checkStatusIcon(check.status)"
+                />
+                <span class="check-context">{{ check.context }}</span>
+              </div>
+              <span v-if="check.description" class="check-description">{{ check.description }}</span>
+            </div>
+          </div>
+        </div>
+
         <div v-if="canMerge" class="merge-section">
           <h3>{{ t('dashboard.detail.mergePullRequest') }}</h3>
           <div class="merge-status-list">
@@ -1601,6 +1659,80 @@ function reloadPullRequest() {
 
 .merge-status.unknown {
   color: var(--vscode-descriptionForeground);
+}
+
+.checks-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checks-section h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--vscode-foreground);
+}
+
+.checks-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.checks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.check-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+}
+
+.check-icon {
+  flex-shrink: 0;
+}
+
+.check-icon.success {
+  color: var(--vscode-testing-iconPassed, var(--vscode-gitDecoration-addedResourceForeground));
+}
+
+.check-icon.pending {
+  color: var(--vscode-descriptionForeground);
+}
+
+.check-icon.failure,
+.check-icon.error {
+  color: var(--vscode-testing-iconFailed, var(--vscode-gitDecoration-deletedResourceForeground));
+}
+
+.check-icon.warning {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-gitDecoration-untrackedResourceForeground));
+}
+
+.check-icon.unknown {
+  color: var(--vscode-descriptionForeground);
+}
+
+.check-context {
+  color: var(--vscode-foreground);
+}
+
+.check-description {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  margin-left: 22px;
 }
 
 .loading-inline {

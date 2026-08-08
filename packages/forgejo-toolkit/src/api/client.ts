@@ -443,21 +443,51 @@ export class ForgejoClient {
     const permissions = (repoInfo as { permissions?: { admin?: boolean; push?: boolean; pull?: boolean } } | undefined)
       ?.permissions;
     const prDetail = pr as ForgejoPullRequestDetail;
-    const mergeBlockers = await this._getMergeBlockers(owner, repo, prDetail, permissions);
+    const baseRef = prDetail.base?.ref;
+    const headSha = prDetail.head?.sha;
+    const [protection, combinedStatus] = await Promise.all([
+      baseRef
+        ? repoGetBranchProtection(owner, repo, baseRef, { client: this._client() }).catch(() => undefined)
+        : undefined,
+      headSha
+        ? repoGetCombinedStatusByRef(owner, repo, headSha, undefined, { client: this._client() }).catch(() => undefined)
+        : undefined,
+    ]);
+    const mergeBlockers = this._buildMergeBlockers(prDetail, permissions, protection, combinedStatus);
+    const statusChecks = combinedStatus
+      ? {
+          state: combinedStatus.state,
+          statuses: (combinedStatus.statuses ?? []).map((status) => ({
+            id: status.id,
+            context: status.context,
+            description: status.description,
+            status: status.status,
+            target_url: status.target_url,
+            created_at: status.created_at,
+            updated_at: status.updated_at,
+          })),
+        }
+      : undefined;
     return {
       ...prDetail,
       assets: (issue as ForgejoIssueDetail | undefined)?.assets,
       repoPermissions: permissions,
       mergeBlockers,
+      statusChecks,
     };
   }
 
-  private async _getMergeBlockers(
-    owner: string,
-    repo: string,
+  private _buildMergeBlockers(
     pr: ForgejoPullRequestDetail,
     permissions?: { admin?: boolean; push?: boolean; pull?: boolean },
-  ): Promise<MergeBlocker[]> {
+    protection?: {
+      apply_to_admins?: boolean;
+      required_approvals?: number;
+      enable_status_check?: boolean;
+      status_check_contexts?: string[];
+    },
+    combinedStatus?: { state?: string },
+  ): MergeBlocker[] {
     const blockers: MergeBlocker[] = [];
 
     if (pr.draft) {
@@ -469,22 +499,6 @@ export class ForgejoClient {
     if (!permissions?.admin && !permissions?.push) {
       blockers.push({ type: 'no_permission' });
     }
-
-    const baseRef = pr.base?.ref;
-    const headSha = pr.head?.sha;
-    if (!baseRef) {
-      if (pr.mergeable === false && blockers.length === 0) {
-        blockers.push({ type: 'conflicts' });
-      }
-      return blockers;
-    }
-
-    const [protection, combinedStatus] = await Promise.all([
-      repoGetBranchProtection(owner, repo, baseRef, { client: this._client() }).catch(() => undefined),
-      headSha
-        ? repoGetCombinedStatusByRef(owner, repo, headSha, undefined, { client: this._client() }).catch(() => undefined)
-        : Promise.resolve(undefined),
-    ]);
 
     const canBypassProtection = permissions?.admin === true && protection?.apply_to_admins !== true;
     if (protection && !canBypassProtection) {
