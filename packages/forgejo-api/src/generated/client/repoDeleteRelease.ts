@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteReleaseMutationResponse,
   RepoDeleteReleasePathParams,
   RepoDeleteRelease404,
   RepoDeleteRelease422,
-} from "../types/RepoDeleteRelease"
+} from '../types/RepoDeleteRelease';
 
 function getRepoDeleteReleaseUrl(
-  owner: RepoDeleteReleasePathParams["owner"],
-  repo: RepoDeleteReleasePathParams["repo"],
-  id: RepoDeleteReleasePathParams["id"],
+  owner: RepoDeleteReleasePathParams['owner'],
+  repo: RepoDeleteReleasePathParams['repo'],
+  id: RepoDeleteReleasePathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/releases/${id}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoDeleteReleaseUrl(
  * {@link /repos/:owner/:repo/releases/:id}
  */
 export async function repoDeleteRelease(
-  owner: RepoDeleteReleasePathParams["owner"],
-  repo: RepoDeleteReleasePathParams["repo"],
-  id: RepoDeleteReleasePathParams["id"],
+  owner: RepoDeleteReleasePathParams['owner'],
+  repo: RepoDeleteReleasePathParams['repo'],
+  id: RepoDeleteReleasePathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoDeleteRelease(
     ResponseErrorConfig<RepoDeleteRelease404 | RepoDeleteRelease422>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteReleaseUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueCreateCommentMutationRequest,
   IssueCreateCommentMutationResponse,
@@ -17,15 +13,15 @@ import type {
   IssueCreateComment404,
   IssueCreateComment423,
   IssueCreateComment500,
-} from "../types/IssueCreateComment"
+} from '../types/IssueCreateComment';
 
 function getIssueCreateCommentUrl(
-  owner: IssueCreateCommentPathParams["owner"],
-  repo: IssueCreateCommentPathParams["repo"],
-  index: IssueCreateCommentPathParams["index"],
+  owner: IssueCreateCommentPathParams['owner'],
+  repo: IssueCreateCommentPathParams['repo'],
+  index: IssueCreateCommentPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/comments` as const,
   };
   return res;
@@ -36,9 +32,9 @@ function getIssueCreateCommentUrl(
  * {@link /repos/:owner/:repo/issues/:index/comments}
  */
 export async function issueCreateComment(
-  owner: IssueCreateCommentPathParams["owner"],
-  repo: IssueCreateCommentPathParams["repo"],
-  index: IssueCreateCommentPathParams["index"],
+  owner: IssueCreateCommentPathParams['owner'],
+  repo: IssueCreateCommentPathParams['repo'],
+  index: IssueCreateCommentPathParams['index'],
   data: IssueCreateCommentMutationRequest,
   config: Partial<RequestConfig<IssueCreateCommentMutationRequest>> & {
     client?: Client;
@@ -50,15 +46,10 @@ export async function issueCreateComment(
 
   const res = await request<
     IssueCreateCommentMutationResponse,
-    ResponseErrorConfig<
-      | IssueCreateComment403
-      | IssueCreateComment404
-      | IssueCreateComment423
-      | IssueCreateComment500
-    >,
+    ResponseErrorConfig<IssueCreateComment403 | IssueCreateComment404 | IssueCreateComment423 | IssueCreateComment500>,
     IssueCreateCommentMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueCreateCommentUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
 
 export type RepoCancelScheduledAutoMergePathParams = {
   /**
@@ -45,14 +45,10 @@ export type RepoCancelScheduledAutoMerge404 = APINotFound;
  */
 export type RepoCancelScheduledAutoMerge423 = APIRepoArchivedError;
 
-export type RepoCancelScheduledAutoMergeMutationResponse =
-  RepoCancelScheduledAutoMerge204;
+export type RepoCancelScheduledAutoMergeMutationResponse = RepoCancelScheduledAutoMerge204;
 
 export type RepoCancelScheduledAutoMergeMutation = {
   Response: RepoCancelScheduledAutoMerge204;
   PathParams: RepoCancelScheduledAutoMergePathParams;
-  Errors:
-    | RepoCancelScheduledAutoMerge403
-    | RepoCancelScheduledAutoMerge404
-    | RepoCancelScheduledAutoMerge423;
+  Errors: RepoCancelScheduledAutoMerge403 | RepoCancelScheduledAutoMerge404 | RepoCancelScheduledAutoMerge423;
 };

@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListQuotaAttachmentsQueryResponse,
   OrgListQuotaAttachmentsPathParams,
   OrgListQuotaAttachmentsQueryParams,
   OrgListQuotaAttachments403,
   OrgListQuotaAttachments404,
-} from "../types/OrgListQuotaAttachments"
+} from '../types/OrgListQuotaAttachments';
 
-function getOrgListQuotaAttachmentsUrl(
-  org: OrgListQuotaAttachmentsPathParams["org"],
-) {
-  const res = { method: "GET", url: `/orgs/${org}/quota/attachments` as const };
+function getOrgListQuotaAttachmentsUrl(org: OrgListQuotaAttachmentsPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/quota/attachments` as const };
   return res;
 }
 
@@ -29,7 +23,7 @@ function getOrgListQuotaAttachmentsUrl(
  * {@link /orgs/:org/quota/attachments}
  */
 export async function orgListQuotaAttachments(
-  org: OrgListQuotaAttachmentsPathParams["org"],
+  org: OrgListQuotaAttachmentsPathParams['org'],
   params?: OrgListQuotaAttachmentsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -37,12 +31,10 @@ export async function orgListQuotaAttachments(
 
   const res = await request<
     OrgListQuotaAttachmentsQueryResponse,
-    ResponseErrorConfig<
-      OrgListQuotaAttachments403 | OrgListQuotaAttachments404
-    >,
+    ResponseErrorConfig<OrgListQuotaAttachments403 | OrgListQuotaAttachments404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getOrgListQuotaAttachmentsUrl(org).url.toString(),
     params,
     ...requestConfig,

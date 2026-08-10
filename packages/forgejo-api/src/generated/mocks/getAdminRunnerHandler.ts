@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  GetAdminRunnerQueryResponse,
-  GetAdminRunner400,
-  GetAdminRunner404,
-} from "../types/GetAdminRunner"
-import { http } from "msw";
+import type { GetAdminRunnerQueryResponse, GetAdminRunner400, GetAdminRunner404 } from '../types/GetAdminRunner';
+import { http } from 'msw';
 
-export function getAdminRunnerHandlerResponse200(
-  data: GetAdminRunnerQueryResponse,
-) {
+export function getAdminRunnerHandlerResponse200(data: GetAdminRunnerQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function getAdminRunnerHandlerResponse400(data: GetAdminRunner400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function getAdminRunnerHandlerResponse404(data: GetAdminRunner404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function getAdminRunnerHandlerResponse404(data: GetAdminRunner404) {
 export function getAdminRunnerHandler(
   data?:
     | GetAdminRunnerQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/actions/runners/:runner_id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

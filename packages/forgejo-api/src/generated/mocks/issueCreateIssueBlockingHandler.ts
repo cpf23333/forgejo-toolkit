@@ -6,23 +6,19 @@
 import type {
   IssueCreateIssueBlockingMutationResponse,
   IssueCreateIssueBlocking404,
-} from "../types/IssueCreateIssueBlocking"
-import { http } from "msw";
+} from '../types/IssueCreateIssueBlocking';
+import { http } from 'msw';
 
-export function issueCreateIssueBlockingHandlerResponse201(
-  data: IssueCreateIssueBlockingMutationResponse,
-) {
+export function issueCreateIssueBlockingHandlerResponse201(data: IssueCreateIssueBlockingMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateIssueBlockingHandlerResponse404(
-  data?: IssueCreateIssueBlocking404,
-) {
+export function issueCreateIssueBlockingHandlerResponse404(data?: IssueCreateIssueBlocking404) {
   return new Response(JSON.stringify(data), {
     status: 404,
   });
@@ -31,21 +27,16 @@ export function issueCreateIssueBlockingHandlerResponse404(
 export function issueCreateIssueBlockingHandler(
   data?:
     | IssueCreateIssueBlockingMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/:index/blocks`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/:index/blocks`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,22 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ActivitypubPersonInboxMutationResponse,
   ActivitypubPersonInboxPathParams,
-} from "../types/ActivitypubPersonInbox"
+} from '../types/ActivitypubPersonInbox';
 
-function getActivitypubPersonInboxUrl(
-  userId: ActivitypubPersonInboxPathParams["user-id"],
-) {
+function getActivitypubPersonInboxUrl(userId: ActivitypubPersonInboxPathParams['user-id']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/activitypub/user-id/${userId}/inbox` as const,
   };
   return res;
@@ -29,17 +23,13 @@ function getActivitypubPersonInboxUrl(
  * {@link /activitypub/user-id/:user-id/inbox}
  */
 export async function activitypubPersonInbox(
-  userId: ActivitypubPersonInboxPathParams["user-id"],
+  userId: ActivitypubPersonInboxPathParams['user-id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ActivitypubPersonInboxMutationResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "POST",
+  const res = await request<ActivitypubPersonInboxMutationResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'POST',
     url: getActivitypubPersonInboxUrl(userId).url.toString(),
     ...requestConfig,
   });

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { Hook } from "./Hook"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { Hook } from './Hook';
 
 export type UserGetHookPathParams = {
   /**

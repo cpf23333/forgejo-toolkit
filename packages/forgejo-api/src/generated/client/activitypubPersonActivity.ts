@@ -3,23 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ActivitypubPersonActivityQueryResponse,
   ActivitypubPersonActivityPathParams,
-} from "../types/ActivitypubPersonActivity"
+} from '../types/ActivitypubPersonActivity';
 
 function getActivitypubPersonActivityUrl(
-  userId: ActivitypubPersonActivityPathParams["user-id"],
-  activityId: ActivitypubPersonActivityPathParams["activity-id"],
+  userId: ActivitypubPersonActivityPathParams['user-id'],
+  activityId: ActivitypubPersonActivityPathParams['activity-id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/activitypub/user-id/${userId}/activities/${activityId}/activity` as const,
   };
   return res;
@@ -30,18 +26,14 @@ function getActivitypubPersonActivityUrl(
  * {@link /activitypub/user-id/:user-id/activities/:activity-id/activity}
  */
 export async function activitypubPersonActivity(
-  userId: ActivitypubPersonActivityPathParams["user-id"],
-  activityId: ActivitypubPersonActivityPathParams["activity-id"],
+  userId: ActivitypubPersonActivityPathParams['user-id'],
+  activityId: ActivitypubPersonActivityPathParams['activity-id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ActivitypubPersonActivityQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ActivitypubPersonActivityQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getActivitypubPersonActivityUrl(userId, activityId).url.toString(),
     ...requestConfig,
   });

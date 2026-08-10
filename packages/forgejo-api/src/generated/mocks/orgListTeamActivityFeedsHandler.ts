@@ -6,27 +6,23 @@
 import type {
   OrgListTeamActivityFeedsQueryResponse,
   OrgListTeamActivityFeeds404,
-} from "../types/OrgListTeamActivityFeeds"
-import { http } from "msw";
+} from '../types/OrgListTeamActivityFeeds';
+import { http } from 'msw';
 
-export function orgListTeamActivityFeedsHandlerResponse200(
-  data: OrgListTeamActivityFeedsQueryResponse,
-) {
+export function orgListTeamActivityFeedsHandlerResponse200(data: OrgListTeamActivityFeedsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgListTeamActivityFeedsHandlerResponse404(
-  data: OrgListTeamActivityFeeds404,
-) {
+export function orgListTeamActivityFeedsHandlerResponse404(data: OrgListTeamActivityFeeds404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +30,15 @@ export function orgListTeamActivityFeedsHandlerResponse404(
 export function orgListTeamActivityFeedsHandler(
   data?:
     | OrgListTeamActivityFeedsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/teams/:id/activities/feeds`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

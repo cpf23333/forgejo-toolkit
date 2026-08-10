@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
+import type { APIForbiddenError } from './APIForbiddenError';
 
 export type AdminUnadoptedListQueryParams = {
   /**

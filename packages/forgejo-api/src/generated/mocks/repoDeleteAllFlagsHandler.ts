@@ -7,35 +7,29 @@ import type {
   RepoDeleteAllFlagsMutationResponse,
   RepoDeleteAllFlags403,
   RepoDeleteAllFlags404,
-} from "../types/RepoDeleteAllFlags"
-import { http } from "msw";
+} from '../types/RepoDeleteAllFlags';
+import { http } from 'msw';
 
-export function repoDeleteAllFlagsHandlerResponse204(
-  data?: RepoDeleteAllFlagsMutationResponse,
-) {
+export function repoDeleteAllFlagsHandlerResponse204(data?: RepoDeleteAllFlagsMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteAllFlagsHandlerResponse403(
-  data: RepoDeleteAllFlags403,
-) {
+export function repoDeleteAllFlagsHandlerResponse403(data: RepoDeleteAllFlags403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDeleteAllFlagsHandlerResponse404(
-  data: RepoDeleteAllFlags404,
-) {
+export function repoDeleteAllFlagsHandlerResponse404(data: RepoDeleteAllFlags404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,12 +41,10 @@ export function repoDeleteAllFlagsHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/repos/:owner/:repo/flags`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

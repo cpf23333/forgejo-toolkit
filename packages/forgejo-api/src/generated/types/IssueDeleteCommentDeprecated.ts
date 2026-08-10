@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIInternalServerError } from "./APIInternalServerError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIInternalServerError } from './APIInternalServerError';
 
 export type IssueDeleteCommentDeprecatedPathParams = {
   /**
@@ -44,8 +44,7 @@ export type IssueDeleteCommentDeprecated403 = APIForbiddenError;
  */
 export type IssueDeleteCommentDeprecated500 = APIInternalServerError;
 
-export type IssueDeleteCommentDeprecatedMutationResponse =
-  IssueDeleteCommentDeprecated204;
+export type IssueDeleteCommentDeprecatedMutationResponse = IssueDeleteCommentDeprecated204;
 
 export type IssueDeleteCommentDeprecatedMutation = {
   Response: IssueDeleteCommentDeprecated204;

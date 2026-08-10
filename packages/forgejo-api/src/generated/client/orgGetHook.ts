@@ -3,23 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  OrgGetHookQueryResponse,
-  OrgGetHookPathParams,
-  OrgGetHook404,
-} from "../types/OrgGetHook"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { OrgGetHookQueryResponse, OrgGetHookPathParams, OrgGetHook404 } from '../types/OrgGetHook';
 
-function getOrgGetHookUrl(
-  org: OrgGetHookPathParams["org"],
-  id: OrgGetHookPathParams["id"],
-) {
-  const res = { method: "GET", url: `/orgs/${org}/hooks/${id}` as const };
+function getOrgGetHookUrl(org: OrgGetHookPathParams['org'], id: OrgGetHookPathParams['id']) {
+  const res = { method: 'GET', url: `/orgs/${org}/hooks/${id}` as const };
   return res;
 }
 
@@ -28,18 +17,14 @@ function getOrgGetHookUrl(
  * {@link /orgs/:org/hooks/:id}
  */
 export async function orgGetHook(
-  org: OrgGetHookPathParams["org"],
-  id: OrgGetHookPathParams["id"],
+  org: OrgGetHookPathParams['org'],
+  id: OrgGetHookPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgGetHookQueryResponse,
-    ResponseErrorConfig<OrgGetHook404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgGetHookQueryResponse, ResponseErrorConfig<OrgGetHook404>, unknown>({
+    method: 'GET',
     url: getOrgGetHookUrl(org, id).url.toString(),
     ...requestConfig,
   });

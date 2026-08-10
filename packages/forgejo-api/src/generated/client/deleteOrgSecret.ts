@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteOrgSecretMutationResponse,
   DeleteOrgSecretPathParams,
   DeleteOrgSecret400,
   DeleteOrgSecret404,
-} from "../types/DeleteOrgSecret"
+} from '../types/DeleteOrgSecret';
 
 function getDeleteOrgSecretUrl(
-  org: DeleteOrgSecretPathParams["org"],
-  secretname: DeleteOrgSecretPathParams["secretname"],
+  org: DeleteOrgSecretPathParams['org'],
+  secretname: DeleteOrgSecretPathParams['secretname'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/orgs/${org}/actions/secrets/${secretname}` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getDeleteOrgSecretUrl(
  * {@link /orgs/:org/actions/secrets/:secretname}
  */
 export async function deleteOrgSecret(
-  org: DeleteOrgSecretPathParams["org"],
-  secretname: DeleteOrgSecretPathParams["secretname"],
+  org: DeleteOrgSecretPathParams['org'],
+  secretname: DeleteOrgSecretPathParams['secretname'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +39,7 @@ export async function deleteOrgSecret(
     ResponseErrorConfig<DeleteOrgSecret400 | DeleteOrgSecret404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteOrgSecretUrl(org, secretname).url.toString(),
     ...requestConfig,
   });

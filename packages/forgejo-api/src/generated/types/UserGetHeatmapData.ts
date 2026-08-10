@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { UserHeatmapData } from "./UserHeatmapData"
+import type { APINotFound } from './APINotFound';
+import type { UserHeatmapData } from './UserHeatmapData';
 
 export type UserGetHeatmapDataPathParams = {
   /**

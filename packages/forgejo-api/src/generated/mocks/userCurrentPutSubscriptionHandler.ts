@@ -6,27 +6,23 @@
 import type {
   UserCurrentPutSubscriptionMutationResponse,
   UserCurrentPutSubscription404,
-} from "../types/UserCurrentPutSubscription"
-import { http } from "msw";
+} from '../types/UserCurrentPutSubscription';
+import { http } from 'msw';
 
-export function userCurrentPutSubscriptionHandlerResponse200(
-  data: UserCurrentPutSubscriptionMutationResponse,
-) {
+export function userCurrentPutSubscriptionHandlerResponse200(data: UserCurrentPutSubscriptionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentPutSubscriptionHandlerResponse404(
-  data: UserCurrentPutSubscription404,
-) {
+export function userCurrentPutSubscriptionHandlerResponse404(data: UserCurrentPutSubscription404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +30,15 @@ export function userCurrentPutSubscriptionHandlerResponse404(
 export function userCurrentPutSubscriptionHandler(
   data?:
     | UserCurrentPutSubscriptionMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/repos/:owner/:repo/subscription`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

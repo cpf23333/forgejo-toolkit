@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  DeleteOrgRunnerMutationResponse,
-  DeleteOrgRunner400,
-  DeleteOrgRunner404,
-} from "../types/DeleteOrgRunner"
-import { http } from "msw";
+import type { DeleteOrgRunnerMutationResponse, DeleteOrgRunner400, DeleteOrgRunner404 } from '../types/DeleteOrgRunner';
+import { http } from 'msw';
 
-export function deleteOrgRunnerHandlerResponse204(
-  data?: DeleteOrgRunnerMutationResponse,
-) {
+export function deleteOrgRunnerHandlerResponse204(data?: DeleteOrgRunnerMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function deleteOrgRunnerHandlerResponse400(data: DeleteOrgRunner400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function deleteOrgRunnerHandlerResponse404(data: DeleteOrgRunner404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +37,13 @@ export function deleteOrgRunnerHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/orgs/:org/actions/runners/:runner_id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/orgs/:org/actions/runners/:runner_id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

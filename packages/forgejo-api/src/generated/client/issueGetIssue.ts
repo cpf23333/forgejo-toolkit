@@ -3,25 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  IssueGetIssueQueryResponse,
-  IssueGetIssuePathParams,
-  IssueGetIssue404,
-} from "../types/IssueGetIssue"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { IssueGetIssueQueryResponse, IssueGetIssuePathParams, IssueGetIssue404 } from '../types/IssueGetIssue';
 
 function getIssueGetIssueUrl(
-  owner: IssueGetIssuePathParams["owner"],
-  repo: IssueGetIssuePathParams["repo"],
-  index: IssueGetIssuePathParams["index"],
+  owner: IssueGetIssuePathParams['owner'],
+  repo: IssueGetIssuePathParams['repo'],
+  index: IssueGetIssuePathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}` as const,
   };
   return res;
@@ -32,19 +24,15 @@ function getIssueGetIssueUrl(
  * {@link /repos/:owner/:repo/issues/:index}
  */
 export async function issueGetIssue(
-  owner: IssueGetIssuePathParams["owner"],
-  repo: IssueGetIssuePathParams["repo"],
-  index: IssueGetIssuePathParams["index"],
+  owner: IssueGetIssuePathParams['owner'],
+  repo: IssueGetIssuePathParams['repo'],
+  index: IssueGetIssuePathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    IssueGetIssueQueryResponse,
-    ResponseErrorConfig<IssueGetIssue404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<IssueGetIssueQueryResponse, ResponseErrorConfig<IssueGetIssue404>, unknown>({
+    method: 'GET',
     url: getIssueGetIssueUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

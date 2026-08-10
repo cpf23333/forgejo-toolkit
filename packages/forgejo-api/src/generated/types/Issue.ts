@@ -3,13 +3,13 @@
  * Do not edit manually.
  */
 
-import type { Attachment } from "./Attachment"
-import type { Label } from "./Label"
-import type { Milestone } from "./Milestone"
-import type { PullRequestMeta } from "./PullRequestMeta"
-import type { RepositoryMeta } from "./RepositoryMeta"
-import type { StateType } from "./StateType"
-import type { User } from "./User"
+import type { Attachment } from './Attachment';
+import type { Label } from './Label';
+import type { Milestone } from './Milestone';
+import type { PullRequestMeta } from './PullRequestMeta';
+import type { RepositoryMeta } from './RepositoryMeta';
+import type { StateType } from './StateType';
+import type { User } from './User';
 
 /**
  * @description Issue represents an issue in a repository

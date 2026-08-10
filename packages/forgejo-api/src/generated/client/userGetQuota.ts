@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  UserGetQuotaQueryResponse,
-  UserGetQuota401,
-  UserGetQuota403,
-} from "../types/UserGetQuota"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { UserGetQuotaQueryResponse, UserGetQuota401, UserGetQuota403 } from '../types/UserGetQuota';
 
 function getUserGetQuotaUrl() {
-  const res = { method: "GET", url: `/user/quota` as const };
+  const res = { method: 'GET', url: `/user/quota` as const };
   return res;
 }
 
@@ -24,19 +16,15 @@ function getUserGetQuotaUrl() {
  * @summary Get quota information for the authenticated user
  * {@link /user/quota}
  */
-export async function userGetQuota(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function userGetQuota(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserGetQuotaQueryResponse,
-    ResponseErrorConfig<UserGetQuota401 | UserGetQuota403>,
-    unknown
-  >({
-    method: "GET",
-    url: getUserGetQuotaUrl().url.toString(),
-    ...requestConfig,
-  });
+  const res = await request<UserGetQuotaQueryResponse, ResponseErrorConfig<UserGetQuota401 | UserGetQuota403>, unknown>(
+    {
+      method: 'GET',
+      url: getUserGetQuotaUrl().url.toString(),
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { CreateOrUpdateSecretOption } from "./CreateOrUpdateSecretOption"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { CreateOrUpdateSecretOption } from './CreateOrUpdateSecretOption';
 
 export type UpdateUserSecretPathParams = {
   /**
@@ -52,16 +52,11 @@ export type UpdateUserSecret404 = APINotFound;
  */
 export type UpdateUserSecretMutationRequest = CreateOrUpdateSecretOption;
 
-export type UpdateUserSecretMutationResponse =
-  UpdateUserSecret201 | UpdateUserSecret204;
+export type UpdateUserSecretMutationResponse = UpdateUserSecret201 | UpdateUserSecret204;
 
 export type UpdateUserSecretMutation = {
   Response: UpdateUserSecret201 | UpdateUserSecret204;
   Request: UpdateUserSecretMutationRequest;
   PathParams: UpdateUserSecretPathParams;
-  Errors:
-    | UpdateUserSecret400
-    | UpdateUserSecret401
-    | UpdateUserSecret403
-    | UpdateUserSecret404;
+  Errors: UpdateUserSecret400 | UpdateUserSecret401 | UpdateUserSecret403 | UpdateUserSecret404;
 };

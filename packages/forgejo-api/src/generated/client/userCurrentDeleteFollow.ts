@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentDeleteFollowMutationResponse,
   UserCurrentDeleteFollowPathParams,
   UserCurrentDeleteFollow401,
   UserCurrentDeleteFollow403,
   UserCurrentDeleteFollow404,
-} from "../types/UserCurrentDeleteFollow"
+} from '../types/UserCurrentDeleteFollow';
 
-function getUserCurrentDeleteFollowUrl(
-  username: UserCurrentDeleteFollowPathParams["username"],
-) {
-  const res = { method: "DELETE", url: `/user/following/${username}` as const };
+function getUserCurrentDeleteFollowUrl(username: UserCurrentDeleteFollowPathParams['username']) {
+  const res = { method: 'DELETE', url: `/user/following/${username}` as const };
   return res;
 }
 
@@ -29,21 +23,17 @@ function getUserCurrentDeleteFollowUrl(
  * {@link /user/following/:username}
  */
 export async function userCurrentDeleteFollow(
-  username: UserCurrentDeleteFollowPathParams["username"],
+  username: UserCurrentDeleteFollowPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentDeleteFollowMutationResponse,
-    ResponseErrorConfig<
-      | UserCurrentDeleteFollow401
-      | UserCurrentDeleteFollow403
-      | UserCurrentDeleteFollow404
-    >,
+    ResponseErrorConfig<UserCurrentDeleteFollow401 | UserCurrentDeleteFollow403 | UserCurrentDeleteFollow404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getUserCurrentDeleteFollowUrl(username).url.toString(),
     ...requestConfig,
   });

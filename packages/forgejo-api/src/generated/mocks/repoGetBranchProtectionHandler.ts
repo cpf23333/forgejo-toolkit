@@ -6,27 +6,23 @@
 import type {
   RepoGetBranchProtectionQueryResponse,
   RepoGetBranchProtection404,
-} from "../types/RepoGetBranchProtection"
-import { http } from "msw";
+} from '../types/RepoGetBranchProtection';
+import { http } from 'msw';
 
-export function repoGetBranchProtectionHandlerResponse200(
-  data: RepoGetBranchProtectionQueryResponse,
-) {
+export function repoGetBranchProtectionHandlerResponse200(data: RepoGetBranchProtectionQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetBranchProtectionHandlerResponse404(
-  data: RepoGetBranchProtection404,
-) {
+export function repoGetBranchProtectionHandlerResponse404(data: RepoGetBranchProtection404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function repoGetBranchProtectionHandlerResponse404(
 export function repoGetBranchProtectionHandler(
   data?:
     | RepoGetBranchProtectionQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/branch_protections/:name`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/branch_protections/:name`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

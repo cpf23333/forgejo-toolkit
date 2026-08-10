@@ -9,60 +9,50 @@ import type {
   RepoCreateTagProtection404,
   RepoCreateTagProtection422,
   RepoCreateTagProtection423,
-} from "../types/RepoCreateTagProtection"
-import { http } from "msw";
+} from '../types/RepoCreateTagProtection';
+import { http } from 'msw';
 
-export function repoCreateTagProtectionHandlerResponse201(
-  data: RepoCreateTagProtectionMutationResponse,
-) {
+export function repoCreateTagProtectionHandlerResponse201(data: RepoCreateTagProtectionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCreateTagProtectionHandlerResponse403(
-  data: RepoCreateTagProtection403,
-) {
+export function repoCreateTagProtectionHandlerResponse403(data: RepoCreateTagProtection403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCreateTagProtectionHandlerResponse404(
-  data: RepoCreateTagProtection404,
-) {
+export function repoCreateTagProtectionHandlerResponse404(data: RepoCreateTagProtection404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCreateTagProtectionHandlerResponse422(
-  data: RepoCreateTagProtection422,
-) {
+export function repoCreateTagProtectionHandlerResponse422(data: RepoCreateTagProtection422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCreateTagProtectionHandlerResponse423(
-  data: RepoCreateTagProtection423,
-) {
+export function repoCreateTagProtectionHandlerResponse423(data: RepoCreateTagProtection423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -70,21 +60,16 @@ export function repoCreateTagProtectionHandlerResponse423(
 export function repoCreateTagProtectionHandler(
   data?:
     | RepoCreateTagProtectionMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/tag_protections`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/tag_protections`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

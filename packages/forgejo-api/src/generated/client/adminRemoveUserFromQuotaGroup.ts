@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminRemoveUserFromQuotaGroupMutationResponse,
   AdminRemoveUserFromQuotaGroupPathParams,
   AdminRemoveUserFromQuotaGroup400,
   AdminRemoveUserFromQuotaGroup403,
   AdminRemoveUserFromQuotaGroup404,
-} from "../types/AdminRemoveUserFromQuotaGroup"
+} from '../types/AdminRemoveUserFromQuotaGroup';
 
 function getAdminRemoveUserFromQuotaGroupUrl(
-  quotagroup: AdminRemoveUserFromQuotaGroupPathParams["quotagroup"],
-  username: AdminRemoveUserFromQuotaGroupPathParams["username"],
+  quotagroup: AdminRemoveUserFromQuotaGroupPathParams['quotagroup'],
+  username: AdminRemoveUserFromQuotaGroupPathParams['username'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/admin/quota/groups/${quotagroup}/users/${username}` as const,
   };
   return res;
@@ -33,8 +29,8 @@ function getAdminRemoveUserFromQuotaGroupUrl(
  * {@link /admin/quota/groups/:quotagroup/users/:username}
  */
 export async function adminRemoveUserFromQuotaGroup(
-  quotagroup: AdminRemoveUserFromQuotaGroupPathParams["quotagroup"],
-  username: AdminRemoveUserFromQuotaGroupPathParams["username"],
+  quotagroup: AdminRemoveUserFromQuotaGroupPathParams['quotagroup'],
+  username: AdminRemoveUserFromQuotaGroupPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -42,17 +38,12 @@ export async function adminRemoveUserFromQuotaGroup(
   const res = await request<
     AdminRemoveUserFromQuotaGroupMutationResponse,
     ResponseErrorConfig<
-      | AdminRemoveUserFromQuotaGroup400
-      | AdminRemoveUserFromQuotaGroup403
-      | AdminRemoveUserFromQuotaGroup404
+      AdminRemoveUserFromQuotaGroup400 | AdminRemoveUserFromQuotaGroup403 | AdminRemoveUserFromQuotaGroup404
     >,
     unknown
   >({
-    method: "DELETE",
-    url: getAdminRemoveUserFromQuotaGroupUrl(
-      quotagroup,
-      username,
-    ).url.toString(),
+    method: 'DELETE',
+    url: getAdminRemoveUserFromQuotaGroupUrl(quotagroup, username).url.toString(),
     ...requestConfig,
   });
   return res.data;

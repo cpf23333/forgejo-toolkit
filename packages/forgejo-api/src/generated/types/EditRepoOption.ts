@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { ExternalTracker } from "./ExternalTracker"
-import type { ExternalWiki } from "./ExternalWiki"
-import type { InternalTracker } from "./InternalTracker"
+import type { ExternalTracker } from './ExternalTracker';
+import type { ExternalWiki } from './ExternalWiki';
+import type { InternalTracker } from './InternalTracker';
 
 /**
  * @description EditRepoOption options when editing a repository\'s properties

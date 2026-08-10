@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { WikiCommitList } from "./WikiCommitList"
+import type { APINotFound } from './APINotFound';
+import type { WikiCommitList } from './WikiCommitList';
 
 export type RepoGetWikiPageRevisionsPathParams = {
   /**

@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { BranchProtection } from "./BranchProtection"
+import type { BranchProtection } from './BranchProtection';
 
 export type BranchProtectionList = BranchProtection[];

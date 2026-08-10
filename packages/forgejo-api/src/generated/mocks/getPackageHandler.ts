@@ -3,17 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  GetPackageQueryResponse,
-  GetPackage404,
-} from "../types/GetPackage"
-import { http } from "msw";
+import type { GetPackageQueryResponse, GetPackage404 } from '../types/GetPackage';
+import { http } from 'msw';
 
 export function getPackageHandlerResponse200(data: GetPackageQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -22,7 +19,7 @@ export function getPackageHandlerResponse404(data: GetPackage404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -30,21 +27,16 @@ export function getPackageHandlerResponse404(data: GetPackage404) {
 export function getPackageHandler(
   data?:
     | GetPackageQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/packages/:owner/:type/:name/:version`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/packages/:owner/:type/:name/:version`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { CommitMeta } from "./CommitMeta"
-import type { CommitUser } from "./CommitUser"
-import type { PayloadCommitVerification } from "./PayloadCommitVerification"
+import type { CommitMeta } from './CommitMeta';
+import type { CommitUser } from './CommitUser';
+import type { PayloadCommitVerification } from './PayloadCommitVerification';
 
 /**
  * RepoCommit contains information of a commit in the context of a repository.

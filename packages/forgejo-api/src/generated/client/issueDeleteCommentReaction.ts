@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteCommentReactionMutationRequest,
   IssueDeleteCommentReactionMutationResponse,
   IssueDeleteCommentReactionPathParams,
   IssueDeleteCommentReaction403,
   IssueDeleteCommentReaction404,
-} from "../types/IssueDeleteCommentReaction"
+} from '../types/IssueDeleteCommentReaction';
 
 function getIssueDeleteCommentReactionUrl(
-  owner: IssueDeleteCommentReactionPathParams["owner"],
-  repo: IssueDeleteCommentReactionPathParams["repo"],
-  id: IssueDeleteCommentReactionPathParams["id"],
+  owner: IssueDeleteCommentReactionPathParams['owner'],
+  repo: IssueDeleteCommentReactionPathParams['repo'],
+  id: IssueDeleteCommentReactionPathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/comments/${id}/reactions` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssueDeleteCommentReactionUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id/reactions}
  */
 export async function issueDeleteCommentReaction(
-  owner: IssueDeleteCommentReactionPathParams["owner"],
-  repo: IssueDeleteCommentReactionPathParams["repo"],
-  id: IssueDeleteCommentReactionPathParams["id"],
+  owner: IssueDeleteCommentReactionPathParams['owner'],
+  repo: IssueDeleteCommentReactionPathParams['repo'],
+  id: IssueDeleteCommentReactionPathParams['id'],
   data?: IssueDeleteCommentReactionMutationRequest,
   config: Partial<RequestConfig<IssueDeleteCommentReactionMutationRequest>> & {
     client?: Client;
@@ -48,12 +44,10 @@ export async function issueDeleteCommentReaction(
 
   const res = await request<
     IssueDeleteCommentReactionMutationResponse,
-    ResponseErrorConfig<
-      IssueDeleteCommentReaction403 | IssueDeleteCommentReaction404
-    >,
+    ResponseErrorConfig<IssueDeleteCommentReaction403 | IssueDeleteCommentReaction404>,
     IssueDeleteCommentReactionMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueDeleteCommentReactionUrl(owner, repo, id).url.toString(),
     data: requestData,
     ...requestConfig,

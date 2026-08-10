@@ -7,38 +7,32 @@ import type {
   UserListBlockedUsersQueryResponse,
   UserListBlockedUsers401,
   UserListBlockedUsers403,
-} from "../types/UserListBlockedUsers"
-import { http } from "msw";
+} from '../types/UserListBlockedUsers';
+import { http } from 'msw';
 
-export function userListBlockedUsersHandlerResponse200(
-  data: UserListBlockedUsersQueryResponse,
-) {
+export function userListBlockedUsersHandlerResponse200(data: UserListBlockedUsersQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userListBlockedUsersHandlerResponse401(
-  data: UserListBlockedUsers401,
-) {
+export function userListBlockedUsersHandlerResponse401(data: UserListBlockedUsers401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userListBlockedUsersHandlerResponse403(
-  data: UserListBlockedUsers403,
-) {
+export function userListBlockedUsersHandlerResponse403(data: UserListBlockedUsers403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function userListBlockedUsersHandlerResponse403(
 export function userListBlockedUsersHandler(
   data?:
     | UserListBlockedUsersQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/list_blocked`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

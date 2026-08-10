@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserAddEmailMutationRequest,
   UserAddEmailMutationResponse,
   UserAddEmail401,
   UserAddEmail403,
   UserAddEmail422,
-} from "../types/UserAddEmail"
+} from '../types/UserAddEmail';
 
 function getUserAddEmailUrl() {
-  const res = { method: "POST", url: `/user/emails` as const };
+  const res = { method: 'POST', url: `/user/emails` as const };
   return res;
 }
 
@@ -41,7 +37,7 @@ export async function userAddEmail(
     ResponseErrorConfig<UserAddEmail401 | UserAddEmail403 | UserAddEmail422>,
     UserAddEmailMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getUserAddEmailUrl().url.toString(),
     data: requestData,
     ...requestConfig,

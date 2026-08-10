@@ -3,14 +3,14 @@
  * Do not edit manually.
  */
 
-import type { UserSearchQueryResponse } from "../types/UserSearch"
-import { http } from "msw";
+import type { UserSearchQueryResponse } from '../types/UserSearch';
+import { http } from 'msw';
 
 export function userSearchHandlerResponse200(data: UserSearchQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -18,17 +18,15 @@ export function userSearchHandlerResponse200(data: UserSearchQueryResponse) {
 export function userSearchHandler(
   data?:
     | UserSearchQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/search`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

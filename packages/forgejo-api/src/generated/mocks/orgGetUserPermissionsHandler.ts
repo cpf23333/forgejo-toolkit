@@ -7,38 +7,32 @@ import type {
   OrgGetUserPermissionsQueryResponse,
   OrgGetUserPermissions403,
   OrgGetUserPermissions404,
-} from "../types/OrgGetUserPermissions"
-import { http } from "msw";
+} from '../types/OrgGetUserPermissions';
+import { http } from 'msw';
 
-export function orgGetUserPermissionsHandlerResponse200(
-  data: OrgGetUserPermissionsQueryResponse,
-) {
+export function orgGetUserPermissionsHandlerResponse200(data: OrgGetUserPermissionsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgGetUserPermissionsHandlerResponse403(
-  data: OrgGetUserPermissions403,
-) {
+export function orgGetUserPermissionsHandlerResponse403(data: OrgGetUserPermissions403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgGetUserPermissionsHandlerResponse404(
-  data: OrgGetUserPermissions404,
-) {
+export function orgGetUserPermissionsHandlerResponse404(data: OrgGetUserPermissions404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function orgGetUserPermissionsHandlerResponse404(
 export function orgGetUserPermissionsHandler(
   data?:
     | OrgGetUserPermissionsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/users/:username/orgs/:org/permissions`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/users/:username/orgs/:org/permissions`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteFlagMutationResponse,
   RepoDeleteFlagPathParams,
   RepoDeleteFlag403,
   RepoDeleteFlag404,
-} from "../types/RepoDeleteFlag"
+} from '../types/RepoDeleteFlag';
 
 function getRepoDeleteFlagUrl(
-  owner: RepoDeleteFlagPathParams["owner"],
-  repo: RepoDeleteFlagPathParams["repo"],
-  flag: RepoDeleteFlagPathParams["flag"],
+  owner: RepoDeleteFlagPathParams['owner'],
+  repo: RepoDeleteFlagPathParams['repo'],
+  flag: RepoDeleteFlagPathParams['flag'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/flags/${flag}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoDeleteFlagUrl(
  * {@link /repos/:owner/:repo/flags/:flag}
  */
 export async function repoDeleteFlag(
-  owner: RepoDeleteFlagPathParams["owner"],
-  repo: RepoDeleteFlagPathParams["repo"],
-  flag: RepoDeleteFlagPathParams["flag"],
+  owner: RepoDeleteFlagPathParams['owner'],
+  repo: RepoDeleteFlagPathParams['repo'],
+  flag: RepoDeleteFlagPathParams['flag'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoDeleteFlag(
     ResponseErrorConfig<RepoDeleteFlag403 | RepoDeleteFlag404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteFlagUrl(owner, repo, flag).url.toString(),
     ...requestConfig,
   });

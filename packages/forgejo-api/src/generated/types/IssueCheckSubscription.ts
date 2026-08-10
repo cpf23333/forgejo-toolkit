@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { WatchInfo } from "./WatchInfo"
+import type { APINotFound } from './APINotFound';
+import type { WatchInfo } from './WatchInfo';
 
 export type IssueCheckSubscriptionPathParams = {
   /**

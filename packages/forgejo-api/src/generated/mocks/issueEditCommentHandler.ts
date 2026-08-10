@@ -9,23 +9,19 @@ import type {
   IssueEditComment404,
   IssueEditComment423,
   IssueEditComment500,
-} from "../types/IssueEditComment"
-import { http } from "msw";
+} from '../types/IssueEditComment';
+import { http } from 'msw';
 
-export function issueEditCommentHandlerResponse200(
-  data: IssueEditCommentMutationResponse,
-) {
+export function issueEditCommentHandlerResponse200(data: IssueEditCommentMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueEditCommentHandlerResponse204(
-  data?: IssueEditCommentMutationResponse,
-) {
+export function issueEditCommentHandlerResponse204(data?: IssueEditCommentMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -35,7 +31,7 @@ export function issueEditCommentHandlerResponse403(data: IssueEditComment403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -44,7 +40,7 @@ export function issueEditCommentHandlerResponse404(data: IssueEditComment404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -53,7 +49,7 @@ export function issueEditCommentHandlerResponse423(data: IssueEditComment423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -62,7 +58,7 @@ export function issueEditCommentHandlerResponse500(data: IssueEditComment500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -70,21 +66,16 @@ export function issueEditCommentHandlerResponse500(data: IssueEditComment500) {
 export function issueEditCommentHandler(
   data?:
     | IssueEditCommentMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/issues/comments/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/issues/comments/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { StopWatch } from "./StopWatch"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { StopWatch } from './StopWatch';
 
 export type UserGetStopWatchesQueryParams = {
   /**

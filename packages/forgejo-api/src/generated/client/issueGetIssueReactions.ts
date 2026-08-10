@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetIssueReactionsQueryResponse,
   IssueGetIssueReactionsPathParams,
   IssueGetIssueReactionsQueryParams,
   IssueGetIssueReactions403,
   IssueGetIssueReactions404,
-} from "../types/IssueGetIssueReactions"
+} from '../types/IssueGetIssueReactions';
 
 function getIssueGetIssueReactionsUrl(
-  owner: IssueGetIssueReactionsPathParams["owner"],
-  repo: IssueGetIssueReactionsPathParams["repo"],
-  index: IssueGetIssueReactionsPathParams["index"],
+  owner: IssueGetIssueReactionsPathParams['owner'],
+  repo: IssueGetIssueReactionsPathParams['repo'],
+  index: IssueGetIssueReactionsPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/reactions` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssueGetIssueReactionsUrl(
  * {@link /repos/:owner/:repo/issues/:index/reactions}
  */
 export async function issueGetIssueReactions(
-  owner: IssueGetIssueReactionsPathParams["owner"],
-  repo: IssueGetIssueReactionsPathParams["repo"],
-  index: IssueGetIssueReactionsPathParams["index"],
+  owner: IssueGetIssueReactionsPathParams['owner'],
+  repo: IssueGetIssueReactionsPathParams['repo'],
+  index: IssueGetIssueReactionsPathParams['index'],
   params?: IssueGetIssueReactionsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -47,7 +43,7 @@ export async function issueGetIssueReactions(
     ResponseErrorConfig<IssueGetIssueReactions403 | IssueGetIssueReactions404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueGetIssueReactionsUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

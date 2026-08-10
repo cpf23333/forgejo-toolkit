@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetUserVariableQueryResponse,
   GetUserVariablePathParams,
@@ -16,13 +12,11 @@ import type {
   GetUserVariable401,
   GetUserVariable403,
   GetUserVariable404,
-} from "../types/GetUserVariable"
+} from '../types/GetUserVariable';
 
-function getGetUserVariableUrl(
-  variablename: GetUserVariablePathParams["variablename"],
-) {
+function getGetUserVariableUrl(variablename: GetUserVariablePathParams['variablename']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/user/actions/variables/${variablename}` as const,
   };
   return res;
@@ -33,22 +27,17 @@ function getGetUserVariableUrl(
  * {@link /user/actions/variables/:variablename}
  */
 export async function getUserVariable(
-  variablename: GetUserVariablePathParams["variablename"],
+  variablename: GetUserVariablePathParams['variablename'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     GetUserVariableQueryResponse,
-    ResponseErrorConfig<
-      | GetUserVariable400
-      | GetUserVariable401
-      | GetUserVariable403
-      | GetUserVariable404
-    >,
+    ResponseErrorConfig<GetUserVariable400 | GetUserVariable401 | GetUserVariable403 | GetUserVariable404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetUserVariableUrl(variablename).url.toString(),
     ...requestConfig,
   });

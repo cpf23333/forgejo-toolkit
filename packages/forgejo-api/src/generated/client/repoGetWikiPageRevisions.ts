@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetWikiPageRevisionsQueryResponse,
   RepoGetWikiPageRevisionsPathParams,
   RepoGetWikiPageRevisionsQueryParams,
   RepoGetWikiPageRevisions404,
-} from "../types/RepoGetWikiPageRevisions"
+} from '../types/RepoGetWikiPageRevisions';
 
 function getRepoGetWikiPageRevisionsUrl(
-  owner: RepoGetWikiPageRevisionsPathParams["owner"],
-  repo: RepoGetWikiPageRevisionsPathParams["repo"],
-  pageName: RepoGetWikiPageRevisionsPathParams["pageName"],
+  owner: RepoGetWikiPageRevisionsPathParams['owner'],
+  repo: RepoGetWikiPageRevisionsPathParams['repo'],
+  pageName: RepoGetWikiPageRevisionsPathParams['pageName'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/wiki/revisions/${pageName}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoGetWikiPageRevisionsUrl(
  * {@link /repos/:owner/:repo/wiki/revisions/:pageName}
  */
 export async function repoGetWikiPageRevisions(
-  owner: RepoGetWikiPageRevisionsPathParams["owner"],
-  repo: RepoGetWikiPageRevisionsPathParams["repo"],
-  pageName: RepoGetWikiPageRevisionsPathParams["pageName"],
+  owner: RepoGetWikiPageRevisionsPathParams['owner'],
+  repo: RepoGetWikiPageRevisionsPathParams['repo'],
+  pageName: RepoGetWikiPageRevisionsPathParams['pageName'],
   params?: RepoGetWikiPageRevisionsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -46,7 +42,7 @@ export async function repoGetWikiPageRevisions(
     ResponseErrorConfig<RepoGetWikiPageRevisions404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetWikiPageRevisionsUrl(owner, repo, pageName).url.toString(),
     params,
     ...requestConfig,

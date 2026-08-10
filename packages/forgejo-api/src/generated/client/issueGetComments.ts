@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetCommentsQueryResponse,
   IssueGetCommentsPathParams,
@@ -16,15 +12,15 @@ import type {
   IssueGetComments404,
   IssueGetComments422,
   IssueGetComments500,
-} from "../types/IssueGetComments"
+} from '../types/IssueGetComments';
 
 function getIssueGetCommentsUrl(
-  owner: IssueGetCommentsPathParams["owner"],
-  repo: IssueGetCommentsPathParams["repo"],
-  index: IssueGetCommentsPathParams["index"],
+  owner: IssueGetCommentsPathParams['owner'],
+  repo: IssueGetCommentsPathParams['repo'],
+  index: IssueGetCommentsPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/comments` as const,
   };
   return res;
@@ -35,9 +31,9 @@ function getIssueGetCommentsUrl(
  * {@link /repos/:owner/:repo/issues/:index/comments}
  */
 export async function issueGetComments(
-  owner: IssueGetCommentsPathParams["owner"],
-  repo: IssueGetCommentsPathParams["repo"],
-  index: IssueGetCommentsPathParams["index"],
+  owner: IssueGetCommentsPathParams['owner'],
+  repo: IssueGetCommentsPathParams['repo'],
+  index: IssueGetCommentsPathParams['index'],
   params?: IssueGetCommentsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -45,12 +41,10 @@ export async function issueGetComments(
 
   const res = await request<
     IssueGetCommentsQueryResponse,
-    ResponseErrorConfig<
-      IssueGetComments404 | IssueGetComments422 | IssueGetComments500
-    >,
+    ResponseErrorConfig<IssueGetComments404 | IssueGetComments422 | IssueGetComments500>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueGetCommentsUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

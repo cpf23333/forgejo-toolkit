@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueCreateIssueCommentAttachmentMutationRequest,
   IssueCreateIssueCommentAttachmentMutationResponse,
@@ -19,16 +15,16 @@ import type {
   IssueCreateIssueCommentAttachment413,
   IssueCreateIssueCommentAttachment422,
   IssueCreateIssueCommentAttachment423,
-} from "../types/IssueCreateIssueCommentAttachment"
-import { buildFormData } from "../.kubb/config"
+} from '../types/IssueCreateIssueCommentAttachment';
+import { buildFormData } from '../.kubb/config';
 
 function getIssueCreateIssueCommentAttachmentUrl(
-  owner: IssueCreateIssueCommentAttachmentPathParams["owner"],
-  repo: IssueCreateIssueCommentAttachmentPathParams["repo"],
-  id: IssueCreateIssueCommentAttachmentPathParams["id"],
+  owner: IssueCreateIssueCommentAttachmentPathParams['owner'],
+  repo: IssueCreateIssueCommentAttachmentPathParams['repo'],
+  id: IssueCreateIssueCommentAttachmentPathParams['id'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/comments/${id}/assets` as const,
   };
   return res;
@@ -39,14 +35,12 @@ function getIssueCreateIssueCommentAttachmentUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id/assets}
  */
 export async function issueCreateIssueCommentAttachment(
-  owner: IssueCreateIssueCommentAttachmentPathParams["owner"],
-  repo: IssueCreateIssueCommentAttachmentPathParams["repo"],
-  id: IssueCreateIssueCommentAttachmentPathParams["id"],
+  owner: IssueCreateIssueCommentAttachmentPathParams['owner'],
+  repo: IssueCreateIssueCommentAttachmentPathParams['repo'],
+  id: IssueCreateIssueCommentAttachmentPathParams['id'],
   data: IssueCreateIssueCommentAttachmentMutationRequest,
   params?: IssueCreateIssueCommentAttachmentQueryParams,
-  config: Partial<
-    RequestConfig<IssueCreateIssueCommentAttachmentMutationRequest>
-  > & { client?: Client } = {},
+  config: Partial<RequestConfig<IssueCreateIssueCommentAttachmentMutationRequest>> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
@@ -63,12 +57,8 @@ export async function issueCreateIssueCommentAttachment(
     >,
     IssueCreateIssueCommentAttachmentMutationRequest
   >({
-    method: "POST",
-    url: getIssueCreateIssueCommentAttachmentUrl(
-      owner,
-      repo,
-      id,
-    ).url.toString(),
+    method: 'POST',
+    url: getIssueCreateIssueCommentAttachmentUrl(owner, repo, id).url.toString(),
     params,
     data: formData as FormData,
     ...requestConfig,

@@ -3,23 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListGPGKeysQueryResponse,
   UserListGPGKeysPathParams,
   UserListGPGKeysQueryParams,
   UserListGPGKeys404,
-} from "../types/UserListGPGKeys"
+} from '../types/UserListGPGKeys';
 
-function getUserListGPGKeysUrl(
-  username: UserListGPGKeysPathParams["username"],
-) {
-  const res = { method: "GET", url: `/users/${username}/gpg_keys` as const };
+function getUserListGPGKeysUrl(username: UserListGPGKeysPathParams['username']) {
+  const res = { method: 'GET', url: `/users/${username}/gpg_keys` as const };
   return res;
 }
 
@@ -28,18 +22,14 @@ function getUserListGPGKeysUrl(
  * {@link /users/:username/gpg_keys}
  */
 export async function userListGPGKeys(
-  username: UserListGPGKeysPathParams["username"],
+  username: UserListGPGKeysPathParams['username'],
   params?: UserListGPGKeysQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserListGPGKeysQueryResponse,
-    ResponseErrorConfig<UserListGPGKeys404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<UserListGPGKeysQueryResponse, ResponseErrorConfig<UserListGPGKeys404>, unknown>({
+    method: 'GET',
     url: getUserListGPGKeysUrl(username).url.toString(),
     params,
     ...requestConfig,

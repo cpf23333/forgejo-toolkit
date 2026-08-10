@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgAddTeamRepositoryMutationResponse,
   OrgAddTeamRepositoryPathParams,
   OrgAddTeamRepository403,
   OrgAddTeamRepository404,
-} from "../types/OrgAddTeamRepository"
+} from '../types/OrgAddTeamRepository';
 
 function getOrgAddTeamRepositoryUrl(
-  id: OrgAddTeamRepositoryPathParams["id"],
-  org: OrgAddTeamRepositoryPathParams["org"],
-  repo: OrgAddTeamRepositoryPathParams["repo"],
+  id: OrgAddTeamRepositoryPathParams['id'],
+  org: OrgAddTeamRepositoryPathParams['org'],
+  repo: OrgAddTeamRepositoryPathParams['repo'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/teams/${id}/repos/${org}/${repo}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getOrgAddTeamRepositoryUrl(
  * {@link /teams/:id/repos/:org/:repo}
  */
 export async function orgAddTeamRepository(
-  id: OrgAddTeamRepositoryPathParams["id"],
-  org: OrgAddTeamRepositoryPathParams["org"],
-  repo: OrgAddTeamRepositoryPathParams["repo"],
+  id: OrgAddTeamRepositoryPathParams['id'],
+  org: OrgAddTeamRepositoryPathParams['org'],
+  repo: OrgAddTeamRepositoryPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function orgAddTeamRepository(
     ResponseErrorConfig<OrgAddTeamRepository403 | OrgAddTeamRepository404>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getOrgAddTeamRepositoryUrl(id, org, repo).url.toString(),
     ...requestConfig,
   });

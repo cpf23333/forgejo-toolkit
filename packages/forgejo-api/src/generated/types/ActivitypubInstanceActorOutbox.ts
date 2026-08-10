@@ -3,15 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ForgeOutbox } from "./ForgeOutbox"
+import type { ForgeOutbox } from './ForgeOutbox';
 
 /**
  * @description Outbox
  */
 export type ActivitypubInstanceActorOutbox200 = ForgeOutbox;
 
-export type ActivitypubInstanceActorOutboxMutationResponse =
-  ActivitypubInstanceActorOutbox200;
+export type ActivitypubInstanceActorOutboxMutationResponse = ActivitypubInstanceActorOutbox200;
 
 export type ActivitypubInstanceActorOutboxMutation = {
   Response: ActivitypubInstanceActorOutbox200;

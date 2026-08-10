@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { TagProtection } from "./TagProtection"
+import type { TagProtection } from './TagProtection';
 
 export type RepoListTagProtectionPathParams = {
   /**

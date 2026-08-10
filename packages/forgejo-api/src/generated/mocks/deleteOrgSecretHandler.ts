@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  DeleteOrgSecretMutationResponse,
-  DeleteOrgSecret400,
-  DeleteOrgSecret404,
-} from "../types/DeleteOrgSecret"
-import { http } from "msw";
+import type { DeleteOrgSecretMutationResponse, DeleteOrgSecret400, DeleteOrgSecret404 } from '../types/DeleteOrgSecret';
+import { http } from 'msw';
 
-export function deleteOrgSecretHandlerResponse204(
-  data?: DeleteOrgSecretMutationResponse,
-) {
+export function deleteOrgSecretHandlerResponse204(data?: DeleteOrgSecretMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function deleteOrgSecretHandlerResponse400(data: DeleteOrgSecret400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function deleteOrgSecretHandlerResponse404(data: DeleteOrgSecret404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +37,13 @@ export function deleteOrgSecretHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/orgs/:org/actions/secrets/:secretname`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/orgs/:org/actions/secrets/:secretname`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

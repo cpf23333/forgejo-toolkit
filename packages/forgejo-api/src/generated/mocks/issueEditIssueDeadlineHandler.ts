@@ -7,38 +7,32 @@ import type {
   IssueEditIssueDeadlineMutationResponse,
   IssueEditIssueDeadline403,
   IssueEditIssueDeadline404,
-} from "../types/IssueEditIssueDeadline"
-import { http } from "msw";
+} from '../types/IssueEditIssueDeadline';
+import { http } from 'msw';
 
-export function issueEditIssueDeadlineHandlerResponse201(
-  data: IssueEditIssueDeadlineMutationResponse,
-) {
+export function issueEditIssueDeadlineHandlerResponse201(data: IssueEditIssueDeadlineMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueEditIssueDeadlineHandlerResponse403(
-  data: IssueEditIssueDeadline403,
-) {
+export function issueEditIssueDeadlineHandlerResponse403(data: IssueEditIssueDeadline403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueEditIssueDeadlineHandlerResponse404(
-  data: IssueEditIssueDeadline404,
-) {
+export function issueEditIssueDeadlineHandlerResponse404(data: IssueEditIssueDeadline404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function issueEditIssueDeadlineHandlerResponse404(
 export function issueEditIssueDeadlineHandler(
   data?:
     | IssueEditIssueDeadlineMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/:index/deadline`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/:index/deadline`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

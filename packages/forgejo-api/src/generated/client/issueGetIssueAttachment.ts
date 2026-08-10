@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetIssueAttachmentQueryResponse,
   IssueGetIssueAttachmentPathParams,
   IssueGetIssueAttachment404,
-} from "../types/IssueGetIssueAttachment"
+} from '../types/IssueGetIssueAttachment';
 
 function getIssueGetIssueAttachmentUrl(
-  owner: IssueGetIssueAttachmentPathParams["owner"],
-  repo: IssueGetIssueAttachmentPathParams["repo"],
-  index: IssueGetIssueAttachmentPathParams["index"],
-  attachment_id: IssueGetIssueAttachmentPathParams["attachment_id"],
+  owner: IssueGetIssueAttachmentPathParams['owner'],
+  repo: IssueGetIssueAttachmentPathParams['repo'],
+  index: IssueGetIssueAttachmentPathParams['index'],
+  attachment_id: IssueGetIssueAttachmentPathParams['attachment_id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/assets/${attachment_id}` as const,
   };
   return res;
@@ -33,10 +29,10 @@ function getIssueGetIssueAttachmentUrl(
  * {@link /repos/:owner/:repo/issues/:index/assets/:attachment_id}
  */
 export async function issueGetIssueAttachment(
-  owner: IssueGetIssueAttachmentPathParams["owner"],
-  repo: IssueGetIssueAttachmentPathParams["repo"],
-  index: IssueGetIssueAttachmentPathParams["index"],
-  attachment_id: IssueGetIssueAttachmentPathParams["attachment_id"],
+  owner: IssueGetIssueAttachmentPathParams['owner'],
+  repo: IssueGetIssueAttachmentPathParams['repo'],
+  index: IssueGetIssueAttachmentPathParams['index'],
+  attachment_id: IssueGetIssueAttachmentPathParams['attachment_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,13 +42,8 @@ export async function issueGetIssueAttachment(
     ResponseErrorConfig<IssueGetIssueAttachment404>,
     unknown
   >({
-    method: "GET",
-    url: getIssueGetIssueAttachmentUrl(
-      owner,
-      repo,
-      index,
-      attachment_id,
-    ).url.toString(),
+    method: 'GET',
+    url: getIssueGetIssueAttachmentUrl(owner, repo, index, attachment_id).url.toString(),
     ...requestConfig,
   });
   return res.data;

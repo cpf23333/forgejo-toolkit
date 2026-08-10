@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { WikiCommit } from "./WikiCommit"
+import type { WikiCommit } from './WikiCommit';
 
 /**
  * @description WikiPageMetaData wiki page meta information

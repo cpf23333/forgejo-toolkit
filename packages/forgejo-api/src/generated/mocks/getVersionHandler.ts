@@ -3,14 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GetVersionQueryResponse } from "../types/GetVersion"
-import { http } from "msw";
+import type { GetVersionQueryResponse } from '../types/GetVersion';
+import { http } from 'msw';
 
 export function getVersionHandlerResponse200(data: GetVersionQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -18,17 +18,15 @@ export function getVersionHandlerResponse200(data: GetVersionQueryResponse) {
 export function getVersionHandler(
   data?:
     | GetVersionQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/version`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

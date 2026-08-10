@@ -8,12 +8,10 @@ import type {
   IssueResetTime400,
   IssueResetTime403,
   IssueResetTime404,
-} from "../types/IssueResetTime"
-import { http } from "msw";
+} from '../types/IssueResetTime';
+import { http } from 'msw';
 
-export function issueResetTimeHandlerResponse204(
-  data?: IssueResetTimeMutationResponse,
-) {
+export function issueResetTimeHandlerResponse204(data?: IssueResetTimeMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -23,7 +21,7 @@ export function issueResetTimeHandlerResponse400(data: IssueResetTime400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +30,7 @@ export function issueResetTimeHandlerResponse403(data: IssueResetTime403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,7 +39,7 @@ export function issueResetTimeHandlerResponse404(data: IssueResetTime404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -53,18 +51,13 @@ export function issueResetTimeHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/times`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/times`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

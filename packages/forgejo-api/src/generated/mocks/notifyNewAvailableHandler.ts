@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { NotifyNewAvailableQueryResponse } from "../types/NotifyNewAvailable"
-import { http } from "msw";
+import type { NotifyNewAvailableQueryResponse } from '../types/NotifyNewAvailable';
+import { http } from 'msw';
 
-export function notifyNewAvailableHandlerResponse200(
-  data: NotifyNewAvailableQueryResponse,
-) {
+export function notifyNewAvailableHandlerResponse200(data: NotifyNewAvailableQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function notifyNewAvailableHandlerResponse200(
 export function notifyNewAvailableHandler(
   data?:
     | NotifyNewAvailableQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/notifications/new`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

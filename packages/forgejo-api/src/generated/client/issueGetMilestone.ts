@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetMilestoneQueryResponse,
   IssueGetMilestonePathParams,
   IssueGetMilestone404,
-} from "../types/IssueGetMilestone"
+} from '../types/IssueGetMilestone';
 
 function getIssueGetMilestoneUrl(
-  owner: IssueGetMilestonePathParams["owner"],
-  repo: IssueGetMilestonePathParams["repo"],
-  id: IssueGetMilestonePathParams["id"],
+  owner: IssueGetMilestonePathParams['owner'],
+  repo: IssueGetMilestonePathParams['repo'],
+  id: IssueGetMilestonePathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/milestones/${id}` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getIssueGetMilestoneUrl(
  * {@link /repos/:owner/:repo/milestones/:id}
  */
 export async function issueGetMilestone(
-  owner: IssueGetMilestonePathParams["owner"],
-  repo: IssueGetMilestonePathParams["repo"],
-  id: IssueGetMilestonePathParams["id"],
+  owner: IssueGetMilestonePathParams['owner'],
+  repo: IssueGetMilestonePathParams['repo'],
+  id: IssueGetMilestonePathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    IssueGetMilestoneQueryResponse,
-    ResponseErrorConfig<IssueGetMilestone404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<IssueGetMilestoneQueryResponse, ResponseErrorConfig<IssueGetMilestone404>, unknown>({
+    method: 'GET',
     url: getIssueGetMilestoneUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   NotifyGetThreadQueryResponse,
   NotifyGetThreadPathParams,
   NotifyGetThread403,
   NotifyGetThread404,
-} from "../types/NotifyGetThread"
+} from '../types/NotifyGetThread';
 
-function getNotifyGetThreadUrl(id: NotifyGetThreadPathParams["id"]) {
-  const res = { method: "GET", url: `/notifications/threads/${id}` as const };
+function getNotifyGetThreadUrl(id: NotifyGetThreadPathParams['id']) {
+  const res = { method: 'GET', url: `/notifications/threads/${id}` as const };
   return res;
 }
 
@@ -26,7 +22,7 @@ function getNotifyGetThreadUrl(id: NotifyGetThreadPathParams["id"]) {
  * {@link /notifications/threads/:id}
  */
 export async function notifyGetThread(
-  id: NotifyGetThreadPathParams["id"],
+  id: NotifyGetThreadPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -36,7 +32,7 @@ export async function notifyGetThread(
     ResponseErrorConfig<NotifyGetThread403 | NotifyGetThread404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getNotifyGetThreadUrl(id).url.toString(),
     ...requestConfig,
   });

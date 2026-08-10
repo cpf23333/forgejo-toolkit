@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssuePostIssueReactionMutationRequest,
   IssuePostIssueReactionMutationResponse,
   IssuePostIssueReactionPathParams,
   IssuePostIssueReaction403,
   IssuePostIssueReaction404,
-} from "../types/IssuePostIssueReaction"
+} from '../types/IssuePostIssueReaction';
 
 function getIssuePostIssueReactionUrl(
-  owner: IssuePostIssueReactionPathParams["owner"],
-  repo: IssuePostIssueReactionPathParams["repo"],
-  index: IssuePostIssueReactionPathParams["index"],
+  owner: IssuePostIssueReactionPathParams['owner'],
+  repo: IssuePostIssueReactionPathParams['repo'],
+  index: IssuePostIssueReactionPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/reactions` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssuePostIssueReactionUrl(
  * {@link /repos/:owner/:repo/issues/:index/reactions}
  */
 export async function issuePostIssueReaction(
-  owner: IssuePostIssueReactionPathParams["owner"],
-  repo: IssuePostIssueReactionPathParams["repo"],
-  index: IssuePostIssueReactionPathParams["index"],
+  owner: IssuePostIssueReactionPathParams['owner'],
+  repo: IssuePostIssueReactionPathParams['repo'],
+  index: IssuePostIssueReactionPathParams['index'],
   data?: IssuePostIssueReactionMutationRequest,
   config: Partial<RequestConfig<IssuePostIssueReactionMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function issuePostIssueReaction(
     ResponseErrorConfig<IssuePostIssueReaction403 | IssuePostIssueReaction404>,
     IssuePostIssueReactionMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssuePostIssueReactionUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

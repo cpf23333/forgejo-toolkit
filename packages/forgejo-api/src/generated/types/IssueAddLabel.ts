@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { IssueLabelsOption } from "./IssueLabelsOption"
-import type { Label } from "./Label"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { IssueLabelsOption } from './IssueLabelsOption';
+import type { Label } from './Label';
 
 export type IssueAddLabelPathParams = {
   /**

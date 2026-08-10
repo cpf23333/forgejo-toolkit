@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { IssueConfigContactLink } from "./IssueConfigContactLink"
+import type { IssueConfigContactLink } from './IssueConfigContactLink';
 
 export type IssueConfig = {
   /**

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIInternalServerError } from "./APIInternalServerError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { Comment } from "./Comment"
+import type { APIInternalServerError } from './APIInternalServerError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { Comment } from './Comment';
 
 export type IssueGetCommentsPathParams = {
   /**

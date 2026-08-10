@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { GPGKey } from "./GPGKey"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { GPGKey } from './GPGKey';
 
 export type UserCurrentGetGPGKeyPathParams = {
   /**
@@ -41,6 +41,5 @@ export type UserCurrentGetGPGKeyQueryResponse = UserCurrentGetGPGKey200;
 export type UserCurrentGetGPGKeyQuery = {
   Response: UserCurrentGetGPGKey200;
   PathParams: UserCurrentGetGPGKeyPathParams;
-  Errors:
-    UserCurrentGetGPGKey401 | UserCurrentGetGPGKey403 | UserCurrentGetGPGKey404;
+  Errors: UserCurrentGetGPGKey401 | UserCurrentGetGPGKey403 | UserCurrentGetGPGKey404;
 };

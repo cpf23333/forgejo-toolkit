@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { UpdateBranchRepoOption } from "./UpdateBranchRepoOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { UpdateBranchRepoOption } from './UpdateBranchRepoOption';
 
 export type RepoUpdateBranchPathParams = {
   /**

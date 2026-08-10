@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListQuotaArtifactsQueryResponse,
   UserListQuotaArtifactsQueryParams,
   UserListQuotaArtifacts401,
   UserListQuotaArtifacts403,
-} from "../types/UserListQuotaArtifacts"
+} from '../types/UserListQuotaArtifacts';
 
 function getUserListQuotaArtifactsUrl() {
-  const res = { method: "GET", url: `/user/quota/artifacts` as const };
+  const res = { method: 'GET', url: `/user/quota/artifacts` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function userListQuotaArtifacts(
     ResponseErrorConfig<UserListQuotaArtifacts401 | UserListQuotaArtifacts403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserListQuotaArtifactsUrl().url.toString(),
     params,
     ...requestConfig,

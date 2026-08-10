@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListKeysQueryResponse,
   UserListKeysPathParams,
   UserListKeysQueryParams,
   UserListKeys404,
-} from "../types/UserListKeys"
+} from '../types/UserListKeys';
 
-function getUserListKeysUrl(username: UserListKeysPathParams["username"]) {
-  const res = { method: "GET", url: `/users/${username}/keys` as const };
+function getUserListKeysUrl(username: UserListKeysPathParams['username']) {
+  const res = { method: 'GET', url: `/users/${username}/keys` as const };
   return res;
 }
 
@@ -26,18 +22,14 @@ function getUserListKeysUrl(username: UserListKeysPathParams["username"]) {
  * {@link /users/:username/keys}
  */
 export async function userListKeys(
-  username: UserListKeysPathParams["username"],
+  username: UserListKeysPathParams['username'],
   params?: UserListKeysQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserListKeysQueryResponse,
-    ResponseErrorConfig<UserListKeys404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<UserListKeysQueryResponse, ResponseErrorConfig<UserListKeys404>, unknown>({
+    method: 'GET',
     url: getUserListKeysUrl(username).url.toString(),
     params,
     ...requestConfig,

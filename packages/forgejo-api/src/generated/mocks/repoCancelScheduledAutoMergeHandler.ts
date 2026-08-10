@@ -8,46 +8,38 @@ import type {
   RepoCancelScheduledAutoMerge403,
   RepoCancelScheduledAutoMerge404,
   RepoCancelScheduledAutoMerge423,
-} from "../types/RepoCancelScheduledAutoMerge"
-import { http } from "msw";
+} from '../types/RepoCancelScheduledAutoMerge';
+import { http } from 'msw';
 
-export function repoCancelScheduledAutoMergeHandlerResponse204(
-  data?: RepoCancelScheduledAutoMergeMutationResponse,
-) {
+export function repoCancelScheduledAutoMergeHandlerResponse204(data?: RepoCancelScheduledAutoMergeMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoCancelScheduledAutoMergeHandlerResponse403(
-  data: RepoCancelScheduledAutoMerge403,
-) {
+export function repoCancelScheduledAutoMergeHandlerResponse403(data: RepoCancelScheduledAutoMerge403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCancelScheduledAutoMergeHandlerResponse404(
-  data: RepoCancelScheduledAutoMerge404,
-) {
+export function repoCancelScheduledAutoMergeHandlerResponse404(data: RepoCancelScheduledAutoMerge404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCancelScheduledAutoMergeHandlerResponse423(
-  data: RepoCancelScheduledAutoMerge423,
-) {
+export function repoCancelScheduledAutoMergeHandlerResponse423(data: RepoCancelScheduledAutoMerge423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,18 +51,13 @@ export function repoCancelScheduledAutoMergeHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/pulls/:index/merge`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/pulls/:index/merge`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

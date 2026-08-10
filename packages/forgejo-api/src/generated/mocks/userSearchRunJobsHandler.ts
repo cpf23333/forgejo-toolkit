@@ -7,38 +7,32 @@ import type {
   UserSearchRunJobsQueryResponse,
   UserSearchRunJobs401,
   UserSearchRunJobs403,
-} from "../types/UserSearchRunJobs"
-import { http } from "msw";
+} from '../types/UserSearchRunJobs';
+import { http } from 'msw';
 
-export function userSearchRunJobsHandlerResponse200(
-  data: UserSearchRunJobsQueryResponse,
-) {
+export function userSearchRunJobsHandlerResponse200(data: UserSearchRunJobsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userSearchRunJobsHandlerResponse401(
-  data: UserSearchRunJobs401,
-) {
+export function userSearchRunJobsHandlerResponse401(data: UserSearchRunJobs401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userSearchRunJobsHandlerResponse403(
-  data: UserSearchRunJobs403,
-) {
+export function userSearchRunJobsHandlerResponse403(data: UserSearchRunJobs403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function userSearchRunJobsHandlerResponse403(
 export function userSearchRunJobsHandler(
   data?:
     | UserSearchRunJobsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/actions/runners/jobs`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

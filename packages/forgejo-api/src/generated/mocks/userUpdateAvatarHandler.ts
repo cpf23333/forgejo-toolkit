@@ -7,12 +7,10 @@ import type {
   UserUpdateAvatarMutationResponse,
   UserUpdateAvatar401,
   UserUpdateAvatar403,
-} from "../types/UserUpdateAvatar"
-import { http } from "msw";
+} from '../types/UserUpdateAvatar';
+import { http } from 'msw';
 
-export function userUpdateAvatarHandlerResponse204(
-  data?: UserUpdateAvatarMutationResponse,
-) {
+export function userUpdateAvatarHandlerResponse204(data?: UserUpdateAvatarMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +20,7 @@ export function userUpdateAvatarHandlerResponse401(data: UserUpdateAvatar401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +29,7 @@ export function userUpdateAvatarHandlerResponse403(data: UserUpdateAvatar403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +41,10 @@ export function userUpdateAvatarHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/user/avatar`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

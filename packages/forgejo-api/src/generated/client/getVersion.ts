@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { GetVersionQueryResponse } from "../types/GetVersion"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetVersionQueryResponse } from '../types/GetVersion';
 
 function getGetVersionUrl() {
-  const res = { method: "GET", url: `/version` as const };
+  const res = { method: 'GET', url: `/version` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getGetVersionUrl() {
  * @summary Returns the version of the running application
  * {@link /version}
  */
-export async function getVersion(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getVersion(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetVersionQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetVersionQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getGetVersionUrl().url.toString(),
     ...requestConfig,
   });

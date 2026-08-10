@@ -9,12 +9,10 @@ import type {
   UserUnblockUser403,
   UserUnblockUser404,
   UserUnblockUser422,
-} from "../types/UserUnblockUser"
-import { http } from "msw";
+} from '../types/UserUnblockUser';
+import { http } from 'msw';
 
-export function userUnblockUserHandlerResponse204(
-  data?: UserUnblockUserMutationResponse,
-) {
+export function userUnblockUserHandlerResponse204(data?: UserUnblockUserMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -24,7 +22,7 @@ export function userUnblockUserHandlerResponse401(data: UserUnblockUser401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,7 +31,7 @@ export function userUnblockUserHandlerResponse403(data: UserUnblockUser403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,7 +40,7 @@ export function userUnblockUserHandlerResponse404(data: UserUnblockUser404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -51,7 +49,7 @@ export function userUnblockUserHandlerResponse422(data: UserUnblockUser422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -63,12 +61,10 @@ export function userUnblockUserHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/user/unblock/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

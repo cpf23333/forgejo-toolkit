@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { EditReactionOption } from "./EditReactionOption"
-import type { Reaction } from "./Reaction"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { EditReactionOption } from './EditReactionOption';
+import type { Reaction } from './Reaction';
 
 export type IssuePostIssueReactionPathParams = {
   /**
@@ -48,8 +48,7 @@ export type IssuePostIssueReaction404 = APINotFound;
 
 export type IssuePostIssueReactionMutationRequest = EditReactionOption;
 
-export type IssuePostIssueReactionMutationResponse =
-  IssuePostIssueReaction200 | IssuePostIssueReaction201;
+export type IssuePostIssueReactionMutationResponse = IssuePostIssueReaction200 | IssuePostIssueReaction201;
 
 export type IssuePostIssueReactionMutation = {
   Response: IssuePostIssueReaction200 | IssuePostIssueReaction201;

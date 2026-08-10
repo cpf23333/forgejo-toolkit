@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { GitEntry } from "./GitEntry"
+import type { GitEntry } from './GitEntry';
 
 /**
  * @description GitTreeResponse returns a git tree

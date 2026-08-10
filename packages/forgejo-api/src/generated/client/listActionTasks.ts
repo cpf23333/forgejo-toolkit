@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ListActionTasksQueryResponse,
   ListActionTasksPathParams,
@@ -18,14 +14,11 @@ import type {
   ListActionTasks404,
   ListActionTasks409,
   ListActionTasks422,
-} from "../types/ListActionTasks"
+} from '../types/ListActionTasks';
 
-function getListActionTasksUrl(
-  owner: ListActionTasksPathParams["owner"],
-  repo: ListActionTasksPathParams["repo"],
-) {
+function getListActionTasksUrl(owner: ListActionTasksPathParams['owner'], repo: ListActionTasksPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/actions/tasks` as const,
   };
   return res;
@@ -36,8 +29,8 @@ function getListActionTasksUrl(
  * {@link /repos/:owner/:repo/actions/tasks}
  */
 export async function listActionTasks(
-  owner: ListActionTasksPathParams["owner"],
-  repo: ListActionTasksPathParams["repo"],
+  owner: ListActionTasksPathParams['owner'],
+  repo: ListActionTasksPathParams['repo'],
   params?: ListActionTasksQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -46,15 +39,11 @@ export async function listActionTasks(
   const res = await request<
     ListActionTasksQueryResponse,
     ResponseErrorConfig<
-      | ListActionTasks400
-      | ListActionTasks403
-      | ListActionTasks404
-      | ListActionTasks409
-      | ListActionTasks422
+      ListActionTasks400 | ListActionTasks403 | ListActionTasks404 | ListActionTasks409 | ListActionTasks422
     >,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getListActionTasksUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

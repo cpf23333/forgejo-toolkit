@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgListActionsSecretsQueryResponse,
-  OrgListActionsSecrets404,
-} from "../types/OrgListActionsSecrets"
-import { http } from "msw";
+import type { OrgListActionsSecretsQueryResponse, OrgListActionsSecrets404 } from '../types/OrgListActionsSecrets';
+import { http } from 'msw';
 
-export function orgListActionsSecretsHandlerResponse200(
-  data: OrgListActionsSecretsQueryResponse,
-) {
+export function orgListActionsSecretsHandlerResponse200(data: OrgListActionsSecretsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgListActionsSecretsHandlerResponse404(
-  data: OrgListActionsSecrets404,
-) {
+export function orgListActionsSecretsHandlerResponse404(data: OrgListActionsSecrets404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function orgListActionsSecretsHandlerResponse404(
 export function orgListActionsSecretsHandler(
   data?:
     | OrgListActionsSecretsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/actions/secrets`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,11 +3,8 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgIsMemberQueryResponse,
-  OrgIsMember404,
-} from "../types/OrgIsMember"
-import { http } from "msw";
+import type { OrgIsMemberQueryResponse, OrgIsMember404 } from '../types/OrgIsMember';
+import { http } from 'msw';
 
 export function orgIsMemberHandlerResponse204(data?: OrgIsMemberQueryResponse) {
   return new Response(JSON.stringify(data), {
@@ -28,12 +25,10 @@ export function orgIsMemberHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/members/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

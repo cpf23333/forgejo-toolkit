@@ -9,60 +9,50 @@ import type {
   UserCurrentPostGPGKey403,
   UserCurrentPostGPGKey404,
   UserCurrentPostGPGKey422,
-} from "../types/UserCurrentPostGPGKey"
-import { http } from "msw";
+} from '../types/UserCurrentPostGPGKey';
+import { http } from 'msw';
 
-export function userCurrentPostGPGKeyHandlerResponse201(
-  data: UserCurrentPostGPGKeyMutationResponse,
-) {
+export function userCurrentPostGPGKeyHandlerResponse201(data: UserCurrentPostGPGKeyMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentPostGPGKeyHandlerResponse401(
-  data: UserCurrentPostGPGKey401,
-) {
+export function userCurrentPostGPGKeyHandlerResponse401(data: UserCurrentPostGPGKey401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentPostGPGKeyHandlerResponse403(
-  data: UserCurrentPostGPGKey403,
-) {
+export function userCurrentPostGPGKeyHandlerResponse403(data: UserCurrentPostGPGKey403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentPostGPGKeyHandlerResponse404(
-  data: UserCurrentPostGPGKey404,
-) {
+export function userCurrentPostGPGKeyHandlerResponse404(data: UserCurrentPostGPGKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentPostGPGKeyHandlerResponse422(
-  data: UserCurrentPostGPGKey422,
-) {
+export function userCurrentPostGPGKeyHandlerResponse422(data: UserCurrentPostGPGKey422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -70,17 +60,15 @@ export function userCurrentPostGPGKeyHandlerResponse422(
 export function userCurrentPostGPGKeyHandler(
   data?:
     | UserCurrentPostGPGKeyMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/user/gpg_keys`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

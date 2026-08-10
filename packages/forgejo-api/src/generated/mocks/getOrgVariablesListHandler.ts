@@ -7,38 +7,32 @@ import type {
   GetOrgVariablesListQueryResponse,
   GetOrgVariablesList400,
   GetOrgVariablesList404,
-} from "../types/GetOrgVariablesList"
-import { http } from "msw";
+} from '../types/GetOrgVariablesList';
+import { http } from 'msw';
 
-export function getOrgVariablesListHandlerResponse200(
-  data: GetOrgVariablesListQueryResponse,
-) {
+export function getOrgVariablesListHandlerResponse200(data: GetOrgVariablesListQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getOrgVariablesListHandlerResponse400(
-  data: GetOrgVariablesList400,
-) {
+export function getOrgVariablesListHandlerResponse400(data: GetOrgVariablesList400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getOrgVariablesListHandlerResponse404(
-  data: GetOrgVariablesList404,
-) {
+export function getOrgVariablesListHandlerResponse404(data: GetOrgVariablesList404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function getOrgVariablesListHandlerResponse404(
 export function getOrgVariablesListHandler(
   data?:
     | GetOrgVariablesListQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/actions/variables`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

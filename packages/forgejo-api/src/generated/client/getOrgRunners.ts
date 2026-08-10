@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetOrgRunnersQueryResponse,
   GetOrgRunnersPathParams,
   GetOrgRunnersQueryParams,
   GetOrgRunners400,
   GetOrgRunners404,
-} from "../types/GetOrgRunners"
+} from '../types/GetOrgRunners';
 
-function getGetOrgRunnersUrl(org: GetOrgRunnersPathParams["org"]) {
-  const res = { method: "GET", url: `/orgs/${org}/actions/runners` as const };
+function getGetOrgRunnersUrl(org: GetOrgRunnersPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/actions/runners` as const };
   return res;
 }
 
@@ -27,7 +23,7 @@ function getGetOrgRunnersUrl(org: GetOrgRunnersPathParams["org"]) {
  * {@link /orgs/:org/actions/runners}
  */
 export async function getOrgRunners(
-  org: GetOrgRunnersPathParams["org"],
+  org: GetOrgRunnersPathParams['org'],
   params?: GetOrgRunnersQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -38,7 +34,7 @@ export async function getOrgRunners(
     ResponseErrorConfig<GetOrgRunners400 | GetOrgRunners404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetOrgRunnersUrl(org).url.toString(),
     params,
     ...requestConfig,

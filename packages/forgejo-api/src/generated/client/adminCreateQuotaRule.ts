@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminCreateQuotaRuleMutationRequest,
   AdminCreateQuotaRuleMutationResponse,
@@ -16,10 +12,10 @@ import type {
   AdminCreateQuotaRule403,
   AdminCreateQuotaRule409,
   AdminCreateQuotaRule422,
-} from "../types/AdminCreateQuotaRule"
+} from '../types/AdminCreateQuotaRule';
 
 function getAdminCreateQuotaRuleUrl() {
-  const res = { method: "POST", url: `/admin/quota/rules` as const };
+  const res = { method: 'POST', url: `/admin/quota/rules` as const };
   return res;
 }
 
@@ -40,14 +36,11 @@ export async function adminCreateQuotaRule(
   const res = await request<
     AdminCreateQuotaRuleMutationResponse,
     ResponseErrorConfig<
-      | AdminCreateQuotaRule400
-      | AdminCreateQuotaRule403
-      | AdminCreateQuotaRule409
-      | AdminCreateQuotaRule422
+      AdminCreateQuotaRule400 | AdminCreateQuotaRule403 | AdminCreateQuotaRule409 | AdminCreateQuotaRule422
     >,
     AdminCreateQuotaRuleMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminCreateQuotaRuleUrl().url.toString(),
     data: requestData,
     ...requestConfig,

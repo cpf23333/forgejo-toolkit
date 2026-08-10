@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Team } from "./Team"
+import type { Team } from './Team';
 
 export type TeamListWithoutPagination = Team[];

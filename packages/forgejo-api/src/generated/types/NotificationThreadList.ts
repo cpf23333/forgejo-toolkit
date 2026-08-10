@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { NotificationThread } from "./NotificationThread"
+import type { NotificationThread } from './NotificationThread';
 
 export type NotificationThreadList = NotificationThread[];

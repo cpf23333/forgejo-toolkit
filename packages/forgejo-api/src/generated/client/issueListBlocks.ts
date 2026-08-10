@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueListBlocksQueryResponse,
   IssueListBlocksPathParams,
   IssueListBlocksQueryParams,
   IssueListBlocks404,
-} from "../types/IssueListBlocks"
+} from '../types/IssueListBlocks';
 
 function getIssueListBlocksUrl(
-  owner: IssueListBlocksPathParams["owner"],
-  repo: IssueListBlocksPathParams["repo"],
-  index: IssueListBlocksPathParams["index"],
+  owner: IssueListBlocksPathParams['owner'],
+  repo: IssueListBlocksPathParams['repo'],
+  index: IssueListBlocksPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/blocks` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getIssueListBlocksUrl(
  * {@link /repos/:owner/:repo/issues/:index/blocks}
  */
 export async function issueListBlocks(
-  owner: IssueListBlocksPathParams["owner"],
-  repo: IssueListBlocksPathParams["repo"],
-  index: IssueListBlocksPathParams["index"],
+  owner: IssueListBlocksPathParams['owner'],
+  repo: IssueListBlocksPathParams['repo'],
+  index: IssueListBlocksPathParams['index'],
   params?: IssueListBlocksQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    IssueListBlocksQueryResponse,
-    ResponseErrorConfig<IssueListBlocks404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<IssueListBlocksQueryResponse, ResponseErrorConfig<IssueListBlocks404>, unknown>({
+    method: 'GET',
     url: getIssueListBlocksUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

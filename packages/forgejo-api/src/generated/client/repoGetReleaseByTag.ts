@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetReleaseByTagQueryResponse,
   RepoGetReleaseByTagPathParams,
   RepoGetReleaseByTag404,
-} from "../types/RepoGetReleaseByTag"
+} from '../types/RepoGetReleaseByTag';
 
 function getRepoGetReleaseByTagUrl(
-  owner: RepoGetReleaseByTagPathParams["owner"],
-  repo: RepoGetReleaseByTagPathParams["repo"],
-  tag: RepoGetReleaseByTagPathParams["tag"],
+  owner: RepoGetReleaseByTagPathParams['owner'],
+  repo: RepoGetReleaseByTagPathParams['repo'],
+  tag: RepoGetReleaseByTagPathParams['tag'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/releases/tags/${tag}` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoGetReleaseByTagUrl(
  * {@link /repos/:owner/:repo/releases/tags/:tag}
  */
 export async function repoGetReleaseByTag(
-  owner: RepoGetReleaseByTagPathParams["owner"],
-  repo: RepoGetReleaseByTagPathParams["repo"],
-  tag: RepoGetReleaseByTagPathParams["tag"],
+  owner: RepoGetReleaseByTagPathParams['owner'],
+  repo: RepoGetReleaseByTagPathParams['repo'],
+  tag: RepoGetReleaseByTagPathParams['tag'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetReleaseByTagQueryResponse,
-    ResponseErrorConfig<RepoGetReleaseByTag404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetReleaseByTagQueryResponse, ResponseErrorConfig<RepoGetReleaseByTag404>, unknown>({
+    method: 'GET',
     url: getRepoGetReleaseByTagUrl(owner, repo, tag).url.toString(),
     ...requestConfig,
   });

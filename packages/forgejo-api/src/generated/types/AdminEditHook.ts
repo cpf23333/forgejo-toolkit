@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { EditHookOption } from "./EditHookOption"
-import type { Hook } from "./Hook"
+import type { EditHookOption } from './EditHookOption';
+import type { Hook } from './Hook';
 
 export type AdminEditHookPathParams = {
   /**

@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentListReposQueryResponse,
   UserCurrentListReposQueryParams,
   UserCurrentListRepos401,
   UserCurrentListRepos403,
   UserCurrentListRepos422,
-} from "../types/UserCurrentListRepos"
+} from '../types/UserCurrentListRepos';
 
 function getUserCurrentListReposUrl() {
-  const res = { method: "GET", url: `/user/repos` as const };
+  const res = { method: 'GET', url: `/user/repos` as const };
   return res;
 }
 
@@ -34,14 +30,10 @@ export async function userCurrentListRepos(
 
   const res = await request<
     UserCurrentListReposQueryResponse,
-    ResponseErrorConfig<
-      | UserCurrentListRepos401
-      | UserCurrentListRepos403
-      | UserCurrentListRepos422
-    >,
+    ResponseErrorConfig<UserCurrentListRepos401 | UserCurrentListRepos403 | UserCurrentListRepos422>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentListReposUrl().url.toString(),
     params,
     ...requestConfig,

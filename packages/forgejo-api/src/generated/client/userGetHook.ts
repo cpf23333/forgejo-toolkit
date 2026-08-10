@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserGetHookQueryResponse,
   UserGetHookPathParams,
   UserGetHook401,
   UserGetHook403,
-} from "../types/UserGetHook"
+} from '../types/UserGetHook';
 
-function getUserGetHookUrl(id: UserGetHookPathParams["id"]) {
-  const res = { method: "GET", url: `/user/hooks/${id}` as const };
+function getUserGetHookUrl(id: UserGetHookPathParams['id']) {
+  const res = { method: 'GET', url: `/user/hooks/${id}` as const };
   return res;
 }
 
@@ -26,17 +22,13 @@ function getUserGetHookUrl(id: UserGetHookPathParams["id"]) {
  * {@link /user/hooks/:id}
  */
 export async function userGetHook(
-  id: UserGetHookPathParams["id"],
+  id: UserGetHookPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserGetHookQueryResponse,
-    ResponseErrorConfig<UserGetHook401 | UserGetHook403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<UserGetHookQueryResponse, ResponseErrorConfig<UserGetHook401 | UserGetHook403>, unknown>({
+    method: 'GET',
     url: getUserGetHookUrl(id).url.toString(),
     ...requestConfig,
   });

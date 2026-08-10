@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueListIssuesQueryResponse,
-  IssueListIssues404,
-  IssueListIssues422,
-} from "../types/IssueListIssues"
-import { http } from "msw";
+import type { IssueListIssuesQueryResponse, IssueListIssues404, IssueListIssues422 } from '../types/IssueListIssues';
+import { http } from 'msw';
 
-export function issueListIssuesHandlerResponse200(
-  data: IssueListIssuesQueryResponse,
-) {
+export function issueListIssuesHandlerResponse200(data: IssueListIssuesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function issueListIssuesHandlerResponse404(data: IssueListIssues404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function issueListIssuesHandlerResponse422(data: IssueListIssues422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function issueListIssuesHandlerResponse422(data: IssueListIssues422) {
 export function issueListIssuesHandler(
   data?:
     | IssueListIssuesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

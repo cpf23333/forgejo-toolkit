@@ -3,25 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoGetTagQueryResponse,
-  RepoGetTagPathParams,
-  RepoGetTag404,
-} from "../types/RepoGetTag"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoGetTagQueryResponse, RepoGetTagPathParams, RepoGetTag404 } from '../types/RepoGetTag';
 
 function getRepoGetTagUrl(
-  owner: RepoGetTagPathParams["owner"],
-  repo: RepoGetTagPathParams["repo"],
-  tag: RepoGetTagPathParams["tag"],
+  owner: RepoGetTagPathParams['owner'],
+  repo: RepoGetTagPathParams['repo'],
+  tag: RepoGetTagPathParams['tag'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/tags/${tag}` as const,
   };
   return res;
@@ -32,19 +24,15 @@ function getRepoGetTagUrl(
  * {@link /repos/:owner/:repo/tags/:tag}
  */
 export async function repoGetTag(
-  owner: RepoGetTagPathParams["owner"],
-  repo: RepoGetTagPathParams["repo"],
-  tag: RepoGetTagPathParams["tag"],
+  owner: RepoGetTagPathParams['owner'],
+  repo: RepoGetTagPathParams['repo'],
+  tag: RepoGetTagPathParams['tag'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetTagQueryResponse,
-    ResponseErrorConfig<RepoGetTag404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetTagQueryResponse, ResponseErrorConfig<RepoGetTag404>, unknown>({
+    method: 'GET',
     url: getRepoGetTagUrl(owner, repo, tag).url.toString(),
     ...requestConfig,
   });

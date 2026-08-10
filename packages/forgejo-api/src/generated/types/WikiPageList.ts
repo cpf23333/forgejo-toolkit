@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { WikiPageMetaData } from "./WikiPageMetaData"
+import type { WikiPageMetaData } from './WikiPageMetaData';
 
 export type WikiPageList = WikiPageMetaData[];

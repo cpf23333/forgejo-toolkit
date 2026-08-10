@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  AdminCronListQueryResponse,
-  AdminCronListQueryParams,
-  AdminCronList403,
-} from "../types/AdminCronList"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AdminCronListQueryResponse, AdminCronListQueryParams, AdminCronList403 } from '../types/AdminCronList';
 
 function getAdminCronListUrl() {
-  const res = { method: "GET", url: `/admin/cron` as const };
+  const res = { method: 'GET', url: `/admin/cron` as const };
   return res;
 }
 
@@ -30,12 +22,8 @@ export async function adminCronList(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminCronListQueryResponse,
-    ResponseErrorConfig<AdminCronList403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminCronListQueryResponse, ResponseErrorConfig<AdminCronList403>, unknown>({
+    method: 'GET',
     url: getAdminCronListUrl().url.toString(),
     params,
     ...requestConfig,

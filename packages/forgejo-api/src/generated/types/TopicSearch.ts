@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { TopicResponse } from "./TopicResponse"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { TopicResponse } from './TopicResponse';
 
 export type TopicSearchQueryParams = {
   /**

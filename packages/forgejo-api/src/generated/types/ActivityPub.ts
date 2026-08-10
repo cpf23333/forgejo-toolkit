@@ -10,5 +10,5 @@ export type ActivityPub = {
   /**
    * @type string | undefined
    */
-  "@context"?: string;
+  '@context'?: string;
 };

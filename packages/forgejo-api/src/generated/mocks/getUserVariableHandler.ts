@@ -9,16 +9,14 @@ import type {
   GetUserVariable401,
   GetUserVariable403,
   GetUserVariable404,
-} from "../types/GetUserVariable"
-import { http } from "msw";
+} from '../types/GetUserVariable';
+import { http } from 'msw';
 
-export function getUserVariableHandlerResponse200(
-  data: GetUserVariableQueryResponse,
-) {
+export function getUserVariableHandlerResponse200(data: GetUserVariableQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -27,7 +25,7 @@ export function getUserVariableHandlerResponse400(data: GetUserVariable400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -36,7 +34,7 @@ export function getUserVariableHandlerResponse401(data: GetUserVariable401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -45,7 +43,7 @@ export function getUserVariableHandlerResponse403(data: GetUserVariable403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -54,7 +52,7 @@ export function getUserVariableHandlerResponse404(data: GetUserVariable404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -62,21 +60,16 @@ export function getUserVariableHandlerResponse404(data: GetUserVariable404) {
 export function getUserVariableHandler(
   data?:
     | GetUserVariableQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/user/actions/variables/:variablename`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/user/actions/variables/:variablename`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

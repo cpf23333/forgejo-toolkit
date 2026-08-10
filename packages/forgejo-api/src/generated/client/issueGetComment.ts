@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetCommentQueryResponse,
   IssueGetCommentPathParams,
   IssueGetComment403,
   IssueGetComment404,
   IssueGetComment500,
-} from "../types/IssueGetComment"
+} from '../types/IssueGetComment';
 
 function getIssueGetCommentUrl(
-  owner: IssueGetCommentPathParams["owner"],
-  repo: IssueGetCommentPathParams["repo"],
-  id: IssueGetCommentPathParams["id"],
+  owner: IssueGetCommentPathParams['owner'],
+  repo: IssueGetCommentPathParams['repo'],
+  id: IssueGetCommentPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/comments/${id}` as const,
   };
   return res;
@@ -34,21 +30,19 @@ function getIssueGetCommentUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id}
  */
 export async function issueGetComment(
-  owner: IssueGetCommentPathParams["owner"],
-  repo: IssueGetCommentPathParams["repo"],
-  id: IssueGetCommentPathParams["id"],
+  owner: IssueGetCommentPathParams['owner'],
+  repo: IssueGetCommentPathParams['repo'],
+  id: IssueGetCommentPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     IssueGetCommentQueryResponse,
-    ResponseErrorConfig<
-      IssueGetComment403 | IssueGetComment404 | IssueGetComment500
-    >,
+    ResponseErrorConfig<IssueGetComment403 | IssueGetComment404 | IssueGetComment500>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueGetCommentUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

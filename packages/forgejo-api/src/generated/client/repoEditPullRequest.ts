@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoEditPullRequestMutationRequest,
   RepoEditPullRequestMutationResponse,
@@ -18,15 +14,15 @@ import type {
   RepoEditPullRequest409,
   RepoEditPullRequest412,
   RepoEditPullRequest422,
-} from "../types/RepoEditPullRequest"
+} from '../types/RepoEditPullRequest';
 
 function getRepoEditPullRequestUrl(
-  owner: RepoEditPullRequestPathParams["owner"],
-  repo: RepoEditPullRequestPathParams["repo"],
-  index: RepoEditPullRequestPathParams["index"],
+  owner: RepoEditPullRequestPathParams['owner'],
+  repo: RepoEditPullRequestPathParams['repo'],
+  index: RepoEditPullRequestPathParams['index'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/pulls/${index}` as const,
   };
   return res;
@@ -37,9 +33,9 @@ function getRepoEditPullRequestUrl(
  * {@link /repos/:owner/:repo/pulls/:index}
  */
 export async function repoEditPullRequest(
-  owner: RepoEditPullRequestPathParams["owner"],
-  repo: RepoEditPullRequestPathParams["repo"],
-  index: RepoEditPullRequestPathParams["index"],
+  owner: RepoEditPullRequestPathParams['owner'],
+  repo: RepoEditPullRequestPathParams['repo'],
+  index: RepoEditPullRequestPathParams['index'],
   data?: RepoEditPullRequestMutationRequest,
   config: Partial<RequestConfig<RepoEditPullRequestMutationRequest>> & {
     client?: Client;
@@ -60,7 +56,7 @@ export async function repoEditPullRequest(
     >,
     RepoEditPullRequestMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getRepoEditPullRequestUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

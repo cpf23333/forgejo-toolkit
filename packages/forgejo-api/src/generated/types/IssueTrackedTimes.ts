@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { TrackedTime } from "./TrackedTime"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { TrackedTime } from './TrackedTime';
 
 export type IssueTrackedTimesPathParams = {
   /**

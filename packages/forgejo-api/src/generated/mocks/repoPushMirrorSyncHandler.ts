@@ -9,53 +9,43 @@ import type {
   RepoPushMirrorSync403,
   RepoPushMirrorSync404,
   RepoPushMirrorSync413,
-} from "../types/RepoPushMirrorSync"
-import { http } from "msw";
+} from '../types/RepoPushMirrorSync';
+import { http } from 'msw';
 
-export function repoPushMirrorSyncHandlerResponse200(
-  data?: RepoPushMirrorSyncMutationResponse,
-) {
+export function repoPushMirrorSyncHandlerResponse200(data?: RepoPushMirrorSyncMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function repoPushMirrorSyncHandlerResponse400(
-  data: RepoPushMirrorSync400,
-) {
+export function repoPushMirrorSyncHandlerResponse400(data: RepoPushMirrorSync400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoPushMirrorSyncHandlerResponse403(
-  data: RepoPushMirrorSync403,
-) {
+export function repoPushMirrorSyncHandlerResponse403(data: RepoPushMirrorSync403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoPushMirrorSyncHandlerResponse404(
-  data: RepoPushMirrorSync404,
-) {
+export function repoPushMirrorSyncHandlerResponse404(data: RepoPushMirrorSync404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoPushMirrorSyncHandlerResponse413(
-  data?: RepoPushMirrorSync413,
-) {
+export function repoPushMirrorSyncHandlerResponse413(data?: RepoPushMirrorSync413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
@@ -68,18 +58,13 @@ export function repoPushMirrorSyncHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/push_mirrors-sync`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/push_mirrors-sync`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+    });
+  });
 }

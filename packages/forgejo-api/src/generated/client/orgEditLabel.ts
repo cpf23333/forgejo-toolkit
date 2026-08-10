@@ -3,25 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgEditLabelMutationRequest,
   OrgEditLabelMutationResponse,
   OrgEditLabelPathParams,
   OrgEditLabel404,
   OrgEditLabel422,
-} from "../types/OrgEditLabel"
+} from '../types/OrgEditLabel';
 
-function getOrgEditLabelUrl(
-  org: OrgEditLabelPathParams["org"],
-  id: OrgEditLabelPathParams["id"],
-) {
-  const res = { method: "PATCH", url: `/orgs/${org}/labels/${id}` as const };
+function getOrgEditLabelUrl(org: OrgEditLabelPathParams['org'], id: OrgEditLabelPathParams['id']) {
+  const res = { method: 'PATCH', url: `/orgs/${org}/labels/${id}` as const };
   return res;
 }
 
@@ -30,8 +23,8 @@ function getOrgEditLabelUrl(
  * {@link /orgs/:org/labels/:id}
  */
 export async function orgEditLabel(
-  org: OrgEditLabelPathParams["org"],
-  id: OrgEditLabelPathParams["id"],
+  org: OrgEditLabelPathParams['org'],
+  id: OrgEditLabelPathParams['id'],
   data?: OrgEditLabelMutationRequest,
   config: Partial<RequestConfig<OrgEditLabelMutationRequest>> & {
     client?: Client;
@@ -46,7 +39,7 @@ export async function orgEditLabel(
     ResponseErrorConfig<OrgEditLabel404 | OrgEditLabel422>,
     OrgEditLabelMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getOrgEditLabelUrl(org, id).url.toString(),
     data: requestData,
     ...requestConfig,

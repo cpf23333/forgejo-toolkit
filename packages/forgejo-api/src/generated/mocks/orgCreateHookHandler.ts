@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgCreateHookMutationResponse,
-  OrgCreateHook404,
-} from "../types/OrgCreateHook"
-import { http } from "msw";
+import type { OrgCreateHookMutationResponse, OrgCreateHook404 } from '../types/OrgCreateHook';
+import { http } from 'msw';
 
-export function orgCreateHookHandlerResponse201(
-  data: OrgCreateHookMutationResponse,
-) {
+export function orgCreateHookHandlerResponse201(data: OrgCreateHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function orgCreateHookHandlerResponse404(data: OrgCreateHook404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function orgCreateHookHandlerResponse404(data: OrgCreateHook404) {
 export function orgCreateHookHandler(
   data?:
     | OrgCreateHookMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/orgs/:org/hooks`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

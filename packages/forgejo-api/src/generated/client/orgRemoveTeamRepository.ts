@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgRemoveTeamRepositoryMutationResponse,
   OrgRemoveTeamRepositoryPathParams,
   OrgRemoveTeamRepository403,
   OrgRemoveTeamRepository404,
-} from "../types/OrgRemoveTeamRepository"
+} from '../types/OrgRemoveTeamRepository';
 
 function getOrgRemoveTeamRepositoryUrl(
-  id: OrgRemoveTeamRepositoryPathParams["id"],
-  org: OrgRemoveTeamRepositoryPathParams["org"],
-  repo: OrgRemoveTeamRepositoryPathParams["repo"],
+  id: OrgRemoveTeamRepositoryPathParams['id'],
+  org: OrgRemoveTeamRepositoryPathParams['org'],
+  repo: OrgRemoveTeamRepositoryPathParams['repo'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/teams/${id}/repos/${org}/${repo}` as const,
   };
   return res;
@@ -34,21 +30,19 @@ function getOrgRemoveTeamRepositoryUrl(
  * {@link /teams/:id/repos/:org/:repo}
  */
 export async function orgRemoveTeamRepository(
-  id: OrgRemoveTeamRepositoryPathParams["id"],
-  org: OrgRemoveTeamRepositoryPathParams["org"],
-  repo: OrgRemoveTeamRepositoryPathParams["repo"],
+  id: OrgRemoveTeamRepositoryPathParams['id'],
+  org: OrgRemoveTeamRepositoryPathParams['org'],
+  repo: OrgRemoveTeamRepositoryPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     OrgRemoveTeamRepositoryMutationResponse,
-    ResponseErrorConfig<
-      OrgRemoveTeamRepository403 | OrgRemoveTeamRepository404
-    >,
+    ResponseErrorConfig<OrgRemoveTeamRepository403 | OrgRemoveTeamRepository404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getOrgRemoveTeamRepositoryUrl(id, org, repo).url.toString(),
     ...requestConfig,
   });

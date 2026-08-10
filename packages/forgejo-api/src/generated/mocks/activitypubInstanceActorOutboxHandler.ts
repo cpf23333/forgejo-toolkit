@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubInstanceActorOutboxMutationResponse } from "../types/ActivitypubInstanceActorOutbox"
-import { http } from "msw";
+import type { ActivitypubInstanceActorOutboxMutationResponse } from '../types/ActivitypubInstanceActorOutbox';
+import { http } from 'msw';
 
-export function activitypubInstanceActorOutboxHandlerResponse200(
-  data: ActivitypubInstanceActorOutboxMutationResponse,
-) {
+export function activitypubInstanceActorOutboxHandlerResponse200(data: ActivitypubInstanceActorOutboxMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function activitypubInstanceActorOutboxHandlerResponse200(
 export function activitypubInstanceActorOutboxHandler(
   data?:
     | ActivitypubInstanceActorOutboxMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/activitypub/actor/outbox`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

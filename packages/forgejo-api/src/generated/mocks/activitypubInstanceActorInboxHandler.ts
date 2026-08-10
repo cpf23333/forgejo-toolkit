@@ -3,12 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubInstanceActorInboxMutationResponse } from "../types/ActivitypubInstanceActorInbox"
-import { http } from "msw";
+import type { ActivitypubInstanceActorInboxMutationResponse } from '../types/ActivitypubInstanceActorInbox';
+import { http } from 'msw';
 
-export function activitypubInstanceActorInboxHandlerResponse204(
-  data?: ActivitypubInstanceActorInboxMutationResponse,
-) {
+export function activitypubInstanceActorInboxHandlerResponse204(data?: ActivitypubInstanceActorInboxMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,12 +19,10 @@ export function activitypubInstanceActorInboxHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/activitypub/actor/inbox`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

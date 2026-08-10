@@ -7,43 +7,35 @@ import type {
   CreateRepoVariableMutationResponse,
   CreateRepoVariable400,
   CreateRepoVariable404,
-} from "../types/CreateRepoVariable"
-import { http } from "msw";
+} from '../types/CreateRepoVariable';
+import { http } from 'msw';
 
-export function createRepoVariableHandlerResponse201(
-  data?: CreateRepoVariableMutationResponse,
-) {
+export function createRepoVariableHandlerResponse201(data?: CreateRepoVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function createRepoVariableHandlerResponse204(
-  data?: CreateRepoVariableMutationResponse,
-) {
+export function createRepoVariableHandlerResponse204(data?: CreateRepoVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function createRepoVariableHandlerResponse400(
-  data: CreateRepoVariable400,
-) {
+export function createRepoVariableHandlerResponse400(data: CreateRepoVariable400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createRepoVariableHandlerResponse404(
-  data: CreateRepoVariable404,
-) {
+export function createRepoVariableHandlerResponse404(data: CreateRepoVariable404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -55,18 +47,13 @@ export function createRepoVariableHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/actions/variables/:variablename`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/actions/variables/:variablename`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

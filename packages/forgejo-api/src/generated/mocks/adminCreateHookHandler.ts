@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { AdminCreateHookMutationResponse } from "../types/AdminCreateHook"
-import { http } from "msw";
+import type { AdminCreateHookMutationResponse } from '../types/AdminCreateHook';
+import { http } from 'msw';
 
-export function adminCreateHookHandlerResponse201(
-  data: AdminCreateHookMutationResponse,
-) {
+export function adminCreateHookHandlerResponse201(data: AdminCreateHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function adminCreateHookHandlerResponse201(
 export function adminCreateHookHandler(
   data?:
     | AdminCreateHookMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/admin/hooks`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

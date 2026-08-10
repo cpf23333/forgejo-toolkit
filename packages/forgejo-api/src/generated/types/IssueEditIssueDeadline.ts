@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { EditDeadlineOption } from "./EditDeadlineOption"
-import type { IssueDeadline } from "./IssueDeadline"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { EditDeadlineOption } from './EditDeadlineOption';
+import type { IssueDeadline } from './IssueDeadline';
 
 export type IssueEditIssueDeadlinePathParams = {
   /**

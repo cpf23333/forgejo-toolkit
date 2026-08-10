@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreatePullReviewComment } from "./CreatePullReviewComment"
-import type { PullReviewComment } from "./PullReviewComment"
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { CreatePullReviewComment } from './CreatePullReviewComment';
+import type { PullReviewComment } from './PullReviewComment';
 
 export type RepoCreatePullReviewCommentPathParams = {
   /**
@@ -46,11 +46,9 @@ export type RepoCreatePullReviewComment404 = APINotFound;
  */
 export type RepoCreatePullReviewComment422 = APIValidationError;
 
-export type RepoCreatePullReviewCommentMutationRequest =
-  CreatePullReviewComment;
+export type RepoCreatePullReviewCommentMutationRequest = CreatePullReviewComment;
 
-export type RepoCreatePullReviewCommentMutationResponse =
-  RepoCreatePullReviewComment200;
+export type RepoCreatePullReviewCommentMutationResponse = RepoCreatePullReviewComment200;
 
 export type RepoCreatePullReviewCommentMutation = {
   Response: RepoCreatePullReviewComment200;

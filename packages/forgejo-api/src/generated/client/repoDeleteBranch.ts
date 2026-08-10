@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteBranchMutationResponse,
   RepoDeleteBranchPathParams,
   RepoDeleteBranch403,
   RepoDeleteBranch404,
   RepoDeleteBranch423,
-} from "../types/RepoDeleteBranch"
+} from '../types/RepoDeleteBranch';
 
 function getRepoDeleteBranchUrl(
-  owner: RepoDeleteBranchPathParams["owner"],
-  repo: RepoDeleteBranchPathParams["repo"],
-  branch: RepoDeleteBranchPathParams["branch"],
+  owner: RepoDeleteBranchPathParams['owner'],
+  repo: RepoDeleteBranchPathParams['repo'],
+  branch: RepoDeleteBranchPathParams['branch'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/branches/${branch}` as const,
   };
   return res;
@@ -34,21 +30,19 @@ function getRepoDeleteBranchUrl(
  * {@link /repos/:owner/:repo/branches/:branch}
  */
 export async function repoDeleteBranch(
-  owner: RepoDeleteBranchPathParams["owner"],
-  repo: RepoDeleteBranchPathParams["repo"],
-  branch: RepoDeleteBranchPathParams["branch"],
+  owner: RepoDeleteBranchPathParams['owner'],
+  repo: RepoDeleteBranchPathParams['repo'],
+  branch: RepoDeleteBranchPathParams['branch'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     RepoDeleteBranchMutationResponse,
-    ResponseErrorConfig<
-      RepoDeleteBranch403 | RepoDeleteBranch404 | RepoDeleteBranch423
-    >,
+    ResponseErrorConfig<RepoDeleteBranch403 | RepoDeleteBranch404 | RepoDeleteBranch423>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteBranchUrl(owner, repo, branch).url.toString(),
     ...requestConfig,
   });

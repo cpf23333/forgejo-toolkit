@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreatePullReviewRequestsMutationRequest,
   RepoCreatePullReviewRequestsMutationResponse,
@@ -16,15 +12,15 @@ import type {
   RepoCreatePullReviewRequests403,
   RepoCreatePullReviewRequests404,
   RepoCreatePullReviewRequests422,
-} from "../types/RepoCreatePullReviewRequests"
+} from '../types/RepoCreatePullReviewRequests';
 
 function getRepoCreatePullReviewRequestsUrl(
-  owner: RepoCreatePullReviewRequestsPathParams["owner"],
-  repo: RepoCreatePullReviewRequestsPathParams["repo"],
-  index: RepoCreatePullReviewRequestsPathParams["index"],
+  owner: RepoCreatePullReviewRequestsPathParams['owner'],
+  repo: RepoCreatePullReviewRequestsPathParams['repo'],
+  index: RepoCreatePullReviewRequestsPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/pulls/${index}/requested_reviewers` as const,
   };
   return res;
@@ -35,13 +31,11 @@ function getRepoCreatePullReviewRequestsUrl(
  * {@link /repos/:owner/:repo/pulls/:index/requested_reviewers}
  */
 export async function repoCreatePullReviewRequests(
-  owner: RepoCreatePullReviewRequestsPathParams["owner"],
-  repo: RepoCreatePullReviewRequestsPathParams["repo"],
-  index: RepoCreatePullReviewRequestsPathParams["index"],
+  owner: RepoCreatePullReviewRequestsPathParams['owner'],
+  repo: RepoCreatePullReviewRequestsPathParams['repo'],
+  index: RepoCreatePullReviewRequestsPathParams['index'],
   data: RepoCreatePullReviewRequestsMutationRequest,
-  config: Partial<
-    RequestConfig<RepoCreatePullReviewRequestsMutationRequest>
-  > & { client?: Client } = {},
+  config: Partial<RequestConfig<RepoCreatePullReviewRequestsMutationRequest>> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
@@ -50,13 +44,11 @@ export async function repoCreatePullReviewRequests(
   const res = await request<
     RepoCreatePullReviewRequestsMutationResponse,
     ResponseErrorConfig<
-      | RepoCreatePullReviewRequests403
-      | RepoCreatePullReviewRequests404
-      | RepoCreatePullReviewRequests422
+      RepoCreatePullReviewRequests403 | RepoCreatePullReviewRequests404 | RepoCreatePullReviewRequests422
     >,
     RepoCreatePullReviewRequestsMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreatePullReviewRequestsUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateBranchProtectionMutationRequest,
   RepoCreateBranchProtectionMutationResponse,
@@ -17,14 +13,14 @@ import type {
   RepoCreateBranchProtection404,
   RepoCreateBranchProtection422,
   RepoCreateBranchProtection423,
-} from "../types/RepoCreateBranchProtection"
+} from '../types/RepoCreateBranchProtection';
 
 function getRepoCreateBranchProtectionUrl(
-  owner: RepoCreateBranchProtectionPathParams["owner"],
-  repo: RepoCreateBranchProtectionPathParams["repo"],
+  owner: RepoCreateBranchProtectionPathParams['owner'],
+  repo: RepoCreateBranchProtectionPathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/branch_protections` as const,
   };
   return res;
@@ -35,8 +31,8 @@ function getRepoCreateBranchProtectionUrl(
  * {@link /repos/:owner/:repo/branch_protections}
  */
 export async function repoCreateBranchProtection(
-  owner: RepoCreateBranchProtectionPathParams["owner"],
-  repo: RepoCreateBranchProtectionPathParams["repo"],
+  owner: RepoCreateBranchProtectionPathParams['owner'],
+  repo: RepoCreateBranchProtectionPathParams['repo'],
   data?: RepoCreateBranchProtectionMutationRequest,
   config: Partial<RequestConfig<RepoCreateBranchProtectionMutationRequest>> & {
     client?: Client;
@@ -56,7 +52,7 @@ export async function repoCreateBranchProtection(
     >,
     RepoCreateBranchProtectionMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateBranchProtectionUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

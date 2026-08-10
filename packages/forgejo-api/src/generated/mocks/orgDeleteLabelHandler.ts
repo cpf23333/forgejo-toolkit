@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgDeleteLabelMutationResponse,
-  OrgDeleteLabel404,
-} from "../types/OrgDeleteLabel"
-import { http } from "msw";
+import type { OrgDeleteLabelMutationResponse, OrgDeleteLabel404 } from '../types/OrgDeleteLabel';
+import { http } from 'msw';
 
-export function orgDeleteLabelHandlerResponse204(
-  data?: OrgDeleteLabelMutationResponse,
-) {
+export function orgDeleteLabelHandlerResponse204(data?: OrgDeleteLabelMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,7 +16,7 @@ export function orgDeleteLabelHandlerResponse404(data: OrgDeleteLabel404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,12 +28,10 @@ export function orgDeleteLabelHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/orgs/:org/labels/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

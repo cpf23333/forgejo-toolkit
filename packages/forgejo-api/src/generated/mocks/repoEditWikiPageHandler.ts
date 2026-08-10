@@ -10,16 +10,14 @@ import type {
   RepoEditWikiPage404,
   RepoEditWikiPage413,
   RepoEditWikiPage423,
-} from "../types/RepoEditWikiPage"
-import { http } from "msw";
+} from '../types/RepoEditWikiPage';
+import { http } from 'msw';
 
-export function repoEditWikiPageHandlerResponse200(
-  data: RepoEditWikiPageMutationResponse,
-) {
+export function repoEditWikiPageHandlerResponse200(data: RepoEditWikiPageMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -28,7 +26,7 @@ export function repoEditWikiPageHandlerResponse400(data: RepoEditWikiPage400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -37,7 +35,7 @@ export function repoEditWikiPageHandlerResponse403(data: RepoEditWikiPage403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,7 +44,7 @@ export function repoEditWikiPageHandlerResponse404(data: RepoEditWikiPage404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -61,7 +59,7 @@ export function repoEditWikiPageHandlerResponse423(data: RepoEditWikiPage423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -69,21 +67,16 @@ export function repoEditWikiPageHandlerResponse423(data: RepoEditWikiPage423) {
 export function repoEditWikiPageHandler(
   data?:
     | RepoEditWikiPageMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/wiki/page/:pageName`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/wiki/page/:pageName`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

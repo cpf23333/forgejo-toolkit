@@ -3,28 +3,24 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreatePullReviewCommentMutationRequest,
   RepoCreatePullReviewCommentMutationResponse,
   RepoCreatePullReviewCommentPathParams,
   RepoCreatePullReviewComment404,
   RepoCreatePullReviewComment422,
-} from "../types/RepoCreatePullReviewComment"
+} from '../types/RepoCreatePullReviewComment';
 
 function getRepoCreatePullReviewCommentUrl(
-  owner: RepoCreatePullReviewCommentPathParams["owner"],
-  repo: RepoCreatePullReviewCommentPathParams["repo"],
-  index: RepoCreatePullReviewCommentPathParams["index"],
-  id: RepoCreatePullReviewCommentPathParams["id"],
+  owner: RepoCreatePullReviewCommentPathParams['owner'],
+  repo: RepoCreatePullReviewCommentPathParams['repo'],
+  index: RepoCreatePullReviewCommentPathParams['index'],
+  id: RepoCreatePullReviewCommentPathParams['id'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}/comments` as const,
   };
   return res;
@@ -35,10 +31,10 @@ function getRepoCreatePullReviewCommentUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id/comments}
  */
 export async function repoCreatePullReviewComment(
-  owner: RepoCreatePullReviewCommentPathParams["owner"],
-  repo: RepoCreatePullReviewCommentPathParams["repo"],
-  index: RepoCreatePullReviewCommentPathParams["index"],
-  id: RepoCreatePullReviewCommentPathParams["id"],
+  owner: RepoCreatePullReviewCommentPathParams['owner'],
+  repo: RepoCreatePullReviewCommentPathParams['repo'],
+  index: RepoCreatePullReviewCommentPathParams['index'],
+  id: RepoCreatePullReviewCommentPathParams['id'],
   data: RepoCreatePullReviewCommentMutationRequest,
   config: Partial<RequestConfig<RepoCreatePullReviewCommentMutationRequest>> & {
     client?: Client;
@@ -50,18 +46,11 @@ export async function repoCreatePullReviewComment(
 
   const res = await request<
     RepoCreatePullReviewCommentMutationResponse,
-    ResponseErrorConfig<
-      RepoCreatePullReviewComment404 | RepoCreatePullReviewComment422
-    >,
+    ResponseErrorConfig<RepoCreatePullReviewComment404 | RepoCreatePullReviewComment422>,
     RepoCreatePullReviewCommentMutationRequest
   >({
-    method: "POST",
-    url: getRepoCreatePullReviewCommentUrl(
-      owner,
-      repo,
-      index,
-      id,
-    ).url.toString(),
+    method: 'POST',
+    url: getRepoCreatePullReviewCommentUrl(owner, repo, index, id).url.toString(),
     data: requestData,
     ...requestConfig,
   });

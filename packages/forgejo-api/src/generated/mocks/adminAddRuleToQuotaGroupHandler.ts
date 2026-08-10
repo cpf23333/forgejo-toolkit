@@ -10,68 +10,56 @@ import type {
   AdminAddRuleToQuotaGroup404,
   AdminAddRuleToQuotaGroup409,
   AdminAddRuleToQuotaGroup422,
-} from "../types/AdminAddRuleToQuotaGroup"
-import { http } from "msw";
+} from '../types/AdminAddRuleToQuotaGroup';
+import { http } from 'msw';
 
-export function adminAddRuleToQuotaGroupHandlerResponse204(
-  data?: AdminAddRuleToQuotaGroupMutationResponse,
-) {
+export function adminAddRuleToQuotaGroupHandlerResponse204(data?: AdminAddRuleToQuotaGroupMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminAddRuleToQuotaGroupHandlerResponse400(
-  data: AdminAddRuleToQuotaGroup400,
-) {
+export function adminAddRuleToQuotaGroupHandlerResponse400(data: AdminAddRuleToQuotaGroup400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminAddRuleToQuotaGroupHandlerResponse403(
-  data: AdminAddRuleToQuotaGroup403,
-) {
+export function adminAddRuleToQuotaGroupHandlerResponse403(data: AdminAddRuleToQuotaGroup403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminAddRuleToQuotaGroupHandlerResponse404(
-  data: AdminAddRuleToQuotaGroup404,
-) {
+export function adminAddRuleToQuotaGroupHandlerResponse404(data: AdminAddRuleToQuotaGroup404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminAddRuleToQuotaGroupHandlerResponse409(
-  data: AdminAddRuleToQuotaGroup409,
-) {
+export function adminAddRuleToQuotaGroupHandlerResponse409(data: AdminAddRuleToQuotaGroup409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminAddRuleToQuotaGroupHandlerResponse422(
-  data: AdminAddRuleToQuotaGroup422,
-) {
+export function adminAddRuleToQuotaGroupHandlerResponse422(data: AdminAddRuleToQuotaGroup422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -83,18 +71,13 @@ export function adminAddRuleToQuotaGroupHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.put(
-    `/admin/quota/groups/:quotagroup/rules/:quotarule`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.put(`/admin/quota/groups/:quotagroup/rules/:quotarule`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

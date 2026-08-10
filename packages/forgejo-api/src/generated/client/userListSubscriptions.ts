@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListSubscriptionsQueryResponse,
   UserListSubscriptionsPathParams,
   UserListSubscriptionsQueryParams,
   UserListSubscriptions404,
-} from "../types/UserListSubscriptions"
+} from '../types/UserListSubscriptions';
 
-function getUserListSubscriptionsUrl(
-  username: UserListSubscriptionsPathParams["username"],
-) {
+function getUserListSubscriptionsUrl(username: UserListSubscriptionsPathParams['username']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/users/${username}/subscriptions` as const,
   };
   return res;
@@ -31,21 +25,19 @@ function getUserListSubscriptionsUrl(
  * {@link /users/:username/subscriptions}
  */
 export async function userListSubscriptions(
-  username: UserListSubscriptionsPathParams["username"],
+  username: UserListSubscriptionsPathParams['username'],
   params?: UserListSubscriptionsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserListSubscriptionsQueryResponse,
-    ResponseErrorConfig<UserListSubscriptions404>,
-    unknown
-  >({
-    method: "GET",
-    url: getUserListSubscriptionsUrl(username).url.toString(),
-    params,
-    ...requestConfig,
-  });
+  const res = await request<UserListSubscriptionsQueryResponse, ResponseErrorConfig<UserListSubscriptions404>, unknown>(
+    {
+      method: 'GET',
+      url: getUserListSubscriptionsUrl(username).url.toString(),
+      params,
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

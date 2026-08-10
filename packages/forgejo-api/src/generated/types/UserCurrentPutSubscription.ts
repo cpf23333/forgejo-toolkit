@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { WatchInfo } from "./WatchInfo"
+import type { APINotFound } from './APINotFound';
+import type { WatchInfo } from './WatchInfo';
 
 export type UserCurrentPutSubscriptionPathParams = {
   /**
@@ -29,8 +29,7 @@ export type UserCurrentPutSubscription200 = WatchInfo;
  */
 export type UserCurrentPutSubscription404 = APINotFound;
 
-export type UserCurrentPutSubscriptionMutationResponse =
-  UserCurrentPutSubscription200;
+export type UserCurrentPutSubscriptionMutationResponse = UserCurrentPutSubscription200;
 
 export type UserCurrentPutSubscriptionMutation = {
   Response: UserCurrentPutSubscription200;

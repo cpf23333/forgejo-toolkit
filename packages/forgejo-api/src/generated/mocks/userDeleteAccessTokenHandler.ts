@@ -8,46 +8,38 @@ import type {
   UserDeleteAccessToken403,
   UserDeleteAccessToken404,
   UserDeleteAccessToken422,
-} from "../types/UserDeleteAccessToken"
-import { http } from "msw";
+} from '../types/UserDeleteAccessToken';
+import { http } from 'msw';
 
-export function userDeleteAccessTokenHandlerResponse204(
-  data?: UserDeleteAccessTokenMutationResponse,
-) {
+export function userDeleteAccessTokenHandlerResponse204(data?: UserDeleteAccessTokenMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userDeleteAccessTokenHandlerResponse403(
-  data: UserDeleteAccessToken403,
-) {
+export function userDeleteAccessTokenHandlerResponse403(data: UserDeleteAccessToken403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userDeleteAccessTokenHandlerResponse404(
-  data: UserDeleteAccessToken404,
-) {
+export function userDeleteAccessTokenHandlerResponse404(data: UserDeleteAccessToken404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userDeleteAccessTokenHandlerResponse422(
-  data: UserDeleteAccessToken422,
-) {
+export function userDeleteAccessTokenHandlerResponse422(data: UserDeleteAccessToken422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function userDeleteAccessTokenHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/users/:username/tokens/:token`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

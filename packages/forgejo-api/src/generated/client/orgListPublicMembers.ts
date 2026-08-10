@@ -3,23 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListPublicMembersQueryResponse,
   OrgListPublicMembersPathParams,
   OrgListPublicMembersQueryParams,
   OrgListPublicMembers404,
-} from "../types/OrgListPublicMembers"
+} from '../types/OrgListPublicMembers';
 
-function getOrgListPublicMembersUrl(
-  org: OrgListPublicMembersPathParams["org"],
-) {
-  const res = { method: "GET", url: `/orgs/${org}/public_members` as const };
+function getOrgListPublicMembersUrl(org: OrgListPublicMembersPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/public_members` as const };
   return res;
 }
 
@@ -28,18 +22,14 @@ function getOrgListPublicMembersUrl(
  * {@link /orgs/:org/public_members}
  */
 export async function orgListPublicMembers(
-  org: OrgListPublicMembersPathParams["org"],
+  org: OrgListPublicMembersPathParams['org'],
   params?: OrgListPublicMembersQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgListPublicMembersQueryResponse,
-    ResponseErrorConfig<OrgListPublicMembers404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgListPublicMembersQueryResponse, ResponseErrorConfig<OrgListPublicMembers404>, unknown>({
+    method: 'GET',
     url: getOrgListPublicMembersUrl(org).url.toString(),
     params,
     ...requestConfig,

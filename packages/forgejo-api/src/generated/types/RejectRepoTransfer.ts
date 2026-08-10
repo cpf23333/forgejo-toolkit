@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { Repository } from "./Repository"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { Repository } from './Repository';
 
 export type RejectRepoTransferPathParams = {
   /**

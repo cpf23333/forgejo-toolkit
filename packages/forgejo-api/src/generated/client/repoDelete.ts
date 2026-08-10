@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteMutationResponse,
   RepoDeletePathParams,
   RepoDelete403,
   RepoDelete404,
-} from "../types/RepoDelete"
+} from '../types/RepoDelete';
 
-function getRepoDeleteUrl(
-  owner: RepoDeletePathParams["owner"],
-  repo: RepoDeletePathParams["repo"],
-) {
-  const res = { method: "DELETE", url: `/repos/${owner}/${repo}` as const };
+function getRepoDeleteUrl(owner: RepoDeletePathParams['owner'], repo: RepoDeletePathParams['repo']) {
+  const res = { method: 'DELETE', url: `/repos/${owner}/${repo}` as const };
   return res;
 }
 
@@ -29,18 +22,14 @@ function getRepoDeleteUrl(
  * {@link /repos/:owner/:repo}
  */
 export async function repoDelete(
-  owner: RepoDeletePathParams["owner"],
-  repo: RepoDeletePathParams["repo"],
+  owner: RepoDeletePathParams['owner'],
+  repo: RepoDeletePathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoDeleteMutationResponse,
-    ResponseErrorConfig<RepoDelete403 | RepoDelete404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<RepoDeleteMutationResponse, ResponseErrorConfig<RepoDelete403 | RepoDelete404>, unknown>({
+    method: 'DELETE',
     url: getRepoDeleteUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

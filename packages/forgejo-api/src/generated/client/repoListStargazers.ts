@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListStargazersQueryResponse,
   RepoListStargazersPathParams,
   RepoListStargazersQueryParams,
   RepoListStargazers404,
-} from "../types/RepoListStargazers"
+} from '../types/RepoListStargazers';
 
 function getRepoListStargazersUrl(
-  owner: RepoListStargazersPathParams["owner"],
-  repo: RepoListStargazersPathParams["repo"],
+  owner: RepoListStargazersPathParams['owner'],
+  repo: RepoListStargazersPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/stargazers` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoListStargazersUrl(
  * {@link /repos/:owner/:repo/stargazers}
  */
 export async function repoListStargazers(
-  owner: RepoListStargazersPathParams["owner"],
-  repo: RepoListStargazersPathParams["repo"],
+  owner: RepoListStargazersPathParams['owner'],
+  repo: RepoListStargazersPathParams['repo'],
   params?: RepoListStargazersQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListStargazersQueryResponse,
-    ResponseErrorConfig<RepoListStargazers404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListStargazersQueryResponse, ResponseErrorConfig<RepoListStargazers404>, unknown>({
+    method: 'GET',
     url: getRepoListStargazersUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

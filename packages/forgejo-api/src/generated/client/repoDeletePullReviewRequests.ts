@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeletePullReviewRequestsMutationRequest,
   RepoDeletePullReviewRequestsMutationResponse,
@@ -16,15 +12,15 @@ import type {
   RepoDeletePullReviewRequests403,
   RepoDeletePullReviewRequests404,
   RepoDeletePullReviewRequests422,
-} from "../types/RepoDeletePullReviewRequests"
+} from '../types/RepoDeletePullReviewRequests';
 
 function getRepoDeletePullReviewRequestsUrl(
-  owner: RepoDeletePullReviewRequestsPathParams["owner"],
-  repo: RepoDeletePullReviewRequestsPathParams["repo"],
-  index: RepoDeletePullReviewRequestsPathParams["index"],
+  owner: RepoDeletePullReviewRequestsPathParams['owner'],
+  repo: RepoDeletePullReviewRequestsPathParams['repo'],
+  index: RepoDeletePullReviewRequestsPathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/pulls/${index}/requested_reviewers` as const,
   };
   return res;
@@ -35,13 +31,11 @@ function getRepoDeletePullReviewRequestsUrl(
  * {@link /repos/:owner/:repo/pulls/:index/requested_reviewers}
  */
 export async function repoDeletePullReviewRequests(
-  owner: RepoDeletePullReviewRequestsPathParams["owner"],
-  repo: RepoDeletePullReviewRequestsPathParams["repo"],
-  index: RepoDeletePullReviewRequestsPathParams["index"],
+  owner: RepoDeletePullReviewRequestsPathParams['owner'],
+  repo: RepoDeletePullReviewRequestsPathParams['repo'],
+  index: RepoDeletePullReviewRequestsPathParams['index'],
   data: RepoDeletePullReviewRequestsMutationRequest,
-  config: Partial<
-    RequestConfig<RepoDeletePullReviewRequestsMutationRequest>
-  > & { client?: Client } = {},
+  config: Partial<RequestConfig<RepoDeletePullReviewRequestsMutationRequest>> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
@@ -50,13 +44,11 @@ export async function repoDeletePullReviewRequests(
   const res = await request<
     RepoDeletePullReviewRequestsMutationResponse,
     ResponseErrorConfig<
-      | RepoDeletePullReviewRequests403
-      | RepoDeletePullReviewRequests404
-      | RepoDeletePullReviewRequests422
+      RepoDeletePullReviewRequests403 | RepoDeletePullReviewRequests404 | RepoDeletePullReviewRequests422
     >,
     RepoDeletePullReviewRequestsMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeletePullReviewRequestsUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

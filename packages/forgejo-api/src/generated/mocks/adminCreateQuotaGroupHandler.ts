@@ -9,60 +9,50 @@ import type {
   AdminCreateQuotaGroup403,
   AdminCreateQuotaGroup409,
   AdminCreateQuotaGroup422,
-} from "../types/AdminCreateQuotaGroup"
-import { http } from "msw";
+} from '../types/AdminCreateQuotaGroup';
+import { http } from 'msw';
 
-export function adminCreateQuotaGroupHandlerResponse201(
-  data: AdminCreateQuotaGroupMutationResponse,
-) {
+export function adminCreateQuotaGroupHandlerResponse201(data: AdminCreateQuotaGroupMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreateQuotaGroupHandlerResponse400(
-  data: AdminCreateQuotaGroup400,
-) {
+export function adminCreateQuotaGroupHandlerResponse400(data: AdminCreateQuotaGroup400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreateQuotaGroupHandlerResponse403(
-  data: AdminCreateQuotaGroup403,
-) {
+export function adminCreateQuotaGroupHandlerResponse403(data: AdminCreateQuotaGroup403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreateQuotaGroupHandlerResponse409(
-  data: AdminCreateQuotaGroup409,
-) {
+export function adminCreateQuotaGroupHandlerResponse409(data: AdminCreateQuotaGroup409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreateQuotaGroupHandlerResponse422(
-  data: AdminCreateQuotaGroup422,
-) {
+export function adminCreateQuotaGroupHandlerResponse422(data: AdminCreateQuotaGroup422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -70,17 +60,15 @@ export function adminCreateQuotaGroupHandlerResponse422(
 export function adminCreateQuotaGroupHandler(
   data?:
     | AdminCreateQuotaGroupMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/admin/quota/groups`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

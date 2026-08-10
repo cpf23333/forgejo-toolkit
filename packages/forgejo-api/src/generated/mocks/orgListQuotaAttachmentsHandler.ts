@@ -7,38 +7,32 @@ import type {
   OrgListQuotaAttachmentsQueryResponse,
   OrgListQuotaAttachments403,
   OrgListQuotaAttachments404,
-} from "../types/OrgListQuotaAttachments"
-import { http } from "msw";
+} from '../types/OrgListQuotaAttachments';
+import { http } from 'msw';
 
-export function orgListQuotaAttachmentsHandlerResponse200(
-  data: OrgListQuotaAttachmentsQueryResponse,
-) {
+export function orgListQuotaAttachmentsHandlerResponse200(data: OrgListQuotaAttachmentsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgListQuotaAttachmentsHandlerResponse403(
-  data: OrgListQuotaAttachments403,
-) {
+export function orgListQuotaAttachmentsHandlerResponse403(data: OrgListQuotaAttachments403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgListQuotaAttachmentsHandlerResponse404(
-  data: OrgListQuotaAttachments404,
-) {
+export function orgListQuotaAttachmentsHandlerResponse404(data: OrgListQuotaAttachments404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function orgListQuotaAttachmentsHandlerResponse404(
 export function orgListQuotaAttachmentsHandler(
   data?:
     | OrgListQuotaAttachmentsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/quota/attachments`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

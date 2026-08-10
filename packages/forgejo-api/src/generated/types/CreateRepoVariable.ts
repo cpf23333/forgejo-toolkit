@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { CreateVariableOption } from "./CreateVariableOption"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { CreateVariableOption } from './CreateVariableOption';
 
 export type CreateRepoVariablePathParams = {
   /**
@@ -50,8 +50,7 @@ export type CreateRepoVariable404 = APINotFound;
  */
 export type CreateRepoVariableMutationRequest = CreateVariableOption;
 
-export type CreateRepoVariableMutationResponse =
-  CreateRepoVariable201 | CreateRepoVariable204;
+export type CreateRepoVariableMutationResponse = CreateRepoVariable201 | CreateRepoVariable204;
 
 export type CreateRepoVariableMutation = {
   Response: CreateRepoVariable201 | CreateRepoVariable204;

@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoPullRequestIsMergedQueryResponse,
   RepoPullRequestIsMergedPathParams,
   RepoPullRequestIsMerged404,
-} from "../types/RepoPullRequestIsMerged"
+} from '../types/RepoPullRequestIsMerged';
 
 function getRepoPullRequestIsMergedUrl(
-  owner: RepoPullRequestIsMergedPathParams["owner"],
-  repo: RepoPullRequestIsMergedPathParams["repo"],
-  index: RepoPullRequestIsMergedPathParams["index"],
+  owner: RepoPullRequestIsMergedPathParams['owner'],
+  repo: RepoPullRequestIsMergedPathParams['repo'],
+  index: RepoPullRequestIsMergedPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${index}/merge` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getRepoPullRequestIsMergedUrl(
  * {@link /repos/:owner/:repo/pulls/:index/merge}
  */
 export async function repoPullRequestIsMerged(
-  owner: RepoPullRequestIsMergedPathParams["owner"],
-  repo: RepoPullRequestIsMergedPathParams["repo"],
-  index: RepoPullRequestIsMergedPathParams["index"],
+  owner: RepoPullRequestIsMergedPathParams['owner'],
+  repo: RepoPullRequestIsMergedPathParams['repo'],
+  index: RepoPullRequestIsMergedPathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function repoPullRequestIsMerged(
     ResponseErrorConfig<RepoPullRequestIsMerged404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoPullRequestIsMergedUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

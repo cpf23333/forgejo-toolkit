@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetSingleCommitQueryResponse,
   RepoGetSingleCommitPathParams,
   RepoGetSingleCommitQueryParams,
   RepoGetSingleCommit404,
   RepoGetSingleCommit422,
-} from "../types/RepoGetSingleCommit"
+} from '../types/RepoGetSingleCommit';
 
 function getRepoGetSingleCommitUrl(
-  owner: RepoGetSingleCommitPathParams["owner"],
-  repo: RepoGetSingleCommitPathParams["repo"],
-  sha: RepoGetSingleCommitPathParams["sha"],
+  owner: RepoGetSingleCommitPathParams['owner'],
+  repo: RepoGetSingleCommitPathParams['repo'],
+  sha: RepoGetSingleCommitPathParams['sha'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/git/commits/${sha}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoGetSingleCommitUrl(
  * {@link /repos/:owner/:repo/git/commits/:sha}
  */
 export async function repoGetSingleCommit(
-  owner: RepoGetSingleCommitPathParams["owner"],
-  repo: RepoGetSingleCommitPathParams["repo"],
-  sha: RepoGetSingleCommitPathParams["sha"],
+  owner: RepoGetSingleCommitPathParams['owner'],
+  repo: RepoGetSingleCommitPathParams['repo'],
+  sha: RepoGetSingleCommitPathParams['sha'],
   params?: RepoGetSingleCommitQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -47,7 +43,7 @@ export async function repoGetSingleCommit(
     ResponseErrorConfig<RepoGetSingleCommit404 | RepoGetSingleCommit422>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetSingleCommitUrl(owner, repo, sha).url.toString(),
     params,
     ...requestConfig,

@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  OrgGetTeamQueryResponse,
-  OrgGetTeamPathParams,
-  OrgGetTeam404,
-} from "../types/OrgGetTeam"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { OrgGetTeamQueryResponse, OrgGetTeamPathParams, OrgGetTeam404 } from '../types/OrgGetTeam';
 
-function getOrgGetTeamUrl(id: OrgGetTeamPathParams["id"]) {
-  const res = { method: "GET", url: `/teams/${id}` as const };
+function getOrgGetTeamUrl(id: OrgGetTeamPathParams['id']) {
+  const res = { method: 'GET', url: `/teams/${id}` as const };
   return res;
 }
 
@@ -25,17 +17,13 @@ function getOrgGetTeamUrl(id: OrgGetTeamPathParams["id"]) {
  * {@link /teams/:id}
  */
 export async function orgGetTeam(
-  id: OrgGetTeamPathParams["id"],
+  id: OrgGetTeamPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgGetTeamQueryResponse,
-    ResponseErrorConfig<OrgGetTeam404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgGetTeamQueryResponse, ResponseErrorConfig<OrgGetTeam404>, unknown>({
+    method: 'GET',
     url: getOrgGetTeamUrl(id).url.toString(),
     ...requestConfig,
   });

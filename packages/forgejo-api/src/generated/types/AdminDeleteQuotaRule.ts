@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
 
 export type AdminDeleteQuotaRulePathParams = {
   /**
@@ -40,6 +40,5 @@ export type AdminDeleteQuotaRuleMutationResponse = AdminDeleteQuotaRule204;
 export type AdminDeleteQuotaRuleMutation = {
   Response: AdminDeleteQuotaRule204;
   PathParams: AdminDeleteQuotaRulePathParams;
-  Errors:
-    AdminDeleteQuotaRule400 | AdminDeleteQuotaRule403 | AdminDeleteQuotaRule404;
+  Errors: AdminDeleteQuotaRule400 | AdminDeleteQuotaRule403 | AdminDeleteQuotaRule404;
 };

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { PullReviewComment } from "./PullReviewComment"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { PullReviewComment } from './PullReviewComment';
 
 export type RepoGetPullReviewCommentPathParams = {
   /**

@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { Organization } from "./Organization"
+import type { Organization } from './Organization';
 
 export type OrgGetAllQueryParams = {
   /**

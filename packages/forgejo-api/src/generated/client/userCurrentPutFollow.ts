@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentPutFollowMutationResponse,
   UserCurrentPutFollowPathParams,
   UserCurrentPutFollow401,
   UserCurrentPutFollow403,
   UserCurrentPutFollow404,
-} from "../types/UserCurrentPutFollow"
+} from '../types/UserCurrentPutFollow';
 
-function getUserCurrentPutFollowUrl(
-  username: UserCurrentPutFollowPathParams["username"],
-) {
-  const res = { method: "PUT", url: `/user/following/${username}` as const };
+function getUserCurrentPutFollowUrl(username: UserCurrentPutFollowPathParams['username']) {
+  const res = { method: 'PUT', url: `/user/following/${username}` as const };
   return res;
 }
 
@@ -29,21 +23,17 @@ function getUserCurrentPutFollowUrl(
  * {@link /user/following/:username}
  */
 export async function userCurrentPutFollow(
-  username: UserCurrentPutFollowPathParams["username"],
+  username: UserCurrentPutFollowPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentPutFollowMutationResponse,
-    ResponseErrorConfig<
-      | UserCurrentPutFollow401
-      | UserCurrentPutFollow403
-      | UserCurrentPutFollow404
-    >,
+    ResponseErrorConfig<UserCurrentPutFollow401 | UserCurrentPutFollow403 | UserCurrentPutFollow404>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUserCurrentPutFollowUrl(username).url.toString(),
     ...requestConfig,
   });

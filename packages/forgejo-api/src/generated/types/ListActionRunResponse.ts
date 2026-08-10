@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { ActionRun } from "./ActionRun"
+import type { ActionRun } from './ActionRun';
 
 /**
  * @description ListActionRunResponse return a list of ActionRun

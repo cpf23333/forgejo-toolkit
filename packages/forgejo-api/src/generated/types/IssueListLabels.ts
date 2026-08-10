@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Label } from "./Label"
+import type { APINotFound } from './APINotFound';
+import type { Label } from './Label';
 
 export type IssueListLabelsPathParams = {
   /**
@@ -20,9 +20,9 @@ export type IssueListLabelsPathParams = {
 };
 
 export const issueListLabelsQueryParamsSortEnum = {
-  mostissues: "mostissues",
-  leastissues: "leastissues",
-  reversealphabetically: "reversealphabetically",
+  mostissues: 'mostissues',
+  leastissues: 'leastissues',
+  reversealphabetically: 'reversealphabetically',
 } as const;
 
 export type IssueListLabelsQueryParamsSortEnumKey =

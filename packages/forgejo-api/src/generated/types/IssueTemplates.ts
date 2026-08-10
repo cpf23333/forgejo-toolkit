@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { IssueTemplate } from "./IssueTemplate"
+import type { IssueTemplate } from './IssueTemplate';
 
 export type IssueTemplates = IssueTemplate[];

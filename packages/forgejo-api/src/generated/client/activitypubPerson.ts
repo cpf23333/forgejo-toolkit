@@ -3,21 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  ActivitypubPersonQueryResponse,
-  ActivitypubPersonPathParams,
-} from "../types/ActivitypubPerson"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { ActivitypubPersonQueryResponse, ActivitypubPersonPathParams } from '../types/ActivitypubPerson';
 
-function getActivitypubPersonUrl(
-  userId: ActivitypubPersonPathParams["user-id"],
-) {
-  const res = { method: "GET", url: `/activitypub/user-id/${userId}` as const };
+function getActivitypubPersonUrl(userId: ActivitypubPersonPathParams['user-id']) {
+  const res = { method: 'GET', url: `/activitypub/user-id/${userId}` as const };
   return res;
 }
 
@@ -26,17 +17,13 @@ function getActivitypubPersonUrl(
  * {@link /activitypub/user-id/:user-id}
  */
 export async function activitypubPerson(
-  userId: ActivitypubPersonPathParams["user-id"],
+  userId: ActivitypubPersonPathParams['user-id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ActivitypubPersonQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ActivitypubPersonQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getActivitypubPersonUrl(userId).url.toString(),
     ...requestConfig,
   });

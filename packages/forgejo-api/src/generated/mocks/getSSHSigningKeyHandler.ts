@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  GetSSHSigningKeyQueryResponse,
-  GetSSHSigningKey404,
-} from "../types/GetSSHSigningKey"
-import { http } from "msw";
+import type { GetSSHSigningKeyQueryResponse, GetSSHSigningKey404 } from '../types/GetSSHSigningKey';
+import { http } from 'msw';
 
-export function getSSHSigningKeyHandlerResponse200(
-  data: GetSSHSigningKeyQueryResponse,
-) {
+export function getSSHSigningKeyHandlerResponse200(data: GetSSHSigningKeyQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "text/plain",
+      'Content-Type': 'text/plain',
     },
   });
 }
@@ -24,7 +19,7 @@ export function getSSHSigningKeyHandlerResponse404(data: GetSSHSigningKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function getSSHSigningKeyHandlerResponse404(data: GetSSHSigningKey404) {
 export function getSSHSigningKeyHandler(
   data?:
     | GetSSHSigningKeyQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/signing-key.ssh`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "text/plain",
+        'Content-Type': 'text/plain',
       },
     });
   });

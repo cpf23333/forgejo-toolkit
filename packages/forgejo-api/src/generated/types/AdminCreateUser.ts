@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateUserOption } from "./CreateUserOption"
-import type { User } from "./User"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateUserOption } from './CreateUserOption';
+import type { User } from './User';
 
 /**
  * @description User

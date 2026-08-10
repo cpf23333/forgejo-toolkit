@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoListTeamsQueryResponse,
-  RepoListTeams404,
-  RepoListTeams405,
-} from "../types/RepoListTeams"
-import { http } from "msw";
+import type { RepoListTeamsQueryResponse, RepoListTeams404, RepoListTeams405 } from '../types/RepoListTeams';
+import { http } from 'msw';
 
-export function repoListTeamsHandlerResponse200(
-  data: RepoListTeamsQueryResponse,
-) {
+export function repoListTeamsHandlerResponse200(data: RepoListTeamsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function repoListTeamsHandlerResponse404(data: RepoListTeams404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function repoListTeamsHandlerResponse405(data: RepoListTeams405) {
   return new Response(JSON.stringify(data), {
     status: 405,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function repoListTeamsHandlerResponse405(data: RepoListTeams405) {
 export function repoListTeamsHandler(
   data?:
     | RepoListTeamsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/teams`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

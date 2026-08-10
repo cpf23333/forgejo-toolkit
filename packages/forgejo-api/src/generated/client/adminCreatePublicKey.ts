@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminCreatePublicKeyMutationRequest,
   AdminCreatePublicKeyMutationResponse,
   AdminCreatePublicKeyPathParams,
   AdminCreatePublicKey403,
   AdminCreatePublicKey422,
-} from "../types/AdminCreatePublicKey"
+} from '../types/AdminCreatePublicKey';
 
-function getAdminCreatePublicKeyUrl(
-  username: AdminCreatePublicKeyPathParams["username"],
-) {
-  const res = { method: "POST", url: `/admin/users/${username}/keys` as const };
+function getAdminCreatePublicKeyUrl(username: AdminCreatePublicKeyPathParams['username']) {
+  const res = { method: 'POST', url: `/admin/users/${username}/keys` as const };
   return res;
 }
 
@@ -29,7 +23,7 @@ function getAdminCreatePublicKeyUrl(
  * {@link /admin/users/:username/keys}
  */
 export async function adminCreatePublicKey(
-  username: AdminCreatePublicKeyPathParams["username"],
+  username: AdminCreatePublicKeyPathParams['username'],
   data: AdminCreatePublicKeyMutationRequest,
   config: Partial<RequestConfig<AdminCreatePublicKeyMutationRequest>> & {
     client?: Client;
@@ -44,7 +38,7 @@ export async function adminCreatePublicKey(
     ResponseErrorConfig<AdminCreatePublicKey403 | AdminCreatePublicKey422>,
     AdminCreatePublicKeyMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminCreatePublicKeyUrl(username).url.toString(),
     data: requestData,
     ...requestConfig,

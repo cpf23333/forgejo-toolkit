@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { AnnotatedTag } from "./AnnotatedTag"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { AnnotatedTag } from './AnnotatedTag';
 
 export type GetAnnotatedTagPathParams = {
   /**

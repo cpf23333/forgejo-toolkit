@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { Issue } from "./Issue"
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { Issue } from './Issue';
 
 export type IssueListIssuesPathParams = {
   /**
@@ -21,32 +21,32 @@ export type IssueListIssuesPathParams = {
 };
 
 export const issueListIssuesQueryParamsStateEnum = {
-  closed: "closed",
-  open: "open",
-  all: "all",
+  closed: 'closed',
+  open: 'open',
+  all: 'all',
 } as const;
 
 export type IssueListIssuesQueryParamsStateEnumKey =
   (typeof issueListIssuesQueryParamsStateEnum)[keyof typeof issueListIssuesQueryParamsStateEnum];
 
 export const issueListIssuesQueryParamsTypeEnum = {
-  issues: "issues",
-  pulls: "pulls",
+  issues: 'issues',
+  pulls: 'pulls',
 } as const;
 
 export type IssueListIssuesQueryParamsTypeEnumKey =
   (typeof issueListIssuesQueryParamsTypeEnum)[keyof typeof issueListIssuesQueryParamsTypeEnum];
 
 export const issueListIssuesQueryParamsSortEnum = {
-  relevance: "relevance",
-  latest: "latest",
-  oldest: "oldest",
-  recentupdate: "recentupdate",
-  leastupdate: "leastupdate",
-  mostcomment: "mostcomment",
-  leastcomment: "leastcomment",
-  nearduedate: "nearduedate",
-  farduedate: "farduedate",
+  relevance: 'relevance',
+  latest: 'latest',
+  oldest: 'oldest',
+  recentupdate: 'recentupdate',
+  leastupdate: 'leastupdate',
+  mostcomment: 'mostcomment',
+  leastcomment: 'leastcomment',
+  nearduedate: 'nearduedate',
+  farduedate: 'farduedate',
 } as const;
 
 export type IssueListIssuesQueryParamsSortEnumKey =

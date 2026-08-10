@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Hook } from "./Hook"
+import type { APINotFound } from './APINotFound';
+import type { Hook } from './Hook';
 
 export type OrgGetHookPathParams = {
   /**

@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteStopWatchMutationResponse,
   IssueDeleteStopWatchPathParams,
   IssueDeleteStopWatch403,
   IssueDeleteStopWatch404,
   IssueDeleteStopWatch409,
-} from "../types/IssueDeleteStopWatch"
+} from '../types/IssueDeleteStopWatch';
 
 function getIssueDeleteStopWatchUrl(
-  owner: IssueDeleteStopWatchPathParams["owner"],
-  repo: IssueDeleteStopWatchPathParams["repo"],
-  index: IssueDeleteStopWatchPathParams["index"],
+  owner: IssueDeleteStopWatchPathParams['owner'],
+  repo: IssueDeleteStopWatchPathParams['repo'],
+  index: IssueDeleteStopWatchPathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/stopwatch/delete` as const,
   };
   return res;
@@ -34,23 +30,19 @@ function getIssueDeleteStopWatchUrl(
  * {@link /repos/:owner/:repo/issues/:index/stopwatch/delete}
  */
 export async function issueDeleteStopWatch(
-  owner: IssueDeleteStopWatchPathParams["owner"],
-  repo: IssueDeleteStopWatchPathParams["repo"],
-  index: IssueDeleteStopWatchPathParams["index"],
+  owner: IssueDeleteStopWatchPathParams['owner'],
+  repo: IssueDeleteStopWatchPathParams['repo'],
+  index: IssueDeleteStopWatchPathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     IssueDeleteStopWatchMutationResponse,
-    ResponseErrorConfig<
-      | IssueDeleteStopWatch403
-      | IssueDeleteStopWatch404
-      | IssueDeleteStopWatch409
-    >,
+    ResponseErrorConfig<IssueDeleteStopWatch403 | IssueDeleteStopWatch404 | IssueDeleteStopWatch409>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueDeleteStopWatchUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

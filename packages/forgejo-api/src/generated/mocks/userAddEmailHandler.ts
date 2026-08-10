@@ -8,16 +8,14 @@ import type {
   UserAddEmail401,
   UserAddEmail403,
   UserAddEmail422,
-} from "../types/UserAddEmail"
-import { http } from "msw";
+} from '../types/UserAddEmail';
+import { http } from 'msw';
 
-export function userAddEmailHandlerResponse201(
-  data: UserAddEmailMutationResponse,
-) {
+export function userAddEmailHandlerResponse201(data: UserAddEmailMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -26,7 +24,7 @@ export function userAddEmailHandlerResponse401(data: UserAddEmail401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,7 +33,7 @@ export function userAddEmailHandlerResponse403(data: UserAddEmail403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -44,7 +42,7 @@ export function userAddEmailHandlerResponse422(data: UserAddEmail422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -52,17 +50,15 @@ export function userAddEmailHandlerResponse422(data: UserAddEmail422) {
 export function userAddEmailHandler(
   data?:
     | UserAddEmailMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/user/emails`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

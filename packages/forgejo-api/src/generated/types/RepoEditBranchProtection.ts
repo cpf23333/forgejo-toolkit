@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { BranchProtection } from "./BranchProtection"
-import type { EditBranchProtectionOption } from "./EditBranchProtectionOption"
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { APIValidationError } from './APIValidationError';
+import type { BranchProtection } from './BranchProtection';
+import type { EditBranchProtectionOption } from './EditBranchProtectionOption';
 
 export type RepoEditBranchProtectionPathParams = {
   /**
@@ -47,18 +47,13 @@ export type RepoEditBranchProtection422 = APIValidationError;
  */
 export type RepoEditBranchProtection423 = APIRepoArchivedError;
 
-export type RepoEditBranchProtectionMutationRequest =
-  EditBranchProtectionOption;
+export type RepoEditBranchProtectionMutationRequest = EditBranchProtectionOption;
 
-export type RepoEditBranchProtectionMutationResponse =
-  RepoEditBranchProtection200;
+export type RepoEditBranchProtectionMutationResponse = RepoEditBranchProtection200;
 
 export type RepoEditBranchProtectionMutation = {
   Response: RepoEditBranchProtection200;
   Request: RepoEditBranchProtectionMutationRequest;
   PathParams: RepoEditBranchProtectionPathParams;
-  Errors:
-    | RepoEditBranchProtection404
-    | RepoEditBranchProtection422
-    | RepoEditBranchProtection423;
+  Errors: RepoEditBranchProtection404 | RepoEditBranchProtection422 | RepoEditBranchProtection423;
 };

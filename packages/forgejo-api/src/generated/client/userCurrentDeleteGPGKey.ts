@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentDeleteGPGKeyMutationResponse,
   UserCurrentDeleteGPGKeyPathParams,
   UserCurrentDeleteGPGKey401,
   UserCurrentDeleteGPGKey403,
   UserCurrentDeleteGPGKey404,
-} from "../types/UserCurrentDeleteGPGKey"
+} from '../types/UserCurrentDeleteGPGKey';
 
-function getUserCurrentDeleteGPGKeyUrl(
-  id: UserCurrentDeleteGPGKeyPathParams["id"],
-) {
-  const res = { method: "DELETE", url: `/user/gpg_keys/${id}` as const };
+function getUserCurrentDeleteGPGKeyUrl(id: UserCurrentDeleteGPGKeyPathParams['id']) {
+  const res = { method: 'DELETE', url: `/user/gpg_keys/${id}` as const };
   return res;
 }
 
@@ -29,21 +23,17 @@ function getUserCurrentDeleteGPGKeyUrl(
  * {@link /user/gpg_keys/:id}
  */
 export async function userCurrentDeleteGPGKey(
-  id: UserCurrentDeleteGPGKeyPathParams["id"],
+  id: UserCurrentDeleteGPGKeyPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentDeleteGPGKeyMutationResponse,
-    ResponseErrorConfig<
-      | UserCurrentDeleteGPGKey401
-      | UserCurrentDeleteGPGKey403
-      | UserCurrentDeleteGPGKey404
-    >,
+    ResponseErrorConfig<UserCurrentDeleteGPGKey401 | UserCurrentDeleteGPGKey403 | UserCurrentDeleteGPGKey404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getUserCurrentDeleteGPGKeyUrl(id).url.toString(),
     ...requestConfig,
   });

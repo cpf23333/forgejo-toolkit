@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIInternalServerError } from "./APIInternalServerError"
-import type { APINotFound } from "./APINotFound"
-import type { Comment } from "./Comment"
-import type { EditIssueCommentOption } from "./EditIssueCommentOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIInternalServerError } from './APIInternalServerError';
+import type { APINotFound } from './APINotFound';
+import type { Comment } from './Comment';
+import type { EditIssueCommentOption } from './EditIssueCommentOption';
 
 export type IssueEditCommentDeprecatedPathParams = {
   /**
@@ -59,15 +59,11 @@ export type IssueEditCommentDeprecated500 = APIInternalServerError;
 
 export type IssueEditCommentDeprecatedMutationRequest = EditIssueCommentOption;
 
-export type IssueEditCommentDeprecatedMutationResponse =
-  IssueEditCommentDeprecated200 | IssueEditCommentDeprecated204;
+export type IssueEditCommentDeprecatedMutationResponse = IssueEditCommentDeprecated200 | IssueEditCommentDeprecated204;
 
 export type IssueEditCommentDeprecatedMutation = {
   Response: IssueEditCommentDeprecated200 | IssueEditCommentDeprecated204;
   Request: IssueEditCommentDeprecatedMutationRequest;
   PathParams: IssueEditCommentDeprecatedPathParams;
-  Errors:
-    | IssueEditCommentDeprecated403
-    | IssueEditCommentDeprecated404
-    | IssueEditCommentDeprecated500;
+  Errors: IssueEditCommentDeprecated403 | IssueEditCommentDeprecated404 | IssueEditCommentDeprecated500;
 };

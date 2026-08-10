@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetEditorConfigQueryResponse,
   RepoGetEditorConfigPathParams,
   RepoGetEditorConfigQueryParams,
   RepoGetEditorConfig404,
-} from "../types/RepoGetEditorConfig"
+} from '../types/RepoGetEditorConfig';
 
 function getRepoGetEditorConfigUrl(
-  owner: RepoGetEditorConfigPathParams["owner"],
-  repo: RepoGetEditorConfigPathParams["repo"],
-  filepath: RepoGetEditorConfigPathParams["filepath"],
+  owner: RepoGetEditorConfigPathParams['owner'],
+  repo: RepoGetEditorConfigPathParams['repo'],
+  filepath: RepoGetEditorConfigPathParams['filepath'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/editorconfig/${filepath}` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getRepoGetEditorConfigUrl(
  * {@link /repos/:owner/:repo/editorconfig/:filepath}
  */
 export async function repoGetEditorConfig(
-  owner: RepoGetEditorConfigPathParams["owner"],
-  repo: RepoGetEditorConfigPathParams["repo"],
-  filepath: RepoGetEditorConfigPathParams["filepath"],
+  owner: RepoGetEditorConfigPathParams['owner'],
+  repo: RepoGetEditorConfigPathParams['repo'],
+  filepath: RepoGetEditorConfigPathParams['filepath'],
   params?: RepoGetEditorConfigQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetEditorConfigQueryResponse,
-    ResponseErrorConfig<RepoGetEditorConfig404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetEditorConfigQueryResponse, ResponseErrorConfig<RepoGetEditorConfig404>, unknown>({
+    method: 'GET',
     url: getRepoGetEditorConfigUrl(owner, repo, filepath).url.toString(),
     params,
     ...requestConfig,

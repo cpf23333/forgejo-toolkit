@@ -10,68 +10,56 @@ import type {
   IssueCreateIssueAttachment413,
   IssueCreateIssueAttachment422,
   IssueCreateIssueAttachment423,
-} from "../types/IssueCreateIssueAttachment"
-import { http } from "msw";
+} from '../types/IssueCreateIssueAttachment';
+import { http } from 'msw';
 
-export function issueCreateIssueAttachmentHandlerResponse201(
-  data: IssueCreateIssueAttachmentMutationResponse,
-) {
+export function issueCreateIssueAttachmentHandlerResponse201(data: IssueCreateIssueAttachmentMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse400(
-  data: IssueCreateIssueAttachment400,
-) {
+export function issueCreateIssueAttachmentHandlerResponse400(data: IssueCreateIssueAttachment400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse404(
-  data: IssueCreateIssueAttachment404,
-) {
+export function issueCreateIssueAttachmentHandlerResponse404(data: IssueCreateIssueAttachment404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse413(
-  data?: IssueCreateIssueAttachment413,
-) {
+export function issueCreateIssueAttachmentHandlerResponse413(data?: IssueCreateIssueAttachment413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse422(
-  data: IssueCreateIssueAttachment422,
-) {
+export function issueCreateIssueAttachmentHandlerResponse422(data: IssueCreateIssueAttachment422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateIssueAttachmentHandlerResponse423(
-  data: IssueCreateIssueAttachment423,
-) {
+export function issueCreateIssueAttachmentHandlerResponse423(data: IssueCreateIssueAttachment423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -79,21 +67,16 @@ export function issueCreateIssueAttachmentHandlerResponse423(
 export function issueCreateIssueAttachmentHandler(
   data?:
     | IssueCreateIssueAttachmentMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/:index/assets`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/:index/assets`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

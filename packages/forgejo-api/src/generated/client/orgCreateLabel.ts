@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgCreateLabelMutationRequest,
   OrgCreateLabelMutationResponse,
   OrgCreateLabelPathParams,
   OrgCreateLabel404,
   OrgCreateLabel422,
-} from "../types/OrgCreateLabel"
+} from '../types/OrgCreateLabel';
 
-function getOrgCreateLabelUrl(org: OrgCreateLabelPathParams["org"]) {
-  const res = { method: "POST", url: `/orgs/${org}/labels` as const };
+function getOrgCreateLabelUrl(org: OrgCreateLabelPathParams['org']) {
+  const res = { method: 'POST', url: `/orgs/${org}/labels` as const };
   return res;
 }
 
@@ -27,7 +23,7 @@ function getOrgCreateLabelUrl(org: OrgCreateLabelPathParams["org"]) {
  * {@link /orgs/:org/labels}
  */
 export async function orgCreateLabel(
-  org: OrgCreateLabelPathParams["org"],
+  org: OrgCreateLabelPathParams['org'],
   data: OrgCreateLabelMutationRequest,
   config: Partial<RequestConfig<OrgCreateLabelMutationRequest>> & {
     client?: Client;
@@ -42,7 +38,7 @@ export async function orgCreateLabel(
     ResponseErrorConfig<OrgCreateLabel404 | OrgCreateLabel422>,
     OrgCreateLabelMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getOrgCreateLabelUrl(org).url.toString(),
     data: requestData,
     ...requestConfig,

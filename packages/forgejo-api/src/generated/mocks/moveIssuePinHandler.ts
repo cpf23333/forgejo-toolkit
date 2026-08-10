@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  MoveIssuePinMutationResponse,
-  MoveIssuePin403,
-  MoveIssuePin404,
-} from "../types/MoveIssuePin"
-import { http } from "msw";
+import type { MoveIssuePinMutationResponse, MoveIssuePin403, MoveIssuePin404 } from '../types/MoveIssuePin';
+import { http } from 'msw';
 
-export function moveIssuePinHandlerResponse204(
-  data?: MoveIssuePinMutationResponse,
-) {
+export function moveIssuePinHandlerResponse204(data?: MoveIssuePinMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function moveIssuePinHandlerResponse403(data: MoveIssuePin403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function moveIssuePinHandlerResponse404(data: MoveIssuePin404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +37,13 @@ export function moveIssuePinHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/issues/:index/pin/:position`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/issues/:index/pin/:position`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

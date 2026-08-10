@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoEditReleaseMutationRequest,
   RepoEditReleaseMutationResponse,
   RepoEditReleasePathParams,
   RepoEditRelease404,
-} from "../types/RepoEditRelease"
+} from '../types/RepoEditRelease';
 
 function getRepoEditReleaseUrl(
-  owner: RepoEditReleasePathParams["owner"],
-  repo: RepoEditReleasePathParams["repo"],
-  id: RepoEditReleasePathParams["id"],
+  owner: RepoEditReleasePathParams['owner'],
+  repo: RepoEditReleasePathParams['repo'],
+  id: RepoEditReleasePathParams['id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/releases/${id}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoEditReleaseUrl(
  * {@link /repos/:owner/:repo/releases/:id}
  */
 export async function repoEditRelease(
-  owner: RepoEditReleasePathParams["owner"],
-  repo: RepoEditReleasePathParams["repo"],
-  id: RepoEditReleasePathParams["id"],
+  owner: RepoEditReleasePathParams['owner'],
+  repo: RepoEditReleasePathParams['repo'],
+  id: RepoEditReleasePathParams['id'],
   data?: RepoEditReleaseMutationRequest,
   config: Partial<RequestConfig<RepoEditReleaseMutationRequest>> & {
     client?: Client;
@@ -50,7 +46,7 @@ export async function repoEditRelease(
     ResponseErrorConfig<RepoEditRelease404>,
     RepoEditReleaseMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getRepoEditReleaseUrl(owner, repo, id).url.toString(),
     data: requestData,
     ...requestConfig,

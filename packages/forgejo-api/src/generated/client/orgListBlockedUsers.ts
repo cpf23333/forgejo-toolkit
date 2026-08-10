@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListBlockedUsersQueryResponse,
   OrgListBlockedUsersPathParams,
   OrgListBlockedUsersQueryParams,
-} from "../types/OrgListBlockedUsers"
+} from '../types/OrgListBlockedUsers';
 
-function getOrgListBlockedUsersUrl(org: OrgListBlockedUsersPathParams["org"]) {
-  const res = { method: "GET", url: `/orgs/${org}/list_blocked` as const };
+function getOrgListBlockedUsersUrl(org: OrgListBlockedUsersPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/list_blocked` as const };
   return res;
 }
 
@@ -25,18 +21,14 @@ function getOrgListBlockedUsersUrl(org: OrgListBlockedUsersPathParams["org"]) {
  * {@link /orgs/:org/list_blocked}
  */
 export async function orgListBlockedUsers(
-  org: OrgListBlockedUsersPathParams["org"],
+  org: OrgListBlockedUsersPathParams['org'],
   params?: OrgListBlockedUsersQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgListBlockedUsersQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgListBlockedUsersQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getOrgListBlockedUsersUrl(org).url.toString(),
     params,
     ...requestConfig,

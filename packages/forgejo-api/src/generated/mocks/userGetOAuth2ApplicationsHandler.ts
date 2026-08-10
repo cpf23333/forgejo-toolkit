@@ -7,38 +7,32 @@ import type {
   UserGetOAuth2ApplicationsQueryResponse,
   UserGetOAuth2Applications401,
   UserGetOAuth2Applications403,
-} from "../types/UserGetOAuth2Applications"
-import { http } from "msw";
+} from '../types/UserGetOAuth2Applications';
+import { http } from 'msw';
 
-export function userGetOAuth2ApplicationsHandlerResponse200(
-  data: UserGetOAuth2ApplicationsQueryResponse,
-) {
+export function userGetOAuth2ApplicationsHandlerResponse200(data: UserGetOAuth2ApplicationsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userGetOAuth2ApplicationsHandlerResponse401(
-  data: UserGetOAuth2Applications401,
-) {
+export function userGetOAuth2ApplicationsHandlerResponse401(data: UserGetOAuth2Applications401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userGetOAuth2ApplicationsHandlerResponse403(
-  data: UserGetOAuth2Applications403,
-) {
+export function userGetOAuth2ApplicationsHandlerResponse403(data: UserGetOAuth2Applications403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function userGetOAuth2ApplicationsHandlerResponse403(
 export function userGetOAuth2ApplicationsHandler(
   data?:
     | UserGetOAuth2ApplicationsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/applications/oauth2`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

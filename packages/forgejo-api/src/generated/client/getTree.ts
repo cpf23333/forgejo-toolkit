@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetTreeQueryResponse,
   GetTreePathParams,
   GetTreeQueryParams,
   GetTree400,
   GetTree404,
-} from "../types/GetTree"
+} from '../types/GetTree';
 
 function getGetTreeUrl(
-  owner: GetTreePathParams["owner"],
-  repo: GetTreePathParams["repo"],
-  sha: GetTreePathParams["sha"],
+  owner: GetTreePathParams['owner'],
+  repo: GetTreePathParams['repo'],
+  sha: GetTreePathParams['sha'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/git/trees/${sha}` as const,
   };
   return res;
@@ -34,20 +30,16 @@ function getGetTreeUrl(
  * {@link /repos/:owner/:repo/git/trees/:sha}
  */
 export async function getTree(
-  owner: GetTreePathParams["owner"],
-  repo: GetTreePathParams["repo"],
-  sha: GetTreePathParams["sha"],
+  owner: GetTreePathParams['owner'],
+  repo: GetTreePathParams['repo'],
+  sha: GetTreePathParams['sha'],
   params?: GetTreeQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetTreeQueryResponse,
-    ResponseErrorConfig<GetTree400 | GetTree404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetTreeQueryResponse, ResponseErrorConfig<GetTree400 | GetTree404>, unknown>({
+    method: 'GET',
     url: getGetTreeUrl(owner, repo, sha).url.toString(),
     params,
     ...requestConfig,

@@ -3,14 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ForgeOutbox } from "./ForgeOutbox"
+import type { ForgeOutbox } from './ForgeOutbox';
 
 export type ActivitypubRepositoryOutboxPathParams = {
   /**
    * @description repository ID of the repo
    * @type integer, int64
    */
-  "repository-id": number;
+  'repository-id': number;
 };
 
 /**
@@ -18,8 +18,7 @@ export type ActivitypubRepositoryOutboxPathParams = {
  */
 export type ActivitypubRepositoryOutbox200 = ForgeOutbox;
 
-export type ActivitypubRepositoryOutboxMutationResponse =
-  ActivitypubRepositoryOutbox200;
+export type ActivitypubRepositoryOutboxMutationResponse = ActivitypubRepositoryOutbox200;
 
 export type ActivitypubRepositoryOutboxMutation = {
   Response: ActivitypubRepositoryOutbox200;

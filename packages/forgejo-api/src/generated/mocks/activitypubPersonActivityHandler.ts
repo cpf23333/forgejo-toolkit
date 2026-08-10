@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubPersonActivityQueryResponse } from "../types/ActivitypubPersonActivity"
-import { http } from "msw";
+import type { ActivitypubPersonActivityQueryResponse } from '../types/ActivitypubPersonActivity';
+import { http } from 'msw';
 
-export function activitypubPersonActivityHandlerResponse200(
-  data: ActivitypubPersonActivityQueryResponse,
-) {
+export function activitypubPersonActivityHandlerResponse200(data: ActivitypubPersonActivityQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,21 +18,16 @@ export function activitypubPersonActivityHandlerResponse200(
 export function activitypubPersonActivityHandler(
   data?:
     | ActivitypubPersonActivityQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/activitypub/user-id/:user-id/activities/:activity-id/activity`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/activitypub/user-id/:user-id/activities/:activity-id/activity`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

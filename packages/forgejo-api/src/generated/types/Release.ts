@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { Attachment } from "./Attachment"
-import type { TagArchiveDownloadCount } from "./TagArchiveDownloadCount"
-import type { User } from "./User"
+import type { Attachment } from './Attachment';
+import type { TagArchiveDownloadCount } from './TagArchiveDownloadCount';
+import type { User } from './User';
 
 /**
  * @description Release represents a repository release

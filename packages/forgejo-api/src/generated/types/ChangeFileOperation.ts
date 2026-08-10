@@ -4,9 +4,9 @@
  */
 
 export const changeFileOperationOperationEnum = {
-  create: "create",
-  update: "update",
-  delete: "delete",
+  create: 'create',
+  update: 'update',
+  delete: 'delete',
 } as const;
 
 export type ChangeFileOperationOperationEnumKey =

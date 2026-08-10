@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UpdateOrgSecretMutationRequest,
   UpdateOrgSecretMutationResponse,
   UpdateOrgSecretPathParams,
   UpdateOrgSecret400,
   UpdateOrgSecret404,
-} from "../types/UpdateOrgSecret"
+} from '../types/UpdateOrgSecret';
 
 function getUpdateOrgSecretUrl(
-  org: UpdateOrgSecretPathParams["org"],
-  secretname: UpdateOrgSecretPathParams["secretname"],
+  org: UpdateOrgSecretPathParams['org'],
+  secretname: UpdateOrgSecretPathParams['secretname'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/orgs/${org}/actions/secrets/${secretname}` as const,
   };
   return res;
@@ -33,8 +29,8 @@ function getUpdateOrgSecretUrl(
  * {@link /orgs/:org/actions/secrets/:secretname}
  */
 export async function updateOrgSecret(
-  org: UpdateOrgSecretPathParams["org"],
-  secretname: UpdateOrgSecretPathParams["secretname"],
+  org: UpdateOrgSecretPathParams['org'],
+  secretname: UpdateOrgSecretPathParams['secretname'],
   data: UpdateOrgSecretMutationRequest,
   config: Partial<RequestConfig<UpdateOrgSecretMutationRequest>> & {
     client?: Client;
@@ -49,7 +45,7 @@ export async function updateOrgSecret(
     ResponseErrorConfig<UpdateOrgSecret400 | UpdateOrgSecret404>,
     UpdateOrgSecretMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUpdateOrgSecretUrl(org, secretname).url.toString(),
     data: requestData,
     ...requestConfig,

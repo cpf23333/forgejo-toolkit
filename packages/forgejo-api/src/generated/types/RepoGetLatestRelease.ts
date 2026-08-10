@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Release } from "./Release"
+import type { APINotFound } from './APINotFound';
+import type { Release } from './Release';
 
 export type RepoGetLatestReleasePathParams = {
   /**

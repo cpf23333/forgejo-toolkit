@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteUserVariableMutationResponse,
   DeleteUserVariablePathParams,
@@ -16,13 +12,11 @@ import type {
   DeleteUserVariable401,
   DeleteUserVariable403,
   DeleteUserVariable404,
-} from "../types/DeleteUserVariable"
+} from '../types/DeleteUserVariable';
 
-function getDeleteUserVariableUrl(
-  variablename: DeleteUserVariablePathParams["variablename"],
-) {
+function getDeleteUserVariableUrl(variablename: DeleteUserVariablePathParams['variablename']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/user/actions/variables/${variablename}` as const,
   };
   return res;
@@ -33,22 +27,17 @@ function getDeleteUserVariableUrl(
  * {@link /user/actions/variables/:variablename}
  */
 export async function deleteUserVariable(
-  variablename: DeleteUserVariablePathParams["variablename"],
+  variablename: DeleteUserVariablePathParams['variablename'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     DeleteUserVariableMutationResponse,
-    ResponseErrorConfig<
-      | DeleteUserVariable400
-      | DeleteUserVariable401
-      | DeleteUserVariable403
-      | DeleteUserVariable404
-    >,
+    ResponseErrorConfig<DeleteUserVariable400 | DeleteUserVariable401 | DeleteUserVariable403 | DeleteUserVariable404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteUserVariableUrl(variablename).url.toString(),
     ...requestConfig,
   });

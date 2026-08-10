@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  AdminGetAllOrgsQueryResponse,
-  AdminGetAllOrgs403,
-} from "../types/AdminGetAllOrgs"
-import { http } from "msw";
+import type { AdminGetAllOrgsQueryResponse, AdminGetAllOrgs403 } from '../types/AdminGetAllOrgs';
+import { http } from 'msw';
 
-export function adminGetAllOrgsHandlerResponse200(
-  data: AdminGetAllOrgsQueryResponse,
-) {
+export function adminGetAllOrgsHandlerResponse200(data: AdminGetAllOrgsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function adminGetAllOrgsHandlerResponse403(data: AdminGetAllOrgs403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function adminGetAllOrgsHandlerResponse403(data: AdminGetAllOrgs403) {
 export function adminGetAllOrgsHandler(
   data?:
     | AdminGetAllOrgsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/orgs`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

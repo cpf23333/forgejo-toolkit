@@ -3,25 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminDeleteQuotaRuleMutationResponse,
   AdminDeleteQuotaRulePathParams,
   AdminDeleteQuotaRule400,
   AdminDeleteQuotaRule403,
   AdminDeleteQuotaRule404,
-} from "../types/AdminDeleteQuotaRule"
+} from '../types/AdminDeleteQuotaRule';
 
-function getAdminDeleteQuotaRuleUrl(
-  quotarule: AdminDeleteQuotaRulePathParams["quotarule"],
-) {
+function getAdminDeleteQuotaRuleUrl(quotarule: AdminDeleteQuotaRulePathParams['quotarule']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/admin/quota/rules/${quotarule}` as const,
   };
   return res;
@@ -32,21 +26,17 @@ function getAdminDeleteQuotaRuleUrl(
  * {@link /admin/quota/rules/:quotarule}
  */
 export async function adminDeleteQuotaRule(
-  quotarule: AdminDeleteQuotaRulePathParams["quotarule"],
+  quotarule: AdminDeleteQuotaRulePathParams['quotarule'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     AdminDeleteQuotaRuleMutationResponse,
-    ResponseErrorConfig<
-      | AdminDeleteQuotaRule400
-      | AdminDeleteQuotaRule403
-      | AdminDeleteQuotaRule404
-    >,
+    ResponseErrorConfig<AdminDeleteQuotaRule400 | AdminDeleteQuotaRule403 | AdminDeleteQuotaRule404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getAdminDeleteQuotaRuleUrl(quotarule).url.toString(),
     ...requestConfig,
   });

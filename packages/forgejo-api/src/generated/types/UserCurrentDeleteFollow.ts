@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 export type UserCurrentDeleteFollowPathParams = {
   /**
@@ -35,14 +35,10 @@ export type UserCurrentDeleteFollow403 = APIForbiddenError;
  */
 export type UserCurrentDeleteFollow404 = APINotFound;
 
-export type UserCurrentDeleteFollowMutationResponse =
-  UserCurrentDeleteFollow204;
+export type UserCurrentDeleteFollowMutationResponse = UserCurrentDeleteFollow204;
 
 export type UserCurrentDeleteFollowMutation = {
   Response: UserCurrentDeleteFollow204;
   PathParams: UserCurrentDeleteFollowPathParams;
-  Errors:
-    | UserCurrentDeleteFollow401
-    | UserCurrentDeleteFollow403
-    | UserCurrentDeleteFollow404;
+  Errors: UserCurrentDeleteFollow401 | UserCurrentDeleteFollow403 | UserCurrentDeleteFollow404;
 };

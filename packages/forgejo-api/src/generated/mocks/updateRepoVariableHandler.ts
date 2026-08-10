@@ -7,43 +7,35 @@ import type {
   UpdateRepoVariableMutationResponse,
   UpdateRepoVariable400,
   UpdateRepoVariable404,
-} from "../types/UpdateRepoVariable"
-import { http } from "msw";
+} from '../types/UpdateRepoVariable';
+import { http } from 'msw';
 
-export function updateRepoVariableHandlerResponse201(
-  data?: UpdateRepoVariableMutationResponse,
-) {
+export function updateRepoVariableHandlerResponse201(data?: UpdateRepoVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function updateRepoVariableHandlerResponse204(
-  data?: UpdateRepoVariableMutationResponse,
-) {
+export function updateRepoVariableHandlerResponse204(data?: UpdateRepoVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function updateRepoVariableHandlerResponse400(
-  data: UpdateRepoVariable400,
-) {
+export function updateRepoVariableHandlerResponse400(data: UpdateRepoVariable400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function updateRepoVariableHandlerResponse404(
-  data: UpdateRepoVariable404,
-) {
+export function updateRepoVariableHandlerResponse404(data: UpdateRepoVariable404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -55,18 +47,13 @@ export function updateRepoVariableHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.put(
-    `/repos/:owner/:repo/actions/variables/:variablename`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.put(`/repos/:owner/:repo/actions/variables/:variablename`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Secret } from "./Secret"
+import type { Secret } from './Secret';
 
 export type SecretList = Secret[];

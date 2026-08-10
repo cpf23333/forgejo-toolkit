@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueEditLabelMutationResponse,
-  IssueEditLabel404,
-  IssueEditLabel422,
-} from "../types/IssueEditLabel"
-import { http } from "msw";
+import type { IssueEditLabelMutationResponse, IssueEditLabel404, IssueEditLabel422 } from '../types/IssueEditLabel';
+import { http } from 'msw';
 
-export function issueEditLabelHandlerResponse200(
-  data: IssueEditLabelMutationResponse,
-) {
+export function issueEditLabelHandlerResponse200(data: IssueEditLabelMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function issueEditLabelHandlerResponse404(data: IssueEditLabel404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function issueEditLabelHandlerResponse422(data: IssueEditLabel422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function issueEditLabelHandlerResponse422(data: IssueEditLabel422) {
 export function issueEditLabelHandler(
   data?:
     | IssueEditLabelMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/repos/:owner/:repo/labels/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

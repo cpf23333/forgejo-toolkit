@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { IssueConfigValidation } from "./IssueConfigValidation"
+import type { APINotFound } from './APINotFound';
+import type { IssueConfigValidation } from './IssueConfigValidation';
 
 export type RepoValidateIssueConfigPathParams = {
   /**

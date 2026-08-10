@@ -3,25 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoGetHookQueryResponse,
-  RepoGetHookPathParams,
-  RepoGetHook404,
-} from "../types/RepoGetHook"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoGetHookQueryResponse, RepoGetHookPathParams, RepoGetHook404 } from '../types/RepoGetHook';
 
 function getRepoGetHookUrl(
-  owner: RepoGetHookPathParams["owner"],
-  repo: RepoGetHookPathParams["repo"],
-  id: RepoGetHookPathParams["id"],
+  owner: RepoGetHookPathParams['owner'],
+  repo: RepoGetHookPathParams['repo'],
+  id: RepoGetHookPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/hooks/${id}` as const,
   };
   return res;
@@ -32,19 +24,15 @@ function getRepoGetHookUrl(
  * {@link /repos/:owner/:repo/hooks/:id}
  */
 export async function repoGetHook(
-  owner: RepoGetHookPathParams["owner"],
-  repo: RepoGetHookPathParams["repo"],
-  id: RepoGetHookPathParams["id"],
+  owner: RepoGetHookPathParams['owner'],
+  repo: RepoGetHookPathParams['repo'],
+  id: RepoGetHookPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetHookQueryResponse,
-    ResponseErrorConfig<RepoGetHook404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetHookQueryResponse, ResponseErrorConfig<RepoGetHook404>, unknown>({
+    method: 'GET',
     url: getRepoGetHookUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

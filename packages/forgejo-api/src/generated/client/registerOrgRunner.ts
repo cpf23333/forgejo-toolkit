@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RegisterOrgRunnerMutationRequest,
   RegisterOrgRunnerMutationResponse,
@@ -16,10 +12,10 @@ import type {
   RegisterOrgRunner400,
   RegisterOrgRunner401,
   RegisterOrgRunner404,
-} from "../types/RegisterOrgRunner"
+} from '../types/RegisterOrgRunner';
 
-function getRegisterOrgRunnerUrl(org: RegisterOrgRunnerPathParams["org"]) {
-  const res = { method: "POST", url: `/orgs/${org}/actions/runners` as const };
+function getRegisterOrgRunnerUrl(org: RegisterOrgRunnerPathParams['org']) {
+  const res = { method: 'POST', url: `/orgs/${org}/actions/runners` as const };
   return res;
 }
 
@@ -28,7 +24,7 @@ function getRegisterOrgRunnerUrl(org: RegisterOrgRunnerPathParams["org"]) {
  * {@link /orgs/:org/actions/runners}
  */
 export async function registerOrgRunner(
-  org: RegisterOrgRunnerPathParams["org"],
+  org: RegisterOrgRunnerPathParams['org'],
   data: RegisterOrgRunnerMutationRequest,
   config: Partial<RequestConfig<RegisterOrgRunnerMutationRequest>> & {
     client?: Client;
@@ -40,12 +36,10 @@ export async function registerOrgRunner(
 
   const res = await request<
     RegisterOrgRunnerMutationResponse,
-    ResponseErrorConfig<
-      RegisterOrgRunner400 | RegisterOrgRunner401 | RegisterOrgRunner404
-    >,
+    ResponseErrorConfig<RegisterOrgRunner400 | RegisterOrgRunner401 | RegisterOrgRunner404>,
     RegisterOrgRunnerMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRegisterOrgRunnerUrl(org).url.toString(),
     data: requestData,
     ...requestConfig,

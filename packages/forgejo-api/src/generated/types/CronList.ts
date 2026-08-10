@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Cron } from "./Cron"
+import type { Cron } from './Cron';
 
 export type CronList = Cron[];

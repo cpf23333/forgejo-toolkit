@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { PullReviewComment } from "./PullReviewComment"
+import type { APINotFound } from './APINotFound';
+import type { PullReviewComment } from './PullReviewComment';
 
 export type RepoGetPullReviewCommentsPathParams = {
   /**
@@ -39,8 +39,7 @@ export type RepoGetPullReviewComments200 = PullReviewComment[];
  */
 export type RepoGetPullReviewComments404 = APINotFound;
 
-export type RepoGetPullReviewCommentsQueryResponse =
-  RepoGetPullReviewComments200;
+export type RepoGetPullReviewCommentsQueryResponse = RepoGetPullReviewComments200;
 
 export type RepoGetPullReviewCommentsQuery = {
   Response: RepoGetPullReviewComments200;

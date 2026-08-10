@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserGetTokensQueryResponse,
   UserGetTokensPathParams,
   UserGetTokensQueryParams,
   UserGetTokens403,
   UserGetTokens404,
-} from "../types/UserGetTokens"
+} from '../types/UserGetTokens';
 
-function getUserGetTokensUrl(username: UserGetTokensPathParams["username"]) {
-  const res = { method: "GET", url: `/users/${username}/tokens` as const };
+function getUserGetTokensUrl(username: UserGetTokensPathParams['username']) {
+  const res = { method: 'GET', url: `/users/${username}/tokens` as const };
   return res;
 }
 
@@ -27,7 +23,7 @@ function getUserGetTokensUrl(username: UserGetTokensPathParams["username"]) {
  * {@link /users/:username/tokens}
  */
 export async function userGetTokens(
-  username: UserGetTokensPathParams["username"],
+  username: UserGetTokensPathParams['username'],
   params?: UserGetTokensQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -38,7 +34,7 @@ export async function userGetTokens(
     ResponseErrorConfig<UserGetTokens403 | UserGetTokens404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserGetTokensUrl(username).url.toString(),
     params,
     ...requestConfig,

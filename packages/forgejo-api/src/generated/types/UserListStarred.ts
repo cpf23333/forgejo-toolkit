@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Repository } from "./Repository"
+import type { APINotFound } from './APINotFound';
+import type { Repository } from './Repository';
 
 export type UserListStarredPathParams = {
   /**

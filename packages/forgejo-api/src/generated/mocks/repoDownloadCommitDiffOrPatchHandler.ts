@@ -6,27 +6,23 @@
 import type {
   RepoDownloadCommitDiffOrPatchQueryResponse,
   RepoDownloadCommitDiffOrPatch404,
-} from "../types/RepoDownloadCommitDiffOrPatch"
-import { http } from "msw";
+} from '../types/RepoDownloadCommitDiffOrPatch';
+import { http } from 'msw';
 
-export function repoDownloadCommitDiffOrPatchHandlerResponse200(
-  data: RepoDownloadCommitDiffOrPatchQueryResponse,
-) {
+export function repoDownloadCommitDiffOrPatchHandlerResponse200(data: RepoDownloadCommitDiffOrPatchQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDownloadCommitDiffOrPatchHandlerResponse404(
-  data: RepoDownloadCommitDiffOrPatch404,
-) {
+export function repoDownloadCommitDiffOrPatchHandlerResponse404(data: RepoDownloadCommitDiffOrPatch404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function repoDownloadCommitDiffOrPatchHandlerResponse404(
 export function repoDownloadCommitDiffOrPatchHandler(
   data?:
     | RepoDownloadCommitDiffOrPatchQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/git/commits/:sha.\\\\:diffType`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/git/commits/:sha.\\\\:diffType`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

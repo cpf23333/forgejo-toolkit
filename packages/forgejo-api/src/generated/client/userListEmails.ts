@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  UserListEmailsQueryResponse,
-  UserListEmails401,
-  UserListEmails403,
-} from "../types/UserListEmails"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { UserListEmailsQueryResponse, UserListEmails401, UserListEmails403 } from '../types/UserListEmails';
 
 function getUserListEmailsUrl() {
-  const res = { method: "GET", url: `/user/emails` as const };
+  const res = { method: 'GET', url: `/user/emails` as const };
   return res;
 }
 
@@ -24,9 +16,7 @@ function getUserListEmailsUrl() {
  * @summary List all email addresses of the current user
  * {@link /user/emails}
  */
-export async function userListEmails(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function userListEmails(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
@@ -34,7 +24,7 @@ export async function userListEmails(
     ResponseErrorConfig<UserListEmails401 | UserListEmails403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserListEmailsUrl().url.toString(),
     ...requestConfig,
   });

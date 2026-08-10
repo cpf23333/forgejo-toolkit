@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ListForksQueryResponse,
   ListForksPathParams,
   ListForksQueryParams,
   ListForks404,
-} from "../types/ListForks"
+} from '../types/ListForks';
 
-function getListForksUrl(
-  owner: ListForksPathParams["owner"],
-  repo: ListForksPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/forks` as const };
+function getListForksUrl(owner: ListForksPathParams['owner'], repo: ListForksPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/forks` as const };
   return res;
 }
 
@@ -29,19 +22,15 @@ function getListForksUrl(
  * {@link /repos/:owner/:repo/forks}
  */
 export async function listForks(
-  owner: ListForksPathParams["owner"],
-  repo: ListForksPathParams["repo"],
+  owner: ListForksPathParams['owner'],
+  repo: ListForksPathParams['repo'],
   params?: ListForksQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ListForksQueryResponse,
-    ResponseErrorConfig<ListForks404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ListForksQueryResponse, ResponseErrorConfig<ListForks404>, unknown>({
+    method: 'GET',
     url: getListForksUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoReplaceAllFlagsMutationRequest,
   RepoReplaceAllFlagsMutationResponse,
   RepoReplaceAllFlagsPathParams,
   RepoReplaceAllFlags403,
   RepoReplaceAllFlags404,
-} from "../types/RepoReplaceAllFlags"
+} from '../types/RepoReplaceAllFlags';
 
 function getRepoReplaceAllFlagsUrl(
-  owner: RepoReplaceAllFlagsPathParams["owner"],
-  repo: RepoReplaceAllFlagsPathParams["repo"],
+  owner: RepoReplaceAllFlagsPathParams['owner'],
+  repo: RepoReplaceAllFlagsPathParams['repo'],
 ) {
-  const res = { method: "PUT", url: `/repos/${owner}/${repo}/flags` as const };
+  const res = { method: 'PUT', url: `/repos/${owner}/${repo}/flags` as const };
   return res;
 }
 
@@ -30,8 +26,8 @@ function getRepoReplaceAllFlagsUrl(
  * {@link /repos/:owner/:repo/flags}
  */
 export async function repoReplaceAllFlags(
-  owner: RepoReplaceAllFlagsPathParams["owner"],
-  repo: RepoReplaceAllFlagsPathParams["repo"],
+  owner: RepoReplaceAllFlagsPathParams['owner'],
+  repo: RepoReplaceAllFlagsPathParams['repo'],
   data?: RepoReplaceAllFlagsMutationRequest,
   config: Partial<RequestConfig<RepoReplaceAllFlagsMutationRequest>> & {
     client?: Client;
@@ -46,7 +42,7 @@ export async function repoReplaceAllFlags(
     ResponseErrorConfig<RepoReplaceAllFlags403 | RepoReplaceAllFlags404>,
     RepoReplaceAllFlagsMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getRepoReplaceAllFlagsUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { PullReview } from "./PullReview"
-import type { SubmitPullReviewOptions } from "./SubmitPullReviewOptions"
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { PullReview } from './PullReview';
+import type { SubmitPullReviewOptions } from './SubmitPullReviewOptions';
 
 export type RepoSubmitPullReviewPathParams = {
   /**

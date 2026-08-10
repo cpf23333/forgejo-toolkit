@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListActivityFeedsQueryResponse,
   RepoListActivityFeedsPathParams,
   RepoListActivityFeedsQueryParams,
   RepoListActivityFeeds404,
-} from "../types/RepoListActivityFeeds"
+} from '../types/RepoListActivityFeeds';
 
 function getRepoListActivityFeedsUrl(
-  owner: RepoListActivityFeedsPathParams["owner"],
-  repo: RepoListActivityFeedsPathParams["repo"],
+  owner: RepoListActivityFeedsPathParams['owner'],
+  repo: RepoListActivityFeedsPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/activities/feeds` as const,
   };
   return res;
@@ -32,22 +28,20 @@ function getRepoListActivityFeedsUrl(
  * {@link /repos/:owner/:repo/activities/feeds}
  */
 export async function repoListActivityFeeds(
-  owner: RepoListActivityFeedsPathParams["owner"],
-  repo: RepoListActivityFeedsPathParams["repo"],
+  owner: RepoListActivityFeedsPathParams['owner'],
+  repo: RepoListActivityFeedsPathParams['repo'],
   params?: RepoListActivityFeedsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListActivityFeedsQueryResponse,
-    ResponseErrorConfig<RepoListActivityFeeds404>,
-    unknown
-  >({
-    method: "GET",
-    url: getRepoListActivityFeedsUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
+  const res = await request<RepoListActivityFeedsQueryResponse, ResponseErrorConfig<RepoListActivityFeeds404>, unknown>(
+    {
+      method: 'GET',
+      url: getRepoListActivityFeedsUrl(owner, repo).url.toString(),
+      params,
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

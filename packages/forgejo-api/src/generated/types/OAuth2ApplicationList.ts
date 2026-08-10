@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { OAuth2Application } from "./OAuth2Application"
+import type { OAuth2Application } from './OAuth2Application';
 
 export type OAuth2ApplicationList = OAuth2Application[];

@@ -3,13 +3,13 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateIssueOption } from "./CreateIssueOption"
-import type { Issue } from "./Issue"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateIssueOption } from './CreateIssueOption';
+import type { Issue } from './Issue';
 
 export type IssueCreateIssuePathParams = {
   /**
@@ -62,10 +62,5 @@ export type IssueCreateIssueMutation = {
   Response: IssueCreateIssue201;
   Request: IssueCreateIssueMutationRequest;
   PathParams: IssueCreateIssuePathParams;
-  Errors:
-    | IssueCreateIssue403
-    | IssueCreateIssue404
-    | IssueCreateIssue412
-    | IssueCreateIssue422
-    | IssueCreateIssue423;
+  Errors: IssueCreateIssue403 | IssueCreateIssue404 | IssueCreateIssue412 | IssueCreateIssue422 | IssueCreateIssue423;
 };

@@ -3,30 +3,30 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { Repository } from "./Repository"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { APIValidationError } from './APIValidationError';
+import type { Repository } from './Repository';
 
 export const userCurrentListReposQueryParamsOrderByEnum = {
-  name: "name",
-  id: "id",
-  newest: "newest",
-  oldest: "oldest",
-  recentupdate: "recentupdate",
-  leastupdate: "leastupdate",
-  reversealphabetically: "reversealphabetically",
-  alphabetically: "alphabetically",
-  reversesize: "reversesize",
-  size: "size",
-  reversegitsize: "reversegitsize",
-  gitsize: "gitsize",
-  reverselfssize: "reverselfssize",
-  lfssize: "lfssize",
-  moststars: "moststars",
-  feweststars: "feweststars",
-  mostforks: "mostforks",
-  fewestforks: "fewestforks",
+  name: 'name',
+  id: 'id',
+  newest: 'newest',
+  oldest: 'oldest',
+  recentupdate: 'recentupdate',
+  leastupdate: 'leastupdate',
+  reversealphabetically: 'reversealphabetically',
+  alphabetically: 'alphabetically',
+  reversesize: 'reversesize',
+  size: 'size',
+  reversegitsize: 'reversegitsize',
+  gitsize: 'gitsize',
+  reverselfssize: 'reverselfssize',
+  lfssize: 'lfssize',
+  moststars: 'moststars',
+  feweststars: 'feweststars',
+  mostforks: 'mostforks',
+  fewestforks: 'fewestforks',
 } as const;
 
 export type UserCurrentListReposQueryParamsOrderByEnumKey =
@@ -75,6 +75,5 @@ export type UserCurrentListReposQueryResponse = UserCurrentListRepos200;
 export type UserCurrentListReposQuery = {
   Response: UserCurrentListRepos200;
   QueryParams: UserCurrentListReposQueryParams;
-  Errors:
-    UserCurrentListRepos401 | UserCurrentListRepos403 | UserCurrentListRepos422;
+  Errors: UserCurrentListRepos401 | UserCurrentListRepos403 | UserCurrentListRepos422;
 };

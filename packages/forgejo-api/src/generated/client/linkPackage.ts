@@ -3,26 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  LinkPackageMutationResponse,
-  LinkPackagePathParams,
-  LinkPackage404,
-} from "../types/LinkPackage"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { LinkPackageMutationResponse, LinkPackagePathParams, LinkPackage404 } from '../types/LinkPackage';
 
 function getLinkPackageUrl(
-  owner: LinkPackagePathParams["owner"],
-  type: LinkPackagePathParams["type"],
-  name: LinkPackagePathParams["name"],
-  repo_name: LinkPackagePathParams["repo_name"],
+  owner: LinkPackagePathParams['owner'],
+  type: LinkPackagePathParams['type'],
+  name: LinkPackagePathParams['name'],
+  repo_name: LinkPackagePathParams['repo_name'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/packages/${owner}/${type}/${name}/-/link/${repo_name}` as const,
   };
   return res;
@@ -33,20 +25,16 @@ function getLinkPackageUrl(
  * {@link /packages/:owner/:type/:name/-/link/:repo_name}
  */
 export async function linkPackage(
-  owner: LinkPackagePathParams["owner"],
-  type: LinkPackagePathParams["type"],
-  name: LinkPackagePathParams["name"],
-  repo_name: LinkPackagePathParams["repo_name"],
+  owner: LinkPackagePathParams['owner'],
+  type: LinkPackagePathParams['type'],
+  name: LinkPackagePathParams['name'],
+  repo_name: LinkPackagePathParams['repo_name'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    LinkPackageMutationResponse,
-    ResponseErrorConfig<LinkPackage404>,
-    unknown
-  >({
-    method: "POST",
+  const res = await request<LinkPackageMutationResponse, ResponseErrorConfig<LinkPackage404>, unknown>({
+    method: 'POST',
     url: getLinkPackageUrl(owner, type, name, repo_name).url.toString(),
     ...requestConfig,
   });

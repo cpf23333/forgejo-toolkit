@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetPullRequestQueryResponse,
   RepoGetPullRequestPathParams,
   RepoGetPullRequest404,
-} from "../types/RepoGetPullRequest"
+} from '../types/RepoGetPullRequest';
 
 function getRepoGetPullRequestUrl(
-  owner: RepoGetPullRequestPathParams["owner"],
-  repo: RepoGetPullRequestPathParams["repo"],
-  index: RepoGetPullRequestPathParams["index"],
+  owner: RepoGetPullRequestPathParams['owner'],
+  repo: RepoGetPullRequestPathParams['repo'],
+  index: RepoGetPullRequestPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${index}` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoGetPullRequestUrl(
  * {@link /repos/:owner/:repo/pulls/:index}
  */
 export async function repoGetPullRequest(
-  owner: RepoGetPullRequestPathParams["owner"],
-  repo: RepoGetPullRequestPathParams["repo"],
-  index: RepoGetPullRequestPathParams["index"],
+  owner: RepoGetPullRequestPathParams['owner'],
+  repo: RepoGetPullRequestPathParams['repo'],
+  index: RepoGetPullRequestPathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetPullRequestQueryResponse,
-    ResponseErrorConfig<RepoGetPullRequest404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetPullRequestQueryResponse, ResponseErrorConfig<RepoGetPullRequest404>, unknown>({
+    method: 'GET',
     url: getRepoGetPullRequestUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

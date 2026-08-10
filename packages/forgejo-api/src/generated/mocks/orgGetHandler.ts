@@ -3,14 +3,14 @@
  * Do not edit manually.
  */
 
-import type { OrgGetQueryResponse, OrgGet404 } from "../types/OrgGet"
-import { http } from "msw";
+import type { OrgGetQueryResponse, OrgGet404 } from '../types/OrgGet';
+import { http } from 'msw';
 
 export function orgGetHandlerResponse200(data: OrgGetQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -19,25 +19,21 @@ export function orgGetHandlerResponse404(data: OrgGet404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
 export function orgGetHandler(
-  data?:
-    | OrgGetQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+  data?: OrgGetQueryResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

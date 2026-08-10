@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { CombinedStatus } from "./CombinedStatus"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { CombinedStatus } from './CombinedStatus';
 
 export type RepoGetCombinedStatusByRefPathParams = {
   /**
@@ -53,8 +53,7 @@ export type RepoGetCombinedStatusByRef400 = APIError;
  */
 export type RepoGetCombinedStatusByRef404 = APINotFound;
 
-export type RepoGetCombinedStatusByRefQueryResponse =
-  RepoGetCombinedStatusByRef200;
+export type RepoGetCombinedStatusByRefQueryResponse = RepoGetCombinedStatusByRef200;
 
 export type RepoGetCombinedStatusByRefQuery = {
   Response: RepoGetCombinedStatusByRef200;

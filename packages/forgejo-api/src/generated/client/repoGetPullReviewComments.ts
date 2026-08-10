@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetPullReviewCommentsQueryResponse,
   RepoGetPullReviewCommentsPathParams,
   RepoGetPullReviewComments404,
-} from "../types/RepoGetPullReviewComments"
+} from '../types/RepoGetPullReviewComments';
 
 function getRepoGetPullReviewCommentsUrl(
-  owner: RepoGetPullReviewCommentsPathParams["owner"],
-  repo: RepoGetPullReviewCommentsPathParams["repo"],
-  index: RepoGetPullReviewCommentsPathParams["index"],
-  id: RepoGetPullReviewCommentsPathParams["id"],
+  owner: RepoGetPullReviewCommentsPathParams['owner'],
+  repo: RepoGetPullReviewCommentsPathParams['repo'],
+  index: RepoGetPullReviewCommentsPathParams['index'],
+  id: RepoGetPullReviewCommentsPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}/comments` as const,
   };
   return res;
@@ -33,10 +29,10 @@ function getRepoGetPullReviewCommentsUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id/comments}
  */
 export async function repoGetPullReviewComments(
-  owner: RepoGetPullReviewCommentsPathParams["owner"],
-  repo: RepoGetPullReviewCommentsPathParams["repo"],
-  index: RepoGetPullReviewCommentsPathParams["index"],
-  id: RepoGetPullReviewCommentsPathParams["id"],
+  owner: RepoGetPullReviewCommentsPathParams['owner'],
+  repo: RepoGetPullReviewCommentsPathParams['repo'],
+  index: RepoGetPullReviewCommentsPathParams['index'],
+  id: RepoGetPullReviewCommentsPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,7 +42,7 @@ export async function repoGetPullReviewComments(
     ResponseErrorConfig<RepoGetPullReviewComments404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetPullReviewCommentsUrl(owner, repo, index, id).url.toString(),
     ...requestConfig,
   });

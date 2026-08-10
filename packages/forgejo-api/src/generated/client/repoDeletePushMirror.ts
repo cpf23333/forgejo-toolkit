@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeletePushMirrorMutationResponse,
   RepoDeletePushMirrorPathParams,
   RepoDeletePushMirror400,
   RepoDeletePushMirror404,
-} from "../types/RepoDeletePushMirror"
+} from '../types/RepoDeletePushMirror';
 
 function getRepoDeletePushMirrorUrl(
-  owner: RepoDeletePushMirrorPathParams["owner"],
-  repo: RepoDeletePushMirrorPathParams["repo"],
-  name: RepoDeletePushMirrorPathParams["name"],
+  owner: RepoDeletePushMirrorPathParams['owner'],
+  repo: RepoDeletePushMirrorPathParams['repo'],
+  name: RepoDeletePushMirrorPathParams['name'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/push_mirrors/${name}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoDeletePushMirrorUrl(
  * {@link /repos/:owner/:repo/push_mirrors/:name}
  */
 export async function repoDeletePushMirror(
-  owner: RepoDeletePushMirrorPathParams["owner"],
-  repo: RepoDeletePushMirrorPathParams["repo"],
-  name: RepoDeletePushMirrorPathParams["name"],
+  owner: RepoDeletePushMirrorPathParams['owner'],
+  repo: RepoDeletePushMirrorPathParams['repo'],
+  name: RepoDeletePushMirrorPathParams['name'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoDeletePushMirror(
     ResponseErrorConfig<RepoDeletePushMirror400 | RepoDeletePushMirror404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeletePushMirrorUrl(owner, repo, name).url.toString(),
     ...requestConfig,
   });

@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GetGeneralUISettingsQueryResponse } from "../types/GetGeneralUISettings"
-import { http } from "msw";
+import type { GetGeneralUISettingsQueryResponse } from '../types/GetGeneralUISettings';
+import { http } from 'msw';
 
-export function getGeneralUISettingsHandlerResponse200(
-  data: GetGeneralUISettingsQueryResponse,
-) {
+export function getGeneralUISettingsHandlerResponse200(data: GetGeneralUISettingsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function getGeneralUISettingsHandlerResponse200(
 export function getGeneralUISettingsHandler(
   data?:
     | GetGeneralUISettingsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/settings/ui`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

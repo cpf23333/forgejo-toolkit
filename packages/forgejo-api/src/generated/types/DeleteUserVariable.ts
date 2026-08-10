@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 export type DeleteUserVariablePathParams = {
   /**
@@ -46,15 +46,10 @@ export type DeleteUserVariable403 = APIForbiddenError;
  */
 export type DeleteUserVariable404 = APINotFound;
 
-export type DeleteUserVariableMutationResponse =
-  DeleteUserVariable201 | DeleteUserVariable204;
+export type DeleteUserVariableMutationResponse = DeleteUserVariable201 | DeleteUserVariable204;
 
 export type DeleteUserVariableMutation = {
   Response: DeleteUserVariable201 | DeleteUserVariable204;
   PathParams: DeleteUserVariablePathParams;
-  Errors:
-    | DeleteUserVariable400
-    | DeleteUserVariable401
-    | DeleteUserVariable403
-    | DeleteUserVariable404;
+  Errors: DeleteUserVariable400 | DeleteUserVariable401 | DeleteUserVariable403 | DeleteUserVariable404;
 };

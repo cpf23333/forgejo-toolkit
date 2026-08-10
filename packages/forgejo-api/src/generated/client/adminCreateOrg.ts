@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminCreateOrgMutationRequest,
   AdminCreateOrgMutationResponse,
   AdminCreateOrgPathParams,
   AdminCreateOrg403,
   AdminCreateOrg422,
-} from "../types/AdminCreateOrg"
+} from '../types/AdminCreateOrg';
 
-function getAdminCreateOrgUrl(username: AdminCreateOrgPathParams["username"]) {
-  const res = { method: "POST", url: `/admin/users/${username}/orgs` as const };
+function getAdminCreateOrgUrl(username: AdminCreateOrgPathParams['username']) {
+  const res = { method: 'POST', url: `/admin/users/${username}/orgs` as const };
   return res;
 }
 
@@ -27,7 +23,7 @@ function getAdminCreateOrgUrl(username: AdminCreateOrgPathParams["username"]) {
  * {@link /admin/users/:username/orgs}
  */
 export async function adminCreateOrg(
-  username: AdminCreateOrgPathParams["username"],
+  username: AdminCreateOrgPathParams['username'],
   data: AdminCreateOrgMutationRequest,
   config: Partial<RequestConfig<AdminCreateOrgMutationRequest>> & {
     client?: Client;
@@ -42,7 +38,7 @@ export async function adminCreateOrg(
     ResponseErrorConfig<AdminCreateOrg403 | AdminCreateOrg422>,
     AdminCreateOrgMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminCreateOrgUrl(username).url.toString(),
     data: requestData,
     ...requestConfig,

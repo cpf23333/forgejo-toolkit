@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserBlockUserMutationResponse,
   UserBlockUserPathParams,
@@ -16,10 +12,10 @@ import type {
   UserBlockUser403,
   UserBlockUser404,
   UserBlockUser422,
-} from "../types/UserBlockUser"
+} from '../types/UserBlockUser';
 
-function getUserBlockUserUrl(username: UserBlockUserPathParams["username"]) {
-  const res = { method: "PUT", url: `/user/block/${username}` as const };
+function getUserBlockUserUrl(username: UserBlockUserPathParams['username']) {
+  const res = { method: 'PUT', url: `/user/block/${username}` as const };
   return res;
 }
 
@@ -28,19 +24,17 @@ function getUserBlockUserUrl(username: UserBlockUserPathParams["username"]) {
  * {@link /user/block/:username}
  */
 export async function userBlockUser(
-  username: UserBlockUserPathParams["username"],
+  username: UserBlockUserPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserBlockUserMutationResponse,
-    ResponseErrorConfig<
-      UserBlockUser401 | UserBlockUser403 | UserBlockUser404 | UserBlockUser422
-    >,
+    ResponseErrorConfig<UserBlockUser401 | UserBlockUser403 | UserBlockUser404 | UserBlockUser422>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUserBlockUserUrl(username).url.toString(),
     ...requestConfig,
   });

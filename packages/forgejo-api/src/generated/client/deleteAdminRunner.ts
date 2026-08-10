@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteAdminRunnerMutationResponse,
   DeleteAdminRunnerPathParams,
   DeleteAdminRunner400,
   DeleteAdminRunner404,
-} from "../types/DeleteAdminRunner"
+} from '../types/DeleteAdminRunner';
 
-function getDeleteAdminRunnerUrl(
-  runner_id: DeleteAdminRunnerPathParams["runner_id"],
-) {
+function getDeleteAdminRunnerUrl(runner_id: DeleteAdminRunnerPathParams['runner_id']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/admin/actions/runners/${runner_id}` as const,
   };
   return res;
@@ -31,7 +25,7 @@ function getDeleteAdminRunnerUrl(
  * {@link /admin/actions/runners/:runner_id}
  */
 export async function deleteAdminRunner(
-  runner_id: DeleteAdminRunnerPathParams["runner_id"],
+  runner_id: DeleteAdminRunnerPathParams['runner_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -41,7 +35,7 @@ export async function deleteAdminRunner(
     ResponseErrorConfig<DeleteAdminRunner400 | DeleteAdminRunner404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteAdminRunnerUrl(runner_id).url.toString(),
     ...requestConfig,
   });

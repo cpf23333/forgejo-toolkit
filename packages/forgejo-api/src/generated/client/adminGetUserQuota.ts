@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminGetUserQuotaQueryResponse,
   AdminGetUserQuotaPathParams,
@@ -16,12 +12,10 @@ import type {
   AdminGetUserQuota403,
   AdminGetUserQuota404,
   AdminGetUserQuota422,
-} from "../types/AdminGetUserQuota"
+} from '../types/AdminGetUserQuota';
 
-function getAdminGetUserQuotaUrl(
-  username: AdminGetUserQuotaPathParams["username"],
-) {
-  const res = { method: "GET", url: `/admin/users/${username}/quota` as const };
+function getAdminGetUserQuotaUrl(username: AdminGetUserQuotaPathParams['username']) {
+  const res = { method: 'GET', url: `/admin/users/${username}/quota` as const };
   return res;
 }
 
@@ -30,22 +24,17 @@ function getAdminGetUserQuotaUrl(
  * {@link /admin/users/:username/quota}
  */
 export async function adminGetUserQuota(
-  username: AdminGetUserQuotaPathParams["username"],
+  username: AdminGetUserQuotaPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     AdminGetUserQuotaQueryResponse,
-    ResponseErrorConfig<
-      | AdminGetUserQuota400
-      | AdminGetUserQuota403
-      | AdminGetUserQuota404
-      | AdminGetUserQuota422
-    >,
+    ResponseErrorConfig<AdminGetUserQuota400 | AdminGetUserQuota403 | AdminGetUserQuota404 | AdminGetUserQuota422>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getAdminGetUserQuotaUrl(username).url.toString(),
     ...requestConfig,
   });

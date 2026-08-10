@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  AdminCronRunMutationResponse,
-  AdminCronRunPathParams,
-  AdminCronRun404,
-} from "../types/AdminCronRun"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AdminCronRunMutationResponse, AdminCronRunPathParams, AdminCronRun404 } from '../types/AdminCronRun';
 
-function getAdminCronRunUrl(task: AdminCronRunPathParams["task"]) {
-  const res = { method: "POST", url: `/admin/cron/${task}` as const };
+function getAdminCronRunUrl(task: AdminCronRunPathParams['task']) {
+  const res = { method: 'POST', url: `/admin/cron/${task}` as const };
   return res;
 }
 
@@ -25,17 +17,13 @@ function getAdminCronRunUrl(task: AdminCronRunPathParams["task"]) {
  * {@link /admin/cron/:task}
  */
 export async function adminCronRun(
-  task: AdminCronRunPathParams["task"],
+  task: AdminCronRunPathParams['task'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminCronRunMutationResponse,
-    ResponseErrorConfig<AdminCronRun404>,
-    unknown
-  >({
-    method: "POST",
+  const res = await request<AdminCronRunMutationResponse, ResponseErrorConfig<AdminCronRun404>, unknown>({
+    method: 'POST',
     url: getAdminCronRunUrl(task).url.toString(),
     ...requestConfig,
   });

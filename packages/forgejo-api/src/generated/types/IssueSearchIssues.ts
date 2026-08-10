@@ -3,37 +3,37 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIValidationError } from "./APIValidationError"
-import type { Issue } from "./Issue"
+import type { APIError } from './APIError';
+import type { APIValidationError } from './APIValidationError';
+import type { Issue } from './Issue';
 
 export const issueSearchIssuesQueryParamsStateEnum = {
-  open: "open",
-  closed: "closed",
-  all: "all",
+  open: 'open',
+  closed: 'closed',
+  all: 'all',
 } as const;
 
 export type IssueSearchIssuesQueryParamsStateEnumKey =
   (typeof issueSearchIssuesQueryParamsStateEnum)[keyof typeof issueSearchIssuesQueryParamsStateEnum];
 
 export const issueSearchIssuesQueryParamsTypeEnum = {
-  issues: "issues",
-  pulls: "pulls",
+  issues: 'issues',
+  pulls: 'pulls',
 } as const;
 
 export type IssueSearchIssuesQueryParamsTypeEnumKey =
   (typeof issueSearchIssuesQueryParamsTypeEnum)[keyof typeof issueSearchIssuesQueryParamsTypeEnum];
 
 export const issueSearchIssuesQueryParamsSortEnum = {
-  relevance: "relevance",
-  latest: "latest",
-  oldest: "oldest",
-  recentupdate: "recentupdate",
-  leastupdate: "leastupdate",
-  mostcomment: "mostcomment",
-  leastcomment: "leastcomment",
-  nearduedate: "nearduedate",
-  farduedate: "farduedate",
+  relevance: 'relevance',
+  latest: 'latest',
+  oldest: 'oldest',
+  recentupdate: 'recentupdate',
+  leastupdate: 'leastupdate',
+  mostcomment: 'mostcomment',
+  leastcomment: 'leastcomment',
+  nearduedate: 'nearduedate',
+  farduedate: 'farduedate',
 } as const;
 
 export type IssueSearchIssuesQueryParamsSortEnumKey =

@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgCreateTeamMutationResponse,
-  OrgCreateTeam404,
-  OrgCreateTeam422,
-} from "../types/OrgCreateTeam"
-import { http } from "msw";
+import type { OrgCreateTeamMutationResponse, OrgCreateTeam404, OrgCreateTeam422 } from '../types/OrgCreateTeam';
+import { http } from 'msw';
 
-export function orgCreateTeamHandlerResponse201(
-  data: OrgCreateTeamMutationResponse,
-) {
+export function orgCreateTeamHandlerResponse201(data: OrgCreateTeamMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function orgCreateTeamHandlerResponse404(data: OrgCreateTeam404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function orgCreateTeamHandlerResponse422(data: OrgCreateTeam422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function orgCreateTeamHandlerResponse422(data: OrgCreateTeam422) {
 export function orgCreateTeamHandler(
   data?:
     | OrgCreateTeamMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/orgs/:org/teams`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

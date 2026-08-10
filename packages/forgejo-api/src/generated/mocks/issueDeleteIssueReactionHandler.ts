@@ -7,35 +7,29 @@ import type {
   IssueDeleteIssueReactionMutationResponse,
   IssueDeleteIssueReaction403,
   IssueDeleteIssueReaction404,
-} from "../types/IssueDeleteIssueReaction"
-import { http } from "msw";
+} from '../types/IssueDeleteIssueReaction';
+import { http } from 'msw';
 
-export function issueDeleteIssueReactionHandlerResponse200(
-  data?: IssueDeleteIssueReactionMutationResponse,
-) {
+export function issueDeleteIssueReactionHandlerResponse200(data?: IssueDeleteIssueReactionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function issueDeleteIssueReactionHandlerResponse403(
-  data: IssueDeleteIssueReaction403,
-) {
+export function issueDeleteIssueReactionHandlerResponse403(data: IssueDeleteIssueReaction403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueDeleteIssueReactionHandlerResponse404(
-  data: IssueDeleteIssueReaction404,
-) {
+export function issueDeleteIssueReactionHandlerResponse404(data: IssueDeleteIssueReaction404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function issueDeleteIssueReactionHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/reactions`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/reactions`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+    });
+  });
 }

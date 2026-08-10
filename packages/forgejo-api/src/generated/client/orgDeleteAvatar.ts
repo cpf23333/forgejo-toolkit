@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgDeleteAvatarMutationResponse,
   OrgDeleteAvatarPathParams,
   OrgDeleteAvatar404,
-} from "../types/OrgDeleteAvatar"
+} from '../types/OrgDeleteAvatar';
 
-function getOrgDeleteAvatarUrl(org: OrgDeleteAvatarPathParams["org"]) {
-  const res = { method: "DELETE", url: `/orgs/${org}/avatar` as const };
+function getOrgDeleteAvatarUrl(org: OrgDeleteAvatarPathParams['org']) {
+  const res = { method: 'DELETE', url: `/orgs/${org}/avatar` as const };
   return res;
 }
 
@@ -25,17 +21,13 @@ function getOrgDeleteAvatarUrl(org: OrgDeleteAvatarPathParams["org"]) {
  * {@link /orgs/:org/avatar}
  */
 export async function orgDeleteAvatar(
-  org: OrgDeleteAvatarPathParams["org"],
+  org: OrgDeleteAvatarPathParams['org'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgDeleteAvatarMutationResponse,
-    ResponseErrorConfig<OrgDeleteAvatar404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<OrgDeleteAvatarMutationResponse, ResponseErrorConfig<OrgDeleteAvatar404>, unknown>({
+    method: 'DELETE',
     url: getOrgDeleteAvatarUrl(org).url.toString(),
     ...requestConfig,
   });

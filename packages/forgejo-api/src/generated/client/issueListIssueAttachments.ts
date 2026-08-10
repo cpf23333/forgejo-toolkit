@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueListIssueAttachmentsQueryResponse,
   IssueListIssueAttachmentsPathParams,
   IssueListIssueAttachments404,
-} from "../types/IssueListIssueAttachments"
+} from '../types/IssueListIssueAttachments';
 
 function getIssueListIssueAttachmentsUrl(
-  owner: IssueListIssueAttachmentsPathParams["owner"],
-  repo: IssueListIssueAttachmentsPathParams["repo"],
-  index: IssueListIssueAttachmentsPathParams["index"],
+  owner: IssueListIssueAttachmentsPathParams['owner'],
+  repo: IssueListIssueAttachmentsPathParams['repo'],
+  index: IssueListIssueAttachmentsPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/assets` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getIssueListIssueAttachmentsUrl(
  * {@link /repos/:owner/:repo/issues/:index/assets}
  */
 export async function issueListIssueAttachments(
-  owner: IssueListIssueAttachmentsPathParams["owner"],
-  repo: IssueListIssueAttachmentsPathParams["repo"],
-  index: IssueListIssueAttachmentsPathParams["index"],
+  owner: IssueListIssueAttachmentsPathParams['owner'],
+  repo: IssueListIssueAttachmentsPathParams['repo'],
+  index: IssueListIssueAttachmentsPathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function issueListIssueAttachments(
     ResponseErrorConfig<IssueListIssueAttachments404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueListIssueAttachmentsUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

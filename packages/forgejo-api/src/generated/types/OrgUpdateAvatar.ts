@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { UpdateUserAvatarOption } from "./UpdateUserAvatarOption"
+import type { APINotFound } from './APINotFound';
+import type { UpdateUserAvatarOption } from './UpdateUserAvatarOption';
 
 export type OrgUpdateAvatarPathParams = {
   /**

@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateStatusMutationRequest,
   RepoCreateStatusMutationResponse,
   RepoCreateStatusPathParams,
   RepoCreateStatus400,
   RepoCreateStatus404,
-} from "../types/RepoCreateStatus"
+} from '../types/RepoCreateStatus';
 
 function getRepoCreateStatusUrl(
-  owner: RepoCreateStatusPathParams["owner"],
-  repo: RepoCreateStatusPathParams["repo"],
-  sha: RepoCreateStatusPathParams["sha"],
+  owner: RepoCreateStatusPathParams['owner'],
+  repo: RepoCreateStatusPathParams['repo'],
+  sha: RepoCreateStatusPathParams['sha'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/statuses/${sha}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoCreateStatusUrl(
  * {@link /repos/:owner/:repo/statuses/:sha}
  */
 export async function repoCreateStatus(
-  owner: RepoCreateStatusPathParams["owner"],
-  repo: RepoCreateStatusPathParams["repo"],
-  sha: RepoCreateStatusPathParams["sha"],
+  owner: RepoCreateStatusPathParams['owner'],
+  repo: RepoCreateStatusPathParams['repo'],
+  sha: RepoCreateStatusPathParams['sha'],
   data?: RepoCreateStatusMutationRequest,
   config: Partial<RequestConfig<RepoCreateStatusMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function repoCreateStatus(
     ResponseErrorConfig<RepoCreateStatus400 | RepoCreateStatus404>,
     RepoCreateStatusMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateStatusUrl(owner, repo, sha).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetOrgVariableQueryResponse,
   GetOrgVariablePathParams,
   GetOrgVariable400,
   GetOrgVariable404,
-} from "../types/GetOrgVariable"
+} from '../types/GetOrgVariable';
 
 function getGetOrgVariableUrl(
-  org: GetOrgVariablePathParams["org"],
-  variablename: GetOrgVariablePathParams["variablename"],
+  org: GetOrgVariablePathParams['org'],
+  variablename: GetOrgVariablePathParams['variablename'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/orgs/${org}/actions/variables/${variablename}` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getGetOrgVariableUrl(
  * {@link /orgs/:org/actions/variables/:variablename}
  */
 export async function getOrgVariable(
-  org: GetOrgVariablePathParams["org"],
-  variablename: GetOrgVariablePathParams["variablename"],
+  org: GetOrgVariablePathParams['org'],
+  variablename: GetOrgVariablePathParams['variablename'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +39,7 @@ export async function getOrgVariable(
     ResponseErrorConfig<GetOrgVariable400 | GetOrgVariable404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetOrgVariableUrl(org, variablename).url.toString(),
     ...requestConfig,
   });

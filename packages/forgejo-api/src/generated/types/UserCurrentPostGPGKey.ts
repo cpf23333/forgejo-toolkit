@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateGPGKeyOption } from "./CreateGPGKeyOption"
-import type { GPGKey } from "./GPGKey"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateGPGKeyOption } from './CreateGPGKeyOption';
+import type { GPGKey } from './GPGKey';
 
 /**
  * @description GPGKey
@@ -42,9 +42,5 @@ export type UserCurrentPostGPGKeyMutationResponse = UserCurrentPostGPGKey201;
 export type UserCurrentPostGPGKeyMutation = {
   Response: UserCurrentPostGPGKey201;
   Request: UserCurrentPostGPGKeyMutationRequest;
-  Errors:
-    | UserCurrentPostGPGKey401
-    | UserCurrentPostGPGKey403
-    | UserCurrentPostGPGKey404
-    | UserCurrentPostGPGKey422;
+  Errors: UserCurrentPostGPGKey401 | UserCurrentPostGPGKey403 | UserCurrentPostGPGKey404 | UserCurrentPostGPGKey422;
 };

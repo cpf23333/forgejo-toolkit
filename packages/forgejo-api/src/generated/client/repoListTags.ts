@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListTagsQueryResponse,
   RepoListTagsPathParams,
   RepoListTagsQueryParams,
   RepoListTags404,
-} from "../types/RepoListTags"
+} from '../types/RepoListTags';
 
-function getRepoListTagsUrl(
-  owner: RepoListTagsPathParams["owner"],
-  repo: RepoListTagsPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/tags` as const };
+function getRepoListTagsUrl(owner: RepoListTagsPathParams['owner'], repo: RepoListTagsPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/tags` as const };
   return res;
 }
 
@@ -29,19 +22,15 @@ function getRepoListTagsUrl(
  * {@link /repos/:owner/:repo/tags}
  */
 export async function repoListTags(
-  owner: RepoListTagsPathParams["owner"],
-  repo: RepoListTagsPathParams["repo"],
+  owner: RepoListTagsPathParams['owner'],
+  repo: RepoListTagsPathParams['repo'],
   params?: RepoListTagsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListTagsQueryResponse,
-    ResponseErrorConfig<RepoListTags404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListTagsQueryResponse, ResponseErrorConfig<RepoListTags404>, unknown>({
+    method: 'GET',
     url: getRepoListTagsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
 
 export type AdminDeleteUserPublicKeyPathParams = {
   /**
@@ -34,8 +34,7 @@ export type AdminDeleteUserPublicKey403 = APIForbiddenError;
  */
 export type AdminDeleteUserPublicKey404 = APINotFound;
 
-export type AdminDeleteUserPublicKeyMutationResponse =
-  AdminDeleteUserPublicKey204;
+export type AdminDeleteUserPublicKeyMutationResponse = AdminDeleteUserPublicKey204;
 
 export type AdminDeleteUserPublicKeyMutation = {
   Response: AdminDeleteUserPublicKey204;

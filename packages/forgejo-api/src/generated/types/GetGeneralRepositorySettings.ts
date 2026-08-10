@@ -3,15 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GeneralRepoSettings } from "./GeneralRepoSettings"
+import type { GeneralRepoSettings } from './GeneralRepoSettings';
 
 /**
  * @description GeneralRepoSettings
  */
 export type GetGeneralRepositorySettings200 = GeneralRepoSettings;
 
-export type GetGeneralRepositorySettingsQueryResponse =
-  GetGeneralRepositorySettings200;
+export type GetGeneralRepositorySettingsQueryResponse = GetGeneralRepositorySettings200;
 
 export type GetGeneralRepositorySettingsQuery = {
   Response: GetGeneralRepositorySettings200;

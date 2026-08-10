@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminDeleteUserPublicKeyMutationResponse,
   AdminDeleteUserPublicKeyPathParams,
   AdminDeleteUserPublicKey403,
   AdminDeleteUserPublicKey404,
-} from "../types/AdminDeleteUserPublicKey"
+} from '../types/AdminDeleteUserPublicKey';
 
 function getAdminDeleteUserPublicKeyUrl(
-  username: AdminDeleteUserPublicKeyPathParams["username"],
-  id: AdminDeleteUserPublicKeyPathParams["id"],
+  username: AdminDeleteUserPublicKeyPathParams['username'],
+  id: AdminDeleteUserPublicKeyPathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/admin/users/${username}/keys/${id}` as const,
   };
   return res;
@@ -32,20 +28,18 @@ function getAdminDeleteUserPublicKeyUrl(
  * {@link /admin/users/:username/keys/:id}
  */
 export async function adminDeleteUserPublicKey(
-  username: AdminDeleteUserPublicKeyPathParams["username"],
-  id: AdminDeleteUserPublicKeyPathParams["id"],
+  username: AdminDeleteUserPublicKeyPathParams['username'],
+  id: AdminDeleteUserPublicKeyPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     AdminDeleteUserPublicKeyMutationResponse,
-    ResponseErrorConfig<
-      AdminDeleteUserPublicKey403 | AdminDeleteUserPublicKey404
-    >,
+    ResponseErrorConfig<AdminDeleteUserPublicKey403 | AdminDeleteUserPublicKey404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getAdminDeleteUserPublicKeyUrl(username, id).url.toString(),
     ...requestConfig,
   });

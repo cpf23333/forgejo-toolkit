@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { PayloadCommitVerification } from "./PayloadCommitVerification"
-import type { PayloadUser } from "./PayloadUser"
+import type { PayloadCommitVerification } from './PayloadCommitVerification';
+import type { PayloadUser } from './PayloadUser';
 
 /**
  * @description PayloadCommit represents a commit

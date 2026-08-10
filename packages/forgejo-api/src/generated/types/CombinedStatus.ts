@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { CommitStatus } from "./CommitStatus"
-import type { CommitStatusState } from "./CommitStatusState"
-import type { Repository } from "./Repository"
+import type { CommitStatus } from './CommitStatus';
+import type { CommitStatusState } from './CommitStatusState';
+import type { Repository } from './Repository';
 
 /**
  * @description CombinedStatus holds the combined state of several statuses for a single commit

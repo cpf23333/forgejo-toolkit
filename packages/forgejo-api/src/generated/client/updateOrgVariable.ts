@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UpdateOrgVariableMutationRequest,
   UpdateOrgVariableMutationResponse,
   UpdateOrgVariablePathParams,
   UpdateOrgVariable400,
   UpdateOrgVariable404,
-} from "../types/UpdateOrgVariable"
+} from '../types/UpdateOrgVariable';
 
 function getUpdateOrgVariableUrl(
-  org: UpdateOrgVariablePathParams["org"],
-  variablename: UpdateOrgVariablePathParams["variablename"],
+  org: UpdateOrgVariablePathParams['org'],
+  variablename: UpdateOrgVariablePathParams['variablename'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/orgs/${org}/actions/variables/${variablename}` as const,
   };
   return res;
@@ -33,8 +29,8 @@ function getUpdateOrgVariableUrl(
  * {@link /orgs/:org/actions/variables/:variablename}
  */
 export async function updateOrgVariable(
-  org: UpdateOrgVariablePathParams["org"],
-  variablename: UpdateOrgVariablePathParams["variablename"],
+  org: UpdateOrgVariablePathParams['org'],
+  variablename: UpdateOrgVariablePathParams['variablename'],
   data: UpdateOrgVariableMutationRequest,
   config: Partial<RequestConfig<UpdateOrgVariableMutationRequest>> & {
     client?: Client;
@@ -49,7 +45,7 @@ export async function updateOrgVariable(
     ResponseErrorConfig<UpdateOrgVariable400 | UpdateOrgVariable404>,
     UpdateOrgVariableMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUpdateOrgVariableUrl(org, variablename).url.toString(),
     data: requestData,
     ...requestConfig,

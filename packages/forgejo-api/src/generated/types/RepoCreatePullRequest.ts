@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreatePullRequestOption } from "./CreatePullRequestOption"
-import type { PullRequest } from "./PullRequest"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreatePullRequestOption } from './CreatePullRequestOption';
+import type { PullRequest } from './PullRequest';
 
 export type RepoCreatePullRequestPathParams = {
   /**

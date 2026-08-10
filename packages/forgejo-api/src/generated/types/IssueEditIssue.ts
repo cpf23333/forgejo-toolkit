@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { EditIssueOption } from "./EditIssueOption"
-import type { Issue } from "./Issue"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { EditIssueOption } from './EditIssueOption';
+import type { Issue } from './Issue';
 
 export type IssueEditIssuePathParams = {
   /**

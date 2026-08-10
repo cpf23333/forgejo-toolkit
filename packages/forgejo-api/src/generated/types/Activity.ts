@@ -3,42 +3,41 @@
  * Do not edit manually.
  */
 
-import type { Comment } from "./Comment"
-import type { Repository } from "./Repository"
-import type { User } from "./User"
+import type { Comment } from './Comment';
+import type { Repository } from './Repository';
+import type { User } from './User';
 
 export const activityOpTypeEnum = {
-  create_repo: "create_repo",
-  rename_repo: "rename_repo",
-  star_repo: "star_repo",
-  watch_repo: "watch_repo",
-  commit_repo: "commit_repo",
-  create_issue: "create_issue",
-  create_pull_request: "create_pull_request",
-  transfer_repo: "transfer_repo",
-  push_tag: "push_tag",
-  comment_issue: "comment_issue",
-  merge_pull_request: "merge_pull_request",
-  close_issue: "close_issue",
-  reopen_issue: "reopen_issue",
-  close_pull_request: "close_pull_request",
-  reopen_pull_request: "reopen_pull_request",
-  delete_tag: "delete_tag",
-  delete_branch: "delete_branch",
-  mirror_sync_push: "mirror_sync_push",
-  mirror_sync_create: "mirror_sync_create",
-  mirror_sync_delete: "mirror_sync_delete",
-  approve_pull_request: "approve_pull_request",
-  reject_pull_request: "reject_pull_request",
-  comment_pull: "comment_pull",
-  publish_release: "publish_release",
-  pull_review_dismissed: "pull_review_dismissed",
-  pull_request_ready_for_review: "pull_request_ready_for_review",
-  auto_merge_pull_request: "auto_merge_pull_request",
+  create_repo: 'create_repo',
+  rename_repo: 'rename_repo',
+  star_repo: 'star_repo',
+  watch_repo: 'watch_repo',
+  commit_repo: 'commit_repo',
+  create_issue: 'create_issue',
+  create_pull_request: 'create_pull_request',
+  transfer_repo: 'transfer_repo',
+  push_tag: 'push_tag',
+  comment_issue: 'comment_issue',
+  merge_pull_request: 'merge_pull_request',
+  close_issue: 'close_issue',
+  reopen_issue: 'reopen_issue',
+  close_pull_request: 'close_pull_request',
+  reopen_pull_request: 'reopen_pull_request',
+  delete_tag: 'delete_tag',
+  delete_branch: 'delete_branch',
+  mirror_sync_push: 'mirror_sync_push',
+  mirror_sync_create: 'mirror_sync_create',
+  mirror_sync_delete: 'mirror_sync_delete',
+  approve_pull_request: 'approve_pull_request',
+  reject_pull_request: 'reject_pull_request',
+  comment_pull: 'comment_pull',
+  publish_release: 'publish_release',
+  pull_review_dismissed: 'pull_review_dismissed',
+  pull_request_ready_for_review: 'pull_request_ready_for_review',
+  auto_merge_pull_request: 'auto_merge_pull_request',
 } as const;
 
-export type ActivityOpTypeEnumKey =
-  (typeof activityOpTypeEnum)[keyof typeof activityOpTypeEnum];
+export type ActivityOpTypeEnumKey = (typeof activityOpTypeEnum)[keyof typeof activityOpTypeEnum];
 
 export type Activity = {
   /**

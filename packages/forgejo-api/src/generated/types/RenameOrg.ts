@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIValidationError } from "./APIValidationError"
-import type { RenameOrgOption } from "./RenameOrgOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIValidationError } from './APIValidationError';
+import type { RenameOrgOption } from './RenameOrgOption';
 
 export type RenameOrgPathParams = {
   /**

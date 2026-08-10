@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { Commit } from "./Commit"
+import type { Commit } from './Commit';
 
 /**
  * @description Note contains information related to a git note

@@ -6,27 +6,23 @@
 import type {
   RepoGetCommitPullRequestQueryResponse,
   RepoGetCommitPullRequest404,
-} from "../types/RepoGetCommitPullRequest"
-import { http } from "msw";
+} from '../types/RepoGetCommitPullRequest';
+import { http } from 'msw';
 
-export function repoGetCommitPullRequestHandlerResponse200(
-  data: RepoGetCommitPullRequestQueryResponse,
-) {
+export function repoGetCommitPullRequestHandlerResponse200(data: RepoGetCommitPullRequestQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetCommitPullRequestHandlerResponse404(
-  data: RepoGetCommitPullRequest404,
-) {
+export function repoGetCommitPullRequestHandlerResponse404(data: RepoGetCommitPullRequest404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function repoGetCommitPullRequestHandlerResponse404(
 export function repoGetCommitPullRequestHandler(
   data?:
     | RepoGetCommitPullRequestQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/commits/:sha/pull`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/commits/:sha/pull`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

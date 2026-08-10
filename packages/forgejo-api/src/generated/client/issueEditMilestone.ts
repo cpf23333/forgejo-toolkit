@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueEditMilestoneMutationRequest,
   IssueEditMilestoneMutationResponse,
   IssueEditMilestonePathParams,
   IssueEditMilestone404,
-} from "../types/IssueEditMilestone"
+} from '../types/IssueEditMilestone';
 
 function getIssueEditMilestoneUrl(
-  owner: IssueEditMilestonePathParams["owner"],
-  repo: IssueEditMilestonePathParams["repo"],
-  id: IssueEditMilestonePathParams["id"],
+  owner: IssueEditMilestonePathParams['owner'],
+  repo: IssueEditMilestonePathParams['repo'],
+  id: IssueEditMilestonePathParams['id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/milestones/${id}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getIssueEditMilestoneUrl(
  * {@link /repos/:owner/:repo/milestones/:id}
  */
 export async function issueEditMilestone(
-  owner: IssueEditMilestonePathParams["owner"],
-  repo: IssueEditMilestonePathParams["repo"],
-  id: IssueEditMilestonePathParams["id"],
+  owner: IssueEditMilestonePathParams['owner'],
+  repo: IssueEditMilestonePathParams['repo'],
+  id: IssueEditMilestonePathParams['id'],
   data?: IssueEditMilestoneMutationRequest,
   config: Partial<RequestConfig<IssueEditMilestoneMutationRequest>> & {
     client?: Client;
@@ -50,7 +46,7 @@ export async function issueEditMilestone(
     ResponseErrorConfig<IssueEditMilestone404>,
     IssueEditMilestoneMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getIssueEditMilestoneUrl(owner, repo, id).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
+import type { APINotFound } from './APINotFound';
 
 export const repoDownloadPullDiffOrPatchPathParamsDiffTypeEnum = {
-  diff: "diff",
-  patch: "patch",
+  diff: 'diff',
+  patch: 'patch',
 } as const;
 
 export type RepoDownloadPullDiffOrPatchPathParamsDiffTypeEnumKey =
@@ -54,8 +54,7 @@ export type RepoDownloadPullDiffOrPatch200 = string;
  */
 export type RepoDownloadPullDiffOrPatch404 = APINotFound;
 
-export type RepoDownloadPullDiffOrPatchQueryResponse =
-  RepoDownloadPullDiffOrPatch200;
+export type RepoDownloadPullDiffOrPatchQueryResponse = RepoDownloadPullDiffOrPatch200;
 
 export type RepoDownloadPullDiffOrPatchQuery = {
   Response: RepoDownloadPullDiffOrPatch200;

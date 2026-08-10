@@ -8,12 +8,10 @@ import type {
   IssueDeleteTime400,
   IssueDeleteTime403,
   IssueDeleteTime404,
-} from "../types/IssueDeleteTime"
-import { http } from "msw";
+} from '../types/IssueDeleteTime';
+import { http } from 'msw';
 
-export function issueDeleteTimeHandlerResponse204(
-  data?: IssueDeleteTimeMutationResponse,
-) {
+export function issueDeleteTimeHandlerResponse204(data?: IssueDeleteTimeMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -23,7 +21,7 @@ export function issueDeleteTimeHandlerResponse400(data: IssueDeleteTime400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +30,7 @@ export function issueDeleteTimeHandlerResponse403(data: IssueDeleteTime403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,7 +39,7 @@ export function issueDeleteTimeHandlerResponse404(data: IssueDeleteTime404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -53,18 +51,13 @@ export function issueDeleteTimeHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/times/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/times/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

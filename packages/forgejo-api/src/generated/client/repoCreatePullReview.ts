@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreatePullReviewMutationRequest,
   RepoCreatePullReviewMutationResponse,
   RepoCreatePullReviewPathParams,
   RepoCreatePullReview404,
   RepoCreatePullReview422,
-} from "../types/RepoCreatePullReview"
+} from '../types/RepoCreatePullReview';
 
 function getRepoCreatePullReviewUrl(
-  owner: RepoCreatePullReviewPathParams["owner"],
-  repo: RepoCreatePullReviewPathParams["repo"],
-  index: RepoCreatePullReviewPathParams["index"],
+  owner: RepoCreatePullReviewPathParams['owner'],
+  repo: RepoCreatePullReviewPathParams['repo'],
+  index: RepoCreatePullReviewPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoCreatePullReviewUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews}
  */
 export async function repoCreatePullReview(
-  owner: RepoCreatePullReviewPathParams["owner"],
-  repo: RepoCreatePullReviewPathParams["repo"],
-  index: RepoCreatePullReviewPathParams["index"],
+  owner: RepoCreatePullReviewPathParams['owner'],
+  repo: RepoCreatePullReviewPathParams['repo'],
+  index: RepoCreatePullReviewPathParams['index'],
   data: RepoCreatePullReviewMutationRequest,
   config: Partial<RequestConfig<RepoCreatePullReviewMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function repoCreatePullReview(
     ResponseErrorConfig<RepoCreatePullReview404 | RepoCreatePullReview422>,
     RepoCreatePullReviewMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreatePullReviewUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

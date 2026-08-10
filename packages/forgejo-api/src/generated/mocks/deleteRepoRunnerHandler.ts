@@ -7,12 +7,10 @@ import type {
   DeleteRepoRunnerMutationResponse,
   DeleteRepoRunner400,
   DeleteRepoRunner404,
-} from "../types/DeleteRepoRunner"
-import { http } from "msw";
+} from '../types/DeleteRepoRunner';
+import { http } from 'msw';
 
-export function deleteRepoRunnerHandlerResponse204(
-  data?: DeleteRepoRunnerMutationResponse,
-) {
+export function deleteRepoRunnerHandlerResponse204(data?: DeleteRepoRunnerMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +20,7 @@ export function deleteRepoRunnerHandlerResponse400(data: DeleteRepoRunner400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +29,7 @@ export function deleteRepoRunnerHandlerResponse404(data: DeleteRepoRunner404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +41,13 @@ export function deleteRepoRunnerHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/actions/runners/:runner_id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/actions/runners/:runner_id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

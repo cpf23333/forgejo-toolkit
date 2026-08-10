@@ -10,65 +10,53 @@ import type {
   RepoUpdatePullRequest409,
   RepoUpdatePullRequest413,
   RepoUpdatePullRequest422,
-} from "../types/RepoUpdatePullRequest"
-import { http } from "msw";
+} from '../types/RepoUpdatePullRequest';
+import { http } from 'msw';
 
-export function repoUpdatePullRequestHandlerResponse200(
-  data?: RepoUpdatePullRequestMutationResponse,
-) {
+export function repoUpdatePullRequestHandlerResponse200(data?: RepoUpdatePullRequestMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse403(
-  data: RepoUpdatePullRequest403,
-) {
+export function repoUpdatePullRequestHandlerResponse403(data: RepoUpdatePullRequest403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse404(
-  data: RepoUpdatePullRequest404,
-) {
+export function repoUpdatePullRequestHandlerResponse404(data: RepoUpdatePullRequest404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse409(
-  data: RepoUpdatePullRequest409,
-) {
+export function repoUpdatePullRequestHandlerResponse409(data: RepoUpdatePullRequest409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse413(
-  data?: RepoUpdatePullRequest413,
-) {
+export function repoUpdatePullRequestHandlerResponse413(data?: RepoUpdatePullRequest413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoUpdatePullRequestHandlerResponse422(
-  data: RepoUpdatePullRequest422,
-) {
+export function repoUpdatePullRequestHandlerResponse422(data: RepoUpdatePullRequest422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -80,18 +68,13 @@ export function repoUpdatePullRequestHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/pulls/:index/update`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/pulls/:index/update`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+    });
+  });
 }

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 /**
  * @description APIEmpty is an empty response

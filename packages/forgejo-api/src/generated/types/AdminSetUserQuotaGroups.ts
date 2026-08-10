@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { SetUserQuotaGroupsOptions } from "./SetUserQuotaGroupsOptions"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { SetUserQuotaGroupsOptions } from './SetUserQuotaGroupsOptions';
 
 export type AdminSetUserQuotaGroupsPathParams = {
   /**
@@ -47,8 +47,7 @@ export type AdminSetUserQuotaGroups422 = APIValidationError;
  */
 export type AdminSetUserQuotaGroupsMutationRequest = SetUserQuotaGroupsOptions;
 
-export type AdminSetUserQuotaGroupsMutationResponse =
-  AdminSetUserQuotaGroups204;
+export type AdminSetUserQuotaGroupsMutationResponse = AdminSetUserQuotaGroups204;
 
 export type AdminSetUserQuotaGroupsMutation = {
   Response: AdminSetUserQuotaGroups204;

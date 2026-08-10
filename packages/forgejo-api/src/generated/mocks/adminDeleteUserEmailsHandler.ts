@@ -7,35 +7,29 @@ import type {
   AdminDeleteUserEmailsMutationResponse,
   AdminDeleteUserEmails403,
   AdminDeleteUserEmails422,
-} from "../types/AdminDeleteUserEmails"
-import { http } from "msw";
+} from '../types/AdminDeleteUserEmails';
+import { http } from 'msw';
 
-export function adminDeleteUserEmailsHandlerResponse204(
-  data?: AdminDeleteUserEmailsMutationResponse,
-) {
+export function adminDeleteUserEmailsHandlerResponse204(data?: AdminDeleteUserEmailsMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteUserEmailsHandlerResponse403(
-  data: AdminDeleteUserEmails403,
-) {
+export function adminDeleteUserEmailsHandlerResponse403(data: AdminDeleteUserEmails403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminDeleteUserEmailsHandlerResponse422(
-  data: AdminDeleteUserEmails422,
-) {
+export function adminDeleteUserEmailsHandlerResponse422(data: AdminDeleteUserEmails422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,12 +41,10 @@ export function adminDeleteUserEmailsHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/admin/users/:username/emails`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

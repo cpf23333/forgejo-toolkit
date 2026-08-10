@@ -7,35 +7,29 @@ import type {
   DeleteAdminRunnerMutationResponse,
   DeleteAdminRunner400,
   DeleteAdminRunner404,
-} from "../types/DeleteAdminRunner"
-import { http } from "msw";
+} from '../types/DeleteAdminRunner';
+import { http } from 'msw';
 
-export function deleteAdminRunnerHandlerResponse204(
-  data?: DeleteAdminRunnerMutationResponse,
-) {
+export function deleteAdminRunnerHandlerResponse204(data?: DeleteAdminRunnerMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteAdminRunnerHandlerResponse400(
-  data: DeleteAdminRunner400,
-) {
+export function deleteAdminRunnerHandlerResponse400(data: DeleteAdminRunner400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function deleteAdminRunnerHandlerResponse404(
-  data: DeleteAdminRunner404,
-) {
+export function deleteAdminRunnerHandlerResponse404(data: DeleteAdminRunner404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function deleteAdminRunnerHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/admin/actions/runners/:runner_id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/admin/actions/runners/:runner_id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

@@ -8,12 +8,10 @@ import type {
   RepoMirrorSync403,
   RepoMirrorSync404,
   RepoMirrorSync413,
-} from "../types/RepoMirrorSync"
-import { http } from "msw";
+} from '../types/RepoMirrorSync';
+import { http } from 'msw';
 
-export function repoMirrorSyncHandlerResponse200(
-  data?: RepoMirrorSyncMutationResponse,
-) {
+export function repoMirrorSyncHandlerResponse200(data?: RepoMirrorSyncMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
@@ -23,7 +21,7 @@ export function repoMirrorSyncHandlerResponse403(data: RepoMirrorSync403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +30,7 @@ export function repoMirrorSyncHandlerResponse404(data: RepoMirrorSync404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -50,12 +48,10 @@ export function repoMirrorSyncHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/mirror-sync`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,

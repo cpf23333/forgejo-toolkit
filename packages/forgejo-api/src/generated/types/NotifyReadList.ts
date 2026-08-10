@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { NotificationThread } from "./NotificationThread"
+import type { NotificationThread } from './NotificationThread';
 
 export type NotifyReadListQueryParams = {
   /**
@@ -20,12 +20,12 @@ export type NotifyReadListQueryParams = {
    * @description Mark notifications with the provided status types. Options are: unread, read and/or pinned. Defaults to unread.
    * @type array | undefined
    */
-  "status-types"?: string[];
+  'status-types'?: string[];
   /**
    * @description Status to mark notifications as, Defaults to read.
    * @type string | undefined
    */
-  "to-status"?: string;
+  'to-status'?: string;
 };
 
 /**

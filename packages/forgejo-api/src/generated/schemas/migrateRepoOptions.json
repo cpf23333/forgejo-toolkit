@@ -26,16 +26,7 @@
     },
     "service": {
       "type": "string",
-      "enum": [
-        "git",
-        "github",
-        "gitea",
-        "gitlab",
-        "gogs",
-        "onedev",
-        "gitbucket",
-        "codebase"
-      ],
+      "enum": ["git", "github", "gitea", "gitlab", "gogs", "onedev", "gitbucket", "codebase"],
       "x-go-name": "Service"
     },
     "uid": {

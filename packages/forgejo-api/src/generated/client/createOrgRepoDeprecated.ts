@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   CreateOrgRepoDeprecatedMutationRequest,
   CreateOrgRepoDeprecatedMutationResponse,
@@ -16,12 +12,10 @@ import type {
   CreateOrgRepoDeprecated403,
   CreateOrgRepoDeprecated404,
   CreateOrgRepoDeprecated422,
-} from "../types/CreateOrgRepoDeprecated"
+} from '../types/CreateOrgRepoDeprecated';
 
-function getCreateOrgRepoDeprecatedUrl(
-  org: CreateOrgRepoDeprecatedPathParams["org"],
-) {
-  const res = { method: "POST", url: `/org/${org}/repos` as const };
+function getCreateOrgRepoDeprecatedUrl(org: CreateOrgRepoDeprecatedPathParams['org']) {
+  const res = { method: 'POST', url: `/org/${org}/repos` as const };
   return res;
 }
 
@@ -31,7 +25,7 @@ function getCreateOrgRepoDeprecatedUrl(
  * @deprecated
  */
 export async function createOrgRepoDeprecated(
-  org: CreateOrgRepoDeprecatedPathParams["org"],
+  org: CreateOrgRepoDeprecatedPathParams['org'],
   data: CreateOrgRepoDeprecatedMutationRequest,
   config: Partial<RequestConfig<CreateOrgRepoDeprecatedMutationRequest>> & {
     client?: Client;
@@ -43,14 +37,10 @@ export async function createOrgRepoDeprecated(
 
   const res = await request<
     CreateOrgRepoDeprecatedMutationResponse,
-    ResponseErrorConfig<
-      | CreateOrgRepoDeprecated403
-      | CreateOrgRepoDeprecated404
-      | CreateOrgRepoDeprecated422
-    >,
+    ResponseErrorConfig<CreateOrgRepoDeprecated403 | CreateOrgRepoDeprecated404 | CreateOrgRepoDeprecated422>,
     CreateOrgRepoDeprecatedMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getCreateOrgRepoDeprecatedUrl(org).url.toString(),
     data: requestData,
     ...requestConfig,

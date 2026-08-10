@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteOrgVariableMutationResponse,
   DeleteOrgVariablePathParams,
   DeleteOrgVariable400,
   DeleteOrgVariable404,
-} from "../types/DeleteOrgVariable"
+} from '../types/DeleteOrgVariable';
 
 function getDeleteOrgVariableUrl(
-  org: DeleteOrgVariablePathParams["org"],
-  variablename: DeleteOrgVariablePathParams["variablename"],
+  org: DeleteOrgVariablePathParams['org'],
+  variablename: DeleteOrgVariablePathParams['variablename'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/orgs/${org}/actions/variables/${variablename}` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getDeleteOrgVariableUrl(
  * {@link /orgs/:org/actions/variables/:variablename}
  */
 export async function deleteOrgVariable(
-  org: DeleteOrgVariablePathParams["org"],
-  variablename: DeleteOrgVariablePathParams["variablename"],
+  org: DeleteOrgVariablePathParams['org'],
+  variablename: DeleteOrgVariablePathParams['variablename'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +39,7 @@ export async function deleteOrgVariable(
     ResponseErrorConfig<DeleteOrgVariable400 | DeleteOrgVariable404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteOrgVariableUrl(org, variablename).url.toString(),
     ...requestConfig,
   });

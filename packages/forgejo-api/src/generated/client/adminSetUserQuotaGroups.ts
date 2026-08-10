@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminSetUserQuotaGroupsMutationRequest,
   AdminSetUserQuotaGroupsMutationResponse,
@@ -17,13 +13,11 @@ import type {
   AdminSetUserQuotaGroups403,
   AdminSetUserQuotaGroups404,
   AdminSetUserQuotaGroups422,
-} from "../types/AdminSetUserQuotaGroups"
+} from '../types/AdminSetUserQuotaGroups';
 
-function getAdminSetUserQuotaGroupsUrl(
-  username: AdminSetUserQuotaGroupsPathParams["username"],
-) {
+function getAdminSetUserQuotaGroupsUrl(username: AdminSetUserQuotaGroupsPathParams['username']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/admin/users/${username}/quota/groups` as const,
   };
   return res;
@@ -34,7 +28,7 @@ function getAdminSetUserQuotaGroupsUrl(
  * {@link /admin/users/:username/quota/groups}
  */
 export async function adminSetUserQuotaGroups(
-  username: AdminSetUserQuotaGroupsPathParams["username"],
+  username: AdminSetUserQuotaGroupsPathParams['username'],
   data: AdminSetUserQuotaGroupsMutationRequest,
   config: Partial<RequestConfig<AdminSetUserQuotaGroupsMutationRequest>> & {
     client?: Client;
@@ -47,14 +41,11 @@ export async function adminSetUserQuotaGroups(
   const res = await request<
     AdminSetUserQuotaGroupsMutationResponse,
     ResponseErrorConfig<
-      | AdminSetUserQuotaGroups400
-      | AdminSetUserQuotaGroups403
-      | AdminSetUserQuotaGroups404
-      | AdminSetUserQuotaGroups422
+      AdminSetUserQuotaGroups400 | AdminSetUserQuotaGroups403 | AdminSetUserQuotaGroups404 | AdminSetUserQuotaGroups422
     >,
     AdminSetUserQuotaGroupsMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminSetUserQuotaGroupsUrl(username).url.toString(),
     data: requestData,
     ...requestConfig,

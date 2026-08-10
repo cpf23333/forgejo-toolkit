@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCompareDiffQueryResponse,
   RepoCompareDiffPathParams,
   RepoCompareDiff404,
-} from "../types/RepoCompareDiff"
+} from '../types/RepoCompareDiff';
 
 function getRepoCompareDiffUrl(
-  owner: RepoCompareDiffPathParams["owner"],
-  repo: RepoCompareDiffPathParams["repo"],
-  basehead: RepoCompareDiffPathParams["basehead"],
+  owner: RepoCompareDiffPathParams['owner'],
+  repo: RepoCompareDiffPathParams['repo'],
+  basehead: RepoCompareDiffPathParams['basehead'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/compare/${basehead}` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoCompareDiffUrl(
  * {@link /repos/:owner/:repo/compare/:basehead}
  */
 export async function repoCompareDiff(
-  owner: RepoCompareDiffPathParams["owner"],
-  repo: RepoCompareDiffPathParams["repo"],
-  basehead: RepoCompareDiffPathParams["basehead"],
+  owner: RepoCompareDiffPathParams['owner'],
+  repo: RepoCompareDiffPathParams['repo'],
+  basehead: RepoCompareDiffPathParams['basehead'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoCompareDiffQueryResponse,
-    ResponseErrorConfig<RepoCompareDiff404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoCompareDiffQueryResponse, ResponseErrorConfig<RepoCompareDiff404>, unknown>({
+    method: 'GET',
     url: getRepoCompareDiffUrl(owner, repo, basehead).url.toString(),
     ...requestConfig,
   });

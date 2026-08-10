@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { APIValidationError } from "./APIValidationError"
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { APIValidationError } from './APIValidationError';
 
 export type RepoDeleteTagPathParams = {
   /**
@@ -60,10 +60,5 @@ export type RepoDeleteTagMutationResponse = RepoDeleteTag204;
 export type RepoDeleteTagMutation = {
   Response: RepoDeleteTag204;
   PathParams: RepoDeleteTagPathParams;
-  Errors:
-    | RepoDeleteTag404
-    | RepoDeleteTag405
-    | RepoDeleteTag409
-    | RepoDeleteTag422
-    | RepoDeleteTag423;
+  Errors: RepoDeleteTag404 | RepoDeleteTag405 | RepoDeleteTag409 | RepoDeleteTag422 | RepoDeleteTag423;
 };

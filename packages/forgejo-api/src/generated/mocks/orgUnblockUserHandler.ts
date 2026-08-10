@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgUnblockUserMutationResponse,
-  OrgUnblockUser404,
-  OrgUnblockUser422,
-} from "../types/OrgUnblockUser"
-import { http } from "msw";
+import type { OrgUnblockUserMutationResponse, OrgUnblockUser404, OrgUnblockUser422 } from '../types/OrgUnblockUser';
+import { http } from 'msw';
 
-export function orgUnblockUserHandlerResponse204(
-  data?: OrgUnblockUserMutationResponse,
-) {
+export function orgUnblockUserHandlerResponse204(data?: OrgUnblockUserMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function orgUnblockUserHandlerResponse404(data: OrgUnblockUser404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function orgUnblockUserHandlerResponse422(data: OrgUnblockUser422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +37,10 @@ export function orgUnblockUserHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/orgs/:org/unblock/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

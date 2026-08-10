@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteWikiPageMutationResponse,
   RepoDeleteWikiPagePathParams,
   RepoDeleteWikiPage403,
   RepoDeleteWikiPage404,
   RepoDeleteWikiPage423,
-} from "../types/RepoDeleteWikiPage"
+} from '../types/RepoDeleteWikiPage';
 
 function getRepoDeleteWikiPageUrl(
-  owner: RepoDeleteWikiPagePathParams["owner"],
-  repo: RepoDeleteWikiPagePathParams["repo"],
-  pageName: RepoDeleteWikiPagePathParams["pageName"],
+  owner: RepoDeleteWikiPagePathParams['owner'],
+  repo: RepoDeleteWikiPagePathParams['repo'],
+  pageName: RepoDeleteWikiPagePathParams['pageName'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/wiki/page/${pageName}` as const,
   };
   return res;
@@ -34,21 +30,19 @@ function getRepoDeleteWikiPageUrl(
  * {@link /repos/:owner/:repo/wiki/page/:pageName}
  */
 export async function repoDeleteWikiPage(
-  owner: RepoDeleteWikiPagePathParams["owner"],
-  repo: RepoDeleteWikiPagePathParams["repo"],
-  pageName: RepoDeleteWikiPagePathParams["pageName"],
+  owner: RepoDeleteWikiPagePathParams['owner'],
+  repo: RepoDeleteWikiPagePathParams['repo'],
+  pageName: RepoDeleteWikiPagePathParams['pageName'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     RepoDeleteWikiPageMutationResponse,
-    ResponseErrorConfig<
-      RepoDeleteWikiPage403 | RepoDeleteWikiPage404 | RepoDeleteWikiPage423
-    >,
+    ResponseErrorConfig<RepoDeleteWikiPage403 | RepoDeleteWikiPage404 | RepoDeleteWikiPage423>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteWikiPageUrl(owner, repo, pageName).url.toString(),
     ...requestConfig,
   });

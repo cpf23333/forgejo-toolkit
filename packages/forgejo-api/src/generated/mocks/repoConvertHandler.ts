@@ -3,21 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoConvertMutationResponse,
-  RepoConvert403,
-  RepoConvert404,
-  RepoConvert422,
-} from "../types/RepoConvert"
-import { http } from "msw";
+import type { RepoConvertMutationResponse, RepoConvert403, RepoConvert404, RepoConvert422 } from '../types/RepoConvert';
+import { http } from 'msw';
 
-export function repoConvertHandlerResponse200(
-  data: RepoConvertMutationResponse,
-) {
+export function repoConvertHandlerResponse200(data: RepoConvertMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -26,7 +19,7 @@ export function repoConvertHandlerResponse403(data: RepoConvert403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,7 +28,7 @@ export function repoConvertHandlerResponse404(data: RepoConvert404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -44,7 +37,7 @@ export function repoConvertHandlerResponse422(data: RepoConvert422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -52,17 +45,15 @@ export function repoConvertHandlerResponse422(data: RepoConvert422) {
 export function repoConvertHandler(
   data?:
     | RepoConvertMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/convert`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

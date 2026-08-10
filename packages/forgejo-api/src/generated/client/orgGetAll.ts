@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  OrgGetAllQueryResponse,
-  OrgGetAllQueryParams,
-} from "../types/OrgGetAll"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { OrgGetAllQueryResponse, OrgGetAllQueryParams } from '../types/OrgGetAll';
 
 function getOrgGetAllUrl() {
-  const res = { method: "GET", url: `/orgs` as const };
+  const res = { method: 'GET', url: `/orgs` as const };
   return res;
 }
 
@@ -29,12 +22,8 @@ export async function orgGetAll(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgGetAllQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgGetAllQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getOrgGetAllUrl().url.toString(),
     params,
     ...requestConfig,

@@ -4,12 +4,12 @@
  */
 
 export const mergePullRequestOptionDoEnum = {
-  merge: "merge",
-  rebase: "rebase",
-  "rebase-merge": "rebase-merge",
-  squash: "squash",
-  "fast-forward-only": "fast-forward-only",
-  "manually-merged": "manually-merged",
+  merge: 'merge',
+  rebase: 'rebase',
+  'rebase-merge': 'rebase-merge',
+  squash: 'squash',
+  'fast-forward-only': 'fast-forward-only',
+  'manually-merged': 'manually-merged',
 } as const;
 
 export type MergePullRequestOptionDoEnumKey =

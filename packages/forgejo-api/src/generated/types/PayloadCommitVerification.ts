@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { PayloadUser } from "./PayloadUser"
+import type { PayloadUser } from './PayloadUser';
 
 /**
  * @description PayloadCommitVerification represents the GPG verification of a commit

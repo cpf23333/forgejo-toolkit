@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { FileCommitResponse } from "./FileCommitResponse"
-import type { PayloadCommitVerification } from "./PayloadCommitVerification"
+import type { FileCommitResponse } from './FileCommitResponse';
+import type { PayloadCommitVerification } from './PayloadCommitVerification';
 
 /**
  * @description FileDeleteResponse contains information about a repo\'s file that was deleted

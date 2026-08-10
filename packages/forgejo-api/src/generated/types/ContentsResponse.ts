@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { FileLinksResponse } from "./FileLinksResponse"
+import type { FileLinksResponse } from './FileLinksResponse';
 
 /**
  * @description ContentsResponse contains information about a repo\'s entry\'s (dir, file, symlink, submodule) metadata and content

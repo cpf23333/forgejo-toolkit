@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
 
 export type RepoPushMirrorSyncPathParams = {
   /**
@@ -50,9 +50,5 @@ export type RepoPushMirrorSyncMutationResponse = RepoPushMirrorSync200;
 export type RepoPushMirrorSyncMutation = {
   Response: RepoPushMirrorSync200;
   PathParams: RepoPushMirrorSyncPathParams;
-  Errors:
-    | RepoPushMirrorSync400
-    | RepoPushMirrorSync403
-    | RepoPushMirrorSync404
-    | RepoPushMirrorSync413;
+  Errors: RepoPushMirrorSync400 | RepoPushMirrorSync403 | RepoPushMirrorSync404 | RepoPushMirrorSync413;
 };

@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RenderMarkdownMutationRequest,
   RenderMarkdownMutationResponse,
   RenderMarkdown422,
-} from "../types/RenderMarkdown"
+} from '../types/RenderMarkdown';
 
 function getRenderMarkdownUrl() {
-  const res = { method: "POST", url: `/markdown` as const };
+  const res = { method: 'POST', url: `/markdown` as const };
   return res;
 }
 
@@ -39,7 +35,7 @@ export async function renderMarkdown(
     ResponseErrorConfig<RenderMarkdown422>,
     RenderMarkdownMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRenderMarkdownUrl().url.toString(),
     data: requestData,
     ...requestConfig,

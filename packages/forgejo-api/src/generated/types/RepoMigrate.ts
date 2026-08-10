@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIValidationError } from "./APIValidationError"
-import type { MigrateRepoOptions } from "./MigrateRepoOptions"
-import type { Repository } from "./Repository"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIValidationError } from './APIValidationError';
+import type { MigrateRepoOptions } from './MigrateRepoOptions';
+import type { Repository } from './Repository';
 
 /**
  * @description Repository

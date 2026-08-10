@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetCommentsAndTimelineQueryResponse,
   IssueGetCommentsAndTimelinePathParams,
@@ -16,15 +12,15 @@ import type {
   IssueGetCommentsAndTimeline404,
   IssueGetCommentsAndTimeline422,
   IssueGetCommentsAndTimeline500,
-} from "../types/IssueGetCommentsAndTimeline"
+} from '../types/IssueGetCommentsAndTimeline';
 
 function getIssueGetCommentsAndTimelineUrl(
-  owner: IssueGetCommentsAndTimelinePathParams["owner"],
-  repo: IssueGetCommentsAndTimelinePathParams["repo"],
-  index: IssueGetCommentsAndTimelinePathParams["index"],
+  owner: IssueGetCommentsAndTimelinePathParams['owner'],
+  repo: IssueGetCommentsAndTimelinePathParams['repo'],
+  index: IssueGetCommentsAndTimelinePathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/timeline` as const,
   };
   return res;
@@ -35,9 +31,9 @@ function getIssueGetCommentsAndTimelineUrl(
  * {@link /repos/:owner/:repo/issues/:index/timeline}
  */
 export async function issueGetCommentsAndTimeline(
-  owner: IssueGetCommentsAndTimelinePathParams["owner"],
-  repo: IssueGetCommentsAndTimelinePathParams["repo"],
-  index: IssueGetCommentsAndTimelinePathParams["index"],
+  owner: IssueGetCommentsAndTimelinePathParams['owner'],
+  repo: IssueGetCommentsAndTimelinePathParams['repo'],
+  index: IssueGetCommentsAndTimelinePathParams['index'],
   params?: IssueGetCommentsAndTimelineQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -46,13 +42,11 @@ export async function issueGetCommentsAndTimeline(
   const res = await request<
     IssueGetCommentsAndTimelineQueryResponse,
     ResponseErrorConfig<
-      | IssueGetCommentsAndTimeline404
-      | IssueGetCommentsAndTimeline422
-      | IssueGetCommentsAndTimeline500
+      IssueGetCommentsAndTimeline404 | IssueGetCommentsAndTimeline422 | IssueGetCommentsAndTimeline500
     >,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueGetCommentsAndTimelineUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

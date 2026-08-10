@@ -3,23 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetUserRunnerQueryResponse,
   GetUserRunnerPathParams,
   GetUserRunner400,
   GetUserRunner401,
   GetUserRunner404,
-} from "../types/GetUserRunner"
+} from '../types/GetUserRunner';
 
-function getGetUserRunnerUrl(runner_id: GetUserRunnerPathParams["runner_id"]) {
+function getGetUserRunnerUrl(runner_id: GetUserRunnerPathParams['runner_id']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/user/actions/runners/${runner_id}` as const,
   };
   return res;
@@ -30,7 +26,7 @@ function getGetUserRunnerUrl(runner_id: GetUserRunnerPathParams["runner_id"]) {
  * {@link /user/actions/runners/:runner_id}
  */
 export async function getUserRunner(
-  runner_id: GetUserRunnerPathParams["runner_id"],
+  runner_id: GetUserRunnerPathParams['runner_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -40,7 +36,7 @@ export async function getUserRunner(
     ResponseErrorConfig<GetUserRunner400 | GetUserRunner401 | GetUserRunner404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetUserRunnerUrl(runner_id).url.toString(),
     ...requestConfig,
   });

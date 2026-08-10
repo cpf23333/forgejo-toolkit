@@ -3,18 +3,17 @@
  * Do not edit manually.
  */
 
-import type { Organization } from "./Organization"
+import type { Organization } from './Organization';
 
 export const teamPermissionEnum = {
-  none: "none",
-  read: "read",
-  write: "write",
-  admin: "admin",
-  owner: "owner",
+  none: 'none',
+  read: 'read',
+  write: 'write',
+  admin: 'admin',
+  owner: 'owner',
 } as const;
 
-export type TeamPermissionEnumKey =
-  (typeof teamPermissionEnum)[keyof typeof teamPermissionEnum];
+export type TeamPermissionEnumKey = (typeof teamPermissionEnum)[keyof typeof teamPermissionEnum];
 
 /**
  * @description Team represents a team in an organization

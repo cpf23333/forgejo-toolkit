@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgCreateTeamMutationRequest,
   OrgCreateTeamMutationResponse,
   OrgCreateTeamPathParams,
   OrgCreateTeam404,
   OrgCreateTeam422,
-} from "../types/OrgCreateTeam"
+} from '../types/OrgCreateTeam';
 
-function getOrgCreateTeamUrl(org: OrgCreateTeamPathParams["org"]) {
-  const res = { method: "POST", url: `/orgs/${org}/teams` as const };
+function getOrgCreateTeamUrl(org: OrgCreateTeamPathParams['org']) {
+  const res = { method: 'POST', url: `/orgs/${org}/teams` as const };
   return res;
 }
 
@@ -27,7 +23,7 @@ function getOrgCreateTeamUrl(org: OrgCreateTeamPathParams["org"]) {
  * {@link /orgs/:org/teams}
  */
 export async function orgCreateTeam(
-  org: OrgCreateTeamPathParams["org"],
+  org: OrgCreateTeamPathParams['org'],
   data: OrgCreateTeamMutationRequest,
   config: Partial<RequestConfig<OrgCreateTeamMutationRequest>> & {
     client?: Client;
@@ -42,7 +38,7 @@ export async function orgCreateTeam(
     ResponseErrorConfig<OrgCreateTeam404 | OrgCreateTeam422>,
     OrgCreateTeamMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getOrgCreateTeamUrl(org).url.toString(),
     data: requestData,
     ...requestConfig,

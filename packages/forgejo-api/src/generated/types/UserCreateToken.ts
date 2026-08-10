@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { AccessToken } from "./AccessToken"
-import type { CreateAccessTokenOption } from "./CreateAccessTokenOption"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { AccessToken } from './AccessToken';
+import type { CreateAccessTokenOption } from './CreateAccessTokenOption';
 
 export type UserCreateTokenPathParams = {
   /**

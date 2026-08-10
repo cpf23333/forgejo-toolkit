@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgEditTeamMutationRequest,
   OrgEditTeamMutationResponse,
   OrgEditTeamPathParams,
   OrgEditTeam404,
-} from "../types/OrgEditTeam"
+} from '../types/OrgEditTeam';
 
-function getOrgEditTeamUrl(id: OrgEditTeamPathParams["id"]) {
-  const res = { method: "PATCH", url: `/teams/${id}` as const };
+function getOrgEditTeamUrl(id: OrgEditTeamPathParams['id']) {
+  const res = { method: 'PATCH', url: `/teams/${id}` as const };
   return res;
 }
 
@@ -26,7 +22,7 @@ function getOrgEditTeamUrl(id: OrgEditTeamPathParams["id"]) {
  * {@link /teams/:id}
  */
 export async function orgEditTeam(
-  id: OrgEditTeamPathParams["id"],
+  id: OrgEditTeamPathParams['id'],
   data: OrgEditTeamMutationRequest,
   config: Partial<RequestConfig<OrgEditTeamMutationRequest>> & {
     client?: Client;
@@ -41,7 +37,7 @@ export async function orgEditTeam(
     ResponseErrorConfig<OrgEditTeam404>,
     OrgEditTeamMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getOrgEditTeamUrl(id).url.toString(),
     data: requestData,
     ...requestConfig,

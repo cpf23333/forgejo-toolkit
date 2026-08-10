@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  DeletePackageMutationResponse,
-  DeletePackage404,
-} from "../types/DeletePackage"
-import { http } from "msw";
+import type { DeletePackageMutationResponse, DeletePackage404 } from '../types/DeletePackage';
+import { http } from 'msw';
 
-export function deletePackageHandlerResponse204(
-  data?: DeletePackageMutationResponse,
-) {
+export function deletePackageHandlerResponse204(data?: DeletePackageMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,7 +16,7 @@ export function deletePackageHandlerResponse404(data: DeletePackage404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,18 +28,13 @@ export function deletePackageHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/packages/:owner/:type/:name/:version`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/packages/:owner/:type/:name/:version`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

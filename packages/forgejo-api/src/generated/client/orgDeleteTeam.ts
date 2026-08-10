@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  OrgDeleteTeamMutationResponse,
-  OrgDeleteTeamPathParams,
-  OrgDeleteTeam404,
-} from "../types/OrgDeleteTeam"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { OrgDeleteTeamMutationResponse, OrgDeleteTeamPathParams, OrgDeleteTeam404 } from '../types/OrgDeleteTeam';
 
-function getOrgDeleteTeamUrl(id: OrgDeleteTeamPathParams["id"]) {
-  const res = { method: "DELETE", url: `/teams/${id}` as const };
+function getOrgDeleteTeamUrl(id: OrgDeleteTeamPathParams['id']) {
+  const res = { method: 'DELETE', url: `/teams/${id}` as const };
   return res;
 }
 
@@ -25,17 +17,13 @@ function getOrgDeleteTeamUrl(id: OrgDeleteTeamPathParams["id"]) {
  * {@link /teams/:id}
  */
 export async function orgDeleteTeam(
-  id: OrgDeleteTeamPathParams["id"],
+  id: OrgDeleteTeamPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgDeleteTeamMutationResponse,
-    ResponseErrorConfig<OrgDeleteTeam404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<OrgDeleteTeamMutationResponse, ResponseErrorConfig<OrgDeleteTeam404>, unknown>({
+    method: 'DELETE',
     url: getOrgDeleteTeamUrl(id).url.toString(),
     ...requestConfig,
   });

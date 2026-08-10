@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteGitHookMutationResponse,
   RepoDeleteGitHookPathParams,
   RepoDeleteGitHook404,
-} from "../types/RepoDeleteGitHook"
+} from '../types/RepoDeleteGitHook';
 
 function getRepoDeleteGitHookUrl(
-  owner: RepoDeleteGitHookPathParams["owner"],
-  repo: RepoDeleteGitHookPathParams["repo"],
-  id: RepoDeleteGitHookPathParams["id"],
+  owner: RepoDeleteGitHookPathParams['owner'],
+  repo: RepoDeleteGitHookPathParams['repo'],
+  id: RepoDeleteGitHookPathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/hooks/git/${id}` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoDeleteGitHookUrl(
  * {@link /repos/:owner/:repo/hooks/git/:id}
  */
 export async function repoDeleteGitHook(
-  owner: RepoDeleteGitHookPathParams["owner"],
-  repo: RepoDeleteGitHookPathParams["repo"],
-  id: RepoDeleteGitHookPathParams["id"],
+  owner: RepoDeleteGitHookPathParams['owner'],
+  repo: RepoDeleteGitHookPathParams['repo'],
+  id: RepoDeleteGitHookPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoDeleteGitHookMutationResponse,
-    ResponseErrorConfig<RepoDeleteGitHook404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<RepoDeleteGitHookMutationResponse, ResponseErrorConfig<RepoDeleteGitHook404>, unknown>({
+    method: 'DELETE',
     url: getRepoDeleteGitHookUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminEditHookMutationRequest,
   AdminEditHookMutationResponse,
   AdminEditHookPathParams,
-} from "../types/AdminEditHook"
+} from '../types/AdminEditHook';
 
-function getAdminEditHookUrl(id: AdminEditHookPathParams["id"]) {
-  const res = { method: "PATCH", url: `/admin/hooks/${id}` as const };
+function getAdminEditHookUrl(id: AdminEditHookPathParams['id']) {
+  const res = { method: 'PATCH', url: `/admin/hooks/${id}` as const };
   return res;
 }
 
@@ -25,7 +21,7 @@ function getAdminEditHookUrl(id: AdminEditHookPathParams["id"]) {
  * {@link /admin/hooks/:id}
  */
 export async function adminEditHook(
-  id: AdminEditHookPathParams["id"],
+  id: AdminEditHookPathParams['id'],
   data?: AdminEditHookMutationRequest,
   config: Partial<RequestConfig<AdminEditHookMutationRequest>> & {
     client?: Client;
@@ -35,12 +31,8 @@ export async function adminEditHook(
 
   const requestData = data;
 
-  const res = await request<
-    AdminEditHookMutationResponse,
-    ResponseErrorConfig<Error>,
-    AdminEditHookMutationRequest
-  >({
-    method: "PATCH",
+  const res = await request<AdminEditHookMutationResponse, ResponseErrorConfig<Error>, AdminEditHookMutationRequest>({
+    method: 'PATCH',
     url: getAdminEditHookUrl(id).url.toString(),
     data: requestData,
     ...requestConfig,

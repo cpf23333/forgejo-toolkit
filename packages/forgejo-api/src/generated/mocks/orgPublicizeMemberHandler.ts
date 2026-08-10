@@ -7,35 +7,29 @@ import type {
   OrgPublicizeMemberMutationResponse,
   OrgPublicizeMember403,
   OrgPublicizeMember404,
-} from "../types/OrgPublicizeMember"
-import { http } from "msw";
+} from '../types/OrgPublicizeMember';
+import { http } from 'msw';
 
-export function orgPublicizeMemberHandlerResponse204(
-  data?: OrgPublicizeMemberMutationResponse,
-) {
+export function orgPublicizeMemberHandlerResponse204(data?: OrgPublicizeMemberMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgPublicizeMemberHandlerResponse403(
-  data: OrgPublicizeMember403,
-) {
+export function orgPublicizeMemberHandlerResponse403(data: OrgPublicizeMember403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgPublicizeMemberHandlerResponse404(
-  data: OrgPublicizeMember404,
-) {
+export function orgPublicizeMemberHandlerResponse404(data: OrgPublicizeMember404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function orgPublicizeMemberHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.put(
-    `/orgs/:org/public_members/:username`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.put(`/orgs/:org/public_members/:username`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

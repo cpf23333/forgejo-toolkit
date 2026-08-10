@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   CreateCurrentUserRepoMutationRequest,
   CreateCurrentUserRepoMutationResponse,
@@ -18,10 +14,10 @@ import type {
   CreateCurrentUserRepo409,
   CreateCurrentUserRepo413,
   CreateCurrentUserRepo422,
-} from "../types/CreateCurrentUserRepo"
+} from '../types/CreateCurrentUserRepo';
 
 function getCreateCurrentUserRepoUrl() {
-  const res = { method: "POST", url: `/user/repos` as const };
+  const res = { method: 'POST', url: `/user/repos` as const };
   return res;
 }
 
@@ -51,7 +47,7 @@ export async function createCurrentUserRepo(
     >,
     CreateCurrentUserRepoMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getCreateCurrentUserRepoUrl().url.toString(),
     data: requestData,
     ...requestConfig,

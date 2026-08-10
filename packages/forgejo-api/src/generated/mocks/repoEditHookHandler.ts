@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoEditHookMutationResponse,
-  RepoEditHook404,
-} from "../types/RepoEditHook"
-import { http } from "msw";
+import type { RepoEditHookMutationResponse, RepoEditHook404 } from '../types/RepoEditHook';
+import { http } from 'msw';
 
-export function repoEditHookHandlerResponse200(
-  data: RepoEditHookMutationResponse,
-) {
+export function repoEditHookHandlerResponse200(data: RepoEditHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoEditHookHandlerResponse404(data: RepoEditHook404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function repoEditHookHandlerResponse404(data: RepoEditHook404) {
 export function repoEditHookHandler(
   data?:
     | RepoEditHookMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/repos/:owner/:repo/hooks/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

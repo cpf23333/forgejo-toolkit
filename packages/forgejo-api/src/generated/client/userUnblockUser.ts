@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserUnblockUserMutationResponse,
   UserUnblockUserPathParams,
@@ -16,12 +12,10 @@ import type {
   UserUnblockUser403,
   UserUnblockUser404,
   UserUnblockUser422,
-} from "../types/UserUnblockUser"
+} from '../types/UserUnblockUser';
 
-function getUserUnblockUserUrl(
-  username: UserUnblockUserPathParams["username"],
-) {
-  const res = { method: "PUT", url: `/user/unblock/${username}` as const };
+function getUserUnblockUserUrl(username: UserUnblockUserPathParams['username']) {
+  const res = { method: 'PUT', url: `/user/unblock/${username}` as const };
   return res;
 }
 
@@ -30,22 +24,17 @@ function getUserUnblockUserUrl(
  * {@link /user/unblock/:username}
  */
 export async function userUnblockUser(
-  username: UserUnblockUserPathParams["username"],
+  username: UserUnblockUserPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserUnblockUserMutationResponse,
-    ResponseErrorConfig<
-      | UserUnblockUser401
-      | UserUnblockUser403
-      | UserUnblockUser404
-      | UserUnblockUser422
-    >,
+    ResponseErrorConfig<UserUnblockUser401 | UserUnblockUser403 | UserUnblockUser404 | UserUnblockUser422>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUserUnblockUserUrl(username).url.toString(),
     ...requestConfig,
   });

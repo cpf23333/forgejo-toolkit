@@ -9,16 +9,14 @@ import type {
   UserVerifyGPGKey403,
   UserVerifyGPGKey404,
   UserVerifyGPGKey422,
-} from "../types/UserVerifyGPGKey"
-import { http } from "msw";
+} from '../types/UserVerifyGPGKey';
+import { http } from 'msw';
 
-export function userVerifyGPGKeyHandlerResponse201(
-  data: UserVerifyGPGKeyMutationResponse,
-) {
+export function userVerifyGPGKeyHandlerResponse201(data: UserVerifyGPGKeyMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -27,7 +25,7 @@ export function userVerifyGPGKeyHandlerResponse401(data: UserVerifyGPGKey401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -36,7 +34,7 @@ export function userVerifyGPGKeyHandlerResponse403(data: UserVerifyGPGKey403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -45,7 +43,7 @@ export function userVerifyGPGKeyHandlerResponse404(data: UserVerifyGPGKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -54,7 +52,7 @@ export function userVerifyGPGKeyHandlerResponse422(data: UserVerifyGPGKey422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -62,17 +60,15 @@ export function userVerifyGPGKeyHandlerResponse422(data: UserVerifyGPGKey422) {
 export function userVerifyGPGKeyHandler(
   data?:
     | UserVerifyGPGKeyMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/user/gpg_key_verify`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
+import type { APINotFound } from './APINotFound';
 
 export type UserCurrentDeleteSubscriptionPathParams = {
   /**
@@ -28,8 +28,7 @@ export type UserCurrentDeleteSubscription204 = any;
  */
 export type UserCurrentDeleteSubscription404 = APINotFound;
 
-export type UserCurrentDeleteSubscriptionMutationResponse =
-  UserCurrentDeleteSubscription204;
+export type UserCurrentDeleteSubscriptionMutationResponse = UserCurrentDeleteSubscription204;
 
 export type UserCurrentDeleteSubscriptionMutation = {
   Response: UserCurrentDeleteSubscription204;

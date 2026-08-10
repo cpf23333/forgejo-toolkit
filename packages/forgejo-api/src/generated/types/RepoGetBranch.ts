@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Branch } from "./Branch"
+import type { APINotFound } from './APINotFound';
+import type { Branch } from './Branch';
 
 export type RepoGetBranchPathParams = {
   /**

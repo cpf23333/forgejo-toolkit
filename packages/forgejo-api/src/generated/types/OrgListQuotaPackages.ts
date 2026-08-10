@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { QuotaUsedPackageList } from "./QuotaUsedPackageList"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { QuotaUsedPackageList } from './QuotaUsedPackageList';
 
 export type OrgListQuotaPackagesPathParams = {
   /**

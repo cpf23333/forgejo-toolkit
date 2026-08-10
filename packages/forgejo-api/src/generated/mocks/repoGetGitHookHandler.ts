@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetGitHookQueryResponse,
-  RepoGetGitHook404,
-} from "../types/RepoGetGitHook"
-import { http } from "msw";
+import type { RepoGetGitHookQueryResponse, RepoGetGitHook404 } from '../types/RepoGetGitHook';
+import { http } from 'msw';
 
-export function repoGetGitHookHandlerResponse200(
-  data: RepoGetGitHookQueryResponse,
-) {
+export function repoGetGitHookHandlerResponse200(data: RepoGetGitHookQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoGetGitHookHandlerResponse404(data: RepoGetGitHook404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function repoGetGitHookHandlerResponse404(data: RepoGetGitHook404) {
 export function repoGetGitHookHandler(
   data?:
     | RepoGetGitHookQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/hooks/git/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateRepoOption } from "./CreateRepoOption"
-import type { Repository } from "./Repository"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateRepoOption } from './CreateRepoOption';
+import type { Repository } from './Repository';
 
 /**
  * @description Repository

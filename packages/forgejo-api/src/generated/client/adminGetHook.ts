@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  AdminGetHookQueryResponse,
-  AdminGetHookPathParams,
-} from "../types/AdminGetHook"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AdminGetHookQueryResponse, AdminGetHookPathParams } from '../types/AdminGetHook';
 
-function getAdminGetHookUrl(id: AdminGetHookPathParams["id"]) {
-  const res = { method: "GET", url: `/admin/hooks/${id}` as const };
+function getAdminGetHookUrl(id: AdminGetHookPathParams['id']) {
+  const res = { method: 'GET', url: `/admin/hooks/${id}` as const };
   return res;
 }
 
@@ -24,17 +17,13 @@ function getAdminGetHookUrl(id: AdminGetHookPathParams["id"]) {
  * {@link /admin/hooks/:id}
  */
 export async function adminGetHook(
-  id: AdminGetHookPathParams["id"],
+  id: AdminGetHookPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminGetHookQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminGetHookQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getAdminGetHookUrl(id).url.toString(),
     ...requestConfig,
   });

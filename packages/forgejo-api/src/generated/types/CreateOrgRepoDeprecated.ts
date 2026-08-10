@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateRepoOption } from "./CreateRepoOption"
-import type { Repository } from "./Repository"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateRepoOption } from './CreateRepoOption';
+import type { Repository } from './Repository';
 
 export type CreateOrgRepoDeprecatedPathParams = {
   /**
@@ -39,15 +39,11 @@ export type CreateOrgRepoDeprecated422 = APIValidationError;
 
 export type CreateOrgRepoDeprecatedMutationRequest = CreateRepoOption;
 
-export type CreateOrgRepoDeprecatedMutationResponse =
-  CreateOrgRepoDeprecated201;
+export type CreateOrgRepoDeprecatedMutationResponse = CreateOrgRepoDeprecated201;
 
 export type CreateOrgRepoDeprecatedMutation = {
   Response: CreateOrgRepoDeprecated201;
   Request: CreateOrgRepoDeprecatedMutationRequest;
   PathParams: CreateOrgRepoDeprecatedPathParams;
-  Errors:
-    | CreateOrgRepoDeprecated403
-    | CreateOrgRepoDeprecated404
-    | CreateOrgRepoDeprecated422;
+  Errors: CreateOrgRepoDeprecated403 | CreateOrgRepoDeprecated404 | CreateOrgRepoDeprecated422;
 };

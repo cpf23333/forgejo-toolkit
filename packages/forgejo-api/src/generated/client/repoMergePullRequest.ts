@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoMergePullRequestMutationRequest,
   RepoMergePullRequestMutationResponse,
@@ -18,15 +14,15 @@ import type {
   RepoMergePullRequest409,
   RepoMergePullRequest413,
   RepoMergePullRequest423,
-} from "../types/RepoMergePullRequest"
+} from '../types/RepoMergePullRequest';
 
 function getRepoMergePullRequestUrl(
-  owner: RepoMergePullRequestPathParams["owner"],
-  repo: RepoMergePullRequestPathParams["repo"],
-  index: RepoMergePullRequestPathParams["index"],
+  owner: RepoMergePullRequestPathParams['owner'],
+  repo: RepoMergePullRequestPathParams['repo'],
+  index: RepoMergePullRequestPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/pulls/${index}/merge` as const,
   };
   return res;
@@ -37,9 +33,9 @@ function getRepoMergePullRequestUrl(
  * {@link /repos/:owner/:repo/pulls/:index/merge}
  */
 export async function repoMergePullRequest(
-  owner: RepoMergePullRequestPathParams["owner"],
-  repo: RepoMergePullRequestPathParams["repo"],
-  index: RepoMergePullRequestPathParams["index"],
+  owner: RepoMergePullRequestPathParams['owner'],
+  repo: RepoMergePullRequestPathParams['repo'],
+  index: RepoMergePullRequestPathParams['index'],
   data: RepoMergePullRequestMutationRequest,
   config: Partial<RequestConfig<RepoMergePullRequestMutationRequest>> & {
     client?: Client;
@@ -60,7 +56,7 @@ export async function repoMergePullRequest(
     >,
     RepoMergePullRequestMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoMergePullRequestUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

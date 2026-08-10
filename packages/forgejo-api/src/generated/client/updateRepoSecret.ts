@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UpdateRepoSecretMutationRequest,
   UpdateRepoSecretMutationResponse,
   UpdateRepoSecretPathParams,
   UpdateRepoSecret400,
   UpdateRepoSecret404,
-} from "../types/UpdateRepoSecret"
+} from '../types/UpdateRepoSecret';
 
 function getUpdateRepoSecretUrl(
-  owner: UpdateRepoSecretPathParams["owner"],
-  repo: UpdateRepoSecretPathParams["repo"],
-  secretname: UpdateRepoSecretPathParams["secretname"],
+  owner: UpdateRepoSecretPathParams['owner'],
+  repo: UpdateRepoSecretPathParams['repo'],
+  secretname: UpdateRepoSecretPathParams['secretname'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/actions/secrets/${secretname}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getUpdateRepoSecretUrl(
  * {@link /repos/:owner/:repo/actions/secrets/:secretname}
  */
 export async function updateRepoSecret(
-  owner: UpdateRepoSecretPathParams["owner"],
-  repo: UpdateRepoSecretPathParams["repo"],
-  secretname: UpdateRepoSecretPathParams["secretname"],
+  owner: UpdateRepoSecretPathParams['owner'],
+  repo: UpdateRepoSecretPathParams['repo'],
+  secretname: UpdateRepoSecretPathParams['secretname'],
   data: UpdateRepoSecretMutationRequest,
   config: Partial<RequestConfig<UpdateRepoSecretMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function updateRepoSecret(
     ResponseErrorConfig<UpdateRepoSecret400 | UpdateRepoSecret404>,
     UpdateRepoSecretMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUpdateRepoSecretUrl(owner, repo, secretname).url.toString(),
     data: requestData,
     ...requestConfig,

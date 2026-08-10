@@ -9,16 +9,14 @@ import type {
   RepoTransfer404,
   RepoTransfer413,
   RepoTransfer422,
-} from "../types/RepoTransfer"
-import { http } from "msw";
+} from '../types/RepoTransfer';
+import { http } from 'msw';
 
-export function repoTransferHandlerResponse202(
-  data: RepoTransferMutationResponse,
-) {
+export function repoTransferHandlerResponse202(data: RepoTransferMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 202,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -27,7 +25,7 @@ export function repoTransferHandlerResponse403(data: RepoTransfer403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -36,7 +34,7 @@ export function repoTransferHandlerResponse404(data: RepoTransfer404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -51,7 +49,7 @@ export function repoTransferHandlerResponse422(data: RepoTransfer422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,17 +57,15 @@ export function repoTransferHandlerResponse422(data: RepoTransfer422) {
 export function repoTransferHandler(
   data?:
     | RepoTransferMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/transfer`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 202,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

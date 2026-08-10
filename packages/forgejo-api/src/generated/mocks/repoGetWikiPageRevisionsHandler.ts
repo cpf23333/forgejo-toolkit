@@ -6,27 +6,23 @@
 import type {
   RepoGetWikiPageRevisionsQueryResponse,
   RepoGetWikiPageRevisions404,
-} from "../types/RepoGetWikiPageRevisions"
-import { http } from "msw";
+} from '../types/RepoGetWikiPageRevisions';
+import { http } from 'msw';
 
-export function repoGetWikiPageRevisionsHandlerResponse200(
-  data: RepoGetWikiPageRevisionsQueryResponse,
-) {
+export function repoGetWikiPageRevisionsHandlerResponse200(data: RepoGetWikiPageRevisionsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetWikiPageRevisionsHandlerResponse404(
-  data: RepoGetWikiPageRevisions404,
-) {
+export function repoGetWikiPageRevisionsHandlerResponse404(data: RepoGetWikiPageRevisions404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function repoGetWikiPageRevisionsHandlerResponse404(
 export function repoGetWikiPageRevisionsHandler(
   data?:
     | RepoGetWikiPageRevisionsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/wiki/revisions/:pageName`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/wiki/revisions/:pageName`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

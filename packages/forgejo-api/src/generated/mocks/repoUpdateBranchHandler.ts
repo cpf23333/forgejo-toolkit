@@ -8,12 +8,10 @@ import type {
   RepoUpdateBranch403,
   RepoUpdateBranch404,
   RepoUpdateBranch422,
-} from "../types/RepoUpdateBranch"
-import { http } from "msw";
+} from '../types/RepoUpdateBranch';
+import { http } from 'msw';
 
-export function repoUpdateBranchHandlerResponse204(
-  data?: RepoUpdateBranchMutationResponse,
-) {
+export function repoUpdateBranchHandlerResponse204(data?: RepoUpdateBranchMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -23,7 +21,7 @@ export function repoUpdateBranchHandlerResponse403(data: RepoUpdateBranch403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +30,7 @@ export function repoUpdateBranchHandlerResponse404(data: RepoUpdateBranch404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,7 +39,7 @@ export function repoUpdateBranchHandlerResponse422(data: RepoUpdateBranch422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -53,18 +51,13 @@ export function repoUpdateBranchHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/branches/:branch`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/branches/:branch`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

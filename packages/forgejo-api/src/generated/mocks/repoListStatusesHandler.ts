@@ -7,16 +7,14 @@ import type {
   RepoListStatusesQueryResponse,
   RepoListStatuses400,
   RepoListStatuses404,
-} from "../types/RepoListStatuses"
-import { http } from "msw";
+} from '../types/RepoListStatuses';
+import { http } from 'msw';
 
-export function repoListStatusesHandlerResponse200(
-  data: RepoListStatusesQueryResponse,
-) {
+export function repoListStatusesHandlerResponse200(data: RepoListStatusesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +23,7 @@ export function repoListStatusesHandlerResponse400(data: RepoListStatuses400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +32,7 @@ export function repoListStatusesHandlerResponse404(data: RepoListStatuses404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +40,15 @@ export function repoListStatusesHandlerResponse404(data: RepoListStatuses404) {
 export function repoListStatusesHandler(
   data?:
     | RepoListStatusesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/statuses/:sha`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

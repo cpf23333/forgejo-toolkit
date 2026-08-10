@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentPostKeyMutationRequest,
   UserCurrentPostKeyMutationResponse,
   UserCurrentPostKey401,
   UserCurrentPostKey403,
   UserCurrentPostKey422,
-} from "../types/UserCurrentPostKey"
+} from '../types/UserCurrentPostKey';
 
 function getUserCurrentPostKeyUrl() {
-  const res = { method: "POST", url: `/user/keys` as const };
+  const res = { method: 'POST', url: `/user/keys` as const };
   return res;
 }
 
@@ -38,12 +34,10 @@ export async function userCurrentPostKey(
 
   const res = await request<
     UserCurrentPostKeyMutationResponse,
-    ResponseErrorConfig<
-      UserCurrentPostKey401 | UserCurrentPostKey403 | UserCurrentPostKey422
-    >,
+    ResponseErrorConfig<UserCurrentPostKey401 | UserCurrentPostKey403 | UserCurrentPostKey422>,
     UserCurrentPostKeyMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getUserCurrentPostKeyUrl().url.toString(),
     data: requestData,
     ...requestConfig,

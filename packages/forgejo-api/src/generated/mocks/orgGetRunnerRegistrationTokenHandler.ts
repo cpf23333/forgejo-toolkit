@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { OrgGetRunnerRegistrationTokenQueryResponse } from "../types/OrgGetRunnerRegistrationToken"
-import { http } from "msw";
+import type { OrgGetRunnerRegistrationTokenQueryResponse } from '../types/OrgGetRunnerRegistrationToken';
+import { http } from 'msw';
 
-export function orgGetRunnerRegistrationTokenHandlerResponse200(
-  data: OrgGetRunnerRegistrationTokenQueryResponse,
-) {
+export function orgGetRunnerRegistrationTokenHandlerResponse200(data: OrgGetRunnerRegistrationTokenQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,21 +18,16 @@ export function orgGetRunnerRegistrationTokenHandlerResponse200(
 export function orgGetRunnerRegistrationTokenHandler(
   data?:
     | OrgGetRunnerRegistrationTokenQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/orgs/:org/actions/runners/registration-token`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/orgs/:org/actions/runners/registration-token`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

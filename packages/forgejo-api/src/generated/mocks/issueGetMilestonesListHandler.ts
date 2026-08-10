@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueGetMilestonesListQueryResponse,
-  IssueGetMilestonesList404,
-} from "../types/IssueGetMilestonesList"
-import { http } from "msw";
+import type { IssueGetMilestonesListQueryResponse, IssueGetMilestonesList404 } from '../types/IssueGetMilestonesList';
+import { http } from 'msw';
 
-export function issueGetMilestonesListHandlerResponse200(
-  data: IssueGetMilestonesListQueryResponse,
-) {
+export function issueGetMilestonesListHandlerResponse200(data: IssueGetMilestonesListQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueGetMilestonesListHandlerResponse404(
-  data: IssueGetMilestonesList404,
-) {
+export function issueGetMilestonesListHandlerResponse404(data: IssueGetMilestonesList404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function issueGetMilestonesListHandlerResponse404(
 export function issueGetMilestonesListHandler(
   data?:
     | IssueGetMilestonesListQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/milestones`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

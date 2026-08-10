@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { PushMirror } from "./PushMirror"
+import type { PushMirror } from './PushMirror';
 
 export type PushMirrorList = PushMirror[];

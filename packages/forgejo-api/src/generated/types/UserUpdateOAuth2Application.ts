@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { CreateOAuth2ApplicationOptions } from "./CreateOAuth2ApplicationOptions"
-import type { OAuth2Application } from "./OAuth2Application"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { CreateOAuth2ApplicationOptions } from './CreateOAuth2ApplicationOptions';
+import type { OAuth2Application } from './OAuth2Application';
 
 export type UserUpdateOAuth2ApplicationPathParams = {
   /**
@@ -38,18 +38,13 @@ export type UserUpdateOAuth2Application403 = APIForbiddenError;
  */
 export type UserUpdateOAuth2Application404 = APINotFound;
 
-export type UserUpdateOAuth2ApplicationMutationRequest =
-  CreateOAuth2ApplicationOptions;
+export type UserUpdateOAuth2ApplicationMutationRequest = CreateOAuth2ApplicationOptions;
 
-export type UserUpdateOAuth2ApplicationMutationResponse =
-  UserUpdateOAuth2Application200;
+export type UserUpdateOAuth2ApplicationMutationResponse = UserUpdateOAuth2Application200;
 
 export type UserUpdateOAuth2ApplicationMutation = {
   Response: UserUpdateOAuth2Application200;
   Request: UserUpdateOAuth2ApplicationMutationRequest;
   PathParams: UserUpdateOAuth2ApplicationPathParams;
-  Errors:
-    | UserUpdateOAuth2Application401
-    | UserUpdateOAuth2Application403
-    | UserUpdateOAuth2Application404;
+  Errors: UserUpdateOAuth2Application401 | UserUpdateOAuth2Application403 | UserUpdateOAuth2Application404;
 };

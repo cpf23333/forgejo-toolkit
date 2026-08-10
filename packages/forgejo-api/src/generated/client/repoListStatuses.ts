@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListStatusesQueryResponse,
   RepoListStatusesPathParams,
   RepoListStatusesQueryParams,
   RepoListStatuses400,
   RepoListStatuses404,
-} from "../types/RepoListStatuses"
+} from '../types/RepoListStatuses';
 
 function getRepoListStatusesUrl(
-  owner: RepoListStatusesPathParams["owner"],
-  repo: RepoListStatusesPathParams["repo"],
-  sha: RepoListStatusesPathParams["sha"],
+  owner: RepoListStatusesPathParams['owner'],
+  repo: RepoListStatusesPathParams['repo'],
+  sha: RepoListStatusesPathParams['sha'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/statuses/${sha}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoListStatusesUrl(
  * {@link /repos/:owner/:repo/statuses/:sha}
  */
 export async function repoListStatuses(
-  owner: RepoListStatusesPathParams["owner"],
-  repo: RepoListStatusesPathParams["repo"],
-  sha: RepoListStatusesPathParams["sha"],
+  owner: RepoListStatusesPathParams['owner'],
+  repo: RepoListStatusesPathParams['repo'],
+  sha: RepoListStatusesPathParams['sha'],
   params?: RepoListStatusesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -47,7 +43,7 @@ export async function repoListStatuses(
     ResponseErrorConfig<RepoListStatuses400 | RepoListStatuses404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoListStatusesUrl(owner, repo, sha).url.toString(),
     params,
     ...requestConfig,

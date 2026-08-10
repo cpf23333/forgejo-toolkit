@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { PullRequest } from "./PullRequest"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { PullRequest } from './PullRequest';
 
 export type RepoListPullRequestsPathParams = {
   /**
@@ -21,22 +21,22 @@ export type RepoListPullRequestsPathParams = {
 };
 
 export const repoListPullRequestsQueryParamsStateEnum = {
-  open: "open",
-  closed: "closed",
-  all: "all",
+  open: 'open',
+  closed: 'closed',
+  all: 'all',
 } as const;
 
 export type RepoListPullRequestsQueryParamsStateEnumKey =
   (typeof repoListPullRequestsQueryParamsStateEnum)[keyof typeof repoListPullRequestsQueryParamsStateEnum];
 
 export const repoListPullRequestsQueryParamsSortEnum = {
-  oldest: "oldest",
-  recentupdate: "recentupdate",
-  recentclose: "recentclose",
-  leastupdate: "leastupdate",
-  mostcomment: "mostcomment",
-  leastcomment: "leastcomment",
-  priority: "priority",
+  oldest: 'oldest',
+  recentupdate: 'recentupdate',
+  recentclose: 'recentclose',
+  leastupdate: 'leastupdate',
+  mostcomment: 'mostcomment',
+  leastcomment: 'leastcomment',
+  priority: 'priority',
 } as const;
 
 export type RepoListPullRequestsQueryParamsSortEnumKey =
@@ -110,6 +110,5 @@ export type RepoListPullRequestsQuery = {
   Response: RepoListPullRequests200;
   PathParams: RepoListPullRequestsPathParams;
   QueryParams: RepoListPullRequestsQueryParams;
-  Errors:
-    RepoListPullRequests400 | RepoListPullRequests404 | RepoListPullRequests500;
+  Errors: RepoListPullRequests400 | RepoListPullRequests404 | RepoListPullRequests500;
 };

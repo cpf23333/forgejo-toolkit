@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgSearchRunJobsQueryResponse,
-  OrgSearchRunJobs403,
-} from "../types/OrgSearchRunJobs"
-import { http } from "msw";
+import type { OrgSearchRunJobsQueryResponse, OrgSearchRunJobs403 } from '../types/OrgSearchRunJobs';
+import { http } from 'msw';
 
-export function orgSearchRunJobsHandlerResponse200(
-  data: OrgSearchRunJobsQueryResponse,
-) {
+export function orgSearchRunJobsHandlerResponse200(data: OrgSearchRunJobsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function orgSearchRunJobsHandlerResponse403(data: OrgSearchRunJobs403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function orgSearchRunJobsHandlerResponse403(data: OrgSearchRunJobs403) {
 export function orgSearchRunJobsHandler(
   data?:
     | OrgSearchRunJobsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/actions/runners/jobs`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  UserListStarredQueryResponse,
-  UserListStarred404,
-} from "../types/UserListStarred"
-import { http } from "msw";
+import type { UserListStarredQueryResponse, UserListStarred404 } from '../types/UserListStarred';
+import { http } from 'msw';
 
-export function userListStarredHandlerResponse200(
-  data: UserListStarredQueryResponse,
-) {
+export function userListStarredHandlerResponse200(data: UserListStarredQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function userListStarredHandlerResponse404(data: UserListStarred404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function userListStarredHandlerResponse404(data: UserListStarred404) {
 export function userListStarredHandler(
   data?:
     | UserListStarredQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/starred`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

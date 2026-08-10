@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { BranchProtection } from "./BranchProtection"
-import type { CreateBranchProtectionOption } from "./CreateBranchProtectionOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { APIValidationError } from './APIValidationError';
+import type { BranchProtection } from './BranchProtection';
+import type { CreateBranchProtectionOption } from './CreateBranchProtectionOption';
 
 export type RepoCreateBranchProtectionPathParams = {
   /**
@@ -48,11 +48,9 @@ export type RepoCreateBranchProtection422 = APIValidationError;
  */
 export type RepoCreateBranchProtection423 = APIRepoArchivedError;
 
-export type RepoCreateBranchProtectionMutationRequest =
-  CreateBranchProtectionOption;
+export type RepoCreateBranchProtectionMutationRequest = CreateBranchProtectionOption;
 
-export type RepoCreateBranchProtectionMutationResponse =
-  RepoCreateBranchProtection201;
+export type RepoCreateBranchProtectionMutationResponse = RepoCreateBranchProtection201;
 
 export type RepoCreateBranchProtectionMutation = {
   Response: RepoCreateBranchProtection201;

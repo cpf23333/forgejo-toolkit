@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { DispatchWorkflowOption } from "./DispatchWorkflowOption"
-import type { DispatchWorkflowRun } from "./DispatchWorkflowRun"
+import type { APINotFound } from './APINotFound';
+import type { DispatchWorkflowOption } from './DispatchWorkflowOption';
+import type { DispatchWorkflowRun } from './DispatchWorkflowRun';
 
 export type DispatchWorkflowPathParams = {
   /**
@@ -42,8 +42,7 @@ export type DispatchWorkflow404 = APINotFound;
 
 export type DispatchWorkflowMutationRequest = DispatchWorkflowOption;
 
-export type DispatchWorkflowMutationResponse =
-  DispatchWorkflow201 | DispatchWorkflow204;
+export type DispatchWorkflowMutationResponse = DispatchWorkflow201 | DispatchWorkflow204;
 
 export type DispatchWorkflowMutation = {
   Response: DispatchWorkflow201 | DispatchWorkflow204;

@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminCreateRepoMutationRequest,
   AdminCreateRepoMutationResponse,
@@ -18,13 +14,11 @@ import type {
   AdminCreateRepo404,
   AdminCreateRepo409,
   AdminCreateRepo422,
-} from "../types/AdminCreateRepo"
+} from '../types/AdminCreateRepo';
 
-function getAdminCreateRepoUrl(
-  username: AdminCreateRepoPathParams["username"],
-) {
+function getAdminCreateRepoUrl(username: AdminCreateRepoPathParams['username']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/admin/users/${username}/repos` as const,
   };
   return res;
@@ -35,7 +29,7 @@ function getAdminCreateRepoUrl(
  * {@link /admin/users/:username/repos}
  */
 export async function adminCreateRepo(
-  username: AdminCreateRepoPathParams["username"],
+  username: AdminCreateRepoPathParams['username'],
   data: AdminCreateRepoMutationRequest,
   config: Partial<RequestConfig<AdminCreateRepoMutationRequest>> & {
     client?: Client;
@@ -48,15 +42,11 @@ export async function adminCreateRepo(
   const res = await request<
     AdminCreateRepoMutationResponse,
     ResponseErrorConfig<
-      | AdminCreateRepo400
-      | AdminCreateRepo403
-      | AdminCreateRepo404
-      | AdminCreateRepo409
-      | AdminCreateRepo422
+      AdminCreateRepo400 | AdminCreateRepo403 | AdminCreateRepo404 | AdminCreateRepo409 | AdminCreateRepo422
     >,
     AdminCreateRepoMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminCreateRepoUrl(username).url.toString(),
     data: requestData,
     ...requestConfig,

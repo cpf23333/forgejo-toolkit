@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { TopicResponse } from "./TopicResponse"
+import type { TopicResponse } from './TopicResponse';
 
 export type TopicListResponse = TopicResponse[];

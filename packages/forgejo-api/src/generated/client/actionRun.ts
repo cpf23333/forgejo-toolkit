@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ActionRunQueryResponse,
   ActionRunPathParams,
   ActionRun400,
   ActionRun403,
   ActionRun404,
-} from "../types/ActionRun"
+} from '../types/ActionRun';
 
 function getActionRunUrl(
-  owner: ActionRunPathParams["owner"],
-  repo: ActionRunPathParams["repo"],
-  run_id: ActionRunPathParams["run_id"],
+  owner: ActionRunPathParams['owner'],
+  repo: ActionRunPathParams['repo'],
+  run_id: ActionRunPathParams['run_id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/actions/runs/${run_id}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getActionRunUrl(
  * {@link /repos/:owner/:repo/actions/runs/:run_id}
  */
 export async function actionRun(
-  owner: ActionRunPathParams["owner"],
-  repo: ActionRunPathParams["repo"],
-  run_id: ActionRunPathParams["run_id"],
+  owner: ActionRunPathParams['owner'],
+  repo: ActionRunPathParams['repo'],
+  run_id: ActionRunPathParams['run_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,7 +42,7 @@ export async function actionRun(
     ResponseErrorConfig<ActionRun400 | ActionRun403 | ActionRun404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getActionRunUrl(owner, repo, run_id).url.toString(),
     ...requestConfig,
   });

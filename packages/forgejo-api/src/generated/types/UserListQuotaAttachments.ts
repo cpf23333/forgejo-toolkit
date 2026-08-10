@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { QuotaUsedAttachmentList } from "./QuotaUsedAttachmentList"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { QuotaUsedAttachmentList } from './QuotaUsedAttachmentList';
 
 export type UserListQuotaAttachmentsQueryParams = {
   /**

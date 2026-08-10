@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCancelScheduledAutoMergeMutationResponse,
   RepoCancelScheduledAutoMergePathParams,
   RepoCancelScheduledAutoMerge403,
   RepoCancelScheduledAutoMerge404,
   RepoCancelScheduledAutoMerge423,
-} from "../types/RepoCancelScheduledAutoMerge"
+} from '../types/RepoCancelScheduledAutoMerge';
 
 function getRepoCancelScheduledAutoMergeUrl(
-  owner: RepoCancelScheduledAutoMergePathParams["owner"],
-  repo: RepoCancelScheduledAutoMergePathParams["repo"],
-  index: RepoCancelScheduledAutoMergePathParams["index"],
+  owner: RepoCancelScheduledAutoMergePathParams['owner'],
+  repo: RepoCancelScheduledAutoMergePathParams['repo'],
+  index: RepoCancelScheduledAutoMergePathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/pulls/${index}/merge` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoCancelScheduledAutoMergeUrl(
  * {@link /repos/:owner/:repo/pulls/:index/merge}
  */
 export async function repoCancelScheduledAutoMerge(
-  owner: RepoCancelScheduledAutoMergePathParams["owner"],
-  repo: RepoCancelScheduledAutoMergePathParams["repo"],
-  index: RepoCancelScheduledAutoMergePathParams["index"],
+  owner: RepoCancelScheduledAutoMergePathParams['owner'],
+  repo: RepoCancelScheduledAutoMergePathParams['repo'],
+  index: RepoCancelScheduledAutoMergePathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,13 +40,11 @@ export async function repoCancelScheduledAutoMerge(
   const res = await request<
     RepoCancelScheduledAutoMergeMutationResponse,
     ResponseErrorConfig<
-      | RepoCancelScheduledAutoMerge403
-      | RepoCancelScheduledAutoMerge404
-      | RepoCancelScheduledAutoMerge423
+      RepoCancelScheduledAutoMerge403 | RepoCancelScheduledAutoMerge404 | RepoCancelScheduledAutoMerge423
     >,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoCancelScheduledAutoMergeUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { Duration } from "./Duration"
-import type { Repository } from "./Repository"
-import type { User } from "./User"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { Duration } from './Duration';
+import type { Repository } from './Repository';
+import type { User } from './User';
 
 /**
  * @description ActionRun represents an action run

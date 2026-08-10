@@ -8,46 +8,38 @@ import type {
   UserCurrentDeleteFollow401,
   UserCurrentDeleteFollow403,
   UserCurrentDeleteFollow404,
-} from "../types/UserCurrentDeleteFollow"
-import { http } from "msw";
+} from '../types/UserCurrentDeleteFollow';
+import { http } from 'msw';
 
-export function userCurrentDeleteFollowHandlerResponse204(
-  data?: UserCurrentDeleteFollowMutationResponse,
-) {
+export function userCurrentDeleteFollowHandlerResponse204(data?: UserCurrentDeleteFollowMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentDeleteFollowHandlerResponse401(
-  data: UserCurrentDeleteFollow401,
-) {
+export function userCurrentDeleteFollowHandlerResponse401(data: UserCurrentDeleteFollow401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentDeleteFollowHandlerResponse403(
-  data: UserCurrentDeleteFollow403,
-) {
+export function userCurrentDeleteFollowHandlerResponse403(data: UserCurrentDeleteFollow403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentDeleteFollowHandlerResponse404(
-  data: UserCurrentDeleteFollow404,
-) {
+export function userCurrentDeleteFollowHandlerResponse404(data: UserCurrentDeleteFollow404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function userCurrentDeleteFollowHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/user/following/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

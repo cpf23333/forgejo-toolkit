@@ -3,22 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserGetHeatmapDataQueryResponse,
   UserGetHeatmapDataPathParams,
   UserGetHeatmapData404,
-} from "../types/UserGetHeatmapData"
+} from '../types/UserGetHeatmapData';
 
-function getUserGetHeatmapDataUrl(
-  username: UserGetHeatmapDataPathParams["username"],
-) {
-  const res = { method: "GET", url: `/users/${username}/heatmap` as const };
+function getUserGetHeatmapDataUrl(username: UserGetHeatmapDataPathParams['username']) {
+  const res = { method: 'GET', url: `/users/${username}/heatmap` as const };
   return res;
 }
 
@@ -27,17 +21,13 @@ function getUserGetHeatmapDataUrl(
  * {@link /users/:username/heatmap}
  */
 export async function userGetHeatmapData(
-  username: UserGetHeatmapDataPathParams["username"],
+  username: UserGetHeatmapDataPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserGetHeatmapDataQueryResponse,
-    ResponseErrorConfig<UserGetHeatmapData404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<UserGetHeatmapDataQueryResponse, ResponseErrorConfig<UserGetHeatmapData404>, unknown>({
+    method: 'GET',
     url: getUserGetHeatmapDataUrl(username).url.toString(),
     ...requestConfig,
   });

@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { EditQuotaRuleOptions } from "./EditQuotaRuleOptions"
-import type { QuotaRuleInfo } from "./QuotaRuleInfo"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { EditQuotaRuleOptions } from './EditQuotaRuleOptions';
+import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
 export type AdminEditQuotaRulePathParams = {
   /**
@@ -51,9 +51,5 @@ export type AdminEditQuotaRuleMutation = {
   Response: AdminEditQuotaRule200;
   Request: AdminEditQuotaRuleMutationRequest;
   PathParams: AdminEditQuotaRulePathParams;
-  Errors:
-    | AdminEditQuotaRule400
-    | AdminEditQuotaRule403
-    | AdminEditQuotaRule404
-    | AdminEditQuotaRule422;
+  Errors: AdminEditQuotaRule400 | AdminEditQuotaRule403 | AdminEditQuotaRule404 | AdminEditQuotaRule422;
 };

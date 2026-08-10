@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  UserGetHeatmapDataQueryResponse,
-  UserGetHeatmapData404,
-} from "../types/UserGetHeatmapData"
-import { http } from "msw";
+import type { UserGetHeatmapDataQueryResponse, UserGetHeatmapData404 } from '../types/UserGetHeatmapData';
+import { http } from 'msw';
 
-export function userGetHeatmapDataHandlerResponse200(
-  data: UserGetHeatmapDataQueryResponse,
-) {
+export function userGetHeatmapDataHandlerResponse200(data: UserGetHeatmapDataQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userGetHeatmapDataHandlerResponse404(
-  data: UserGetHeatmapData404,
-) {
+export function userGetHeatmapDataHandlerResponse404(data: UserGetHeatmapData404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function userGetHeatmapDataHandlerResponse404(
 export function userGetHeatmapDataHandler(
   data?:
     | UserGetHeatmapDataQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/heatmap`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

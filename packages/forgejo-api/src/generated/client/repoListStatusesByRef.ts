@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListStatusesByRefQueryResponse,
   RepoListStatusesByRefPathParams,
   RepoListStatusesByRefQueryParams,
   RepoListStatusesByRef400,
   RepoListStatusesByRef404,
-} from "../types/RepoListStatusesByRef"
+} from '../types/RepoListStatusesByRef';
 
 function getRepoListStatusesByRefUrl(
-  owner: RepoListStatusesByRefPathParams["owner"],
-  repo: RepoListStatusesByRefPathParams["repo"],
-  ref: RepoListStatusesByRefPathParams["ref"],
+  owner: RepoListStatusesByRefPathParams['owner'],
+  repo: RepoListStatusesByRefPathParams['repo'],
+  ref: RepoListStatusesByRefPathParams['ref'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/commits/${ref}/statuses` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoListStatusesByRefUrl(
  * {@link /repos/:owner/:repo/commits/:ref/statuses}
  */
 export async function repoListStatusesByRef(
-  owner: RepoListStatusesByRefPathParams["owner"],
-  repo: RepoListStatusesByRefPathParams["repo"],
-  ref: RepoListStatusesByRefPathParams["ref"],
+  owner: RepoListStatusesByRefPathParams['owner'],
+  repo: RepoListStatusesByRefPathParams['repo'],
+  ref: RepoListStatusesByRefPathParams['ref'],
   params?: RepoListStatusesByRefQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -47,7 +43,7 @@ export async function repoListStatusesByRef(
     ResponseErrorConfig<RepoListStatusesByRef400 | RepoListStatusesByRef404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoListStatusesByRefUrl(owner, repo, ref).url.toString(),
     params,
     ...requestConfig,

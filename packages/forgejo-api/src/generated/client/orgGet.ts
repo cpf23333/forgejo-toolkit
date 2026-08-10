@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  OrgGetQueryResponse,
-  OrgGetPathParams,
-  OrgGet404,
-} from "../types/OrgGet"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { OrgGetQueryResponse, OrgGetPathParams, OrgGet404 } from '../types/OrgGet';
 
-function getOrgGetUrl(org: OrgGetPathParams["org"]) {
-  const res = { method: "GET", url: `/orgs/${org}` as const };
+function getOrgGetUrl(org: OrgGetPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}` as const };
   return res;
 }
 
@@ -24,16 +16,13 @@ function getOrgGetUrl(org: OrgGetPathParams["org"]) {
  * @summary Get an organization
  * {@link /orgs/:org}
  */
-export async function orgGet(
-  org: OrgGetPathParams["org"],
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function orgGet(org: OrgGetPathParams['org'], config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgGetQueryResponse,
-    ResponseErrorConfig<OrgGet404>,
-    unknown
-  >({ method: "GET", url: getOrgGetUrl(org).url.toString(), ...requestConfig });
+  const res = await request<OrgGetQueryResponse, ResponseErrorConfig<OrgGet404>, unknown>({
+    method: 'GET',
+    url: getOrgGetUrl(org).url.toString(),
+    ...requestConfig,
+  });
   return res.data;
 }

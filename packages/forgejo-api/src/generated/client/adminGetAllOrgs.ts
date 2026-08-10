@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminGetAllOrgsQueryResponse,
   AdminGetAllOrgsQueryParams,
   AdminGetAllOrgs403,
-} from "../types/AdminGetAllOrgs"
+} from '../types/AdminGetAllOrgs';
 
 function getAdminGetAllOrgsUrl() {
-  const res = { method: "GET", url: `/admin/orgs` as const };
+  const res = { method: 'GET', url: `/admin/orgs` as const };
   return res;
 }
 
@@ -30,12 +26,8 @@ export async function adminGetAllOrgs(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminGetAllOrgsQueryResponse,
-    ResponseErrorConfig<AdminGetAllOrgs403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminGetAllOrgsQueryResponse, ResponseErrorConfig<AdminGetAllOrgs403>, unknown>({
+    method: 'GET',
     url: getAdminGetAllOrgsUrl().url.toString(),
     params,
     ...requestConfig,

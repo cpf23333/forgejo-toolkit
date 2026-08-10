@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { Issue } from "./Issue"
-import type { IssueMeta } from "./IssueMeta"
+import type { Issue } from './Issue';
+import type { IssueMeta } from './IssueMeta';
 
 export type IssueCreateIssueBlockingPathParams = {
   /**
@@ -36,8 +36,7 @@ export type IssueCreateIssueBlocking404 = any;
 
 export type IssueCreateIssueBlockingMutationRequest = IssueMeta;
 
-export type IssueCreateIssueBlockingMutationResponse =
-  IssueCreateIssueBlocking201;
+export type IssueCreateIssueBlockingMutationResponse = IssueCreateIssueBlocking201;
 
 export type IssueCreateIssueBlockingMutation = {
   Response: IssueCreateIssueBlocking201;

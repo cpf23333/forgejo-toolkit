@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoNewPinAllowedQueryResponse,
   RepoNewPinAllowedPathParams,
   RepoNewPinAllowed404,
-} from "../types/RepoNewPinAllowed"
+} from '../types/RepoNewPinAllowed';
 
 function getRepoNewPinAllowedUrl(
-  owner: RepoNewPinAllowedPathParams["owner"],
-  repo: RepoNewPinAllowedPathParams["repo"],
+  owner: RepoNewPinAllowedPathParams['owner'],
+  repo: RepoNewPinAllowedPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/new_pin_allowed` as const,
   };
   return res;
@@ -31,18 +27,14 @@ function getRepoNewPinAllowedUrl(
  * {@link /repos/:owner/:repo/new_pin_allowed}
  */
 export async function repoNewPinAllowed(
-  owner: RepoNewPinAllowedPathParams["owner"],
-  repo: RepoNewPinAllowedPathParams["repo"],
+  owner: RepoNewPinAllowedPathParams['owner'],
+  repo: RepoNewPinAllowedPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoNewPinAllowedQueryResponse,
-    ResponseErrorConfig<RepoNewPinAllowed404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoNewPinAllowedQueryResponse, ResponseErrorConfig<RepoNewPinAllowed404>, unknown>({
+    method: 'GET',
     url: getRepoNewPinAllowedUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

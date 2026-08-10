@@ -3,14 +3,14 @@
  * Do not edit manually.
  */
 
-import type { OrgGetAllQueryResponse } from "../types/OrgGetAll"
-import { http } from "msw";
+import type { OrgGetAllQueryResponse } from '../types/OrgGetAll';
+import { http } from 'msw';
 
 export function orgGetAllHandlerResponse200(data: OrgGetAllQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -18,17 +18,15 @@ export function orgGetAllHandlerResponse200(data: OrgGetAllQueryResponse) {
 export function orgGetAllHandler(
   data?:
     | OrgGetAllQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  UnpinIssueMutationResponse,
-  UnpinIssue403,
-  UnpinIssue404,
-} from "../types/UnpinIssue"
-import { http } from "msw";
+import type { UnpinIssueMutationResponse, UnpinIssue403, UnpinIssue404 } from '../types/UnpinIssue';
+import { http } from 'msw';
 
-export function unpinIssueHandlerResponse204(
-  data?: UnpinIssueMutationResponse,
-) {
+export function unpinIssueHandlerResponse204(data?: UnpinIssueMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function unpinIssueHandlerResponse403(data: UnpinIssue403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function unpinIssueHandlerResponse404(data: UnpinIssue404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +37,13 @@ export function unpinIssueHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/pin`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/pin`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

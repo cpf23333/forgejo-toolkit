@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoAddCollaboratorMutationRequest,
   RepoAddCollaboratorMutationResponse,
@@ -16,15 +12,15 @@ import type {
   RepoAddCollaborator403,
   RepoAddCollaborator404,
   RepoAddCollaborator422,
-} from "../types/RepoAddCollaborator"
+} from '../types/RepoAddCollaborator';
 
 function getRepoAddCollaboratorUrl(
-  owner: RepoAddCollaboratorPathParams["owner"],
-  repo: RepoAddCollaboratorPathParams["repo"],
-  collaborator: RepoAddCollaboratorPathParams["collaborator"],
+  owner: RepoAddCollaboratorPathParams['owner'],
+  repo: RepoAddCollaboratorPathParams['repo'],
+  collaborator: RepoAddCollaboratorPathParams['collaborator'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/collaborators/${collaborator}` as const,
   };
   return res;
@@ -35,9 +31,9 @@ function getRepoAddCollaboratorUrl(
  * {@link /repos/:owner/:repo/collaborators/:collaborator}
  */
 export async function repoAddCollaborator(
-  owner: RepoAddCollaboratorPathParams["owner"],
-  repo: RepoAddCollaboratorPathParams["repo"],
-  collaborator: RepoAddCollaboratorPathParams["collaborator"],
+  owner: RepoAddCollaboratorPathParams['owner'],
+  repo: RepoAddCollaboratorPathParams['repo'],
+  collaborator: RepoAddCollaboratorPathParams['collaborator'],
   data?: RepoAddCollaboratorMutationRequest,
   config: Partial<RequestConfig<RepoAddCollaboratorMutationRequest>> & {
     client?: Client;
@@ -49,12 +45,10 @@ export async function repoAddCollaborator(
 
   const res = await request<
     RepoAddCollaboratorMutationResponse,
-    ResponseErrorConfig<
-      RepoAddCollaborator403 | RepoAddCollaborator404 | RepoAddCollaborator422
-    >,
+    ResponseErrorConfig<RepoAddCollaborator403 | RepoAddCollaborator404 | RepoAddCollaborator422>,
     RepoAddCollaboratorMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getRepoAddCollaboratorUrl(owner, repo, collaborator).url.toString(),
     data: requestData,
     ...requestConfig,

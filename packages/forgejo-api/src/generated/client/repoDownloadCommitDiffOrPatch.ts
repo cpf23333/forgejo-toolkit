@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDownloadCommitDiffOrPatchQueryResponse,
   RepoDownloadCommitDiffOrPatchPathParams,
   RepoDownloadCommitDiffOrPatch404,
-} from "../types/RepoDownloadCommitDiffOrPatch"
+} from '../types/RepoDownloadCommitDiffOrPatch';
 
 function getRepoDownloadCommitDiffOrPatchUrl(
-  owner: RepoDownloadCommitDiffOrPatchPathParams["owner"],
-  repo: RepoDownloadCommitDiffOrPatchPathParams["repo"],
-  sha: RepoDownloadCommitDiffOrPatchPathParams["sha"],
-  diffType: RepoDownloadCommitDiffOrPatchPathParams["diffType"],
+  owner: RepoDownloadCommitDiffOrPatchPathParams['owner'],
+  repo: RepoDownloadCommitDiffOrPatchPathParams['repo'],
+  sha: RepoDownloadCommitDiffOrPatchPathParams['sha'],
+  diffType: RepoDownloadCommitDiffOrPatchPathParams['diffType'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/git/commits/${sha}.${diffType}` as const,
   };
   return res;
@@ -33,10 +29,10 @@ function getRepoDownloadCommitDiffOrPatchUrl(
  * {@link /repos/:owner/:repo/git/commits/:sha.:diffType}
  */
 export async function repoDownloadCommitDiffOrPatch(
-  owner: RepoDownloadCommitDiffOrPatchPathParams["owner"],
-  repo: RepoDownloadCommitDiffOrPatchPathParams["repo"],
-  sha: RepoDownloadCommitDiffOrPatchPathParams["sha"],
-  diffType: RepoDownloadCommitDiffOrPatchPathParams["diffType"],
+  owner: RepoDownloadCommitDiffOrPatchPathParams['owner'],
+  repo: RepoDownloadCommitDiffOrPatchPathParams['repo'],
+  sha: RepoDownloadCommitDiffOrPatchPathParams['sha'],
+  diffType: RepoDownloadCommitDiffOrPatchPathParams['diffType'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,13 +42,8 @@ export async function repoDownloadCommitDiffOrPatch(
     ResponseErrorConfig<RepoDownloadCommitDiffOrPatch404>,
     unknown
   >({
-    method: "GET",
-    url: getRepoDownloadCommitDiffOrPatchUrl(
-      owner,
-      repo,
-      sha,
-      diffType,
-    ).url.toString(),
+    method: 'GET',
+    url: getRepoDownloadCommitDiffOrPatchUrl(owner, repo, sha, diffType).url.toString(),
     ...requestConfig,
   });
   return res.data;

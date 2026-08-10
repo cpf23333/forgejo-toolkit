@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
+import type { APIError } from './APIError';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
 
 export type IssueDeleteIssueAttachmentPathParams = {
   /**
@@ -44,8 +44,7 @@ export type IssueDeleteIssueAttachment404 = APIError;
  */
 export type IssueDeleteIssueAttachment423 = APIRepoArchivedError;
 
-export type IssueDeleteIssueAttachmentMutationResponse =
-  IssueDeleteIssueAttachment204;
+export type IssueDeleteIssueAttachmentMutationResponse = IssueDeleteIssueAttachment204;
 
 export type IssueDeleteIssueAttachmentMutation = {
   Response: IssueDeleteIssueAttachment204;

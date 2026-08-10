@@ -8,49 +8,41 @@ import type {
   RegisterOrgRunner400,
   RegisterOrgRunner401,
   RegisterOrgRunner404,
-} from "../types/RegisterOrgRunner"
-import { http } from "msw";
+} from '../types/RegisterOrgRunner';
+import { http } from 'msw';
 
-export function registerOrgRunnerHandlerResponse201(
-  data: RegisterOrgRunnerMutationResponse,
-) {
+export function registerOrgRunnerHandlerResponse201(data: RegisterOrgRunnerMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function registerOrgRunnerHandlerResponse400(
-  data: RegisterOrgRunner400,
-) {
+export function registerOrgRunnerHandlerResponse400(data: RegisterOrgRunner400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function registerOrgRunnerHandlerResponse401(
-  data: RegisterOrgRunner401,
-) {
+export function registerOrgRunnerHandlerResponse401(data: RegisterOrgRunner401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function registerOrgRunnerHandlerResponse404(
-  data: RegisterOrgRunner404,
-) {
+export function registerOrgRunnerHandlerResponse404(data: RegisterOrgRunner404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function registerOrgRunnerHandlerResponse404(
 export function registerOrgRunnerHandler(
   data?:
     | RegisterOrgRunnerMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/orgs/:org/actions/runners`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

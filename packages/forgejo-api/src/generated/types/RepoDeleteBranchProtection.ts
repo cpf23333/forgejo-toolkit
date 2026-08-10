@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
+import type { APINotFound } from './APINotFound';
 
 export type RepoDeleteBranchProtectionPathParams = {
   /**
@@ -33,8 +33,7 @@ export type RepoDeleteBranchProtection204 = any;
  */
 export type RepoDeleteBranchProtection404 = APINotFound;
 
-export type RepoDeleteBranchProtectionMutationResponse =
-  RepoDeleteBranchProtection204;
+export type RepoDeleteBranchProtectionMutationResponse = RepoDeleteBranchProtection204;
 
 export type RepoDeleteBranchProtectionMutation = {
   Response: RepoDeleteBranchProtection204;

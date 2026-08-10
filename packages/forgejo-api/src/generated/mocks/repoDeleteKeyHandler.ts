@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoDeleteKeyMutationResponse,
-  RepoDeleteKey403,
-  RepoDeleteKey404,
-} from "../types/RepoDeleteKey"
-import { http } from "msw";
+import type { RepoDeleteKeyMutationResponse, RepoDeleteKey403, RepoDeleteKey404 } from '../types/RepoDeleteKey';
+import { http } from 'msw';
 
-export function repoDeleteKeyHandlerResponse204(
-  data?: RepoDeleteKeyMutationResponse,
-) {
+export function repoDeleteKeyHandlerResponse204(data?: RepoDeleteKeyMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function repoDeleteKeyHandlerResponse403(data: RepoDeleteKey403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function repoDeleteKeyHandlerResponse404(data: RepoDeleteKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +37,10 @@ export function repoDeleteKeyHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/repos/:owner/:repo/keys/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

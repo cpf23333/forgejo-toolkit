@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIValidationError } from "./APIValidationError"
-import type { EditUserOption } from "./EditUserOption"
-import type { User } from "./User"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIValidationError } from './APIValidationError';
+import type { EditUserOption } from './EditUserOption';
+import type { User } from './User';
 
 export type AdminEditUserPathParams = {
   /**

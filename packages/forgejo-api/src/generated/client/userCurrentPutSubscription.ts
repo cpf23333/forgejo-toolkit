@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentPutSubscriptionMutationResponse,
   UserCurrentPutSubscriptionPathParams,
   UserCurrentPutSubscription404,
-} from "../types/UserCurrentPutSubscription"
+} from '../types/UserCurrentPutSubscription';
 
 function getUserCurrentPutSubscriptionUrl(
-  owner: UserCurrentPutSubscriptionPathParams["owner"],
-  repo: UserCurrentPutSubscriptionPathParams["repo"],
+  owner: UserCurrentPutSubscriptionPathParams['owner'],
+  repo: UserCurrentPutSubscriptionPathParams['repo'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/subscription` as const,
   };
   return res;
@@ -31,8 +27,8 @@ function getUserCurrentPutSubscriptionUrl(
  * {@link /repos/:owner/:repo/subscription}
  */
 export async function userCurrentPutSubscription(
-  owner: UserCurrentPutSubscriptionPathParams["owner"],
-  repo: UserCurrentPutSubscriptionPathParams["repo"],
+  owner: UserCurrentPutSubscriptionPathParams['owner'],
+  repo: UserCurrentPutSubscriptionPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -42,7 +38,7 @@ export async function userCurrentPutSubscription(
     ResponseErrorConfig<UserCurrentPutSubscription404>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUserCurrentPutSubscriptionUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentListSubscriptionsQueryResponse,
   UserCurrentListSubscriptionsQueryParams,
   UserCurrentListSubscriptions401,
   UserCurrentListSubscriptions403,
-} from "../types/UserCurrentListSubscriptions"
+} from '../types/UserCurrentListSubscriptions';
 
 function getUserCurrentListSubscriptionsUrl() {
-  const res = { method: "GET", url: `/user/subscriptions` as const };
+  const res = { method: 'GET', url: `/user/subscriptions` as const };
   return res;
 }
 
@@ -33,12 +29,10 @@ export async function userCurrentListSubscriptions(
 
   const res = await request<
     UserCurrentListSubscriptionsQueryResponse,
-    ResponseErrorConfig<
-      UserCurrentListSubscriptions401 | UserCurrentListSubscriptions403
-    >,
+    ResponseErrorConfig<UserCurrentListSubscriptions401 | UserCurrentListSubscriptions403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentListSubscriptionsUrl().url.toString(),
     params,
     ...requestConfig,

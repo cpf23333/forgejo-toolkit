@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  UserGetQuotaQueryResponse,
-  UserGetQuota401,
-  UserGetQuota403,
-} from "../types/UserGetQuota"
-import { http } from "msw";
+import type { UserGetQuotaQueryResponse, UserGetQuota401, UserGetQuota403 } from '../types/UserGetQuota';
+import { http } from 'msw';
 
-export function userGetQuotaHandlerResponse200(
-  data: UserGetQuotaQueryResponse,
-) {
+export function userGetQuotaHandlerResponse200(data: UserGetQuotaQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function userGetQuotaHandlerResponse401(data: UserGetQuota401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function userGetQuotaHandlerResponse403(data: UserGetQuota403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function userGetQuotaHandlerResponse403(data: UserGetQuota403) {
 export function userGetQuotaHandler(
   data?:
     | UserGetQuotaQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/quota`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

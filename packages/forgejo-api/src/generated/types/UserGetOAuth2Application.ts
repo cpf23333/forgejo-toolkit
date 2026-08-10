@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { OAuth2Application } from "./OAuth2Application"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { OAuth2Application } from './OAuth2Application';
 
 export type UserGetOAuth2ApplicationPathParams = {
   /**
@@ -42,8 +42,5 @@ export type UserGetOAuth2ApplicationQueryResponse = UserGetOAuth2Application200;
 export type UserGetOAuth2ApplicationQuery = {
   Response: UserGetOAuth2Application200;
   PathParams: UserGetOAuth2ApplicationPathParams;
-  Errors:
-    | UserGetOAuth2Application401
-    | UserGetOAuth2Application403
-    | UserGetOAuth2Application404;
+  Errors: UserGetOAuth2Application401 | UserGetOAuth2Application403 | UserGetOAuth2Application404;
 };

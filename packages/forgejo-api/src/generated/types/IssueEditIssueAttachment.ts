@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { Attachment } from "./Attachment"
-import type { EditAttachmentOptions } from "./EditAttachmentOptions"
+import type { APIError } from './APIError';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { Attachment } from './Attachment';
+import type { EditAttachmentOptions } from './EditAttachmentOptions';
 
 export type IssueEditIssueAttachmentPathParams = {
   /**
@@ -53,15 +53,11 @@ export type IssueEditIssueAttachment423 = APIRepoArchivedError;
 
 export type IssueEditIssueAttachmentMutationRequest = EditAttachmentOptions;
 
-export type IssueEditIssueAttachmentMutationResponse =
-  IssueEditIssueAttachment201;
+export type IssueEditIssueAttachmentMutationResponse = IssueEditIssueAttachment201;
 
 export type IssueEditIssueAttachmentMutation = {
   Response: IssueEditIssueAttachment201;
   Request: IssueEditIssueAttachmentMutationRequest;
   PathParams: IssueEditIssueAttachmentPathParams;
-  Errors:
-    | IssueEditIssueAttachment404
-    | IssueEditIssueAttachment413
-    | IssueEditIssueAttachment423;
+  Errors: IssueEditIssueAttachment404 | IssueEditIssueAttachment413 | IssueEditIssueAttachment423;
 };

@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoEditWikiPageMutationRequest,
   RepoEditWikiPageMutationResponse,
@@ -18,15 +14,15 @@ import type {
   RepoEditWikiPage404,
   RepoEditWikiPage413,
   RepoEditWikiPage423,
-} from "../types/RepoEditWikiPage"
+} from '../types/RepoEditWikiPage';
 
 function getRepoEditWikiPageUrl(
-  owner: RepoEditWikiPagePathParams["owner"],
-  repo: RepoEditWikiPagePathParams["repo"],
-  pageName: RepoEditWikiPagePathParams["pageName"],
+  owner: RepoEditWikiPagePathParams['owner'],
+  repo: RepoEditWikiPagePathParams['repo'],
+  pageName: RepoEditWikiPagePathParams['pageName'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/wiki/page/${pageName}` as const,
   };
   return res;
@@ -37,9 +33,9 @@ function getRepoEditWikiPageUrl(
  * {@link /repos/:owner/:repo/wiki/page/:pageName}
  */
 export async function repoEditWikiPage(
-  owner: RepoEditWikiPagePathParams["owner"],
-  repo: RepoEditWikiPagePathParams["repo"],
-  pageName: RepoEditWikiPagePathParams["pageName"],
+  owner: RepoEditWikiPagePathParams['owner'],
+  repo: RepoEditWikiPagePathParams['repo'],
+  pageName: RepoEditWikiPagePathParams['pageName'],
   data?: RepoEditWikiPageMutationRequest,
   config: Partial<RequestConfig<RepoEditWikiPageMutationRequest>> & {
     client?: Client;
@@ -52,15 +48,11 @@ export async function repoEditWikiPage(
   const res = await request<
     RepoEditWikiPageMutationResponse,
     ResponseErrorConfig<
-      | RepoEditWikiPage400
-      | RepoEditWikiPage403
-      | RepoEditWikiPage404
-      | RepoEditWikiPage413
-      | RepoEditWikiPage423
+      RepoEditWikiPage400 | RepoEditWikiPage403 | RepoEditWikiPage404 | RepoEditWikiPage413 | RepoEditWikiPage423
     >,
     RepoEditWikiPageMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getRepoEditWikiPageUrl(owner, repo, pageName).url.toString(),
     data: requestData,
     ...requestConfig,

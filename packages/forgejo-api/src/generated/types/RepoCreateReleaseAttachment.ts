@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { Attachment } from "./Attachment"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { Attachment } from './Attachment';
 
 export type RepoCreateReleaseAttachmentPathParams = {
   /**
@@ -66,16 +66,12 @@ export type RepoCreateReleaseAttachmentMutationRequest = {
   external_url?: string;
 };
 
-export type RepoCreateReleaseAttachmentMutationResponse =
-  RepoCreateReleaseAttachment201;
+export type RepoCreateReleaseAttachmentMutationResponse = RepoCreateReleaseAttachment201;
 
 export type RepoCreateReleaseAttachmentMutation = {
   Response: RepoCreateReleaseAttachment201;
   Request: RepoCreateReleaseAttachmentMutationRequest;
   PathParams: RepoCreateReleaseAttachmentPathParams;
   QueryParams: RepoCreateReleaseAttachmentQueryParams;
-  Errors:
-    | RepoCreateReleaseAttachment400
-    | RepoCreateReleaseAttachment404
-    | RepoCreateReleaseAttachment413;
+  Errors: RepoCreateReleaseAttachment400 | RepoCreateReleaseAttachment404 | RepoCreateReleaseAttachment413;
 };

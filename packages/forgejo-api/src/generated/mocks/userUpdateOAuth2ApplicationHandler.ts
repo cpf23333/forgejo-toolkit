@@ -8,49 +8,41 @@ import type {
   UserUpdateOAuth2Application401,
   UserUpdateOAuth2Application403,
   UserUpdateOAuth2Application404,
-} from "../types/UserUpdateOAuth2Application"
-import { http } from "msw";
+} from '../types/UserUpdateOAuth2Application';
+import { http } from 'msw';
 
-export function userUpdateOAuth2ApplicationHandlerResponse200(
-  data: UserUpdateOAuth2ApplicationMutationResponse,
-) {
+export function userUpdateOAuth2ApplicationHandlerResponse200(data: UserUpdateOAuth2ApplicationMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userUpdateOAuth2ApplicationHandlerResponse401(
-  data: UserUpdateOAuth2Application401,
-) {
+export function userUpdateOAuth2ApplicationHandlerResponse401(data: UserUpdateOAuth2Application401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userUpdateOAuth2ApplicationHandlerResponse403(
-  data: UserUpdateOAuth2Application403,
-) {
+export function userUpdateOAuth2ApplicationHandlerResponse403(data: UserUpdateOAuth2Application403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userUpdateOAuth2ApplicationHandlerResponse404(
-  data: UserUpdateOAuth2Application404,
-) {
+export function userUpdateOAuth2ApplicationHandlerResponse404(data: UserUpdateOAuth2Application404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function userUpdateOAuth2ApplicationHandlerResponse404(
 export function userUpdateOAuth2ApplicationHandler(
   data?:
     | UserUpdateOAuth2ApplicationMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/user/applications/oauth2/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

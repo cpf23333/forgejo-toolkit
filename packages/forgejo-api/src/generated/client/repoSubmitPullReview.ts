@@ -3,28 +3,24 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoSubmitPullReviewMutationRequest,
   RepoSubmitPullReviewMutationResponse,
   RepoSubmitPullReviewPathParams,
   RepoSubmitPullReview404,
   RepoSubmitPullReview422,
-} from "../types/RepoSubmitPullReview"
+} from '../types/RepoSubmitPullReview';
 
 function getRepoSubmitPullReviewUrl(
-  owner: RepoSubmitPullReviewPathParams["owner"],
-  repo: RepoSubmitPullReviewPathParams["repo"],
-  index: RepoSubmitPullReviewPathParams["index"],
-  id: RepoSubmitPullReviewPathParams["id"],
+  owner: RepoSubmitPullReviewPathParams['owner'],
+  repo: RepoSubmitPullReviewPathParams['repo'],
+  index: RepoSubmitPullReviewPathParams['index'],
+  id: RepoSubmitPullReviewPathParams['id'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}` as const,
   };
   return res;
@@ -35,10 +31,10 @@ function getRepoSubmitPullReviewUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id}
  */
 export async function repoSubmitPullReview(
-  owner: RepoSubmitPullReviewPathParams["owner"],
-  repo: RepoSubmitPullReviewPathParams["repo"],
-  index: RepoSubmitPullReviewPathParams["index"],
-  id: RepoSubmitPullReviewPathParams["id"],
+  owner: RepoSubmitPullReviewPathParams['owner'],
+  repo: RepoSubmitPullReviewPathParams['repo'],
+  index: RepoSubmitPullReviewPathParams['index'],
+  id: RepoSubmitPullReviewPathParams['id'],
   data: RepoSubmitPullReviewMutationRequest,
   config: Partial<RequestConfig<RepoSubmitPullReviewMutationRequest>> & {
     client?: Client;
@@ -53,7 +49,7 @@ export async function repoSubmitPullReview(
     ResponseErrorConfig<RepoSubmitPullReview404 | RepoSubmitPullReview422>,
     RepoSubmitPullReviewMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoSubmitPullReviewUrl(owner, repo, index, id).url.toString(),
     data: requestData,
     ...requestConfig,

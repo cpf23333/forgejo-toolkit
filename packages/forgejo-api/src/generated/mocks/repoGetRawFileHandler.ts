@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetRawFileQueryResponse,
-  RepoGetRawFile404,
-} from "../types/RepoGetRawFile"
-import { http } from "msw";
+import type { RepoGetRawFileQueryResponse, RepoGetRawFile404 } from '../types/RepoGetRawFile';
+import { http } from 'msw';
 
-export function repoGetRawFileHandlerResponse200(
-  data: RepoGetRawFileQueryResponse,
-) {
+export function repoGetRawFileHandlerResponse200(data: RepoGetRawFileQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/octet-stream",
+      'Content-Type': 'application/octet-stream',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoGetRawFileHandlerResponse404(data: RepoGetRawFile404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function repoGetRawFileHandlerResponse404(data: RepoGetRawFile404) {
 export function repoGetRawFileHandler(
   data?:
     | RepoGetRawFileQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/raw/:filepath`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/octet-stream",
+        'Content-Type': 'application/octet-stream',
       },
     });
   });

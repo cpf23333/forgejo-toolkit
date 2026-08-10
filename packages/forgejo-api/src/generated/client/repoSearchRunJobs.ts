@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoSearchRunJobsQueryResponse,
   RepoSearchRunJobsPathParams,
   RepoSearchRunJobsQueryParams,
   RepoSearchRunJobs403,
-} from "../types/RepoSearchRunJobs"
+} from '../types/RepoSearchRunJobs';
 
 function getRepoSearchRunJobsUrl(
-  owner: RepoSearchRunJobsPathParams["owner"],
-  repo: RepoSearchRunJobsPathParams["repo"],
+  owner: RepoSearchRunJobsPathParams['owner'],
+  repo: RepoSearchRunJobsPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/actions/runners/jobs` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoSearchRunJobsUrl(
  * {@link /repos/:owner/:repo/actions/runners/jobs}
  */
 export async function repoSearchRunJobs(
-  owner: RepoSearchRunJobsPathParams["owner"],
-  repo: RepoSearchRunJobsPathParams["repo"],
+  owner: RepoSearchRunJobsPathParams['owner'],
+  repo: RepoSearchRunJobsPathParams['repo'],
   params?: RepoSearchRunJobsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoSearchRunJobsQueryResponse,
-    ResponseErrorConfig<RepoSearchRunJobs403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoSearchRunJobsQueryResponse, ResponseErrorConfig<RepoSearchRunJobs403>, unknown>({
+    method: 'GET',
     url: getRepoSearchRunJobsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

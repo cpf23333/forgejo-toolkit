@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  NotifyGetListQueryResponse,
-  NotifyGetListQueryParams,
-} from "../types/NotifyGetList"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { NotifyGetListQueryResponse, NotifyGetListQueryParams } from '../types/NotifyGetList';
 
 function getNotifyGetListUrl() {
-  const res = { method: "GET", url: `/notifications` as const };
+  const res = { method: 'GET', url: `/notifications` as const };
   return res;
 }
 
@@ -29,12 +22,8 @@ export async function notifyGetList(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    NotifyGetListQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<NotifyGetListQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getNotifyGetListUrl().url.toString(),
     params,
     ...requestConfig,

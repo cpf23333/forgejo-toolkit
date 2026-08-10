@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgGetUserPermissionsQueryResponse,
   OrgGetUserPermissionsPathParams,
   OrgGetUserPermissions403,
   OrgGetUserPermissions404,
-} from "../types/OrgGetUserPermissions"
+} from '../types/OrgGetUserPermissions';
 
 function getOrgGetUserPermissionsUrl(
-  username: OrgGetUserPermissionsPathParams["username"],
-  org: OrgGetUserPermissionsPathParams["org"],
+  username: OrgGetUserPermissionsPathParams['username'],
+  org: OrgGetUserPermissionsPathParams['org'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/users/${username}/orgs/${org}/permissions` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getOrgGetUserPermissionsUrl(
  * {@link /users/:username/orgs/:org/permissions}
  */
 export async function orgGetUserPermissions(
-  username: OrgGetUserPermissionsPathParams["username"],
-  org: OrgGetUserPermissionsPathParams["org"],
+  username: OrgGetUserPermissionsPathParams['username'],
+  org: OrgGetUserPermissionsPathParams['org'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +39,7 @@ export async function orgGetUserPermissions(
     ResponseErrorConfig<OrgGetUserPermissions403 | OrgGetUserPermissions404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getOrgGetUserPermissionsUrl(username, org).url.toString(),
     ...requestConfig,
   });

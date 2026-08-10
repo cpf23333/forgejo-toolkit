@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { GitHook } from "./GitHook"
+import type { GitHook } from './GitHook';
 
 export type GitHookList = GitHook[];

@@ -7,38 +7,32 @@ import type {
   IssueSearchIssuesQueryResponse,
   IssueSearchIssues400,
   IssueSearchIssues422,
-} from "../types/IssueSearchIssues"
-import { http } from "msw";
+} from '../types/IssueSearchIssues';
+import { http } from 'msw';
 
-export function issueSearchIssuesHandlerResponse200(
-  data: IssueSearchIssuesQueryResponse,
-) {
+export function issueSearchIssuesHandlerResponse200(data: IssueSearchIssuesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueSearchIssuesHandlerResponse400(
-  data: IssueSearchIssues400,
-) {
+export function issueSearchIssuesHandlerResponse400(data: IssueSearchIssues400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueSearchIssuesHandlerResponse422(
-  data: IssueSearchIssues422,
-) {
+export function issueSearchIssuesHandlerResponse422(data: IssueSearchIssues422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function issueSearchIssuesHandlerResponse422(
 export function issueSearchIssuesHandler(
   data?:
     | IssueSearchIssuesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/issues/search`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

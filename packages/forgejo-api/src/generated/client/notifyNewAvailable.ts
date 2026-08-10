@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { NotifyNewAvailableQueryResponse } from "../types/NotifyNewAvailable"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { NotifyNewAvailableQueryResponse } from '../types/NotifyNewAvailable';
 
 function getNotifyNewAvailableUrl() {
-  const res = { method: "GET", url: `/notifications/new` as const };
+  const res = { method: 'GET', url: `/notifications/new` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getNotifyNewAvailableUrl() {
  * @summary Check if unread notifications exist
  * {@link /notifications/new}
  */
-export async function notifyNewAvailable(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function notifyNewAvailable(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    NotifyNewAvailableQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<NotifyNewAvailableQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getNotifyNewAvailableUrl().url.toString(),
     ...requestConfig,
   });

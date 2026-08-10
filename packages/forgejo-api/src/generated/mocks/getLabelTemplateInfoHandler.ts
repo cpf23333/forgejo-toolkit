@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  GetLabelTemplateInfoQueryResponse,
-  GetLabelTemplateInfo404,
-} from "../types/GetLabelTemplateInfo"
-import { http } from "msw";
+import type { GetLabelTemplateInfoQueryResponse, GetLabelTemplateInfo404 } from '../types/GetLabelTemplateInfo';
+import { http } from 'msw';
 
-export function getLabelTemplateInfoHandlerResponse200(
-  data: GetLabelTemplateInfoQueryResponse,
-) {
+export function getLabelTemplateInfoHandlerResponse200(data: GetLabelTemplateInfoQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getLabelTemplateInfoHandlerResponse404(
-  data: GetLabelTemplateInfo404,
-) {
+export function getLabelTemplateInfoHandlerResponse404(data: GetLabelTemplateInfo404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function getLabelTemplateInfoHandlerResponse404(
 export function getLabelTemplateInfoHandler(
   data?:
     | GetLabelTemplateInfoQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/label/templates/:name`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoSyncForkBranchInfoQueryResponse,
   RepoSyncForkBranchInfoPathParams,
   RepoSyncForkBranchInfo400,
   RepoSyncForkBranchInfo404,
-} from "../types/RepoSyncForkBranchInfo"
+} from '../types/RepoSyncForkBranchInfo';
 
 function getRepoSyncForkBranchInfoUrl(
-  owner: RepoSyncForkBranchInfoPathParams["owner"],
-  repo: RepoSyncForkBranchInfoPathParams["repo"],
-  branch: RepoSyncForkBranchInfoPathParams["branch"],
+  owner: RepoSyncForkBranchInfoPathParams['owner'],
+  repo: RepoSyncForkBranchInfoPathParams['repo'],
+  branch: RepoSyncForkBranchInfoPathParams['branch'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/sync_fork/${branch}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoSyncForkBranchInfoUrl(
  * {@link /repos/:owner/:repo/sync_fork/:branch}
  */
 export async function repoSyncForkBranchInfo(
-  owner: RepoSyncForkBranchInfoPathParams["owner"],
-  repo: RepoSyncForkBranchInfoPathParams["repo"],
-  branch: RepoSyncForkBranchInfoPathParams["branch"],
+  owner: RepoSyncForkBranchInfoPathParams['owner'],
+  repo: RepoSyncForkBranchInfoPathParams['repo'],
+  branch: RepoSyncForkBranchInfoPathParams['branch'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoSyncForkBranchInfo(
     ResponseErrorConfig<RepoSyncForkBranchInfo400 | RepoSyncForkBranchInfo404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoSyncForkBranchInfoUrl(owner, repo, branch).url.toString(),
     ...requestConfig,
   });

@@ -8,12 +8,10 @@ import type {
   AdminDeleteUser403,
   AdminDeleteUser404,
   AdminDeleteUser422,
-} from "../types/AdminDeleteUser"
-import { http } from "msw";
+} from '../types/AdminDeleteUser';
+import { http } from 'msw';
 
-export function adminDeleteUserHandlerResponse204(
-  data?: AdminDeleteUserMutationResponse,
-) {
+export function adminDeleteUserHandlerResponse204(data?: AdminDeleteUserMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -23,7 +21,7 @@ export function adminDeleteUserHandlerResponse403(data: AdminDeleteUser403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +30,7 @@ export function adminDeleteUserHandlerResponse404(data: AdminDeleteUser404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,7 +39,7 @@ export function adminDeleteUserHandlerResponse422(data: AdminDeleteUser422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -53,12 +51,10 @@ export function adminDeleteUserHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/admin/users/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

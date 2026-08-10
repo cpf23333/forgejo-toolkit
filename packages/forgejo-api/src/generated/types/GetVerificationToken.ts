@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 /**
  * @description APIString is a string response
@@ -31,6 +31,5 @@ export type GetVerificationTokenQueryResponse = GetVerificationToken200;
 
 export type GetVerificationTokenQuery = {
   Response: GetVerificationToken200;
-  Errors:
-    GetVerificationToken401 | GetVerificationToken403 | GetVerificationToken404;
+  Errors: GetVerificationToken401 | GetVerificationToken403 | GetVerificationToken404;
 };

@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCheckFlagQueryResponse,
   RepoCheckFlagPathParams,
   RepoCheckFlag403,
   RepoCheckFlag404,
-} from "../types/RepoCheckFlag"
+} from '../types/RepoCheckFlag';
 
 function getRepoCheckFlagUrl(
-  owner: RepoCheckFlagPathParams["owner"],
-  repo: RepoCheckFlagPathParams["repo"],
-  flag: RepoCheckFlagPathParams["flag"],
+  owner: RepoCheckFlagPathParams['owner'],
+  repo: RepoCheckFlagPathParams['repo'],
+  flag: RepoCheckFlagPathParams['flag'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/flags/${flag}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoCheckFlagUrl(
  * {@link /repos/:owner/:repo/flags/:flag}
  */
 export async function repoCheckFlag(
-  owner: RepoCheckFlagPathParams["owner"],
-  repo: RepoCheckFlagPathParams["repo"],
-  flag: RepoCheckFlagPathParams["flag"],
+  owner: RepoCheckFlagPathParams['owner'],
+  repo: RepoCheckFlagPathParams['repo'],
+  flag: RepoCheckFlagPathParams['flag'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoCheckFlag(
     ResponseErrorConfig<RepoCheckFlag403 | RepoCheckFlag404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoCheckFlagUrl(owner, repo, flag).url.toString(),
     ...requestConfig,
   });

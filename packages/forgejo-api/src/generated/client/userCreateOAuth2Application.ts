@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCreateOAuth2ApplicationMutationRequest,
   UserCreateOAuth2ApplicationMutationResponse,
   UserCreateOAuth2Application400,
   UserCreateOAuth2Application401,
   UserCreateOAuth2Application403,
-} from "../types/UserCreateOAuth2Application"
+} from '../types/UserCreateOAuth2Application';
 
 function getUserCreateOAuth2ApplicationUrl() {
-  const res = { method: "POST", url: `/user/applications/oauth2` as const };
+  const res = { method: 'POST', url: `/user/applications/oauth2` as const };
   return res;
 }
 
@@ -39,13 +35,11 @@ export async function userCreateOAuth2Application(
   const res = await request<
     UserCreateOAuth2ApplicationMutationResponse,
     ResponseErrorConfig<
-      | UserCreateOAuth2Application400
-      | UserCreateOAuth2Application401
-      | UserCreateOAuth2Application403
+      UserCreateOAuth2Application400 | UserCreateOAuth2Application401 | UserCreateOAuth2Application403
     >,
     UserCreateOAuth2ApplicationMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getUserCreateOAuth2ApplicationUrl().url.toString(),
     data: requestData,
     ...requestConfig,

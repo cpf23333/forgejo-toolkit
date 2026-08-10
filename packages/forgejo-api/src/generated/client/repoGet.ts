@@ -3,23 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoGetQueryResponse,
-  RepoGetPathParams,
-  RepoGet404,
-} from "../types/RepoGet"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoGetQueryResponse, RepoGetPathParams, RepoGet404 } from '../types/RepoGet';
 
-function getRepoGetUrl(
-  owner: RepoGetPathParams["owner"],
-  repo: RepoGetPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}` as const };
+function getRepoGetUrl(owner: RepoGetPathParams['owner'], repo: RepoGetPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}` as const };
   return res;
 }
 
@@ -28,18 +17,14 @@ function getRepoGetUrl(
  * {@link /repos/:owner/:repo}
  */
 export async function repoGet(
-  owner: RepoGetPathParams["owner"],
-  repo: RepoGetPathParams["repo"],
+  owner: RepoGetPathParams['owner'],
+  repo: RepoGetPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetQueryResponse,
-    ResponseErrorConfig<RepoGet404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetQueryResponse, ResponseErrorConfig<RepoGet404>, unknown>({
+    method: 'GET',
     url: getRepoGetUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

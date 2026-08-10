@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UpdateUserSecretMutationRequest,
   UpdateUserSecretMutationResponse,
@@ -17,13 +13,11 @@ import type {
   UpdateUserSecret401,
   UpdateUserSecret403,
   UpdateUserSecret404,
-} from "../types/UpdateUserSecret"
+} from '../types/UpdateUserSecret';
 
-function getUpdateUserSecretUrl(
-  secretname: UpdateUserSecretPathParams["secretname"],
-) {
+function getUpdateUserSecretUrl(secretname: UpdateUserSecretPathParams['secretname']) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/user/actions/secrets/${secretname}` as const,
   };
   return res;
@@ -34,7 +28,7 @@ function getUpdateUserSecretUrl(
  * {@link /user/actions/secrets/:secretname}
  */
 export async function updateUserSecret(
-  secretname: UpdateUserSecretPathParams["secretname"],
+  secretname: UpdateUserSecretPathParams['secretname'],
   data: UpdateUserSecretMutationRequest,
   config: Partial<RequestConfig<UpdateUserSecretMutationRequest>> & {
     client?: Client;
@@ -46,15 +40,10 @@ export async function updateUserSecret(
 
   const res = await request<
     UpdateUserSecretMutationResponse,
-    ResponseErrorConfig<
-      | UpdateUserSecret400
-      | UpdateUserSecret401
-      | UpdateUserSecret403
-      | UpdateUserSecret404
-    >,
+    ResponseErrorConfig<UpdateUserSecret400 | UpdateUserSecret401 | UpdateUserSecret403 | UpdateUserSecret404>,
     UpdateUserSecretMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUpdateUserSecretUrl(secretname).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -7,35 +7,29 @@ import type {
   RepoDeleteReleaseMutationResponse,
   RepoDeleteRelease404,
   RepoDeleteRelease422,
-} from "../types/RepoDeleteRelease"
-import { http } from "msw";
+} from '../types/RepoDeleteRelease';
+import { http } from 'msw';
 
-export function repoDeleteReleaseHandlerResponse204(
-  data?: RepoDeleteReleaseMutationResponse,
-) {
+export function repoDeleteReleaseHandlerResponse204(data?: RepoDeleteReleaseMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteReleaseHandlerResponse404(
-  data: RepoDeleteRelease404,
-) {
+export function repoDeleteReleaseHandlerResponse404(data: RepoDeleteRelease404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDeleteReleaseHandlerResponse422(
-  data: RepoDeleteRelease422,
-) {
+export function repoDeleteReleaseHandlerResponse422(data: RepoDeleteRelease422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function repoDeleteReleaseHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/releases/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/releases/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

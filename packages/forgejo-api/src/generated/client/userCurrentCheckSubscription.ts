@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentCheckSubscriptionQueryResponse,
   UserCurrentCheckSubscriptionPathParams,
   UserCurrentCheckSubscription404,
-} from "../types/UserCurrentCheckSubscription"
+} from '../types/UserCurrentCheckSubscription';
 
 function getUserCurrentCheckSubscriptionUrl(
-  owner: UserCurrentCheckSubscriptionPathParams["owner"],
-  repo: UserCurrentCheckSubscriptionPathParams["repo"],
+  owner: UserCurrentCheckSubscriptionPathParams['owner'],
+  repo: UserCurrentCheckSubscriptionPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/subscription` as const,
   };
   return res;
@@ -31,8 +27,8 @@ function getUserCurrentCheckSubscriptionUrl(
  * {@link /repos/:owner/:repo/subscription}
  */
 export async function userCurrentCheckSubscription(
-  owner: UserCurrentCheckSubscriptionPathParams["owner"],
-  repo: UserCurrentCheckSubscriptionPathParams["repo"],
+  owner: UserCurrentCheckSubscriptionPathParams['owner'],
+  repo: UserCurrentCheckSubscriptionPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -42,7 +38,7 @@ export async function userCurrentCheckSubscription(
     ResponseErrorConfig<UserCurrentCheckSubscription404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentCheckSubscriptionUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

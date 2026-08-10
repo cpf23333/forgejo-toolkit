@@ -8,23 +8,19 @@ import type {
   IssueGetComment403,
   IssueGetComment404,
   IssueGetComment500,
-} from "../types/IssueGetComment"
-import { http } from "msw";
+} from '../types/IssueGetComment';
+import { http } from 'msw';
 
-export function issueGetCommentHandlerResponse200(
-  data: IssueGetCommentQueryResponse,
-) {
+export function issueGetCommentHandlerResponse200(data: IssueGetCommentQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueGetCommentHandlerResponse204(
-  data?: IssueGetCommentQueryResponse,
-) {
+export function issueGetCommentHandlerResponse204(data?: IssueGetCommentQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -34,7 +30,7 @@ export function issueGetCommentHandlerResponse403(data: IssueGetComment403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,7 +39,7 @@ export function issueGetCommentHandlerResponse404(data: IssueGetComment404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -52,7 +48,7 @@ export function issueGetCommentHandlerResponse500(data: IssueGetComment500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -60,21 +56,16 @@ export function issueGetCommentHandlerResponse500(data: IssueGetComment500) {
 export function issueGetCommentHandler(
   data?:
     | IssueGetCommentQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/issues/comments/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/issues/comments/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

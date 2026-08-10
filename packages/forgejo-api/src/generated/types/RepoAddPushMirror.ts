@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { CreatePushMirrorOption } from "./CreatePushMirrorOption"
-import type { PushMirror } from "./PushMirror"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { CreatePushMirrorOption } from './CreatePushMirrorOption';
+import type { PushMirror } from './PushMirror';
 
 export type RepoAddPushMirrorPathParams = {
   /**
@@ -58,9 +58,5 @@ export type RepoAddPushMirrorMutation = {
   Response: RepoAddPushMirror200;
   Request: RepoAddPushMirrorMutationRequest;
   PathParams: RepoAddPushMirrorPathParams;
-  Errors:
-    | RepoAddPushMirror400
-    | RepoAddPushMirror403
-    | RepoAddPushMirror404
-    | RepoAddPushMirror413;
+  Errors: RepoAddPushMirror400 | RepoAddPushMirror403 | RepoAddPushMirror404 | RepoAddPushMirror413;
 };

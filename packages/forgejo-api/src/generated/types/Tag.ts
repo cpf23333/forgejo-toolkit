@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { CommitMeta } from "./CommitMeta"
-import type { TagArchiveDownloadCount } from "./TagArchiveDownloadCount"
+import type { CommitMeta } from './CommitMeta';
+import type { TagArchiveDownloadCount } from './TagArchiveDownloadCount';
 
 /**
  * @description Tag represents a repository tag

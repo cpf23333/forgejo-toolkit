@@ -3,22 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetGitignoreTemplateInfoQueryResponse,
   GetGitignoreTemplateInfoPathParams,
   GetGitignoreTemplateInfo404,
-} from "../types/GetGitignoreTemplateInfo"
+} from '../types/GetGitignoreTemplateInfo';
 
-function getGetGitignoreTemplateInfoUrl(
-  name: GetGitignoreTemplateInfoPathParams["name"],
-) {
-  const res = { method: "GET", url: `/gitignore/templates/${name}` as const };
+function getGetGitignoreTemplateInfoUrl(name: GetGitignoreTemplateInfoPathParams['name']) {
+  const res = { method: 'GET', url: `/gitignore/templates/${name}` as const };
   return res;
 }
 
@@ -27,7 +21,7 @@ function getGetGitignoreTemplateInfoUrl(
  * {@link /gitignore/templates/:name}
  */
 export async function getGitignoreTemplateInfo(
-  name: GetGitignoreTemplateInfoPathParams["name"],
+  name: GetGitignoreTemplateInfoPathParams['name'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -37,7 +31,7 @@ export async function getGitignoreTemplateInfo(
     ResponseErrorConfig<GetGitignoreTemplateInfo404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetGitignoreTemplateInfoUrl(name).url.toString(),
     ...requestConfig,
   });

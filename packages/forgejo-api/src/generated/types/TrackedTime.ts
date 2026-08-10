@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { Issue } from "./Issue"
+import type { Issue } from './Issue';
 
 /**
  * @description TrackedTime worked time for an issue / pr

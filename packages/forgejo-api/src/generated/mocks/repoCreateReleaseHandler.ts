@@ -8,49 +8,41 @@ import type {
   RepoCreateRelease404,
   RepoCreateRelease409,
   RepoCreateRelease422,
-} from "../types/RepoCreateRelease"
-import { http } from "msw";
+} from '../types/RepoCreateRelease';
+import { http } from 'msw';
 
-export function repoCreateReleaseHandlerResponse201(
-  data: RepoCreateReleaseMutationResponse,
-) {
+export function repoCreateReleaseHandlerResponse201(data: RepoCreateReleaseMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCreateReleaseHandlerResponse404(
-  data: RepoCreateRelease404,
-) {
+export function repoCreateReleaseHandlerResponse404(data: RepoCreateRelease404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCreateReleaseHandlerResponse409(
-  data: RepoCreateRelease409,
-) {
+export function repoCreateReleaseHandlerResponse409(data: RepoCreateRelease409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCreateReleaseHandlerResponse422(
-  data: RepoCreateRelease422,
-) {
+export function repoCreateReleaseHandlerResponse422(data: RepoCreateRelease422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function repoCreateReleaseHandlerResponse422(
 export function repoCreateReleaseHandler(
   data?:
     | RepoCreateReleaseMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/releases`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  UserGetCurrentQueryResponse,
-  UserGetCurrent401,
-  UserGetCurrent403,
-} from "../types/UserGetCurrent"
-import { http } from "msw";
+import type { UserGetCurrentQueryResponse, UserGetCurrent401, UserGetCurrent403 } from '../types/UserGetCurrent';
+import { http } from 'msw';
 
-export function userGetCurrentHandlerResponse200(
-  data: UserGetCurrentQueryResponse,
-) {
+export function userGetCurrentHandlerResponse200(data: UserGetCurrentQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function userGetCurrentHandlerResponse401(data: UserGetCurrent401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function userGetCurrentHandlerResponse403(data: UserGetCurrent403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function userGetCurrentHandlerResponse403(data: UserGetCurrent403) {
 export function userGetCurrentHandler(
   data?:
     | UserGetCurrentQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

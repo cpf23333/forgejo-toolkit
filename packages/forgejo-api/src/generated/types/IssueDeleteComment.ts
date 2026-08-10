@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIInternalServerError } from "./APIInternalServerError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIInternalServerError } from './APIInternalServerError';
 
 export type IssueDeleteCommentPathParams = {
   /**

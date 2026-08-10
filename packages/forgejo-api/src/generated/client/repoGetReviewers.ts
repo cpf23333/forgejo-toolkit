@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetReviewersQueryResponse,
   RepoGetReviewersPathParams,
   RepoGetReviewers404,
-} from "../types/RepoGetReviewers"
+} from '../types/RepoGetReviewers';
 
-function getRepoGetReviewersUrl(
-  owner: RepoGetReviewersPathParams["owner"],
-  repo: RepoGetReviewersPathParams["repo"],
-) {
+function getRepoGetReviewersUrl(owner: RepoGetReviewersPathParams['owner'], repo: RepoGetReviewersPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/reviewers` as const,
   };
   return res;
@@ -31,18 +24,14 @@ function getRepoGetReviewersUrl(
  * {@link /repos/:owner/:repo/reviewers}
  */
 export async function repoGetReviewers(
-  owner: RepoGetReviewersPathParams["owner"],
-  repo: RepoGetReviewersPathParams["repo"],
+  owner: RepoGetReviewersPathParams['owner'],
+  repo: RepoGetReviewersPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetReviewersQueryResponse,
-    ResponseErrorConfig<RepoGetReviewers404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetReviewersQueryResponse, ResponseErrorConfig<RepoGetReviewers404>, unknown>({
+    method: 'GET',
     url: getRepoGetReviewersUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

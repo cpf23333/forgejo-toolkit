@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RenderMarkupMutationResponse,
-  RenderMarkup422,
-} from "../types/RenderMarkup"
-import { http } from "msw";
+import type { RenderMarkupMutationResponse, RenderMarkup422 } from '../types/RenderMarkup';
+import { http } from 'msw';
 
-export function renderMarkupHandlerResponse200(
-  data: RenderMarkupMutationResponse,
-) {
+export function renderMarkupHandlerResponse200(data: RenderMarkupMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function renderMarkupHandlerResponse422(data: RenderMarkup422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function renderMarkupHandlerResponse422(data: RenderMarkup422) {
 export function renderMarkupHandler(
   data?:
     | RenderMarkupMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/markup`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

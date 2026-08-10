@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { OrganizationPermissions } from "./OrganizationPermissions"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { OrganizationPermissions } from './OrganizationPermissions';
 
 export type OrgGetUserPermissionsPathParams = {
   /**

@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { NotifyGetListQueryResponse } from "../types/NotifyGetList"
-import { http } from "msw";
+import type { NotifyGetListQueryResponse } from '../types/NotifyGetList';
+import { http } from 'msw';
 
-export function notifyGetListHandlerResponse200(
-  data: NotifyGetListQueryResponse,
-) {
+export function notifyGetListHandlerResponse200(data: NotifyGetListQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function notifyGetListHandlerResponse200(
 export function notifyGetListHandler(
   data?:
     | NotifyGetListQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/notifications`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

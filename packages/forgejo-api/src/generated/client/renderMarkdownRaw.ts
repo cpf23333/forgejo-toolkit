@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RenderMarkdownRawMutationRequest,
   RenderMarkdownRawMutationResponse,
   RenderMarkdownRaw422,
-} from "../types/RenderMarkdownRaw"
+} from '../types/RenderMarkdownRaw';
 
 function getRenderMarkdownRawUrl() {
-  const res = { method: "POST", url: `/markdown/raw` as const };
+  const res = { method: 'POST', url: `/markdown/raw` as const };
   return res;
 }
 
@@ -39,11 +35,11 @@ export async function renderMarkdownRaw(
     ResponseErrorConfig<RenderMarkdownRaw422>,
     RenderMarkdownRawMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRenderMarkdownRawUrl().url.toString(),
     data: requestData,
     ...requestConfig,
-    headers: { "Content-Type": "text/plain", ...requestConfig.headers },
+    headers: { 'Content-Type': 'text/plain', ...requestConfig.headers },
   });
   return res.data;
 }

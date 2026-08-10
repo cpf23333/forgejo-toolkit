@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { ReviewStateType } from "./ReviewStateType"
+import type { ReviewStateType } from './ReviewStateType';
 
 /**
  * @description SubmitPullReviewOptions are options to submit a pending pull review

@@ -3,23 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  OrgGetLabelQueryResponse,
-  OrgGetLabelPathParams,
-  OrgGetLabel404,
-} from "../types/OrgGetLabel"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { OrgGetLabelQueryResponse, OrgGetLabelPathParams, OrgGetLabel404 } from '../types/OrgGetLabel';
 
-function getOrgGetLabelUrl(
-  org: OrgGetLabelPathParams["org"],
-  id: OrgGetLabelPathParams["id"],
-) {
-  const res = { method: "GET", url: `/orgs/${org}/labels/${id}` as const };
+function getOrgGetLabelUrl(org: OrgGetLabelPathParams['org'], id: OrgGetLabelPathParams['id']) {
+  const res = { method: 'GET', url: `/orgs/${org}/labels/${id}` as const };
   return res;
 }
 
@@ -28,18 +17,14 @@ function getOrgGetLabelUrl(
  * {@link /orgs/:org/labels/:id}
  */
 export async function orgGetLabel(
-  org: OrgGetLabelPathParams["org"],
-  id: OrgGetLabelPathParams["id"],
+  org: OrgGetLabelPathParams['org'],
+  id: OrgGetLabelPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgGetLabelQueryResponse,
-    ResponseErrorConfig<OrgGetLabel404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgGetLabelQueryResponse, ResponseErrorConfig<OrgGetLabel404>, unknown>({
+    method: 'GET',
     url: getOrgGetLabelUrl(org, id).url.toString(),
     ...requestConfig,
   });

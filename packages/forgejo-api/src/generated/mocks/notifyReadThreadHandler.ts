@@ -7,16 +7,14 @@ import type {
   NotifyReadThreadMutationResponse,
   NotifyReadThread403,
   NotifyReadThread404,
-} from "../types/NotifyReadThread"
-import { http } from "msw";
+} from '../types/NotifyReadThread';
+import { http } from 'msw';
 
-export function notifyReadThreadHandlerResponse205(
-  data: NotifyReadThreadMutationResponse,
-) {
+export function notifyReadThreadHandlerResponse205(data: NotifyReadThreadMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 205,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +23,7 @@ export function notifyReadThreadHandlerResponse403(data: NotifyReadThread403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +32,7 @@ export function notifyReadThreadHandlerResponse404(data: NotifyReadThread404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +40,15 @@ export function notifyReadThreadHandlerResponse404(data: NotifyReadThread404) {
 export function notifyReadThreadHandler(
   data?:
     | NotifyReadThreadMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/notifications/threads/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 205,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

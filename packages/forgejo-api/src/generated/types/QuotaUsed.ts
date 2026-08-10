@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { QuotaUsedSize } from "./QuotaUsedSize"
+import type { QuotaUsedSize } from './QuotaUsedSize';
 
 /**
  * @description QuotaUsed represents the quota usage of a user

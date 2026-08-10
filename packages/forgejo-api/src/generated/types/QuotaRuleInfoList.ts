@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { QuotaRuleInfo } from "./QuotaRuleInfo"
+import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
 export type QuotaRuleInfoList = QuotaRuleInfo[];

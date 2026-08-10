@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueRemoveLabelMutationRequest,
   IssueRemoveLabelMutationResponse,
@@ -16,16 +12,16 @@ import type {
   IssueRemoveLabel403,
   IssueRemoveLabel404,
   IssueRemoveLabel422,
-} from "../types/IssueRemoveLabel"
+} from '../types/IssueRemoveLabel';
 
 function getIssueRemoveLabelUrl(
-  owner: IssueRemoveLabelPathParams["owner"],
-  repo: IssueRemoveLabelPathParams["repo"],
-  index: IssueRemoveLabelPathParams["index"],
-  identifier: IssueRemoveLabelPathParams["identifier"],
+  owner: IssueRemoveLabelPathParams['owner'],
+  repo: IssueRemoveLabelPathParams['repo'],
+  index: IssueRemoveLabelPathParams['index'],
+  identifier: IssueRemoveLabelPathParams['identifier'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/labels/${identifier}` as const,
   };
   return res;
@@ -36,10 +32,10 @@ function getIssueRemoveLabelUrl(
  * {@link /repos/:owner/:repo/issues/:index/labels/:identifier}
  */
 export async function issueRemoveLabel(
-  owner: IssueRemoveLabelPathParams["owner"],
-  repo: IssueRemoveLabelPathParams["repo"],
-  index: IssueRemoveLabelPathParams["index"],
-  identifier: IssueRemoveLabelPathParams["identifier"],
+  owner: IssueRemoveLabelPathParams['owner'],
+  repo: IssueRemoveLabelPathParams['repo'],
+  index: IssueRemoveLabelPathParams['index'],
+  identifier: IssueRemoveLabelPathParams['identifier'],
   data?: IssueRemoveLabelMutationRequest,
   config: Partial<RequestConfig<IssueRemoveLabelMutationRequest>> & {
     client?: Client;
@@ -51,12 +47,10 @@ export async function issueRemoveLabel(
 
   const res = await request<
     IssueRemoveLabelMutationResponse,
-    ResponseErrorConfig<
-      IssueRemoveLabel403 | IssueRemoveLabel404 | IssueRemoveLabel422
-    >,
+    ResponseErrorConfig<IssueRemoveLabel403 | IssueRemoveLabel404 | IssueRemoveLabel422>,
     IssueRemoveLabelMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueRemoveLabelUrl(owner, repo, index, identifier).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { CommitMeta } from "./CommitMeta"
-import type { CommitUser } from "./CommitUser"
+import type { CommitMeta } from './CommitMeta';
+import type { CommitUser } from './CommitUser';
 
 /**
  * FileCommitResponse contains information generated from a Git commit for a repo\'s file.

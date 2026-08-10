@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { AddTimeOption } from "./AddTimeOption"
-import type { TrackedTime } from "./TrackedTime"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { AddTimeOption } from './AddTimeOption';
+import type { TrackedTime } from './TrackedTime';
 
 export type IssueAddTimePathParams = {
   /**

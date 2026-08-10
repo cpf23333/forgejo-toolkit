@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { ActionRunJob } from "./ActionRunJob"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { ActionRunJob } from './ActionRunJob';
 
 export type AdminGetActionRunJobsQueryParams = {
   /**

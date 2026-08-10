@@ -10,14 +10,14 @@ import type {
   CreateFork409,
   CreateFork413,
   CreateFork422,
-} from "../types/CreateFork"
-import { http } from "msw";
+} from '../types/CreateFork';
+import { http } from 'msw';
 
 export function createForkHandlerResponse202(data: CreateForkMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 202,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -26,7 +26,7 @@ export function createForkHandlerResponse403(data: CreateFork403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,7 +35,7 @@ export function createForkHandlerResponse404(data: CreateFork404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -56,7 +56,7 @@ export function createForkHandlerResponse422(data: CreateFork422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -64,17 +64,15 @@ export function createForkHandlerResponse422(data: CreateFork422) {
 export function createForkHandler(
   data?:
     | CreateForkMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/forks`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 202,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

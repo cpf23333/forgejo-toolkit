@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { QuotaUsedSizeAssets } from "./QuotaUsedSizeAssets"
-import type { QuotaUsedSizeGit } from "./QuotaUsedSizeGit"
-import type { QuotaUsedSizeRepos } from "./QuotaUsedSizeRepos"
+import type { QuotaUsedSizeAssets } from './QuotaUsedSizeAssets';
+import type { QuotaUsedSizeGit } from './QuotaUsedSizeGit';
+import type { QuotaUsedSizeRepos } from './QuotaUsedSizeRepos';
 
 /**
  * @description QuotaUsedSize represents the size-based quota usage of a user

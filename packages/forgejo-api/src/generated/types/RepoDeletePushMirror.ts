@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
 
 export type RepoDeletePushMirrorPathParams = {
   /**

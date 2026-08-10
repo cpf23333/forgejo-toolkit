@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
 
 export type UserDeleteAccessTokenPathParams = {
   /**
@@ -45,8 +45,5 @@ export type UserDeleteAccessTokenMutationResponse = UserDeleteAccessToken204;
 export type UserDeleteAccessTokenMutation = {
   Response: UserDeleteAccessToken204;
   PathParams: UserDeleteAccessTokenPathParams;
-  Errors:
-    | UserDeleteAccessToken403
-    | UserDeleteAccessToken404
-    | UserDeleteAccessToken422;
+  Errors: UserDeleteAccessToken403 | UserDeleteAccessToken404 | UserDeleteAccessToken422;
 };

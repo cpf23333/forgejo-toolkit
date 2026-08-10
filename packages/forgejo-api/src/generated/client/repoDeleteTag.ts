@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteTagMutationResponse,
   RepoDeleteTagPathParams,
@@ -17,15 +13,15 @@ import type {
   RepoDeleteTag409,
   RepoDeleteTag422,
   RepoDeleteTag423,
-} from "../types/RepoDeleteTag"
+} from '../types/RepoDeleteTag';
 
 function getRepoDeleteTagUrl(
-  owner: RepoDeleteTagPathParams["owner"],
-  repo: RepoDeleteTagPathParams["repo"],
-  tag: RepoDeleteTagPathParams["tag"],
+  owner: RepoDeleteTagPathParams['owner'],
+  repo: RepoDeleteTagPathParams['repo'],
+  tag: RepoDeleteTagPathParams['tag'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/tags/${tag}` as const,
   };
   return res;
@@ -36,25 +32,19 @@ function getRepoDeleteTagUrl(
  * {@link /repos/:owner/:repo/tags/:tag}
  */
 export async function repoDeleteTag(
-  owner: RepoDeleteTagPathParams["owner"],
-  repo: RepoDeleteTagPathParams["repo"],
-  tag: RepoDeleteTagPathParams["tag"],
+  owner: RepoDeleteTagPathParams['owner'],
+  repo: RepoDeleteTagPathParams['repo'],
+  tag: RepoDeleteTagPathParams['tag'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     RepoDeleteTagMutationResponse,
-    ResponseErrorConfig<
-      | RepoDeleteTag404
-      | RepoDeleteTag405
-      | RepoDeleteTag409
-      | RepoDeleteTag422
-      | RepoDeleteTag423
-    >,
+    ResponseErrorConfig<RepoDeleteTag404 | RepoDeleteTag405 | RepoDeleteTag409 | RepoDeleteTag422 | RepoDeleteTag423>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteTagUrl(owner, repo, tag).url.toString(),
     ...requestConfig,
   });

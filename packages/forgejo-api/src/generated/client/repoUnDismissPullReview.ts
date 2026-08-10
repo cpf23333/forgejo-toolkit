@@ -3,28 +3,24 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoUnDismissPullReviewMutationResponse,
   RepoUnDismissPullReviewPathParams,
   RepoUnDismissPullReview403,
   RepoUnDismissPullReview404,
   RepoUnDismissPullReview422,
-} from "../types/RepoUnDismissPullReview"
+} from '../types/RepoUnDismissPullReview';
 
 function getRepoUnDismissPullReviewUrl(
-  owner: RepoUnDismissPullReviewPathParams["owner"],
-  repo: RepoUnDismissPullReviewPathParams["repo"],
-  index: RepoUnDismissPullReviewPathParams["index"],
-  id: RepoUnDismissPullReviewPathParams["id"],
+  owner: RepoUnDismissPullReviewPathParams['owner'],
+  repo: RepoUnDismissPullReviewPathParams['repo'],
+  index: RepoUnDismissPullReviewPathParams['index'],
+  id: RepoUnDismissPullReviewPathParams['id'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}/undismissals` as const,
   };
   return res;
@@ -35,24 +31,20 @@ function getRepoUnDismissPullReviewUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id/undismissals}
  */
 export async function repoUnDismissPullReview(
-  owner: RepoUnDismissPullReviewPathParams["owner"],
-  repo: RepoUnDismissPullReviewPathParams["repo"],
-  index: RepoUnDismissPullReviewPathParams["index"],
-  id: RepoUnDismissPullReviewPathParams["id"],
+  owner: RepoUnDismissPullReviewPathParams['owner'],
+  repo: RepoUnDismissPullReviewPathParams['repo'],
+  index: RepoUnDismissPullReviewPathParams['index'],
+  id: RepoUnDismissPullReviewPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     RepoUnDismissPullReviewMutationResponse,
-    ResponseErrorConfig<
-      | RepoUnDismissPullReview403
-      | RepoUnDismissPullReview404
-      | RepoUnDismissPullReview422
-    >,
+    ResponseErrorConfig<RepoUnDismissPullReview403 | RepoUnDismissPullReview404 | RepoUnDismissPullReview422>,
     unknown
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoUnDismissPullReviewUrl(owner, repo, index, id).url.toString(),
     ...requestConfig,
   });

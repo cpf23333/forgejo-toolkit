@@ -8,49 +8,41 @@ import type {
   AdminGetQuotaGroup400,
   AdminGetQuotaGroup403,
   AdminGetQuotaGroup404,
-} from "../types/AdminGetQuotaGroup"
-import { http } from "msw";
+} from '../types/AdminGetQuotaGroup';
+import { http } from 'msw';
 
-export function adminGetQuotaGroupHandlerResponse200(
-  data: AdminGetQuotaGroupQueryResponse,
-) {
+export function adminGetQuotaGroupHandlerResponse200(data: AdminGetQuotaGroupQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminGetQuotaGroupHandlerResponse400(
-  data: AdminGetQuotaGroup400,
-) {
+export function adminGetQuotaGroupHandlerResponse400(data: AdminGetQuotaGroup400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminGetQuotaGroupHandlerResponse403(
-  data: AdminGetQuotaGroup403,
-) {
+export function adminGetQuotaGroupHandlerResponse403(data: AdminGetQuotaGroup403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminGetQuotaGroupHandlerResponse404(
-  data: AdminGetQuotaGroup404,
-) {
+export function adminGetQuotaGroupHandlerResponse404(data: AdminGetQuotaGroup404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function adminGetQuotaGroupHandlerResponse404(
 export function adminGetQuotaGroupHandler(
   data?:
     | AdminGetQuotaGroupQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/quota/groups/:quotagroup`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Package } from "./Package"
+import type { APINotFound } from './APINotFound';
+import type { Package } from './Package';
 
 export type ListPackagesPathParams = {
   /**
@@ -15,27 +15,27 @@ export type ListPackagesPathParams = {
 };
 
 export const listPackagesQueryParamsTypeEnum = {
-  alpine: "alpine",
-  cargo: "cargo",
-  chef: "chef",
-  composer: "composer",
-  conan: "conan",
-  conda: "conda",
-  container: "container",
-  cran: "cran",
-  debian: "debian",
-  generic: "generic",
-  go: "go",
-  helm: "helm",
-  maven: "maven",
-  npm: "npm",
-  nuget: "nuget",
-  pub: "pub",
-  pypi: "pypi",
-  rpm: "rpm",
-  rubygems: "rubygems",
-  swift: "swift",
-  vagrant: "vagrant",
+  alpine: 'alpine',
+  cargo: 'cargo',
+  chef: 'chef',
+  composer: 'composer',
+  conan: 'conan',
+  conda: 'conda',
+  container: 'container',
+  cran: 'cran',
+  debian: 'debian',
+  generic: 'generic',
+  go: 'go',
+  helm: 'helm',
+  maven: 'maven',
+  npm: 'npm',
+  nuget: 'nuget',
+  pub: 'pub',
+  pypi: 'pypi',
+  rpm: 'rpm',
+  rubygems: 'rubygems',
+  swift: 'swift',
+  vagrant: 'vagrant',
 } as const;
 
 export type ListPackagesQueryParamsTypeEnumKey =

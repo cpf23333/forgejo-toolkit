@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserTrackedTimesQueryResponse,
   UserTrackedTimesPathParams,
   UserTrackedTimes400,
   UserTrackedTimes403,
   UserTrackedTimes404,
-} from "../types/UserTrackedTimes"
+} from '../types/UserTrackedTimes';
 
 function getUserTrackedTimesUrl(
-  owner: UserTrackedTimesPathParams["owner"],
-  repo: UserTrackedTimesPathParams["repo"],
-  user: UserTrackedTimesPathParams["user"],
+  owner: UserTrackedTimesPathParams['owner'],
+  repo: UserTrackedTimesPathParams['repo'],
+  user: UserTrackedTimesPathParams['user'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/times/${user}` as const,
   };
   return res;
@@ -35,21 +31,19 @@ function getUserTrackedTimesUrl(
  * @deprecated
  */
 export async function userTrackedTimes(
-  owner: UserTrackedTimesPathParams["owner"],
-  repo: UserTrackedTimesPathParams["repo"],
-  user: UserTrackedTimesPathParams["user"],
+  owner: UserTrackedTimesPathParams['owner'],
+  repo: UserTrackedTimesPathParams['repo'],
+  user: UserTrackedTimesPathParams['user'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserTrackedTimesQueryResponse,
-    ResponseErrorConfig<
-      UserTrackedTimes400 | UserTrackedTimes403 | UserTrackedTimes404
-    >,
+    ResponseErrorConfig<UserTrackedTimes400 | UserTrackedTimes403 | UserTrackedTimes404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserTrackedTimesUrl(owner, repo, user).url.toString(),
     ...requestConfig,
   });

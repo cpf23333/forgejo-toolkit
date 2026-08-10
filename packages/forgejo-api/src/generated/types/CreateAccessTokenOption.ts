@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { RepoTargetOption } from "./RepoTargetOption"
+import type { RepoTargetOption } from './RepoTargetOption';
 
 /**
  * @description CreateAccessTokenOption options when create access token

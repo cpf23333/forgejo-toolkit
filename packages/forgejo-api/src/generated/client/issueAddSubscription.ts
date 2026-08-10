@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueAddSubscriptionMutationResponse,
   IssueAddSubscriptionPathParams,
   IssueAddSubscription404,
-} from "../types/IssueAddSubscription"
+} from '../types/IssueAddSubscription';
 
 function getIssueAddSubscriptionUrl(
-  owner: IssueAddSubscriptionPathParams["owner"],
-  repo: IssueAddSubscriptionPathParams["repo"],
-  index: IssueAddSubscriptionPathParams["index"],
-  user: IssueAddSubscriptionPathParams["user"],
+  owner: IssueAddSubscriptionPathParams['owner'],
+  repo: IssueAddSubscriptionPathParams['repo'],
+  index: IssueAddSubscriptionPathParams['index'],
+  user: IssueAddSubscriptionPathParams['user'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/issues/${index}/subscriptions/${user}` as const,
   };
   return res;
@@ -33,10 +29,10 @@ function getIssueAddSubscriptionUrl(
  * {@link /repos/:owner/:repo/issues/:index/subscriptions/:user}
  */
 export async function issueAddSubscription(
-  owner: IssueAddSubscriptionPathParams["owner"],
-  repo: IssueAddSubscriptionPathParams["repo"],
-  index: IssueAddSubscriptionPathParams["index"],
-  user: IssueAddSubscriptionPathParams["user"],
+  owner: IssueAddSubscriptionPathParams['owner'],
+  repo: IssueAddSubscriptionPathParams['repo'],
+  index: IssueAddSubscriptionPathParams['index'],
+  user: IssueAddSubscriptionPathParams['user'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,7 +42,7 @@ export async function issueAddSubscription(
     ResponseErrorConfig<IssueAddSubscription404>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getIssueAddSubscriptionUrl(owner, repo, index, user).url.toString(),
     ...requestConfig,
   });

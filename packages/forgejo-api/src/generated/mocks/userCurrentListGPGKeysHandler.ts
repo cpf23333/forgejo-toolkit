@@ -7,38 +7,32 @@ import type {
   UserCurrentListGPGKeysQueryResponse,
   UserCurrentListGPGKeys401,
   UserCurrentListGPGKeys403,
-} from "../types/UserCurrentListGPGKeys"
-import { http } from "msw";
+} from '../types/UserCurrentListGPGKeys';
+import { http } from 'msw';
 
-export function userCurrentListGPGKeysHandlerResponse200(
-  data: UserCurrentListGPGKeysQueryResponse,
-) {
+export function userCurrentListGPGKeysHandlerResponse200(data: UserCurrentListGPGKeysQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentListGPGKeysHandlerResponse401(
-  data: UserCurrentListGPGKeys401,
-) {
+export function userCurrentListGPGKeysHandlerResponse401(data: UserCurrentListGPGKeys401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentListGPGKeysHandlerResponse403(
-  data: UserCurrentListGPGKeys403,
-) {
+export function userCurrentListGPGKeysHandlerResponse403(data: UserCurrentListGPGKeys403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function userCurrentListGPGKeysHandlerResponse403(
 export function userCurrentListGPGKeysHandler(
   data?:
     | UserCurrentListGPGKeysQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/gpg_keys`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

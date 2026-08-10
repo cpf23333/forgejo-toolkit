@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  AdminListQuotaRulesQueryResponse,
-  AdminListQuotaRules403,
-} from "../types/AdminListQuotaRules"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AdminListQuotaRulesQueryResponse, AdminListQuotaRules403 } from '../types/AdminListQuotaRules';
 
 function getAdminListQuotaRulesUrl() {
-  const res = { method: "GET", url: `/admin/quota/rules` as const };
+  const res = { method: 'GET', url: `/admin/quota/rules` as const };
   return res;
 }
 
@@ -23,17 +16,11 @@ function getAdminListQuotaRulesUrl() {
  * @summary List the available quota rules
  * {@link /admin/quota/rules}
  */
-export async function adminListQuotaRules(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function adminListQuotaRules(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminListQuotaRulesQueryResponse,
-    ResponseErrorConfig<AdminListQuotaRules403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminListQuotaRulesQueryResponse, ResponseErrorConfig<AdminListQuotaRules403>, unknown>({
+    method: 'GET',
     url: getAdminListQuotaRulesUrl().url.toString(),
     ...requestConfig,
   });

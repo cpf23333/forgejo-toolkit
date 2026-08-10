@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { RegisterRunnerOptions } from "./RegisterRunnerOptions"
-import type { RegisterRunnerResponse } from "./RegisterRunnerResponse"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { RegisterRunnerOptions } from './RegisterRunnerOptions';
+import type { RegisterRunnerResponse } from './RegisterRunnerResponse';
 
 /**
  * RegisterRunnerResponse contains the details of the just registered runner.

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Issue } from "./Issue"
+import type { APINotFound } from './APINotFound';
+import type { Issue } from './Issue';
 
 export type IssueListIssueDependenciesPathParams = {
   /**
@@ -47,8 +47,7 @@ export type IssueListIssueDependencies200 = Issue[];
  */
 export type IssueListIssueDependencies404 = APINotFound;
 
-export type IssueListIssueDependenciesQueryResponse =
-  IssueListIssueDependencies200;
+export type IssueListIssueDependenciesQueryResponse = IssueListIssueDependencies200;
 
 export type IssueListIssueDependenciesQuery = {
   Response: IssueListIssueDependencies200;

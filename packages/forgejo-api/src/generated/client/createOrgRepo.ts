@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   CreateOrgRepoMutationRequest,
   CreateOrgRepoMutationResponse,
@@ -16,10 +12,10 @@ import type {
   CreateOrgRepo400,
   CreateOrgRepo403,
   CreateOrgRepo404,
-} from "../types/CreateOrgRepo"
+} from '../types/CreateOrgRepo';
 
-function getCreateOrgRepoUrl(org: CreateOrgRepoPathParams["org"]) {
-  const res = { method: "POST", url: `/orgs/${org}/repos` as const };
+function getCreateOrgRepoUrl(org: CreateOrgRepoPathParams['org']) {
+  const res = { method: 'POST', url: `/orgs/${org}/repos` as const };
   return res;
 }
 
@@ -28,7 +24,7 @@ function getCreateOrgRepoUrl(org: CreateOrgRepoPathParams["org"]) {
  * {@link /orgs/:org/repos}
  */
 export async function createOrgRepo(
-  org: CreateOrgRepoPathParams["org"],
+  org: CreateOrgRepoPathParams['org'],
   data: CreateOrgRepoMutationRequest,
   config: Partial<RequestConfig<CreateOrgRepoMutationRequest>> & {
     client?: Client;
@@ -43,7 +39,7 @@ export async function createOrgRepo(
     ResponseErrorConfig<CreateOrgRepo400 | CreateOrgRepo403 | CreateOrgRepo404>,
     CreateOrgRepoMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getCreateOrgRepoUrl(org).url.toString(),
     data: requestData,
     ...requestConfig,

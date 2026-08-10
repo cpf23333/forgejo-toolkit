@@ -6,24 +6,20 @@
 import type {
   RepoDeleteTagProtectionMutationResponse,
   RepoDeleteTagProtection404,
-} from "../types/RepoDeleteTagProtection"
-import { http } from "msw";
+} from '../types/RepoDeleteTagProtection';
+import { http } from 'msw';
 
-export function repoDeleteTagProtectionHandlerResponse204(
-  data?: RepoDeleteTagProtectionMutationResponse,
-) {
+export function repoDeleteTagProtectionHandlerResponse204(data?: RepoDeleteTagProtectionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteTagProtectionHandlerResponse404(
-  data: RepoDeleteTagProtection404,
-) {
+export function repoDeleteTagProtectionHandlerResponse404(data: RepoDeleteTagProtection404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,18 +31,13 @@ export function repoDeleteTagProtectionHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/tag_protections/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/tag_protections/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

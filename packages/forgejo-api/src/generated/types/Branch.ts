@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { PayloadCommit } from "./PayloadCommit"
+import type { PayloadCommit } from './PayloadCommit';
 
 /**
  * @description Branch represents a repository branch

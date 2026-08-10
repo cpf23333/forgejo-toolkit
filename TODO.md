@@ -8,6 +8,7 @@
 - [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
 - [ ] 调研并补齐 Project 相关 API（当前生成的 client 中无 `/projects` 端点）
 - [ ] Actions 运行详情页：展示任务/步骤/日志，成功时展示制品列表并支持下载
+- [ ] Actions 远程触发与实时进度：在仓库详情页触发 workflow，并轮询展示运行状态、步骤日志
 
 ## 已完成
 

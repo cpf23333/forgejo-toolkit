@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { AnnotatedTagObject } from "./AnnotatedTagObject"
-import type { CommitUser } from "./CommitUser"
-import type { PayloadCommitVerification } from "./PayloadCommitVerification"
-import type { TagArchiveDownloadCount } from "./TagArchiveDownloadCount"
+import type { AnnotatedTagObject } from './AnnotatedTagObject';
+import type { CommitUser } from './CommitUser';
+import type { PayloadCommitVerification } from './PayloadCommitVerification';
+import type { TagArchiveDownloadCount } from './TagArchiveDownloadCount';
 
 /**
  * @description AnnotatedTag represents an annotated tag

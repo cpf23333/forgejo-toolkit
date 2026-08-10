@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { NotifyReadListMutationResponse } from "../types/NotifyReadList"
-import { http } from "msw";
+import type { NotifyReadListMutationResponse } from '../types/NotifyReadList';
+import { http } from 'msw';
 
-export function notifyReadListHandlerResponse205(
-  data: NotifyReadListMutationResponse,
-) {
+export function notifyReadListHandlerResponse205(data: NotifyReadListMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 205,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function notifyReadListHandlerResponse205(
 export function notifyReadListHandler(
   data?:
     | NotifyReadListMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/notifications`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 205,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

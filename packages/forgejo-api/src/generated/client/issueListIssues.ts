@@ -3,25 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueListIssuesQueryResponse,
   IssueListIssuesPathParams,
   IssueListIssuesQueryParams,
   IssueListIssues404,
   IssueListIssues422,
-} from "../types/IssueListIssues"
+} from '../types/IssueListIssues';
 
-function getIssueListIssuesUrl(
-  owner: IssueListIssuesPathParams["owner"],
-  repo: IssueListIssuesPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/issues` as const };
+function getIssueListIssuesUrl(owner: IssueListIssuesPathParams['owner'], repo: IssueListIssuesPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/issues` as const };
   return res;
 }
 
@@ -30,8 +23,8 @@ function getIssueListIssuesUrl(
  * {@link /repos/:owner/:repo/issues}
  */
 export async function issueListIssues(
-  owner: IssueListIssuesPathParams["owner"],
-  repo: IssueListIssuesPathParams["repo"],
+  owner: IssueListIssuesPathParams['owner'],
+  repo: IssueListIssuesPathParams['repo'],
   params?: IssueListIssuesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -42,7 +35,7 @@ export async function issueListIssues(
     ResponseErrorConfig<IssueListIssues404 | IssueListIssues422>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueListIssuesUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

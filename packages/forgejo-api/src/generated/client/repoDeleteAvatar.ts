@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteAvatarMutationResponse,
   RepoDeleteAvatarPathParams,
   RepoDeleteAvatar404,
-} from "../types/RepoDeleteAvatar"
+} from '../types/RepoDeleteAvatar';
 
-function getRepoDeleteAvatarUrl(
-  owner: RepoDeleteAvatarPathParams["owner"],
-  repo: RepoDeleteAvatarPathParams["repo"],
-) {
+function getRepoDeleteAvatarUrl(owner: RepoDeleteAvatarPathParams['owner'], repo: RepoDeleteAvatarPathParams['repo']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/avatar` as const,
   };
   return res;
@@ -31,18 +24,14 @@ function getRepoDeleteAvatarUrl(
  * {@link /repos/:owner/:repo/avatar}
  */
 export async function repoDeleteAvatar(
-  owner: RepoDeleteAvatarPathParams["owner"],
-  repo: RepoDeleteAvatarPathParams["repo"],
+  owner: RepoDeleteAvatarPathParams['owner'],
+  repo: RepoDeleteAvatarPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoDeleteAvatarMutationResponse,
-    ResponseErrorConfig<RepoDeleteAvatar404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<RepoDeleteAvatarMutationResponse, ResponseErrorConfig<RepoDeleteAvatar404>, unknown>({
+    method: 'DELETE',
     url: getRepoDeleteAvatarUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

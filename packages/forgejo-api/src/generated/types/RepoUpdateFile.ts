@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { FileResponse } from "./FileResponse"
-import type { UpdateFileOptions } from "./UpdateFileOptions"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { FileResponse } from './FileResponse';
+import type { UpdateFileOptions } from './UpdateFileOptions';
 
 export type RepoUpdateFilePathParams = {
   /**

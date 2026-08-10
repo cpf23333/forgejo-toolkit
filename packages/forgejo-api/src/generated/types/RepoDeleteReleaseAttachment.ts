@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
+import type { APINotFound } from './APINotFound';
 
 export type RepoDeleteReleaseAttachmentPathParams = {
   /**
@@ -38,8 +38,7 @@ export type RepoDeleteReleaseAttachment204 = any;
  */
 export type RepoDeleteReleaseAttachment404 = APINotFound;
 
-export type RepoDeleteReleaseAttachmentMutationResponse =
-  RepoDeleteReleaseAttachment204;
+export type RepoDeleteReleaseAttachmentMutationResponse = RepoDeleteReleaseAttachment204;
 
 export type RepoDeleteReleaseAttachmentMutation = {
   Response: RepoDeleteReleaseAttachment204;

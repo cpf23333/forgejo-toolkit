@@ -6,27 +6,23 @@
 import type {
   RepoGetPullRequestFilesQueryResponse,
   RepoGetPullRequestFiles404,
-} from "../types/RepoGetPullRequestFiles"
-import { http } from "msw";
+} from '../types/RepoGetPullRequestFiles';
+import { http } from 'msw';
 
-export function repoGetPullRequestFilesHandlerResponse200(
-  data: RepoGetPullRequestFilesQueryResponse,
-) {
+export function repoGetPullRequestFilesHandlerResponse200(data: RepoGetPullRequestFilesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetPullRequestFilesHandlerResponse404(
-  data: RepoGetPullRequestFiles404,
-) {
+export function repoGetPullRequestFilesHandlerResponse404(data: RepoGetPullRequestFiles404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function repoGetPullRequestFilesHandlerResponse404(
 export function repoGetPullRequestFilesHandler(
   data?:
     | RepoGetPullRequestFilesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/pulls/:index/files`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/pulls/:index/files`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

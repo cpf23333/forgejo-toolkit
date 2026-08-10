@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { GetSigningKeyQueryResponse } from "../types/GetSigningKey"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetSigningKeyQueryResponse } from '../types/GetSigningKey';
 
 function getGetSigningKeyUrl() {
-  const res = { method: "GET", url: `/signing-key.gpg` as const };
+  const res = { method: 'GET', url: `/signing-key.gpg` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getGetSigningKeyUrl() {
  * @summary Get default signing-key.gpg
  * {@link /signing-key.gpg}
  */
-export async function getSigningKey(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getSigningKey(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetSigningKeyQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetSigningKeyQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getGetSigningKeyUrl().url.toString(),
     ...requestConfig,
   });

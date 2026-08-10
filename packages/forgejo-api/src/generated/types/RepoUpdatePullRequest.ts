@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
 
 export type RepoUpdatePullRequestPathParams = {
   /**
@@ -27,8 +27,8 @@ export type RepoUpdatePullRequestPathParams = {
 };
 
 export const repoUpdatePullRequestQueryParamsStyleEnum = {
-  merge: "merge",
-  rebase: "rebase",
+  merge: 'merge',
+  rebase: 'rebase',
 } as const;
 
 export type RepoUpdatePullRequestQueryParamsStyleEnumKey =

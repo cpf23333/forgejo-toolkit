@@ -8,16 +8,14 @@ import type {
   AdminEditUser400,
   AdminEditUser403,
   AdminEditUser422,
-} from "../types/AdminEditUser"
-import { http } from "msw";
+} from '../types/AdminEditUser';
+import { http } from 'msw';
 
-export function adminEditUserHandlerResponse200(
-  data: AdminEditUserMutationResponse,
-) {
+export function adminEditUserHandlerResponse200(data: AdminEditUserMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -26,7 +24,7 @@ export function adminEditUserHandlerResponse400(data: AdminEditUser400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,7 +33,7 @@ export function adminEditUserHandlerResponse403(data: AdminEditUser403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -44,7 +42,7 @@ export function adminEditUserHandlerResponse422(data: AdminEditUser422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -52,17 +50,15 @@ export function adminEditUserHandlerResponse422(data: AdminEditUser422) {
 export function adminEditUserHandler(
   data?:
     | AdminEditUserMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/admin/users/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

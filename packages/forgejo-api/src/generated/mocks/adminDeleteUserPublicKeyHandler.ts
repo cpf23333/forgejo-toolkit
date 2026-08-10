@@ -7,35 +7,29 @@ import type {
   AdminDeleteUserPublicKeyMutationResponse,
   AdminDeleteUserPublicKey403,
   AdminDeleteUserPublicKey404,
-} from "../types/AdminDeleteUserPublicKey"
-import { http } from "msw";
+} from '../types/AdminDeleteUserPublicKey';
+import { http } from 'msw';
 
-export function adminDeleteUserPublicKeyHandlerResponse204(
-  data?: AdminDeleteUserPublicKeyMutationResponse,
-) {
+export function adminDeleteUserPublicKeyHandlerResponse204(data?: AdminDeleteUserPublicKeyMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteUserPublicKeyHandlerResponse403(
-  data: AdminDeleteUserPublicKey403,
-) {
+export function adminDeleteUserPublicKeyHandlerResponse403(data: AdminDeleteUserPublicKey403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminDeleteUserPublicKeyHandlerResponse404(
-  data: AdminDeleteUserPublicKey404,
-) {
+export function adminDeleteUserPublicKeyHandlerResponse404(data: AdminDeleteUserPublicKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,12 +41,10 @@ export function adminDeleteUserPublicKeyHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/admin/users/:username/keys/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserGetStopWatchesQueryResponse,
   UserGetStopWatchesQueryParams,
   UserGetStopWatches401,
   UserGetStopWatches403,
-} from "../types/UserGetStopWatches"
+} from '../types/UserGetStopWatches';
 
 function getUserGetStopWatchesUrl() {
-  const res = { method: "GET", url: `/user/stopwatches` as const };
+  const res = { method: 'GET', url: `/user/stopwatches` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function userGetStopWatches(
     ResponseErrorConfig<UserGetStopWatches401 | UserGetStopWatches403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserGetStopWatchesUrl().url.toString(),
     params,
     ...requestConfig,

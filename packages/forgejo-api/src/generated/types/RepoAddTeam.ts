@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
 
 export type RepoAddTeamPathParams = {
   /**

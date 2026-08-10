@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoDeleteMutationResponse,
-  RepoDelete403,
-  RepoDelete404,
-} from "../types/RepoDelete"
-import { http } from "msw";
+import type { RepoDeleteMutationResponse, RepoDelete403, RepoDelete404 } from '../types/RepoDelete';
+import { http } from 'msw';
 
-export function repoDeleteHandlerResponse204(
-  data?: RepoDeleteMutationResponse,
-) {
+export function repoDeleteHandlerResponse204(data?: RepoDeleteMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function repoDeleteHandlerResponse403(data: RepoDelete403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function repoDeleteHandlerResponse404(data: RepoDelete404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +37,10 @@ export function repoDeleteHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/repos/:owner/:repo`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

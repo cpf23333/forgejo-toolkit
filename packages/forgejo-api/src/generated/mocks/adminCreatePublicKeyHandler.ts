@@ -7,38 +7,32 @@ import type {
   AdminCreatePublicKeyMutationResponse,
   AdminCreatePublicKey403,
   AdminCreatePublicKey422,
-} from "../types/AdminCreatePublicKey"
-import { http } from "msw";
+} from '../types/AdminCreatePublicKey';
+import { http } from 'msw';
 
-export function adminCreatePublicKeyHandlerResponse201(
-  data: AdminCreatePublicKeyMutationResponse,
-) {
+export function adminCreatePublicKeyHandlerResponse201(data: AdminCreatePublicKeyMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreatePublicKeyHandlerResponse403(
-  data: AdminCreatePublicKey403,
-) {
+export function adminCreatePublicKeyHandlerResponse403(data: AdminCreatePublicKey403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreatePublicKeyHandlerResponse422(
-  data: AdminCreatePublicKey422,
-) {
+export function adminCreatePublicKeyHandlerResponse422(data: AdminCreatePublicKey422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function adminCreatePublicKeyHandlerResponse422(
 export function adminCreatePublicKeyHandler(
   data?:
     | AdminCreatePublicKeyMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/admin/users/:username/keys`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

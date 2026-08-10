@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { EditReleaseOption } from "./EditReleaseOption"
-import type { Release } from "./Release"
+import type { APINotFound } from './APINotFound';
+import type { EditReleaseOption } from './EditReleaseOption';
+import type { Release } from './Release';
 
 export type RepoEditReleasePathParams = {
   /**

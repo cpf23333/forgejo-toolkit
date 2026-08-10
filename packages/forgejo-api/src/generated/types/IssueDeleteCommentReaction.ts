@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { EditReactionOption } from "./EditReactionOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { EditReactionOption } from './EditReactionOption';
 
 export type IssueDeleteCommentReactionPathParams = {
   /**
@@ -42,8 +42,7 @@ export type IssueDeleteCommentReaction404 = APINotFound;
 
 export type IssueDeleteCommentReactionMutationRequest = EditReactionOption;
 
-export type IssueDeleteCommentReactionMutationResponse =
-  IssueDeleteCommentReaction200;
+export type IssueDeleteCommentReactionMutationResponse = IssueDeleteCommentReaction200;
 
 export type IssueDeleteCommentReactionMutation = {
   Response: IssueDeleteCommentReaction200;

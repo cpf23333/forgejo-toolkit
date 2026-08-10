@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentDeleteKeyMutationResponse,
   UserCurrentDeleteKeyPathParams,
   UserCurrentDeleteKey401,
   UserCurrentDeleteKey403,
   UserCurrentDeleteKey404,
-} from "../types/UserCurrentDeleteKey"
+} from '../types/UserCurrentDeleteKey';
 
-function getUserCurrentDeleteKeyUrl(id: UserCurrentDeleteKeyPathParams["id"]) {
-  const res = { method: "DELETE", url: `/user/keys/${id}` as const };
+function getUserCurrentDeleteKeyUrl(id: UserCurrentDeleteKeyPathParams['id']) {
+  const res = { method: 'DELETE', url: `/user/keys/${id}` as const };
   return res;
 }
 
@@ -27,21 +23,17 @@ function getUserCurrentDeleteKeyUrl(id: UserCurrentDeleteKeyPathParams["id"]) {
  * {@link /user/keys/:id}
  */
 export async function userCurrentDeleteKey(
-  id: UserCurrentDeleteKeyPathParams["id"],
+  id: UserCurrentDeleteKeyPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentDeleteKeyMutationResponse,
-    ResponseErrorConfig<
-      | UserCurrentDeleteKey401
-      | UserCurrentDeleteKey403
-      | UserCurrentDeleteKey404
-    >,
+    ResponseErrorConfig<UserCurrentDeleteKey401 | UserCurrentDeleteKey403 | UserCurrentDeleteKey404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getUserCurrentDeleteKeyUrl(id).url.toString(),
     ...requestConfig,
   });

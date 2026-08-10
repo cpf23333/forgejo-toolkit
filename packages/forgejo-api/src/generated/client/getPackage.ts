@@ -3,26 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  GetPackageQueryResponse,
-  GetPackagePathParams,
-  GetPackage404,
-} from "../types/GetPackage"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetPackageQueryResponse, GetPackagePathParams, GetPackage404 } from '../types/GetPackage';
 
 function getGetPackageUrl(
-  owner: GetPackagePathParams["owner"],
-  type: GetPackagePathParams["type"],
-  name: GetPackagePathParams["name"],
-  version: GetPackagePathParams["version"],
+  owner: GetPackagePathParams['owner'],
+  type: GetPackagePathParams['type'],
+  name: GetPackagePathParams['name'],
+  version: GetPackagePathParams['version'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/packages/${owner}/${type}/${name}/${version}` as const,
   };
   return res;
@@ -33,20 +25,16 @@ function getGetPackageUrl(
  * {@link /packages/:owner/:type/:name/:version}
  */
 export async function getPackage(
-  owner: GetPackagePathParams["owner"],
-  type: GetPackagePathParams["type"],
-  name: GetPackagePathParams["name"],
-  version: GetPackagePathParams["version"],
+  owner: GetPackagePathParams['owner'],
+  type: GetPackagePathParams['type'],
+  name: GetPackagePathParams['name'],
+  version: GetPackagePathParams['version'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetPackageQueryResponse,
-    ResponseErrorConfig<GetPackage404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetPackageQueryResponse, ResponseErrorConfig<GetPackage404>, unknown>({
+    method: 'GET',
     url: getGetPackageUrl(owner, type, name, version).url.toString(),
     ...requestConfig,
   });

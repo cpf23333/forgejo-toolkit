@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import type {
-  PinIssueMutationResponse,
-  PinIssue403,
-  PinIssue404,
-} from "../types/PinIssue"
-import { http } from "msw";
+import type { PinIssueMutationResponse, PinIssue403, PinIssue404 } from '../types/PinIssue';
+import { http } from 'msw';
 
 export function pinIssueHandlerResponse204(data?: PinIssueMutationResponse) {
   return new Response(JSON.stringify(data), {
@@ -20,7 +16,7 @@ export function pinIssueHandlerResponse403(data: PinIssue403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -29,7 +25,7 @@ export function pinIssueHandlerResponse404(data: PinIssue404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,18 +37,13 @@ export function pinIssueHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/:index/pin`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/:index/pin`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

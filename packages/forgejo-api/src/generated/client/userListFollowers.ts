@@ -3,23 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListFollowersQueryResponse,
   UserListFollowersPathParams,
   UserListFollowersQueryParams,
   UserListFollowers404,
-} from "../types/UserListFollowers"
+} from '../types/UserListFollowers';
 
-function getUserListFollowersUrl(
-  username: UserListFollowersPathParams["username"],
-) {
-  const res = { method: "GET", url: `/users/${username}/followers` as const };
+function getUserListFollowersUrl(username: UserListFollowersPathParams['username']) {
+  const res = { method: 'GET', url: `/users/${username}/followers` as const };
   return res;
 }
 
@@ -28,18 +22,14 @@ function getUserListFollowersUrl(
  * {@link /users/:username/followers}
  */
 export async function userListFollowers(
-  username: UserListFollowersPathParams["username"],
+  username: UserListFollowersPathParams['username'],
   params?: UserListFollowersQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserListFollowersQueryResponse,
-    ResponseErrorConfig<UserListFollowers404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<UserListFollowersQueryResponse, ResponseErrorConfig<UserListFollowers404>, unknown>({
+    method: 'GET',
     url: getUserListFollowersUrl(username).url.toString(),
     params,
     ...requestConfig,

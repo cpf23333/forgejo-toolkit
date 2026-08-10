@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteTeamMutationResponse,
   RepoDeleteTeamPathParams,
   RepoDeleteTeam404,
   RepoDeleteTeam405,
   RepoDeleteTeam422,
-} from "../types/RepoDeleteTeam"
+} from '../types/RepoDeleteTeam';
 
 function getRepoDeleteTeamUrl(
-  owner: RepoDeleteTeamPathParams["owner"],
-  repo: RepoDeleteTeamPathParams["repo"],
-  team: RepoDeleteTeamPathParams["team"],
+  owner: RepoDeleteTeamPathParams['owner'],
+  repo: RepoDeleteTeamPathParams['repo'],
+  team: RepoDeleteTeamPathParams['team'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/teams/${team}` as const,
   };
   return res;
@@ -34,21 +30,19 @@ function getRepoDeleteTeamUrl(
  * {@link /repos/:owner/:repo/teams/:team}
  */
 export async function repoDeleteTeam(
-  owner: RepoDeleteTeamPathParams["owner"],
-  repo: RepoDeleteTeamPathParams["repo"],
-  team: RepoDeleteTeamPathParams["team"],
+  owner: RepoDeleteTeamPathParams['owner'],
+  repo: RepoDeleteTeamPathParams['repo'],
+  team: RepoDeleteTeamPathParams['team'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     RepoDeleteTeamMutationResponse,
-    ResponseErrorConfig<
-      RepoDeleteTeam404 | RepoDeleteTeam405 | RepoDeleteTeam422
-    >,
+    ResponseErrorConfig<RepoDeleteTeam404 | RepoDeleteTeam405 | RepoDeleteTeam422>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteTeamUrl(owner, repo, team).url.toString(),
     ...requestConfig,
   });

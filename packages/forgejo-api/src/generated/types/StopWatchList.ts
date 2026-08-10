@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { StopWatch } from "./StopWatch"
+import type { StopWatch } from './StopWatch';
 
 export type StopWatchList = StopWatch[];

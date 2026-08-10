@@ -8,49 +8,41 @@ import type {
   RepoDismissPullReview403,
   RepoDismissPullReview404,
   RepoDismissPullReview422,
-} from "../types/RepoDismissPullReview"
-import { http } from "msw";
+} from '../types/RepoDismissPullReview';
+import { http } from 'msw';
 
-export function repoDismissPullReviewHandlerResponse200(
-  data: RepoDismissPullReviewMutationResponse,
-) {
+export function repoDismissPullReviewHandlerResponse200(data: RepoDismissPullReviewMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDismissPullReviewHandlerResponse403(
-  data: RepoDismissPullReview403,
-) {
+export function repoDismissPullReviewHandlerResponse403(data: RepoDismissPullReview403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDismissPullReviewHandlerResponse404(
-  data: RepoDismissPullReview404,
-) {
+export function repoDismissPullReviewHandlerResponse404(data: RepoDismissPullReview404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDismissPullReviewHandlerResponse422(
-  data: RepoDismissPullReview422,
-) {
+export function repoDismissPullReviewHandlerResponse422(data: RepoDismissPullReview422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,21 +50,16 @@ export function repoDismissPullReviewHandlerResponse422(
 export function repoDismissPullReviewHandler(
   data?:
     | RepoDismissPullReviewMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/pulls/:index/reviews/:id/dismissals`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/pulls/:index/reviews/:id/dismissals`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

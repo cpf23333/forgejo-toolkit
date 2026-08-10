@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubRepositoryQueryResponse } from "../types/ActivitypubRepository"
-import { http } from "msw";
+import type { ActivitypubRepositoryQueryResponse } from '../types/ActivitypubRepository';
+import { http } from 'msw';
 
-export function activitypubRepositoryHandlerResponse200(
-  data: ActivitypubRepositoryQueryResponse,
-) {
+export function activitypubRepositoryHandlerResponse200(data: ActivitypubRepositoryQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,21 +18,16 @@ export function activitypubRepositoryHandlerResponse200(
 export function activitypubRepositoryHandler(
   data?:
     | ActivitypubRepositoryQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/activitypub/repository-id/:repository-id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/activitypub/repository-id/:repository-id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

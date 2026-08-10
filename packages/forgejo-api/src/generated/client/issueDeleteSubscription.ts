@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteSubscriptionMutationResponse,
   IssueDeleteSubscriptionPathParams,
   IssueDeleteSubscription404,
-} from "../types/IssueDeleteSubscription"
+} from '../types/IssueDeleteSubscription';
 
 function getIssueDeleteSubscriptionUrl(
-  owner: IssueDeleteSubscriptionPathParams["owner"],
-  repo: IssueDeleteSubscriptionPathParams["repo"],
-  index: IssueDeleteSubscriptionPathParams["index"],
-  user: IssueDeleteSubscriptionPathParams["user"],
+  owner: IssueDeleteSubscriptionPathParams['owner'],
+  repo: IssueDeleteSubscriptionPathParams['repo'],
+  index: IssueDeleteSubscriptionPathParams['index'],
+  user: IssueDeleteSubscriptionPathParams['user'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/subscriptions/${user}` as const,
   };
   return res;
@@ -33,10 +29,10 @@ function getIssueDeleteSubscriptionUrl(
  * {@link /repos/:owner/:repo/issues/:index/subscriptions/:user}
  */
 export async function issueDeleteSubscription(
-  owner: IssueDeleteSubscriptionPathParams["owner"],
-  repo: IssueDeleteSubscriptionPathParams["repo"],
-  index: IssueDeleteSubscriptionPathParams["index"],
-  user: IssueDeleteSubscriptionPathParams["user"],
+  owner: IssueDeleteSubscriptionPathParams['owner'],
+  repo: IssueDeleteSubscriptionPathParams['repo'],
+  index: IssueDeleteSubscriptionPathParams['index'],
+  user: IssueDeleteSubscriptionPathParams['user'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,7 +42,7 @@ export async function issueDeleteSubscription(
     ResponseErrorConfig<IssueDeleteSubscription404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueDeleteSubscriptionUrl(owner, repo, index, user).url.toString(),
     ...requestConfig,
   });

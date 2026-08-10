@@ -7,49 +7,41 @@ import type {
   IssuePostCommentReactionMutationResponse,
   IssuePostCommentReaction403,
   IssuePostCommentReaction404,
-} from "../types/IssuePostCommentReaction"
-import { http } from "msw";
+} from '../types/IssuePostCommentReaction';
+import { http } from 'msw';
 
-export function issuePostCommentReactionHandlerResponse200(
-  data: IssuePostCommentReactionMutationResponse,
-) {
+export function issuePostCommentReactionHandlerResponse200(data: IssuePostCommentReactionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issuePostCommentReactionHandlerResponse201(
-  data: IssuePostCommentReactionMutationResponse,
-) {
+export function issuePostCommentReactionHandlerResponse201(data: IssuePostCommentReactionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issuePostCommentReactionHandlerResponse403(
-  data: IssuePostCommentReaction403,
-) {
+export function issuePostCommentReactionHandlerResponse403(data: IssuePostCommentReaction403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issuePostCommentReactionHandlerResponse404(
-  data: IssuePostCommentReaction404,
-) {
+export function issuePostCommentReactionHandlerResponse404(data: IssuePostCommentReaction404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -57,21 +49,16 @@ export function issuePostCommentReactionHandlerResponse404(
 export function issuePostCommentReactionHandler(
   data?:
     | IssuePostCommentReactionMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/comments/:id/reactions`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/comments/:id/reactions`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

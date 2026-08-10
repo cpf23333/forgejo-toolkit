@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoListGitHooksQueryResponse,
-  RepoListGitHooks404,
-} from "../types/RepoListGitHooks"
-import { http } from "msw";
+import type { RepoListGitHooksQueryResponse, RepoListGitHooks404 } from '../types/RepoListGitHooks';
+import { http } from 'msw';
 
-export function repoListGitHooksHandlerResponse200(
-  data: RepoListGitHooksQueryResponse,
-) {
+export function repoListGitHooksHandlerResponse200(data: RepoListGitHooksQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoListGitHooksHandlerResponse404(data: RepoListGitHooks404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function repoListGitHooksHandlerResponse404(data: RepoListGitHooks404) {
 export function repoListGitHooksHandler(
   data?:
     | RepoListGitHooksQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/hooks/git`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

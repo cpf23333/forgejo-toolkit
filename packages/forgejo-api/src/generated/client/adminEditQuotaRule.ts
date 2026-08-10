@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminEditQuotaRuleMutationRequest,
   AdminEditQuotaRuleMutationResponse,
@@ -17,13 +13,11 @@ import type {
   AdminEditQuotaRule403,
   AdminEditQuotaRule404,
   AdminEditQuotaRule422,
-} from "../types/AdminEditQuotaRule"
+} from '../types/AdminEditQuotaRule';
 
-function getAdminEditQuotaRuleUrl(
-  quotarule: AdminEditQuotaRulePathParams["quotarule"],
-) {
+function getAdminEditQuotaRuleUrl(quotarule: AdminEditQuotaRulePathParams['quotarule']) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/admin/quota/rules/${quotarule}` as const,
   };
   return res;
@@ -34,7 +28,7 @@ function getAdminEditQuotaRuleUrl(
  * {@link /admin/quota/rules/:quotarule}
  */
 export async function adminEditQuotaRule(
-  quotarule: AdminEditQuotaRulePathParams["quotarule"],
+  quotarule: AdminEditQuotaRulePathParams['quotarule'],
   data: AdminEditQuotaRuleMutationRequest,
   config: Partial<RequestConfig<AdminEditQuotaRuleMutationRequest>> & {
     client?: Client;
@@ -46,15 +40,10 @@ export async function adminEditQuotaRule(
 
   const res = await request<
     AdminEditQuotaRuleMutationResponse,
-    ResponseErrorConfig<
-      | AdminEditQuotaRule400
-      | AdminEditQuotaRule403
-      | AdminEditQuotaRule404
-      | AdminEditQuotaRule422
-    >,
+    ResponseErrorConfig<AdminEditQuotaRule400 | AdminEditQuotaRule403 | AdminEditQuotaRule404 | AdminEditQuotaRule422>,
     AdminEditQuotaRuleMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getAdminEditQuotaRuleUrl(quotarule).url.toString(),
     data: requestData,
     ...requestConfig,

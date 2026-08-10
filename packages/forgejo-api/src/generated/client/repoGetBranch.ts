@@ -3,25 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoGetBranchQueryResponse,
-  RepoGetBranchPathParams,
-  RepoGetBranch404,
-} from "../types/RepoGetBranch"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoGetBranchQueryResponse, RepoGetBranchPathParams, RepoGetBranch404 } from '../types/RepoGetBranch';
 
 function getRepoGetBranchUrl(
-  owner: RepoGetBranchPathParams["owner"],
-  repo: RepoGetBranchPathParams["repo"],
-  branch: RepoGetBranchPathParams["branch"],
+  owner: RepoGetBranchPathParams['owner'],
+  repo: RepoGetBranchPathParams['repo'],
+  branch: RepoGetBranchPathParams['branch'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/branches/${branch}` as const,
   };
   return res;
@@ -32,19 +24,15 @@ function getRepoGetBranchUrl(
  * {@link /repos/:owner/:repo/branches/:branch}
  */
 export async function repoGetBranch(
-  owner: RepoGetBranchPathParams["owner"],
-  repo: RepoGetBranchPathParams["repo"],
-  branch: RepoGetBranchPathParams["branch"],
+  owner: RepoGetBranchPathParams['owner'],
+  repo: RepoGetBranchPathParams['repo'],
+  branch: RepoGetBranchPathParams['branch'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetBranchQueryResponse,
-    ResponseErrorConfig<RepoGetBranch404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetBranchQueryResponse, ResponseErrorConfig<RepoGetBranch404>, unknown>({
+    method: 'GET',
     url: getRepoGetBranchUrl(owner, repo, branch).url.toString(),
     ...requestConfig,
   });

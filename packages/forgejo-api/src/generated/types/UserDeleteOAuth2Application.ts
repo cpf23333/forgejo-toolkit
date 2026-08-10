@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 export type UserDeleteOAuth2ApplicationPathParams = {
   /**
@@ -35,14 +35,10 @@ export type UserDeleteOAuth2Application403 = APIForbiddenError;
  */
 export type UserDeleteOAuth2Application404 = APINotFound;
 
-export type UserDeleteOAuth2ApplicationMutationResponse =
-  UserDeleteOAuth2Application204;
+export type UserDeleteOAuth2ApplicationMutationResponse = UserDeleteOAuth2Application204;
 
 export type UserDeleteOAuth2ApplicationMutation = {
   Response: UserDeleteOAuth2Application204;
   PathParams: UserDeleteOAuth2ApplicationPathParams;
-  Errors:
-    | UserDeleteOAuth2Application401
-    | UserDeleteOAuth2Application403
-    | UserDeleteOAuth2Application404;
+  Errors: UserDeleteOAuth2Application401 | UserDeleteOAuth2Application403 | UserDeleteOAuth2Application404;
 };

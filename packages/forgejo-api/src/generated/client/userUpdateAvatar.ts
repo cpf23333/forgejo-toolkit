@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserUpdateAvatarMutationRequest,
   UserUpdateAvatarMutationResponse,
   UserUpdateAvatar401,
   UserUpdateAvatar403,
-} from "../types/UserUpdateAvatar"
+} from '../types/UserUpdateAvatar';
 
 function getUserUpdateAvatarUrl() {
-  const res = { method: "POST", url: `/user/avatar` as const };
+  const res = { method: 'POST', url: `/user/avatar` as const };
   return res;
 }
 
@@ -40,7 +36,7 @@ export async function userUpdateAvatar(
     ResponseErrorConfig<UserUpdateAvatar401 | UserUpdateAvatar403>,
     UserUpdateAvatarMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getUserUpdateAvatarUrl().url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { CreatePullReviewComment } from "./CreatePullReviewComment"
-import type { ReviewStateType } from "./ReviewStateType"
+import type { CreatePullReviewComment } from './CreatePullReviewComment';
+import type { ReviewStateType } from './ReviewStateType';
 
 /**
  * @description CreatePullReviewOptions are options to create a pull review

@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgPublicizeMemberMutationResponse,
   OrgPublicizeMemberPathParams,
   OrgPublicizeMember403,
   OrgPublicizeMember404,
-} from "../types/OrgPublicizeMember"
+} from '../types/OrgPublicizeMember';
 
 function getOrgPublicizeMemberUrl(
-  org: OrgPublicizeMemberPathParams["org"],
-  username: OrgPublicizeMemberPathParams["username"],
+  org: OrgPublicizeMemberPathParams['org'],
+  username: OrgPublicizeMemberPathParams['username'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/orgs/${org}/public_members/${username}` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getOrgPublicizeMemberUrl(
  * {@link /orgs/:org/public_members/:username}
  */
 export async function orgPublicizeMember(
-  org: OrgPublicizeMemberPathParams["org"],
-  username: OrgPublicizeMemberPathParams["username"],
+  org: OrgPublicizeMemberPathParams['org'],
+  username: OrgPublicizeMemberPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +39,7 @@ export async function orgPublicizeMember(
     ResponseErrorConfig<OrgPublicizeMember403 | OrgPublicizeMember404>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getOrgPublicizeMemberUrl(org, username).url.toString(),
     ...requestConfig,
   });

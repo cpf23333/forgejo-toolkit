@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RenameOrgMutationRequest,
   RenameOrgMutationResponse,
   RenameOrgPathParams,
   RenameOrg403,
   RenameOrg422,
-} from "../types/RenameOrg"
+} from '../types/RenameOrg';
 
-function getRenameOrgUrl(org: RenameOrgPathParams["org"]) {
-  const res = { method: "POST", url: `/orgs/${org}/rename` as const };
+function getRenameOrgUrl(org: RenameOrgPathParams['org']) {
+  const res = { method: 'POST', url: `/orgs/${org}/rename` as const };
   return res;
 }
 
@@ -27,7 +23,7 @@ function getRenameOrgUrl(org: RenameOrgPathParams["org"]) {
  * {@link /orgs/:org/rename}
  */
 export async function renameOrg(
-  org: RenameOrgPathParams["org"],
+  org: RenameOrgPathParams['org'],
   data: RenameOrgMutationRequest,
   config: Partial<RequestConfig<RenameOrgMutationRequest>> & {
     client?: Client;
@@ -42,7 +38,7 @@ export async function renameOrg(
     ResponseErrorConfig<RenameOrg403 | RenameOrg422>,
     RenameOrgMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRenameOrgUrl(org).url.toString(),
     data: requestData,
     ...requestConfig,

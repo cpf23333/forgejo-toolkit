@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDownloadPullDiffOrPatchQueryResponse,
   RepoDownloadPullDiffOrPatchPathParams,
   RepoDownloadPullDiffOrPatchQueryParams,
   RepoDownloadPullDiffOrPatch404,
-} from "../types/RepoDownloadPullDiffOrPatch"
+} from '../types/RepoDownloadPullDiffOrPatch';
 
 function getRepoDownloadPullDiffOrPatchUrl(
-  owner: RepoDownloadPullDiffOrPatchPathParams["owner"],
-  repo: RepoDownloadPullDiffOrPatchPathParams["repo"],
-  index: RepoDownloadPullDiffOrPatchPathParams["index"],
-  diffType: RepoDownloadPullDiffOrPatchPathParams["diffType"],
+  owner: RepoDownloadPullDiffOrPatchPathParams['owner'],
+  repo: RepoDownloadPullDiffOrPatchPathParams['repo'],
+  index: RepoDownloadPullDiffOrPatchPathParams['index'],
+  diffType: RepoDownloadPullDiffOrPatchPathParams['diffType'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${index}.${diffType}` as const,
   };
   return res;
@@ -34,10 +30,10 @@ function getRepoDownloadPullDiffOrPatchUrl(
  * {@link /repos/:owner/:repo/pulls/:index.:diffType}
  */
 export async function repoDownloadPullDiffOrPatch(
-  owner: RepoDownloadPullDiffOrPatchPathParams["owner"],
-  repo: RepoDownloadPullDiffOrPatchPathParams["repo"],
-  index: RepoDownloadPullDiffOrPatchPathParams["index"],
-  diffType: RepoDownloadPullDiffOrPatchPathParams["diffType"],
+  owner: RepoDownloadPullDiffOrPatchPathParams['owner'],
+  repo: RepoDownloadPullDiffOrPatchPathParams['repo'],
+  index: RepoDownloadPullDiffOrPatchPathParams['index'],
+  diffType: RepoDownloadPullDiffOrPatchPathParams['diffType'],
   params?: RepoDownloadPullDiffOrPatchQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -48,13 +44,8 @@ export async function repoDownloadPullDiffOrPatch(
     ResponseErrorConfig<RepoDownloadPullDiffOrPatch404>,
     unknown
   >({
-    method: "GET",
-    url: getRepoDownloadPullDiffOrPatchUrl(
-      owner,
-      repo,
-      index,
-      diffType,
-    ).url.toString(),
+    method: 'GET',
+    url: getRepoDownloadPullDiffOrPatchUrl(owner, repo, index, diffType).url.toString(),
     params,
     ...requestConfig,
   });

@@ -7,38 +7,32 @@ import type {
   UserGetStopWatchesQueryResponse,
   UserGetStopWatches401,
   UserGetStopWatches403,
-} from "../types/UserGetStopWatches"
-import { http } from "msw";
+} from '../types/UserGetStopWatches';
+import { http } from 'msw';
 
-export function userGetStopWatchesHandlerResponse200(
-  data: UserGetStopWatchesQueryResponse,
-) {
+export function userGetStopWatchesHandlerResponse200(data: UserGetStopWatchesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userGetStopWatchesHandlerResponse401(
-  data: UserGetStopWatches401,
-) {
+export function userGetStopWatchesHandlerResponse401(data: UserGetStopWatches401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userGetStopWatchesHandlerResponse403(
-  data: UserGetStopWatches403,
-) {
+export function userGetStopWatchesHandlerResponse403(data: UserGetStopWatches403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function userGetStopWatchesHandlerResponse403(
 export function userGetStopWatchesHandler(
   data?:
     | UserGetStopWatchesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/stopwatches`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

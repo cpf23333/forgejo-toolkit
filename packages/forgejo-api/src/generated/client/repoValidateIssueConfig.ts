@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoValidateIssueConfigQueryResponse,
   RepoValidateIssueConfigPathParams,
   RepoValidateIssueConfig404,
-} from "../types/RepoValidateIssueConfig"
+} from '../types/RepoValidateIssueConfig';
 
 function getRepoValidateIssueConfigUrl(
-  owner: RepoValidateIssueConfigPathParams["owner"],
-  repo: RepoValidateIssueConfigPathParams["repo"],
+  owner: RepoValidateIssueConfigPathParams['owner'],
+  repo: RepoValidateIssueConfigPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issue_config/validate` as const,
   };
   return res;
@@ -31,8 +27,8 @@ function getRepoValidateIssueConfigUrl(
  * {@link /repos/:owner/:repo/issue_config/validate}
  */
 export async function repoValidateIssueConfig(
-  owner: RepoValidateIssueConfigPathParams["owner"],
-  repo: RepoValidateIssueConfigPathParams["repo"],
+  owner: RepoValidateIssueConfigPathParams['owner'],
+  repo: RepoValidateIssueConfigPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -42,7 +38,7 @@ export async function repoValidateIssueConfig(
     ResponseErrorConfig<RepoValidateIssueConfig404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoValidateIssueConfigUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

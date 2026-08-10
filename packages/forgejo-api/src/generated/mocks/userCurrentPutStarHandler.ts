@@ -8,46 +8,38 @@ import type {
   UserCurrentPutStar401,
   UserCurrentPutStar403,
   UserCurrentPutStar404,
-} from "../types/UserCurrentPutStar"
-import { http } from "msw";
+} from '../types/UserCurrentPutStar';
+import { http } from 'msw';
 
-export function userCurrentPutStarHandlerResponse204(
-  data?: UserCurrentPutStarMutationResponse,
-) {
+export function userCurrentPutStarHandlerResponse204(data?: UserCurrentPutStarMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentPutStarHandlerResponse401(
-  data: UserCurrentPutStar401,
-) {
+export function userCurrentPutStarHandlerResponse401(data: UserCurrentPutStar401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentPutStarHandlerResponse403(
-  data: UserCurrentPutStar403,
-) {
+export function userCurrentPutStarHandlerResponse403(data: UserCurrentPutStar403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentPutStarHandlerResponse404(
-  data: UserCurrentPutStar404,
-) {
+export function userCurrentPutStarHandlerResponse404(data: UserCurrentPutStar404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function userCurrentPutStarHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/user/starred/:owner/:repo`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

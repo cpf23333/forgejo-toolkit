@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { GitTreeResponse } from "./GitTreeResponse"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { GitTreeResponse } from './GitTreeResponse';
 
 export type GetTreePathParams = {
   /**

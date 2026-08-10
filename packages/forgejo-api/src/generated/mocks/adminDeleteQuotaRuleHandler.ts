@@ -8,46 +8,38 @@ import type {
   AdminDeleteQuotaRule400,
   AdminDeleteQuotaRule403,
   AdminDeleteQuotaRule404,
-} from "../types/AdminDeleteQuotaRule"
-import { http } from "msw";
+} from '../types/AdminDeleteQuotaRule';
+import { http } from 'msw';
 
-export function adminDeleteQuotaRuleHandlerResponse204(
-  data?: AdminDeleteQuotaRuleMutationResponse,
-) {
+export function adminDeleteQuotaRuleHandlerResponse204(data?: AdminDeleteQuotaRuleMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteQuotaRuleHandlerResponse400(
-  data: AdminDeleteQuotaRule400,
-) {
+export function adminDeleteQuotaRuleHandlerResponse400(data: AdminDeleteQuotaRule400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminDeleteQuotaRuleHandlerResponse403(
-  data: AdminDeleteQuotaRule403,
-) {
+export function adminDeleteQuotaRuleHandlerResponse403(data: AdminDeleteQuotaRule403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminDeleteQuotaRuleHandlerResponse404(
-  data: AdminDeleteQuotaRule404,
-) {
+export function adminDeleteQuotaRuleHandlerResponse404(data: AdminDeleteQuotaRule404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function adminDeleteQuotaRuleHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/admin/quota/rules/:quotarule`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

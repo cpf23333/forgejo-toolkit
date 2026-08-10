@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  GetSSHSigningKeyQueryResponse,
-  GetSSHSigningKey404,
-} from "../types/GetSSHSigningKey"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetSSHSigningKeyQueryResponse, GetSSHSigningKey404 } from '../types/GetSSHSigningKey';
 
 function getGetSSHSigningKeyUrl() {
-  const res = { method: "GET", url: `/signing-key.ssh` as const };
+  const res = { method: 'GET', url: `/signing-key.ssh` as const };
   return res;
 }
 
@@ -23,17 +16,11 @@ function getGetSSHSigningKeyUrl() {
  * @summary Get default signing-key.ssh
  * {@link /signing-key.ssh}
  */
-export async function getSSHSigningKey(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getSSHSigningKey(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetSSHSigningKeyQueryResponse,
-    ResponseErrorConfig<GetSSHSigningKey404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetSSHSigningKeyQueryResponse, ResponseErrorConfig<GetSSHSigningKey404>, unknown>({
+    method: 'GET',
     url: getGetSSHSigningKeyUrl().url.toString(),
     ...requestConfig,
   });

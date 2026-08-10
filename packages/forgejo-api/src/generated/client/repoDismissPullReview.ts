@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDismissPullReviewMutationRequest,
   RepoDismissPullReviewMutationResponse,
@@ -16,16 +12,16 @@ import type {
   RepoDismissPullReview403,
   RepoDismissPullReview404,
   RepoDismissPullReview422,
-} from "../types/RepoDismissPullReview"
+} from '../types/RepoDismissPullReview';
 
 function getRepoDismissPullReviewUrl(
-  owner: RepoDismissPullReviewPathParams["owner"],
-  repo: RepoDismissPullReviewPathParams["repo"],
-  index: RepoDismissPullReviewPathParams["index"],
-  id: RepoDismissPullReviewPathParams["id"],
+  owner: RepoDismissPullReviewPathParams['owner'],
+  repo: RepoDismissPullReviewPathParams['repo'],
+  index: RepoDismissPullReviewPathParams['index'],
+  id: RepoDismissPullReviewPathParams['id'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}/dismissals` as const,
   };
   return res;
@@ -36,10 +32,10 @@ function getRepoDismissPullReviewUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id/dismissals}
  */
 export async function repoDismissPullReview(
-  owner: RepoDismissPullReviewPathParams["owner"],
-  repo: RepoDismissPullReviewPathParams["repo"],
-  index: RepoDismissPullReviewPathParams["index"],
-  id: RepoDismissPullReviewPathParams["id"],
+  owner: RepoDismissPullReviewPathParams['owner'],
+  repo: RepoDismissPullReviewPathParams['repo'],
+  index: RepoDismissPullReviewPathParams['index'],
+  id: RepoDismissPullReviewPathParams['id'],
   data: RepoDismissPullReviewMutationRequest,
   config: Partial<RequestConfig<RepoDismissPullReviewMutationRequest>> & {
     client?: Client;
@@ -51,14 +47,10 @@ export async function repoDismissPullReview(
 
   const res = await request<
     RepoDismissPullReviewMutationResponse,
-    ResponseErrorConfig<
-      | RepoDismissPullReview403
-      | RepoDismissPullReview404
-      | RepoDismissPullReview422
-    >,
+    ResponseErrorConfig<RepoDismissPullReview403 | RepoDismissPullReview404 | RepoDismissPullReview422>,
     RepoDismissPullReviewMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoDismissPullReviewUrl(owner, repo, index, id).url.toString(),
     data: requestData,
     ...requestConfig,

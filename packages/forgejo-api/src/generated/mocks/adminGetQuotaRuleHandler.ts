@@ -8,49 +8,41 @@ import type {
   AdminGetQuotaRule400,
   AdminGetQuotaRule403,
   AdminGetQuotaRule404,
-} from "../types/AdminGetQuotaRule"
-import { http } from "msw";
+} from '../types/AdminGetQuotaRule';
+import { http } from 'msw';
 
-export function adminGetQuotaRuleHandlerResponse200(
-  data: AdminGetQuotaRuleQueryResponse,
-) {
+export function adminGetQuotaRuleHandlerResponse200(data: AdminGetQuotaRuleQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminGetQuotaRuleHandlerResponse400(
-  data: AdminGetQuotaRule400,
-) {
+export function adminGetQuotaRuleHandlerResponse400(data: AdminGetQuotaRule400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminGetQuotaRuleHandlerResponse403(
-  data: AdminGetQuotaRule403,
-) {
+export function adminGetQuotaRuleHandlerResponse403(data: AdminGetQuotaRule403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminGetQuotaRuleHandlerResponse404(
-  data: AdminGetQuotaRule404,
-) {
+export function adminGetQuotaRuleHandlerResponse404(data: AdminGetQuotaRule404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function adminGetQuotaRuleHandlerResponse404(
 export function adminGetQuotaRuleHandler(
   data?:
     | AdminGetQuotaRuleQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/quota/rules/:quotarule`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

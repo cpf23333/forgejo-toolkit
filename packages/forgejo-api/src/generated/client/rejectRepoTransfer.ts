@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RejectRepoTransferMutationResponse,
   RejectRepoTransferPathParams,
   RejectRepoTransfer403,
   RejectRepoTransfer404,
-} from "../types/RejectRepoTransfer"
+} from '../types/RejectRepoTransfer';
 
 function getRejectRepoTransferUrl(
-  owner: RejectRepoTransferPathParams["owner"],
-  repo: RejectRepoTransferPathParams["repo"],
+  owner: RejectRepoTransferPathParams['owner'],
+  repo: RejectRepoTransferPathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/transfer/reject` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getRejectRepoTransferUrl(
  * {@link /repos/:owner/:repo/transfer/reject}
  */
 export async function rejectRepoTransfer(
-  owner: RejectRepoTransferPathParams["owner"],
-  repo: RejectRepoTransferPathParams["repo"],
+  owner: RejectRepoTransferPathParams['owner'],
+  repo: RejectRepoTransferPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +39,7 @@ export async function rejectRepoTransfer(
     ResponseErrorConfig<RejectRepoTransfer403 | RejectRepoTransfer404>,
     unknown
   >({
-    method: "POST",
+    method: 'POST',
     url: getRejectRepoTransferUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

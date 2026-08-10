@@ -8,46 +8,38 @@ import type {
   UserCurrentDeleteStar401,
   UserCurrentDeleteStar403,
   UserCurrentDeleteStar404,
-} from "../types/UserCurrentDeleteStar"
-import { http } from "msw";
+} from '../types/UserCurrentDeleteStar';
+import { http } from 'msw';
 
-export function userCurrentDeleteStarHandlerResponse204(
-  data?: UserCurrentDeleteStarMutationResponse,
-) {
+export function userCurrentDeleteStarHandlerResponse204(data?: UserCurrentDeleteStarMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentDeleteStarHandlerResponse401(
-  data: UserCurrentDeleteStar401,
-) {
+export function userCurrentDeleteStarHandlerResponse401(data: UserCurrentDeleteStar401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentDeleteStarHandlerResponse403(
-  data: UserCurrentDeleteStar403,
-) {
+export function userCurrentDeleteStarHandlerResponse403(data: UserCurrentDeleteStar403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentDeleteStarHandlerResponse404(
-  data: UserCurrentDeleteStar404,
-) {
+export function userCurrentDeleteStarHandlerResponse404(data: UserCurrentDeleteStar404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function userCurrentDeleteStarHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/user/starred/:owner/:repo`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

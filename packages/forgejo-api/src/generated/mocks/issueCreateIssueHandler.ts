@@ -10,16 +10,14 @@ import type {
   IssueCreateIssue412,
   IssueCreateIssue422,
   IssueCreateIssue423,
-} from "../types/IssueCreateIssue"
-import { http } from "msw";
+} from '../types/IssueCreateIssue';
+import { http } from 'msw';
 
-export function issueCreateIssueHandlerResponse201(
-  data: IssueCreateIssueMutationResponse,
-) {
+export function issueCreateIssueHandlerResponse201(data: IssueCreateIssueMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -28,7 +26,7 @@ export function issueCreateIssueHandlerResponse403(data: IssueCreateIssue403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -37,7 +35,7 @@ export function issueCreateIssueHandlerResponse404(data: IssueCreateIssue404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,7 +44,7 @@ export function issueCreateIssueHandlerResponse412(data: IssueCreateIssue412) {
   return new Response(JSON.stringify(data), {
     status: 412,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -55,7 +53,7 @@ export function issueCreateIssueHandlerResponse422(data: IssueCreateIssue422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -64,7 +62,7 @@ export function issueCreateIssueHandlerResponse423(data: IssueCreateIssue423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -72,17 +70,15 @@ export function issueCreateIssueHandlerResponse423(data: IssueCreateIssue423) {
 export function issueCreateIssueHandler(
   data?:
     | IssueCreateIssueMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/issues`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

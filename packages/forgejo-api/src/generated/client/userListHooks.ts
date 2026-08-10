@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListHooksQueryResponse,
   UserListHooksQueryParams,
   UserListHooks401,
   UserListHooks403,
-} from "../types/UserListHooks"
+} from '../types/UserListHooks';
 
 function getUserListHooksUrl() {
-  const res = { method: "GET", url: `/user/hooks` as const };
+  const res = { method: 'GET', url: `/user/hooks` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function userListHooks(
     ResponseErrorConfig<UserListHooks401 | UserListHooks403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserListHooksUrl().url.toString(),
     params,
     ...requestConfig,

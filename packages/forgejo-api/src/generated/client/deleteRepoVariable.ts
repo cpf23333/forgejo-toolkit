@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteRepoVariableMutationResponse,
   DeleteRepoVariablePathParams,
   DeleteRepoVariable400,
   DeleteRepoVariable404,
-} from "../types/DeleteRepoVariable"
+} from '../types/DeleteRepoVariable';
 
 function getDeleteRepoVariableUrl(
-  owner: DeleteRepoVariablePathParams["owner"],
-  repo: DeleteRepoVariablePathParams["repo"],
-  variablename: DeleteRepoVariablePathParams["variablename"],
+  owner: DeleteRepoVariablePathParams['owner'],
+  repo: DeleteRepoVariablePathParams['repo'],
+  variablename: DeleteRepoVariablePathParams['variablename'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/actions/variables/${variablename}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getDeleteRepoVariableUrl(
  * {@link /repos/:owner/:repo/actions/variables/:variablename}
  */
 export async function deleteRepoVariable(
-  owner: DeleteRepoVariablePathParams["owner"],
-  repo: DeleteRepoVariablePathParams["repo"],
-  variablename: DeleteRepoVariablePathParams["variablename"],
+  owner: DeleteRepoVariablePathParams['owner'],
+  repo: DeleteRepoVariablePathParams['repo'],
+  variablename: DeleteRepoVariablePathParams['variablename'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function deleteRepoVariable(
     ResponseErrorConfig<DeleteRepoVariable400 | DeleteRepoVariable404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteRepoVariableUrl(owner, repo, variablename).url.toString(),
     ...requestConfig,
   });

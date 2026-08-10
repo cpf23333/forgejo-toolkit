@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueCreateIssueMutationRequest,
   IssueCreateIssueMutationResponse,
@@ -18,14 +14,11 @@ import type {
   IssueCreateIssue412,
   IssueCreateIssue422,
   IssueCreateIssue423,
-} from "../types/IssueCreateIssue"
+} from '../types/IssueCreateIssue';
 
-function getIssueCreateIssueUrl(
-  owner: IssueCreateIssuePathParams["owner"],
-  repo: IssueCreateIssuePathParams["repo"],
-) {
+function getIssueCreateIssueUrl(owner: IssueCreateIssuePathParams['owner'], repo: IssueCreateIssuePathParams['repo']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues` as const,
   };
   return res;
@@ -36,8 +29,8 @@ function getIssueCreateIssueUrl(
  * {@link /repos/:owner/:repo/issues}
  */
 export async function issueCreateIssue(
-  owner: IssueCreateIssuePathParams["owner"],
-  repo: IssueCreateIssuePathParams["repo"],
+  owner: IssueCreateIssuePathParams['owner'],
+  repo: IssueCreateIssuePathParams['repo'],
   data: IssueCreateIssueMutationRequest,
   config: Partial<RequestConfig<IssueCreateIssueMutationRequest>> & {
     client?: Client;
@@ -50,15 +43,11 @@ export async function issueCreateIssue(
   const res = await request<
     IssueCreateIssueMutationResponse,
     ResponseErrorConfig<
-      | IssueCreateIssue403
-      | IssueCreateIssue404
-      | IssueCreateIssue412
-      | IssueCreateIssue422
-      | IssueCreateIssue423
+      IssueCreateIssue403 | IssueCreateIssue404 | IssueCreateIssue412 | IssueCreateIssue422 | IssueCreateIssue423
     >,
     IssueCreateIssueMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueCreateIssueUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

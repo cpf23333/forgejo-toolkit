@@ -4,18 +4,18 @@
  */
 
 export const createRepoOptionObjectFormatNameEnum = {
-  sha1: "sha1",
-  sha256: "sha256",
+  sha1: 'sha1',
+  sha256: 'sha256',
 } as const;
 
 export type CreateRepoOptionObjectFormatNameEnumKey =
   (typeof createRepoOptionObjectFormatNameEnum)[keyof typeof createRepoOptionObjectFormatNameEnum];
 
 export const createRepoOptionTrustModelEnum = {
-  default: "default",
-  collaborator: "collaborator",
-  committer: "committer",
-  collaboratorcommitter: "collaboratorcommitter",
+  default: 'default',
+  collaborator: 'collaborator',
+  committer: 'committer',
+  collaboratorcommitter: 'collaboratorcommitter',
 } as const;
 
 export type CreateRepoOptionTrustModelEnumKey =

@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { Repository } from "./Repository"
+import type { Repository } from './Repository';
 
 /**
  * @description PRBranchInfo information about a branch

@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { DeployKey } from "./DeployKey"
+import type { DeployKey } from './DeployKey';
 
 export type DeployKeyList = DeployKey[];

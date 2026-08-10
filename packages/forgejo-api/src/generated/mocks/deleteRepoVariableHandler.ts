@@ -7,35 +7,29 @@ import type {
   DeleteRepoVariableMutationResponse,
   DeleteRepoVariable400,
   DeleteRepoVariable404,
-} from "../types/DeleteRepoVariable"
-import { http } from "msw";
+} from '../types/DeleteRepoVariable';
+import { http } from 'msw';
 
-export function deleteRepoVariableHandlerResponse204(
-  data?: DeleteRepoVariableMutationResponse,
-) {
+export function deleteRepoVariableHandlerResponse204(data?: DeleteRepoVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteRepoVariableHandlerResponse400(
-  data: DeleteRepoVariable400,
-) {
+export function deleteRepoVariableHandlerResponse400(data: DeleteRepoVariable400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function deleteRepoVariableHandlerResponse404(
-  data: DeleteRepoVariable404,
-) {
+export function deleteRepoVariableHandlerResponse404(data: DeleteRepoVariable404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function deleteRepoVariableHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/actions/variables/:variablename`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/actions/variables/:variablename`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

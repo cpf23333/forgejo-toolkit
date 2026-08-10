@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueGetIssueQueryResponse,
-  IssueGetIssue404,
-} from "../types/IssueGetIssue"
-import { http } from "msw";
+import type { IssueGetIssueQueryResponse, IssueGetIssue404 } from '../types/IssueGetIssue';
+import { http } from 'msw';
 
-export function issueGetIssueHandlerResponse200(
-  data: IssueGetIssueQueryResponse,
-) {
+export function issueGetIssueHandlerResponse200(data: IssueGetIssueQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function issueGetIssueHandlerResponse404(data: IssueGetIssue404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function issueGetIssueHandlerResponse404(data: IssueGetIssue404) {
 export function issueGetIssueHandler(
   data?:
     | IssueGetIssueQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issues/:index`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

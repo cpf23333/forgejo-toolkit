@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoDeleteTopicMutationResponse,
-  RepoDeleteTopic404,
-  RepoDeleteTopic422,
-} from "../types/RepoDeleteTopic"
-import { http } from "msw";
+import type { RepoDeleteTopicMutationResponse, RepoDeleteTopic404, RepoDeleteTopic422 } from '../types/RepoDeleteTopic';
+import { http } from 'msw';
 
-export function repoDeleteTopicHandlerResponse204(
-  data?: RepoDeleteTopicMutationResponse,
-) {
+export function repoDeleteTopicHandlerResponse204(data?: RepoDeleteTopicMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function repoDeleteTopicHandlerResponse404(data: RepoDeleteTopic404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function repoDeleteTopicHandlerResponse422(data: RepoDeleteTopic422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +37,13 @@ export function repoDeleteTopicHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/topics/:topic`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/topics/:topic`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

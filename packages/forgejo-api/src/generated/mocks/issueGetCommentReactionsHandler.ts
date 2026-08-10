@@ -7,38 +7,32 @@ import type {
   IssueGetCommentReactionsQueryResponse,
   IssueGetCommentReactions403,
   IssueGetCommentReactions404,
-} from "../types/IssueGetCommentReactions"
-import { http } from "msw";
+} from '../types/IssueGetCommentReactions';
+import { http } from 'msw';
 
-export function issueGetCommentReactionsHandlerResponse200(
-  data: IssueGetCommentReactionsQueryResponse,
-) {
+export function issueGetCommentReactionsHandlerResponse200(data: IssueGetCommentReactionsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueGetCommentReactionsHandlerResponse403(
-  data: IssueGetCommentReactions403,
-) {
+export function issueGetCommentReactionsHandlerResponse403(data: IssueGetCommentReactions403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueGetCommentReactionsHandlerResponse404(
-  data: IssueGetCommentReactions404,
-) {
+export function issueGetCommentReactionsHandlerResponse404(data: IssueGetCommentReactions404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function issueGetCommentReactionsHandlerResponse404(
 export function issueGetCommentReactionsHandler(
   data?:
     | IssueGetCommentReactionsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/issues/comments/:id/reactions`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/issues/comments/:id/reactions`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

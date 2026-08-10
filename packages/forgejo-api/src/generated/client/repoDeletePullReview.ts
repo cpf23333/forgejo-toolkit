@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeletePullReviewMutationResponse,
   RepoDeletePullReviewPathParams,
   RepoDeletePullReview403,
   RepoDeletePullReview404,
-} from "../types/RepoDeletePullReview"
+} from '../types/RepoDeletePullReview';
 
 function getRepoDeletePullReviewUrl(
-  owner: RepoDeletePullReviewPathParams["owner"],
-  repo: RepoDeletePullReviewPathParams["repo"],
-  index: RepoDeletePullReviewPathParams["index"],
-  id: RepoDeletePullReviewPathParams["id"],
+  owner: RepoDeletePullReviewPathParams['owner'],
+  repo: RepoDeletePullReviewPathParams['repo'],
+  index: RepoDeletePullReviewPathParams['index'],
+  id: RepoDeletePullReviewPathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}` as const,
   };
   return res;
@@ -34,10 +30,10 @@ function getRepoDeletePullReviewUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id}
  */
 export async function repoDeletePullReview(
-  owner: RepoDeletePullReviewPathParams["owner"],
-  repo: RepoDeletePullReviewPathParams["repo"],
-  index: RepoDeletePullReviewPathParams["index"],
-  id: RepoDeletePullReviewPathParams["id"],
+  owner: RepoDeletePullReviewPathParams['owner'],
+  repo: RepoDeletePullReviewPathParams['repo'],
+  index: RepoDeletePullReviewPathParams['index'],
+  id: RepoDeletePullReviewPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -47,7 +43,7 @@ export async function repoDeletePullReview(
     ResponseErrorConfig<RepoDeletePullReview403 | RepoDeletePullReview404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeletePullReviewUrl(owner, repo, index, id).url.toString(),
     ...requestConfig,
   });

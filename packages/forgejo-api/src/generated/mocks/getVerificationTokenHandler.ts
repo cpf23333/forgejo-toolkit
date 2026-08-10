@@ -8,49 +8,41 @@ import type {
   GetVerificationToken401,
   GetVerificationToken403,
   GetVerificationToken404,
-} from "../types/GetVerificationToken"
-import { http } from "msw";
+} from '../types/GetVerificationToken';
+import { http } from 'msw';
 
-export function getVerificationTokenHandlerResponse200(
-  data: GetVerificationTokenQueryResponse,
-) {
+export function getVerificationTokenHandlerResponse200(data: GetVerificationTokenQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getVerificationTokenHandlerResponse401(
-  data: GetVerificationToken401,
-) {
+export function getVerificationTokenHandlerResponse401(data: GetVerificationToken401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getVerificationTokenHandlerResponse403(
-  data: GetVerificationToken403,
-) {
+export function getVerificationTokenHandlerResponse403(data: GetVerificationToken403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getVerificationTokenHandlerResponse404(
-  data: GetVerificationToken404,
-) {
+export function getVerificationTokenHandlerResponse404(data: GetVerificationToken404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function getVerificationTokenHandlerResponse404(
 export function getVerificationTokenHandler(
   data?:
     | GetVerificationTokenQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/gpg_key_token`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

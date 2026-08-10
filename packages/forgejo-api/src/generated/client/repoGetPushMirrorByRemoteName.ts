@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetPushMirrorByRemoteNameQueryResponse,
   RepoGetPushMirrorByRemoteNamePathParams,
   RepoGetPushMirrorByRemoteName400,
   RepoGetPushMirrorByRemoteName403,
   RepoGetPushMirrorByRemoteName404,
-} from "../types/RepoGetPushMirrorByRemoteName"
+} from '../types/RepoGetPushMirrorByRemoteName';
 
 function getRepoGetPushMirrorByRemoteNameUrl(
-  owner: RepoGetPushMirrorByRemoteNamePathParams["owner"],
-  repo: RepoGetPushMirrorByRemoteNamePathParams["repo"],
-  name: RepoGetPushMirrorByRemoteNamePathParams["name"],
+  owner: RepoGetPushMirrorByRemoteNamePathParams['owner'],
+  repo: RepoGetPushMirrorByRemoteNamePathParams['repo'],
+  name: RepoGetPushMirrorByRemoteNamePathParams['name'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/push_mirrors/${name}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoGetPushMirrorByRemoteNameUrl(
  * {@link /repos/:owner/:repo/push_mirrors/:name}
  */
 export async function repoGetPushMirrorByRemoteName(
-  owner: RepoGetPushMirrorByRemoteNamePathParams["owner"],
-  repo: RepoGetPushMirrorByRemoteNamePathParams["repo"],
-  name: RepoGetPushMirrorByRemoteNamePathParams["name"],
+  owner: RepoGetPushMirrorByRemoteNamePathParams['owner'],
+  repo: RepoGetPushMirrorByRemoteNamePathParams['repo'],
+  name: RepoGetPushMirrorByRemoteNamePathParams['name'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,13 +40,11 @@ export async function repoGetPushMirrorByRemoteName(
   const res = await request<
     RepoGetPushMirrorByRemoteNameQueryResponse,
     ResponseErrorConfig<
-      | RepoGetPushMirrorByRemoteName400
-      | RepoGetPushMirrorByRemoteName403
-      | RepoGetPushMirrorByRemoteName404
+      RepoGetPushMirrorByRemoteName400 | RepoGetPushMirrorByRemoteName403 | RepoGetPushMirrorByRemoteName404
     >,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetPushMirrorByRemoteNameUrl(owner, repo, name).url.toString(),
     ...requestConfig,
   });

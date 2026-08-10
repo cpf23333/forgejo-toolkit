@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { RepoCollaboratorPermission } from "./RepoCollaboratorPermission"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { RepoCollaboratorPermission } from './RepoCollaboratorPermission';
 
 export type RepoGetRepoPermissionsPathParams = {
   /**

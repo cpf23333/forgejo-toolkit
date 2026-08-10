@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueEditLabelMutationRequest,
   IssueEditLabelMutationResponse,
   IssueEditLabelPathParams,
   IssueEditLabel404,
   IssueEditLabel422,
-} from "../types/IssueEditLabel"
+} from '../types/IssueEditLabel';
 
 function getIssueEditLabelUrl(
-  owner: IssueEditLabelPathParams["owner"],
-  repo: IssueEditLabelPathParams["repo"],
-  id: IssueEditLabelPathParams["id"],
+  owner: IssueEditLabelPathParams['owner'],
+  repo: IssueEditLabelPathParams['repo'],
+  id: IssueEditLabelPathParams['id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/labels/${id}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssueEditLabelUrl(
  * {@link /repos/:owner/:repo/labels/:id}
  */
 export async function issueEditLabel(
-  owner: IssueEditLabelPathParams["owner"],
-  repo: IssueEditLabelPathParams["repo"],
-  id: IssueEditLabelPathParams["id"],
+  owner: IssueEditLabelPathParams['owner'],
+  repo: IssueEditLabelPathParams['repo'],
+  id: IssueEditLabelPathParams['id'],
   data?: IssueEditLabelMutationRequest,
   config: Partial<RequestConfig<IssueEditLabelMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function issueEditLabel(
     ResponseErrorConfig<IssueEditLabel404 | IssueEditLabel422>,
     IssueEditLabelMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getIssueEditLabelUrl(owner, repo, id).url.toString(),
     data: requestData,
     ...requestConfig,

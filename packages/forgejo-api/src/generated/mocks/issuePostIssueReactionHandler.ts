@@ -7,49 +7,41 @@ import type {
   IssuePostIssueReactionMutationResponse,
   IssuePostIssueReaction403,
   IssuePostIssueReaction404,
-} from "../types/IssuePostIssueReaction"
-import { http } from "msw";
+} from '../types/IssuePostIssueReaction';
+import { http } from 'msw';
 
-export function issuePostIssueReactionHandlerResponse200(
-  data: IssuePostIssueReactionMutationResponse,
-) {
+export function issuePostIssueReactionHandlerResponse200(data: IssuePostIssueReactionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issuePostIssueReactionHandlerResponse201(
-  data: IssuePostIssueReactionMutationResponse,
-) {
+export function issuePostIssueReactionHandlerResponse201(data: IssuePostIssueReactionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issuePostIssueReactionHandlerResponse403(
-  data: IssuePostIssueReaction403,
-) {
+export function issuePostIssueReactionHandlerResponse403(data: IssuePostIssueReaction403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issuePostIssueReactionHandlerResponse404(
-  data: IssuePostIssueReaction404,
-) {
+export function issuePostIssueReactionHandlerResponse404(data: IssuePostIssueReaction404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -57,21 +49,16 @@ export function issuePostIssueReactionHandlerResponse404(
 export function issuePostIssueReactionHandler(
   data?:
     | IssuePostIssueReactionMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/:index/reactions`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/:index/reactions`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

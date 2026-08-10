@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIInvalidTopicsError } from "./APIInvalidTopicsError"
-import type { APINotFound } from "./APINotFound"
+import type { APIInvalidTopicsError } from './APIInvalidTopicsError';
+import type { APINotFound } from './APINotFound';
 
 export type RepoDeleteTopicPathParams = {
   /**

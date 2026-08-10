@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  UserListHooksQueryResponse,
-  UserListHooks401,
-  UserListHooks403,
-} from "../types/UserListHooks"
-import { http } from "msw";
+import type { UserListHooksQueryResponse, UserListHooks401, UserListHooks403 } from '../types/UserListHooks';
+import { http } from 'msw';
 
-export function userListHooksHandlerResponse200(
-  data: UserListHooksQueryResponse,
-) {
+export function userListHooksHandlerResponse200(data: UserListHooksQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function userListHooksHandlerResponse401(data: UserListHooks401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function userListHooksHandlerResponse403(data: UserListHooks403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function userListHooksHandlerResponse403(data: UserListHooks403) {
 export function userListHooksHandler(
   data?:
     | UserListHooksQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/hooks`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

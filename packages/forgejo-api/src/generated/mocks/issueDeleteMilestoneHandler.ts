@@ -3,27 +3,20 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueDeleteMilestoneMutationResponse,
-  IssueDeleteMilestone404,
-} from "../types/IssueDeleteMilestone"
-import { http } from "msw";
+import type { IssueDeleteMilestoneMutationResponse, IssueDeleteMilestone404 } from '../types/IssueDeleteMilestone';
+import { http } from 'msw';
 
-export function issueDeleteMilestoneHandlerResponse204(
-  data?: IssueDeleteMilestoneMutationResponse,
-) {
+export function issueDeleteMilestoneHandlerResponse204(data?: IssueDeleteMilestoneMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteMilestoneHandlerResponse404(
-  data: IssueDeleteMilestone404,
-) {
+export function issueDeleteMilestoneHandlerResponse404(data: IssueDeleteMilestone404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,18 +28,13 @@ export function issueDeleteMilestoneHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/milestones/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/milestones/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

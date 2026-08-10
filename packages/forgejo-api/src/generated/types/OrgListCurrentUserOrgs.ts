@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { Organization } from "./Organization"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { Organization } from './Organization';
 
 export type OrgListCurrentUserOrgsQueryParams = {
   /**
@@ -46,8 +46,5 @@ export type OrgListCurrentUserOrgsQueryResponse = OrgListCurrentUserOrgs200;
 export type OrgListCurrentUserOrgsQuery = {
   Response: OrgListCurrentUserOrgs200;
   QueryParams: OrgListCurrentUserOrgsQueryParams;
-  Errors:
-    | OrgListCurrentUserOrgs401
-    | OrgListCurrentUserOrgs403
-    | OrgListCurrentUserOrgs404;
+  Errors: OrgListCurrentUserOrgs401 | OrgListCurrentUserOrgs403 | OrgListCurrentUserOrgs404;
 };

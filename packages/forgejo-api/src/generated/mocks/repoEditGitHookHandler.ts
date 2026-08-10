@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoEditGitHookMutationResponse,
-  RepoEditGitHook404,
-} from "../types/RepoEditGitHook"
-import { http } from "msw";
+import type { RepoEditGitHookMutationResponse, RepoEditGitHook404 } from '../types/RepoEditGitHook';
+import { http } from 'msw';
 
-export function repoEditGitHookHandlerResponse200(
-  data: RepoEditGitHookMutationResponse,
-) {
+export function repoEditGitHookHandlerResponse200(data: RepoEditGitHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoEditGitHookHandlerResponse404(data: RepoEditGitHook404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,21 +27,16 @@ export function repoEditGitHookHandlerResponse404(data: RepoEditGitHook404) {
 export function repoEditGitHookHandler(
   data?:
     | RepoEditGitHookMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/hooks/git/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/hooks/git/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -10,16 +10,14 @@ import type {
   AdminCreateRepo404,
   AdminCreateRepo409,
   AdminCreateRepo422,
-} from "../types/AdminCreateRepo"
-import { http } from "msw";
+} from '../types/AdminCreateRepo';
+import { http } from 'msw';
 
-export function adminCreateRepoHandlerResponse201(
-  data: AdminCreateRepoMutationResponse,
-) {
+export function adminCreateRepoHandlerResponse201(data: AdminCreateRepoMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -28,7 +26,7 @@ export function adminCreateRepoHandlerResponse400(data: AdminCreateRepo400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -37,7 +35,7 @@ export function adminCreateRepoHandlerResponse403(data: AdminCreateRepo403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,7 +44,7 @@ export function adminCreateRepoHandlerResponse404(data: AdminCreateRepo404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -55,7 +53,7 @@ export function adminCreateRepoHandlerResponse409(data: AdminCreateRepo409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -64,7 +62,7 @@ export function adminCreateRepoHandlerResponse422(data: AdminCreateRepo422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -72,17 +70,15 @@ export function adminCreateRepoHandlerResponse422(data: AdminCreateRepo422) {
 export function adminCreateRepoHandler(
   data?:
     | AdminCreateRepoMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/admin/users/:username/repos`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

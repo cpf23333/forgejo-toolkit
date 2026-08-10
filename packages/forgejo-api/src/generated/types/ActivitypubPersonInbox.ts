@@ -8,7 +8,7 @@ export type ActivitypubPersonInboxPathParams = {
    * @description user ID of the user
    * @type integer, int64
    */
-  "user-id": number;
+  'user-id': number;
 };
 
 /**

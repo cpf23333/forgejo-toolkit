@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgEditMutationRequest,
   OrgEditMutationResponse,
   OrgEditPathParams,
   OrgEdit404,
   OrgEdit422,
-} from "../types/OrgEdit"
+} from '../types/OrgEdit';
 
-function getOrgEditUrl(org: OrgEditPathParams["org"]) {
-  const res = { method: "PATCH", url: `/orgs/${org}` as const };
+function getOrgEditUrl(org: OrgEditPathParams['org']) {
+  const res = { method: 'PATCH', url: `/orgs/${org}` as const };
   return res;
 }
 
@@ -27,7 +23,7 @@ function getOrgEditUrl(org: OrgEditPathParams["org"]) {
  * {@link /orgs/:org}
  */
 export async function orgEdit(
-  org: OrgEditPathParams["org"],
+  org: OrgEditPathParams['org'],
   data: OrgEditMutationRequest,
   config: Partial<RequestConfig<OrgEditMutationRequest>> & {
     client?: Client;
@@ -42,7 +38,7 @@ export async function orgEdit(
     ResponseErrorConfig<OrgEdit404 | OrgEdit422>,
     OrgEditMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getOrgEditUrl(org).url.toString(),
     data: requestData,
     ...requestConfig,

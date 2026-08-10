@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { ActionVariable } from "./ActionVariable"
+import type { ActionVariable } from './ActionVariable';
 
 export type VariableList = ActionVariable[];

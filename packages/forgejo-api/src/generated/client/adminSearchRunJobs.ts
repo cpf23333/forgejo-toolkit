@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminSearchRunJobsQueryResponse,
   AdminSearchRunJobsQueryParams,
   AdminSearchRunJobs403,
-} from "../types/AdminSearchRunJobs"
+} from '../types/AdminSearchRunJobs';
 
 function getAdminSearchRunJobsUrl() {
-  const res = { method: "GET", url: `/admin/runners/jobs` as const };
+  const res = { method: 'GET', url: `/admin/runners/jobs` as const };
   return res;
 }
 
@@ -32,12 +28,8 @@ export async function adminSearchRunJobs(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminSearchRunJobsQueryResponse,
-    ResponseErrorConfig<AdminSearchRunJobs403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminSearchRunJobsQueryResponse, ResponseErrorConfig<AdminSearchRunJobs403>, unknown>({
+    method: 'GET',
     url: getAdminSearchRunJobsUrl().url.toString(),
     params,
     ...requestConfig,

@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { NodeInfoUsageUsers } from "./NodeInfoUsageUsers"
+import type { NodeInfoUsageUsers } from './NodeInfoUsageUsers';
 
 /**
  * @description NodeInfoUsage contains usage statistics for this server

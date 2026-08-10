@@ -7,34 +7,28 @@ import type {
   RepoEditReleaseAttachmentMutationResponse,
   RepoEditReleaseAttachment404,
   RepoEditReleaseAttachment413,
-} from "../types/RepoEditReleaseAttachment"
-import { http } from "msw";
+} from '../types/RepoEditReleaseAttachment';
+import { http } from 'msw';
 
-export function repoEditReleaseAttachmentHandlerResponse201(
-  data: RepoEditReleaseAttachmentMutationResponse,
-) {
+export function repoEditReleaseAttachmentHandlerResponse201(data: RepoEditReleaseAttachmentMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoEditReleaseAttachmentHandlerResponse404(
-  data: RepoEditReleaseAttachment404,
-) {
+export function repoEditReleaseAttachmentHandlerResponse404(data: RepoEditReleaseAttachment404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoEditReleaseAttachmentHandlerResponse413(
-  data?: RepoEditReleaseAttachment413,
-) {
+export function repoEditReleaseAttachmentHandlerResponse413(data?: RepoEditReleaseAttachment413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
@@ -43,21 +37,16 @@ export function repoEditReleaseAttachmentHandlerResponse413(
 export function repoEditReleaseAttachmentHandler(
   data?:
     | RepoEditReleaseAttachmentMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/releases/:id/assets/:attachment_id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/releases/:id/assets/:attachment_id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

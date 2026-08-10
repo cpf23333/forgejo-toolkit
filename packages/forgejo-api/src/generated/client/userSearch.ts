@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  UserSearchQueryResponse,
-  UserSearchQueryParams,
-} from "../types/UserSearch"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { UserSearchQueryResponse, UserSearchQueryParams } from '../types/UserSearch';
 
 function getUserSearchUrl() {
-  const res = { method: "GET", url: `/users/search` as const };
+  const res = { method: 'GET', url: `/users/search` as const };
   return res;
 }
 
@@ -29,12 +22,8 @@ export async function userSearch(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserSearchQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<UserSearchQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getUserSearchUrl().url.toString(),
     params,
     ...requestConfig,

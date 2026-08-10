@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { Attachment } from "./Attachment"
+import type { APIError } from './APIError';
+import type { Attachment } from './Attachment';
 
 export type IssueGetIssueAttachmentPathParams = {
   /**

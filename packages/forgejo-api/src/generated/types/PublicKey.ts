@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { User } from "./User"
+import type { User } from './User';
 
 /**
  * @description PublicKey publickey is a user key to push code to repository

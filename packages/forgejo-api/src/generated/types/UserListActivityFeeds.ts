@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Activity } from "./Activity"
+import type { APINotFound } from './APINotFound';
+import type { Activity } from './Activity';
 
 export type UserListActivityFeedsPathParams = {
   /**
@@ -19,7 +19,7 @@ export type UserListActivityFeedsQueryParams = {
    * @description if true, only show actions performed by the requested user
    * @type boolean | undefined
    */
-  "only-performed-by"?: boolean;
+  'only-performed-by'?: boolean;
   /**
    * @description the date of the activities to be found
    * @type string | undefined, date

@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  ListPackagesQueryResponse,
-  ListPackages404,
-} from "../types/ListPackages"
-import { http } from "msw";
+import type { ListPackagesQueryResponse, ListPackages404 } from '../types/ListPackages';
+import { http } from 'msw';
 
-export function listPackagesHandlerResponse200(
-  data: ListPackagesQueryResponse,
-) {
+export function listPackagesHandlerResponse200(data: ListPackagesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function listPackagesHandlerResponse404(data: ListPackages404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function listPackagesHandlerResponse404(data: ListPackages404) {
 export function listPackagesHandler(
   data?:
     | ListPackagesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/packages/:owner`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

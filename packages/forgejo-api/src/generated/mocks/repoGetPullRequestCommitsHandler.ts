@@ -6,27 +6,23 @@
 import type {
   RepoGetPullRequestCommitsQueryResponse,
   RepoGetPullRequestCommits404,
-} from "../types/RepoGetPullRequestCommits"
-import { http } from "msw";
+} from '../types/RepoGetPullRequestCommits';
+import { http } from 'msw';
 
-export function repoGetPullRequestCommitsHandlerResponse200(
-  data: RepoGetPullRequestCommitsQueryResponse,
-) {
+export function repoGetPullRequestCommitsHandlerResponse200(data: RepoGetPullRequestCommitsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetPullRequestCommitsHandlerResponse404(
-  data: RepoGetPullRequestCommits404,
-) {
+export function repoGetPullRequestCommitsHandlerResponse404(data: RepoGetPullRequestCommits404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function repoGetPullRequestCommitsHandlerResponse404(
 export function repoGetPullRequestCommitsHandler(
   data?:
     | RepoGetPullRequestCommitsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/pulls/:index/commits`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/pulls/:index/commits`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

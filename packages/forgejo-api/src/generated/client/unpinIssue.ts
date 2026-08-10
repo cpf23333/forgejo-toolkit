@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UnpinIssueMutationResponse,
   UnpinIssuePathParams,
   UnpinIssue403,
   UnpinIssue404,
-} from "../types/UnpinIssue"
+} from '../types/UnpinIssue';
 
 function getUnpinIssueUrl(
-  owner: UnpinIssuePathParams["owner"],
-  repo: UnpinIssuePathParams["repo"],
-  index: UnpinIssuePathParams["index"],
+  owner: UnpinIssuePathParams['owner'],
+  repo: UnpinIssuePathParams['repo'],
+  index: UnpinIssuePathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/pin` as const,
   };
   return res;
@@ -33,19 +29,15 @@ function getUnpinIssueUrl(
  * {@link /repos/:owner/:repo/issues/:index/pin}
  */
 export async function unpinIssue(
-  owner: UnpinIssuePathParams["owner"],
-  repo: UnpinIssuePathParams["repo"],
-  index: UnpinIssuePathParams["index"],
+  owner: UnpinIssuePathParams['owner'],
+  repo: UnpinIssuePathParams['repo'],
+  index: UnpinIssuePathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UnpinIssueMutationResponse,
-    ResponseErrorConfig<UnpinIssue403 | UnpinIssue404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<UnpinIssueMutationResponse, ResponseErrorConfig<UnpinIssue403 | UnpinIssue404>, unknown>({
+    method: 'DELETE',
     url: getUnpinIssueUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

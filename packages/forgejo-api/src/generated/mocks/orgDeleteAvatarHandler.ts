@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgDeleteAvatarMutationResponse,
-  OrgDeleteAvatar404,
-} from "../types/OrgDeleteAvatar"
-import { http } from "msw";
+import type { OrgDeleteAvatarMutationResponse, OrgDeleteAvatar404 } from '../types/OrgDeleteAvatar';
+import { http } from 'msw';
 
-export function orgDeleteAvatarHandlerResponse204(
-  data?: OrgDeleteAvatarMutationResponse,
-) {
+export function orgDeleteAvatarHandlerResponse204(data?: OrgDeleteAvatarMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,7 +16,7 @@ export function orgDeleteAvatarHandlerResponse404(data: OrgDeleteAvatar404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,12 +28,10 @@ export function orgDeleteAvatarHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/orgs/:org/avatar`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

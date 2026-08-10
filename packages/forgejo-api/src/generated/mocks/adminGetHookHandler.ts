@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { AdminGetHookQueryResponse } from "../types/AdminGetHook"
-import { http } from "msw";
+import type { AdminGetHookQueryResponse } from '../types/AdminGetHook';
+import { http } from 'msw';
 
-export function adminGetHookHandlerResponse200(
-  data: AdminGetHookQueryResponse,
-) {
+export function adminGetHookHandlerResponse200(data: AdminGetHookQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function adminGetHookHandlerResponse200(
 export function adminGetHookHandler(
   data?:
     | AdminGetHookQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/hooks/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

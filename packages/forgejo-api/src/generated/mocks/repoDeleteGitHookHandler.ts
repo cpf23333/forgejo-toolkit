@@ -3,27 +3,20 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoDeleteGitHookMutationResponse,
-  RepoDeleteGitHook404,
-} from "../types/RepoDeleteGitHook"
-import { http } from "msw";
+import type { RepoDeleteGitHookMutationResponse, RepoDeleteGitHook404 } from '../types/RepoDeleteGitHook';
+import { http } from 'msw';
 
-export function repoDeleteGitHookHandlerResponse204(
-  data?: RepoDeleteGitHookMutationResponse,
-) {
+export function repoDeleteGitHookHandlerResponse204(data?: RepoDeleteGitHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteGitHookHandlerResponse404(
-  data: RepoDeleteGitHook404,
-) {
+export function repoDeleteGitHookHandlerResponse404(data: RepoDeleteGitHook404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,18 +28,13 @@ export function repoDeleteGitHookHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/hooks/git/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/hooks/git/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

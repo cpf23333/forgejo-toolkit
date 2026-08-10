@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgEditTeamMutationResponse,
-  OrgEditTeam404,
-} from "../types/OrgEditTeam"
-import { http } from "msw";
+import type { OrgEditTeamMutationResponse, OrgEditTeam404 } from '../types/OrgEditTeam';
+import { http } from 'msw';
 
-export function orgEditTeamHandlerResponse200(
-  data: OrgEditTeamMutationResponse,
-) {
+export function orgEditTeamHandlerResponse200(data: OrgEditTeamMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function orgEditTeamHandlerResponse404(data: OrgEditTeam404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function orgEditTeamHandlerResponse404(data: OrgEditTeam404) {
 export function orgEditTeamHandler(
   data?:
     | OrgEditTeamMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/teams/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

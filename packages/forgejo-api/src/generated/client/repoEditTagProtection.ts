@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoEditTagProtectionMutationRequest,
   RepoEditTagProtectionMutationResponse,
@@ -16,15 +12,15 @@ import type {
   RepoEditTagProtection404,
   RepoEditTagProtection422,
   RepoEditTagProtection423,
-} from "../types/RepoEditTagProtection"
+} from '../types/RepoEditTagProtection';
 
 function getRepoEditTagProtectionUrl(
-  owner: RepoEditTagProtectionPathParams["owner"],
-  repo: RepoEditTagProtectionPathParams["repo"],
-  id: RepoEditTagProtectionPathParams["id"],
+  owner: RepoEditTagProtectionPathParams['owner'],
+  repo: RepoEditTagProtectionPathParams['repo'],
+  id: RepoEditTagProtectionPathParams['id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/tag_protections/${id}` as const,
   };
   return res;
@@ -35,9 +31,9 @@ function getRepoEditTagProtectionUrl(
  * {@link /repos/:owner/:repo/tag_protections/:id}
  */
 export async function repoEditTagProtection(
-  owner: RepoEditTagProtectionPathParams["owner"],
-  repo: RepoEditTagProtectionPathParams["repo"],
-  id: RepoEditTagProtectionPathParams["id"],
+  owner: RepoEditTagProtectionPathParams['owner'],
+  repo: RepoEditTagProtectionPathParams['repo'],
+  id: RepoEditTagProtectionPathParams['id'],
   data?: RepoEditTagProtectionMutationRequest,
   config: Partial<RequestConfig<RepoEditTagProtectionMutationRequest>> & {
     client?: Client;
@@ -49,14 +45,10 @@ export async function repoEditTagProtection(
 
   const res = await request<
     RepoEditTagProtectionMutationResponse,
-    ResponseErrorConfig<
-      | RepoEditTagProtection404
-      | RepoEditTagProtection422
-      | RepoEditTagProtection423
-    >,
+    ResponseErrorConfig<RepoEditTagProtection404 | RepoEditTagProtection422 | RepoEditTagProtection423>,
     RepoEditTagProtectionMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getRepoEditTagProtectionUrl(owner, repo, id).url.toString(),
     data: requestData,
     ...requestConfig,

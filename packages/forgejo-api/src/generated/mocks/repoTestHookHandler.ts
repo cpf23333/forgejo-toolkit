@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoTestHookMutationResponse,
-  RepoTestHook404,
-} from "../types/RepoTestHook"
-import { http } from "msw";
+import type { RepoTestHookMutationResponse, RepoTestHook404 } from '../types/RepoTestHook';
+import { http } from 'msw';
 
-export function repoTestHookHandlerResponse204(
-  data?: RepoTestHookMutationResponse,
-) {
+export function repoTestHookHandlerResponse204(data?: RepoTestHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,7 +16,7 @@ export function repoTestHookHandlerResponse404(data: RepoTestHook404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,18 +28,13 @@ export function repoTestHookHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/hooks/:id/tests`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/hooks/:id/tests`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

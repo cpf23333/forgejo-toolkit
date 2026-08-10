@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { Issue } from "./Issue"
-import type { IssueMeta } from "./IssueMeta"
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { Issue } from './Issue';
+import type { IssueMeta } from './IssueMeta';
 
 export type IssueCreateIssueDependenciesPathParams = {
   /**
@@ -42,8 +42,7 @@ export type IssueCreateIssueDependencies423 = APIRepoArchivedError;
 
 export type IssueCreateIssueDependenciesMutationRequest = IssueMeta;
 
-export type IssueCreateIssueDependenciesMutationResponse =
-  IssueCreateIssueDependencies201;
+export type IssueCreateIssueDependenciesMutationResponse = IssueCreateIssueDependencies201;
 
 export type IssueCreateIssueDependenciesMutation = {
   Response: IssueCreateIssueDependencies201;

@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoEditMutationResponse,
-  RepoEdit403,
-  RepoEdit404,
-  RepoEdit422,
-} from "../types/RepoEdit"
-import { http } from "msw";
+import type { RepoEditMutationResponse, RepoEdit403, RepoEdit404, RepoEdit422 } from '../types/RepoEdit';
+import { http } from 'msw';
 
 export function repoEditHandlerResponse200(data: RepoEditMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoEditHandlerResponse403(data: RepoEdit403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,7 +28,7 @@ export function repoEditHandlerResponse404(data: RepoEdit404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,7 +37,7 @@ export function repoEditHandlerResponse422(data: RepoEdit422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -50,17 +45,15 @@ export function repoEditHandlerResponse422(data: RepoEdit422) {
 export function repoEditHandler(
   data?:
     | RepoEditMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/repos/:owner/:repo`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

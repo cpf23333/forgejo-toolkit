@@ -6,8 +6,8 @@
 import type {
   IssueListIssueCommentAttachmentsQueryResponse,
   IssueListIssueCommentAttachments404,
-} from "../types/IssueListIssueCommentAttachments"
-import { http } from "msw";
+} from '../types/IssueListIssueCommentAttachments';
+import { http } from 'msw';
 
 export function issueListIssueCommentAttachmentsHandlerResponse200(
   data: IssueListIssueCommentAttachmentsQueryResponse,
@@ -15,18 +15,16 @@ export function issueListIssueCommentAttachmentsHandlerResponse200(
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueListIssueCommentAttachmentsHandlerResponse404(
-  data: IssueListIssueCommentAttachments404,
-) {
+export function issueListIssueCommentAttachmentsHandlerResponse404(data: IssueListIssueCommentAttachments404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +32,16 @@ export function issueListIssueCommentAttachmentsHandlerResponse404(
 export function issueListIssueCommentAttachmentsHandler(
   data?:
     | IssueListIssueCommentAttachmentsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/issues/comments/:id/assets`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/issues/comments/:id/assets`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

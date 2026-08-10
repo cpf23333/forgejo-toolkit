@@ -3,23 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetRunnerRegistrationTokenQueryResponse,
   RepoGetRunnerRegistrationTokenPathParams,
-} from "../types/RepoGetRunnerRegistrationToken"
+} from '../types/RepoGetRunnerRegistrationToken';
 
 function getRepoGetRunnerRegistrationTokenUrl(
-  owner: RepoGetRunnerRegistrationTokenPathParams["owner"],
-  repo: RepoGetRunnerRegistrationTokenPathParams["repo"],
+  owner: RepoGetRunnerRegistrationTokenPathParams['owner'],
+  repo: RepoGetRunnerRegistrationTokenPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/actions/runners/registration-token` as const,
   };
   return res;
@@ -32,18 +28,14 @@ function getRepoGetRunnerRegistrationTokenUrl(
  * @deprecated
  */
 export async function repoGetRunnerRegistrationToken(
-  owner: RepoGetRunnerRegistrationTokenPathParams["owner"],
-  repo: RepoGetRunnerRegistrationTokenPathParams["repo"],
+  owner: RepoGetRunnerRegistrationTokenPathParams['owner'],
+  repo: RepoGetRunnerRegistrationTokenPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetRunnerRegistrationTokenQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetRunnerRegistrationTokenQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getRepoGetRunnerRegistrationTokenUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

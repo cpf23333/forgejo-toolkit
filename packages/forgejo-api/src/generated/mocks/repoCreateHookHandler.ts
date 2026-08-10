@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoCreateHookMutationResponse,
-  RepoCreateHook404,
-} from "../types/RepoCreateHook"
-import { http } from "msw";
+import type { RepoCreateHookMutationResponse, RepoCreateHook404 } from '../types/RepoCreateHook';
+import { http } from 'msw';
 
-export function repoCreateHookHandlerResponse201(
-  data: RepoCreateHookMutationResponse,
-) {
+export function repoCreateHookHandlerResponse201(data: RepoCreateHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoCreateHookHandlerResponse404(data: RepoCreateHook404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function repoCreateHookHandlerResponse404(data: RepoCreateHook404) {
 export function repoCreateHookHandler(
   data?:
     | RepoCreateHookMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/hooks`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { MergePullRequestOption } from "./MergePullRequestOption"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { MergePullRequestOption } from './MergePullRequestOption';
 
 export type RepoMergePullRequestPathParams = {
   /**

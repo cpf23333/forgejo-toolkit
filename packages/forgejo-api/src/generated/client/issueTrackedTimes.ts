@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueTrackedTimesQueryResponse,
   IssueTrackedTimesPathParams,
@@ -16,15 +12,15 @@ import type {
   IssueTrackedTimes403,
   IssueTrackedTimes404,
   IssueTrackedTimes422,
-} from "../types/IssueTrackedTimes"
+} from '../types/IssueTrackedTimes';
 
 function getIssueTrackedTimesUrl(
-  owner: IssueTrackedTimesPathParams["owner"],
-  repo: IssueTrackedTimesPathParams["repo"],
-  index: IssueTrackedTimesPathParams["index"],
+  owner: IssueTrackedTimesPathParams['owner'],
+  repo: IssueTrackedTimesPathParams['repo'],
+  index: IssueTrackedTimesPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/times` as const,
   };
   return res;
@@ -35,9 +31,9 @@ function getIssueTrackedTimesUrl(
  * {@link /repos/:owner/:repo/issues/:index/times}
  */
 export async function issueTrackedTimes(
-  owner: IssueTrackedTimesPathParams["owner"],
-  repo: IssueTrackedTimesPathParams["repo"],
-  index: IssueTrackedTimesPathParams["index"],
+  owner: IssueTrackedTimesPathParams['owner'],
+  repo: IssueTrackedTimesPathParams['repo'],
+  index: IssueTrackedTimesPathParams['index'],
   params?: IssueTrackedTimesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -45,12 +41,10 @@ export async function issueTrackedTimes(
 
   const res = await request<
     IssueTrackedTimesQueryResponse,
-    ResponseErrorConfig<
-      IssueTrackedTimes403 | IssueTrackedTimes404 | IssueTrackedTimes422
-    >,
+    ResponseErrorConfig<IssueTrackedTimes403 | IssueTrackedTimes404 | IssueTrackedTimes422>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueTrackedTimesUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

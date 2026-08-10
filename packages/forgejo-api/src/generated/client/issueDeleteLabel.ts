@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteLabelMutationResponse,
   IssueDeleteLabelPathParams,
   IssueDeleteLabel404,
-} from "../types/IssueDeleteLabel"
+} from '../types/IssueDeleteLabel';
 
 function getIssueDeleteLabelUrl(
-  owner: IssueDeleteLabelPathParams["owner"],
-  repo: IssueDeleteLabelPathParams["repo"],
-  id: IssueDeleteLabelPathParams["id"],
+  owner: IssueDeleteLabelPathParams['owner'],
+  repo: IssueDeleteLabelPathParams['repo'],
+  id: IssueDeleteLabelPathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/labels/${id}` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getIssueDeleteLabelUrl(
  * {@link /repos/:owner/:repo/labels/:id}
  */
 export async function issueDeleteLabel(
-  owner: IssueDeleteLabelPathParams["owner"],
-  repo: IssueDeleteLabelPathParams["repo"],
-  id: IssueDeleteLabelPathParams["id"],
+  owner: IssueDeleteLabelPathParams['owner'],
+  repo: IssueDeleteLabelPathParams['repo'],
+  id: IssueDeleteLabelPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    IssueDeleteLabelMutationResponse,
-    ResponseErrorConfig<IssueDeleteLabel404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<IssueDeleteLabelMutationResponse, ResponseErrorConfig<IssueDeleteLabel404>, unknown>({
+    method: 'DELETE',
     url: getIssueDeleteLabelUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

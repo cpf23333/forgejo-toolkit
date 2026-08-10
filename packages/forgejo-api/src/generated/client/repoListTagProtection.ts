@@ -3,23 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListTagProtectionQueryResponse,
   RepoListTagProtectionPathParams,
-} from "../types/RepoListTagProtection"
+} from '../types/RepoListTagProtection';
 
 function getRepoListTagProtectionUrl(
-  owner: RepoListTagProtectionPathParams["owner"],
-  repo: RepoListTagProtectionPathParams["repo"],
+  owner: RepoListTagProtectionPathParams['owner'],
+  repo: RepoListTagProtectionPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/tag_protections` as const,
   };
   return res;
@@ -30,18 +26,14 @@ function getRepoListTagProtectionUrl(
  * {@link /repos/:owner/:repo/tag_protections}
  */
 export async function repoListTagProtection(
-  owner: RepoListTagProtectionPathParams["owner"],
-  repo: RepoListTagProtectionPathParams["repo"],
+  owner: RepoListTagProtectionPathParams['owner'],
+  repo: RepoListTagProtectionPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListTagProtectionQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListTagProtectionQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getRepoListTagProtectionUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

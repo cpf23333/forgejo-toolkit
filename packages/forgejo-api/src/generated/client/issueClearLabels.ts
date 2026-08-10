@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueClearLabelsMutationRequest,
   IssueClearLabelsMutationResponse,
   IssueClearLabelsPathParams,
   IssueClearLabels403,
   IssueClearLabels404,
-} from "../types/IssueClearLabels"
+} from '../types/IssueClearLabels';
 
 function getIssueClearLabelsUrl(
-  owner: IssueClearLabelsPathParams["owner"],
-  repo: IssueClearLabelsPathParams["repo"],
-  index: IssueClearLabelsPathParams["index"],
+  owner: IssueClearLabelsPathParams['owner'],
+  repo: IssueClearLabelsPathParams['repo'],
+  index: IssueClearLabelsPathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/labels` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssueClearLabelsUrl(
  * {@link /repos/:owner/:repo/issues/:index/labels}
  */
 export async function issueClearLabels(
-  owner: IssueClearLabelsPathParams["owner"],
-  repo: IssueClearLabelsPathParams["repo"],
-  index: IssueClearLabelsPathParams["index"],
+  owner: IssueClearLabelsPathParams['owner'],
+  repo: IssueClearLabelsPathParams['repo'],
+  index: IssueClearLabelsPathParams['index'],
   data?: IssueClearLabelsMutationRequest,
   config: Partial<RequestConfig<IssueClearLabelsMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function issueClearLabels(
     ResponseErrorConfig<IssueClearLabels403 | IssueClearLabels404>,
     IssueClearLabelsMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueClearLabelsUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

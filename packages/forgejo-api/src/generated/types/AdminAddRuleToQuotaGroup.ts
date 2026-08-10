@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
 
 export type AdminAddRuleToQuotaGroupPathParams = {
   /**
@@ -51,8 +51,7 @@ export type AdminAddRuleToQuotaGroup409 = APIError;
  */
 export type AdminAddRuleToQuotaGroup422 = APIValidationError;
 
-export type AdminAddRuleToQuotaGroupMutationResponse =
-  AdminAddRuleToQuotaGroup204;
+export type AdminAddRuleToQuotaGroupMutationResponse = AdminAddRuleToQuotaGroup204;
 
 export type AdminAddRuleToQuotaGroupMutation = {
   Response: AdminAddRuleToQuotaGroup204;

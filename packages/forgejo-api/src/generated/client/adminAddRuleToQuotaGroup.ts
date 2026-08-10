@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminAddRuleToQuotaGroupMutationResponse,
   AdminAddRuleToQuotaGroupPathParams,
@@ -17,14 +13,14 @@ import type {
   AdminAddRuleToQuotaGroup404,
   AdminAddRuleToQuotaGroup409,
   AdminAddRuleToQuotaGroup422,
-} from "../types/AdminAddRuleToQuotaGroup"
+} from '../types/AdminAddRuleToQuotaGroup';
 
 function getAdminAddRuleToQuotaGroupUrl(
-  quotagroup: AdminAddRuleToQuotaGroupPathParams["quotagroup"],
-  quotarule: AdminAddRuleToQuotaGroupPathParams["quotarule"],
+  quotagroup: AdminAddRuleToQuotaGroupPathParams['quotagroup'],
+  quotarule: AdminAddRuleToQuotaGroupPathParams['quotarule'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/admin/quota/groups/${quotagroup}/rules/${quotarule}` as const,
   };
   return res;
@@ -35,8 +31,8 @@ function getAdminAddRuleToQuotaGroupUrl(
  * {@link /admin/quota/groups/:quotagroup/rules/:quotarule}
  */
 export async function adminAddRuleToQuotaGroup(
-  quotagroup: AdminAddRuleToQuotaGroupPathParams["quotagroup"],
-  quotarule: AdminAddRuleToQuotaGroupPathParams["quotarule"],
+  quotagroup: AdminAddRuleToQuotaGroupPathParams['quotagroup'],
+  quotarule: AdminAddRuleToQuotaGroupPathParams['quotarule'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -52,7 +48,7 @@ export async function adminAddRuleToQuotaGroup(
     >,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getAdminAddRuleToQuotaGroupUrl(quotagroup, quotarule).url.toString(),
     ...requestConfig,
   });

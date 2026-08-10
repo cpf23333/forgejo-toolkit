@@ -3,25 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoGetArchiveQueryResponse,
-  RepoGetArchivePathParams,
-  RepoGetArchive404,
-} from "../types/RepoGetArchive"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoGetArchiveQueryResponse, RepoGetArchivePathParams, RepoGetArchive404 } from '../types/RepoGetArchive';
 
 function getRepoGetArchiveUrl(
-  owner: RepoGetArchivePathParams["owner"],
-  repo: RepoGetArchivePathParams["repo"],
-  archive: RepoGetArchivePathParams["archive"],
+  owner: RepoGetArchivePathParams['owner'],
+  repo: RepoGetArchivePathParams['repo'],
+  archive: RepoGetArchivePathParams['archive'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/archive/${archive}` as const,
   };
   return res;
@@ -32,19 +24,15 @@ function getRepoGetArchiveUrl(
  * {@link /repos/:owner/:repo/archive/:archive}
  */
 export async function repoGetArchive(
-  owner: RepoGetArchivePathParams["owner"],
-  repo: RepoGetArchivePathParams["repo"],
-  archive: RepoGetArchivePathParams["archive"],
+  owner: RepoGetArchivePathParams['owner'],
+  repo: RepoGetArchivePathParams['repo'],
+  archive: RepoGetArchivePathParams['archive'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetArchiveQueryResponse,
-    ResponseErrorConfig<RepoGetArchive404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetArchiveQueryResponse, ResponseErrorConfig<RepoGetArchive404>, unknown>({
+    method: 'GET',
     url: getRepoGetArchiveUrl(owner, repo, archive).url.toString(),
     ...requestConfig,
   });

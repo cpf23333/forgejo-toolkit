@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { Label } from "./Label"
-import type { Milestone } from "./Milestone"
-import type { PRBranchInfo } from "./PRBranchInfo"
-import type { StateType } from "./StateType"
-import type { Team } from "./Team"
-import type { User } from "./User"
+import type { Label } from './Label';
+import type { Milestone } from './Milestone';
+import type { PRBranchInfo } from './PRBranchInfo';
+import type { StateType } from './StateType';
+import type { Team } from './Team';
+import type { User } from './User';
 
 /**
  * @description PullRequest represents a pull request

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Attachment } from "./Attachment"
-import type { EditAttachmentOptions } from "./EditAttachmentOptions"
+import type { APINotFound } from './APINotFound';
+import type { Attachment } from './Attachment';
+import type { EditAttachmentOptions } from './EditAttachmentOptions';
 
 export type RepoEditReleaseAttachmentPathParams = {
   /**
@@ -47,8 +47,7 @@ export type RepoEditReleaseAttachment413 = any;
 
 export type RepoEditReleaseAttachmentMutationRequest = EditAttachmentOptions;
 
-export type RepoEditReleaseAttachmentMutationResponse =
-  RepoEditReleaseAttachment201;
+export type RepoEditReleaseAttachmentMutationResponse = RepoEditReleaseAttachment201;
 
 export type RepoEditReleaseAttachmentMutation = {
   Response: RepoEditReleaseAttachment201;

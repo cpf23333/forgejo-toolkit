@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { PackageFile } from "./PackageFile"
+import type { APINotFound } from './APINotFound';
+import type { PackageFile } from './PackageFile';
 
 export type ListPackageFilesPathParams = {
   /**

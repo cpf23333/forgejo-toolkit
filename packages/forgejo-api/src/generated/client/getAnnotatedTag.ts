@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetAnnotatedTagQueryResponse,
   GetAnnotatedTagPathParams,
   GetAnnotatedTag400,
   GetAnnotatedTag404,
-} from "../types/GetAnnotatedTag"
+} from '../types/GetAnnotatedTag';
 
 function getGetAnnotatedTagUrl(
-  owner: GetAnnotatedTagPathParams["owner"],
-  repo: GetAnnotatedTagPathParams["repo"],
-  sha: GetAnnotatedTagPathParams["sha"],
+  owner: GetAnnotatedTagPathParams['owner'],
+  repo: GetAnnotatedTagPathParams['repo'],
+  sha: GetAnnotatedTagPathParams['sha'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/git/tags/${sha}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getGetAnnotatedTagUrl(
  * {@link /repos/:owner/:repo/git/tags/:sha}
  */
 export async function getAnnotatedTag(
-  owner: GetAnnotatedTagPathParams["owner"],
-  repo: GetAnnotatedTagPathParams["repo"],
-  sha: GetAnnotatedTagPathParams["sha"],
+  owner: GetAnnotatedTagPathParams['owner'],
+  repo: GetAnnotatedTagPathParams['repo'],
+  sha: GetAnnotatedTagPathParams['sha'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function getAnnotatedTag(
     ResponseErrorConfig<GetAnnotatedTag400 | GetAnnotatedTag404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetAnnotatedTagUrl(owner, repo, sha).url.toString(),
     ...requestConfig,
   });

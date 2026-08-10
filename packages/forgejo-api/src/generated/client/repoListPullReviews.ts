@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListPullReviewsQueryResponse,
   RepoListPullReviewsPathParams,
   RepoListPullReviewsQueryParams,
   RepoListPullReviews404,
-} from "../types/RepoListPullReviews"
+} from '../types/RepoListPullReviews';
 
 function getRepoListPullReviewsUrl(
-  owner: RepoListPullReviewsPathParams["owner"],
-  repo: RepoListPullReviewsPathParams["repo"],
-  index: RepoListPullReviewsPathParams["index"],
+  owner: RepoListPullReviewsPathParams['owner'],
+  repo: RepoListPullReviewsPathParams['repo'],
+  index: RepoListPullReviewsPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getRepoListPullReviewsUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews}
  */
 export async function repoListPullReviews(
-  owner: RepoListPullReviewsPathParams["owner"],
-  repo: RepoListPullReviewsPathParams["repo"],
-  index: RepoListPullReviewsPathParams["index"],
+  owner: RepoListPullReviewsPathParams['owner'],
+  repo: RepoListPullReviewsPathParams['repo'],
+  index: RepoListPullReviewsPathParams['index'],
   params?: RepoListPullReviewsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListPullReviewsQueryResponse,
-    ResponseErrorConfig<RepoListPullReviews404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListPullReviewsQueryResponse, ResponseErrorConfig<RepoListPullReviews404>, unknown>({
+    method: 'GET',
     url: getRepoListPullReviewsUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentGetGPGKeyQueryResponse,
   UserCurrentGetGPGKeyPathParams,
   UserCurrentGetGPGKey401,
   UserCurrentGetGPGKey403,
   UserCurrentGetGPGKey404,
-} from "../types/UserCurrentGetGPGKey"
+} from '../types/UserCurrentGetGPGKey';
 
-function getUserCurrentGetGPGKeyUrl(id: UserCurrentGetGPGKeyPathParams["id"]) {
-  const res = { method: "GET", url: `/user/gpg_keys/${id}` as const };
+function getUserCurrentGetGPGKeyUrl(id: UserCurrentGetGPGKeyPathParams['id']) {
+  const res = { method: 'GET', url: `/user/gpg_keys/${id}` as const };
   return res;
 }
 
@@ -27,21 +23,17 @@ function getUserCurrentGetGPGKeyUrl(id: UserCurrentGetGPGKeyPathParams["id"]) {
  * {@link /user/gpg_keys/:id}
  */
 export async function userCurrentGetGPGKey(
-  id: UserCurrentGetGPGKeyPathParams["id"],
+  id: UserCurrentGetGPGKeyPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentGetGPGKeyQueryResponse,
-    ResponseErrorConfig<
-      | UserCurrentGetGPGKey401
-      | UserCurrentGetGPGKey403
-      | UserCurrentGetGPGKey404
-    >,
+    ResponseErrorConfig<UserCurrentGetGPGKey401 | UserCurrentGetGPGKey403 | UserCurrentGetGPGKey404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentGetGPGKeyUrl(id).url.toString(),
     ...requestConfig,
   });

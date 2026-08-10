@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UpdateUserVariableMutationRequest,
   UpdateUserVariableMutationResponse,
@@ -17,13 +13,11 @@ import type {
   UpdateUserVariable401,
   UpdateUserVariable403,
   UpdateUserVariable404,
-} from "../types/UpdateUserVariable"
+} from '../types/UpdateUserVariable';
 
-function getUpdateUserVariableUrl(
-  variablename: UpdateUserVariablePathParams["variablename"],
-) {
+function getUpdateUserVariableUrl(variablename: UpdateUserVariablePathParams['variablename']) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/user/actions/variables/${variablename}` as const,
   };
   return res;
@@ -34,7 +28,7 @@ function getUpdateUserVariableUrl(
  * {@link /user/actions/variables/:variablename}
  */
 export async function updateUserVariable(
-  variablename: UpdateUserVariablePathParams["variablename"],
+  variablename: UpdateUserVariablePathParams['variablename'],
   data: UpdateUserVariableMutationRequest,
   config: Partial<RequestConfig<UpdateUserVariableMutationRequest>> & {
     client?: Client;
@@ -46,15 +40,10 @@ export async function updateUserVariable(
 
   const res = await request<
     UpdateUserVariableMutationResponse,
-    ResponseErrorConfig<
-      | UpdateUserVariable400
-      | UpdateUserVariable401
-      | UpdateUserVariable403
-      | UpdateUserVariable404
-    >,
+    ResponseErrorConfig<UpdateUserVariable400 | UpdateUserVariable401 | UpdateUserVariable403 | UpdateUserVariable404>,
     UpdateUserVariableMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUpdateUserVariableUrl(variablename).url.toString(),
     data: requestData,
     ...requestConfig,

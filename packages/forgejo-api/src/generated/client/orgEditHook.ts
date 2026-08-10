@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgEditHookMutationRequest,
   OrgEditHookMutationResponse,
   OrgEditHookPathParams,
   OrgEditHook404,
-} from "../types/OrgEditHook"
+} from '../types/OrgEditHook';
 
-function getOrgEditHookUrl(
-  org: OrgEditHookPathParams["org"],
-  id: OrgEditHookPathParams["id"],
-) {
-  const res = { method: "PATCH", url: `/orgs/${org}/hooks/${id}` as const };
+function getOrgEditHookUrl(org: OrgEditHookPathParams['org'], id: OrgEditHookPathParams['id']) {
+  const res = { method: 'PATCH', url: `/orgs/${org}/hooks/${id}` as const };
   return res;
 }
 
@@ -29,8 +22,8 @@ function getOrgEditHookUrl(
  * {@link /orgs/:org/hooks/:id}
  */
 export async function orgEditHook(
-  org: OrgEditHookPathParams["org"],
-  id: OrgEditHookPathParams["id"],
+  org: OrgEditHookPathParams['org'],
+  id: OrgEditHookPathParams['id'],
   data?: OrgEditHookMutationRequest,
   config: Partial<RequestConfig<OrgEditHookMutationRequest>> & {
     client?: Client;
@@ -45,7 +38,7 @@ export async function orgEditHook(
     ResponseErrorConfig<OrgEditHook404>,
     OrgEditHookMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getOrgEditHookUrl(org, id).url.toString(),
     data: requestData,
     ...requestConfig,

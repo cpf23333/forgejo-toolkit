@@ -8,46 +8,38 @@ import type {
   RepoApplyDiffPatch404,
   RepoApplyDiffPatch413,
   RepoApplyDiffPatch423,
-} from "../types/RepoApplyDiffPatch"
-import { http } from "msw";
+} from '../types/RepoApplyDiffPatch';
+import { http } from 'msw';
 
-export function repoApplyDiffPatchHandlerResponse200(
-  data: RepoApplyDiffPatchMutationResponse,
-) {
+export function repoApplyDiffPatchHandlerResponse200(data: RepoApplyDiffPatchMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoApplyDiffPatchHandlerResponse404(
-  data: RepoApplyDiffPatch404,
-) {
+export function repoApplyDiffPatchHandlerResponse404(data: RepoApplyDiffPatch404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoApplyDiffPatchHandlerResponse413(
-  data?: RepoApplyDiffPatch413,
-) {
+export function repoApplyDiffPatchHandlerResponse413(data?: RepoApplyDiffPatch413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoApplyDiffPatchHandlerResponse423(
-  data: RepoApplyDiffPatch423,
-) {
+export function repoApplyDiffPatchHandlerResponse423(data: RepoApplyDiffPatch423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -55,17 +47,15 @@ export function repoApplyDiffPatchHandlerResponse423(
 export function repoApplyDiffPatchHandler(
   data?:
     | RepoApplyDiffPatchMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/diffpatch`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

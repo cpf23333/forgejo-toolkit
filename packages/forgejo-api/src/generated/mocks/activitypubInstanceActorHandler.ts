@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubInstanceActorQueryResponse } from "../types/ActivitypubInstanceActor"
-import { http } from "msw";
+import type { ActivitypubInstanceActorQueryResponse } from '../types/ActivitypubInstanceActor';
+import { http } from 'msw';
 
-export function activitypubInstanceActorHandlerResponse200(
-  data: ActivitypubInstanceActorQueryResponse,
-) {
+export function activitypubInstanceActorHandlerResponse200(data: ActivitypubInstanceActorQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function activitypubInstanceActorHandlerResponse200(
 export function activitypubInstanceActorHandler(
   data?:
     | ActivitypubInstanceActorQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/activitypub/actor`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

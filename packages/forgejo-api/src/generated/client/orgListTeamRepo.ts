@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListTeamRepoQueryResponse,
   OrgListTeamRepoPathParams,
   OrgListTeamRepo404,
-} from "../types/OrgListTeamRepo"
+} from '../types/OrgListTeamRepo';
 
 function getOrgListTeamRepoUrl(
-  id: OrgListTeamRepoPathParams["id"],
-  org: OrgListTeamRepoPathParams["org"],
-  repo: OrgListTeamRepoPathParams["repo"],
+  id: OrgListTeamRepoPathParams['id'],
+  org: OrgListTeamRepoPathParams['org'],
+  repo: OrgListTeamRepoPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/teams/${id}/repos/${org}/${repo}` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getOrgListTeamRepoUrl(
  * {@link /teams/:id/repos/:org/:repo}
  */
 export async function orgListTeamRepo(
-  id: OrgListTeamRepoPathParams["id"],
-  org: OrgListTeamRepoPathParams["org"],
-  repo: OrgListTeamRepoPathParams["repo"],
+  id: OrgListTeamRepoPathParams['id'],
+  org: OrgListTeamRepoPathParams['org'],
+  repo: OrgListTeamRepoPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgListTeamRepoQueryResponse,
-    ResponseErrorConfig<OrgListTeamRepo404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgListTeamRepoQueryResponse, ResponseErrorConfig<OrgListTeamRepo404>, unknown>({
+    method: 'GET',
     url: getOrgListTeamRepoUrl(id, org, repo).url.toString(),
     ...requestConfig,
   });

@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoRemoveNoteMutationResponse,
-  RepoRemoveNote404,
-  RepoRemoveNote422,
-} from "../types/RepoRemoveNote"
-import { http } from "msw";
+import type { RepoRemoveNoteMutationResponse, RepoRemoveNote404, RepoRemoveNote422 } from '../types/RepoRemoveNote';
+import { http } from 'msw';
 
-export function repoRemoveNoteHandlerResponse204(
-  data?: RepoRemoveNoteMutationResponse,
-) {
+export function repoRemoveNoteHandlerResponse204(data?: RepoRemoveNoteMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function repoRemoveNoteHandlerResponse404(data: RepoRemoveNote404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function repoRemoveNoteHandlerResponse422(data: RepoRemoveNote422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +37,13 @@ export function repoRemoveNoteHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/git/notes/:sha`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/git/notes/:sha`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

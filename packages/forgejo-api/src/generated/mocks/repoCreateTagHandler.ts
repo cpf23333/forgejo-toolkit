@@ -11,16 +11,14 @@ import type {
   RepoCreateTag413,
   RepoCreateTag422,
   RepoCreateTag423,
-} from "../types/RepoCreateTag"
-import { http } from "msw";
+} from '../types/RepoCreateTag';
+import { http } from 'msw';
 
-export function repoCreateTagHandlerResponse201(
-  data: RepoCreateTagMutationResponse,
-) {
+export function repoCreateTagHandlerResponse201(data: RepoCreateTagMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -29,7 +27,7 @@ export function repoCreateTagHandlerResponse404(data: RepoCreateTag404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -56,7 +54,7 @@ export function repoCreateTagHandlerResponse422(data: RepoCreateTag422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -65,7 +63,7 @@ export function repoCreateTagHandlerResponse423(data: RepoCreateTag423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -73,17 +71,15 @@ export function repoCreateTagHandlerResponse423(data: RepoCreateTag423) {
 export function repoCreateTagHandler(
   data?:
     | RepoCreateTagMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/tags`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

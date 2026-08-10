@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { GitBlob } from "./GitBlob"
+import type { GitBlob } from './GitBlob';
 
 export type GitBlobList = GitBlob[];

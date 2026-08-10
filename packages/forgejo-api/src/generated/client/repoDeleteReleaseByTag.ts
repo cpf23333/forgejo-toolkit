@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteReleaseByTagMutationResponse,
   RepoDeleteReleaseByTagPathParams,
   RepoDeleteReleaseByTag404,
   RepoDeleteReleaseByTag422,
-} from "../types/RepoDeleteReleaseByTag"
+} from '../types/RepoDeleteReleaseByTag';
 
 function getRepoDeleteReleaseByTagUrl(
-  owner: RepoDeleteReleaseByTagPathParams["owner"],
-  repo: RepoDeleteReleaseByTagPathParams["repo"],
-  tag: RepoDeleteReleaseByTagPathParams["tag"],
+  owner: RepoDeleteReleaseByTagPathParams['owner'],
+  repo: RepoDeleteReleaseByTagPathParams['repo'],
+  tag: RepoDeleteReleaseByTagPathParams['tag'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/releases/tags/${tag}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoDeleteReleaseByTagUrl(
  * {@link /repos/:owner/:repo/releases/tags/:tag}
  */
 export async function repoDeleteReleaseByTag(
-  owner: RepoDeleteReleaseByTagPathParams["owner"],
-  repo: RepoDeleteReleaseByTagPathParams["repo"],
-  tag: RepoDeleteReleaseByTagPathParams["tag"],
+  owner: RepoDeleteReleaseByTagPathParams['owner'],
+  repo: RepoDeleteReleaseByTagPathParams['repo'],
+  tag: RepoDeleteReleaseByTagPathParams['tag'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoDeleteReleaseByTag(
     ResponseErrorConfig<RepoDeleteReleaseByTag404 | RepoDeleteReleaseByTag422>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteReleaseByTagUrl(owner, repo, tag).url.toString(),
     ...requestConfig,
   });

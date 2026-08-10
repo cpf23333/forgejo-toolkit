@@ -3,25 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoGetKeyQueryResponse,
-  RepoGetKeyPathParams,
-  RepoGetKey404,
-} from "../types/RepoGetKey"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoGetKeyQueryResponse, RepoGetKeyPathParams, RepoGetKey404 } from '../types/RepoGetKey';
 
 function getRepoGetKeyUrl(
-  owner: RepoGetKeyPathParams["owner"],
-  repo: RepoGetKeyPathParams["repo"],
-  id: RepoGetKeyPathParams["id"],
+  owner: RepoGetKeyPathParams['owner'],
+  repo: RepoGetKeyPathParams['repo'],
+  id: RepoGetKeyPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/keys/${id}` as const,
   };
   return res;
@@ -32,19 +24,15 @@ function getRepoGetKeyUrl(
  * {@link /repos/:owner/:repo/keys/:id}
  */
 export async function repoGetKey(
-  owner: RepoGetKeyPathParams["owner"],
-  repo: RepoGetKeyPathParams["repo"],
-  id: RepoGetKeyPathParams["id"],
+  owner: RepoGetKeyPathParams['owner'],
+  repo: RepoGetKeyPathParams['repo'],
+  id: RepoGetKeyPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetKeyQueryResponse,
-    ResponseErrorConfig<RepoGetKey404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetKeyQueryResponse, ResponseErrorConfig<RepoGetKey404>, unknown>({
+    method: 'GET',
     url: getRepoGetKeyUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

@@ -3,28 +3,24 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoEditReleaseAttachmentMutationRequest,
   RepoEditReleaseAttachmentMutationResponse,
   RepoEditReleaseAttachmentPathParams,
   RepoEditReleaseAttachment404,
   RepoEditReleaseAttachment413,
-} from "../types/RepoEditReleaseAttachment"
+} from '../types/RepoEditReleaseAttachment';
 
 function getRepoEditReleaseAttachmentUrl(
-  owner: RepoEditReleaseAttachmentPathParams["owner"],
-  repo: RepoEditReleaseAttachmentPathParams["repo"],
-  id: RepoEditReleaseAttachmentPathParams["id"],
-  attachment_id: RepoEditReleaseAttachmentPathParams["attachment_id"],
+  owner: RepoEditReleaseAttachmentPathParams['owner'],
+  repo: RepoEditReleaseAttachmentPathParams['repo'],
+  id: RepoEditReleaseAttachmentPathParams['id'],
+  attachment_id: RepoEditReleaseAttachmentPathParams['attachment_id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/releases/${id}/assets/${attachment_id}` as const,
   };
   return res;
@@ -35,10 +31,10 @@ function getRepoEditReleaseAttachmentUrl(
  * {@link /repos/:owner/:repo/releases/:id/assets/:attachment_id}
  */
 export async function repoEditReleaseAttachment(
-  owner: RepoEditReleaseAttachmentPathParams["owner"],
-  repo: RepoEditReleaseAttachmentPathParams["repo"],
-  id: RepoEditReleaseAttachmentPathParams["id"],
-  attachment_id: RepoEditReleaseAttachmentPathParams["attachment_id"],
+  owner: RepoEditReleaseAttachmentPathParams['owner'],
+  repo: RepoEditReleaseAttachmentPathParams['repo'],
+  id: RepoEditReleaseAttachmentPathParams['id'],
+  attachment_id: RepoEditReleaseAttachmentPathParams['attachment_id'],
   data?: RepoEditReleaseAttachmentMutationRequest,
   config: Partial<RequestConfig<RepoEditReleaseAttachmentMutationRequest>> & {
     client?: Client;
@@ -50,18 +46,11 @@ export async function repoEditReleaseAttachment(
 
   const res = await request<
     RepoEditReleaseAttachmentMutationResponse,
-    ResponseErrorConfig<
-      RepoEditReleaseAttachment404 | RepoEditReleaseAttachment413
-    >,
+    ResponseErrorConfig<RepoEditReleaseAttachment404 | RepoEditReleaseAttachment413>,
     RepoEditReleaseAttachmentMutationRequest
   >({
-    method: "PATCH",
-    url: getRepoEditReleaseAttachmentUrl(
-      owner,
-      repo,
-      id,
-      attachment_id,
-    ).url.toString(),
+    method: 'PATCH',
+    url: getRepoEditReleaseAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
     data: requestData,
     ...requestConfig,
   });

@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RegisterAdminRunnerMutationRequest,
   RegisterAdminRunnerMutationResponse,
   RegisterAdminRunner400,
   RegisterAdminRunner401,
   RegisterAdminRunner404,
-} from "../types/RegisterAdminRunner"
+} from '../types/RegisterAdminRunner';
 
 function getRegisterAdminRunnerUrl() {
-  const res = { method: "POST", url: `/admin/actions/runners` as const };
+  const res = { method: 'POST', url: `/admin/actions/runners` as const };
   return res;
 }
 
@@ -38,12 +34,10 @@ export async function registerAdminRunner(
 
   const res = await request<
     RegisterAdminRunnerMutationResponse,
-    ResponseErrorConfig<
-      RegisterAdminRunner400 | RegisterAdminRunner401 | RegisterAdminRunner404
-    >,
+    ResponseErrorConfig<RegisterAdminRunner400 | RegisterAdminRunner401 | RegisterAdminRunner404>,
     RegisterAdminRunnerMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRegisterAdminRunnerUrl().url.toString(),
     data: requestData,
     ...requestConfig,

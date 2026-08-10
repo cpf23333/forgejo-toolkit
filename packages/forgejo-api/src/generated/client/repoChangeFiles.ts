@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoChangeFilesMutationRequest,
   RepoChangeFilesMutationResponse,
@@ -19,14 +15,11 @@ import type {
   RepoChangeFiles413,
   RepoChangeFiles422,
   RepoChangeFiles423,
-} from "../types/RepoChangeFiles"
+} from '../types/RepoChangeFiles';
 
-function getRepoChangeFilesUrl(
-  owner: RepoChangeFilesPathParams["owner"],
-  repo: RepoChangeFilesPathParams["repo"],
-) {
+function getRepoChangeFilesUrl(owner: RepoChangeFilesPathParams['owner'], repo: RepoChangeFilesPathParams['repo']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/contents` as const,
   };
   return res;
@@ -37,8 +30,8 @@ function getRepoChangeFilesUrl(
  * {@link /repos/:owner/:repo/contents}
  */
 export async function repoChangeFiles(
-  owner: RepoChangeFilesPathParams["owner"],
-  repo: RepoChangeFilesPathParams["repo"],
+  owner: RepoChangeFilesPathParams['owner'],
+  repo: RepoChangeFilesPathParams['repo'],
   data: RepoChangeFilesMutationRequest,
   config: Partial<RequestConfig<RepoChangeFilesMutationRequest>> & {
     client?: Client;
@@ -60,7 +53,7 @@ export async function repoChangeFiles(
     >,
     RepoChangeFilesMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoChangeFilesUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

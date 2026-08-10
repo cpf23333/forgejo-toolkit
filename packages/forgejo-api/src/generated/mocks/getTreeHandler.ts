@@ -3,18 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  GetTreeQueryResponse,
-  GetTree400,
-  GetTree404,
-} from "../types/GetTree"
-import { http } from "msw";
+import type { GetTreeQueryResponse, GetTree400, GetTree404 } from '../types/GetTree';
+import { http } from 'msw';
 
 export function getTreeHandlerResponse200(data: GetTreeQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -23,7 +19,7 @@ export function getTreeHandlerResponse400(data: GetTree400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,25 +28,21 @@ export function getTreeHandlerResponse404(data: GetTree404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
 export function getTreeHandler(
-  data?:
-    | GetTreeQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+  data?: GetTreeQueryResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/git/trees/:sha`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

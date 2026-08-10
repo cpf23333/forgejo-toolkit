@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Activity } from "./Activity"
+import type { APINotFound } from './APINotFound';
+import type { Activity } from './Activity';
 
 export type OrgListActivityFeedsPathParams = {
   /**

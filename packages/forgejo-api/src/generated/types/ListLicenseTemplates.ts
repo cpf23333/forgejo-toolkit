@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { LicensesTemplateListEntry } from "./LicensesTemplateListEntry"
+import type { LicensesTemplateListEntry } from './LicensesTemplateListEntry';
 
 /**
  * @description LicenseTemplateList

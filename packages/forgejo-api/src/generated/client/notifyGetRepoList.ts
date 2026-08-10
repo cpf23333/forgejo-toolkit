@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   NotifyGetRepoListQueryResponse,
   NotifyGetRepoListPathParams,
   NotifyGetRepoListQueryParams,
-} from "../types/NotifyGetRepoList"
+} from '../types/NotifyGetRepoList';
 
 function getNotifyGetRepoListUrl(
-  owner: NotifyGetRepoListPathParams["owner"],
-  repo: NotifyGetRepoListPathParams["repo"],
+  owner: NotifyGetRepoListPathParams['owner'],
+  repo: NotifyGetRepoListPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/notifications` as const,
   };
   return res;
@@ -31,19 +27,15 @@ function getNotifyGetRepoListUrl(
  * {@link /repos/:owner/:repo/notifications}
  */
 export async function notifyGetRepoList(
-  owner: NotifyGetRepoListPathParams["owner"],
-  repo: NotifyGetRepoListPathParams["repo"],
+  owner: NotifyGetRepoListPathParams['owner'],
+  repo: NotifyGetRepoListPathParams['repo'],
   params?: NotifyGetRepoListQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    NotifyGetRepoListQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<NotifyGetRepoListQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getNotifyGetRepoListUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

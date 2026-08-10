@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { CreateHookOption } from "./CreateHookOption"
-import type { Hook } from "./Hook"
+import type { CreateHookOption } from './CreateHookOption';
+import type { Hook } from './Hook';
 
 /**
  * @description Hook

@@ -3,25 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoUpdateTopicsMutationRequest,
   RepoUpdateTopicsMutationResponse,
   RepoUpdateTopicsPathParams,
   RepoUpdateTopics404,
   RepoUpdateTopics422,
-} from "../types/RepoUpdateTopics"
+} from '../types/RepoUpdateTopics';
 
-function getRepoUpdateTopicsUrl(
-  owner: RepoUpdateTopicsPathParams["owner"],
-  repo: RepoUpdateTopicsPathParams["repo"],
-) {
-  const res = { method: "PUT", url: `/repos/${owner}/${repo}/topics` as const };
+function getRepoUpdateTopicsUrl(owner: RepoUpdateTopicsPathParams['owner'], repo: RepoUpdateTopicsPathParams['repo']) {
+  const res = { method: 'PUT', url: `/repos/${owner}/${repo}/topics` as const };
   return res;
 }
 
@@ -30,8 +23,8 @@ function getRepoUpdateTopicsUrl(
  * {@link /repos/:owner/:repo/topics}
  */
 export async function repoUpdateTopics(
-  owner: RepoUpdateTopicsPathParams["owner"],
-  repo: RepoUpdateTopicsPathParams["repo"],
+  owner: RepoUpdateTopicsPathParams['owner'],
+  repo: RepoUpdateTopicsPathParams['repo'],
   data?: RepoUpdateTopicsMutationRequest,
   config: Partial<RequestConfig<RepoUpdateTopicsMutationRequest>> & {
     client?: Client;
@@ -46,7 +39,7 @@ export async function repoUpdateTopics(
     ResponseErrorConfig<RepoUpdateTopics404 | RepoUpdateTopics422>,
     RepoUpdateTopicsMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getRepoUpdateTopicsUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

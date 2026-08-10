@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { NotifyGetRepoListQueryResponse } from "../types/NotifyGetRepoList"
-import { http } from "msw";
+import type { NotifyGetRepoListQueryResponse } from '../types/NotifyGetRepoList';
+import { http } from 'msw';
 
-export function notifyGetRepoListHandlerResponse200(
-  data: NotifyGetRepoListQueryResponse,
-) {
+export function notifyGetRepoListHandlerResponse200(data: NotifyGetRepoListQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function notifyGetRepoListHandlerResponse200(
 export function notifyGetRepoListHandler(
   data?:
     | NotifyGetRepoListQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/notifications`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

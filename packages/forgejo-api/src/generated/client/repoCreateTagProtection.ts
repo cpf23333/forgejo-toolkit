@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateTagProtectionMutationRequest,
   RepoCreateTagProtectionMutationResponse,
@@ -17,14 +13,14 @@ import type {
   RepoCreateTagProtection404,
   RepoCreateTagProtection422,
   RepoCreateTagProtection423,
-} from "../types/RepoCreateTagProtection"
+} from '../types/RepoCreateTagProtection';
 
 function getRepoCreateTagProtectionUrl(
-  owner: RepoCreateTagProtectionPathParams["owner"],
-  repo: RepoCreateTagProtectionPathParams["repo"],
+  owner: RepoCreateTagProtectionPathParams['owner'],
+  repo: RepoCreateTagProtectionPathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/tag_protections` as const,
   };
   return res;
@@ -35,8 +31,8 @@ function getRepoCreateTagProtectionUrl(
  * {@link /repos/:owner/:repo/tag_protections}
  */
 export async function repoCreateTagProtection(
-  owner: RepoCreateTagProtectionPathParams["owner"],
-  repo: RepoCreateTagProtectionPathParams["repo"],
+  owner: RepoCreateTagProtectionPathParams['owner'],
+  repo: RepoCreateTagProtectionPathParams['repo'],
   data?: RepoCreateTagProtectionMutationRequest,
   config: Partial<RequestConfig<RepoCreateTagProtectionMutationRequest>> & {
     client?: Client;
@@ -49,14 +45,11 @@ export async function repoCreateTagProtection(
   const res = await request<
     RepoCreateTagProtectionMutationResponse,
     ResponseErrorConfig<
-      | RepoCreateTagProtection403
-      | RepoCreateTagProtection404
-      | RepoCreateTagProtection422
-      | RepoCreateTagProtection423
+      RepoCreateTagProtection403 | RepoCreateTagProtection404 | RepoCreateTagProtection422 | RepoCreateTagProtection423
     >,
     RepoCreateTagProtectionMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateTagProtectionUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

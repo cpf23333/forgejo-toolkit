@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { TagProtection } from "./TagProtection"
+import type { APINotFound } from './APINotFound';
+import type { TagProtection } from './TagProtection';
 
 export type RepoGetTagProtectionPathParams = {
   /**

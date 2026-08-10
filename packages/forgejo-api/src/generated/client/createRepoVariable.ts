@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   CreateRepoVariableMutationRequest,
   CreateRepoVariableMutationResponse,
   CreateRepoVariablePathParams,
   CreateRepoVariable400,
   CreateRepoVariable404,
-} from "../types/CreateRepoVariable"
+} from '../types/CreateRepoVariable';
 
 function getCreateRepoVariableUrl(
-  owner: CreateRepoVariablePathParams["owner"],
-  repo: CreateRepoVariablePathParams["repo"],
-  variablename: CreateRepoVariablePathParams["variablename"],
+  owner: CreateRepoVariablePathParams['owner'],
+  repo: CreateRepoVariablePathParams['repo'],
+  variablename: CreateRepoVariablePathParams['variablename'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/actions/variables/${variablename}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getCreateRepoVariableUrl(
  * {@link /repos/:owner/:repo/actions/variables/:variablename}
  */
 export async function createRepoVariable(
-  owner: CreateRepoVariablePathParams["owner"],
-  repo: CreateRepoVariablePathParams["repo"],
-  variablename: CreateRepoVariablePathParams["variablename"],
+  owner: CreateRepoVariablePathParams['owner'],
+  repo: CreateRepoVariablePathParams['repo'],
+  variablename: CreateRepoVariablePathParams['variablename'],
   data: CreateRepoVariableMutationRequest,
   config: Partial<RequestConfig<CreateRepoVariableMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function createRepoVariable(
     ResponseErrorConfig<CreateRepoVariable400 | CreateRepoVariable404>,
     CreateRepoVariableMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getCreateRepoVariableUrl(owner, repo, variablename).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -7,38 +7,32 @@ import type {
   UserCurrentListSubscriptionsQueryResponse,
   UserCurrentListSubscriptions401,
   UserCurrentListSubscriptions403,
-} from "../types/UserCurrentListSubscriptions"
-import { http } from "msw";
+} from '../types/UserCurrentListSubscriptions';
+import { http } from 'msw';
 
-export function userCurrentListSubscriptionsHandlerResponse200(
-  data: UserCurrentListSubscriptionsQueryResponse,
-) {
+export function userCurrentListSubscriptionsHandlerResponse200(data: UserCurrentListSubscriptionsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentListSubscriptionsHandlerResponse401(
-  data: UserCurrentListSubscriptions401,
-) {
+export function userCurrentListSubscriptionsHandlerResponse401(data: UserCurrentListSubscriptions401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentListSubscriptionsHandlerResponse403(
-  data: UserCurrentListSubscriptions403,
-) {
+export function userCurrentListSubscriptionsHandlerResponse403(data: UserCurrentListSubscriptions403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function userCurrentListSubscriptionsHandlerResponse403(
 export function userCurrentListSubscriptionsHandler(
   data?:
     | UserCurrentListSubscriptionsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/subscriptions`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

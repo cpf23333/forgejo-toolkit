@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { TimelineComment } from "./TimelineComment"
+import type { TimelineComment } from './TimelineComment';
 
 export type TimelineList = TimelineComment[];

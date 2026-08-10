@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  GetRepoRunnerQueryResponse,
-  GetRepoRunner400,
-  GetRepoRunner404,
-} from "../types/GetRepoRunner"
-import { http } from "msw";
+import type { GetRepoRunnerQueryResponse, GetRepoRunner400, GetRepoRunner404 } from '../types/GetRepoRunner';
+import { http } from 'msw';
 
-export function getRepoRunnerHandlerResponse200(
-  data: GetRepoRunnerQueryResponse,
-) {
+export function getRepoRunnerHandlerResponse200(data: GetRepoRunnerQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function getRepoRunnerHandlerResponse400(data: GetRepoRunner400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function getRepoRunnerHandlerResponse404(data: GetRepoRunner404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,21 +36,16 @@ export function getRepoRunnerHandlerResponse404(data: GetRepoRunner404) {
 export function getRepoRunnerHandler(
   data?:
     | GetRepoRunnerQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/actions/runners/:runner_id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/actions/runners/:runner_id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

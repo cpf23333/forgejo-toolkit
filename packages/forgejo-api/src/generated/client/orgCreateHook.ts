@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgCreateHookMutationRequest,
   OrgCreateHookMutationResponse,
   OrgCreateHookPathParams,
   OrgCreateHook404,
-} from "../types/OrgCreateHook"
+} from '../types/OrgCreateHook';
 
-function getOrgCreateHookUrl(org: OrgCreateHookPathParams["org"]) {
-  const res = { method: "POST", url: `/orgs/${org}/hooks` as const };
+function getOrgCreateHookUrl(org: OrgCreateHookPathParams['org']) {
+  const res = { method: 'POST', url: `/orgs/${org}/hooks` as const };
   return res;
 }
 
@@ -26,7 +22,7 @@ function getOrgCreateHookUrl(org: OrgCreateHookPathParams["org"]) {
  * {@link /orgs/:org/hooks}
  */
 export async function orgCreateHook(
-  org: OrgCreateHookPathParams["org"],
+  org: OrgCreateHookPathParams['org'],
   data: OrgCreateHookMutationRequest,
   config: Partial<RequestConfig<OrgCreateHookMutationRequest>> & {
     client?: Client;
@@ -41,7 +37,7 @@ export async function orgCreateHook(
     ResponseErrorConfig<OrgCreateHook404>,
     OrgCreateHookMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getOrgCreateHookUrl(org).url.toString(),
     data: requestData,
     ...requestConfig,

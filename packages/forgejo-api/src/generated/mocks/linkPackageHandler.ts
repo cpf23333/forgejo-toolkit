@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  LinkPackageMutationResponse,
-  LinkPackage404,
-} from "../types/LinkPackage"
-import { http } from "msw";
+import type { LinkPackageMutationResponse, LinkPackage404 } from '../types/LinkPackage';
+import { http } from 'msw';
 
-export function linkPackageHandlerResponse201(
-  data?: LinkPackageMutationResponse,
-) {
+export function linkPackageHandlerResponse201(data?: LinkPackageMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
@@ -21,7 +16,7 @@ export function linkPackageHandlerResponse404(data: LinkPackage404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,18 +28,13 @@ export function linkPackageHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/packages/:owner/:type/:name/-/link/:repo_name`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/packages/:owner/:type/:name/-/link/:repo_name`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

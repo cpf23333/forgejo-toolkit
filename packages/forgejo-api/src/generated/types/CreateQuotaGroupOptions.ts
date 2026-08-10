@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { CreateQuotaRuleOptions } from "./CreateQuotaRuleOptions"
+import type { CreateQuotaRuleOptions } from './CreateQuotaRuleOptions';
 
 /**
  * @description CreateQutaGroupOptions represents the options for creating a quota group

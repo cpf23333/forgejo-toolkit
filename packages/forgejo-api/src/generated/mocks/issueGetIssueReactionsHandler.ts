@@ -7,38 +7,32 @@ import type {
   IssueGetIssueReactionsQueryResponse,
   IssueGetIssueReactions403,
   IssueGetIssueReactions404,
-} from "../types/IssueGetIssueReactions"
-import { http } from "msw";
+} from '../types/IssueGetIssueReactions';
+import { http } from 'msw';
 
-export function issueGetIssueReactionsHandlerResponse200(
-  data: IssueGetIssueReactionsQueryResponse,
-) {
+export function issueGetIssueReactionsHandlerResponse200(data: IssueGetIssueReactionsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueGetIssueReactionsHandlerResponse403(
-  data: IssueGetIssueReactions403,
-) {
+export function issueGetIssueReactionsHandlerResponse403(data: IssueGetIssueReactions403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueGetIssueReactionsHandlerResponse404(
-  data: IssueGetIssueReactions404,
-) {
+export function issueGetIssueReactionsHandlerResponse404(data: IssueGetIssueReactions404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function issueGetIssueReactionsHandlerResponse404(
 export function issueGetIssueReactionsHandler(
   data?:
     | IssueGetIssueReactionsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/issues/:index/reactions`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/issues/:index/reactions`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

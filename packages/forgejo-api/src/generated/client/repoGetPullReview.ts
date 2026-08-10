@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetPullReviewQueryResponse,
   RepoGetPullReviewPathParams,
   RepoGetPullReview404,
-} from "../types/RepoGetPullReview"
+} from '../types/RepoGetPullReview';
 
 function getRepoGetPullReviewUrl(
-  owner: RepoGetPullReviewPathParams["owner"],
-  repo: RepoGetPullReviewPathParams["repo"],
-  index: RepoGetPullReviewPathParams["index"],
-  id: RepoGetPullReviewPathParams["id"],
+  owner: RepoGetPullReviewPathParams['owner'],
+  repo: RepoGetPullReviewPathParams['repo'],
+  index: RepoGetPullReviewPathParams['index'],
+  id: RepoGetPullReviewPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getRepoGetPullReviewUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id}
  */
 export async function repoGetPullReview(
-  owner: RepoGetPullReviewPathParams["owner"],
-  repo: RepoGetPullReviewPathParams["repo"],
-  index: RepoGetPullReviewPathParams["index"],
-  id: RepoGetPullReviewPathParams["id"],
+  owner: RepoGetPullReviewPathParams['owner'],
+  repo: RepoGetPullReviewPathParams['repo'],
+  index: RepoGetPullReviewPathParams['index'],
+  id: RepoGetPullReviewPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetPullReviewQueryResponse,
-    ResponseErrorConfig<RepoGetPullReview404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetPullReviewQueryResponse, ResponseErrorConfig<RepoGetPullReview404>, unknown>({
+    method: 'GET',
     url: getRepoGetPullReviewUrl(owner, repo, index, id).url.toString(),
     ...requestConfig,
   });

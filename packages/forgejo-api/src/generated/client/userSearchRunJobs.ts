@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserSearchRunJobsQueryResponse,
   UserSearchRunJobsQueryParams,
   UserSearchRunJobs401,
   UserSearchRunJobs403,
-} from "../types/UserSearchRunJobs"
+} from '../types/UserSearchRunJobs';
 
 function getUserSearchRunJobsUrl() {
-  const res = { method: "GET", url: `/user/actions/runners/jobs` as const };
+  const res = { method: 'GET', url: `/user/actions/runners/jobs` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function userSearchRunJobs(
     ResponseErrorConfig<UserSearchRunJobs401 | UserSearchRunJobs403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserSearchRunJobsUrl().url.toString(),
     params,
     ...requestConfig,

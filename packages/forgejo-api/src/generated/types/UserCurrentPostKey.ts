@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateKeyOption } from "./CreateKeyOption"
-import type { PublicKey } from "./PublicKey"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateKeyOption } from './CreateKeyOption';
+import type { PublicKey } from './PublicKey';
 
 /**
  * @description PublicKey

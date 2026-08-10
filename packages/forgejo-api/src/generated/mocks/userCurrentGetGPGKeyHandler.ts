@@ -8,49 +8,41 @@ import type {
   UserCurrentGetGPGKey401,
   UserCurrentGetGPGKey403,
   UserCurrentGetGPGKey404,
-} from "../types/UserCurrentGetGPGKey"
-import { http } from "msw";
+} from '../types/UserCurrentGetGPGKey';
+import { http } from 'msw';
 
-export function userCurrentGetGPGKeyHandlerResponse200(
-  data: UserCurrentGetGPGKeyQueryResponse,
-) {
+export function userCurrentGetGPGKeyHandlerResponse200(data: UserCurrentGetGPGKeyQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentGetGPGKeyHandlerResponse401(
-  data: UserCurrentGetGPGKey401,
-) {
+export function userCurrentGetGPGKeyHandlerResponse401(data: UserCurrentGetGPGKey401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentGetGPGKeyHandlerResponse403(
-  data: UserCurrentGetGPGKey403,
-) {
+export function userCurrentGetGPGKeyHandlerResponse403(data: UserCurrentGetGPGKey403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentGetGPGKeyHandlerResponse404(
-  data: UserCurrentGetGPGKey404,
-) {
+export function userCurrentGetGPGKeyHandlerResponse404(data: UserCurrentGetGPGKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function userCurrentGetGPGKeyHandlerResponse404(
 export function userCurrentGetGPGKeyHandler(
   data?:
     | UserCurrentGetGPGKeyQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/gpg_keys/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

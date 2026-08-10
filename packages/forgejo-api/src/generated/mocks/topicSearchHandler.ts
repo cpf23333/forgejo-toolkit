@@ -3,18 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  TopicSearchQueryResponse,
-  TopicSearch403,
-  TopicSearch404,
-} from "../types/TopicSearch"
-import { http } from "msw";
+import type { TopicSearchQueryResponse, TopicSearch403, TopicSearch404 } from '../types/TopicSearch';
+import { http } from 'msw';
 
 export function topicSearchHandlerResponse200(data: TopicSearchQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -23,7 +19,7 @@ export function topicSearchHandlerResponse403(data: TopicSearch403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +28,7 @@ export function topicSearchHandlerResponse404(data: TopicSearch404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -40,17 +36,15 @@ export function topicSearchHandlerResponse404(data: TopicSearch404) {
 export function topicSearchHandler(
   data?:
     | TopicSearchQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/topics/search`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

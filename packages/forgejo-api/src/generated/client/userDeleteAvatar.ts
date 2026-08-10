@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserDeleteAvatarMutationResponse,
   UserDeleteAvatar401,
   UserDeleteAvatar403,
-} from "../types/UserDeleteAvatar"
+} from '../types/UserDeleteAvatar';
 
 function getUserDeleteAvatarUrl() {
-  const res = { method: "DELETE", url: `/user/avatar` as const };
+  const res = { method: 'DELETE', url: `/user/avatar` as const };
   return res;
 }
 
@@ -24,9 +20,7 @@ function getUserDeleteAvatarUrl() {
  * @summary Delete avatar of the current user. It will be replaced by a default one
  * {@link /user/avatar}
  */
-export async function userDeleteAvatar(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function userDeleteAvatar(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
@@ -34,7 +28,7 @@ export async function userDeleteAvatar(
     ResponseErrorConfig<UserDeleteAvatar401 | UserDeleteAvatar403>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getUserDeleteAvatarUrl().url.toString(),
     ...requestConfig,
   });

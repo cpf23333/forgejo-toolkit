@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoSyncForkBranchMutationResponse,
   RepoSyncForkBranchPathParams,
   RepoSyncForkBranch400,
   RepoSyncForkBranch404,
-} from "../types/RepoSyncForkBranch"
+} from '../types/RepoSyncForkBranch';
 
 function getRepoSyncForkBranchUrl(
-  owner: RepoSyncForkBranchPathParams["owner"],
-  repo: RepoSyncForkBranchPathParams["repo"],
-  branch: RepoSyncForkBranchPathParams["branch"],
+  owner: RepoSyncForkBranchPathParams['owner'],
+  repo: RepoSyncForkBranchPathParams['repo'],
+  branch: RepoSyncForkBranchPathParams['branch'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/sync_fork/${branch}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoSyncForkBranchUrl(
  * {@link /repos/:owner/:repo/sync_fork/:branch}
  */
 export async function repoSyncForkBranch(
-  owner: RepoSyncForkBranchPathParams["owner"],
-  repo: RepoSyncForkBranchPathParams["repo"],
-  branch: RepoSyncForkBranchPathParams["branch"],
+  owner: RepoSyncForkBranchPathParams['owner'],
+  repo: RepoSyncForkBranchPathParams['repo'],
+  branch: RepoSyncForkBranchPathParams['branch'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoSyncForkBranch(
     ResponseErrorConfig<RepoSyncForkBranch400 | RepoSyncForkBranch404>,
     unknown
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoSyncForkBranchUrl(owner, repo, branch).url.toString(),
     ...requestConfig,
   });

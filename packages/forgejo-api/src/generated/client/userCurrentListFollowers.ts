@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentListFollowersQueryResponse,
   UserCurrentListFollowersQueryParams,
   UserCurrentListFollowers401,
   UserCurrentListFollowers403,
-} from "../types/UserCurrentListFollowers"
+} from '../types/UserCurrentListFollowers';
 
 function getUserCurrentListFollowersUrl() {
-  const res = { method: "GET", url: `/user/followers` as const };
+  const res = { method: 'GET', url: `/user/followers` as const };
   return res;
 }
 
@@ -33,12 +29,10 @@ export async function userCurrentListFollowers(
 
   const res = await request<
     UserCurrentListFollowersQueryResponse,
-    ResponseErrorConfig<
-      UserCurrentListFollowers401 | UserCurrentListFollowers403
-    >,
+    ResponseErrorConfig<UserCurrentListFollowers401 | UserCurrentListFollowers403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentListFollowersUrl().url.toString(),
     params,
     ...requestConfig,

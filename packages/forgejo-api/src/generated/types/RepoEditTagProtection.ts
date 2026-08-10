@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { EditTagProtectionOption } from "./EditTagProtectionOption"
-import type { TagProtection } from "./TagProtection"
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { APIValidationError } from './APIValidationError';
+import type { EditTagProtectionOption } from './EditTagProtectionOption';
+import type { TagProtection } from './TagProtection';
 
 export type RepoEditTagProtectionPathParams = {
   /**
@@ -55,8 +55,5 @@ export type RepoEditTagProtectionMutation = {
   Response: RepoEditTagProtection200;
   Request: RepoEditTagProtectionMutationRequest;
   PathParams: RepoEditTagProtectionPathParams;
-  Errors:
-    | RepoEditTagProtection404
-    | RepoEditTagProtection422
-    | RepoEditTagProtection423;
+  Errors: RepoEditTagProtection404 | RepoEditTagProtection422 | RepoEditTagProtection423;
 };

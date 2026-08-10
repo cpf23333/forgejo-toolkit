@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { EditPullRequestOption } from "./EditPullRequestOption"
-import type { PullRequest } from "./PullRequest"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { EditPullRequestOption } from './EditPullRequestOption';
+import type { PullRequest } from './PullRequest';
 
 export type RepoEditPullRequestPathParams = {
   /**

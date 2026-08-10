@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetBranchProtectionQueryResponse,
   RepoGetBranchProtectionPathParams,
   RepoGetBranchProtection404,
-} from "../types/RepoGetBranchProtection"
+} from '../types/RepoGetBranchProtection';
 
 function getRepoGetBranchProtectionUrl(
-  owner: RepoGetBranchProtectionPathParams["owner"],
-  repo: RepoGetBranchProtectionPathParams["repo"],
-  name: RepoGetBranchProtectionPathParams["name"],
+  owner: RepoGetBranchProtectionPathParams['owner'],
+  repo: RepoGetBranchProtectionPathParams['repo'],
+  name: RepoGetBranchProtectionPathParams['name'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/branch_protections/${name}` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getRepoGetBranchProtectionUrl(
  * {@link /repos/:owner/:repo/branch_protections/:name}
  */
 export async function repoGetBranchProtection(
-  owner: RepoGetBranchProtectionPathParams["owner"],
-  repo: RepoGetBranchProtectionPathParams["repo"],
-  name: RepoGetBranchProtectionPathParams["name"],
+  owner: RepoGetBranchProtectionPathParams['owner'],
+  repo: RepoGetBranchProtectionPathParams['repo'],
+  name: RepoGetBranchProtectionPathParams['name'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function repoGetBranchProtection(
     ResponseErrorConfig<RepoGetBranchProtection404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetBranchProtectionUrl(owner, repo, name).url.toString(),
     ...requestConfig,
   });

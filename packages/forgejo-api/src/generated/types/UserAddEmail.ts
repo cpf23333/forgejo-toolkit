@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateEmailOption } from "./CreateEmailOption"
-import type { Email } from "./Email"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateEmailOption } from './CreateEmailOption';
+import type { Email } from './Email';
 
 /**
  * @description EmailList

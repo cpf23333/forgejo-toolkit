@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueCreateIssueDependenciesMutationRequest,
   IssueCreateIssueDependenciesMutationResponse,
   IssueCreateIssueDependenciesPathParams,
   IssueCreateIssueDependencies404,
   IssueCreateIssueDependencies423,
-} from "../types/IssueCreateIssueDependencies"
+} from '../types/IssueCreateIssueDependencies';
 
 function getIssueCreateIssueDependenciesUrl(
-  owner: IssueCreateIssueDependenciesPathParams["owner"],
-  repo: IssueCreateIssueDependenciesPathParams["repo"],
-  index: IssueCreateIssueDependenciesPathParams["index"],
+  owner: IssueCreateIssueDependenciesPathParams['owner'],
+  repo: IssueCreateIssueDependenciesPathParams['repo'],
+  index: IssueCreateIssueDependenciesPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/dependencies` as const,
   };
   return res;
@@ -34,13 +30,11 @@ function getIssueCreateIssueDependenciesUrl(
  * {@link /repos/:owner/:repo/issues/:index/dependencies}
  */
 export async function issueCreateIssueDependencies(
-  owner: IssueCreateIssueDependenciesPathParams["owner"],
-  repo: IssueCreateIssueDependenciesPathParams["repo"],
-  index: IssueCreateIssueDependenciesPathParams["index"],
+  owner: IssueCreateIssueDependenciesPathParams['owner'],
+  repo: IssueCreateIssueDependenciesPathParams['repo'],
+  index: IssueCreateIssueDependenciesPathParams['index'],
   data?: IssueCreateIssueDependenciesMutationRequest,
-  config: Partial<
-    RequestConfig<IssueCreateIssueDependenciesMutationRequest>
-  > & { client?: Client } = {},
+  config: Partial<RequestConfig<IssueCreateIssueDependenciesMutationRequest>> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
@@ -48,12 +42,10 @@ export async function issueCreateIssueDependencies(
 
   const res = await request<
     IssueCreateIssueDependenciesMutationResponse,
-    ResponseErrorConfig<
-      IssueCreateIssueDependencies404 | IssueCreateIssueDependencies423
-    >,
+    ResponseErrorConfig<IssueCreateIssueDependencies404 | IssueCreateIssueDependencies423>,
     IssueCreateIssueDependenciesMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueCreateIssueDependenciesUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

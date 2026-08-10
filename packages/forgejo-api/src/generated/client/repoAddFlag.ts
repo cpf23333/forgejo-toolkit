@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoAddFlagMutationResponse,
   RepoAddFlagPathParams,
   RepoAddFlag403,
   RepoAddFlag404,
-} from "../types/RepoAddFlag"
+} from '../types/RepoAddFlag';
 
 function getRepoAddFlagUrl(
-  owner: RepoAddFlagPathParams["owner"],
-  repo: RepoAddFlagPathParams["repo"],
-  flag: RepoAddFlagPathParams["flag"],
+  owner: RepoAddFlagPathParams['owner'],
+  repo: RepoAddFlagPathParams['repo'],
+  flag: RepoAddFlagPathParams['flag'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/flags/${flag}` as const,
   };
   return res;
@@ -33,21 +29,19 @@ function getRepoAddFlagUrl(
  * {@link /repos/:owner/:repo/flags/:flag}
  */
 export async function repoAddFlag(
-  owner: RepoAddFlagPathParams["owner"],
-  repo: RepoAddFlagPathParams["repo"],
-  flag: RepoAddFlagPathParams["flag"],
+  owner: RepoAddFlagPathParams['owner'],
+  repo: RepoAddFlagPathParams['repo'],
+  flag: RepoAddFlagPathParams['flag'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoAddFlagMutationResponse,
-    ResponseErrorConfig<RepoAddFlag403 | RepoAddFlag404>,
-    unknown
-  >({
-    method: "PUT",
-    url: getRepoAddFlagUrl(owner, repo, flag).url.toString(),
-    ...requestConfig,
-  });
+  const res = await request<RepoAddFlagMutationResponse, ResponseErrorConfig<RepoAddFlag403 | RepoAddFlag404>, unknown>(
+    {
+      method: 'PUT',
+      url: getRepoAddFlagUrl(owner, repo, flag).url.toString(),
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

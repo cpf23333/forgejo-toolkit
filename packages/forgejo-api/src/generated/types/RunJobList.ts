@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { ActionRunJob } from "./ActionRunJob"
+import type { ActionRunJob } from './ActionRunJob';
 
 export type RunJobList = ActionRunJob[];

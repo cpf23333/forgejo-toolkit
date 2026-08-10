@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { GPGKey } from "./GPGKey"
+import type { GPGKey } from './GPGKey';
 
 export type GPGKeyList = GPGKey[];

@@ -7,35 +7,29 @@ import type {
   IssueDeleteCommentDeprecatedMutationResponse,
   IssueDeleteCommentDeprecated403,
   IssueDeleteCommentDeprecated500,
-} from "../types/IssueDeleteCommentDeprecated"
-import { http } from "msw";
+} from '../types/IssueDeleteCommentDeprecated';
+import { http } from 'msw';
 
-export function issueDeleteCommentDeprecatedHandlerResponse204(
-  data?: IssueDeleteCommentDeprecatedMutationResponse,
-) {
+export function issueDeleteCommentDeprecatedHandlerResponse204(data?: IssueDeleteCommentDeprecatedMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteCommentDeprecatedHandlerResponse403(
-  data: IssueDeleteCommentDeprecated403,
-) {
+export function issueDeleteCommentDeprecatedHandlerResponse403(data: IssueDeleteCommentDeprecated403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueDeleteCommentDeprecatedHandlerResponse500(
-  data: IssueDeleteCommentDeprecated500,
-) {
+export function issueDeleteCommentDeprecatedHandlerResponse500(data: IssueDeleteCommentDeprecated500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function issueDeleteCommentDeprecatedHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/comments/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/comments/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

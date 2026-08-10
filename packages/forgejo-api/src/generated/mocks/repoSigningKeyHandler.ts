@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { RepoSigningKeyQueryResponse } from "../types/RepoSigningKey"
-import { http } from "msw";
+import type { RepoSigningKeyQueryResponse } from '../types/RepoSigningKey';
+import { http } from 'msw';
 
-export function repoSigningKeyHandlerResponse200(
-  data: RepoSigningKeyQueryResponse,
-) {
+export function repoSigningKeyHandlerResponse200(data: RepoSigningKeyQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "text/plain",
+      'Content-Type': 'text/plain',
     },
   });
 }
@@ -20,21 +18,16 @@ export function repoSigningKeyHandlerResponse200(
 export function repoSigningKeyHandler(
   data?:
     | RepoSigningKeyQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/signing-key.gpg`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/signing-key.gpg`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "text/plain",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+    });
+  });
 }

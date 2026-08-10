@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetUserRunnersQueryResponse,
   GetUserRunnersQueryParams,
   GetUserRunners400,
   GetUserRunners401,
   GetUserRunners404,
-} from "../types/GetUserRunners"
+} from '../types/GetUserRunners';
 
 function getGetUserRunnersUrl() {
-  const res = { method: "GET", url: `/user/actions/runners` as const };
+  const res = { method: 'GET', url: `/user/actions/runners` as const };
   return res;
 }
 
@@ -34,12 +30,10 @@ export async function getUserRunners(
 
   const res = await request<
     GetUserRunnersQueryResponse,
-    ResponseErrorConfig<
-      GetUserRunners400 | GetUserRunners401 | GetUserRunners404
-    >,
+    ResponseErrorConfig<GetUserRunners400 | GetUserRunners401 | GetUserRunners404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetUserRunnersUrl().url.toString(),
     params,
     ...requestConfig,

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { GPGKey } from "./GPGKey"
+import type { APINotFound } from './APINotFound';
+import type { GPGKey } from './GPGKey';
 
 export type UserListGPGKeysPathParams = {
   /**

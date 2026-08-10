@@ -3,25 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminRenameUserMutationRequest,
   AdminRenameUserMutationResponse,
   AdminRenameUserPathParams,
   AdminRenameUser403,
   AdminRenameUser422,
-} from "../types/AdminRenameUser"
+} from '../types/AdminRenameUser';
 
-function getAdminRenameUserUrl(
-  username: AdminRenameUserPathParams["username"],
-) {
+function getAdminRenameUserUrl(username: AdminRenameUserPathParams['username']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/admin/users/${username}/rename` as const,
   };
   return res;
@@ -32,7 +26,7 @@ function getAdminRenameUserUrl(
  * {@link /admin/users/:username/rename}
  */
 export async function adminRenameUser(
-  username: AdminRenameUserPathParams["username"],
+  username: AdminRenameUserPathParams['username'],
   data: AdminRenameUserMutationRequest,
   config: Partial<RequestConfig<AdminRenameUserMutationRequest>> & {
     client?: Client;
@@ -47,7 +41,7 @@ export async function adminRenameUser(
     ResponseErrorConfig<AdminRenameUser403 | AdminRenameUser422>,
     AdminRenameUserMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminRenameUserUrl(username).url.toString(),
     data: requestData,
     ...requestConfig,

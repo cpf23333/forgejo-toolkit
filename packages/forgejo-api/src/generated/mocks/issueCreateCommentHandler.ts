@@ -9,60 +9,50 @@ import type {
   IssueCreateComment404,
   IssueCreateComment423,
   IssueCreateComment500,
-} from "../types/IssueCreateComment"
-import { http } from "msw";
+} from '../types/IssueCreateComment';
+import { http } from 'msw';
 
-export function issueCreateCommentHandlerResponse201(
-  data: IssueCreateCommentMutationResponse,
-) {
+export function issueCreateCommentHandlerResponse201(data: IssueCreateCommentMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateCommentHandlerResponse403(
-  data: IssueCreateComment403,
-) {
+export function issueCreateCommentHandlerResponse403(data: IssueCreateComment403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateCommentHandlerResponse404(
-  data: IssueCreateComment404,
-) {
+export function issueCreateCommentHandlerResponse404(data: IssueCreateComment404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateCommentHandlerResponse423(
-  data: IssueCreateComment423,
-) {
+export function issueCreateCommentHandlerResponse423(data: IssueCreateComment423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateCommentHandlerResponse500(
-  data: IssueCreateComment500,
-) {
+export function issueCreateCommentHandlerResponse500(data: IssueCreateComment500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -70,21 +60,16 @@ export function issueCreateCommentHandlerResponse500(
 export function issueCreateCommentHandler(
   data?:
     | IssueCreateCommentMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/:index/comments`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/:index/comments`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

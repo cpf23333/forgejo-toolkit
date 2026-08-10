@@ -3,25 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserGetOAuth2ApplicationQueryResponse,
   UserGetOAuth2ApplicationPathParams,
   UserGetOAuth2Application401,
   UserGetOAuth2Application403,
   UserGetOAuth2Application404,
-} from "../types/UserGetOAuth2Application"
+} from '../types/UserGetOAuth2Application';
 
-function getUserGetOAuth2ApplicationUrl(
-  id: UserGetOAuth2ApplicationPathParams["id"],
-) {
+function getUserGetOAuth2ApplicationUrl(id: UserGetOAuth2ApplicationPathParams['id']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/user/applications/oauth2/${id}` as const,
   };
   return res;
@@ -32,21 +26,17 @@ function getUserGetOAuth2ApplicationUrl(
  * {@link /user/applications/oauth2/:id}
  */
 export async function userGetOAuth2Application(
-  id: UserGetOAuth2ApplicationPathParams["id"],
+  id: UserGetOAuth2ApplicationPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserGetOAuth2ApplicationQueryResponse,
-    ResponseErrorConfig<
-      | UserGetOAuth2Application401
-      | UserGetOAuth2Application403
-      | UserGetOAuth2Application404
-    >,
+    ResponseErrorConfig<UserGetOAuth2Application401 | UserGetOAuth2Application403 | UserGetOAuth2Application404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserGetOAuth2ApplicationUrl(id).url.toString(),
     ...requestConfig,
   });

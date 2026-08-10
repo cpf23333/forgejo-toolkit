@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { ActionTask } from "./ActionTask"
+import type { ActionTask } from './ActionTask';
 
 /**
  * @description ActionTaskResponse returns a ActionTask

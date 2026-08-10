@@ -6,27 +6,23 @@
 import type {
   IssueListIssueAttachmentsQueryResponse,
   IssueListIssueAttachments404,
-} from "../types/IssueListIssueAttachments"
-import { http } from "msw";
+} from '../types/IssueListIssueAttachments';
+import { http } from 'msw';
 
-export function issueListIssueAttachmentsHandlerResponse200(
-  data: IssueListIssueAttachmentsQueryResponse,
-) {
+export function issueListIssueAttachmentsHandlerResponse200(data: IssueListIssueAttachmentsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueListIssueAttachmentsHandlerResponse404(
-  data: IssueListIssueAttachments404,
-) {
+export function issueListIssueAttachmentsHandlerResponse404(data: IssueListIssueAttachments404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function issueListIssueAttachmentsHandlerResponse404(
 export function issueListIssueAttachmentsHandler(
   data?:
     | IssueListIssueAttachmentsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/issues/:index/assets`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/issues/:index/assets`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

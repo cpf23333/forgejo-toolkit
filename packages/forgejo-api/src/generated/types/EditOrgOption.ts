@@ -4,9 +4,9 @@
  */
 
 export const editOrgOptionVisibilityEnum = {
-  public: "public",
-  limited: "limited",
-  private: "private",
+  public: 'public',
+  limited: 'limited',
+  private: 'private',
 } as const;
 
 export type EditOrgOptionVisibilityEnumKey =

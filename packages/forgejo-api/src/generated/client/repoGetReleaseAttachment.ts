@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetReleaseAttachmentQueryResponse,
   RepoGetReleaseAttachmentPathParams,
   RepoGetReleaseAttachment404,
-} from "../types/RepoGetReleaseAttachment"
+} from '../types/RepoGetReleaseAttachment';
 
 function getRepoGetReleaseAttachmentUrl(
-  owner: RepoGetReleaseAttachmentPathParams["owner"],
-  repo: RepoGetReleaseAttachmentPathParams["repo"],
-  id: RepoGetReleaseAttachmentPathParams["id"],
-  attachment_id: RepoGetReleaseAttachmentPathParams["attachment_id"],
+  owner: RepoGetReleaseAttachmentPathParams['owner'],
+  repo: RepoGetReleaseAttachmentPathParams['repo'],
+  id: RepoGetReleaseAttachmentPathParams['id'],
+  attachment_id: RepoGetReleaseAttachmentPathParams['attachment_id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/releases/${id}/assets/${attachment_id}` as const,
   };
   return res;
@@ -33,10 +29,10 @@ function getRepoGetReleaseAttachmentUrl(
  * {@link /repos/:owner/:repo/releases/:id/assets/:attachment_id}
  */
 export async function repoGetReleaseAttachment(
-  owner: RepoGetReleaseAttachmentPathParams["owner"],
-  repo: RepoGetReleaseAttachmentPathParams["repo"],
-  id: RepoGetReleaseAttachmentPathParams["id"],
-  attachment_id: RepoGetReleaseAttachmentPathParams["attachment_id"],
+  owner: RepoGetReleaseAttachmentPathParams['owner'],
+  repo: RepoGetReleaseAttachmentPathParams['repo'],
+  id: RepoGetReleaseAttachmentPathParams['id'],
+  attachment_id: RepoGetReleaseAttachmentPathParams['attachment_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,13 +42,8 @@ export async function repoGetReleaseAttachment(
     ResponseErrorConfig<RepoGetReleaseAttachment404>,
     unknown
   >({
-    method: "GET",
-    url: getRepoGetReleaseAttachmentUrl(
-      owner,
-      repo,
-      id,
-      attachment_id,
-    ).url.toString(),
+    method: 'GET',
+    url: getRepoGetReleaseAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
     ...requestConfig,
   });
   return res.data;

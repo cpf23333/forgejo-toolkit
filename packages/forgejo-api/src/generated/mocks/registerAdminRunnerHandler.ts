@@ -8,49 +8,41 @@ import type {
   RegisterAdminRunner400,
   RegisterAdminRunner401,
   RegisterAdminRunner404,
-} from "../types/RegisterAdminRunner"
-import { http } from "msw";
+} from '../types/RegisterAdminRunner';
+import { http } from 'msw';
 
-export function registerAdminRunnerHandlerResponse201(
-  data: RegisterAdminRunnerMutationResponse,
-) {
+export function registerAdminRunnerHandlerResponse201(data: RegisterAdminRunnerMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function registerAdminRunnerHandlerResponse400(
-  data: RegisterAdminRunner400,
-) {
+export function registerAdminRunnerHandlerResponse400(data: RegisterAdminRunner400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function registerAdminRunnerHandlerResponse401(
-  data: RegisterAdminRunner401,
-) {
+export function registerAdminRunnerHandlerResponse401(data: RegisterAdminRunner401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function registerAdminRunnerHandlerResponse404(
-  data: RegisterAdminRunner404,
-) {
+export function registerAdminRunnerHandlerResponse404(data: RegisterAdminRunner404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function registerAdminRunnerHandlerResponse404(
 export function registerAdminRunnerHandler(
   data?:
     | RegisterAdminRunnerMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/admin/actions/runners`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

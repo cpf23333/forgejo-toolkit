@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentTrackedTimesQueryResponse,
   UserCurrentTrackedTimesQueryParams,
   UserCurrentTrackedTimes401,
   UserCurrentTrackedTimes403,
-} from "../types/UserCurrentTrackedTimes"
+} from '../types/UserCurrentTrackedTimes';
 
 function getUserCurrentTrackedTimesUrl() {
-  const res = { method: "GET", url: `/user/times` as const };
+  const res = { method: 'GET', url: `/user/times` as const };
   return res;
 }
 
@@ -33,12 +29,10 @@ export async function userCurrentTrackedTimes(
 
   const res = await request<
     UserCurrentTrackedTimesQueryResponse,
-    ResponseErrorConfig<
-      UserCurrentTrackedTimes401 | UserCurrentTrackedTimes403
-    >,
+    ResponseErrorConfig<UserCurrentTrackedTimes401 | UserCurrentTrackedTimes403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentTrackedTimesUrl().url.toString(),
     params,
     ...requestConfig,

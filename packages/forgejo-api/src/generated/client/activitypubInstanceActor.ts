@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { ActivitypubInstanceActorQueryResponse } from "../types/ActivitypubInstanceActor"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { ActivitypubInstanceActorQueryResponse } from '../types/ActivitypubInstanceActor';
 
 function getActivitypubInstanceActorUrl() {
-  const res = { method: "GET", url: `/activitypub/actor` as const };
+  const res = { method: 'GET', url: `/activitypub/actor` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getActivitypubInstanceActorUrl() {
  * @summary Returns the instance's Actor
  * {@link /activitypub/actor}
  */
-export async function activitypubInstanceActor(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function activitypubInstanceActor(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ActivitypubInstanceActorQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ActivitypubInstanceActorQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getActivitypubInstanceActorUrl().url.toString(),
     ...requestConfig,
   });

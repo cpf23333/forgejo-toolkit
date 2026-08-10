@@ -3,25 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteUserRunnerMutationResponse,
   DeleteUserRunnerPathParams,
   DeleteUserRunner400,
   DeleteUserRunner401,
   DeleteUserRunner404,
-} from "../types/DeleteUserRunner"
+} from '../types/DeleteUserRunner';
 
-function getDeleteUserRunnerUrl(
-  runner_id: DeleteUserRunnerPathParams["runner_id"],
-) {
+function getDeleteUserRunnerUrl(runner_id: DeleteUserRunnerPathParams['runner_id']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/user/actions/runners/${runner_id}` as const,
   };
   return res;
@@ -32,19 +26,17 @@ function getDeleteUserRunnerUrl(
  * {@link /user/actions/runners/:runner_id}
  */
 export async function deleteUserRunner(
-  runner_id: DeleteUserRunnerPathParams["runner_id"],
+  runner_id: DeleteUserRunnerPathParams['runner_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     DeleteUserRunnerMutationResponse,
-    ResponseErrorConfig<
-      DeleteUserRunner400 | DeleteUserRunner401 | DeleteUserRunner404
-    >,
+    ResponseErrorConfig<DeleteUserRunner400 | DeleteUserRunner401 | DeleteUserRunner404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteUserRunnerUrl(runner_id).url.toString(),
     ...requestConfig,
   });

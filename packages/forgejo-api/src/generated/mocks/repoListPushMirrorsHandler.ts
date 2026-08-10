@@ -8,49 +8,41 @@ import type {
   RepoListPushMirrors400,
   RepoListPushMirrors403,
   RepoListPushMirrors404,
-} from "../types/RepoListPushMirrors"
-import { http } from "msw";
+} from '../types/RepoListPushMirrors';
+import { http } from 'msw';
 
-export function repoListPushMirrorsHandlerResponse200(
-  data: RepoListPushMirrorsQueryResponse,
-) {
+export function repoListPushMirrorsHandlerResponse200(data: RepoListPushMirrorsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoListPushMirrorsHandlerResponse400(
-  data: RepoListPushMirrors400,
-) {
+export function repoListPushMirrorsHandlerResponse400(data: RepoListPushMirrors400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoListPushMirrorsHandlerResponse403(
-  data: RepoListPushMirrors403,
-) {
+export function repoListPushMirrorsHandlerResponse403(data: RepoListPushMirrors403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoListPushMirrorsHandlerResponse404(
-  data: RepoListPushMirrors404,
-) {
+export function repoListPushMirrorsHandlerResponse404(data: RepoListPushMirrors404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function repoListPushMirrorsHandlerResponse404(
 export function repoListPushMirrorsHandler(
   data?:
     | RepoListPushMirrorsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/push_mirrors`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

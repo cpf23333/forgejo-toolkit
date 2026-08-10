@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListCollaboratorsQueryResponse,
   RepoListCollaboratorsPathParams,
   RepoListCollaboratorsQueryParams,
   RepoListCollaborators404,
-} from "../types/RepoListCollaborators"
+} from '../types/RepoListCollaborators';
 
 function getRepoListCollaboratorsUrl(
-  owner: RepoListCollaboratorsPathParams["owner"],
-  repo: RepoListCollaboratorsPathParams["repo"],
+  owner: RepoListCollaboratorsPathParams['owner'],
+  repo: RepoListCollaboratorsPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/collaborators` as const,
   };
   return res;
@@ -32,22 +28,20 @@ function getRepoListCollaboratorsUrl(
  * {@link /repos/:owner/:repo/collaborators}
  */
 export async function repoListCollaborators(
-  owner: RepoListCollaboratorsPathParams["owner"],
-  repo: RepoListCollaboratorsPathParams["repo"],
+  owner: RepoListCollaboratorsPathParams['owner'],
+  repo: RepoListCollaboratorsPathParams['repo'],
   params?: RepoListCollaboratorsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListCollaboratorsQueryResponse,
-    ResponseErrorConfig<RepoListCollaborators404>,
-    unknown
-  >({
-    method: "GET",
-    url: getRepoListCollaboratorsUrl(owner, repo).url.toString(),
-    params,
-    ...requestConfig,
-  });
+  const res = await request<RepoListCollaboratorsQueryResponse, ResponseErrorConfig<RepoListCollaborators404>, unknown>(
+    {
+      method: 'GET',
+      url: getRepoListCollaboratorsUrl(owner, repo).url.toString(),
+      params,
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

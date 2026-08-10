@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListReposQueryResponse,
   UserListReposPathParams,
   UserListReposQueryParams,
   UserListRepos404,
-} from "../types/UserListRepos"
+} from '../types/UserListRepos';
 
-function getUserListReposUrl(username: UserListReposPathParams["username"]) {
-  const res = { method: "GET", url: `/users/${username}/repos` as const };
+function getUserListReposUrl(username: UserListReposPathParams['username']) {
+  const res = { method: 'GET', url: `/users/${username}/repos` as const };
   return res;
 }
 
@@ -26,18 +22,14 @@ function getUserListReposUrl(username: UserListReposPathParams["username"]) {
  * {@link /users/:username/repos}
  */
 export async function userListRepos(
-  username: UserListReposPathParams["username"],
+  username: UserListReposPathParams['username'],
   params?: UserListReposQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserListReposQueryResponse,
-    ResponseErrorConfig<UserListRepos404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<UserListReposQueryResponse, ResponseErrorConfig<UserListRepos404>, unknown>({
+    method: 'GET',
     url: getUserListReposUrl(username).url.toString(),
     params,
     ...requestConfig,

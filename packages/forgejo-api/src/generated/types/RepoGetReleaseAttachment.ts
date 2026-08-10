@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Attachment } from "./Attachment"
+import type { APINotFound } from './APINotFound';
+import type { Attachment } from './Attachment';
 
 export type RepoGetReleaseAttachmentPathParams = {
   /**

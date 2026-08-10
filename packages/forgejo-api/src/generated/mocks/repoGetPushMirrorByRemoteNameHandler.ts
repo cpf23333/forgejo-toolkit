@@ -8,49 +8,41 @@ import type {
   RepoGetPushMirrorByRemoteName400,
   RepoGetPushMirrorByRemoteName403,
   RepoGetPushMirrorByRemoteName404,
-} from "../types/RepoGetPushMirrorByRemoteName"
-import { http } from "msw";
+} from '../types/RepoGetPushMirrorByRemoteName';
+import { http } from 'msw';
 
-export function repoGetPushMirrorByRemoteNameHandlerResponse200(
-  data: RepoGetPushMirrorByRemoteNameQueryResponse,
-) {
+export function repoGetPushMirrorByRemoteNameHandlerResponse200(data: RepoGetPushMirrorByRemoteNameQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetPushMirrorByRemoteNameHandlerResponse400(
-  data: RepoGetPushMirrorByRemoteName400,
-) {
+export function repoGetPushMirrorByRemoteNameHandlerResponse400(data: RepoGetPushMirrorByRemoteName400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetPushMirrorByRemoteNameHandlerResponse403(
-  data: RepoGetPushMirrorByRemoteName403,
-) {
+export function repoGetPushMirrorByRemoteNameHandlerResponse403(data: RepoGetPushMirrorByRemoteName403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetPushMirrorByRemoteNameHandlerResponse404(
-  data: RepoGetPushMirrorByRemoteName404,
-) {
+export function repoGetPushMirrorByRemoteNameHandlerResponse404(data: RepoGetPushMirrorByRemoteName404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,21 +50,16 @@ export function repoGetPushMirrorByRemoteNameHandlerResponse404(
 export function repoGetPushMirrorByRemoteNameHandler(
   data?:
     | RepoGetPushMirrorByRemoteNameQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/push_mirrors/:name`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/push_mirrors/:name`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetAllCommitsQueryResponse,
   RepoGetAllCommitsPathParams,
   RepoGetAllCommitsQueryParams,
   RepoGetAllCommits404,
   RepoGetAllCommits409,
-} from "../types/RepoGetAllCommits"
+} from '../types/RepoGetAllCommits';
 
 function getRepoGetAllCommitsUrl(
-  owner: RepoGetAllCommitsPathParams["owner"],
-  repo: RepoGetAllCommitsPathParams["repo"],
+  owner: RepoGetAllCommitsPathParams['owner'],
+  repo: RepoGetAllCommitsPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/commits` as const,
   };
   return res;
@@ -33,8 +29,8 @@ function getRepoGetAllCommitsUrl(
  * {@link /repos/:owner/:repo/commits}
  */
 export async function repoGetAllCommits(
-  owner: RepoGetAllCommitsPathParams["owner"],
-  repo: RepoGetAllCommitsPathParams["repo"],
+  owner: RepoGetAllCommitsPathParams['owner'],
+  repo: RepoGetAllCommitsPathParams['repo'],
   params?: RepoGetAllCommitsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -45,7 +41,7 @@ export async function repoGetAllCommits(
     ResponseErrorConfig<RepoGetAllCommits404 | RepoGetAllCommits409>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetAllCommitsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

@@ -8,49 +8,41 @@ import type {
   CreateOrgRepoDeprecated403,
   CreateOrgRepoDeprecated404,
   CreateOrgRepoDeprecated422,
-} from "../types/CreateOrgRepoDeprecated"
-import { http } from "msw";
+} from '../types/CreateOrgRepoDeprecated';
+import { http } from 'msw';
 
-export function createOrgRepoDeprecatedHandlerResponse201(
-  data: CreateOrgRepoDeprecatedMutationResponse,
-) {
+export function createOrgRepoDeprecatedHandlerResponse201(data: CreateOrgRepoDeprecatedMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createOrgRepoDeprecatedHandlerResponse403(
-  data: CreateOrgRepoDeprecated403,
-) {
+export function createOrgRepoDeprecatedHandlerResponse403(data: CreateOrgRepoDeprecated403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createOrgRepoDeprecatedHandlerResponse404(
-  data: CreateOrgRepoDeprecated404,
-) {
+export function createOrgRepoDeprecatedHandlerResponse404(data: CreateOrgRepoDeprecated404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createOrgRepoDeprecatedHandlerResponse422(
-  data: CreateOrgRepoDeprecated422,
-) {
+export function createOrgRepoDeprecatedHandlerResponse422(data: CreateOrgRepoDeprecated422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function createOrgRepoDeprecatedHandlerResponse422(
 export function createOrgRepoDeprecatedHandler(
   data?:
     | CreateOrgRepoDeprecatedMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/org/:org/repos`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

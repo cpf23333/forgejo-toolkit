@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { EditOrgOption } from "./EditOrgOption"
-import type { Organization } from "./Organization"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { EditOrgOption } from './EditOrgOption';
+import type { Organization } from './Organization';
 
 export type OrgEditPathParams = {
   /**

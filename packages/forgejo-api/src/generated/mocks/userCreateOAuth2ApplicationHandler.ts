@@ -8,49 +8,41 @@ import type {
   UserCreateOAuth2Application400,
   UserCreateOAuth2Application401,
   UserCreateOAuth2Application403,
-} from "../types/UserCreateOAuth2Application"
-import { http } from "msw";
+} from '../types/UserCreateOAuth2Application';
+import { http } from 'msw';
 
-export function userCreateOAuth2ApplicationHandlerResponse201(
-  data: UserCreateOAuth2ApplicationMutationResponse,
-) {
+export function userCreateOAuth2ApplicationHandlerResponse201(data: UserCreateOAuth2ApplicationMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCreateOAuth2ApplicationHandlerResponse400(
-  data: UserCreateOAuth2Application400,
-) {
+export function userCreateOAuth2ApplicationHandlerResponse400(data: UserCreateOAuth2Application400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCreateOAuth2ApplicationHandlerResponse401(
-  data: UserCreateOAuth2Application401,
-) {
+export function userCreateOAuth2ApplicationHandlerResponse401(data: UserCreateOAuth2Application401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCreateOAuth2ApplicationHandlerResponse403(
-  data: UserCreateOAuth2Application403,
-) {
+export function userCreateOAuth2ApplicationHandlerResponse403(data: UserCreateOAuth2Application403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function userCreateOAuth2ApplicationHandlerResponse403(
 export function userCreateOAuth2ApplicationHandler(
   data?:
     | UserCreateOAuth2ApplicationMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/user/applications/oauth2`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { SyncForkInfo } from "./SyncForkInfo"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { SyncForkInfo } from './SyncForkInfo';
 
 export type RepoSyncForkDefaultInfoPathParams = {
   /**

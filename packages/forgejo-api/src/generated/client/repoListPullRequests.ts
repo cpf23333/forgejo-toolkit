@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListPullRequestsQueryResponse,
   RepoListPullRequestsPathParams,
@@ -16,13 +12,13 @@ import type {
   RepoListPullRequests400,
   RepoListPullRequests404,
   RepoListPullRequests500,
-} from "../types/RepoListPullRequests"
+} from '../types/RepoListPullRequests';
 
 function getRepoListPullRequestsUrl(
-  owner: RepoListPullRequestsPathParams["owner"],
-  repo: RepoListPullRequestsPathParams["repo"],
+  owner: RepoListPullRequestsPathParams['owner'],
+  repo: RepoListPullRequestsPathParams['repo'],
 ) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/pulls` as const };
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/pulls` as const };
   return res;
 }
 
@@ -31,8 +27,8 @@ function getRepoListPullRequestsUrl(
  * {@link /repos/:owner/:repo/pulls}
  */
 export async function repoListPullRequests(
-  owner: RepoListPullRequestsPathParams["owner"],
-  repo: RepoListPullRequestsPathParams["repo"],
+  owner: RepoListPullRequestsPathParams['owner'],
+  repo: RepoListPullRequestsPathParams['repo'],
   params?: RepoListPullRequestsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -40,14 +36,10 @@ export async function repoListPullRequests(
 
   const res = await request<
     RepoListPullRequestsQueryResponse,
-    ResponseErrorConfig<
-      | RepoListPullRequests400
-      | RepoListPullRequests404
-      | RepoListPullRequests500
-    >,
+    ResponseErrorConfig<RepoListPullRequests400 | RepoListPullRequests404 | RepoListPullRequests500>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoListPullRequestsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

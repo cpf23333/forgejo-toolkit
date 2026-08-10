@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetPullRequestQueryResponse,
-  RepoGetPullRequest404,
-} from "../types/RepoGetPullRequest"
-import { http } from "msw";
+import type { RepoGetPullRequestQueryResponse, RepoGetPullRequest404 } from '../types/RepoGetPullRequest';
+import { http } from 'msw';
 
-export function repoGetPullRequestHandlerResponse200(
-  data: RepoGetPullRequestQueryResponse,
-) {
+export function repoGetPullRequestHandlerResponse200(data: RepoGetPullRequestQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetPullRequestHandlerResponse404(
-  data: RepoGetPullRequest404,
-) {
+export function repoGetPullRequestHandlerResponse404(data: RepoGetPullRequest404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function repoGetPullRequestHandlerResponse404(
 export function repoGetPullRequestHandler(
   data?:
     | RepoGetPullRequestQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls/:index`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

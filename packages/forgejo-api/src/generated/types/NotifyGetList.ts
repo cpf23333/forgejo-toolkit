@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { NotificationThread } from "./NotificationThread"
+import type { NotificationThread } from './NotificationThread';
 
 export const notifyGetListQueryParamsSubjectTypeEnum = {
-  issue: "issue",
-  pull: "pull",
-  repository: "repository",
+  issue: 'issue',
+  pull: 'pull',
+  repository: 'repository',
 } as const;
 
 export type NotifyGetListQueryParamsSubjectTypeEnumKey =
@@ -24,12 +24,12 @@ export type NotifyGetListQueryParams = {
    * @description Show notifications with the provided status types. Options are: unread, read and/or pinned. Defaults to unread & pinned.
    * @type array | undefined
    */
-  "status-types"?: string[];
+  'status-types'?: string[];
   /**
    * @description filter notifications by subject type
    * @type array | undefined
    */
-  "subject-type"?: NotifyGetListQueryParamsSubjectTypeEnumKey[];
+  'subject-type'?: NotifyGetListQueryParamsSubjectTypeEnumKey[];
   /**
    * @description Only show notifications updated after the given time. This is a timestamp in RFC 3339 format
    * @type string | undefined, date-time

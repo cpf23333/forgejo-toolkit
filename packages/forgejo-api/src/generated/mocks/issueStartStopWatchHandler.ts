@@ -8,39 +8,31 @@ import type {
   IssueStartStopWatch403,
   IssueStartStopWatch404,
   IssueStartStopWatch409,
-} from "../types/IssueStartStopWatch"
-import { http } from "msw";
+} from '../types/IssueStartStopWatch';
+import { http } from 'msw';
 
-export function issueStartStopWatchHandlerResponse201(
-  data?: IssueStartStopWatchMutationResponse,
-) {
+export function issueStartStopWatchHandlerResponse201(data?: IssueStartStopWatchMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function issueStartStopWatchHandlerResponse403(
-  data?: IssueStartStopWatch403,
-) {
+export function issueStartStopWatchHandlerResponse403(data?: IssueStartStopWatch403) {
   return new Response(JSON.stringify(data), {
     status: 403,
   });
 }
 
-export function issueStartStopWatchHandlerResponse404(
-  data: IssueStartStopWatch404,
-) {
+export function issueStartStopWatchHandlerResponse404(data: IssueStartStopWatch404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueStartStopWatchHandlerResponse409(
-  data?: IssueStartStopWatch409,
-) {
+export function issueStartStopWatchHandlerResponse409(data?: IssueStartStopWatch409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
@@ -53,18 +45,13 @@ export function issueStartStopWatchHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/:index/stopwatch/start`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/:index/stopwatch/start`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

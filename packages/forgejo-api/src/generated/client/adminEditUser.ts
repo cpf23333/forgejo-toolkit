@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminEditUserMutationRequest,
   AdminEditUserMutationResponse,
@@ -16,10 +12,10 @@ import type {
   AdminEditUser400,
   AdminEditUser403,
   AdminEditUser422,
-} from "../types/AdminEditUser"
+} from '../types/AdminEditUser';
 
-function getAdminEditUserUrl(username: AdminEditUserPathParams["username"]) {
-  const res = { method: "PATCH", url: `/admin/users/${username}` as const };
+function getAdminEditUserUrl(username: AdminEditUserPathParams['username']) {
+  const res = { method: 'PATCH', url: `/admin/users/${username}` as const };
   return res;
 }
 
@@ -28,7 +24,7 @@ function getAdminEditUserUrl(username: AdminEditUserPathParams["username"]) {
  * {@link /admin/users/:username}
  */
 export async function adminEditUser(
-  username: AdminEditUserPathParams["username"],
+  username: AdminEditUserPathParams['username'],
   data?: AdminEditUserMutationRequest,
   config: Partial<RequestConfig<AdminEditUserMutationRequest>> & {
     client?: Client;
@@ -43,7 +39,7 @@ export async function adminEditUser(
     ResponseErrorConfig<AdminEditUser400 | AdminEditUser403 | AdminEditUser422>,
     AdminEditUserMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getAdminEditUserUrl(username).url.toString(),
     data: requestData,
     ...requestConfig,

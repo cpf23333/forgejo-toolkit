@@ -3,25 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateKeyMutationRequest,
   RepoCreateKeyMutationResponse,
   RepoCreateKeyPathParams,
   RepoCreateKey404,
   RepoCreateKey422,
-} from "../types/RepoCreateKey"
+} from '../types/RepoCreateKey';
 
-function getRepoCreateKeyUrl(
-  owner: RepoCreateKeyPathParams["owner"],
-  repo: RepoCreateKeyPathParams["repo"],
-) {
-  const res = { method: "POST", url: `/repos/${owner}/${repo}/keys` as const };
+function getRepoCreateKeyUrl(owner: RepoCreateKeyPathParams['owner'], repo: RepoCreateKeyPathParams['repo']) {
+  const res = { method: 'POST', url: `/repos/${owner}/${repo}/keys` as const };
   return res;
 }
 
@@ -30,8 +23,8 @@ function getRepoCreateKeyUrl(
  * {@link /repos/:owner/:repo/keys}
  */
 export async function repoCreateKey(
-  owner: RepoCreateKeyPathParams["owner"],
-  repo: RepoCreateKeyPathParams["repo"],
+  owner: RepoCreateKeyPathParams['owner'],
+  repo: RepoCreateKeyPathParams['repo'],
   data: RepoCreateKeyMutationRequest,
   config: Partial<RequestConfig<RepoCreateKeyMutationRequest>> & {
     client?: Client;
@@ -46,7 +39,7 @@ export async function repoCreateKey(
     ResponseErrorConfig<RepoCreateKey404 | RepoCreateKey422>,
     RepoCreateKeyMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateKeyUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

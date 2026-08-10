@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { NewIssuePinsAllowed } from "./NewIssuePinsAllowed"
+import type { APINotFound } from './APINotFound';
+import type { NewIssuePinsAllowed } from './NewIssuePinsAllowed';
 
 export type RepoNewPinAllowedPathParams = {
   /**

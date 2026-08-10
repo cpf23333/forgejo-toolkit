@@ -3,17 +3,13 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { AdminGetRegistrationTokenQueryResponse } from "../types/AdminGetRegistrationToken"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AdminGetRegistrationTokenQueryResponse } from '../types/AdminGetRegistrationToken';
 
 function getAdminGetRegistrationTokenUrl() {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/admin/runners/registration-token` as const,
   };
   return res;
@@ -25,17 +21,11 @@ function getAdminGetRegistrationTokenUrl() {
  * {@link /admin/runners/registration-token}
  * @deprecated
  */
-export async function adminGetRegistrationToken(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function adminGetRegistrationToken(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminGetRegistrationTokenQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminGetRegistrationTokenQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getAdminGetRegistrationTokenUrl().url.toString(),
     ...requestConfig,
   });

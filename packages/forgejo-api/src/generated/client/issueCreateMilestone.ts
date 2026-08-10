@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueCreateMilestoneMutationRequest,
   IssueCreateMilestoneMutationResponse,
   IssueCreateMilestonePathParams,
   IssueCreateMilestone404,
-} from "../types/IssueCreateMilestone"
+} from '../types/IssueCreateMilestone';
 
 function getIssueCreateMilestoneUrl(
-  owner: IssueCreateMilestonePathParams["owner"],
-  repo: IssueCreateMilestonePathParams["repo"],
+  owner: IssueCreateMilestonePathParams['owner'],
+  repo: IssueCreateMilestonePathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/milestones` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getIssueCreateMilestoneUrl(
  * {@link /repos/:owner/:repo/milestones}
  */
 export async function issueCreateMilestone(
-  owner: IssueCreateMilestonePathParams["owner"],
-  repo: IssueCreateMilestonePathParams["repo"],
+  owner: IssueCreateMilestonePathParams['owner'],
+  repo: IssueCreateMilestonePathParams['repo'],
   data?: IssueCreateMilestoneMutationRequest,
   config: Partial<RequestConfig<IssueCreateMilestoneMutationRequest>> & {
     client?: Client;
@@ -48,7 +44,7 @@ export async function issueCreateMilestone(
     ResponseErrorConfig<IssueCreateMilestone404>,
     IssueCreateMilestoneMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueCreateMilestoneUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

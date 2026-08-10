@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { UpdateUserAvatarOption } from "./UpdateUserAvatarOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { UpdateUserAvatarOption } from './UpdateUserAvatarOption';
 
 /**
  * @description APIEmpty is an empty response

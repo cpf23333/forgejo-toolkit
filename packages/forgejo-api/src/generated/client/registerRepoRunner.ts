@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RegisterRepoRunnerMutationRequest,
   RegisterRepoRunnerMutationResponse,
@@ -16,14 +12,14 @@ import type {
   RegisterRepoRunner400,
   RegisterRepoRunner401,
   RegisterRepoRunner404,
-} from "../types/RegisterRepoRunner"
+} from '../types/RegisterRepoRunner';
 
 function getRegisterRepoRunnerUrl(
-  owner: RegisterRepoRunnerPathParams["owner"],
-  repo: RegisterRepoRunnerPathParams["repo"],
+  owner: RegisterRepoRunnerPathParams['owner'],
+  repo: RegisterRepoRunnerPathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/actions/runners` as const,
   };
   return res;
@@ -34,8 +30,8 @@ function getRegisterRepoRunnerUrl(
  * {@link /repos/:owner/:repo/actions/runners}
  */
 export async function registerRepoRunner(
-  owner: RegisterRepoRunnerPathParams["owner"],
-  repo: RegisterRepoRunnerPathParams["repo"],
+  owner: RegisterRepoRunnerPathParams['owner'],
+  repo: RegisterRepoRunnerPathParams['repo'],
   data: RegisterRepoRunnerMutationRequest,
   config: Partial<RequestConfig<RegisterRepoRunnerMutationRequest>> & {
     client?: Client;
@@ -47,12 +43,10 @@ export async function registerRepoRunner(
 
   const res = await request<
     RegisterRepoRunnerMutationResponse,
-    ResponseErrorConfig<
-      RegisterRepoRunner400 | RegisterRepoRunner401 | RegisterRepoRunner404
-    >,
+    ResponseErrorConfig<RegisterRepoRunner400 | RegisterRepoRunner401 | RegisterRepoRunner404>,
     RegisterRepoRunnerMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRegisterRepoRunnerUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

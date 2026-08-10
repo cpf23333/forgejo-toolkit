@@ -18,7 +18,7 @@
     }
   },
   "scripts": {
-    "generate": "kubb generate",
+    "generate": "kubb generate && node scripts/strip-ts-extensions.js",
     "check": "tsc --noEmit",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",

@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteReleaseAttachmentMutationResponse,
   RepoDeleteReleaseAttachmentPathParams,
   RepoDeleteReleaseAttachment404,
-} from "../types/RepoDeleteReleaseAttachment"
+} from '../types/RepoDeleteReleaseAttachment';
 
 function getRepoDeleteReleaseAttachmentUrl(
-  owner: RepoDeleteReleaseAttachmentPathParams["owner"],
-  repo: RepoDeleteReleaseAttachmentPathParams["repo"],
-  id: RepoDeleteReleaseAttachmentPathParams["id"],
-  attachment_id: RepoDeleteReleaseAttachmentPathParams["attachment_id"],
+  owner: RepoDeleteReleaseAttachmentPathParams['owner'],
+  repo: RepoDeleteReleaseAttachmentPathParams['repo'],
+  id: RepoDeleteReleaseAttachmentPathParams['id'],
+  attachment_id: RepoDeleteReleaseAttachmentPathParams['attachment_id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/releases/${id}/assets/${attachment_id}` as const,
   };
   return res;
@@ -33,10 +29,10 @@ function getRepoDeleteReleaseAttachmentUrl(
  * {@link /repos/:owner/:repo/releases/:id/assets/:attachment_id}
  */
 export async function repoDeleteReleaseAttachment(
-  owner: RepoDeleteReleaseAttachmentPathParams["owner"],
-  repo: RepoDeleteReleaseAttachmentPathParams["repo"],
-  id: RepoDeleteReleaseAttachmentPathParams["id"],
-  attachment_id: RepoDeleteReleaseAttachmentPathParams["attachment_id"],
+  owner: RepoDeleteReleaseAttachmentPathParams['owner'],
+  repo: RepoDeleteReleaseAttachmentPathParams['repo'],
+  id: RepoDeleteReleaseAttachmentPathParams['id'],
+  attachment_id: RepoDeleteReleaseAttachmentPathParams['attachment_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,13 +42,8 @@ export async function repoDeleteReleaseAttachment(
     ResponseErrorConfig<RepoDeleteReleaseAttachment404>,
     unknown
   >({
-    method: "DELETE",
-    url: getRepoDeleteReleaseAttachmentUrl(
-      owner,
-      repo,
-      id,
-      attachment_id,
-    ).url.toString(),
+    method: 'DELETE',
+    url: getRepoDeleteReleaseAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
     ...requestConfig,
   });
   return res.data;

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { Repository } from "./Repository"
-import type { User } from "./User"
+import type { Repository } from './Repository';
+import type { User } from './User';
 
 /**
  * @description Package represents a package

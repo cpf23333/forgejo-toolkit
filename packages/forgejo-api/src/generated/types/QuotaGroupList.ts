@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { QuotaGroup } from "./QuotaGroup"
+import type { QuotaGroup } from './QuotaGroup';
 
 /**
  * @description QuotaGroupList represents a list of quota groups

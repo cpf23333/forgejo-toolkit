@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { User } from "./User"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { User } from './User';
 
 export const adminSearchUsersQueryParamsSortEnum = {
-  oldest: "oldest",
-  newest: "newest",
-  alphabetically: "alphabetically",
-  reversealphabetically: "reversealphabetically",
-  recentupdate: "recentupdate",
-  leastupdate: "leastupdate",
+  oldest: 'oldest',
+  newest: 'newest',
+  alphabetically: 'alphabetically',
+  reversealphabetically: 'reversealphabetically',
+  recentupdate: 'recentupdate',
+  leastupdate: 'leastupdate',
 } as const;
 
 export type AdminSearchUsersQueryParamsSortEnumKey =

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Attachment } from "./Attachment"
+import type { APINotFound } from './APINotFound';
+import type { Attachment } from './Attachment';
 
 export type RepoListReleaseAttachmentsPathParams = {
   /**
@@ -34,8 +34,7 @@ export type RepoListReleaseAttachments200 = Attachment[];
  */
 export type RepoListReleaseAttachments404 = APINotFound;
 
-export type RepoListReleaseAttachmentsQueryResponse =
-  RepoListReleaseAttachments200;
+export type RepoListReleaseAttachmentsQueryResponse = RepoListReleaseAttachments200;
 
 export type RepoListReleaseAttachmentsQuery = {
   Response: RepoListReleaseAttachments200;

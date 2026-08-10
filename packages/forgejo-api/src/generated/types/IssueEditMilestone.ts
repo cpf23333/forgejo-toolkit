@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { EditMilestoneOption } from "./EditMilestoneOption"
-import type { Milestone } from "./Milestone"
+import type { APINotFound } from './APINotFound';
+import type { EditMilestoneOption } from './EditMilestoneOption';
+import type { Milestone } from './Milestone';
 
 export type IssueEditMilestonePathParams = {
   /**

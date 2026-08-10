@@ -7,38 +7,32 @@ import type {
   UserCurrentTrackedTimesQueryResponse,
   UserCurrentTrackedTimes401,
   UserCurrentTrackedTimes403,
-} from "../types/UserCurrentTrackedTimes"
-import { http } from "msw";
+} from '../types/UserCurrentTrackedTimes';
+import { http } from 'msw';
 
-export function userCurrentTrackedTimesHandlerResponse200(
-  data: UserCurrentTrackedTimesQueryResponse,
-) {
+export function userCurrentTrackedTimesHandlerResponse200(data: UserCurrentTrackedTimesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentTrackedTimesHandlerResponse401(
-  data: UserCurrentTrackedTimes401,
-) {
+export function userCurrentTrackedTimesHandlerResponse401(data: UserCurrentTrackedTimes401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentTrackedTimesHandlerResponse403(
-  data: UserCurrentTrackedTimes403,
-) {
+export function userCurrentTrackedTimesHandlerResponse403(data: UserCurrentTrackedTimes403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function userCurrentTrackedTimesHandlerResponse403(
 export function userCurrentTrackedTimesHandler(
   data?:
     | UserCurrentTrackedTimesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/times`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

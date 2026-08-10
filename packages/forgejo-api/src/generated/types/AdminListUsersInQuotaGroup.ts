@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { User } from "./User"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { User } from './User';
 
 export type AdminListUsersInQuotaGroupPathParams = {
   /**
@@ -36,14 +36,10 @@ export type AdminListUsersInQuotaGroup403 = APIForbiddenError;
  */
 export type AdminListUsersInQuotaGroup404 = APINotFound;
 
-export type AdminListUsersInQuotaGroupQueryResponse =
-  AdminListUsersInQuotaGroup200;
+export type AdminListUsersInQuotaGroupQueryResponse = AdminListUsersInQuotaGroup200;
 
 export type AdminListUsersInQuotaGroupQuery = {
   Response: AdminListUsersInQuotaGroup200;
   PathParams: AdminListUsersInQuotaGroupPathParams;
-  Errors:
-    | AdminListUsersInQuotaGroup400
-    | AdminListUsersInQuotaGroup403
-    | AdminListUsersInQuotaGroup404;
+  Errors: AdminListUsersInQuotaGroup400 | AdminListUsersInQuotaGroup403 | AdminListUsersInQuotaGroup404;
 };

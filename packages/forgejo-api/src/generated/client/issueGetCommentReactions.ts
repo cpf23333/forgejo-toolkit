@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetCommentReactionsQueryResponse,
   IssueGetCommentReactionsPathParams,
   IssueGetCommentReactions403,
   IssueGetCommentReactions404,
-} from "../types/IssueGetCommentReactions"
+} from '../types/IssueGetCommentReactions';
 
 function getIssueGetCommentReactionsUrl(
-  owner: IssueGetCommentReactionsPathParams["owner"],
-  repo: IssueGetCommentReactionsPathParams["repo"],
-  id: IssueGetCommentReactionsPathParams["id"],
+  owner: IssueGetCommentReactionsPathParams['owner'],
+  repo: IssueGetCommentReactionsPathParams['repo'],
+  id: IssueGetCommentReactionsPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/comments/${id}/reactions` as const,
   };
   return res;
@@ -33,21 +29,19 @@ function getIssueGetCommentReactionsUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id/reactions}
  */
 export async function issueGetCommentReactions(
-  owner: IssueGetCommentReactionsPathParams["owner"],
-  repo: IssueGetCommentReactionsPathParams["repo"],
-  id: IssueGetCommentReactionsPathParams["id"],
+  owner: IssueGetCommentReactionsPathParams['owner'],
+  repo: IssueGetCommentReactionsPathParams['repo'],
+  id: IssueGetCommentReactionsPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     IssueGetCommentReactionsQueryResponse,
-    ResponseErrorConfig<
-      IssueGetCommentReactions403 | IssueGetCommentReactions404
-    >,
+    ResponseErrorConfig<IssueGetCommentReactions403 | IssueGetCommentReactions404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueGetCommentReactionsUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

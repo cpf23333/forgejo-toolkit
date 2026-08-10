@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { Cron } from "./Cron"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { Cron } from './Cron';
 
 export type AdminCronListQueryParams = {
   /**

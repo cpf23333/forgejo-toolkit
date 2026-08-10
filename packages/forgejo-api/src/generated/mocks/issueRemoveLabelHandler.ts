@@ -8,12 +8,10 @@ import type {
   IssueRemoveLabel403,
   IssueRemoveLabel404,
   IssueRemoveLabel422,
-} from "../types/IssueRemoveLabel"
-import { http } from "msw";
+} from '../types/IssueRemoveLabel';
+import { http } from 'msw';
 
-export function issueRemoveLabelHandlerResponse204(
-  data?: IssueRemoveLabelMutationResponse,
-) {
+export function issueRemoveLabelHandlerResponse204(data?: IssueRemoveLabelMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -23,7 +21,7 @@ export function issueRemoveLabelHandlerResponse403(data: IssueRemoveLabel403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +30,7 @@ export function issueRemoveLabelHandlerResponse404(data: IssueRemoveLabel404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,7 +39,7 @@ export function issueRemoveLabelHandlerResponse422(data: IssueRemoveLabel422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -53,18 +51,13 @@ export function issueRemoveLabelHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/labels/:identifier`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/labels/:identifier`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

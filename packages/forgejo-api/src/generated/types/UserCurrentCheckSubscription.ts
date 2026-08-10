@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { WatchInfo } from "./WatchInfo"
+import type { WatchInfo } from './WatchInfo';
 
 export type UserCurrentCheckSubscriptionPathParams = {
   /**
@@ -28,8 +28,7 @@ export type UserCurrentCheckSubscription200 = WatchInfo;
  */
 export type UserCurrentCheckSubscription404 = any;
 
-export type UserCurrentCheckSubscriptionQueryResponse =
-  UserCurrentCheckSubscription200;
+export type UserCurrentCheckSubscriptionQueryResponse = UserCurrentCheckSubscription200;
 
 export type UserCurrentCheckSubscriptionQuery = {
   Response: UserCurrentCheckSubscription200;

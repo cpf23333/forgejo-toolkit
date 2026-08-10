@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DispatchWorkflowMutationRequest,
   DispatchWorkflowMutationResponse,
   DispatchWorkflowPathParams,
   DispatchWorkflow404,
-} from "../types/DispatchWorkflow"
+} from '../types/DispatchWorkflow';
 
 function getDispatchWorkflowUrl(
-  owner: DispatchWorkflowPathParams["owner"],
-  repo: DispatchWorkflowPathParams["repo"],
-  workflowfilename: DispatchWorkflowPathParams["workflowfilename"],
+  owner: DispatchWorkflowPathParams['owner'],
+  repo: DispatchWorkflowPathParams['repo'],
+  workflowfilename: DispatchWorkflowPathParams['workflowfilename'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/actions/workflows/${workflowfilename}/dispatches` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getDispatchWorkflowUrl(
  * {@link /repos/:owner/:repo/actions/workflows/:workflowfilename/dispatches}
  */
 export async function dispatchWorkflow(
-  owner: DispatchWorkflowPathParams["owner"],
-  repo: DispatchWorkflowPathParams["repo"],
-  workflowfilename: DispatchWorkflowPathParams["workflowfilename"],
+  owner: DispatchWorkflowPathParams['owner'],
+  repo: DispatchWorkflowPathParams['repo'],
+  workflowfilename: DispatchWorkflowPathParams['workflowfilename'],
   data: DispatchWorkflowMutationRequest,
   config: Partial<RequestConfig<DispatchWorkflowMutationRequest>> & {
     client?: Client;
@@ -50,7 +46,7 @@ export async function dispatchWorkflow(
     ResponseErrorConfig<DispatchWorkflow404>,
     DispatchWorkflowMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getDispatchWorkflowUrl(owner, repo, workflowfilename).url.toString(),
     data: requestData,
     ...requestConfig,

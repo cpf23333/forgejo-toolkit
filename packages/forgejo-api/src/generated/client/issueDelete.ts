@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteMutationResponse,
   IssueDeletePathParams,
   IssueDelete403,
   IssueDelete404,
-} from "../types/IssueDelete"
+} from '../types/IssueDelete';
 
 function getIssueDeleteUrl(
-  owner: IssueDeletePathParams["owner"],
-  repo: IssueDeletePathParams["repo"],
-  index: IssueDeletePathParams["index"],
+  owner: IssueDeletePathParams['owner'],
+  repo: IssueDeletePathParams['repo'],
+  index: IssueDeletePathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}` as const,
   };
   return res;
@@ -33,21 +29,19 @@ function getIssueDeleteUrl(
  * {@link /repos/:owner/:repo/issues/:index}
  */
 export async function issueDelete(
-  owner: IssueDeletePathParams["owner"],
-  repo: IssueDeletePathParams["repo"],
-  index: IssueDeletePathParams["index"],
+  owner: IssueDeletePathParams['owner'],
+  repo: IssueDeletePathParams['repo'],
+  index: IssueDeletePathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    IssueDeleteMutationResponse,
-    ResponseErrorConfig<IssueDelete403 | IssueDelete404>,
-    unknown
-  >({
-    method: "DELETE",
-    url: getIssueDeleteUrl(owner, repo, index).url.toString(),
-    ...requestConfig,
-  });
+  const res = await request<IssueDeleteMutationResponse, ResponseErrorConfig<IssueDelete403 | IssueDelete404>, unknown>(
+    {
+      method: 'DELETE',
+      url: getIssueDeleteUrl(owner, repo, index).url.toString(),
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

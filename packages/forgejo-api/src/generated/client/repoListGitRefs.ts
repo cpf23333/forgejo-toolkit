@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListGitRefsQueryResponse,
   RepoListGitRefsPathParams,
   RepoListGitRefs404,
-} from "../types/RepoListGitRefs"
+} from '../types/RepoListGitRefs';
 
 function getRepoListGitRefsUrl(
-  owner: RepoListGitRefsPathParams["owner"],
-  repo: RepoListGitRefsPathParams["repo"],
-  ref: RepoListGitRefsPathParams["ref"],
+  owner: RepoListGitRefsPathParams['owner'],
+  repo: RepoListGitRefsPathParams['repo'],
+  ref: RepoListGitRefsPathParams['ref'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/git/refs/${ref}` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoListGitRefsUrl(
  * {@link /repos/:owner/:repo/git/refs/:ref}
  */
 export async function repoListGitRefs(
-  owner: RepoListGitRefsPathParams["owner"],
-  repo: RepoListGitRefsPathParams["repo"],
-  ref: RepoListGitRefsPathParams["ref"],
+  owner: RepoListGitRefsPathParams['owner'],
+  repo: RepoListGitRefsPathParams['repo'],
+  ref: RepoListGitRefsPathParams['ref'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListGitRefsQueryResponse,
-    ResponseErrorConfig<RepoListGitRefs404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListGitRefsQueryResponse, ResponseErrorConfig<RepoListGitRefs404>, unknown>({
+    method: 'GET',
     url: getRepoListGitRefsUrl(owner, repo, ref).url.toString(),
     ...requestConfig,
   });

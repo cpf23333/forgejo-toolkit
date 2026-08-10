@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCreateTokenMutationRequest,
   UserCreateTokenMutationResponse,
@@ -16,12 +12,10 @@ import type {
   UserCreateToken400,
   UserCreateToken403,
   UserCreateToken404,
-} from "../types/UserCreateToken"
+} from '../types/UserCreateToken';
 
-function getUserCreateTokenUrl(
-  username: UserCreateTokenPathParams["username"],
-) {
-  const res = { method: "POST", url: `/users/${username}/tokens` as const };
+function getUserCreateTokenUrl(username: UserCreateTokenPathParams['username']) {
+  const res = { method: 'POST', url: `/users/${username}/tokens` as const };
   return res;
 }
 
@@ -30,7 +24,7 @@ function getUserCreateTokenUrl(
  * {@link /users/:username/tokens}
  */
 export async function userCreateToken(
-  username: UserCreateTokenPathParams["username"],
+  username: UserCreateTokenPathParams['username'],
   data: UserCreateTokenMutationRequest,
   config: Partial<RequestConfig<UserCreateTokenMutationRequest>> & {
     client?: Client;
@@ -42,12 +36,10 @@ export async function userCreateToken(
 
   const res = await request<
     UserCreateTokenMutationResponse,
-    ResponseErrorConfig<
-      UserCreateToken400 | UserCreateToken403 | UserCreateToken404
-    >,
+    ResponseErrorConfig<UserCreateToken400 | UserCreateToken403 | UserCreateToken404>,
     UserCreateTokenMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getUserCreateTokenUrl(username).url.toString(),
     data: requestData,
     ...requestConfig,

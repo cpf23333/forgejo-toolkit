@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AcceptRepoTransferMutationResponse,
   AcceptRepoTransferPathParams,
   AcceptRepoTransfer403,
   AcceptRepoTransfer404,
   AcceptRepoTransfer413,
-} from "../types/AcceptRepoTransfer"
+} from '../types/AcceptRepoTransfer';
 
 function getAcceptRepoTransferUrl(
-  owner: AcceptRepoTransferPathParams["owner"],
-  repo: AcceptRepoTransferPathParams["repo"],
+  owner: AcceptRepoTransferPathParams['owner'],
+  repo: AcceptRepoTransferPathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/transfer/accept` as const,
   };
   return res;
@@ -33,20 +29,18 @@ function getAcceptRepoTransferUrl(
  * {@link /repos/:owner/:repo/transfer/accept}
  */
 export async function acceptRepoTransfer(
-  owner: AcceptRepoTransferPathParams["owner"],
-  repo: AcceptRepoTransferPathParams["repo"],
+  owner: AcceptRepoTransferPathParams['owner'],
+  repo: AcceptRepoTransferPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     AcceptRepoTransferMutationResponse,
-    ResponseErrorConfig<
-      AcceptRepoTransfer403 | AcceptRepoTransfer404 | AcceptRepoTransfer413
-    >,
+    ResponseErrorConfig<AcceptRepoTransfer403 | AcceptRepoTransfer404 | AcceptRepoTransfer413>,
     unknown
   >({
-    method: "POST",
+    method: 'POST',
     url: getAcceptRepoTransferUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

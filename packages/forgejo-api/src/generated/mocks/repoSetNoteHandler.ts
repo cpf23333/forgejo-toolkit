@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoSetNoteMutationResponse,
-  RepoSetNote404,
-  RepoSetNote422,
-} from "../types/RepoSetNote"
-import { http } from "msw";
+import type { RepoSetNoteMutationResponse, RepoSetNote404, RepoSetNote422 } from '../types/RepoSetNote';
+import { http } from 'msw';
 
-export function repoSetNoteHandlerResponse200(
-  data: RepoSetNoteMutationResponse,
-) {
+export function repoSetNoteHandlerResponse200(data: RepoSetNoteMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function repoSetNoteHandlerResponse404(data: RepoSetNote404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function repoSetNoteHandlerResponse422(data: RepoSetNote422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,21 +36,16 @@ export function repoSetNoteHandlerResponse422(data: RepoSetNote422) {
 export function repoSetNoteHandler(
   data?:
     | RepoSetNoteMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/git/notes/:sha`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/git/notes/:sha`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

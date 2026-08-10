@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import type {
-  RenameOrgMutationResponse,
-  RenameOrg403,
-  RenameOrg422,
-} from "../types/RenameOrg"
-import { http } from "msw";
+import type { RenameOrgMutationResponse, RenameOrg403, RenameOrg422 } from '../types/RenameOrg';
+import { http } from 'msw';
 
 export function renameOrgHandlerResponse204(data?: RenameOrgMutationResponse) {
   return new Response(JSON.stringify(data), {
@@ -20,7 +16,7 @@ export function renameOrgHandlerResponse403(data: RenameOrg403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -29,7 +25,7 @@ export function renameOrgHandlerResponse422(data: RenameOrg422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,12 +37,10 @@ export function renameOrgHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/orgs/:org/rename`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

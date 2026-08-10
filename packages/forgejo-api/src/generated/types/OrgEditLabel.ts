@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { EditLabelOption } from "./EditLabelOption"
-import type { Label } from "./Label"
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { EditLabelOption } from './EditLabelOption';
+import type { Label } from './Label';
 
 export type OrgEditLabelPathParams = {
   /**

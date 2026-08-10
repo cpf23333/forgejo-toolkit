@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoAddTopicMutationResponse,
   RepoAddTopicPathParams,
   RepoAddTopic404,
   RepoAddTopic422,
-} from "../types/RepoAddTopic"
+} from '../types/RepoAddTopic';
 
 function getRepoAddTopicUrl(
-  owner: RepoAddTopicPathParams["owner"],
-  repo: RepoAddTopicPathParams["repo"],
-  topic: RepoAddTopicPathParams["topic"],
+  owner: RepoAddTopicPathParams['owner'],
+  repo: RepoAddTopicPathParams['repo'],
+  topic: RepoAddTopicPathParams['topic'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/topics/${topic}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoAddTopicUrl(
  * {@link /repos/:owner/:repo/topics/:topic}
  */
 export async function repoAddTopic(
-  owner: RepoAddTopicPathParams["owner"],
-  repo: RepoAddTopicPathParams["repo"],
-  topic: RepoAddTopicPathParams["topic"],
+  owner: RepoAddTopicPathParams['owner'],
+  repo: RepoAddTopicPathParams['repo'],
+  topic: RepoAddTopicPathParams['topic'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoAddTopic(
     ResponseErrorConfig<RepoAddTopic404 | RepoAddTopic422>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getRepoAddTopicUrl(owner, repo, topic).url.toString(),
     ...requestConfig,
   });

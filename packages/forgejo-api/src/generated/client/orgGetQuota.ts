@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgGetQuotaQueryResponse,
   OrgGetQuotaPathParams,
   OrgGetQuota403,
   OrgGetQuota404,
-} from "../types/OrgGetQuota"
+} from '../types/OrgGetQuota';
 
-function getOrgGetQuotaUrl(org: OrgGetQuotaPathParams["org"]) {
-  const res = { method: "GET", url: `/orgs/${org}/quota` as const };
+function getOrgGetQuotaUrl(org: OrgGetQuotaPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/quota` as const };
   return res;
 }
 
@@ -26,17 +22,13 @@ function getOrgGetQuotaUrl(org: OrgGetQuotaPathParams["org"]) {
  * {@link /orgs/:org/quota}
  */
 export async function orgGetQuota(
-  org: OrgGetQuotaPathParams["org"],
+  org: OrgGetQuotaPathParams['org'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgGetQuotaQueryResponse,
-    ResponseErrorConfig<OrgGetQuota403 | OrgGetQuota404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgGetQuotaQueryResponse, ResponseErrorConfig<OrgGetQuota403 | OrgGetQuota404>, unknown>({
+    method: 'GET',
     url: getOrgGetQuotaUrl(org).url.toString(),
     ...requestConfig,
   });

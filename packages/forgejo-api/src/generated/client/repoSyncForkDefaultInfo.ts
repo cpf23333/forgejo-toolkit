@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoSyncForkDefaultInfoQueryResponse,
   RepoSyncForkDefaultInfoPathParams,
   RepoSyncForkDefaultInfo400,
   RepoSyncForkDefaultInfo404,
-} from "../types/RepoSyncForkDefaultInfo"
+} from '../types/RepoSyncForkDefaultInfo';
 
 function getRepoSyncForkDefaultInfoUrl(
-  owner: RepoSyncForkDefaultInfoPathParams["owner"],
-  repo: RepoSyncForkDefaultInfoPathParams["repo"],
+  owner: RepoSyncForkDefaultInfoPathParams['owner'],
+  repo: RepoSyncForkDefaultInfoPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/sync_fork` as const,
   };
   return res;
@@ -32,20 +28,18 @@ function getRepoSyncForkDefaultInfoUrl(
  * {@link /repos/:owner/:repo/sync_fork}
  */
 export async function repoSyncForkDefaultInfo(
-  owner: RepoSyncForkDefaultInfoPathParams["owner"],
-  repo: RepoSyncForkDefaultInfoPathParams["repo"],
+  owner: RepoSyncForkDefaultInfoPathParams['owner'],
+  repo: RepoSyncForkDefaultInfoPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     RepoSyncForkDefaultInfoQueryResponse,
-    ResponseErrorConfig<
-      RepoSyncForkDefaultInfo400 | RepoSyncForkDefaultInfo404
-    >,
+    ResponseErrorConfig<RepoSyncForkDefaultInfo400 | RepoSyncForkDefaultInfo404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoSyncForkDefaultInfoUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

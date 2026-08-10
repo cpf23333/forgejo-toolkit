@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { NotificationCount } from "./NotificationCount"
+import type { NotificationCount } from './NotificationCount';
 
 /**
  * @description Number of unread notifications

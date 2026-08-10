@@ -3,12 +3,10 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubRepositoryInboxMutationResponse } from "../types/ActivitypubRepositoryInbox"
-import { http } from "msw";
+import type { ActivitypubRepositoryInboxMutationResponse } from '../types/ActivitypubRepositoryInbox';
+import { http } from 'msw';
 
-export function activitypubRepositoryInboxHandlerResponse204(
-  data?: ActivitypubRepositoryInboxMutationResponse,
-) {
+export function activitypubRepositoryInboxHandlerResponse204(data?: ActivitypubRepositoryInboxMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,18 +19,13 @@ export function activitypubRepositoryInboxHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/activitypub/repository-id/:repository-id/inbox`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/activitypub/repository-id/:repository-id/inbox`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

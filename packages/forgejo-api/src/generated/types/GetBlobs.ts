@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { GitBlob } from "./GitBlob"
+import type { APIError } from './APIError';
+import type { GitBlob } from './GitBlob';
 
 export type GetBlobsPathParams = {
   /**

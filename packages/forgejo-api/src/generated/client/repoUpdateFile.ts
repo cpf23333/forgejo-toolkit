@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoUpdateFileMutationRequest,
   RepoUpdateFileMutationResponse,
@@ -19,15 +15,15 @@ import type {
   RepoUpdateFile413,
   RepoUpdateFile422,
   RepoUpdateFile423,
-} from "../types/RepoUpdateFile"
+} from '../types/RepoUpdateFile';
 
 function getRepoUpdateFileUrl(
-  owner: RepoUpdateFilePathParams["owner"],
-  repo: RepoUpdateFilePathParams["repo"],
-  filepath: RepoUpdateFilePathParams["filepath"],
+  owner: RepoUpdateFilePathParams['owner'],
+  repo: RepoUpdateFilePathParams['repo'],
+  filepath: RepoUpdateFilePathParams['filepath'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/contents/${filepath}` as const,
   };
   return res;
@@ -38,9 +34,9 @@ function getRepoUpdateFileUrl(
  * {@link /repos/:owner/:repo/contents/:filepath}
  */
 export async function repoUpdateFile(
-  owner: RepoUpdateFilePathParams["owner"],
-  repo: RepoUpdateFilePathParams["repo"],
-  filepath: RepoUpdateFilePathParams["filepath"],
+  owner: RepoUpdateFilePathParams['owner'],
+  repo: RepoUpdateFilePathParams['repo'],
+  filepath: RepoUpdateFilePathParams['filepath'],
   data: RepoUpdateFileMutationRequest,
   config: Partial<RequestConfig<RepoUpdateFileMutationRequest>> & {
     client?: Client;
@@ -62,7 +58,7 @@ export async function repoUpdateFile(
     >,
     RepoUpdateFileMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getRepoUpdateFileUrl(owner, repo, filepath).url.toString(),
     data: requestData,
     ...requestConfig,

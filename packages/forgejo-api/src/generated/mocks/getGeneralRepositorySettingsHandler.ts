@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GetGeneralRepositorySettingsQueryResponse } from "../types/GetGeneralRepositorySettings"
-import { http } from "msw";
+import type { GetGeneralRepositorySettingsQueryResponse } from '../types/GetGeneralRepositorySettings';
+import { http } from 'msw';
 
-export function getGeneralRepositorySettingsHandlerResponse200(
-  data: GetGeneralRepositorySettingsQueryResponse,
-) {
+export function getGeneralRepositorySettingsHandlerResponse200(data: GetGeneralRepositorySettingsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function getGeneralRepositorySettingsHandlerResponse200(
 export function getGeneralRepositorySettingsHandler(
   data?:
     | GetGeneralRepositorySettingsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/settings/repository`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

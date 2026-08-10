@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
+import type { APINotFound } from './APINotFound';
 
 export type IssueDeleteSubscriptionPathParams = {
   /**
@@ -48,8 +48,7 @@ export type IssueDeleteSubscription304 = any;
  */
 export type IssueDeleteSubscription404 = APINotFound;
 
-export type IssueDeleteSubscriptionMutationResponse =
-  IssueDeleteSubscription200 | IssueDeleteSubscription201;
+export type IssueDeleteSubscriptionMutationResponse = IssueDeleteSubscription200 | IssueDeleteSubscription201;
 
 export type IssueDeleteSubscriptionMutation = {
   Response: IssueDeleteSubscription200 | IssueDeleteSubscription201;

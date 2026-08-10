@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetPullRequestCommitsQueryResponse,
   RepoGetPullRequestCommitsPathParams,
   RepoGetPullRequestCommitsQueryParams,
   RepoGetPullRequestCommits404,
-} from "../types/RepoGetPullRequestCommits"
+} from '../types/RepoGetPullRequestCommits';
 
 function getRepoGetPullRequestCommitsUrl(
-  owner: RepoGetPullRequestCommitsPathParams["owner"],
-  repo: RepoGetPullRequestCommitsPathParams["repo"],
-  index: RepoGetPullRequestCommitsPathParams["index"],
+  owner: RepoGetPullRequestCommitsPathParams['owner'],
+  repo: RepoGetPullRequestCommitsPathParams['repo'],
+  index: RepoGetPullRequestCommitsPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${index}/commits` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoGetPullRequestCommitsUrl(
  * {@link /repos/:owner/:repo/pulls/:index/commits}
  */
 export async function repoGetPullRequestCommits(
-  owner: RepoGetPullRequestCommitsPathParams["owner"],
-  repo: RepoGetPullRequestCommitsPathParams["repo"],
-  index: RepoGetPullRequestCommitsPathParams["index"],
+  owner: RepoGetPullRequestCommitsPathParams['owner'],
+  repo: RepoGetPullRequestCommitsPathParams['repo'],
+  index: RepoGetPullRequestCommitsPathParams['index'],
   params?: RepoGetPullRequestCommitsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -46,7 +42,7 @@ export async function repoGetPullRequestCommits(
     ResponseErrorConfig<RepoGetPullRequestCommits404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetPullRequestCommitsUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

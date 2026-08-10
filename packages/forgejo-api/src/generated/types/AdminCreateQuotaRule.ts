@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateQuotaRuleOptions } from "./CreateQuotaRuleOptions"
-import type { QuotaRuleInfo } from "./QuotaRuleInfo"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateQuotaRuleOptions } from './CreateQuotaRuleOptions';
+import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
 /**
  * @description QuotaRuleInfo
@@ -44,9 +44,5 @@ export type AdminCreateQuotaRuleMutationResponse = AdminCreateQuotaRule201;
 export type AdminCreateQuotaRuleMutation = {
   Response: AdminCreateQuotaRule201;
   Request: AdminCreateQuotaRuleMutationRequest;
-  Errors:
-    | AdminCreateQuotaRule400
-    | AdminCreateQuotaRule403
-    | AdminCreateQuotaRule409
-    | AdminCreateQuotaRule422;
+  Errors: AdminCreateQuotaRule400 | AdminCreateQuotaRule403 | AdminCreateQuotaRule409 | AdminCreateQuotaRule422;
 };

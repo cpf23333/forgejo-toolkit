@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { RegistrationToken } from "./RegistrationToken"
+import type { RegistrationToken } from './RegistrationToken';
 
 export type RepoGetRunnerRegistrationTokenPathParams = {
   /**
@@ -23,8 +23,7 @@ export type RepoGetRunnerRegistrationTokenPathParams = {
  */
 export type RepoGetRunnerRegistrationToken200 = RegistrationToken;
 
-export type RepoGetRunnerRegistrationTokenQueryResponse =
-  RepoGetRunnerRegistrationToken200;
+export type RepoGetRunnerRegistrationTokenQueryResponse = RepoGetRunnerRegistrationToken200;
 
 export type RepoGetRunnerRegistrationTokenQuery = {
   Response: RepoGetRunnerRegistrationToken200;

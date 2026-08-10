@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetRepoVariableQueryResponse,
   GetRepoVariablePathParams,
   GetRepoVariable400,
   GetRepoVariable404,
-} from "../types/GetRepoVariable"
+} from '../types/GetRepoVariable';
 
 function getGetRepoVariableUrl(
-  owner: GetRepoVariablePathParams["owner"],
-  repo: GetRepoVariablePathParams["repo"],
-  variablename: GetRepoVariablePathParams["variablename"],
+  owner: GetRepoVariablePathParams['owner'],
+  repo: GetRepoVariablePathParams['repo'],
+  variablename: GetRepoVariablePathParams['variablename'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/actions/variables/${variablename}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getGetRepoVariableUrl(
  * {@link /repos/:owner/:repo/actions/variables/:variablename}
  */
 export async function getRepoVariable(
-  owner: GetRepoVariablePathParams["owner"],
-  repo: GetRepoVariablePathParams["repo"],
-  variablename: GetRepoVariablePathParams["variablename"],
+  owner: GetRepoVariablePathParams['owner'],
+  repo: GetRepoVariablePathParams['repo'],
+  variablename: GetRepoVariablePathParams['variablename'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function getRepoVariable(
     ResponseErrorConfig<GetRepoVariable400 | GetRepoVariable404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetRepoVariableUrl(owner, repo, variablename).url.toString(),
     ...requestConfig,
   });

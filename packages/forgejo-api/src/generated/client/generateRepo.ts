@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GenerateRepoMutationRequest,
   GenerateRepoMutationResponse,
@@ -18,14 +14,14 @@ import type {
   GenerateRepo409,
   GenerateRepo413,
   GenerateRepo422,
-} from "../types/GenerateRepo"
+} from '../types/GenerateRepo';
 
 function getGenerateRepoUrl(
-  template_owner: GenerateRepoPathParams["template_owner"],
-  template_repo: GenerateRepoPathParams["template_repo"],
+  template_owner: GenerateRepoPathParams['template_owner'],
+  template_repo: GenerateRepoPathParams['template_repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${template_owner}/${template_repo}/generate` as const,
   };
   return res;
@@ -36,8 +32,8 @@ function getGenerateRepoUrl(
  * {@link /repos/:template_owner/:template_repo/generate}
  */
 export async function generateRepo(
-  template_owner: GenerateRepoPathParams["template_owner"],
-  template_repo: GenerateRepoPathParams["template_repo"],
+  template_owner: GenerateRepoPathParams['template_owner'],
+  template_repo: GenerateRepoPathParams['template_repo'],
   data: GenerateRepoMutationRequest,
   config: Partial<RequestConfig<GenerateRepoMutationRequest>> & {
     client?: Client;
@@ -49,16 +45,10 @@ export async function generateRepo(
 
   const res = await request<
     GenerateRepoMutationResponse,
-    ResponseErrorConfig<
-      | GenerateRepo403
-      | GenerateRepo404
-      | GenerateRepo409
-      | GenerateRepo413
-      | GenerateRepo422
-    >,
+    ResponseErrorConfig<GenerateRepo403 | GenerateRepo404 | GenerateRepo409 | GenerateRepo413 | GenerateRepo422>,
     GenerateRepoMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getGenerateRepoUrl(template_owner, template_repo).url.toString(),
     data: requestData,
     ...requestConfig,

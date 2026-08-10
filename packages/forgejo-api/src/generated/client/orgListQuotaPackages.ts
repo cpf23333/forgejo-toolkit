@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListQuotaPackagesQueryResponse,
   OrgListQuotaPackagesPathParams,
   OrgListQuotaPackagesQueryParams,
   OrgListQuotaPackages403,
   OrgListQuotaPackages404,
-} from "../types/OrgListQuotaPackages"
+} from '../types/OrgListQuotaPackages';
 
-function getOrgListQuotaPackagesUrl(
-  org: OrgListQuotaPackagesPathParams["org"],
-) {
-  const res = { method: "GET", url: `/orgs/${org}/quota/packages` as const };
+function getOrgListQuotaPackagesUrl(org: OrgListQuotaPackagesPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/quota/packages` as const };
   return res;
 }
 
@@ -29,7 +23,7 @@ function getOrgListQuotaPackagesUrl(
  * {@link /orgs/:org/quota/packages}
  */
 export async function orgListQuotaPackages(
-  org: OrgListQuotaPackagesPathParams["org"],
+  org: OrgListQuotaPackagesPathParams['org'],
   params?: OrgListQuotaPackagesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -40,7 +34,7 @@ export async function orgListQuotaPackages(
     ResponseErrorConfig<OrgListQuotaPackages403 | OrgListQuotaPackages404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getOrgListQuotaPackagesUrl(org).url.toString(),
     params,
     ...requestConfig,

@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { BlockedUser } from "./BlockedUser"
+import type { BlockedUser } from './BlockedUser';
 
 export type BlockedUserList = BlockedUser[];

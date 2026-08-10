@@ -8,12 +8,10 @@ import type {
   RepoDeleteTeam404,
   RepoDeleteTeam405,
   RepoDeleteTeam422,
-} from "../types/RepoDeleteTeam"
-import { http } from "msw";
+} from '../types/RepoDeleteTeam';
+import { http } from 'msw';
 
-export function repoDeleteTeamHandlerResponse204(
-  data?: RepoDeleteTeamMutationResponse,
-) {
+export function repoDeleteTeamHandlerResponse204(data?: RepoDeleteTeamMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -23,7 +21,7 @@ export function repoDeleteTeamHandlerResponse404(data: RepoDeleteTeam404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +30,7 @@ export function repoDeleteTeamHandlerResponse405(data: RepoDeleteTeam405) {
   return new Response(JSON.stringify(data), {
     status: 405,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,7 +39,7 @@ export function repoDeleteTeamHandlerResponse422(data: RepoDeleteTeam422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -53,12 +51,10 @@ export function repoDeleteTeamHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/repos/:owner/:repo/teams/:team`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueDeleteMutationResponse,
-  IssueDelete403,
-  IssueDelete404,
-} from "../types/IssueDelete"
-import { http } from "msw";
+import type { IssueDeleteMutationResponse, IssueDelete403, IssueDelete404 } from '../types/IssueDelete';
+import { http } from 'msw';
 
-export function issueDeleteHandlerResponse204(
-  data?: IssueDeleteMutationResponse,
-) {
+export function issueDeleteHandlerResponse204(data?: IssueDeleteMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function issueDeleteHandlerResponse403(data: IssueDelete403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function issueDeleteHandlerResponse404(data: IssueDelete404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +37,13 @@ export function issueDeleteHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

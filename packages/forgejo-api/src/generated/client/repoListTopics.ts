@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListTopicsQueryResponse,
   RepoListTopicsPathParams,
   RepoListTopicsQueryParams,
   RepoListTopics404,
-} from "../types/RepoListTopics"
+} from '../types/RepoListTopics';
 
-function getRepoListTopicsUrl(
-  owner: RepoListTopicsPathParams["owner"],
-  repo: RepoListTopicsPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/topics` as const };
+function getRepoListTopicsUrl(owner: RepoListTopicsPathParams['owner'], repo: RepoListTopicsPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/topics` as const };
   return res;
 }
 
@@ -29,19 +22,15 @@ function getRepoListTopicsUrl(
  * {@link /repos/:owner/:repo/topics}
  */
 export async function repoListTopics(
-  owner: RepoListTopicsPathParams["owner"],
-  repo: RepoListTopicsPathParams["repo"],
+  owner: RepoListTopicsPathParams['owner'],
+  repo: RepoListTopicsPathParams['repo'],
   params?: RepoListTopicsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListTopicsQueryResponse,
-    ResponseErrorConfig<RepoListTopics404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListTopicsQueryResponse, ResponseErrorConfig<RepoListTopics404>, unknown>({
+    method: 'GET',
     url: getRepoListTopicsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

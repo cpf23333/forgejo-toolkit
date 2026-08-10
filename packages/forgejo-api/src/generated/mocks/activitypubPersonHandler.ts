@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ActivitypubPersonQueryResponse } from "../types/ActivitypubPerson"
-import { http } from "msw";
+import type { ActivitypubPersonQueryResponse } from '../types/ActivitypubPerson';
+import { http } from 'msw';
 
-export function activitypubPersonHandlerResponse200(
-  data: ActivitypubPersonQueryResponse,
-) {
+export function activitypubPersonHandlerResponse200(data: ActivitypubPersonQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function activitypubPersonHandlerResponse200(
 export function activitypubPersonHandler(
   data?:
     | ActivitypubPersonQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/activitypub/user-id/:user-id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

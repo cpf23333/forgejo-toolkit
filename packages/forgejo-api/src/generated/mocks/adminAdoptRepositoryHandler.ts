@@ -7,35 +7,29 @@ import type {
   AdminAdoptRepositoryMutationResponse,
   AdminAdoptRepository403,
   AdminAdoptRepository404,
-} from "../types/AdminAdoptRepository"
-import { http } from "msw";
+} from '../types/AdminAdoptRepository';
+import { http } from 'msw';
 
-export function adminAdoptRepositoryHandlerResponse204(
-  data?: AdminAdoptRepositoryMutationResponse,
-) {
+export function adminAdoptRepositoryHandlerResponse204(data?: AdminAdoptRepositoryMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminAdoptRepositoryHandlerResponse403(
-  data: AdminAdoptRepository403,
-) {
+export function adminAdoptRepositoryHandlerResponse403(data: AdminAdoptRepository403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminAdoptRepositoryHandlerResponse404(
-  data: AdminAdoptRepository404,
-) {
+export function adminAdoptRepositoryHandlerResponse404(data: AdminAdoptRepository404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,12 +41,10 @@ export function adminAdoptRepositoryHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/admin/unadopted/:owner/:repo`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

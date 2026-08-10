@@ -9,65 +9,53 @@ import type {
   CreateUserVariable401,
   CreateUserVariable403,
   CreateUserVariable404,
-} from "../types/CreateUserVariable"
-import { http } from "msw";
+} from '../types/CreateUserVariable';
+import { http } from 'msw';
 
-export function createUserVariableHandlerResponse201(
-  data?: CreateUserVariableMutationResponse,
-) {
+export function createUserVariableHandlerResponse201(data?: CreateUserVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function createUserVariableHandlerResponse204(
-  data?: CreateUserVariableMutationResponse,
-) {
+export function createUserVariableHandlerResponse204(data?: CreateUserVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function createUserVariableHandlerResponse400(
-  data: CreateUserVariable400,
-) {
+export function createUserVariableHandlerResponse400(data: CreateUserVariable400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createUserVariableHandlerResponse401(
-  data: CreateUserVariable401,
-) {
+export function createUserVariableHandlerResponse401(data: CreateUserVariable401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createUserVariableHandlerResponse403(
-  data: CreateUserVariable403,
-) {
+export function createUserVariableHandlerResponse403(data: CreateUserVariable403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createUserVariableHandlerResponse404(
-  data: CreateUserVariable404,
-) {
+export function createUserVariableHandlerResponse404(data: CreateUserVariable404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -79,18 +67,13 @@ export function createUserVariableHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/user/actions/variables/:variablename`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/user/actions/variables/:variablename`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

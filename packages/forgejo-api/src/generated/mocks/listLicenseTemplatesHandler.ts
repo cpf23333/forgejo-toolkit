@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ListLicenseTemplatesQueryResponse } from "../types/ListLicenseTemplates"
-import { http } from "msw";
+import type { ListLicenseTemplatesQueryResponse } from '../types/ListLicenseTemplates';
+import { http } from 'msw';
 
-export function listLicenseTemplatesHandlerResponse200(
-  data: ListLicenseTemplatesQueryResponse,
-) {
+export function listLicenseTemplatesHandlerResponse200(data: ListLicenseTemplatesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function listLicenseTemplatesHandlerResponse200(
 export function listLicenseTemplatesHandler(
   data?:
     | ListLicenseTemplatesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/licenses`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

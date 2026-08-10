@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoUpdateAvatarMutationResponse,
-  RepoUpdateAvatar404,
-} from "../types/RepoUpdateAvatar"
-import { http } from "msw";
+import type { RepoUpdateAvatarMutationResponse, RepoUpdateAvatar404 } from '../types/RepoUpdateAvatar';
+import { http } from 'msw';
 
-export function repoUpdateAvatarHandlerResponse204(
-  data?: RepoUpdateAvatarMutationResponse,
-) {
+export function repoUpdateAvatarHandlerResponse204(data?: RepoUpdateAvatarMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,7 +16,7 @@ export function repoUpdateAvatarHandlerResponse404(data: RepoUpdateAvatar404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,12 +28,10 @@ export function repoUpdateAvatarHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/avatar`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

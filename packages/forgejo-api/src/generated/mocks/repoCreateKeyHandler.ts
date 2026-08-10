@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoCreateKeyMutationResponse,
-  RepoCreateKey404,
-  RepoCreateKey422,
-} from "../types/RepoCreateKey"
-import { http } from "msw";
+import type { RepoCreateKeyMutationResponse, RepoCreateKey404, RepoCreateKey422 } from '../types/RepoCreateKey';
+import { http } from 'msw';
 
-export function repoCreateKeyHandlerResponse201(
-  data: RepoCreateKeyMutationResponse,
-) {
+export function repoCreateKeyHandlerResponse201(data: RepoCreateKeyMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function repoCreateKeyHandlerResponse404(data: RepoCreateKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function repoCreateKeyHandlerResponse422(data: RepoCreateKey422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function repoCreateKeyHandlerResponse422(data: RepoCreateKey422) {
 export function repoCreateKeyHandler(
   data?:
     | RepoCreateKeyMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/keys`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

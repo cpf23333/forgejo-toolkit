@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIValidationError } from "./APIValidationError"
-import type { DeleteEmailOption } from "./DeleteEmailOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIValidationError } from './APIValidationError';
+import type { DeleteEmailOption } from './DeleteEmailOption';
 
 export type AdminDeleteUserEmailsPathParams = {
   /**

@@ -3,23 +3,16 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgIsPublicMemberQueryResponse,
-  OrgIsPublicMember404,
-} from "../types/OrgIsPublicMember"
-import { http } from "msw";
+import type { OrgIsPublicMemberQueryResponse, OrgIsPublicMember404 } from '../types/OrgIsPublicMember';
+import { http } from 'msw';
 
-export function orgIsPublicMemberHandlerResponse204(
-  data?: OrgIsPublicMemberQueryResponse,
-) {
+export function orgIsPublicMemberHandlerResponse204(data?: OrgIsPublicMemberQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgIsPublicMemberHandlerResponse404(
-  data?: OrgIsPublicMember404,
-) {
+export function orgIsPublicMemberHandlerResponse404(data?: OrgIsPublicMember404) {
   return new Response(JSON.stringify(data), {
     status: 404,
   });
@@ -32,18 +25,13 @@ export function orgIsPublicMemberHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/orgs/:org/public_members/:username`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/orgs/:org/public_members/:username`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

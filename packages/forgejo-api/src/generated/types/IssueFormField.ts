@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { IssueFormFieldType } from "./IssueFormFieldType"
-import type { IssueFormFieldVisible } from "./IssueFormFieldVisible"
+import type { IssueFormFieldType } from './IssueFormFieldType';
+import type { IssueFormFieldVisible } from './IssueFormFieldVisible';
 
 /**
  * @description IssueFormField represents a form field

@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { ActivitypubInstanceActorInboxMutationResponse } from "../types/ActivitypubInstanceActorInbox"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { ActivitypubInstanceActorInboxMutationResponse } from '../types/ActivitypubInstanceActorInbox';
 
 function getActivitypubInstanceActorInboxUrl() {
-  const res = { method: "POST", url: `/activitypub/actor/inbox` as const };
+  const res = { method: 'POST', url: `/activitypub/actor/inbox` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getActivitypubInstanceActorInboxUrl() {
  * @summary Send to the inbox
  * {@link /activitypub/actor/inbox}
  */
-export async function activitypubInstanceActorInbox(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function activitypubInstanceActorInbox(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ActivitypubInstanceActorInboxMutationResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "POST",
+  const res = await request<ActivitypubInstanceActorInboxMutationResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'POST',
     url: getActivitypubInstanceActorInboxUrl().url.toString(),
     ...requestConfig,
   });

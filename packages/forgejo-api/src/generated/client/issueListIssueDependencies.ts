@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueListIssueDependenciesQueryResponse,
   IssueListIssueDependenciesPathParams,
   IssueListIssueDependenciesQueryParams,
   IssueListIssueDependencies404,
-} from "../types/IssueListIssueDependencies"
+} from '../types/IssueListIssueDependencies';
 
 function getIssueListIssueDependenciesUrl(
-  owner: IssueListIssueDependenciesPathParams["owner"],
-  repo: IssueListIssueDependenciesPathParams["repo"],
-  index: IssueListIssueDependenciesPathParams["index"],
+  owner: IssueListIssueDependenciesPathParams['owner'],
+  repo: IssueListIssueDependenciesPathParams['repo'],
+  index: IssueListIssueDependenciesPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/dependencies` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getIssueListIssueDependenciesUrl(
  * {@link /repos/:owner/:repo/issues/:index/dependencies}
  */
 export async function issueListIssueDependencies(
-  owner: IssueListIssueDependenciesPathParams["owner"],
-  repo: IssueListIssueDependenciesPathParams["repo"],
-  index: IssueListIssueDependenciesPathParams["index"],
+  owner: IssueListIssueDependenciesPathParams['owner'],
+  repo: IssueListIssueDependenciesPathParams['repo'],
+  index: IssueListIssueDependenciesPathParams['index'],
   params?: IssueListIssueDependenciesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -46,7 +42,7 @@ export async function issueListIssueDependencies(
     ResponseErrorConfig<IssueListIssueDependencies404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueListIssueDependenciesUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

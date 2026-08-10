@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { PullRequest } from "./PullRequest"
+import type { APINotFound } from './APINotFound';
+import type { PullRequest } from './PullRequest';
 
 export type RepoGetPullRequestPathParams = {
   /**

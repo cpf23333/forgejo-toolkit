@@ -3,25 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoUpdateAvatarMutationRequest,
   RepoUpdateAvatarMutationResponse,
   RepoUpdateAvatarPathParams,
   RepoUpdateAvatar404,
-} from "../types/RepoUpdateAvatar"
+} from '../types/RepoUpdateAvatar';
 
-function getRepoUpdateAvatarUrl(
-  owner: RepoUpdateAvatarPathParams["owner"],
-  repo: RepoUpdateAvatarPathParams["repo"],
-) {
+function getRepoUpdateAvatarUrl(owner: RepoUpdateAvatarPathParams['owner'], repo: RepoUpdateAvatarPathParams['repo']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/avatar` as const,
   };
   return res;
@@ -32,8 +25,8 @@ function getRepoUpdateAvatarUrl(
  * {@link /repos/:owner/:repo/avatar}
  */
 export async function repoUpdateAvatar(
-  owner: RepoUpdateAvatarPathParams["owner"],
-  repo: RepoUpdateAvatarPathParams["repo"],
+  owner: RepoUpdateAvatarPathParams['owner'],
+  repo: RepoUpdateAvatarPathParams['repo'],
   data?: RepoUpdateAvatarMutationRequest,
   config: Partial<RequestConfig<RepoUpdateAvatarMutationRequest>> & {
     client?: Client;
@@ -48,7 +41,7 @@ export async function repoUpdateAvatar(
     ResponseErrorConfig<RepoUpdateAvatar404>,
     RepoUpdateAvatarMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoUpdateAvatarUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

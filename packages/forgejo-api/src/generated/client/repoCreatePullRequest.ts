@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreatePullRequestMutationRequest,
   RepoCreatePullRequestMutationResponse,
@@ -18,13 +14,13 @@ import type {
   RepoCreatePullRequest413,
   RepoCreatePullRequest422,
   RepoCreatePullRequest423,
-} from "../types/RepoCreatePullRequest"
+} from '../types/RepoCreatePullRequest';
 
 function getRepoCreatePullRequestUrl(
-  owner: RepoCreatePullRequestPathParams["owner"],
-  repo: RepoCreatePullRequestPathParams["repo"],
+  owner: RepoCreatePullRequestPathParams['owner'],
+  repo: RepoCreatePullRequestPathParams['repo'],
 ) {
-  const res = { method: "POST", url: `/repos/${owner}/${repo}/pulls` as const };
+  const res = { method: 'POST', url: `/repos/${owner}/${repo}/pulls` as const };
   return res;
 }
 
@@ -33,8 +29,8 @@ function getRepoCreatePullRequestUrl(
  * {@link /repos/:owner/:repo/pulls}
  */
 export async function repoCreatePullRequest(
-  owner: RepoCreatePullRequestPathParams["owner"],
-  repo: RepoCreatePullRequestPathParams["repo"],
+  owner: RepoCreatePullRequestPathParams['owner'],
+  repo: RepoCreatePullRequestPathParams['repo'],
   data?: RepoCreatePullRequestMutationRequest,
   config: Partial<RequestConfig<RepoCreatePullRequestMutationRequest>> & {
     client?: Client;
@@ -55,7 +51,7 @@ export async function repoCreatePullRequest(
     >,
     RepoCreatePullRequestMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreatePullRequestUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminAdoptRepositoryMutationResponse,
   AdminAdoptRepositoryPathParams,
   AdminAdoptRepository403,
   AdminAdoptRepository404,
-} from "../types/AdminAdoptRepository"
+} from '../types/AdminAdoptRepository';
 
 function getAdminAdoptRepositoryUrl(
-  owner: AdminAdoptRepositoryPathParams["owner"],
-  repo: AdminAdoptRepositoryPathParams["repo"],
+  owner: AdminAdoptRepositoryPathParams['owner'],
+  repo: AdminAdoptRepositoryPathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/admin/unadopted/${owner}/${repo}` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getAdminAdoptRepositoryUrl(
  * {@link /admin/unadopted/:owner/:repo}
  */
 export async function adminAdoptRepository(
-  owner: AdminAdoptRepositoryPathParams["owner"],
-  repo: AdminAdoptRepositoryPathParams["repo"],
+  owner: AdminAdoptRepositoryPathParams['owner'],
+  repo: AdminAdoptRepositoryPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +39,7 @@ export async function adminAdoptRepository(
     ResponseErrorConfig<AdminAdoptRepository403 | AdminAdoptRepository404>,
     unknown
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminAdoptRepositoryUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

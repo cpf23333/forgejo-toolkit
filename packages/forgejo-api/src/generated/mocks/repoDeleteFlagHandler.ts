@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoDeleteFlagMutationResponse,
-  RepoDeleteFlag403,
-  RepoDeleteFlag404,
-} from "../types/RepoDeleteFlag"
-import { http } from "msw";
+import type { RepoDeleteFlagMutationResponse, RepoDeleteFlag403, RepoDeleteFlag404 } from '../types/RepoDeleteFlag';
+import { http } from 'msw';
 
-export function repoDeleteFlagHandlerResponse204(
-  data?: RepoDeleteFlagMutationResponse,
-) {
+export function repoDeleteFlagHandlerResponse204(data?: RepoDeleteFlagMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function repoDeleteFlagHandlerResponse403(data: RepoDeleteFlag403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function repoDeleteFlagHandlerResponse404(data: RepoDeleteFlag404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +37,10 @@ export function repoDeleteFlagHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/repos/:owner/:repo/flags/:flag`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

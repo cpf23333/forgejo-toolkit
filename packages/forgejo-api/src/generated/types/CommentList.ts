@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Comment } from "./Comment"
+import type { Comment } from './Comment';
 
 export type CommentList = Comment[];

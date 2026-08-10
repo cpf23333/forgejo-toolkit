@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoUpdateBranchMutationRequest,
   RepoUpdateBranchMutationResponse,
@@ -16,15 +12,15 @@ import type {
   RepoUpdateBranch403,
   RepoUpdateBranch404,
   RepoUpdateBranch422,
-} from "../types/RepoUpdateBranch"
+} from '../types/RepoUpdateBranch';
 
 function getRepoUpdateBranchUrl(
-  owner: RepoUpdateBranchPathParams["owner"],
-  repo: RepoUpdateBranchPathParams["repo"],
-  branch: RepoUpdateBranchPathParams["branch"],
+  owner: RepoUpdateBranchPathParams['owner'],
+  repo: RepoUpdateBranchPathParams['repo'],
+  branch: RepoUpdateBranchPathParams['branch'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/branches/${branch}` as const,
   };
   return res;
@@ -35,9 +31,9 @@ function getRepoUpdateBranchUrl(
  * {@link /repos/:owner/:repo/branches/:branch}
  */
 export async function repoUpdateBranch(
-  owner: RepoUpdateBranchPathParams["owner"],
-  repo: RepoUpdateBranchPathParams["repo"],
-  branch: RepoUpdateBranchPathParams["branch"],
+  owner: RepoUpdateBranchPathParams['owner'],
+  repo: RepoUpdateBranchPathParams['repo'],
+  branch: RepoUpdateBranchPathParams['branch'],
   data: RepoUpdateBranchMutationRequest,
   config: Partial<RequestConfig<RepoUpdateBranchMutationRequest>> & {
     client?: Client;
@@ -49,12 +45,10 @@ export async function repoUpdateBranch(
 
   const res = await request<
     RepoUpdateBranchMutationResponse,
-    ResponseErrorConfig<
-      RepoUpdateBranch403 | RepoUpdateBranch404 | RepoUpdateBranch422
-    >,
+    ResponseErrorConfig<RepoUpdateBranch403 | RepoUpdateBranch404 | RepoUpdateBranch422>,
     RepoUpdateBranchMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getRepoUpdateBranchUrl(owner, repo, branch).url.toString(),
     data: requestData,
     ...requestConfig,

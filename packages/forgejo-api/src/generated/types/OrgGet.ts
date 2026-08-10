@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Organization } from "./Organization"
+import type { APINotFound } from './APINotFound';
+import type { Organization } from './Organization';
 
 export type OrgGetPathParams = {
   /**

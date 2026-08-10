@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIInternalServerError } from "./APIInternalServerError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { Comment } from "./Comment"
-import type { CreateIssueCommentOption } from "./CreateIssueCommentOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIInternalServerError } from './APIInternalServerError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { Comment } from './Comment';
+import type { CreateIssueCommentOption } from './CreateIssueCommentOption';
 
 export type IssueCreateCommentPathParams = {
   /**
@@ -61,9 +61,5 @@ export type IssueCreateCommentMutation = {
   Response: IssueCreateComment201;
   Request: IssueCreateCommentMutationRequest;
   PathParams: IssueCreateCommentPathParams;
-  Errors:
-    | IssueCreateComment403
-    | IssueCreateComment404
-    | IssueCreateComment423
-    | IssueCreateComment500;
+  Errors: IssueCreateComment403 | IssueCreateComment404 | IssueCreateComment423 | IssueCreateComment500;
 };

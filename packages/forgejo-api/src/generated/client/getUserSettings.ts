@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  GetUserSettingsQueryResponse,
-  GetUserSettings401,
-  GetUserSettings403,
-} from "../types/GetUserSettings"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetUserSettingsQueryResponse, GetUserSettings401, GetUserSettings403 } from '../types/GetUserSettings';
 
 function getGetUserSettingsUrl() {
-  const res = { method: "GET", url: `/user/settings` as const };
+  const res = { method: 'GET', url: `/user/settings` as const };
   return res;
 }
 
@@ -24,9 +16,7 @@ function getGetUserSettingsUrl() {
  * @summary Get current user's account settings
  * {@link /user/settings}
  */
-export async function getUserSettings(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getUserSettings(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
@@ -34,7 +24,7 @@ export async function getUserSettings(
     ResponseErrorConfig<GetUserSettings401 | GetUserSettings403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetUserSettingsUrl().url.toString(),
     ...requestConfig,
   });

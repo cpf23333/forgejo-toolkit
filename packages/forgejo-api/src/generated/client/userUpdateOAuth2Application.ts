@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserUpdateOAuth2ApplicationMutationRequest,
   UserUpdateOAuth2ApplicationMutationResponse,
@@ -16,13 +12,11 @@ import type {
   UserUpdateOAuth2Application401,
   UserUpdateOAuth2Application403,
   UserUpdateOAuth2Application404,
-} from "../types/UserUpdateOAuth2Application"
+} from '../types/UserUpdateOAuth2Application';
 
-function getUserUpdateOAuth2ApplicationUrl(
-  id: UserUpdateOAuth2ApplicationPathParams["id"],
-) {
+function getUserUpdateOAuth2ApplicationUrl(id: UserUpdateOAuth2ApplicationPathParams['id']) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/user/applications/oauth2/${id}` as const,
   };
   return res;
@@ -33,7 +27,7 @@ function getUserUpdateOAuth2ApplicationUrl(
  * {@link /user/applications/oauth2/:id}
  */
 export async function userUpdateOAuth2Application(
-  id: UserUpdateOAuth2ApplicationPathParams["id"],
+  id: UserUpdateOAuth2ApplicationPathParams['id'],
   data: UserUpdateOAuth2ApplicationMutationRequest,
   config: Partial<RequestConfig<UserUpdateOAuth2ApplicationMutationRequest>> & {
     client?: Client;
@@ -46,13 +40,11 @@ export async function userUpdateOAuth2Application(
   const res = await request<
     UserUpdateOAuth2ApplicationMutationResponse,
     ResponseErrorConfig<
-      | UserUpdateOAuth2Application401
-      | UserUpdateOAuth2Application403
-      | UserUpdateOAuth2Application404
+      UserUpdateOAuth2Application401 | UserUpdateOAuth2Application403 | UserUpdateOAuth2Application404
     >,
     UserUpdateOAuth2ApplicationMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getUserUpdateOAuth2ApplicationUrl(id).url.toString(),
     data: requestData,
     ...requestConfig,

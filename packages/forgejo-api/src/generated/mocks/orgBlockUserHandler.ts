@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgBlockUserMutationResponse,
-  OrgBlockUser404,
-  OrgBlockUser422,
-} from "../types/OrgBlockUser"
-import { http } from "msw";
+import type { OrgBlockUserMutationResponse, OrgBlockUser404, OrgBlockUser422 } from '../types/OrgBlockUser';
+import { http } from 'msw';
 
-export function orgBlockUserHandlerResponse204(
-  data?: OrgBlockUserMutationResponse,
-) {
+export function orgBlockUserHandlerResponse204(data?: OrgBlockUserMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function orgBlockUserHandlerResponse404(data: OrgBlockUser404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function orgBlockUserHandlerResponse422(data: OrgBlockUser422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +37,10 @@ export function orgBlockUserHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/orgs/:org/block/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

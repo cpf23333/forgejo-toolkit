@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { GeneralUISettings } from "./GeneralUISettings"
+import type { GeneralUISettings } from './GeneralUISettings';
 
 /**
  * @description GeneralUISettings

@@ -7,38 +7,32 @@ import type {
   UpdateUserSettingsMutationResponse,
   UpdateUserSettings401,
   UpdateUserSettings403,
-} from "../types/UpdateUserSettings"
-import { http } from "msw";
+} from '../types/UpdateUserSettings';
+import { http } from 'msw';
 
-export function updateUserSettingsHandlerResponse200(
-  data: UpdateUserSettingsMutationResponse,
-) {
+export function updateUserSettingsHandlerResponse200(data: UpdateUserSettingsMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function updateUserSettingsHandlerResponse401(
-  data: UpdateUserSettings401,
-) {
+export function updateUserSettingsHandlerResponse401(data: UpdateUserSettings401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function updateUserSettingsHandlerResponse403(
-  data: UpdateUserSettings403,
-) {
+export function updateUserSettingsHandlerResponse403(data: UpdateUserSettings403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function updateUserSettingsHandlerResponse403(
 export function updateUserSettingsHandler(
   data?:
     | UpdateUserSettingsMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/user/settings`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

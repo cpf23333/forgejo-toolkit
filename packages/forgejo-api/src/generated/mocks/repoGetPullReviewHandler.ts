@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetPullReviewQueryResponse,
-  RepoGetPullReview404,
-} from "../types/RepoGetPullReview"
-import { http } from "msw";
+import type { RepoGetPullReviewQueryResponse, RepoGetPullReview404 } from '../types/RepoGetPullReview';
+import { http } from 'msw';
 
-export function repoGetPullReviewHandlerResponse200(
-  data: RepoGetPullReviewQueryResponse,
-) {
+export function repoGetPullReviewHandlerResponse200(data: RepoGetPullReviewQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetPullReviewHandlerResponse404(
-  data: RepoGetPullReview404,
-) {
+export function repoGetPullReviewHandlerResponse404(data: RepoGetPullReview404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +27,16 @@ export function repoGetPullReviewHandlerResponse404(
 export function repoGetPullReviewHandler(
   data?:
     | RepoGetPullReviewQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/pulls/:index/reviews/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/pulls/:index/reviews/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

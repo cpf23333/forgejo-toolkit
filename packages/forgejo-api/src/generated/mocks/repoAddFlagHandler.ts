@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoAddFlagMutationResponse,
-  RepoAddFlag403,
-  RepoAddFlag404,
-} from "../types/RepoAddFlag"
-import { http } from "msw";
+import type { RepoAddFlagMutationResponse, RepoAddFlag403, RepoAddFlag404 } from '../types/RepoAddFlag';
+import { http } from 'msw';
 
-export function repoAddFlagHandlerResponse204(
-  data?: RepoAddFlagMutationResponse,
-) {
+export function repoAddFlagHandlerResponse204(data?: RepoAddFlagMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function repoAddFlagHandlerResponse403(data: RepoAddFlag403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function repoAddFlagHandlerResponse404(data: RepoAddFlag404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +37,10 @@ export function repoAddFlagHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/repos/:owner/:repo/flags/:flag`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

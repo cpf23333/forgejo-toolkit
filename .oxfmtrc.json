@@ -5,11 +5,5 @@
   "semi": true,
   "trailingComma": "all",
   "endOfLine": "lf",
-  "ignorePatterns": [
-    "**/node_modules/**",
-    "**/dist/**",
-    "**/out/**",
-    "**/.turbo/**",
-    "packages/forgejo-api/src/generated/**"
-  ]
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/out/**", "**/.turbo/**", ".agents/**"]
 }

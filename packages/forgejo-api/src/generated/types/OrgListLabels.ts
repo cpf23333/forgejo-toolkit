@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Label } from "./Label"
+import type { APINotFound } from './APINotFound';
+import type { Label } from './Label';
 
 export type OrgListLabelsPathParams = {
   /**
@@ -15,9 +15,9 @@ export type OrgListLabelsPathParams = {
 };
 
 export const orgListLabelsQueryParamsSortEnum = {
-  mostissues: "mostissues",
-  leastissues: "leastissues",
-  reversealphabetically: "reversealphabetically",
+  mostissues: 'mostissues',
+  leastissues: 'leastissues',
+  reversealphabetically: 'reversealphabetically',
 } as const;
 
 export type OrgListLabelsQueryParamsSortEnumKey =

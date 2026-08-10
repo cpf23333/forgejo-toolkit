@@ -3,22 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetLabelTemplateInfoQueryResponse,
   GetLabelTemplateInfoPathParams,
   GetLabelTemplateInfo404,
-} from "../types/GetLabelTemplateInfo"
+} from '../types/GetLabelTemplateInfo';
 
-function getGetLabelTemplateInfoUrl(
-  name: GetLabelTemplateInfoPathParams["name"],
-) {
-  const res = { method: "GET", url: `/label/templates/${name}` as const };
+function getGetLabelTemplateInfoUrl(name: GetLabelTemplateInfoPathParams['name']) {
+  const res = { method: 'GET', url: `/label/templates/${name}` as const };
   return res;
 }
 
@@ -27,17 +21,13 @@ function getGetLabelTemplateInfoUrl(
  * {@link /label/templates/:name}
  */
 export async function getLabelTemplateInfo(
-  name: GetLabelTemplateInfoPathParams["name"],
+  name: GetLabelTemplateInfoPathParams['name'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetLabelTemplateInfoQueryResponse,
-    ResponseErrorConfig<GetLabelTemplateInfo404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetLabelTemplateInfoQueryResponse, ResponseErrorConfig<GetLabelTemplateInfo404>, unknown>({
+    method: 'GET',
     url: getGetLabelTemplateInfoUrl(name).url.toString(),
     ...requestConfig,
   });

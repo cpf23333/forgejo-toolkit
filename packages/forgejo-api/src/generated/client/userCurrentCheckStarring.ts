@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentCheckStarringQueryResponse,
   UserCurrentCheckStarringPathParams,
   UserCurrentCheckStarring401,
   UserCurrentCheckStarring403,
   UserCurrentCheckStarring404,
-} from "../types/UserCurrentCheckStarring"
+} from '../types/UserCurrentCheckStarring';
 
 function getUserCurrentCheckStarringUrl(
-  owner: UserCurrentCheckStarringPathParams["owner"],
-  repo: UserCurrentCheckStarringPathParams["repo"],
+  owner: UserCurrentCheckStarringPathParams['owner'],
+  repo: UserCurrentCheckStarringPathParams['repo'],
 ) {
-  const res = { method: "GET", url: `/user/starred/${owner}/${repo}` as const };
+  const res = { method: 'GET', url: `/user/starred/${owner}/${repo}` as const };
   return res;
 }
 
@@ -30,22 +26,18 @@ function getUserCurrentCheckStarringUrl(
  * {@link /user/starred/:owner/:repo}
  */
 export async function userCurrentCheckStarring(
-  owner: UserCurrentCheckStarringPathParams["owner"],
-  repo: UserCurrentCheckStarringPathParams["repo"],
+  owner: UserCurrentCheckStarringPathParams['owner'],
+  repo: UserCurrentCheckStarringPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentCheckStarringQueryResponse,
-    ResponseErrorConfig<
-      | UserCurrentCheckStarring401
-      | UserCurrentCheckStarring403
-      | UserCurrentCheckStarring404
-    >,
+    ResponseErrorConfig<UserCurrentCheckStarring401 | UserCurrentCheckStarring403 | UserCurrentCheckStarring404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentCheckStarringUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

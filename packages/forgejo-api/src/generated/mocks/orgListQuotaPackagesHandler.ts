@@ -7,38 +7,32 @@ import type {
   OrgListQuotaPackagesQueryResponse,
   OrgListQuotaPackages403,
   OrgListQuotaPackages404,
-} from "../types/OrgListQuotaPackages"
-import { http } from "msw";
+} from '../types/OrgListQuotaPackages';
+import { http } from 'msw';
 
-export function orgListQuotaPackagesHandlerResponse200(
-  data: OrgListQuotaPackagesQueryResponse,
-) {
+export function orgListQuotaPackagesHandlerResponse200(data: OrgListQuotaPackagesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgListQuotaPackagesHandlerResponse403(
-  data: OrgListQuotaPackages403,
-) {
+export function orgListQuotaPackagesHandlerResponse403(data: OrgListQuotaPackages403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgListQuotaPackagesHandlerResponse404(
-  data: OrgListQuotaPackages404,
-) {
+export function orgListQuotaPackagesHandlerResponse404(data: OrgListQuotaPackages404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function orgListQuotaPackagesHandlerResponse404(
 export function orgListQuotaPackagesHandler(
   data?:
     | OrgListQuotaPackagesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/quota/packages`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

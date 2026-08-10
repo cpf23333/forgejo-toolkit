@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetEditorConfigQueryResponse,
-  RepoGetEditorConfig404,
-} from "../types/RepoGetEditorConfig"
-import { http } from "msw";
+import type { RepoGetEditorConfigQueryResponse, RepoGetEditorConfig404 } from '../types/RepoGetEditorConfig';
+import { http } from 'msw';
 
-export function repoGetEditorConfigHandlerResponse200(
-  data: RepoGetEditorConfigQueryResponse,
-) {
+export function repoGetEditorConfigHandlerResponse200(data: RepoGetEditorConfigQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetEditorConfigHandlerResponse404(
-  data: RepoGetEditorConfig404,
-) {
+export function repoGetEditorConfigHandlerResponse404(data: RepoGetEditorConfig404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +27,16 @@ export function repoGetEditorConfigHandlerResponse404(
 export function repoGetEditorConfigHandler(
   data?:
     | RepoGetEditorConfigQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/editorconfig/:filepath`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/editorconfig/:filepath`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

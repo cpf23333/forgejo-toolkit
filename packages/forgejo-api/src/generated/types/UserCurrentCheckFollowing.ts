@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 export type UserCurrentCheckFollowingPathParams = {
   /**
@@ -35,14 +35,10 @@ export type UserCurrentCheckFollowing403 = APIForbiddenError;
  */
 export type UserCurrentCheckFollowing404 = APINotFound;
 
-export type UserCurrentCheckFollowingQueryResponse =
-  UserCurrentCheckFollowing204;
+export type UserCurrentCheckFollowingQueryResponse = UserCurrentCheckFollowing204;
 
 export type UserCurrentCheckFollowingQuery = {
   Response: UserCurrentCheckFollowing204;
   PathParams: UserCurrentCheckFollowingPathParams;
-  Errors:
-    | UserCurrentCheckFollowing401
-    | UserCurrentCheckFollowing403
-    | UserCurrentCheckFollowing404;
+  Errors: UserCurrentCheckFollowing401 | UserCurrentCheckFollowing403 | UserCurrentCheckFollowing404;
 };

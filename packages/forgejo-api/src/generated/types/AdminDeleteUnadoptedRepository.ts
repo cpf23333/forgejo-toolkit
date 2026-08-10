@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
+import type { APIForbiddenError } from './APIForbiddenError';
 
 export type AdminDeleteUnadoptedRepositoryPathParams = {
   /**
@@ -28,8 +28,7 @@ export type AdminDeleteUnadoptedRepository204 = any;
  */
 export type AdminDeleteUnadoptedRepository403 = APIForbiddenError;
 
-export type AdminDeleteUnadoptedRepositoryMutationResponse =
-  AdminDeleteUnadoptedRepository204;
+export type AdminDeleteUnadoptedRepositoryMutationResponse = AdminDeleteUnadoptedRepository204;
 
 export type AdminDeleteUnadoptedRepositoryMutation = {
   Response: AdminDeleteUnadoptedRepository204;

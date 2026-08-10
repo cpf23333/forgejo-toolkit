@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetBranchQueryResponse,
-  RepoGetBranch404,
-} from "../types/RepoGetBranch"
-import { http } from "msw";
+import type { RepoGetBranchQueryResponse, RepoGetBranch404 } from '../types/RepoGetBranch';
+import { http } from 'msw';
 
-export function repoGetBranchHandlerResponse200(
-  data: RepoGetBranchQueryResponse,
-) {
+export function repoGetBranchHandlerResponse200(data: RepoGetBranchQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoGetBranchHandlerResponse404(data: RepoGetBranch404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,21 +27,16 @@ export function repoGetBranchHandlerResponse404(data: RepoGetBranch404) {
 export function repoGetBranchHandler(
   data?:
     | RepoGetBranchQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/branches/:branch`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/branches/:branch`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

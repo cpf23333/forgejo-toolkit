@@ -3,26 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoMirrorSyncMutationResponse,
   RepoMirrorSyncPathParams,
   RepoMirrorSync403,
   RepoMirrorSync404,
   RepoMirrorSync413,
-} from "../types/RepoMirrorSync"
+} from '../types/RepoMirrorSync';
 
-function getRepoMirrorSyncUrl(
-  owner: RepoMirrorSyncPathParams["owner"],
-  repo: RepoMirrorSyncPathParams["repo"],
-) {
+function getRepoMirrorSyncUrl(owner: RepoMirrorSyncPathParams['owner'], repo: RepoMirrorSyncPathParams['repo']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/mirror-sync` as const,
   };
   return res;
@@ -33,20 +26,18 @@ function getRepoMirrorSyncUrl(
  * {@link /repos/:owner/:repo/mirror-sync}
  */
 export async function repoMirrorSync(
-  owner: RepoMirrorSyncPathParams["owner"],
-  repo: RepoMirrorSyncPathParams["repo"],
+  owner: RepoMirrorSyncPathParams['owner'],
+  repo: RepoMirrorSyncPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     RepoMirrorSyncMutationResponse,
-    ResponseErrorConfig<
-      RepoMirrorSync403 | RepoMirrorSync404 | RepoMirrorSync413
-    >,
+    ResponseErrorConfig<RepoMirrorSync403 | RepoMirrorSync404 | RepoMirrorSync413>,
     unknown
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoMirrorSyncUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

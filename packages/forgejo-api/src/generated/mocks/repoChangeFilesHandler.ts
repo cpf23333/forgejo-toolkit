@@ -11,16 +11,14 @@ import type {
   RepoChangeFiles413,
   RepoChangeFiles422,
   RepoChangeFiles423,
-} from "../types/RepoChangeFiles"
-import { http } from "msw";
+} from '../types/RepoChangeFiles';
+import { http } from 'msw';
 
-export function repoChangeFilesHandlerResponse201(
-  data: RepoChangeFilesMutationResponse,
-) {
+export function repoChangeFilesHandlerResponse201(data: RepoChangeFilesMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -29,7 +27,7 @@ export function repoChangeFilesHandlerResponse403(data: RepoChangeFiles403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -38,7 +36,7 @@ export function repoChangeFilesHandlerResponse404(data: RepoChangeFiles404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,7 +57,7 @@ export function repoChangeFilesHandlerResponse422(data: RepoChangeFiles422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -68,7 +66,7 @@ export function repoChangeFilesHandlerResponse423(data: RepoChangeFiles423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -76,17 +74,15 @@ export function repoChangeFilesHandlerResponse423(data: RepoChangeFiles423) {
 export function repoChangeFilesHandler(
   data?:
     | RepoChangeFilesMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/contents`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

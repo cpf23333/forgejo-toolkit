@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoAddPushMirrorMutationRequest,
   RepoAddPushMirrorMutationResponse,
@@ -17,14 +13,14 @@ import type {
   RepoAddPushMirror403,
   RepoAddPushMirror404,
   RepoAddPushMirror413,
-} from "../types/RepoAddPushMirror"
+} from '../types/RepoAddPushMirror';
 
 function getRepoAddPushMirrorUrl(
-  owner: RepoAddPushMirrorPathParams["owner"],
-  repo: RepoAddPushMirrorPathParams["repo"],
+  owner: RepoAddPushMirrorPathParams['owner'],
+  repo: RepoAddPushMirrorPathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/push_mirrors` as const,
   };
   return res;
@@ -35,8 +31,8 @@ function getRepoAddPushMirrorUrl(
  * {@link /repos/:owner/:repo/push_mirrors}
  */
 export async function repoAddPushMirror(
-  owner: RepoAddPushMirrorPathParams["owner"],
-  repo: RepoAddPushMirrorPathParams["repo"],
+  owner: RepoAddPushMirrorPathParams['owner'],
+  repo: RepoAddPushMirrorPathParams['repo'],
   data?: RepoAddPushMirrorMutationRequest,
   config: Partial<RequestConfig<RepoAddPushMirrorMutationRequest>> & {
     client?: Client;
@@ -48,15 +44,10 @@ export async function repoAddPushMirror(
 
   const res = await request<
     RepoAddPushMirrorMutationResponse,
-    ResponseErrorConfig<
-      | RepoAddPushMirror400
-      | RepoAddPushMirror403
-      | RepoAddPushMirror404
-      | RepoAddPushMirror413
-    >,
+    ResponseErrorConfig<RepoAddPushMirror400 | RepoAddPushMirror403 | RepoAddPushMirror404 | RepoAddPushMirror413>,
     RepoAddPushMirrorMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoAddPushMirrorUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

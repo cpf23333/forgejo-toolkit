@@ -6,32 +6,26 @@
 import type {
   IssueDeleteSubscriptionMutationResponse,
   IssueDeleteSubscription404,
-} from "../types/IssueDeleteSubscription"
-import { http } from "msw";
+} from '../types/IssueDeleteSubscription';
+import { http } from 'msw';
 
-export function issueDeleteSubscriptionHandlerResponse200(
-  data?: IssueDeleteSubscriptionMutationResponse,
-) {
+export function issueDeleteSubscriptionHandlerResponse200(data?: IssueDeleteSubscriptionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function issueDeleteSubscriptionHandlerResponse201(
-  data?: IssueDeleteSubscriptionMutationResponse,
-) {
+export function issueDeleteSubscriptionHandlerResponse201(data?: IssueDeleteSubscriptionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function issueDeleteSubscriptionHandlerResponse404(
-  data: IssueDeleteSubscription404,
-) {
+export function issueDeleteSubscriptionHandlerResponse404(data: IssueDeleteSubscription404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +37,13 @@ export function issueDeleteSubscriptionHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/subscriptions/:user`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/subscriptions/:user`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+    });
+  });
 }

@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   TeamSearchQueryResponse,
   TeamSearchPathParams,
   TeamSearchQueryParams,
   TeamSearch404,
-} from "../types/TeamSearch"
+} from '../types/TeamSearch';
 
-function getTeamSearchUrl(org: TeamSearchPathParams["org"]) {
-  const res = { method: "GET", url: `/orgs/${org}/teams/search` as const };
+function getTeamSearchUrl(org: TeamSearchPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/teams/search` as const };
   return res;
 }
 
@@ -26,18 +22,14 @@ function getTeamSearchUrl(org: TeamSearchPathParams["org"]) {
  * {@link /orgs/:org/teams/search}
  */
 export async function teamSearch(
-  org: TeamSearchPathParams["org"],
+  org: TeamSearchPathParams['org'],
   params?: TeamSearchQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    TeamSearchQueryResponse,
-    ResponseErrorConfig<TeamSearch404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<TeamSearchQueryResponse, ResponseErrorConfig<TeamSearch404>, unknown>({
+    method: 'GET',
     url: getTeamSearchUrl(org).url.toString(),
     params,
     ...requestConfig,

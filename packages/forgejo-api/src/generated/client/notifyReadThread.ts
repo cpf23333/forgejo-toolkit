@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   NotifyReadThreadMutationResponse,
   NotifyReadThreadPathParams,
   NotifyReadThreadQueryParams,
   NotifyReadThread403,
   NotifyReadThread404,
-} from "../types/NotifyReadThread"
+} from '../types/NotifyReadThread';
 
-function getNotifyReadThreadUrl(id: NotifyReadThreadPathParams["id"]) {
-  const res = { method: "PATCH", url: `/notifications/threads/${id}` as const };
+function getNotifyReadThreadUrl(id: NotifyReadThreadPathParams['id']) {
+  const res = { method: 'PATCH', url: `/notifications/threads/${id}` as const };
   return res;
 }
 
@@ -27,7 +23,7 @@ function getNotifyReadThreadUrl(id: NotifyReadThreadPathParams["id"]) {
  * {@link /notifications/threads/:id}
  */
 export async function notifyReadThread(
-  id: NotifyReadThreadPathParams["id"],
+  id: NotifyReadThreadPathParams['id'],
   params?: NotifyReadThreadQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -38,7 +34,7 @@ export async function notifyReadThread(
     ResponseErrorConfig<NotifyReadThread403 | NotifyReadThread404>,
     unknown
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getNotifyReadThreadUrl(id).url.toString(),
     params,
     ...requestConfig,

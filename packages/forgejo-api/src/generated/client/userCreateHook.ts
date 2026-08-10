@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCreateHookMutationRequest,
   UserCreateHookMutationResponse,
   UserCreateHook401,
   UserCreateHook403,
-} from "../types/UserCreateHook"
+} from '../types/UserCreateHook';
 
 function getUserCreateHookUrl() {
-  const res = { method: "POST", url: `/user/hooks` as const };
+  const res = { method: 'POST', url: `/user/hooks` as const };
   return res;
 }
 
@@ -40,7 +36,7 @@ export async function userCreateHook(
     ResponseErrorConfig<UserCreateHook401 | UserCreateHook403>,
     UserCreateHookMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getUserCreateHookUrl().url.toString(),
     data: requestData,
     ...requestConfig,

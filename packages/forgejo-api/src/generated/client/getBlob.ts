@@ -3,26 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  GetBlobQueryResponse,
-  GetBlobPathParams,
-  GetBlob400,
-  GetBlob404,
-} from "../types/GetBlob"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetBlobQueryResponse, GetBlobPathParams, GetBlob400, GetBlob404 } from '../types/GetBlob';
 
 function getGetBlobUrl(
-  owner: GetBlobPathParams["owner"],
-  repo: GetBlobPathParams["repo"],
-  sha: GetBlobPathParams["sha"],
+  owner: GetBlobPathParams['owner'],
+  repo: GetBlobPathParams['repo'],
+  sha: GetBlobPathParams['sha'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/git/blobs/${sha}` as const,
   };
   return res;
@@ -33,19 +24,15 @@ function getGetBlobUrl(
  * {@link /repos/:owner/:repo/git/blobs/:sha}
  */
 export async function getBlob(
-  owner: GetBlobPathParams["owner"],
-  repo: GetBlobPathParams["repo"],
-  sha: GetBlobPathParams["sha"],
+  owner: GetBlobPathParams['owner'],
+  repo: GetBlobPathParams['repo'],
+  sha: GetBlobPathParams['sha'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetBlobQueryResponse,
-    ResponseErrorConfig<GetBlob400 | GetBlob404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetBlobQueryResponse, ResponseErrorConfig<GetBlob400 | GetBlob404>, unknown>({
+    method: 'GET',
     url: getGetBlobUrl(owner, repo, sha).url.toString(),
     ...requestConfig,
   });

@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetWikiPageQueryResponse,
-  RepoGetWikiPage404,
-} from "../types/RepoGetWikiPage"
-import { http } from "msw";
+import type { RepoGetWikiPageQueryResponse, RepoGetWikiPage404 } from '../types/RepoGetWikiPage';
+import { http } from 'msw';
 
-export function repoGetWikiPageHandlerResponse200(
-  data: RepoGetWikiPageQueryResponse,
-) {
+export function repoGetWikiPageHandlerResponse200(data: RepoGetWikiPageQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoGetWikiPageHandlerResponse404(data: RepoGetWikiPage404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,21 +27,16 @@ export function repoGetWikiPageHandlerResponse404(data: RepoGetWikiPage404) {
 export function repoGetWikiPageHandler(
   data?:
     | RepoGetWikiPageQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/wiki/page/:pageName`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/wiki/page/:pageName`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

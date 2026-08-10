@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { PullReviewRequestOptions } from "./PullReviewRequestOptions"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { PullReviewRequestOptions } from './PullReviewRequestOptions';
 
 export type RepoDeletePullReviewRequestsPathParams = {
   /**
@@ -46,18 +46,13 @@ export type RepoDeletePullReviewRequests404 = APINotFound;
  */
 export type RepoDeletePullReviewRequests422 = APIValidationError;
 
-export type RepoDeletePullReviewRequestsMutationRequest =
-  PullReviewRequestOptions;
+export type RepoDeletePullReviewRequestsMutationRequest = PullReviewRequestOptions;
 
-export type RepoDeletePullReviewRequestsMutationResponse =
-  RepoDeletePullReviewRequests204;
+export type RepoDeletePullReviewRequestsMutationResponse = RepoDeletePullReviewRequests204;
 
 export type RepoDeletePullReviewRequestsMutation = {
   Response: RepoDeletePullReviewRequests204;
   Request: RepoDeletePullReviewRequestsMutationRequest;
   PathParams: RepoDeletePullReviewRequestsPathParams;
-  Errors:
-    | RepoDeletePullReviewRequests403
-    | RepoDeletePullReviewRequests404
-    | RepoDeletePullReviewRequests422;
+  Errors: RepoDeletePullReviewRequests403 | RepoDeletePullReviewRequests404 | RepoDeletePullReviewRequests422;
 };

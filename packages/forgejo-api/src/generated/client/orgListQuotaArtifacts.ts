@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListQuotaArtifactsQueryResponse,
   OrgListQuotaArtifactsPathParams,
   OrgListQuotaArtifactsQueryParams,
   OrgListQuotaArtifacts403,
   OrgListQuotaArtifacts404,
-} from "../types/OrgListQuotaArtifacts"
+} from '../types/OrgListQuotaArtifacts';
 
-function getOrgListQuotaArtifactsUrl(
-  org: OrgListQuotaArtifactsPathParams["org"],
-) {
-  const res = { method: "GET", url: `/orgs/${org}/quota/artifacts` as const };
+function getOrgListQuotaArtifactsUrl(org: OrgListQuotaArtifactsPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/quota/artifacts` as const };
   return res;
 }
 
@@ -29,7 +23,7 @@ function getOrgListQuotaArtifactsUrl(
  * {@link /orgs/:org/quota/artifacts}
  */
 export async function orgListQuotaArtifacts(
-  org: OrgListQuotaArtifactsPathParams["org"],
+  org: OrgListQuotaArtifactsPathParams['org'],
   params?: OrgListQuotaArtifactsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -40,7 +34,7 @@ export async function orgListQuotaArtifacts(
     ResponseErrorConfig<OrgListQuotaArtifacts403 | OrgListQuotaArtifacts404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getOrgListQuotaArtifactsUrl(org).url.toString(),
     params,
     ...requestConfig,

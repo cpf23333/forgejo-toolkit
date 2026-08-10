@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   CreateForkMutationRequest,
   CreateForkMutationResponse,
@@ -18,13 +14,10 @@ import type {
   CreateFork409,
   CreateFork413,
   CreateFork422,
-} from "../types/CreateFork"
+} from '../types/CreateFork';
 
-function getCreateForkUrl(
-  owner: CreateForkPathParams["owner"],
-  repo: CreateForkPathParams["repo"],
-) {
-  const res = { method: "POST", url: `/repos/${owner}/${repo}/forks` as const };
+function getCreateForkUrl(owner: CreateForkPathParams['owner'], repo: CreateForkPathParams['repo']) {
+  const res = { method: 'POST', url: `/repos/${owner}/${repo}/forks` as const };
   return res;
 }
 
@@ -33,8 +26,8 @@ function getCreateForkUrl(
  * {@link /repos/:owner/:repo/forks}
  */
 export async function createFork(
-  owner: CreateForkPathParams["owner"],
-  repo: CreateForkPathParams["repo"],
+  owner: CreateForkPathParams['owner'],
+  repo: CreateForkPathParams['repo'],
   data?: CreateForkMutationRequest,
   config: Partial<RequestConfig<CreateForkMutationRequest>> & {
     client?: Client;
@@ -46,16 +39,10 @@ export async function createFork(
 
   const res = await request<
     CreateForkMutationResponse,
-    ResponseErrorConfig<
-      | CreateFork403
-      | CreateFork404
-      | CreateFork409
-      | CreateFork413
-      | CreateFork422
-    >,
+    ResponseErrorConfig<CreateFork403 | CreateFork404 | CreateFork409 | CreateFork413 | CreateFork422>,
     CreateForkMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getCreateForkUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

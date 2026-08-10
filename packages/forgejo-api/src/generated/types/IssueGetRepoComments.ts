@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIInternalServerError } from "./APIInternalServerError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { Comment } from "./Comment"
+import type { APIInternalServerError } from './APIInternalServerError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { Comment } from './Comment';
 
 export type IssueGetRepoCommentsPathParams = {
   /**
@@ -70,6 +70,5 @@ export type IssueGetRepoCommentsQuery = {
   Response: IssueGetRepoComments200;
   PathParams: IssueGetRepoCommentsPathParams;
   QueryParams: IssueGetRepoCommentsQueryParams;
-  Errors:
-    IssueGetRepoComments404 | IssueGetRepoComments422 | IssueGetRepoComments500;
+  Errors: IssueGetRepoComments404 | IssueGetRepoComments422 | IssueGetRepoComments500;
 };

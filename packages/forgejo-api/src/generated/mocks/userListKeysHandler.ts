@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  UserListKeysQueryResponse,
-  UserListKeys404,
-} from "../types/UserListKeys"
-import { http } from "msw";
+import type { UserListKeysQueryResponse, UserListKeys404 } from '../types/UserListKeys';
+import { http } from 'msw';
 
-export function userListKeysHandlerResponse200(
-  data: UserListKeysQueryResponse,
-) {
+export function userListKeysHandlerResponse200(data: UserListKeysQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function userListKeysHandlerResponse404(data: UserListKeys404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function userListKeysHandlerResponse404(data: UserListKeys404) {
 export function userListKeysHandler(
   data?:
     | UserListKeysQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/keys`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

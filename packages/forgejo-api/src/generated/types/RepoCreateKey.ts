@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateKeyOption } from "./CreateKeyOption"
-import type { DeployKey } from "./DeployKey"
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateKeyOption } from './CreateKeyOption';
+import type { DeployKey } from './DeployKey';
 
 export type RepoCreateKeyPathParams = {
   /**

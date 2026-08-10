@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListHooksQueryResponse,
   OrgListHooksPathParams,
   OrgListHooksQueryParams,
   OrgListHooks404,
-} from "../types/OrgListHooks"
+} from '../types/OrgListHooks';
 
-function getOrgListHooksUrl(org: OrgListHooksPathParams["org"]) {
-  const res = { method: "GET", url: `/orgs/${org}/hooks` as const };
+function getOrgListHooksUrl(org: OrgListHooksPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/hooks` as const };
   return res;
 }
 
@@ -26,18 +22,14 @@ function getOrgListHooksUrl(org: OrgListHooksPathParams["org"]) {
  * {@link /orgs/:org/hooks}
  */
 export async function orgListHooks(
-  org: OrgListHooksPathParams["org"],
+  org: OrgListHooksPathParams['org'],
   params?: OrgListHooksQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgListHooksQueryResponse,
-    ResponseErrorConfig<OrgListHooks404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgListHooksQueryResponse, ResponseErrorConfig<OrgListHooks404>, unknown>({
+    method: 'GET',
     url: getOrgListHooksUrl(org).url.toString(),
     params,
     ...requestConfig,

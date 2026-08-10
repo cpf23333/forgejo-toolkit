@@ -7,12 +7,10 @@ import type {
   RepoUpdateTopicsMutationResponse,
   RepoUpdateTopics404,
   RepoUpdateTopics422,
-} from "../types/RepoUpdateTopics"
-import { http } from "msw";
+} from '../types/RepoUpdateTopics';
+import { http } from 'msw';
 
-export function repoUpdateTopicsHandlerResponse204(
-  data?: RepoUpdateTopicsMutationResponse,
-) {
+export function repoUpdateTopicsHandlerResponse204(data?: RepoUpdateTopicsMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +20,7 @@ export function repoUpdateTopicsHandlerResponse404(data: RepoUpdateTopics404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +29,7 @@ export function repoUpdateTopicsHandlerResponse422(data: RepoUpdateTopics422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +41,10 @@ export function repoUpdateTopicsHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/repos/:owner/:repo/topics`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

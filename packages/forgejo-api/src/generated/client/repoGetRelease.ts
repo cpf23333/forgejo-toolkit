@@ -3,25 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoGetReleaseQueryResponse,
-  RepoGetReleasePathParams,
-  RepoGetRelease404,
-} from "../types/RepoGetRelease"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoGetReleaseQueryResponse, RepoGetReleasePathParams, RepoGetRelease404 } from '../types/RepoGetRelease';
 
 function getRepoGetReleaseUrl(
-  owner: RepoGetReleasePathParams["owner"],
-  repo: RepoGetReleasePathParams["repo"],
-  id: RepoGetReleasePathParams["id"],
+  owner: RepoGetReleasePathParams['owner'],
+  repo: RepoGetReleasePathParams['repo'],
+  id: RepoGetReleasePathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/releases/${id}` as const,
   };
   return res;
@@ -32,19 +24,15 @@ function getRepoGetReleaseUrl(
  * {@link /repos/:owner/:repo/releases/:id}
  */
 export async function repoGetRelease(
-  owner: RepoGetReleasePathParams["owner"],
-  repo: RepoGetReleasePathParams["repo"],
-  id: RepoGetReleasePathParams["id"],
+  owner: RepoGetReleasePathParams['owner'],
+  repo: RepoGetReleasePathParams['repo'],
+  id: RepoGetReleasePathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetReleaseQueryResponse,
-    ResponseErrorConfig<RepoGetRelease404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetReleaseQueryResponse, ResponseErrorConfig<RepoGetRelease404>, unknown>({
+    method: 'GET',
     url: getRepoGetReleaseUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

@@ -3,25 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetOrgRunnerQueryResponse,
   GetOrgRunnerPathParams,
   GetOrgRunner400,
   GetOrgRunner404,
-} from "../types/GetOrgRunner"
+} from '../types/GetOrgRunner';
 
-function getGetOrgRunnerUrl(
-  org: GetOrgRunnerPathParams["org"],
-  runner_id: GetOrgRunnerPathParams["runner_id"],
-) {
+function getGetOrgRunnerUrl(org: GetOrgRunnerPathParams['org'], runner_id: GetOrgRunnerPathParams['runner_id']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/orgs/${org}/actions/runners/${runner_id}` as const,
   };
   return res;
@@ -32,20 +25,18 @@ function getGetOrgRunnerUrl(
  * {@link /orgs/:org/actions/runners/:runner_id}
  */
 export async function getOrgRunner(
-  org: GetOrgRunnerPathParams["org"],
-  runner_id: GetOrgRunnerPathParams["runner_id"],
+  org: GetOrgRunnerPathParams['org'],
+  runner_id: GetOrgRunnerPathParams['runner_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetOrgRunnerQueryResponse,
-    ResponseErrorConfig<GetOrgRunner400 | GetOrgRunner404>,
-    unknown
-  >({
-    method: "GET",
-    url: getGetOrgRunnerUrl(org, runner_id).url.toString(),
-    ...requestConfig,
-  });
+  const res = await request<GetOrgRunnerQueryResponse, ResponseErrorConfig<GetOrgRunner400 | GetOrgRunner404>, unknown>(
+    {
+      method: 'GET',
+      url: getGetOrgRunnerUrl(org, runner_id).url.toString(),
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

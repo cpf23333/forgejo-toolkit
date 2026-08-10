@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { NotifySubjectType } from "./NotifySubjectType"
-import type { StateType } from "./StateType"
+import type { NotifySubjectType } from './NotifySubjectType';
+import type { StateType } from './StateType';
 
 /**
  * @description NotificationSubject contains the notification subject (Issue/Pull/Commit)

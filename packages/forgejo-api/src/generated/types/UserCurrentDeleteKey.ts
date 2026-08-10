@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 export type UserCurrentDeleteKeyPathParams = {
   /**
@@ -40,6 +40,5 @@ export type UserCurrentDeleteKeyMutationResponse = UserCurrentDeleteKey204;
 export type UserCurrentDeleteKeyMutation = {
   Response: UserCurrentDeleteKey204;
   PathParams: UserCurrentDeleteKeyPathParams;
-  Errors:
-    UserCurrentDeleteKey401 | UserCurrentDeleteKey403 | UserCurrentDeleteKey404;
+  Errors: UserCurrentDeleteKey401 | UserCurrentDeleteKey403 | UserCurrentDeleteKey404;
 };

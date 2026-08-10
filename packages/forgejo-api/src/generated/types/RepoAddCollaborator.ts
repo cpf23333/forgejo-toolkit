@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { AddCollaboratorOption } from "./AddCollaboratorOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { AddCollaboratorOption } from './AddCollaboratorOption';
 
 export type RepoAddCollaboratorPathParams = {
   /**
@@ -54,6 +54,5 @@ export type RepoAddCollaboratorMutation = {
   Response: RepoAddCollaborator204;
   Request: RepoAddCollaboratorMutationRequest;
   PathParams: RepoAddCollaboratorPathParams;
-  Errors:
-    RepoAddCollaborator403 | RepoAddCollaborator404 | RepoAddCollaborator422;
+  Errors: RepoAddCollaborator403 | RepoAddCollaborator404 | RepoAddCollaborator422;
 };

@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueGetLabelQueryResponse,
-  IssueGetLabel404,
-} from "../types/IssueGetLabel"
-import { http } from "msw";
+import type { IssueGetLabelQueryResponse, IssueGetLabel404 } from '../types/IssueGetLabel';
+import { http } from 'msw';
 
-export function issueGetLabelHandlerResponse200(
-  data: IssueGetLabelQueryResponse,
-) {
+export function issueGetLabelHandlerResponse200(data: IssueGetLabelQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function issueGetLabelHandlerResponse404(data: IssueGetLabel404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function issueGetLabelHandlerResponse404(data: IssueGetLabel404) {
 export function issueGetLabelHandler(
   data?:
     | IssueGetLabelQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/labels/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

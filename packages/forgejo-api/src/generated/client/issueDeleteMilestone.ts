@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteMilestoneMutationResponse,
   IssueDeleteMilestonePathParams,
   IssueDeleteMilestone404,
-} from "../types/IssueDeleteMilestone"
+} from '../types/IssueDeleteMilestone';
 
 function getIssueDeleteMilestoneUrl(
-  owner: IssueDeleteMilestonePathParams["owner"],
-  repo: IssueDeleteMilestonePathParams["repo"],
-  id: IssueDeleteMilestonePathParams["id"],
+  owner: IssueDeleteMilestonePathParams['owner'],
+  repo: IssueDeleteMilestonePathParams['repo'],
+  id: IssueDeleteMilestonePathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/milestones/${id}` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getIssueDeleteMilestoneUrl(
  * {@link /repos/:owner/:repo/milestones/:id}
  */
 export async function issueDeleteMilestone(
-  owner: IssueDeleteMilestonePathParams["owner"],
-  repo: IssueDeleteMilestonePathParams["repo"],
-  id: IssueDeleteMilestonePathParams["id"],
+  owner: IssueDeleteMilestonePathParams['owner'],
+  repo: IssueDeleteMilestonePathParams['repo'],
+  id: IssueDeleteMilestonePathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function issueDeleteMilestone(
     ResponseErrorConfig<IssueDeleteMilestone404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueDeleteMilestoneUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RegisterUserRunnerMutationRequest,
   RegisterUserRunnerMutationResponse,
   RegisterUserRunner400,
   RegisterUserRunner401,
   RegisterUserRunner404,
-} from "../types/RegisterUserRunner"
+} from '../types/RegisterUserRunner';
 
 function getRegisterUserRunnerUrl() {
-  const res = { method: "POST", url: `/user/actions/runners` as const };
+  const res = { method: 'POST', url: `/user/actions/runners` as const };
   return res;
 }
 
@@ -38,12 +34,10 @@ export async function registerUserRunner(
 
   const res = await request<
     RegisterUserRunnerMutationResponse,
-    ResponseErrorConfig<
-      RegisterUserRunner400 | RegisterUserRunner401 | RegisterUserRunner404
-    >,
+    ResponseErrorConfig<RegisterUserRunner400 | RegisterUserRunner401 | RegisterUserRunner404>,
     RegisterUserRunnerMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRegisterUserRunnerUrl().url.toString(),
     data: requestData,
     ...requestConfig,

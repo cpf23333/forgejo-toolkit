@@ -3,13 +3,13 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { Repository } from "./Repository"
-import type { Team } from "./Team"
-import type { TransferRepoOption } from "./TransferRepoOption"
-import type { User } from "./User"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { Repository } from './Repository';
+import type { Team } from './Team';
+import type { TransferRepoOption } from './TransferRepoOption';
+import type { User } from './User';
 
 /**
  * @description RepoTransfer represents a pending repo transfer

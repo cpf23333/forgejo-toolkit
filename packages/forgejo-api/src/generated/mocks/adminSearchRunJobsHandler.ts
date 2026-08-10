@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  AdminSearchRunJobsQueryResponse,
-  AdminSearchRunJobs403,
-} from "../types/AdminSearchRunJobs"
-import { http } from "msw";
+import type { AdminSearchRunJobsQueryResponse, AdminSearchRunJobs403 } from '../types/AdminSearchRunJobs';
+import { http } from 'msw';
 
-export function adminSearchRunJobsHandlerResponse200(
-  data: AdminSearchRunJobsQueryResponse,
-) {
+export function adminSearchRunJobsHandlerResponse200(data: AdminSearchRunJobsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminSearchRunJobsHandlerResponse403(
-  data: AdminSearchRunJobs403,
-) {
+export function adminSearchRunJobsHandlerResponse403(data: AdminSearchRunJobs403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function adminSearchRunJobsHandlerResponse403(
 export function adminSearchRunJobsHandler(
   data?:
     | AdminSearchRunJobsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/runners/jobs`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

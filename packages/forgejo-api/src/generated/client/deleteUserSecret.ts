@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteUserSecretMutationResponse,
   DeleteUserSecretPathParams,
@@ -16,13 +12,11 @@ import type {
   DeleteUserSecret401,
   DeleteUserSecret403,
   DeleteUserSecret404,
-} from "../types/DeleteUserSecret"
+} from '../types/DeleteUserSecret';
 
-function getDeleteUserSecretUrl(
-  secretname: DeleteUserSecretPathParams["secretname"],
-) {
+function getDeleteUserSecretUrl(secretname: DeleteUserSecretPathParams['secretname']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/user/actions/secrets/${secretname}` as const,
   };
   return res;
@@ -33,22 +27,17 @@ function getDeleteUserSecretUrl(
  * {@link /user/actions/secrets/:secretname}
  */
 export async function deleteUserSecret(
-  secretname: DeleteUserSecretPathParams["secretname"],
+  secretname: DeleteUserSecretPathParams['secretname'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     DeleteUserSecretMutationResponse,
-    ResponseErrorConfig<
-      | DeleteUserSecret400
-      | DeleteUserSecret401
-      | DeleteUserSecret403
-      | DeleteUserSecret404
-    >,
+    ResponseErrorConfig<DeleteUserSecret400 | DeleteUserSecret401 | DeleteUserSecret403 | DeleteUserSecret404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteUserSecretUrl(secretname).url.toString(),
     ...requestConfig,
   });

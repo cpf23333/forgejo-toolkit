@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  AdminSearchEmailsQueryResponse,
-  AdminSearchEmails403,
-} from "../types/AdminSearchEmails"
-import { http } from "msw";
+import type { AdminSearchEmailsQueryResponse, AdminSearchEmails403 } from '../types/AdminSearchEmails';
+import { http } from 'msw';
 
-export function adminSearchEmailsHandlerResponse200(
-  data: AdminSearchEmailsQueryResponse,
-) {
+export function adminSearchEmailsHandlerResponse200(data: AdminSearchEmailsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminSearchEmailsHandlerResponse403(
-  data: AdminSearchEmails403,
-) {
+export function adminSearchEmailsHandlerResponse403(data: AdminSearchEmails403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function adminSearchEmailsHandlerResponse403(
 export function adminSearchEmailsHandler(
   data?:
     | AdminSearchEmailsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/emails/search`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

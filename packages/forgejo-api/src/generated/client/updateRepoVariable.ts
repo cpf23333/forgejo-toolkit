@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UpdateRepoVariableMutationRequest,
   UpdateRepoVariableMutationResponse,
   UpdateRepoVariablePathParams,
   UpdateRepoVariable400,
   UpdateRepoVariable404,
-} from "../types/UpdateRepoVariable"
+} from '../types/UpdateRepoVariable';
 
 function getUpdateRepoVariableUrl(
-  owner: UpdateRepoVariablePathParams["owner"],
-  repo: UpdateRepoVariablePathParams["repo"],
-  variablename: UpdateRepoVariablePathParams["variablename"],
+  owner: UpdateRepoVariablePathParams['owner'],
+  repo: UpdateRepoVariablePathParams['repo'],
+  variablename: UpdateRepoVariablePathParams['variablename'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/actions/variables/${variablename}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getUpdateRepoVariableUrl(
  * {@link /repos/:owner/:repo/actions/variables/:variablename}
  */
 export async function updateRepoVariable(
-  owner: UpdateRepoVariablePathParams["owner"],
-  repo: UpdateRepoVariablePathParams["repo"],
-  variablename: UpdateRepoVariablePathParams["variablename"],
+  owner: UpdateRepoVariablePathParams['owner'],
+  repo: UpdateRepoVariablePathParams['repo'],
+  variablename: UpdateRepoVariablePathParams['variablename'],
   data: UpdateRepoVariableMutationRequest,
   config: Partial<RequestConfig<UpdateRepoVariableMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function updateRepoVariable(
     ResponseErrorConfig<UpdateRepoVariable400 | UpdateRepoVariable404>,
     UpdateRepoVariableMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUpdateRepoVariableUrl(owner, repo, variablename).url.toString(),
     data: requestData,
     ...requestConfig,

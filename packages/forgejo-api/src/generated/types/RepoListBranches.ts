@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { Branch } from "./Branch"
+import type { Branch } from './Branch';
 
 export type RepoListBranchesPathParams = {
   /**

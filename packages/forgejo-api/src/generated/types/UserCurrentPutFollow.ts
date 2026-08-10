@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 export type UserCurrentPutFollowPathParams = {
   /**
@@ -40,6 +40,5 @@ export type UserCurrentPutFollowMutationResponse = UserCurrentPutFollow204;
 export type UserCurrentPutFollowMutation = {
   Response: UserCurrentPutFollow204;
   PathParams: UserCurrentPutFollowPathParams;
-  Errors:
-    UserCurrentPutFollow401 | UserCurrentPutFollow403 | UserCurrentPutFollow404;
+  Errors: UserCurrentPutFollow401 | UserCurrentPutFollow403 | UserCurrentPutFollow404;
 };

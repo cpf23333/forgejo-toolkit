@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   TopicSearchQueryResponse,
   TopicSearchQueryParams,
   TopicSearch403,
   TopicSearch404,
-} from "../types/TopicSearch"
+} from '../types/TopicSearch';
 
 function getTopicSearchUrl() {
-  const res = { method: "GET", url: `/topics/search` as const };
+  const res = { method: 'GET', url: `/topics/search` as const };
   return res;
 }
 
@@ -31,12 +27,8 @@ export async function topicSearch(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    TopicSearchQueryResponse,
-    ResponseErrorConfig<TopicSearch403 | TopicSearch404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<TopicSearchQueryResponse, ResponseErrorConfig<TopicSearch403 | TopicSearch404>, unknown>({
+    method: 'GET',
     url: getTopicSearchUrl().url.toString(),
     params,
     ...requestConfig,

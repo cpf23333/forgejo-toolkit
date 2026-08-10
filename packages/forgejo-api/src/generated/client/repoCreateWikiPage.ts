@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateWikiPageMutationRequest,
   RepoCreateWikiPageMutationResponse,
@@ -18,14 +14,14 @@ import type {
   RepoCreateWikiPage404,
   RepoCreateWikiPage413,
   RepoCreateWikiPage423,
-} from "../types/RepoCreateWikiPage"
+} from '../types/RepoCreateWikiPage';
 
 function getRepoCreateWikiPageUrl(
-  owner: RepoCreateWikiPagePathParams["owner"],
-  repo: RepoCreateWikiPagePathParams["repo"],
+  owner: RepoCreateWikiPagePathParams['owner'],
+  repo: RepoCreateWikiPagePathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/wiki/new` as const,
   };
   return res;
@@ -36,8 +32,8 @@ function getRepoCreateWikiPageUrl(
  * {@link /repos/:owner/:repo/wiki/new}
  */
 export async function repoCreateWikiPage(
-  owner: RepoCreateWikiPagePathParams["owner"],
-  repo: RepoCreateWikiPagePathParams["repo"],
+  owner: RepoCreateWikiPagePathParams['owner'],
+  repo: RepoCreateWikiPagePathParams['repo'],
   data?: RepoCreateWikiPageMutationRequest,
   config: Partial<RequestConfig<RepoCreateWikiPageMutationRequest>> & {
     client?: Client;
@@ -58,7 +54,7 @@ export async function repoCreateWikiPage(
     >,
     RepoCreateWikiPageMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateWikiPageUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoListTagsQueryResponse,
-  RepoListTags404,
-} from "../types/RepoListTags"
-import { http } from "msw";
+import type { RepoListTagsQueryResponse, RepoListTags404 } from '../types/RepoListTags';
+import { http } from 'msw';
 
-export function repoListTagsHandlerResponse200(
-  data: RepoListTagsQueryResponse,
-) {
+export function repoListTagsHandlerResponse200(data: RepoListTagsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoListTagsHandlerResponse404(data: RepoListTags404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function repoListTagsHandlerResponse404(data: RepoListTags404) {
 export function repoListTagsHandler(
   data?:
     | RepoListTagsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/tags`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

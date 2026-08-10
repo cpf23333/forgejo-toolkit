@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetVerificationTokenQueryResponse,
   GetVerificationToken401,
   GetVerificationToken403,
   GetVerificationToken404,
-} from "../types/GetVerificationToken"
+} from '../types/GetVerificationToken';
 
 function getGetVerificationTokenUrl() {
-  const res = { method: "GET", url: `/user/gpg_key_token` as const };
+  const res = { method: 'GET', url: `/user/gpg_key_token` as const };
   return res;
 }
 
@@ -25,21 +21,15 @@ function getGetVerificationTokenUrl() {
  * @summary Get a Token to verify
  * {@link /user/gpg_key_token}
  */
-export async function getVerificationToken(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getVerificationToken(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     GetVerificationTokenQueryResponse,
-    ResponseErrorConfig<
-      | GetVerificationToken401
-      | GetVerificationToken403
-      | GetVerificationToken404
-    >,
+    ResponseErrorConfig<GetVerificationToken401 | GetVerificationToken403 | GetVerificationToken404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetVerificationTokenUrl().url.toString(),
     ...requestConfig,
   });

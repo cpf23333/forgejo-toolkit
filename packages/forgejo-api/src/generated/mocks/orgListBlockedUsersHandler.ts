@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { OrgListBlockedUsersQueryResponse } from "../types/OrgListBlockedUsers"
-import { http } from "msw";
+import type { OrgListBlockedUsersQueryResponse } from '../types/OrgListBlockedUsers';
+import { http } from 'msw';
 
-export function orgListBlockedUsersHandlerResponse200(
-  data: OrgListBlockedUsersQueryResponse,
-) {
+export function orgListBlockedUsersHandlerResponse200(data: OrgListBlockedUsersQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function orgListBlockedUsersHandlerResponse200(
 export function orgListBlockedUsersHandler(
   data?:
     | OrgListBlockedUsersQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/list_blocked`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

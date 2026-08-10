@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetAdminRunnerQueryResponse,
   GetAdminRunnerPathParams,
   GetAdminRunner400,
   GetAdminRunner404,
-} from "../types/GetAdminRunner"
+} from '../types/GetAdminRunner';
 
-function getGetAdminRunnerUrl(
-  runner_id: GetAdminRunnerPathParams["runner_id"],
-) {
+function getGetAdminRunnerUrl(runner_id: GetAdminRunnerPathParams['runner_id']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/admin/actions/runners/${runner_id}` as const,
   };
   return res;
@@ -31,7 +25,7 @@ function getGetAdminRunnerUrl(
  * {@link /admin/actions/runners/:runner_id}
  */
 export async function getAdminRunner(
-  runner_id: GetAdminRunnerPathParams["runner_id"],
+  runner_id: GetAdminRunnerPathParams['runner_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -41,7 +35,7 @@ export async function getAdminRunner(
     ResponseErrorConfig<GetAdminRunner400 | GetAdminRunner404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetAdminRunnerUrl(runner_id).url.toString(),
     ...requestConfig,
   });

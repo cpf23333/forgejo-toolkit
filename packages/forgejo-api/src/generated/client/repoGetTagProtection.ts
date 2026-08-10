@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetTagProtectionQueryResponse,
   RepoGetTagProtectionPathParams,
   RepoGetTagProtection404,
-} from "../types/RepoGetTagProtection"
+} from '../types/RepoGetTagProtection';
 
 function getRepoGetTagProtectionUrl(
-  owner: RepoGetTagProtectionPathParams["owner"],
-  repo: RepoGetTagProtectionPathParams["repo"],
-  id: RepoGetTagProtectionPathParams["id"],
+  owner: RepoGetTagProtectionPathParams['owner'],
+  repo: RepoGetTagProtectionPathParams['repo'],
+  id: RepoGetTagProtectionPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/tag_protections/${id}` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoGetTagProtectionUrl(
  * {@link /repos/:owner/:repo/tag_protections/:id}
  */
 export async function repoGetTagProtection(
-  owner: RepoGetTagProtectionPathParams["owner"],
-  repo: RepoGetTagProtectionPathParams["repo"],
-  id: RepoGetTagProtectionPathParams["id"],
+  owner: RepoGetTagProtectionPathParams['owner'],
+  repo: RepoGetTagProtectionPathParams['repo'],
+  id: RepoGetTagProtectionPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetTagProtectionQueryResponse,
-    ResponseErrorConfig<RepoGetTagProtection404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetTagProtectionQueryResponse, ResponseErrorConfig<RepoGetTagProtection404>, unknown>({
+    method: 'GET',
     url: getRepoGetTagProtectionUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

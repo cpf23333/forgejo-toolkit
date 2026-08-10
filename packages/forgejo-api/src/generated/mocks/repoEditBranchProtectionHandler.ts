@@ -8,49 +8,41 @@ import type {
   RepoEditBranchProtection404,
   RepoEditBranchProtection422,
   RepoEditBranchProtection423,
-} from "../types/RepoEditBranchProtection"
-import { http } from "msw";
+} from '../types/RepoEditBranchProtection';
+import { http } from 'msw';
 
-export function repoEditBranchProtectionHandlerResponse200(
-  data: RepoEditBranchProtectionMutationResponse,
-) {
+export function repoEditBranchProtectionHandlerResponse200(data: RepoEditBranchProtectionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoEditBranchProtectionHandlerResponse404(
-  data: RepoEditBranchProtection404,
-) {
+export function repoEditBranchProtectionHandlerResponse404(data: RepoEditBranchProtection404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoEditBranchProtectionHandlerResponse422(
-  data: RepoEditBranchProtection422,
-) {
+export function repoEditBranchProtectionHandlerResponse422(data: RepoEditBranchProtection422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoEditBranchProtectionHandlerResponse423(
-  data: RepoEditBranchProtection423,
-) {
+export function repoEditBranchProtectionHandlerResponse423(data: RepoEditBranchProtection423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,21 +50,16 @@ export function repoEditBranchProtectionHandlerResponse423(
 export function repoEditBranchProtectionHandler(
   data?:
     | RepoEditBranchProtectionMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/branch_protections/:name`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/branch_protections/:name`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -7,35 +7,29 @@ import type {
   RepoDeleteCollaboratorMutationResponse,
   RepoDeleteCollaborator404,
   RepoDeleteCollaborator422,
-} from "../types/RepoDeleteCollaborator"
-import { http } from "msw";
+} from '../types/RepoDeleteCollaborator';
+import { http } from 'msw';
 
-export function repoDeleteCollaboratorHandlerResponse204(
-  data?: RepoDeleteCollaboratorMutationResponse,
-) {
+export function repoDeleteCollaboratorHandlerResponse204(data?: RepoDeleteCollaboratorMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteCollaboratorHandlerResponse404(
-  data: RepoDeleteCollaborator404,
-) {
+export function repoDeleteCollaboratorHandlerResponse404(data: RepoDeleteCollaborator404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDeleteCollaboratorHandlerResponse422(
-  data: RepoDeleteCollaborator422,
-) {
+export function repoDeleteCollaboratorHandlerResponse422(data: RepoDeleteCollaborator422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function repoDeleteCollaboratorHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/collaborators/:collaborator`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/collaborators/:collaborator`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

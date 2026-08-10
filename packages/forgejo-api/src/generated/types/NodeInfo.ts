@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { NodeInfoServices } from "./NodeInfoServices"
-import type { NodeInfoSoftware } from "./NodeInfoSoftware"
-import type { NodeInfoUsage } from "./NodeInfoUsage"
+import type { NodeInfoServices } from './NodeInfoServices';
+import type { NodeInfoSoftware } from './NodeInfoSoftware';
+import type { NodeInfoUsage } from './NodeInfoUsage';
 
 /**
  * @description NodeInfo contains standardized way of exposing metadata about a server running one of the distributed social networks

@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoGetByIDQueryResponse,
-  RepoGetByIDPathParams,
-  RepoGetByID404,
-} from "../types/RepoGetByID"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoGetByIDQueryResponse, RepoGetByIDPathParams, RepoGetByID404 } from '../types/RepoGetByID';
 
-function getRepoGetByIDUrl(id: RepoGetByIDPathParams["id"]) {
-  const res = { method: "GET", url: `/repositories/${id}` as const };
+function getRepoGetByIDUrl(id: RepoGetByIDPathParams['id']) {
+  const res = { method: 'GET', url: `/repositories/${id}` as const };
   return res;
 }
 
@@ -25,17 +17,13 @@ function getRepoGetByIDUrl(id: RepoGetByIDPathParams["id"]) {
  * {@link /repositories/:id}
  */
 export async function repoGetByID(
-  id: RepoGetByIDPathParams["id"],
+  id: RepoGetByIDPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetByIDQueryResponse,
-    ResponseErrorConfig<RepoGetByID404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetByIDQueryResponse, ResponseErrorConfig<RepoGetByID404>, unknown>({
+    method: 'GET',
     url: getRepoGetByIDUrl(id).url.toString(),
     ...requestConfig,
   });

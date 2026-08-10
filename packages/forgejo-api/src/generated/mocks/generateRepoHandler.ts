@@ -10,16 +10,14 @@ import type {
   GenerateRepo409,
   GenerateRepo413,
   GenerateRepo422,
-} from "../types/GenerateRepo"
-import { http } from "msw";
+} from '../types/GenerateRepo';
+import { http } from 'msw';
 
-export function generateRepoHandlerResponse201(
-  data: GenerateRepoMutationResponse,
-) {
+export function generateRepoHandlerResponse201(data: GenerateRepoMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -28,7 +26,7 @@ export function generateRepoHandlerResponse403(data: GenerateRepo403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -37,7 +35,7 @@ export function generateRepoHandlerResponse404(data: GenerateRepo404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,7 +56,7 @@ export function generateRepoHandlerResponse422(data: GenerateRepo422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -66,21 +64,16 @@ export function generateRepoHandlerResponse422(data: GenerateRepo422) {
 export function generateRepoHandler(
   data?:
     | GenerateRepoMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:template_owner/:template_repo/generate`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:template_owner/:template_repo/generate`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { Commit } from "./Commit"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { Commit } from './Commit';
 
 export type RepoGetAllCommitsPathParams = {
   /**

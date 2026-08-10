@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgDeleteMemberMutationResponse,
   OrgDeleteMemberPathParams,
   OrgDeleteMember404,
-} from "../types/OrgDeleteMember"
+} from '../types/OrgDeleteMember';
 
-function getOrgDeleteMemberUrl(
-  org: OrgDeleteMemberPathParams["org"],
-  username: OrgDeleteMemberPathParams["username"],
-) {
+function getOrgDeleteMemberUrl(org: OrgDeleteMemberPathParams['org'], username: OrgDeleteMemberPathParams['username']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/orgs/${org}/members/${username}` as const,
   };
   return res;
@@ -31,18 +24,14 @@ function getOrgDeleteMemberUrl(
  * {@link /orgs/:org/members/:username}
  */
 export async function orgDeleteMember(
-  org: OrgDeleteMemberPathParams["org"],
-  username: OrgDeleteMemberPathParams["username"],
+  org: OrgDeleteMemberPathParams['org'],
+  username: OrgDeleteMemberPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgDeleteMemberMutationResponse,
-    ResponseErrorConfig<OrgDeleteMember404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<OrgDeleteMemberMutationResponse, ResponseErrorConfig<OrgDeleteMember404>, unknown>({
+    method: 'DELETE',
     url: getOrgDeleteMemberUrl(org, username).url.toString(),
     ...requestConfig,
   });

@@ -3,15 +3,15 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { ForgeOutbox } from "./ForgeOutbox"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { ForgeOutbox } from './ForgeOutbox';
 
 export type ActivitypubPersonFeedPathParams = {
   /**
    * @description user ID of the user
    * @type integer
    */
-  "user-id": number;
+  'user-id': number;
 };
 
 /**

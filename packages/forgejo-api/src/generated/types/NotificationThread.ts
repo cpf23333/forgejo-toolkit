@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { NotificationSubject } from "./NotificationSubject"
-import type { Repository } from "./Repository"
+import type { NotificationSubject } from './NotificationSubject';
+import type { Repository } from './Repository';
 
 /**
  * @description NotificationThread expose Notification on API

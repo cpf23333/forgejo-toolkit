@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { CreateWikiPageOptions } from "./CreateWikiPageOptions"
-import type { WikiPage } from "./WikiPage"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { CreateWikiPageOptions } from './CreateWikiPageOptions';
+import type { WikiPage } from './WikiPage';
 
 export type RepoCreateWikiPagePathParams = {
   /**

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { Attachment } from "./Attachment"
+import type { APIError } from './APIError';
+import type { Attachment } from './Attachment';
 
 export type IssueListIssueCommentAttachmentsPathParams = {
   /**
@@ -34,8 +34,7 @@ export type IssueListIssueCommentAttachments200 = Attachment[];
  */
 export type IssueListIssueCommentAttachments404 = APIError;
 
-export type IssueListIssueCommentAttachmentsQueryResponse =
-  IssueListIssueCommentAttachments200;
+export type IssueListIssueCommentAttachmentsQueryResponse = IssueListIssueCommentAttachments200;
 
 export type IssueListIssueCommentAttachmentsQuery = {
   Response: IssueListIssueCommentAttachments200;

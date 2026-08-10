@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssuePostCommentReactionMutationRequest,
   IssuePostCommentReactionMutationResponse,
   IssuePostCommentReactionPathParams,
   IssuePostCommentReaction403,
   IssuePostCommentReaction404,
-} from "../types/IssuePostCommentReaction"
+} from '../types/IssuePostCommentReaction';
 
 function getIssuePostCommentReactionUrl(
-  owner: IssuePostCommentReactionPathParams["owner"],
-  repo: IssuePostCommentReactionPathParams["repo"],
-  id: IssuePostCommentReactionPathParams["id"],
+  owner: IssuePostCommentReactionPathParams['owner'],
+  repo: IssuePostCommentReactionPathParams['repo'],
+  id: IssuePostCommentReactionPathParams['id'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/comments/${id}/reactions` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssuePostCommentReactionUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id/reactions}
  */
 export async function issuePostCommentReaction(
-  owner: IssuePostCommentReactionPathParams["owner"],
-  repo: IssuePostCommentReactionPathParams["repo"],
-  id: IssuePostCommentReactionPathParams["id"],
+  owner: IssuePostCommentReactionPathParams['owner'],
+  repo: IssuePostCommentReactionPathParams['repo'],
+  id: IssuePostCommentReactionPathParams['id'],
   data?: IssuePostCommentReactionMutationRequest,
   config: Partial<RequestConfig<IssuePostCommentReactionMutationRequest>> & {
     client?: Client;
@@ -48,12 +44,10 @@ export async function issuePostCommentReaction(
 
   const res = await request<
     IssuePostCommentReactionMutationResponse,
-    ResponseErrorConfig<
-      IssuePostCommentReaction403 | IssuePostCommentReaction404
-    >,
+    ResponseErrorConfig<IssuePostCommentReaction403 | IssuePostCommentReaction404>,
     IssuePostCommentReactionMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssuePostCommentReactionUrl(owner, repo, id).url.toString(),
     data: requestData,
     ...requestConfig,

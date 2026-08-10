@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgListTeamRepoQueryResponse,
-  OrgListTeamRepo404,
-} from "../types/OrgListTeamRepo"
-import { http } from "msw";
+import type { OrgListTeamRepoQueryResponse, OrgListTeamRepo404 } from '../types/OrgListTeamRepo';
+import { http } from 'msw';
 
-export function orgListTeamRepoHandlerResponse200(
-  data: OrgListTeamRepoQueryResponse,
-) {
+export function orgListTeamRepoHandlerResponse200(data: OrgListTeamRepoQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function orgListTeamRepoHandlerResponse404(data: OrgListTeamRepo404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function orgListTeamRepoHandlerResponse404(data: OrgListTeamRepo404) {
 export function orgListTeamRepoHandler(
   data?:
     | OrgListTeamRepoQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/teams/:id/repos/:org/:repo`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

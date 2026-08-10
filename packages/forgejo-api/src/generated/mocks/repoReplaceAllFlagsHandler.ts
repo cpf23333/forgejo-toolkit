@@ -7,35 +7,29 @@ import type {
   RepoReplaceAllFlagsMutationResponse,
   RepoReplaceAllFlags403,
   RepoReplaceAllFlags404,
-} from "../types/RepoReplaceAllFlags"
-import { http } from "msw";
+} from '../types/RepoReplaceAllFlags';
+import { http } from 'msw';
 
-export function repoReplaceAllFlagsHandlerResponse204(
-  data?: RepoReplaceAllFlagsMutationResponse,
-) {
+export function repoReplaceAllFlagsHandlerResponse204(data?: RepoReplaceAllFlagsMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoReplaceAllFlagsHandlerResponse403(
-  data: RepoReplaceAllFlags403,
-) {
+export function repoReplaceAllFlagsHandlerResponse403(data: RepoReplaceAllFlags403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoReplaceAllFlagsHandlerResponse404(
-  data: RepoReplaceAllFlags404,
-) {
+export function repoReplaceAllFlagsHandlerResponse404(data: RepoReplaceAllFlags404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,12 +41,10 @@ export function repoReplaceAllFlagsHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/repos/:owner/:repo/flags`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

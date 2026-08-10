@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteIssueCommentAttachmentMutationResponse,
   IssueDeleteIssueCommentAttachmentPathParams,
   IssueDeleteIssueCommentAttachment404,
   IssueDeleteIssueCommentAttachment423,
-} from "../types/IssueDeleteIssueCommentAttachment"
+} from '../types/IssueDeleteIssueCommentAttachment';
 
 function getIssueDeleteIssueCommentAttachmentUrl(
-  owner: IssueDeleteIssueCommentAttachmentPathParams["owner"],
-  repo: IssueDeleteIssueCommentAttachmentPathParams["repo"],
-  id: IssueDeleteIssueCommentAttachmentPathParams["id"],
-  attachment_id: IssueDeleteIssueCommentAttachmentPathParams["attachment_id"],
+  owner: IssueDeleteIssueCommentAttachmentPathParams['owner'],
+  repo: IssueDeleteIssueCommentAttachmentPathParams['repo'],
+  id: IssueDeleteIssueCommentAttachmentPathParams['id'],
+  attachment_id: IssueDeleteIssueCommentAttachmentPathParams['attachment_id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/comments/${id}/assets/${attachment_id}` as const,
   };
   return res;
@@ -34,29 +30,21 @@ function getIssueDeleteIssueCommentAttachmentUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id/assets/:attachment_id}
  */
 export async function issueDeleteIssueCommentAttachment(
-  owner: IssueDeleteIssueCommentAttachmentPathParams["owner"],
-  repo: IssueDeleteIssueCommentAttachmentPathParams["repo"],
-  id: IssueDeleteIssueCommentAttachmentPathParams["id"],
-  attachment_id: IssueDeleteIssueCommentAttachmentPathParams["attachment_id"],
+  owner: IssueDeleteIssueCommentAttachmentPathParams['owner'],
+  repo: IssueDeleteIssueCommentAttachmentPathParams['repo'],
+  id: IssueDeleteIssueCommentAttachmentPathParams['id'],
+  attachment_id: IssueDeleteIssueCommentAttachmentPathParams['attachment_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     IssueDeleteIssueCommentAttachmentMutationResponse,
-    ResponseErrorConfig<
-      | IssueDeleteIssueCommentAttachment404
-      | IssueDeleteIssueCommentAttachment423
-    >,
+    ResponseErrorConfig<IssueDeleteIssueCommentAttachment404 | IssueDeleteIssueCommentAttachment423>,
     unknown
   >({
-    method: "DELETE",
-    url: getIssueDeleteIssueCommentAttachmentUrl(
-      owner,
-      repo,
-      id,
-      attachment_id,
-    ).url.toString(),
+    method: 'DELETE',
+    url: getIssueDeleteIssueCommentAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
     ...requestConfig,
   });
   return res.data;

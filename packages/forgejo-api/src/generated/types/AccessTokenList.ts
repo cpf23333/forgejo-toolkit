@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { AccessToken } from "./AccessToken"
+import type { AccessToken } from './AccessToken';
 
 export type AccessTokenList = AccessToken[];

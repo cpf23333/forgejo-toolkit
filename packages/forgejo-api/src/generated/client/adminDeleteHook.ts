@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  AdminDeleteHookMutationResponse,
-  AdminDeleteHookPathParams,
-} from "../types/AdminDeleteHook"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AdminDeleteHookMutationResponse, AdminDeleteHookPathParams } from '../types/AdminDeleteHook';
 
-function getAdminDeleteHookUrl(id: AdminDeleteHookPathParams["id"]) {
-  const res = { method: "DELETE", url: `/admin/hooks/${id}` as const };
+function getAdminDeleteHookUrl(id: AdminDeleteHookPathParams['id']) {
+  const res = { method: 'DELETE', url: `/admin/hooks/${id}` as const };
   return res;
 }
 
@@ -24,17 +17,13 @@ function getAdminDeleteHookUrl(id: AdminDeleteHookPathParams["id"]) {
  * {@link /admin/hooks/:id}
  */
 export async function adminDeleteHook(
-  id: AdminDeleteHookPathParams["id"],
+  id: AdminDeleteHookPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminDeleteHookMutationResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<AdminDeleteHookMutationResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'DELETE',
     url: getAdminDeleteHookUrl(id).url.toString(),
     ...requestConfig,
   });

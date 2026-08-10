@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserGetOAuth2ApplicationsQueryResponse,
   UserGetOAuth2ApplicationsQueryParams,
   UserGetOAuth2Applications401,
   UserGetOAuth2Applications403,
-} from "../types/UserGetOAuth2Applications"
+} from '../types/UserGetOAuth2Applications';
 
 function getUserGetOAuth2ApplicationsUrl() {
-  const res = { method: "GET", url: `/user/applications/oauth2` as const };
+  const res = { method: 'GET', url: `/user/applications/oauth2` as const };
   return res;
 }
 
@@ -33,12 +29,10 @@ export async function userGetOAuth2Applications(
 
   const res = await request<
     UserGetOAuth2ApplicationsQueryResponse,
-    ResponseErrorConfig<
-      UserGetOAuth2Applications401 | UserGetOAuth2Applications403
-    >,
+    ResponseErrorConfig<UserGetOAuth2Applications401 | UserGetOAuth2Applications403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserGetOAuth2ApplicationsUrl().url.toString(),
     params,
     ...requestConfig,

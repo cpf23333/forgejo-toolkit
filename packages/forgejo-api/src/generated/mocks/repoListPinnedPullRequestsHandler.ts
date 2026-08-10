@@ -6,27 +6,23 @@
 import type {
   RepoListPinnedPullRequestsQueryResponse,
   RepoListPinnedPullRequests404,
-} from "../types/RepoListPinnedPullRequests"
-import { http } from "msw";
+} from '../types/RepoListPinnedPullRequests';
+import { http } from 'msw';
 
-export function repoListPinnedPullRequestsHandlerResponse200(
-  data: RepoListPinnedPullRequestsQueryResponse,
-) {
+export function repoListPinnedPullRequestsHandlerResponse200(data: RepoListPinnedPullRequestsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoListPinnedPullRequestsHandlerResponse404(
-  data: RepoListPinnedPullRequests404,
-) {
+export function repoListPinnedPullRequestsHandlerResponse404(data: RepoListPinnedPullRequests404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +30,15 @@ export function repoListPinnedPullRequestsHandlerResponse404(
 export function repoListPinnedPullRequestsHandler(
   data?:
     | RepoListPinnedPullRequestsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls/pinned`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

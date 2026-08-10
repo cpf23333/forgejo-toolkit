@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueEditIssueAttachmentMutationRequest,
   IssueEditIssueAttachmentMutationResponse,
@@ -16,16 +12,16 @@ import type {
   IssueEditIssueAttachment404,
   IssueEditIssueAttachment413,
   IssueEditIssueAttachment423,
-} from "../types/IssueEditIssueAttachment"
+} from '../types/IssueEditIssueAttachment';
 
 function getIssueEditIssueAttachmentUrl(
-  owner: IssueEditIssueAttachmentPathParams["owner"],
-  repo: IssueEditIssueAttachmentPathParams["repo"],
-  index: IssueEditIssueAttachmentPathParams["index"],
-  attachment_id: IssueEditIssueAttachmentPathParams["attachment_id"],
+  owner: IssueEditIssueAttachmentPathParams['owner'],
+  repo: IssueEditIssueAttachmentPathParams['repo'],
+  index: IssueEditIssueAttachmentPathParams['index'],
+  attachment_id: IssueEditIssueAttachmentPathParams['attachment_id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/issues/${index}/assets/${attachment_id}` as const,
   };
   return res;
@@ -36,10 +32,10 @@ function getIssueEditIssueAttachmentUrl(
  * {@link /repos/:owner/:repo/issues/:index/assets/:attachment_id}
  */
 export async function issueEditIssueAttachment(
-  owner: IssueEditIssueAttachmentPathParams["owner"],
-  repo: IssueEditIssueAttachmentPathParams["repo"],
-  index: IssueEditIssueAttachmentPathParams["index"],
-  attachment_id: IssueEditIssueAttachmentPathParams["attachment_id"],
+  owner: IssueEditIssueAttachmentPathParams['owner'],
+  repo: IssueEditIssueAttachmentPathParams['repo'],
+  index: IssueEditIssueAttachmentPathParams['index'],
+  attachment_id: IssueEditIssueAttachmentPathParams['attachment_id'],
   data?: IssueEditIssueAttachmentMutationRequest,
   config: Partial<RequestConfig<IssueEditIssueAttachmentMutationRequest>> & {
     client?: Client;
@@ -51,20 +47,11 @@ export async function issueEditIssueAttachment(
 
   const res = await request<
     IssueEditIssueAttachmentMutationResponse,
-    ResponseErrorConfig<
-      | IssueEditIssueAttachment404
-      | IssueEditIssueAttachment413
-      | IssueEditIssueAttachment423
-    >,
+    ResponseErrorConfig<IssueEditIssueAttachment404 | IssueEditIssueAttachment413 | IssueEditIssueAttachment423>,
     IssueEditIssueAttachmentMutationRequest
   >({
-    method: "PATCH",
-    url: getIssueEditIssueAttachmentUrl(
-      owner,
-      repo,
-      index,
-      attachment_id,
-    ).url.toString(),
+    method: 'PATCH',
+    url: getIssueEditIssueAttachmentUrl(owner, repo, index, attachment_id).url.toString(),
     data: requestData,
     ...requestConfig,
   });

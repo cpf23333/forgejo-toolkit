@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteCollaboratorMutationResponse,
   RepoDeleteCollaboratorPathParams,
   RepoDeleteCollaborator404,
   RepoDeleteCollaborator422,
-} from "../types/RepoDeleteCollaborator"
+} from '../types/RepoDeleteCollaborator';
 
 function getRepoDeleteCollaboratorUrl(
-  owner: RepoDeleteCollaboratorPathParams["owner"],
-  repo: RepoDeleteCollaboratorPathParams["repo"],
-  collaborator: RepoDeleteCollaboratorPathParams["collaborator"],
+  owner: RepoDeleteCollaboratorPathParams['owner'],
+  repo: RepoDeleteCollaboratorPathParams['repo'],
+  collaborator: RepoDeleteCollaboratorPathParams['collaborator'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/collaborators/${collaborator}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoDeleteCollaboratorUrl(
  * {@link /repos/:owner/:repo/collaborators/:collaborator}
  */
 export async function repoDeleteCollaborator(
-  owner: RepoDeleteCollaboratorPathParams["owner"],
-  repo: RepoDeleteCollaboratorPathParams["repo"],
-  collaborator: RepoDeleteCollaboratorPathParams["collaborator"],
+  owner: RepoDeleteCollaboratorPathParams['owner'],
+  repo: RepoDeleteCollaboratorPathParams['repo'],
+  collaborator: RepoDeleteCollaboratorPathParams['collaborator'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoDeleteCollaborator(
     ResponseErrorConfig<RepoDeleteCollaborator404 | RepoDeleteCollaborator422>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteCollaboratorUrl(owner, repo, collaborator).url.toString(),
     ...requestConfig,
   });

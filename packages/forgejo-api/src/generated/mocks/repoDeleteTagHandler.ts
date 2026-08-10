@@ -10,12 +10,10 @@ import type {
   RepoDeleteTag409,
   RepoDeleteTag422,
   RepoDeleteTag423,
-} from "../types/RepoDeleteTag"
-import { http } from "msw";
+} from '../types/RepoDeleteTag';
+import { http } from 'msw';
 
-export function repoDeleteTagHandlerResponse204(
-  data?: RepoDeleteTagMutationResponse,
-) {
+export function repoDeleteTagHandlerResponse204(data?: RepoDeleteTagMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -25,7 +23,7 @@ export function repoDeleteTagHandlerResponse404(data: RepoDeleteTag404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,7 +44,7 @@ export function repoDeleteTagHandlerResponse422(data: RepoDeleteTag422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -55,7 +53,7 @@ export function repoDeleteTagHandlerResponse423(data: RepoDeleteTag423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -67,12 +65,10 @@ export function repoDeleteTagHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/repos/:owner/:repo/tags/:tag`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

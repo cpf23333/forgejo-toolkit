@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { PullReviewComment } from "./PullReviewComment"
+import type { PullReviewComment } from './PullReviewComment';
 
 export type PullReviewCommentList = PullReviewComment[];

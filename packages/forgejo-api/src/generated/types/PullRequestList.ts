@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { PullRequest } from "./PullRequest"
+import type { PullRequest } from './PullRequest';
 
 export type PullRequestList = PullRequest[];

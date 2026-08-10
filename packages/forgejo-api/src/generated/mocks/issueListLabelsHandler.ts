@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueListLabelsQueryResponse,
-  IssueListLabels404,
-} from "../types/IssueListLabels"
-import { http } from "msw";
+import type { IssueListLabelsQueryResponse, IssueListLabels404 } from '../types/IssueListLabels';
+import { http } from 'msw';
 
-export function issueListLabelsHandlerResponse200(
-  data: IssueListLabelsQueryResponse,
-) {
+export function issueListLabelsHandlerResponse200(data: IssueListLabelsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function issueListLabelsHandlerResponse404(data: IssueListLabels404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function issueListLabelsHandlerResponse404(data: IssueListLabels404) {
 export function issueListLabelsHandler(
   data?:
     | IssueListLabelsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/labels`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

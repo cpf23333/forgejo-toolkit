@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { Hook } from "./Hook"
+import type { Hook } from './Hook';
 
 export type AdminGetHookPathParams = {
   /**

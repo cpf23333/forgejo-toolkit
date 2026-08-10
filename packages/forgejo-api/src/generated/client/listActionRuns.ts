@@ -3,26 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ListActionRunsQueryResponse,
   ListActionRunsPathParams,
   ListActionRunsQueryParams,
   ListActionRuns400,
   ListActionRuns403,
-} from "../types/ListActionRuns"
+} from '../types/ListActionRuns';
 
-function getListActionRunsUrl(
-  owner: ListActionRunsPathParams["owner"],
-  repo: ListActionRunsPathParams["repo"],
-) {
+function getListActionRunsUrl(owner: ListActionRunsPathParams['owner'], repo: ListActionRunsPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/actions/runs` as const,
   };
   return res;
@@ -33,8 +26,8 @@ function getListActionRunsUrl(
  * {@link /repos/:owner/:repo/actions/runs}
  */
 export async function listActionRuns(
-  owner: ListActionRunsPathParams["owner"],
-  repo: ListActionRunsPathParams["repo"],
+  owner: ListActionRunsPathParams['owner'],
+  repo: ListActionRunsPathParams['repo'],
   params?: ListActionRunsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -45,7 +38,7 @@ export async function listActionRuns(
     ResponseErrorConfig<ListActionRuns400 | ListActionRuns403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getListActionRunsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

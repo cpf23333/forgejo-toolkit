@@ -3,23 +3,13 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoSigningKeyQueryResponse,
-  RepoSigningKeyPathParams,
-} from "../types/RepoSigningKey"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoSigningKeyQueryResponse, RepoSigningKeyPathParams } from '../types/RepoSigningKey';
 
-function getRepoSigningKeyUrl(
-  owner: RepoSigningKeyPathParams["owner"],
-  repo: RepoSigningKeyPathParams["repo"],
-) {
+function getRepoSigningKeyUrl(owner: RepoSigningKeyPathParams['owner'], repo: RepoSigningKeyPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/signing-key.gpg` as const,
   };
   return res;
@@ -30,18 +20,14 @@ function getRepoSigningKeyUrl(
  * {@link /repos/:owner/:repo/signing-key.gpg}
  */
 export async function repoSigningKey(
-  owner: RepoSigningKeyPathParams["owner"],
-  repo: RepoSigningKeyPathParams["repo"],
+  owner: RepoSigningKeyPathParams['owner'],
+  repo: RepoSigningKeyPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoSigningKeyQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoSigningKeyQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getRepoSigningKeyUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

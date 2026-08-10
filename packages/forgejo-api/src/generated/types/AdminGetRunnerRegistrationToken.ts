@@ -3,15 +3,14 @@
  * Do not edit manually.
  */
 
-import type { RegistrationToken } from "./RegistrationToken"
+import type { RegistrationToken } from './RegistrationToken';
 
 /**
  * @description RegistrationToken is a string used to register a runner with a server
  */
 export type AdminGetRunnerRegistrationToken200 = RegistrationToken;
 
-export type AdminGetRunnerRegistrationTokenQueryResponse =
-  AdminGetRunnerRegistrationToken200;
+export type AdminGetRunnerRegistrationTokenQueryResponse = AdminGetRunnerRegistrationToken200;
 
 export type AdminGetRunnerRegistrationTokenQuery = {
   Response: AdminGetRunnerRegistrationToken200;

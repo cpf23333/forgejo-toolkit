@@ -8,49 +8,41 @@ import type {
   UserGetOAuth2Application401,
   UserGetOAuth2Application403,
   UserGetOAuth2Application404,
-} from "../types/UserGetOAuth2Application"
-import { http } from "msw";
+} from '../types/UserGetOAuth2Application';
+import { http } from 'msw';
 
-export function userGetOAuth2ApplicationHandlerResponse200(
-  data: UserGetOAuth2ApplicationQueryResponse,
-) {
+export function userGetOAuth2ApplicationHandlerResponse200(data: UserGetOAuth2ApplicationQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userGetOAuth2ApplicationHandlerResponse401(
-  data: UserGetOAuth2Application401,
-) {
+export function userGetOAuth2ApplicationHandlerResponse401(data: UserGetOAuth2Application401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userGetOAuth2ApplicationHandlerResponse403(
-  data: UserGetOAuth2Application403,
-) {
+export function userGetOAuth2ApplicationHandlerResponse403(data: UserGetOAuth2Application403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userGetOAuth2ApplicationHandlerResponse404(
-  data: UserGetOAuth2Application404,
-) {
+export function userGetOAuth2ApplicationHandlerResponse404(data: UserGetOAuth2Application404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function userGetOAuth2ApplicationHandlerResponse404(
 export function userGetOAuth2ApplicationHandler(
   data?:
     | UserGetOAuth2ApplicationQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/applications/oauth2/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

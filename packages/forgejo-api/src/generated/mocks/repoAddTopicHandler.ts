@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoAddTopicMutationResponse,
-  RepoAddTopic404,
-  RepoAddTopic422,
-} from "../types/RepoAddTopic"
-import { http } from "msw";
+import type { RepoAddTopicMutationResponse, RepoAddTopic404, RepoAddTopic422 } from '../types/RepoAddTopic';
+import { http } from 'msw';
 
-export function repoAddTopicHandlerResponse204(
-  data?: RepoAddTopicMutationResponse,
-) {
+export function repoAddTopicHandlerResponse204(data?: RepoAddTopicMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function repoAddTopicHandlerResponse404(data: RepoAddTopic404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function repoAddTopicHandlerResponse422(data: RepoAddTopic422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +37,10 @@ export function repoAddTopicHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/repos/:owner/:repo/topics/:topic`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

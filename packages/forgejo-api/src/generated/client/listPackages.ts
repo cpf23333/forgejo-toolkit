@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ListPackagesQueryResponse,
   ListPackagesPathParams,
   ListPackagesQueryParams,
   ListPackages404,
-} from "../types/ListPackages"
+} from '../types/ListPackages';
 
-function getListPackagesUrl(owner: ListPackagesPathParams["owner"]) {
-  const res = { method: "GET", url: `/packages/${owner}` as const };
+function getListPackagesUrl(owner: ListPackagesPathParams['owner']) {
+  const res = { method: 'GET', url: `/packages/${owner}` as const };
   return res;
 }
 
@@ -26,18 +22,14 @@ function getListPackagesUrl(owner: ListPackagesPathParams["owner"]) {
  * {@link /packages/:owner}
  */
 export async function listPackages(
-  owner: ListPackagesPathParams["owner"],
+  owner: ListPackagesPathParams['owner'],
   params?: ListPackagesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ListPackagesQueryResponse,
-    ResponseErrorConfig<ListPackages404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ListPackagesQueryResponse, ResponseErrorConfig<ListPackages404>, unknown>({
+    method: 'GET',
     url: getListPackagesUrl(owner).url.toString(),
     params,
     ...requestConfig,

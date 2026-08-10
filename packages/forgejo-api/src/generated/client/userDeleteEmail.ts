@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserDeleteEmailMutationRequest,
   UserDeleteEmailMutationResponse,
   UserDeleteEmail401,
   UserDeleteEmail403,
   UserDeleteEmail404,
-} from "../types/UserDeleteEmail"
+} from '../types/UserDeleteEmail';
 
 function getUserDeleteEmailUrl() {
-  const res = { method: "DELETE", url: `/user/emails` as const };
+  const res = { method: 'DELETE', url: `/user/emails` as const };
   return res;
 }
 
@@ -38,12 +34,10 @@ export async function userDeleteEmail(
 
   const res = await request<
     UserDeleteEmailMutationResponse,
-    ResponseErrorConfig<
-      UserDeleteEmail401 | UserDeleteEmail403 | UserDeleteEmail404
-    >,
+    ResponseErrorConfig<UserDeleteEmail401 | UserDeleteEmail403 | UserDeleteEmail404>,
     UserDeleteEmailMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getUserDeleteEmailUrl().url.toString(),
     data: requestData,
     ...requestConfig,

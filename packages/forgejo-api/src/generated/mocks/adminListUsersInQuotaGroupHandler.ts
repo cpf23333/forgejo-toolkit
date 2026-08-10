@@ -8,49 +8,41 @@ import type {
   AdminListUsersInQuotaGroup400,
   AdminListUsersInQuotaGroup403,
   AdminListUsersInQuotaGroup404,
-} from "../types/AdminListUsersInQuotaGroup"
-import { http } from "msw";
+} from '../types/AdminListUsersInQuotaGroup';
+import { http } from 'msw';
 
-export function adminListUsersInQuotaGroupHandlerResponse200(
-  data: AdminListUsersInQuotaGroupQueryResponse,
-) {
+export function adminListUsersInQuotaGroupHandlerResponse200(data: AdminListUsersInQuotaGroupQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminListUsersInQuotaGroupHandlerResponse400(
-  data: AdminListUsersInQuotaGroup400,
-) {
+export function adminListUsersInQuotaGroupHandlerResponse400(data: AdminListUsersInQuotaGroup400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminListUsersInQuotaGroupHandlerResponse403(
-  data: AdminListUsersInQuotaGroup403,
-) {
+export function adminListUsersInQuotaGroupHandlerResponse403(data: AdminListUsersInQuotaGroup403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminListUsersInQuotaGroupHandlerResponse404(
-  data: AdminListUsersInQuotaGroup404,
-) {
+export function adminListUsersInQuotaGroupHandlerResponse404(data: AdminListUsersInQuotaGroup404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,21 +50,16 @@ export function adminListUsersInQuotaGroupHandlerResponse404(
 export function adminListUsersInQuotaGroupHandler(
   data?:
     | AdminListUsersInQuotaGroupQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/admin/quota/groups/:quotagroup/users`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/admin/quota/groups/:quotagroup/users`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
 
 export type RepoCheckCollaboratorPathParams = {
   /**

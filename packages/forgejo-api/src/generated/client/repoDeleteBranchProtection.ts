@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteBranchProtectionMutationResponse,
   RepoDeleteBranchProtectionPathParams,
   RepoDeleteBranchProtection404,
-} from "../types/RepoDeleteBranchProtection"
+} from '../types/RepoDeleteBranchProtection';
 
 function getRepoDeleteBranchProtectionUrl(
-  owner: RepoDeleteBranchProtectionPathParams["owner"],
-  repo: RepoDeleteBranchProtectionPathParams["repo"],
-  name: RepoDeleteBranchProtectionPathParams["name"],
+  owner: RepoDeleteBranchProtectionPathParams['owner'],
+  repo: RepoDeleteBranchProtectionPathParams['repo'],
+  name: RepoDeleteBranchProtectionPathParams['name'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/branch_protections/${name}` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getRepoDeleteBranchProtectionUrl(
  * {@link /repos/:owner/:repo/branch_protections/:name}
  */
 export async function repoDeleteBranchProtection(
-  owner: RepoDeleteBranchProtectionPathParams["owner"],
-  repo: RepoDeleteBranchProtectionPathParams["repo"],
-  name: RepoDeleteBranchProtectionPathParams["name"],
+  owner: RepoDeleteBranchProtectionPathParams['owner'],
+  repo: RepoDeleteBranchProtectionPathParams['repo'],
+  name: RepoDeleteBranchProtectionPathParams['name'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function repoDeleteBranchProtection(
     ResponseErrorConfig<RepoDeleteBranchProtection404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteBranchProtectionUrl(owner, repo, name).url.toString(),
     ...requestConfig,
   });

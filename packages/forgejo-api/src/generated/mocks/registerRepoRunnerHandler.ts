@@ -8,49 +8,41 @@ import type {
   RegisterRepoRunner400,
   RegisterRepoRunner401,
   RegisterRepoRunner404,
-} from "../types/RegisterRepoRunner"
-import { http } from "msw";
+} from '../types/RegisterRepoRunner';
+import { http } from 'msw';
 
-export function registerRepoRunnerHandlerResponse201(
-  data: RegisterRepoRunnerMutationResponse,
-) {
+export function registerRepoRunnerHandlerResponse201(data: RegisterRepoRunnerMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function registerRepoRunnerHandlerResponse400(
-  data: RegisterRepoRunner400,
-) {
+export function registerRepoRunnerHandlerResponse400(data: RegisterRepoRunner400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function registerRepoRunnerHandlerResponse401(
-  data: RegisterRepoRunner401,
-) {
+export function registerRepoRunnerHandlerResponse401(data: RegisterRepoRunner401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function registerRepoRunnerHandlerResponse404(
-  data: RegisterRepoRunner404,
-) {
+export function registerRepoRunnerHandlerResponse404(data: RegisterRepoRunner404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,21 +50,16 @@ export function registerRepoRunnerHandlerResponse404(
 export function registerRepoRunnerHandler(
   data?:
     | RegisterRepoRunnerMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/actions/runners`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/actions/runners`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

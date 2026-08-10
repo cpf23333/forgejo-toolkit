@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetPullRequestFilesQueryResponse,
   RepoGetPullRequestFilesPathParams,
   RepoGetPullRequestFilesQueryParams,
   RepoGetPullRequestFiles404,
-} from "../types/RepoGetPullRequestFiles"
+} from '../types/RepoGetPullRequestFiles';
 
 function getRepoGetPullRequestFilesUrl(
-  owner: RepoGetPullRequestFilesPathParams["owner"],
-  repo: RepoGetPullRequestFilesPathParams["repo"],
-  index: RepoGetPullRequestFilesPathParams["index"],
+  owner: RepoGetPullRequestFilesPathParams['owner'],
+  repo: RepoGetPullRequestFilesPathParams['repo'],
+  index: RepoGetPullRequestFilesPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${index}/files` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoGetPullRequestFilesUrl(
  * {@link /repos/:owner/:repo/pulls/:index/files}
  */
 export async function repoGetPullRequestFiles(
-  owner: RepoGetPullRequestFilesPathParams["owner"],
-  repo: RepoGetPullRequestFilesPathParams["repo"],
-  index: RepoGetPullRequestFilesPathParams["index"],
+  owner: RepoGetPullRequestFilesPathParams['owner'],
+  repo: RepoGetPullRequestFilesPathParams['repo'],
+  index: RepoGetPullRequestFilesPathParams['index'],
   params?: RepoGetPullRequestFilesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -46,7 +42,7 @@ export async function repoGetPullRequestFiles(
     ResponseErrorConfig<RepoGetPullRequestFiles404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetPullRequestFilesUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

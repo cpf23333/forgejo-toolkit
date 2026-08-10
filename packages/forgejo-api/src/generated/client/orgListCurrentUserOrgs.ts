@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListCurrentUserOrgsQueryResponse,
   OrgListCurrentUserOrgsQueryParams,
   OrgListCurrentUserOrgs401,
   OrgListCurrentUserOrgs403,
   OrgListCurrentUserOrgs404,
-} from "../types/OrgListCurrentUserOrgs"
+} from '../types/OrgListCurrentUserOrgs';
 
 function getOrgListCurrentUserOrgsUrl() {
-  const res = { method: "GET", url: `/user/orgs` as const };
+  const res = { method: 'GET', url: `/user/orgs` as const };
   return res;
 }
 
@@ -34,14 +30,10 @@ export async function orgListCurrentUserOrgs(
 
   const res = await request<
     OrgListCurrentUserOrgsQueryResponse,
-    ResponseErrorConfig<
-      | OrgListCurrentUserOrgs401
-      | OrgListCurrentUserOrgs403
-      | OrgListCurrentUserOrgs404
-    >,
+    ResponseErrorConfig<OrgListCurrentUserOrgs401 | OrgListCurrentUserOrgs403 | OrgListCurrentUserOrgs404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getOrgListCurrentUserOrgsUrl().url.toString(),
     params,
     ...requestConfig,

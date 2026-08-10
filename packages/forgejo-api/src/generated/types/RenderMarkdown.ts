@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIValidationError } from "./APIValidationError"
-import type { MarkdownOption } from "./MarkdownOption"
+import type { APIValidationError } from './APIValidationError';
+import type { MarkdownOption } from './MarkdownOption';
 
 /**
  * @description MarkdownRender is a rendered markdown document

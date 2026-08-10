@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminUnadoptedListQueryResponse,
   AdminUnadoptedListQueryParams,
   AdminUnadoptedList403,
-} from "../types/AdminUnadoptedList"
+} from '../types/AdminUnadoptedList';
 
 function getAdminUnadoptedListUrl() {
-  const res = { method: "GET", url: `/admin/unadopted` as const };
+  const res = { method: 'GET', url: `/admin/unadopted` as const };
   return res;
 }
 
@@ -30,12 +26,8 @@ export async function adminUnadoptedList(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminUnadoptedListQueryResponse,
-    ResponseErrorConfig<AdminUnadoptedList403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminUnadoptedListQueryResponse, ResponseErrorConfig<AdminUnadoptedList403>, unknown>({
+    method: 'GET',
     url: getAdminUnadoptedListUrl().url.toString(),
     params,
     ...requestConfig,

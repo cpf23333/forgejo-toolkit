@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateQuotaGroupOptions } from "./CreateQuotaGroupOptions"
-import type { QuotaGroup } from "./QuotaGroup"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateQuotaGroupOptions } from './CreateQuotaGroupOptions';
+import type { QuotaGroup } from './QuotaGroup';
 
 /**
  * @description QuotaGroup
@@ -44,9 +44,5 @@ export type AdminCreateQuotaGroupMutationResponse = AdminCreateQuotaGroup201;
 export type AdminCreateQuotaGroupMutation = {
   Response: AdminCreateQuotaGroup201;
   Request: AdminCreateQuotaGroupMutationRequest;
-  Errors:
-    | AdminCreateQuotaGroup400
-    | AdminCreateQuotaGroup403
-    | AdminCreateQuotaGroup409
-    | AdminCreateQuotaGroup422;
+  Errors: AdminCreateQuotaGroup400 | AdminCreateQuotaGroup403 | AdminCreateQuotaGroup409 | AdminCreateQuotaGroup422;
 };

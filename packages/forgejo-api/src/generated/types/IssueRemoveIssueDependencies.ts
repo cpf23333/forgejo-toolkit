@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { Issue } from "./Issue"
-import type { IssueMeta } from "./IssueMeta"
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { Issue } from './Issue';
+import type { IssueMeta } from './IssueMeta';
 
 export type IssueRemoveIssueDependenciesPathParams = {
   /**
@@ -43,8 +43,7 @@ export type IssueRemoveIssueDependencies423 = APIRepoArchivedError;
 
 export type IssueRemoveIssueDependenciesMutationRequest = IssueMeta;
 
-export type IssueRemoveIssueDependenciesMutationResponse =
-  IssueRemoveIssueDependencies200;
+export type IssueRemoveIssueDependenciesMutationResponse = IssueRemoveIssueDependencies200;
 
 export type IssueRemoveIssueDependenciesMutation = {
   Response: IssueRemoveIssueDependencies200;

@@ -3,23 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListStarredQueryResponse,
   UserListStarredPathParams,
   UserListStarredQueryParams,
   UserListStarred404,
-} from "../types/UserListStarred"
+} from '../types/UserListStarred';
 
-function getUserListStarredUrl(
-  username: UserListStarredPathParams["username"],
-) {
-  const res = { method: "GET", url: `/users/${username}/starred` as const };
+function getUserListStarredUrl(username: UserListStarredPathParams['username']) {
+  const res = { method: 'GET', url: `/users/${username}/starred` as const };
   return res;
 }
 
@@ -28,18 +22,14 @@ function getUserListStarredUrl(
  * {@link /users/:username/starred}
  */
 export async function userListStarred(
-  username: UserListStarredPathParams["username"],
+  username: UserListStarredPathParams['username'],
   params?: UserListStarredQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserListStarredQueryResponse,
-    ResponseErrorConfig<UserListStarred404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<UserListStarredQueryResponse, ResponseErrorConfig<UserListStarred404>, unknown>({
+    method: 'GET',
     url: getUserListStarredUrl(username).url.toString(),
     params,
     ...requestConfig,

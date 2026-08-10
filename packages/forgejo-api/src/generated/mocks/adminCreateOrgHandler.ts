@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  AdminCreateOrgMutationResponse,
-  AdminCreateOrg403,
-  AdminCreateOrg422,
-} from "../types/AdminCreateOrg"
-import { http } from "msw";
+import type { AdminCreateOrgMutationResponse, AdminCreateOrg403, AdminCreateOrg422 } from '../types/AdminCreateOrg';
+import { http } from 'msw';
 
-export function adminCreateOrgHandlerResponse201(
-  data: AdminCreateOrgMutationResponse,
-) {
+export function adminCreateOrgHandlerResponse201(data: AdminCreateOrgMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function adminCreateOrgHandlerResponse403(data: AdminCreateOrg403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function adminCreateOrgHandlerResponse422(data: AdminCreateOrg422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function adminCreateOrgHandlerResponse422(data: AdminCreateOrg422) {
 export function adminCreateOrgHandler(
   data?:
     | AdminCreateOrgMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/admin/users/:username/orgs`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

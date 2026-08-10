@@ -7,38 +7,32 @@ import type {
   RepoGetAllCommitsQueryResponse,
   RepoGetAllCommits404,
   RepoGetAllCommits409,
-} from "../types/RepoGetAllCommits"
-import { http } from "msw";
+} from '../types/RepoGetAllCommits';
+import { http } from 'msw';
 
-export function repoGetAllCommitsHandlerResponse200(
-  data: RepoGetAllCommitsQueryResponse,
-) {
+export function repoGetAllCommitsHandlerResponse200(data: RepoGetAllCommitsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetAllCommitsHandlerResponse404(
-  data: RepoGetAllCommits404,
-) {
+export function repoGetAllCommitsHandlerResponse404(data: RepoGetAllCommits404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetAllCommitsHandlerResponse409(
-  data: RepoGetAllCommits409,
-) {
+export function repoGetAllCommitsHandlerResponse409(data: RepoGetAllCommits409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function repoGetAllCommitsHandlerResponse409(
 export function repoGetAllCommitsHandler(
   data?:
     | RepoGetAllCommitsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/commits`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

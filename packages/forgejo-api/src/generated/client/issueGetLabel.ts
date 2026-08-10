@@ -3,25 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  IssueGetLabelQueryResponse,
-  IssueGetLabelPathParams,
-  IssueGetLabel404,
-} from "../types/IssueGetLabel"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { IssueGetLabelQueryResponse, IssueGetLabelPathParams, IssueGetLabel404 } from '../types/IssueGetLabel';
 
 function getIssueGetLabelUrl(
-  owner: IssueGetLabelPathParams["owner"],
-  repo: IssueGetLabelPathParams["repo"],
-  id: IssueGetLabelPathParams["id"],
+  owner: IssueGetLabelPathParams['owner'],
+  repo: IssueGetLabelPathParams['repo'],
+  id: IssueGetLabelPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/labels/${id}` as const,
   };
   return res;
@@ -32,19 +24,15 @@ function getIssueGetLabelUrl(
  * {@link /repos/:owner/:repo/labels/:id}
  */
 export async function issueGetLabel(
-  owner: IssueGetLabelPathParams["owner"],
-  repo: IssueGetLabelPathParams["repo"],
-  id: IssueGetLabelPathParams["id"],
+  owner: IssueGetLabelPathParams['owner'],
+  repo: IssueGetLabelPathParams['repo'],
+  id: IssueGetLabelPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    IssueGetLabelQueryResponse,
-    ResponseErrorConfig<IssueGetLabel404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<IssueGetLabelQueryResponse, ResponseErrorConfig<IssueGetLabel404>, unknown>({
+    method: 'GET',
     url: getIssueGetLabelUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

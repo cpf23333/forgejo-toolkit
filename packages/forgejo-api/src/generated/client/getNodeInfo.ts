@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { GetNodeInfoQueryResponse } from "../types/GetNodeInfo"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetNodeInfoQueryResponse } from '../types/GetNodeInfo';
 
 function getGetNodeInfoUrl() {
-  const res = { method: "GET", url: `/nodeinfo` as const };
+  const res = { method: 'GET', url: `/nodeinfo` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getGetNodeInfoUrl() {
  * @summary Returns the nodeinfo of the Forgejo application
  * {@link /nodeinfo}
  */
-export async function getNodeInfo(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getNodeInfo(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetNodeInfoQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetNodeInfoQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getGetNodeInfoUrl().url.toString(),
     ...requestConfig,
   });

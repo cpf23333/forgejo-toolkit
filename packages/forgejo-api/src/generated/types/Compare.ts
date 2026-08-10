@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { Commit } from "./Commit"
-import type { CommitAffectedFiles } from "./CommitAffectedFiles"
+import type { Commit } from './Commit';
+import type { CommitAffectedFiles } from './CommitAffectedFiles';
 
 /**
  * Compare represents a comparison between two commits.

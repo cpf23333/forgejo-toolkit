@@ -7,35 +7,29 @@ import type {
   RepoCheckCollaboratorQueryResponse,
   RepoCheckCollaborator404,
   RepoCheckCollaborator422,
-} from "../types/RepoCheckCollaborator"
-import { http } from "msw";
+} from '../types/RepoCheckCollaborator';
+import { http } from 'msw';
 
-export function repoCheckCollaboratorHandlerResponse204(
-  data?: RepoCheckCollaboratorQueryResponse,
-) {
+export function repoCheckCollaboratorHandlerResponse204(data?: RepoCheckCollaboratorQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoCheckCollaboratorHandlerResponse404(
-  data: RepoCheckCollaborator404,
-) {
+export function repoCheckCollaboratorHandlerResponse404(data: RepoCheckCollaborator404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoCheckCollaboratorHandlerResponse422(
-  data: RepoCheckCollaborator422,
-) {
+export function repoCheckCollaboratorHandlerResponse422(data: RepoCheckCollaborator422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function repoCheckCollaboratorHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/collaborators/:collaborator`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/collaborators/:collaborator`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

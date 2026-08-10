@@ -6,24 +6,20 @@
 import type {
   UserCurrentDeleteSubscriptionMutationResponse,
   UserCurrentDeleteSubscription404,
-} from "../types/UserCurrentDeleteSubscription"
-import { http } from "msw";
+} from '../types/UserCurrentDeleteSubscription';
+import { http } from 'msw';
 
-export function userCurrentDeleteSubscriptionHandlerResponse204(
-  data?: UserCurrentDeleteSubscriptionMutationResponse,
-) {
+export function userCurrentDeleteSubscriptionHandlerResponse204(data?: UserCurrentDeleteSubscriptionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentDeleteSubscriptionHandlerResponse404(
-  data: UserCurrentDeleteSubscription404,
-) {
+export function userCurrentDeleteSubscriptionHandlerResponse404(data: UserCurrentDeleteSubscription404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,18 +31,13 @@ export function userCurrentDeleteSubscriptionHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/subscription`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/subscription`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

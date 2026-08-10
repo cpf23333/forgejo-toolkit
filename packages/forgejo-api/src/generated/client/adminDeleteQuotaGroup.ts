@@ -3,25 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminDeleteQuotaGroupMutationResponse,
   AdminDeleteQuotaGroupPathParams,
   AdminDeleteQuotaGroup400,
   AdminDeleteQuotaGroup403,
   AdminDeleteQuotaGroup404,
-} from "../types/AdminDeleteQuotaGroup"
+} from '../types/AdminDeleteQuotaGroup';
 
-function getAdminDeleteQuotaGroupUrl(
-  quotagroup: AdminDeleteQuotaGroupPathParams["quotagroup"],
-) {
+function getAdminDeleteQuotaGroupUrl(quotagroup: AdminDeleteQuotaGroupPathParams['quotagroup']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/admin/quota/groups/${quotagroup}` as const,
   };
   return res;
@@ -32,21 +26,17 @@ function getAdminDeleteQuotaGroupUrl(
  * {@link /admin/quota/groups/:quotagroup}
  */
 export async function adminDeleteQuotaGroup(
-  quotagroup: AdminDeleteQuotaGroupPathParams["quotagroup"],
+  quotagroup: AdminDeleteQuotaGroupPathParams['quotagroup'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     AdminDeleteQuotaGroupMutationResponse,
-    ResponseErrorConfig<
-      | AdminDeleteQuotaGroup400
-      | AdminDeleteQuotaGroup403
-      | AdminDeleteQuotaGroup404
-    >,
+    ResponseErrorConfig<AdminDeleteQuotaGroup400 | AdminDeleteQuotaGroup403 | AdminDeleteQuotaGroup404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getAdminDeleteQuotaGroupUrl(quotagroup).url.toString(),
     ...requestConfig,
   });

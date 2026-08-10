@@ -10,16 +10,14 @@ import type {
   RepoCreateBranch409,
   RepoCreateBranch413,
   RepoCreateBranch423,
-} from "../types/RepoCreateBranch"
-import { http } from "msw";
+} from '../types/RepoCreateBranch';
+import { http } from 'msw';
 
-export function repoCreateBranchHandlerResponse201(
-  data: RepoCreateBranchMutationResponse,
-) {
+export function repoCreateBranchHandlerResponse201(data: RepoCreateBranchMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -52,7 +50,7 @@ export function repoCreateBranchHandlerResponse423(data: RepoCreateBranch423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -60,17 +58,15 @@ export function repoCreateBranchHandlerResponse423(data: RepoCreateBranch423) {
 export function repoCreateBranchHandler(
   data?:
     | RepoCreateBranchMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/branches`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

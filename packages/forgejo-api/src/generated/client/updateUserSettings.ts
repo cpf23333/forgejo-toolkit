@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UpdateUserSettingsMutationRequest,
   UpdateUserSettingsMutationResponse,
   UpdateUserSettings401,
   UpdateUserSettings403,
-} from "../types/UpdateUserSettings"
+} from '../types/UpdateUserSettings';
 
 function getUpdateUserSettingsUrl() {
-  const res = { method: "PATCH", url: `/user/settings` as const };
+  const res = { method: 'PATCH', url: `/user/settings` as const };
   return res;
 }
 
@@ -40,7 +36,7 @@ export async function updateUserSettings(
     ResponseErrorConfig<UpdateUserSettings401 | UpdateUserSettings403>,
     UpdateUserSettingsMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getUpdateUserSettingsUrl().url.toString(),
     data: requestData,
     ...requestConfig,

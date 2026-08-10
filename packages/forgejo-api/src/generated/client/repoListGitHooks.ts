@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListGitHooksQueryResponse,
   RepoListGitHooksPathParams,
   RepoListGitHooks404,
-} from "../types/RepoListGitHooks"
+} from '../types/RepoListGitHooks';
 
-function getRepoListGitHooksUrl(
-  owner: RepoListGitHooksPathParams["owner"],
-  repo: RepoListGitHooksPathParams["repo"],
-) {
+function getRepoListGitHooksUrl(owner: RepoListGitHooksPathParams['owner'], repo: RepoListGitHooksPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/hooks/git` as const,
   };
   return res;
@@ -31,18 +24,14 @@ function getRepoListGitHooksUrl(
  * {@link /repos/:owner/:repo/hooks/git}
  */
 export async function repoListGitHooks(
-  owner: RepoListGitHooksPathParams["owner"],
-  repo: RepoListGitHooksPathParams["repo"],
+  owner: RepoListGitHooksPathParams['owner'],
+  repo: RepoListGitHooksPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListGitHooksQueryResponse,
-    ResponseErrorConfig<RepoListGitHooks404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListGitHooksQueryResponse, ResponseErrorConfig<RepoListGitHooks404>, unknown>({
+    method: 'GET',
     url: getRepoListGitHooksUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

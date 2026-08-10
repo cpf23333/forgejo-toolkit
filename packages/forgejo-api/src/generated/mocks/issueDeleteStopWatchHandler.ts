@@ -8,39 +8,31 @@ import type {
   IssueDeleteStopWatch403,
   IssueDeleteStopWatch404,
   IssueDeleteStopWatch409,
-} from "../types/IssueDeleteStopWatch"
-import { http } from "msw";
+} from '../types/IssueDeleteStopWatch';
+import { http } from 'msw';
 
-export function issueDeleteStopWatchHandlerResponse204(
-  data?: IssueDeleteStopWatchMutationResponse,
-) {
+export function issueDeleteStopWatchHandlerResponse204(data?: IssueDeleteStopWatchMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueDeleteStopWatchHandlerResponse403(
-  data?: IssueDeleteStopWatch403,
-) {
+export function issueDeleteStopWatchHandlerResponse403(data?: IssueDeleteStopWatch403) {
   return new Response(JSON.stringify(data), {
     status: 403,
   });
 }
 
-export function issueDeleteStopWatchHandlerResponse404(
-  data: IssueDeleteStopWatch404,
-) {
+export function issueDeleteStopWatchHandlerResponse404(data: IssueDeleteStopWatch404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueDeleteStopWatchHandlerResponse409(
-  data?: IssueDeleteStopWatch409,
-) {
+export function issueDeleteStopWatchHandlerResponse409(data?: IssueDeleteStopWatch409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
@@ -53,18 +45,13 @@ export function issueDeleteStopWatchHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/stopwatch/delete`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/stopwatch/delete`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

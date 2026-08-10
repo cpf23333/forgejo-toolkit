@@ -3,26 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  PinIssueMutationResponse,
-  PinIssuePathParams,
-  PinIssue403,
-  PinIssue404,
-} from "../types/PinIssue"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { PinIssueMutationResponse, PinIssuePathParams, PinIssue403, PinIssue404 } from '../types/PinIssue';
 
 function getPinIssueUrl(
-  owner: PinIssuePathParams["owner"],
-  repo: PinIssuePathParams["repo"],
-  index: PinIssuePathParams["index"],
+  owner: PinIssuePathParams['owner'],
+  repo: PinIssuePathParams['repo'],
+  index: PinIssuePathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/pin` as const,
   };
   return res;
@@ -33,19 +24,15 @@ function getPinIssueUrl(
  * {@link /repos/:owner/:repo/issues/:index/pin}
  */
 export async function pinIssue(
-  owner: PinIssuePathParams["owner"],
-  repo: PinIssuePathParams["repo"],
-  index: PinIssuePathParams["index"],
+  owner: PinIssuePathParams['owner'],
+  repo: PinIssuePathParams['repo'],
+  index: PinIssuePathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    PinIssueMutationResponse,
-    ResponseErrorConfig<PinIssue403 | PinIssue404>,
-    unknown
-  >({
-    method: "POST",
+  const res = await request<PinIssueMutationResponse, ResponseErrorConfig<PinIssue403 | PinIssue404>, unknown>({
+    method: 'POST',
     url: getPinIssueUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

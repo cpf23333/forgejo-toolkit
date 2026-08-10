@@ -3,35 +3,26 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueAddSubscriptionMutationResponse,
-  IssueAddSubscription404,
-} from "../types/IssueAddSubscription"
-import { http } from "msw";
+import type { IssueAddSubscriptionMutationResponse, IssueAddSubscription404 } from '../types/IssueAddSubscription';
+import { http } from 'msw';
 
-export function issueAddSubscriptionHandlerResponse200(
-  data?: IssueAddSubscriptionMutationResponse,
-) {
+export function issueAddSubscriptionHandlerResponse200(data?: IssueAddSubscriptionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function issueAddSubscriptionHandlerResponse201(
-  data?: IssueAddSubscriptionMutationResponse,
-) {
+export function issueAddSubscriptionHandlerResponse201(data?: IssueAddSubscriptionMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function issueAddSubscriptionHandlerResponse404(
-  data: IssueAddSubscription404,
-) {
+export function issueAddSubscriptionHandlerResponse404(data: IssueAddSubscription404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +34,13 @@ export function issueAddSubscriptionHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.put(
-    `/repos/:owner/:repo/issues/:index/subscriptions/:user`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.put(`/repos/:owner/:repo/issues/:index/subscriptions/:user`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+    });
+  });
 }

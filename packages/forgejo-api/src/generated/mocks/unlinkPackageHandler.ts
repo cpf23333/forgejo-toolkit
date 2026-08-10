@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  UnlinkPackageMutationResponse,
-  UnlinkPackage404,
-} from "../types/UnlinkPackage"
-import { http } from "msw";
+import type { UnlinkPackageMutationResponse, UnlinkPackage404 } from '../types/UnlinkPackage';
+import { http } from 'msw';
 
-export function unlinkPackageHandlerResponse201(
-  data?: UnlinkPackageMutationResponse,
-) {
+export function unlinkPackageHandlerResponse201(data?: UnlinkPackageMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
@@ -21,7 +16,7 @@ export function unlinkPackageHandlerResponse404(data: UnlinkPackage404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,18 +28,13 @@ export function unlinkPackageHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/packages/:owner/:type/:name/-/unlink`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/packages/:owner/:type/:name/-/unlink`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

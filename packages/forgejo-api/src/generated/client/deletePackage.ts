@@ -3,26 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  DeletePackageMutationResponse,
-  DeletePackagePathParams,
-  DeletePackage404,
-} from "../types/DeletePackage"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { DeletePackageMutationResponse, DeletePackagePathParams, DeletePackage404 } from '../types/DeletePackage';
 
 function getDeletePackageUrl(
-  owner: DeletePackagePathParams["owner"],
-  type: DeletePackagePathParams["type"],
-  name: DeletePackagePathParams["name"],
-  version: DeletePackagePathParams["version"],
+  owner: DeletePackagePathParams['owner'],
+  type: DeletePackagePathParams['type'],
+  name: DeletePackagePathParams['name'],
+  version: DeletePackagePathParams['version'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/packages/${owner}/${type}/${name}/${version}` as const,
   };
   return res;
@@ -33,20 +25,16 @@ function getDeletePackageUrl(
  * {@link /packages/:owner/:type/:name/:version}
  */
 export async function deletePackage(
-  owner: DeletePackagePathParams["owner"],
-  type: DeletePackagePathParams["type"],
-  name: DeletePackagePathParams["name"],
-  version: DeletePackagePathParams["version"],
+  owner: DeletePackagePathParams['owner'],
+  type: DeletePackagePathParams['type'],
+  name: DeletePackagePathParams['name'],
+  version: DeletePackagePathParams['version'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    DeletePackageMutationResponse,
-    ResponseErrorConfig<DeletePackage404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<DeletePackageMutationResponse, ResponseErrorConfig<DeletePackage404>, unknown>({
+    method: 'DELETE',
     url: getDeletePackageUrl(owner, type, name, version).url.toString(),
     ...requestConfig,
   });

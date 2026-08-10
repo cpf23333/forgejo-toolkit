@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminCreateQuotaGroupMutationRequest,
   AdminCreateQuotaGroupMutationResponse,
@@ -16,10 +12,10 @@ import type {
   AdminCreateQuotaGroup403,
   AdminCreateQuotaGroup409,
   AdminCreateQuotaGroup422,
-} from "../types/AdminCreateQuotaGroup"
+} from '../types/AdminCreateQuotaGroup';
 
 function getAdminCreateQuotaGroupUrl() {
-  const res = { method: "POST", url: `/admin/quota/groups` as const };
+  const res = { method: 'POST', url: `/admin/quota/groups` as const };
   return res;
 }
 
@@ -40,14 +36,11 @@ export async function adminCreateQuotaGroup(
   const res = await request<
     AdminCreateQuotaGroupMutationResponse,
     ResponseErrorConfig<
-      | AdminCreateQuotaGroup400
-      | AdminCreateQuotaGroup403
-      | AdminCreateQuotaGroup409
-      | AdminCreateQuotaGroup422
+      AdminCreateQuotaGroup400 | AdminCreateQuotaGroup403 | AdminCreateQuotaGroup409 | AdminCreateQuotaGroup422
     >,
     AdminCreateQuotaGroupMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminCreateQuotaGroupUrl().url.toString(),
     data: requestData,
     ...requestConfig,

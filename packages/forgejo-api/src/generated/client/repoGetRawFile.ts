@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetRawFileQueryResponse,
   RepoGetRawFilePathParams,
   RepoGetRawFileQueryParams,
   RepoGetRawFile404,
-} from "../types/RepoGetRawFile"
+} from '../types/RepoGetRawFile';
 
 function getRepoGetRawFileUrl(
-  owner: RepoGetRawFilePathParams["owner"],
-  repo: RepoGetRawFilePathParams["repo"],
-  filepath: RepoGetRawFilePathParams["filepath"],
+  owner: RepoGetRawFilePathParams['owner'],
+  repo: RepoGetRawFilePathParams['repo'],
+  filepath: RepoGetRawFilePathParams['filepath'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/raw/${filepath}` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getRepoGetRawFileUrl(
  * {@link /repos/:owner/:repo/raw/:filepath}
  */
 export async function repoGetRawFile(
-  owner: RepoGetRawFilePathParams["owner"],
-  repo: RepoGetRawFilePathParams["repo"],
-  filepath: RepoGetRawFilePathParams["filepath"],
+  owner: RepoGetRawFilePathParams['owner'],
+  repo: RepoGetRawFilePathParams['repo'],
+  filepath: RepoGetRawFilePathParams['filepath'],
   params?: RepoGetRawFileQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetRawFileQueryResponse,
-    ResponseErrorConfig<RepoGetRawFile404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetRawFileQueryResponse, ResponseErrorConfig<RepoGetRawFile404>, unknown>({
+    method: 'GET',
     url: getRepoGetRawFileUrl(owner, repo, filepath).url.toString(),
     params,
     ...requestConfig,

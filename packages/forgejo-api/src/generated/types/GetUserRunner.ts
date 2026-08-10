@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { ActionRunner } from "./ActionRunner"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { ActionRunner } from './ActionRunner';
 
 export type GetUserRunnerPathParams = {
   /**

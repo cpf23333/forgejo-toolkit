@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { QuotaUsedArtifact } from "./QuotaUsedArtifact"
+import type { QuotaUsedArtifact } from './QuotaUsedArtifact';
 
 /**
  * @description QuotaUsedArtifactList represents a list of artifacts counting towards a user\'s quota

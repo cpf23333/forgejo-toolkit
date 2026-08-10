@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Compare } from "./Compare"
+import type { APINotFound } from './APINotFound';
+import type { Compare } from './Compare';
 
 export type RepoCompareDiffPathParams = {
   /**

@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoCompareDiffQueryResponse,
-  RepoCompareDiff404,
-} from "../types/RepoCompareDiff"
-import { http } from "msw";
+import type { RepoCompareDiffQueryResponse, RepoCompareDiff404 } from '../types/RepoCompareDiff';
+import { http } from 'msw';
 
-export function repoCompareDiffHandlerResponse200(
-  data: RepoCompareDiffQueryResponse,
-) {
+export function repoCompareDiffHandlerResponse200(data: RepoCompareDiffQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoCompareDiffHandlerResponse404(data: RepoCompareDiff404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,21 +27,16 @@ export function repoCompareDiffHandlerResponse404(data: RepoCompareDiff404) {
 export function repoCompareDiffHandler(
   data?:
     | RepoCompareDiffQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/compare/:basehead`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/compare/:basehead`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

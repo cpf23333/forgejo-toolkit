@@ -3,24 +3,23 @@
  * Do not edit manually.
  */
 
-import type { CreateHookOptionConfig } from "./CreateHookOptionConfig"
+import type { CreateHookOptionConfig } from './CreateHookOptionConfig';
 
 export const createHookOptionTypeEnum = {
-  forgejo: "forgejo",
-  dingtalk: "dingtalk",
-  discord: "discord",
-  gitea: "gitea",
-  gogs: "gogs",
-  msteams: "msteams",
-  slack: "slack",
-  telegram: "telegram",
-  feishu: "feishu",
-  wechatwork: "wechatwork",
-  packagist: "packagist",
+  forgejo: 'forgejo',
+  dingtalk: 'dingtalk',
+  discord: 'discord',
+  gitea: 'gitea',
+  gogs: 'gogs',
+  msteams: 'msteams',
+  slack: 'slack',
+  telegram: 'telegram',
+  feishu: 'feishu',
+  wechatwork: 'wechatwork',
+  packagist: 'packagist',
 } as const;
 
-export type CreateHookOptionTypeEnumKey =
-  (typeof createHookOptionTypeEnum)[keyof typeof createHookOptionTypeEnum];
+export type CreateHookOptionTypeEnumKey = (typeof createHookOptionTypeEnum)[keyof typeof createHookOptionTypeEnum];
 
 /**
  * @description CreateHookOption options when create a hook

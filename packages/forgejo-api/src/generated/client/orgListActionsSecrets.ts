@@ -3,23 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListActionsSecretsQueryResponse,
   OrgListActionsSecretsPathParams,
   OrgListActionsSecretsQueryParams,
   OrgListActionsSecrets404,
-} from "../types/OrgListActionsSecrets"
+} from '../types/OrgListActionsSecrets';
 
-function getOrgListActionsSecretsUrl(
-  org: OrgListActionsSecretsPathParams["org"],
-) {
-  const res = { method: "GET", url: `/orgs/${org}/actions/secrets` as const };
+function getOrgListActionsSecretsUrl(org: OrgListActionsSecretsPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/actions/secrets` as const };
   return res;
 }
 
@@ -28,21 +22,19 @@ function getOrgListActionsSecretsUrl(
  * {@link /orgs/:org/actions/secrets}
  */
 export async function orgListActionsSecrets(
-  org: OrgListActionsSecretsPathParams["org"],
+  org: OrgListActionsSecretsPathParams['org'],
   params?: OrgListActionsSecretsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgListActionsSecretsQueryResponse,
-    ResponseErrorConfig<OrgListActionsSecrets404>,
-    unknown
-  >({
-    method: "GET",
-    url: getOrgListActionsSecretsUrl(org).url.toString(),
-    params,
-    ...requestConfig,
-  });
+  const res = await request<OrgListActionsSecretsQueryResponse, ResponseErrorConfig<OrgListActionsSecrets404>, unknown>(
+    {
+      method: 'GET',
+      url: getOrgListActionsSecretsUrl(org).url.toString(),
+      params,
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

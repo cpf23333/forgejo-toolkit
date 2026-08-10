@@ -7,35 +7,29 @@ import type {
   RepoDeletePullReviewMutationResponse,
   RepoDeletePullReview403,
   RepoDeletePullReview404,
-} from "../types/RepoDeletePullReview"
-import { http } from "msw";
+} from '../types/RepoDeletePullReview';
+import { http } from 'msw';
 
-export function repoDeletePullReviewHandlerResponse204(
-  data?: RepoDeletePullReviewMutationResponse,
-) {
+export function repoDeletePullReviewHandlerResponse204(data?: RepoDeletePullReviewMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeletePullReviewHandlerResponse403(
-  data: RepoDeletePullReview403,
-) {
+export function repoDeletePullReviewHandlerResponse403(data: RepoDeletePullReview403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDeletePullReviewHandlerResponse404(
-  data: RepoDeletePullReview404,
-) {
+export function repoDeletePullReviewHandlerResponse404(data: RepoDeletePullReview404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function repoDeletePullReviewHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/pulls/:index/reviews/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/pulls/:index/reviews/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

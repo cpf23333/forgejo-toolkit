@@ -7,35 +7,29 @@ import type {
   DeleteOrgVariableMutationResponse,
   DeleteOrgVariable400,
   DeleteOrgVariable404,
-} from "../types/DeleteOrgVariable"
-import { http } from "msw";
+} from '../types/DeleteOrgVariable';
+import { http } from 'msw';
 
-export function deleteOrgVariableHandlerResponse204(
-  data?: DeleteOrgVariableMutationResponse,
-) {
+export function deleteOrgVariableHandlerResponse204(data?: DeleteOrgVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteOrgVariableHandlerResponse400(
-  data: DeleteOrgVariable400,
-) {
+export function deleteOrgVariableHandlerResponse400(data: DeleteOrgVariable400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function deleteOrgVariableHandlerResponse404(
-  data: DeleteOrgVariable404,
-) {
+export function deleteOrgVariableHandlerResponse404(data: DeleteOrgVariable404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function deleteOrgVariableHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/orgs/:org/actions/variables/:variablename`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/orgs/:org/actions/variables/:variablename`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

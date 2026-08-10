@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { WikiPage } from "./WikiPage"
+import type { APINotFound } from './APINotFound';
+import type { WikiPage } from './WikiPage';
 
 export type RepoGetWikiPagePathParams = {
   /**

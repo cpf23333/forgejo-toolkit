@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateReleaseMutationRequest,
   RepoCreateReleaseMutationResponse,
@@ -16,14 +12,14 @@ import type {
   RepoCreateRelease404,
   RepoCreateRelease409,
   RepoCreateRelease422,
-} from "../types/RepoCreateRelease"
+} from '../types/RepoCreateRelease';
 
 function getRepoCreateReleaseUrl(
-  owner: RepoCreateReleasePathParams["owner"],
-  repo: RepoCreateReleasePathParams["repo"],
+  owner: RepoCreateReleasePathParams['owner'],
+  repo: RepoCreateReleasePathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/releases` as const,
   };
   return res;
@@ -34,8 +30,8 @@ function getRepoCreateReleaseUrl(
  * {@link /repos/:owner/:repo/releases}
  */
 export async function repoCreateRelease(
-  owner: RepoCreateReleasePathParams["owner"],
-  repo: RepoCreateReleasePathParams["repo"],
+  owner: RepoCreateReleasePathParams['owner'],
+  repo: RepoCreateReleasePathParams['repo'],
   data: RepoCreateReleaseMutationRequest,
   config: Partial<RequestConfig<RepoCreateReleaseMutationRequest>> & {
     client?: Client;
@@ -47,12 +43,10 @@ export async function repoCreateRelease(
 
   const res = await request<
     RepoCreateReleaseMutationResponse,
-    ResponseErrorConfig<
-      RepoCreateRelease404 | RepoCreateRelease409 | RepoCreateRelease422
-    >,
+    ResponseErrorConfig<RepoCreateRelease404 | RepoCreateRelease409 | RepoCreateRelease422>,
     RepoCreateReleaseMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateReleaseUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

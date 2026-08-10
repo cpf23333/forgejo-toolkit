@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentListGPGKeysQueryResponse,
   UserCurrentListGPGKeysQueryParams,
   UserCurrentListGPGKeys401,
   UserCurrentListGPGKeys403,
-} from "../types/UserCurrentListGPGKeys"
+} from '../types/UserCurrentListGPGKeys';
 
 function getUserCurrentListGPGKeysUrl() {
-  const res = { method: "GET", url: `/user/gpg_keys` as const };
+  const res = { method: 'GET', url: `/user/gpg_keys` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function userCurrentListGPGKeys(
     ResponseErrorConfig<UserCurrentListGPGKeys401 | UserCurrentListGPGKeys403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentListGPGKeysUrl().url.toString(),
     params,
     ...requestConfig,

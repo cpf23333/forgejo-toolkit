@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueAddLabelMutationRequest,
   IssueAddLabelMutationResponse,
   IssueAddLabelPathParams,
   IssueAddLabel403,
   IssueAddLabel404,
-} from "../types/IssueAddLabel"
+} from '../types/IssueAddLabel';
 
 function getIssueAddLabelUrl(
-  owner: IssueAddLabelPathParams["owner"],
-  repo: IssueAddLabelPathParams["repo"],
-  index: IssueAddLabelPathParams["index"],
+  owner: IssueAddLabelPathParams['owner'],
+  repo: IssueAddLabelPathParams['repo'],
+  index: IssueAddLabelPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/labels` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssueAddLabelUrl(
  * {@link /repos/:owner/:repo/issues/:index/labels}
  */
 export async function issueAddLabel(
-  owner: IssueAddLabelPathParams["owner"],
-  repo: IssueAddLabelPathParams["repo"],
-  index: IssueAddLabelPathParams["index"],
+  owner: IssueAddLabelPathParams['owner'],
+  repo: IssueAddLabelPathParams['repo'],
+  index: IssueAddLabelPathParams['index'],
   data?: IssueAddLabelMutationRequest,
   config: Partial<RequestConfig<IssueAddLabelMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function issueAddLabel(
     ResponseErrorConfig<IssueAddLabel403 | IssueAddLabel404>,
     IssueAddLabelMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueAddLabelUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,23 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListTeamActivityFeedsQueryResponse,
   OrgListTeamActivityFeedsPathParams,
   OrgListTeamActivityFeedsQueryParams,
   OrgListTeamActivityFeeds404,
-} from "../types/OrgListTeamActivityFeeds"
+} from '../types/OrgListTeamActivityFeeds';
 
-function getOrgListTeamActivityFeedsUrl(
-  id: OrgListTeamActivityFeedsPathParams["id"],
-) {
-  const res = { method: "GET", url: `/teams/${id}/activities/feeds` as const };
+function getOrgListTeamActivityFeedsUrl(id: OrgListTeamActivityFeedsPathParams['id']) {
+  const res = { method: 'GET', url: `/teams/${id}/activities/feeds` as const };
   return res;
 }
 
@@ -28,7 +22,7 @@ function getOrgListTeamActivityFeedsUrl(
  * {@link /teams/:id/activities/feeds}
  */
 export async function orgListTeamActivityFeeds(
-  id: OrgListTeamActivityFeedsPathParams["id"],
+  id: OrgListTeamActivityFeedsPathParams['id'],
   params?: OrgListTeamActivityFeedsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -39,7 +33,7 @@ export async function orgListTeamActivityFeeds(
     ResponseErrorConfig<OrgListTeamActivityFeeds404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getOrgListTeamActivityFeedsUrl(id).url.toString(),
     params,
     ...requestConfig,

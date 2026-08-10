@@ -7,12 +7,10 @@ import type {
   DeleteRepoSecretMutationResponse,
   DeleteRepoSecret400,
   DeleteRepoSecret404,
-} from "../types/DeleteRepoSecret"
-import { http } from "msw";
+} from '../types/DeleteRepoSecret';
+import { http } from 'msw';
 
-export function deleteRepoSecretHandlerResponse204(
-  data?: DeleteRepoSecretMutationResponse,
-) {
+export function deleteRepoSecretHandlerResponse204(data?: DeleteRepoSecretMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +20,7 @@ export function deleteRepoSecretHandlerResponse400(data: DeleteRepoSecret400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +29,7 @@ export function deleteRepoSecretHandlerResponse404(data: DeleteRepoSecret404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +41,13 @@ export function deleteRepoSecretHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/actions/secrets/:secretname`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/actions/secrets/:secretname`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

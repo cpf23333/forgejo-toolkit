@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  GetOrgVariableQueryResponse,
-  GetOrgVariable400,
-  GetOrgVariable404,
-} from "../types/GetOrgVariable"
-import { http } from "msw";
+import type { GetOrgVariableQueryResponse, GetOrgVariable400, GetOrgVariable404 } from '../types/GetOrgVariable';
+import { http } from 'msw';
 
-export function getOrgVariableHandlerResponse200(
-  data: GetOrgVariableQueryResponse,
-) {
+export function getOrgVariableHandlerResponse200(data: GetOrgVariableQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function getOrgVariableHandlerResponse400(data: GetOrgVariable400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function getOrgVariableHandlerResponse404(data: GetOrgVariable404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,21 +36,16 @@ export function getOrgVariableHandlerResponse404(data: GetOrgVariable404) {
 export function getOrgVariableHandler(
   data?:
     | GetOrgVariableQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/orgs/:org/actions/variables/:variablename`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/orgs/:org/actions/variables/:variablename`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

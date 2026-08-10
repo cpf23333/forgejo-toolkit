@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { Branch } from "./Branch"
-import type { CreateBranchRepoOption } from "./CreateBranchRepoOption"
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { Branch } from './Branch';
+import type { CreateBranchRepoOption } from './CreateBranchRepoOption';
 
 export type RepoCreateBranchPathParams = {
   /**
@@ -58,10 +58,5 @@ export type RepoCreateBranchMutation = {
   Response: RepoCreateBranch201;
   Request: RepoCreateBranchMutationRequest;
   PathParams: RepoCreateBranchPathParams;
-  Errors:
-    | RepoCreateBranch403
-    | RepoCreateBranch404
-    | RepoCreateBranch409
-    | RepoCreateBranch413
-    | RepoCreateBranch423;
+  Errors: RepoCreateBranch403 | RepoCreateBranch404 | RepoCreateBranch409 | RepoCreateBranch413 | RepoCreateBranch423;
 };

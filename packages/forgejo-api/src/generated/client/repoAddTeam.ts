@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoAddTeamMutationResponse,
   RepoAddTeamPathParams,
   RepoAddTeam404,
   RepoAddTeam405,
   RepoAddTeam422,
-} from "../types/RepoAddTeam"
+} from '../types/RepoAddTeam';
 
 function getRepoAddTeamUrl(
-  owner: RepoAddTeamPathParams["owner"],
-  repo: RepoAddTeamPathParams["repo"],
-  team: RepoAddTeamPathParams["team"],
+  owner: RepoAddTeamPathParams['owner'],
+  repo: RepoAddTeamPathParams['repo'],
+  team: RepoAddTeamPathParams['team'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/teams/${team}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoAddTeamUrl(
  * {@link /repos/:owner/:repo/teams/:team}
  */
 export async function repoAddTeam(
-  owner: RepoAddTeamPathParams["owner"],
-  repo: RepoAddTeamPathParams["repo"],
-  team: RepoAddTeamPathParams["team"],
+  owner: RepoAddTeamPathParams['owner'],
+  repo: RepoAddTeamPathParams['repo'],
+  team: RepoAddTeamPathParams['team'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,7 +42,7 @@ export async function repoAddTeam(
     ResponseErrorConfig<RepoAddTeam404 | RepoAddTeam405 | RepoAddTeam422>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getRepoAddTeamUrl(owner, repo, team).url.toString(),
     ...requestConfig,
   });

@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  AdminListQuotaGroupsQueryResponse,
-  AdminListQuotaGroups403,
-} from "../types/AdminListQuotaGroups"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AdminListQuotaGroupsQueryResponse, AdminListQuotaGroups403 } from '../types/AdminListQuotaGroups';
 
 function getAdminListQuotaGroupsUrl() {
-  const res = { method: "GET", url: `/admin/quota/groups` as const };
+  const res = { method: 'GET', url: `/admin/quota/groups` as const };
   return res;
 }
 
@@ -23,17 +16,11 @@ function getAdminListQuotaGroupsUrl() {
  * @summary List the available quota groups
  * {@link /admin/quota/groups}
  */
-export async function adminListQuotaGroups(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function adminListQuotaGroups(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminListQuotaGroupsQueryResponse,
-    ResponseErrorConfig<AdminListQuotaGroups403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminListQuotaGroupsQueryResponse, ResponseErrorConfig<AdminListQuotaGroups403>, unknown>({
+    method: 'GET',
     url: getAdminListQuotaGroupsUrl().url.toString(),
     ...requestConfig,
   });

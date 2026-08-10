@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoCheckFlagQueryResponse,
-  RepoCheckFlag403,
-  RepoCheckFlag404,
-} from "../types/RepoCheckFlag"
-import { http } from "msw";
+import type { RepoCheckFlagQueryResponse, RepoCheckFlag403, RepoCheckFlag404 } from '../types/RepoCheckFlag';
+import { http } from 'msw';
 
-export function repoCheckFlagHandlerResponse204(
-  data?: RepoCheckFlagQueryResponse,
-) {
+export function repoCheckFlagHandlerResponse204(data?: RepoCheckFlagQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function repoCheckFlagHandlerResponse403(data: RepoCheckFlag403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function repoCheckFlagHandlerResponse404(data: RepoCheckFlag404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +37,10 @@ export function repoCheckFlagHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/flags/:flag`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

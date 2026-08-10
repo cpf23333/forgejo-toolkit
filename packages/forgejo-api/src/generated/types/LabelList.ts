@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Label } from "./Label"
+import type { Label } from './Label';
 
 export type LabelList = Label[];

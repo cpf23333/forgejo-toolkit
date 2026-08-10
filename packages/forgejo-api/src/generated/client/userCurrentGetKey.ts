@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentGetKeyQueryResponse,
   UserCurrentGetKeyPathParams,
   UserCurrentGetKey401,
   UserCurrentGetKey403,
   UserCurrentGetKey404,
-} from "../types/UserCurrentGetKey"
+} from '../types/UserCurrentGetKey';
 
-function getUserCurrentGetKeyUrl(id: UserCurrentGetKeyPathParams["id"]) {
-  const res = { method: "GET", url: `/user/keys/${id}` as const };
+function getUserCurrentGetKeyUrl(id: UserCurrentGetKeyPathParams['id']) {
+  const res = { method: 'GET', url: `/user/keys/${id}` as const };
   return res;
 }
 
@@ -27,19 +23,17 @@ function getUserCurrentGetKeyUrl(id: UserCurrentGetKeyPathParams["id"]) {
  * {@link /user/keys/:id}
  */
 export async function userCurrentGetKey(
-  id: UserCurrentGetKeyPathParams["id"],
+  id: UserCurrentGetKeyPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentGetKeyQueryResponse,
-    ResponseErrorConfig<
-      UserCurrentGetKey401 | UserCurrentGetKey403 | UserCurrentGetKey404
-    >,
+    ResponseErrorConfig<UserCurrentGetKey401 | UserCurrentGetKey403 | UserCurrentGetKey404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentGetKeyUrl(id).url.toString(),
     ...requestConfig,
   });

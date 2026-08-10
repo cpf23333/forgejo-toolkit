@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
+import type { APINotFound } from './APINotFound';
 
 export type IssueDeleteStopWatchPathParams = {
   /**
@@ -48,6 +48,5 @@ export type IssueDeleteStopWatchMutationResponse = IssueDeleteStopWatch204;
 export type IssueDeleteStopWatchMutation = {
   Response: IssueDeleteStopWatch204;
   PathParams: IssueDeleteStopWatchPathParams;
-  Errors:
-    IssueDeleteStopWatch403 | IssueDeleteStopWatch404 | IssueDeleteStopWatch409;
+  Errors: IssueDeleteStopWatch403 | IssueDeleteStopWatch404 | IssueDeleteStopWatch409;
 };

@@ -7,38 +7,32 @@ import type {
   AdminListUserEmailsQueryResponse,
   AdminListUserEmails403,
   AdminListUserEmails404,
-} from "../types/AdminListUserEmails"
-import { http } from "msw";
+} from '../types/AdminListUserEmails';
+import { http } from 'msw';
 
-export function adminListUserEmailsHandlerResponse200(
-  data: AdminListUserEmailsQueryResponse,
-) {
+export function adminListUserEmailsHandlerResponse200(data: AdminListUserEmailsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminListUserEmailsHandlerResponse403(
-  data: AdminListUserEmails403,
-) {
+export function adminListUserEmailsHandlerResponse403(data: AdminListUserEmails403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminListUserEmailsHandlerResponse404(
-  data: AdminListUserEmails404,
-) {
+export function adminListUserEmailsHandlerResponse404(data: AdminListUserEmails404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function adminListUserEmailsHandlerResponse404(
 export function adminListUserEmailsHandler(
   data?:
     | AdminListUserEmailsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/users/:username/emails`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

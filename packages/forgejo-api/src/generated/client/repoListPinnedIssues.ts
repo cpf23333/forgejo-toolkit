@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListPinnedIssuesQueryResponse,
   RepoListPinnedIssuesPathParams,
   RepoListPinnedIssues404,
-} from "../types/RepoListPinnedIssues"
+} from '../types/RepoListPinnedIssues';
 
 function getRepoListPinnedIssuesUrl(
-  owner: RepoListPinnedIssuesPathParams["owner"],
-  repo: RepoListPinnedIssuesPathParams["repo"],
+  owner: RepoListPinnedIssuesPathParams['owner'],
+  repo: RepoListPinnedIssuesPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/pinned` as const,
   };
   return res;
@@ -31,18 +27,14 @@ function getRepoListPinnedIssuesUrl(
  * {@link /repos/:owner/:repo/issues/pinned}
  */
 export async function repoListPinnedIssues(
-  owner: RepoListPinnedIssuesPathParams["owner"],
-  repo: RepoListPinnedIssuesPathParams["repo"],
+  owner: RepoListPinnedIssuesPathParams['owner'],
+  repo: RepoListPinnedIssuesPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListPinnedIssuesQueryResponse,
-    ResponseErrorConfig<RepoListPinnedIssues404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListPinnedIssuesQueryResponse, ResponseErrorConfig<RepoListPinnedIssues404>, unknown>({
+    method: 'GET',
     url: getRepoListPinnedIssuesUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

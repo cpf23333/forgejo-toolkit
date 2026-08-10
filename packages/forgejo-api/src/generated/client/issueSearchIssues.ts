@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueSearchIssuesQueryResponse,
   IssueSearchIssuesQueryParams,
   IssueSearchIssues400,
   IssueSearchIssues422,
-} from "../types/IssueSearchIssues"
+} from '../types/IssueSearchIssues';
 
 function getIssueSearchIssuesUrl() {
-  const res = { method: "GET", url: `/repos/issues/search` as const };
+  const res = { method: 'GET', url: `/repos/issues/search` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function issueSearchIssues(
     ResponseErrorConfig<IssueSearchIssues400 | IssueSearchIssues422>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueSearchIssuesUrl().url.toString(),
     params,
     ...requestConfig,

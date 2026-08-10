@@ -8,16 +8,14 @@ import type {
   IssueGetComments404,
   IssueGetComments422,
   IssueGetComments500,
-} from "../types/IssueGetComments"
-import { http } from "msw";
+} from '../types/IssueGetComments';
+import { http } from 'msw';
 
-export function issueGetCommentsHandlerResponse200(
-  data: IssueGetCommentsQueryResponse,
-) {
+export function issueGetCommentsHandlerResponse200(data: IssueGetCommentsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -26,7 +24,7 @@ export function issueGetCommentsHandlerResponse404(data: IssueGetComments404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,7 +33,7 @@ export function issueGetCommentsHandlerResponse422(data: IssueGetComments422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -44,7 +42,7 @@ export function issueGetCommentsHandlerResponse500(data: IssueGetComments500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -52,21 +50,16 @@ export function issueGetCommentsHandlerResponse500(data: IssueGetComments500) {
 export function issueGetCommentsHandler(
   data?:
     | IssueGetCommentsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/issues/:index/comments`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/issues/:index/comments`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,28 +3,24 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteTimeMutationResponse,
   IssueDeleteTimePathParams,
   IssueDeleteTime400,
   IssueDeleteTime403,
   IssueDeleteTime404,
-} from "../types/IssueDeleteTime"
+} from '../types/IssueDeleteTime';
 
 function getIssueDeleteTimeUrl(
-  owner: IssueDeleteTimePathParams["owner"],
-  repo: IssueDeleteTimePathParams["repo"],
-  index: IssueDeleteTimePathParams["index"],
-  id: IssueDeleteTimePathParams["id"],
+  owner: IssueDeleteTimePathParams['owner'],
+  repo: IssueDeleteTimePathParams['repo'],
+  index: IssueDeleteTimePathParams['index'],
+  id: IssueDeleteTimePathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/times/${id}` as const,
   };
   return res;
@@ -35,22 +31,20 @@ function getIssueDeleteTimeUrl(
  * {@link /repos/:owner/:repo/issues/:index/times/:id}
  */
 export async function issueDeleteTime(
-  owner: IssueDeleteTimePathParams["owner"],
-  repo: IssueDeleteTimePathParams["repo"],
-  index: IssueDeleteTimePathParams["index"],
-  id: IssueDeleteTimePathParams["id"],
+  owner: IssueDeleteTimePathParams['owner'],
+  repo: IssueDeleteTimePathParams['repo'],
+  index: IssueDeleteTimePathParams['index'],
+  id: IssueDeleteTimePathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     IssueDeleteTimeMutationResponse,
-    ResponseErrorConfig<
-      IssueDeleteTime400 | IssueDeleteTime403 | IssueDeleteTime404
-    >,
+    ResponseErrorConfig<IssueDeleteTime400 | IssueDeleteTime403 | IssueDeleteTime404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueDeleteTimeUrl(owner, repo, index, id).url.toString(),
     ...requestConfig,
   });

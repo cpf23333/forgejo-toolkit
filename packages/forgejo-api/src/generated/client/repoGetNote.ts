@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetNoteQueryResponse,
   RepoGetNotePathParams,
   RepoGetNoteQueryParams,
   RepoGetNote404,
   RepoGetNote422,
-} from "../types/RepoGetNote"
+} from '../types/RepoGetNote';
 
 function getRepoGetNoteUrl(
-  owner: RepoGetNotePathParams["owner"],
-  repo: RepoGetNotePathParams["repo"],
-  sha: RepoGetNotePathParams["sha"],
+  owner: RepoGetNotePathParams['owner'],
+  repo: RepoGetNotePathParams['repo'],
+  sha: RepoGetNotePathParams['sha'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/git/notes/${sha}` as const,
   };
   return res;
@@ -34,20 +30,16 @@ function getRepoGetNoteUrl(
  * {@link /repos/:owner/:repo/git/notes/:sha}
  */
 export async function repoGetNote(
-  owner: RepoGetNotePathParams["owner"],
-  repo: RepoGetNotePathParams["repo"],
-  sha: RepoGetNotePathParams["sha"],
+  owner: RepoGetNotePathParams['owner'],
+  repo: RepoGetNotePathParams['repo'],
+  sha: RepoGetNotePathParams['sha'],
   params?: RepoGetNoteQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetNoteQueryResponse,
-    ResponseErrorConfig<RepoGetNote404 | RepoGetNote422>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetNoteQueryResponse, ResponseErrorConfig<RepoGetNote404 | RepoGetNote422>, unknown>({
+    method: 'GET',
     url: getRepoGetNoteUrl(owner, repo, sha).url.toString(),
     params,
     ...requestConfig,

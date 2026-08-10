@@ -3,14 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ForgeLike } from "./ForgeLike"
+import type { ForgeLike } from './ForgeLike';
 
 export type ActivitypubRepositoryInboxPathParams = {
   /**
    * @description repository ID of the repo
    * @type integer, int64
    */
-  "repository-id": number;
+  'repository-id': number;
 };
 
 /**
@@ -20,8 +20,7 @@ export type ActivitypubRepositoryInbox204 = any;
 
 export type ActivitypubRepositoryInboxMutationRequest = ForgeLike;
 
-export type ActivitypubRepositoryInboxMutationResponse =
-  ActivitypubRepositoryInbox204;
+export type ActivitypubRepositoryInboxMutationResponse = ActivitypubRepositoryInbox204;
 
 export type ActivitypubRepositoryInboxMutation = {
   Response: ActivitypubRepositoryInbox204;

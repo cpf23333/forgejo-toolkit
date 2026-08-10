@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteOrgRunnerMutationResponse,
   DeleteOrgRunnerPathParams,
   DeleteOrgRunner400,
   DeleteOrgRunner404,
-} from "../types/DeleteOrgRunner"
+} from '../types/DeleteOrgRunner';
 
 function getDeleteOrgRunnerUrl(
-  org: DeleteOrgRunnerPathParams["org"],
-  runner_id: DeleteOrgRunnerPathParams["runner_id"],
+  org: DeleteOrgRunnerPathParams['org'],
+  runner_id: DeleteOrgRunnerPathParams['runner_id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/orgs/${org}/actions/runners/${runner_id}` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getDeleteOrgRunnerUrl(
  * {@link /orgs/:org/actions/runners/:runner_id}
  */
 export async function deleteOrgRunner(
-  org: DeleteOrgRunnerPathParams["org"],
-  runner_id: DeleteOrgRunnerPathParams["runner_id"],
+  org: DeleteOrgRunnerPathParams['org'],
+  runner_id: DeleteOrgRunnerPathParams['runner_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +39,7 @@ export async function deleteOrgRunner(
     ResponseErrorConfig<DeleteOrgRunner400 | DeleteOrgRunner404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteOrgRunnerUrl(org, runner_id).url.toString(),
     ...requestConfig,
   });

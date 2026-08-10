@@ -11,76 +11,62 @@ import type {
   CreateCurrentUserRepo409,
   CreateCurrentUserRepo413,
   CreateCurrentUserRepo422,
-} from "../types/CreateCurrentUserRepo"
-import { http } from "msw";
+} from '../types/CreateCurrentUserRepo';
+import { http } from 'msw';
 
-export function createCurrentUserRepoHandlerResponse201(
-  data: CreateCurrentUserRepoMutationResponse,
-) {
+export function createCurrentUserRepoHandlerResponse201(data: CreateCurrentUserRepoMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createCurrentUserRepoHandlerResponse400(
-  data: CreateCurrentUserRepo400,
-) {
+export function createCurrentUserRepoHandlerResponse400(data: CreateCurrentUserRepo400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createCurrentUserRepoHandlerResponse401(
-  data: CreateCurrentUserRepo401,
-) {
+export function createCurrentUserRepoHandlerResponse401(data: CreateCurrentUserRepo401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createCurrentUserRepoHandlerResponse403(
-  data: CreateCurrentUserRepo403,
-) {
+export function createCurrentUserRepoHandlerResponse403(data: CreateCurrentUserRepo403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createCurrentUserRepoHandlerResponse409(
-  data?: CreateCurrentUserRepo409,
-) {
+export function createCurrentUserRepoHandlerResponse409(data?: CreateCurrentUserRepo409) {
   return new Response(JSON.stringify(data), {
     status: 409,
   });
 }
 
-export function createCurrentUserRepoHandlerResponse413(
-  data?: CreateCurrentUserRepo413,
-) {
+export function createCurrentUserRepoHandlerResponse413(data?: CreateCurrentUserRepo413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function createCurrentUserRepoHandlerResponse422(
-  data: CreateCurrentUserRepo422,
-) {
+export function createCurrentUserRepoHandlerResponse422(data: CreateCurrentUserRepo422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -88,17 +74,15 @@ export function createCurrentUserRepoHandlerResponse422(
 export function createCurrentUserRepoHandler(
   data?:
     | CreateCurrentUserRepoMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/user/repos`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

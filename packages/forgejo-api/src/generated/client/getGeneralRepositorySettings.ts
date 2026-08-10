@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { GetGeneralRepositorySettingsQueryResponse } from "../types/GetGeneralRepositorySettings"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetGeneralRepositorySettingsQueryResponse } from '../types/GetGeneralRepositorySettings';
 
 function getGetGeneralRepositorySettingsUrl() {
-  const res = { method: "GET", url: `/settings/repository` as const };
+  const res = { method: 'GET', url: `/settings/repository` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getGetGeneralRepositorySettingsUrl() {
  * @summary Get instance's global settings for repositories
  * {@link /settings/repository}
  */
-export async function getGeneralRepositorySettings(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getGeneralRepositorySettings(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetGeneralRepositorySettingsQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetGeneralRepositorySettingsQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getGetGeneralRepositorySettingsUrl().url.toString(),
     ...requestConfig,
   });

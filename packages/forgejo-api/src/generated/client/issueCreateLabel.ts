@@ -3,26 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueCreateLabelMutationRequest,
   IssueCreateLabelMutationResponse,
   IssueCreateLabelPathParams,
   IssueCreateLabel404,
   IssueCreateLabel422,
-} from "../types/IssueCreateLabel"
+} from '../types/IssueCreateLabel';
 
-function getIssueCreateLabelUrl(
-  owner: IssueCreateLabelPathParams["owner"],
-  repo: IssueCreateLabelPathParams["repo"],
-) {
+function getIssueCreateLabelUrl(owner: IssueCreateLabelPathParams['owner'], repo: IssueCreateLabelPathParams['repo']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/labels` as const,
   };
   return res;
@@ -33,8 +26,8 @@ function getIssueCreateLabelUrl(
  * {@link /repos/:owner/:repo/labels}
  */
 export async function issueCreateLabel(
-  owner: IssueCreateLabelPathParams["owner"],
-  repo: IssueCreateLabelPathParams["repo"],
+  owner: IssueCreateLabelPathParams['owner'],
+  repo: IssueCreateLabelPathParams['repo'],
   data: IssueCreateLabelMutationRequest,
   config: Partial<RequestConfig<IssueCreateLabelMutationRequest>> & {
     client?: Client;
@@ -49,7 +42,7 @@ export async function issueCreateLabel(
     ResponseErrorConfig<IssueCreateLabel404 | IssueCreateLabel422>,
     IssueCreateLabelMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueCreateLabelUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

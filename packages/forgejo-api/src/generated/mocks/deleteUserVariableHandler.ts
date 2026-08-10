@@ -9,65 +9,53 @@ import type {
   DeleteUserVariable401,
   DeleteUserVariable403,
   DeleteUserVariable404,
-} from "../types/DeleteUserVariable"
-import { http } from "msw";
+} from '../types/DeleteUserVariable';
+import { http } from 'msw';
 
-export function deleteUserVariableHandlerResponse201(
-  data?: DeleteUserVariableMutationResponse,
-) {
+export function deleteUserVariableHandlerResponse201(data?: DeleteUserVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function deleteUserVariableHandlerResponse204(
-  data?: DeleteUserVariableMutationResponse,
-) {
+export function deleteUserVariableHandlerResponse204(data?: DeleteUserVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function deleteUserVariableHandlerResponse400(
-  data: DeleteUserVariable400,
-) {
+export function deleteUserVariableHandlerResponse400(data: DeleteUserVariable400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function deleteUserVariableHandlerResponse401(
-  data: DeleteUserVariable401,
-) {
+export function deleteUserVariableHandlerResponse401(data: DeleteUserVariable401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function deleteUserVariableHandlerResponse403(
-  data: DeleteUserVariable403,
-) {
+export function deleteUserVariableHandlerResponse403(data: DeleteUserVariable403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function deleteUserVariableHandlerResponse404(
-  data: DeleteUserVariable404,
-) {
+export function deleteUserVariableHandlerResponse404(data: DeleteUserVariable404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -79,18 +67,13 @@ export function deleteUserVariableHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/user/actions/variables/:variablename`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/user/actions/variables/:variablename`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

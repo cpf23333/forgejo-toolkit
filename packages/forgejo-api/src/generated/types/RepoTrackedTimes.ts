@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { TrackedTime } from "./TrackedTime"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { TrackedTime } from './TrackedTime';
 
 export type RepoTrackedTimesPathParams = {
   /**
@@ -81,9 +81,5 @@ export type RepoTrackedTimesQuery = {
   Response: RepoTrackedTimes200;
   PathParams: RepoTrackedTimesPathParams;
   QueryParams: RepoTrackedTimesQueryParams;
-  Errors:
-    | RepoTrackedTimes400
-    | RepoTrackedTimes403
-    | RepoTrackedTimes404
-    | RepoTrackedTimes422;
+  Errors: RepoTrackedTimes400 | RepoTrackedTimes403 | RepoTrackedTimes404 | RepoTrackedTimes422;
 };

@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { GetActionsRunQueryResponse } from "../types/GetActionsRun"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetActionsRunQueryResponse } from '../types/GetActionsRun';
 
 function getGetActionsRunUrl() {
-  const res = { method: "GET", url: `/actions/run` as const };
+  const res = { method: 'GET', url: `/actions/run` as const };
   return res;
 }
 
@@ -21,17 +17,11 @@ function getGetActionsRunUrl() {
  * @summary Get a workflow run associated with a token
  * {@link /actions/run}
  */
-export async function getActionsRun(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getActionsRun(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetActionsRunQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetActionsRunQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getGetActionsRunUrl().url.toString(),
     ...requestConfig,
   });

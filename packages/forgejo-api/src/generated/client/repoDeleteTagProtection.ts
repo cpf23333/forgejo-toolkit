@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteTagProtectionMutationResponse,
   RepoDeleteTagProtectionPathParams,
   RepoDeleteTagProtection404,
-} from "../types/RepoDeleteTagProtection"
+} from '../types/RepoDeleteTagProtection';
 
 function getRepoDeleteTagProtectionUrl(
-  owner: RepoDeleteTagProtectionPathParams["owner"],
-  repo: RepoDeleteTagProtectionPathParams["repo"],
-  id: RepoDeleteTagProtectionPathParams["id"],
+  owner: RepoDeleteTagProtectionPathParams['owner'],
+  repo: RepoDeleteTagProtectionPathParams['repo'],
+  id: RepoDeleteTagProtectionPathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/tag_protections/${id}` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getRepoDeleteTagProtectionUrl(
  * {@link /repos/:owner/:repo/tag_protections/:id}
  */
 export async function repoDeleteTagProtection(
-  owner: RepoDeleteTagProtectionPathParams["owner"],
-  repo: RepoDeleteTagProtectionPathParams["repo"],
-  id: RepoDeleteTagProtectionPathParams["id"],
+  owner: RepoDeleteTagProtectionPathParams['owner'],
+  repo: RepoDeleteTagProtectionPathParams['repo'],
+  id: RepoDeleteTagProtectionPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function repoDeleteTagProtection(
     ResponseErrorConfig<RepoDeleteTagProtection404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteTagProtectionUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

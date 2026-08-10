@@ -3,27 +3,27 @@
  * Do not edit manually.
  */
 
-import type { APIValidationError } from "./APIValidationError"
-import type { SearchResults } from "./SearchResults"
+import type { APIValidationError } from './APIValidationError';
+import type { SearchResults } from './SearchResults';
 
 export const repoSearchQueryParamsSortEnum = {
-  alpha: "alpha",
-  created: "created",
-  updated: "updated",
-  size: "size",
-  git_size: "git_size",
-  lfs_size: "lfs_size",
-  id: "id",
-  stars: "stars",
-  forks: "forks",
+  alpha: 'alpha',
+  created: 'created',
+  updated: 'updated',
+  size: 'size',
+  git_size: 'git_size',
+  lfs_size: 'lfs_size',
+  id: 'id',
+  stars: 'stars',
+  forks: 'forks',
 } as const;
 
 export type RepoSearchQueryParamsSortEnumKey =
   (typeof repoSearchQueryParamsSortEnum)[keyof typeof repoSearchQueryParamsSortEnum];
 
 export const repoSearchQueryParamsOrderEnum = {
-  asc: "asc",
-  desc: "desc",
+  asc: 'asc',
+  desc: 'desc',
 } as const;
 
 export type RepoSearchQueryParamsOrderEnumKey =

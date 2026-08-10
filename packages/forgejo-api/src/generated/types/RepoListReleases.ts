@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Release } from "./Release"
+import type { APINotFound } from './APINotFound';
+import type { Release } from './Release';
 
 export type RepoListReleasesPathParams = {
   /**
@@ -29,7 +29,7 @@ export type RepoListReleasesQueryParams = {
    * @description filter (exclude / include) pre-releases
    * @type boolean | undefined
    */
-  "pre-release"?: boolean;
+  'pre-release'?: boolean;
   /**
    * @description Search string
    * @type string | undefined

@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetAssigneesQueryResponse,
   RepoGetAssigneesPathParams,
   RepoGetAssignees404,
-} from "../types/RepoGetAssignees"
+} from '../types/RepoGetAssignees';
 
-function getRepoGetAssigneesUrl(
-  owner: RepoGetAssigneesPathParams["owner"],
-  repo: RepoGetAssigneesPathParams["repo"],
-) {
+function getRepoGetAssigneesUrl(owner: RepoGetAssigneesPathParams['owner'], repo: RepoGetAssigneesPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/assignees` as const,
   };
   return res;
@@ -31,18 +24,14 @@ function getRepoGetAssigneesUrl(
  * {@link /repos/:owner/:repo/assignees}
  */
 export async function repoGetAssignees(
-  owner: RepoGetAssigneesPathParams["owner"],
-  repo: RepoGetAssigneesPathParams["repo"],
+  owner: RepoGetAssigneesPathParams['owner'],
+  repo: RepoGetAssigneesPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetAssigneesQueryResponse,
-    ResponseErrorConfig<RepoGetAssignees404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetAssigneesQueryResponse, ResponseErrorConfig<RepoGetAssignees404>, unknown>({
+    method: 'GET',
     url: getRepoGetAssigneesUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListLabelsQueryResponse,
   OrgListLabelsPathParams,
   OrgListLabelsQueryParams,
   OrgListLabels404,
-} from "../types/OrgListLabels"
+} from '../types/OrgListLabels';
 
-function getOrgListLabelsUrl(org: OrgListLabelsPathParams["org"]) {
-  const res = { method: "GET", url: `/orgs/${org}/labels` as const };
+function getOrgListLabelsUrl(org: OrgListLabelsPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/labels` as const };
   return res;
 }
 
@@ -26,18 +22,14 @@ function getOrgListLabelsUrl(org: OrgListLabelsPathParams["org"]) {
  * {@link /orgs/:org/labels}
  */
 export async function orgListLabels(
-  org: OrgListLabelsPathParams["org"],
+  org: OrgListLabelsPathParams['org'],
   params?: OrgListLabelsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgListLabelsQueryResponse,
-    ResponseErrorConfig<OrgListLabels404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgListLabelsQueryResponse, ResponseErrorConfig<OrgListLabels404>, unknown>({
+    method: 'GET',
     url: getOrgListLabelsUrl(org).url.toString(),
     params,
     ...requestConfig,

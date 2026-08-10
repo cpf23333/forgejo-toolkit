@@ -7,12 +7,10 @@ import type {
   UserDeleteAvatarMutationResponse,
   UserDeleteAvatar401,
   UserDeleteAvatar403,
-} from "../types/UserDeleteAvatar"
-import { http } from "msw";
+} from '../types/UserDeleteAvatar';
+import { http } from 'msw';
 
-export function userDeleteAvatarHandlerResponse204(
-  data?: UserDeleteAvatarMutationResponse,
-) {
+export function userDeleteAvatarHandlerResponse204(data?: UserDeleteAvatarMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +20,7 @@ export function userDeleteAvatarHandlerResponse401(data: UserDeleteAvatar401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +29,7 @@ export function userDeleteAvatarHandlerResponse403(data: UserDeleteAvatar403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +41,10 @@ export function userDeleteAvatarHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/user/avatar`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

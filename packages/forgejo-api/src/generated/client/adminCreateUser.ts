@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminCreateUserMutationRequest,
   AdminCreateUserMutationResponse,
   AdminCreateUser400,
   AdminCreateUser403,
   AdminCreateUser422,
-} from "../types/AdminCreateUser"
+} from '../types/AdminCreateUser';
 
 function getAdminCreateUserUrl() {
-  const res = { method: "POST", url: `/admin/users` as const };
+  const res = { method: 'POST', url: `/admin/users` as const };
   return res;
 }
 
@@ -38,12 +34,10 @@ export async function adminCreateUser(
 
   const res = await request<
     AdminCreateUserMutationResponse,
-    ResponseErrorConfig<
-      AdminCreateUser400 | AdminCreateUser403 | AdminCreateUser422
-    >,
+    ResponseErrorConfig<AdminCreateUser400 | AdminCreateUser403 | AdminCreateUser422>,
     AdminCreateUserMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminCreateUserUrl().url.toString(),
     data: requestData,
     ...requestConfig,

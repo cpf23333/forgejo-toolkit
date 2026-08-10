@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoListCollaboratorsQueryResponse,
-  RepoListCollaborators404,
-} from "../types/RepoListCollaborators"
-import { http } from "msw";
+import type { RepoListCollaboratorsQueryResponse, RepoListCollaborators404 } from '../types/RepoListCollaborators';
+import { http } from 'msw';
 
-export function repoListCollaboratorsHandlerResponse200(
-  data: RepoListCollaboratorsQueryResponse,
-) {
+export function repoListCollaboratorsHandlerResponse200(data: RepoListCollaboratorsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoListCollaboratorsHandlerResponse404(
-  data: RepoListCollaborators404,
-) {
+export function repoListCollaboratorsHandlerResponse404(data: RepoListCollaborators404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function repoListCollaboratorsHandlerResponse404(
 export function repoListCollaboratorsHandler(
   data?:
     | RepoListCollaboratorsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/collaborators`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

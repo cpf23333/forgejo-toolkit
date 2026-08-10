@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateKeyOption } from "./CreateKeyOption"
-import type { PublicKey } from "./PublicKey"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateKeyOption } from './CreateKeyOption';
+import type { PublicKey } from './PublicKey';
 
 export type AdminCreatePublicKeyPathParams = {
   /**

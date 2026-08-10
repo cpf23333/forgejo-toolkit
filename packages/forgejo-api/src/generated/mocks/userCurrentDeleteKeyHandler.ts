@@ -8,46 +8,38 @@ import type {
   UserCurrentDeleteKey401,
   UserCurrentDeleteKey403,
   UserCurrentDeleteKey404,
-} from "../types/UserCurrentDeleteKey"
-import { http } from "msw";
+} from '../types/UserCurrentDeleteKey';
+import { http } from 'msw';
 
-export function userCurrentDeleteKeyHandlerResponse204(
-  data?: UserCurrentDeleteKeyMutationResponse,
-) {
+export function userCurrentDeleteKeyHandlerResponse204(data?: UserCurrentDeleteKeyMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentDeleteKeyHandlerResponse401(
-  data: UserCurrentDeleteKey401,
-) {
+export function userCurrentDeleteKeyHandlerResponse401(data: UserCurrentDeleteKey401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentDeleteKeyHandlerResponse403(
-  data: UserCurrentDeleteKey403,
-) {
+export function userCurrentDeleteKeyHandlerResponse403(data: UserCurrentDeleteKey403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentDeleteKeyHandlerResponse404(
-  data: UserCurrentDeleteKey404,
-) {
+export function userCurrentDeleteKeyHandlerResponse404(data: UserCurrentDeleteKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function userCurrentDeleteKeyHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/user/keys/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetReleaseQueryResponse,
-  RepoGetRelease404,
-} from "../types/RepoGetRelease"
-import { http } from "msw";
+import type { RepoGetReleaseQueryResponse, RepoGetRelease404 } from '../types/RepoGetRelease';
+import { http } from 'msw';
 
-export function repoGetReleaseHandlerResponse200(
-  data: RepoGetReleaseQueryResponse,
-) {
+export function repoGetReleaseHandlerResponse200(data: RepoGetReleaseQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoGetReleaseHandlerResponse404(data: RepoGetRelease404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function repoGetReleaseHandlerResponse404(data: RepoGetRelease404) {
 export function repoGetReleaseHandler(
   data?:
     | RepoGetReleaseQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/releases/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

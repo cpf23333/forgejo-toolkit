@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueSubscriptionsQueryResponse,
   IssueSubscriptionsPathParams,
   IssueSubscriptionsQueryParams,
   IssueSubscriptions404,
-} from "../types/IssueSubscriptions"
+} from '../types/IssueSubscriptions';
 
 function getIssueSubscriptionsUrl(
-  owner: IssueSubscriptionsPathParams["owner"],
-  repo: IssueSubscriptionsPathParams["repo"],
-  index: IssueSubscriptionsPathParams["index"],
+  owner: IssueSubscriptionsPathParams['owner'],
+  repo: IssueSubscriptionsPathParams['repo'],
+  index: IssueSubscriptionsPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/subscriptions` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getIssueSubscriptionsUrl(
  * {@link /repos/:owner/:repo/issues/:index/subscriptions}
  */
 export async function issueSubscriptions(
-  owner: IssueSubscriptionsPathParams["owner"],
-  repo: IssueSubscriptionsPathParams["repo"],
-  index: IssueSubscriptionsPathParams["index"],
+  owner: IssueSubscriptionsPathParams['owner'],
+  repo: IssueSubscriptionsPathParams['repo'],
+  index: IssueSubscriptionsPathParams['index'],
   params?: IssueSubscriptionsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    IssueSubscriptionsQueryResponse,
-    ResponseErrorConfig<IssueSubscriptions404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<IssueSubscriptionsQueryResponse, ResponseErrorConfig<IssueSubscriptions404>, unknown>({
+    method: 'GET',
     url: getIssueSubscriptionsUrl(owner, repo, index).url.toString(),
     params,
     ...requestConfig,

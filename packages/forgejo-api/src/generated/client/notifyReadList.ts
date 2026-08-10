@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  NotifyReadListMutationResponse,
-  NotifyReadListQueryParams,
-} from "../types/NotifyReadList"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { NotifyReadListMutationResponse, NotifyReadListQueryParams } from '../types/NotifyReadList';
 
 function getNotifyReadListUrl() {
-  const res = { method: "PUT", url: `/notifications` as const };
+  const res = { method: 'PUT', url: `/notifications` as const };
   return res;
 }
 
@@ -29,12 +22,8 @@ export async function notifyReadList(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    NotifyReadListMutationResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "PUT",
+  const res = await request<NotifyReadListMutationResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'PUT',
     url: getNotifyReadListUrl().url.toString(),
     params,
     ...requestConfig,

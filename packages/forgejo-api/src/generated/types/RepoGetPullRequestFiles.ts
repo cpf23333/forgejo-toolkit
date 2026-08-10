@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { ChangedFile } from "./ChangedFile"
+import type { APINotFound } from './APINotFound';
+import type { ChangedFile } from './ChangedFile';
 
 export type RepoGetPullRequestFilesPathParams = {
   /**
@@ -25,10 +25,10 @@ export type RepoGetPullRequestFilesPathParams = {
 };
 
 export const repoGetPullRequestFilesQueryParamsWhitespaceEnum = {
-  "ignore-all": "ignore-all",
-  "ignore-change": "ignore-change",
-  "ignore-eol": "ignore-eol",
-  "show-all": "show-all",
+  'ignore-all': 'ignore-all',
+  'ignore-change': 'ignore-change',
+  'ignore-eol': 'ignore-eol',
+  'show-all': 'show-all',
 } as const;
 
 export type RepoGetPullRequestFilesQueryParamsWhitespaceEnumKey =
@@ -39,7 +39,7 @@ export type RepoGetPullRequestFilesQueryParams = {
    * @description skip to given file
    * @type string | undefined
    */
-  "skip-to"?: string;
+  'skip-to'?: string;
   /**
    * @description whitespace behavior
    * @type string | undefined

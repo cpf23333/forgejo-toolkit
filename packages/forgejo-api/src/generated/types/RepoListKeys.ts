@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { DeployKey } from "./DeployKey"
+import type { APINotFound } from './APINotFound';
+import type { DeployKey } from './DeployKey';
 
 export type RepoListKeysPathParams = {
   /**

@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListBranchesQueryResponse,
   RepoListBranchesPathParams,
   RepoListBranchesQueryParams,
-} from "../types/RepoListBranches"
+} from '../types/RepoListBranches';
 
-function getRepoListBranchesUrl(
-  owner: RepoListBranchesPathParams["owner"],
-  repo: RepoListBranchesPathParams["repo"],
-) {
+function getRepoListBranchesUrl(owner: RepoListBranchesPathParams['owner'], repo: RepoListBranchesPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/branches` as const,
   };
   return res;
@@ -31,19 +24,15 @@ function getRepoListBranchesUrl(
  * {@link /repos/:owner/:repo/branches}
  */
 export async function repoListBranches(
-  owner: RepoListBranchesPathParams["owner"],
-  repo: RepoListBranchesPathParams["repo"],
+  owner: RepoListBranchesPathParams['owner'],
+  repo: RepoListBranchesPathParams['repo'],
   params?: RepoListBranchesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListBranchesQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListBranchesQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getRepoListBranchesUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { QuotaInfo } from "./QuotaInfo"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { QuotaInfo } from './QuotaInfo';
 
 export type AdminGetUserQuotaPathParams = {
   /**
@@ -47,9 +47,5 @@ export type AdminGetUserQuotaQueryResponse = AdminGetUserQuota200;
 export type AdminGetUserQuotaQuery = {
   Response: AdminGetUserQuota200;
   PathParams: AdminGetUserQuotaPathParams;
-  Errors:
-    | AdminGetUserQuota400
-    | AdminGetUserQuota403
-    | AdminGetUserQuota404
-    | AdminGetUserQuota422;
+  Errors: AdminGetUserQuota400 | AdminGetUserQuota403 | AdminGetUserQuota404 | AdminGetUserQuota422;
 };

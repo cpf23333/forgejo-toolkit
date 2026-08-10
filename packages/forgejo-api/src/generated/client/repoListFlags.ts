@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListFlagsQueryResponse,
   RepoListFlagsPathParams,
   RepoListFlags403,
   RepoListFlags404,
-} from "../types/RepoListFlags"
+} from '../types/RepoListFlags';
 
-function getRepoListFlagsUrl(
-  owner: RepoListFlagsPathParams["owner"],
-  repo: RepoListFlagsPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/flags` as const };
+function getRepoListFlagsUrl(owner: RepoListFlagsPathParams['owner'], repo: RepoListFlagsPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/flags` as const };
   return res;
 }
 
@@ -29,8 +22,8 @@ function getRepoListFlagsUrl(
  * {@link /repos/:owner/:repo/flags}
  */
 export async function repoListFlags(
-  owner: RepoListFlagsPathParams["owner"],
-  repo: RepoListFlagsPathParams["repo"],
+  owner: RepoListFlagsPathParams['owner'],
+  repo: RepoListFlagsPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -40,7 +33,7 @@ export async function repoListFlags(
     ResponseErrorConfig<RepoListFlags403 | RepoListFlags404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoListFlagsUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

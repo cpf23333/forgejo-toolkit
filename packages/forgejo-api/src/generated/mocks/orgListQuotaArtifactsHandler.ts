@@ -7,38 +7,32 @@ import type {
   OrgListQuotaArtifactsQueryResponse,
   OrgListQuotaArtifacts403,
   OrgListQuotaArtifacts404,
-} from "../types/OrgListQuotaArtifacts"
-import { http } from "msw";
+} from '../types/OrgListQuotaArtifacts';
+import { http } from 'msw';
 
-export function orgListQuotaArtifactsHandlerResponse200(
-  data: OrgListQuotaArtifactsQueryResponse,
-) {
+export function orgListQuotaArtifactsHandlerResponse200(data: OrgListQuotaArtifactsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgListQuotaArtifactsHandlerResponse403(
-  data: OrgListQuotaArtifacts403,
-) {
+export function orgListQuotaArtifactsHandlerResponse403(data: OrgListQuotaArtifacts403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgListQuotaArtifactsHandlerResponse404(
-  data: OrgListQuotaArtifacts404,
-) {
+export function orgListQuotaArtifactsHandlerResponse404(data: OrgListQuotaArtifacts404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function orgListQuotaArtifactsHandlerResponse404(
 export function orgListQuotaArtifactsHandler(
   data?:
     | OrgListQuotaArtifactsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/quota/artifacts`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

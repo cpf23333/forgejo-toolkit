@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteCommentMutationResponse,
   IssueDeleteCommentPathParams,
   IssueDeleteComment403,
   IssueDeleteComment500,
-} from "../types/IssueDeleteComment"
+} from '../types/IssueDeleteComment';
 
 function getIssueDeleteCommentUrl(
-  owner: IssueDeleteCommentPathParams["owner"],
-  repo: IssueDeleteCommentPathParams["repo"],
-  id: IssueDeleteCommentPathParams["id"],
+  owner: IssueDeleteCommentPathParams['owner'],
+  repo: IssueDeleteCommentPathParams['repo'],
+  id: IssueDeleteCommentPathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/comments/${id}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getIssueDeleteCommentUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id}
  */
 export async function issueDeleteComment(
-  owner: IssueDeleteCommentPathParams["owner"],
-  repo: IssueDeleteCommentPathParams["repo"],
-  id: IssueDeleteCommentPathParams["id"],
+  owner: IssueDeleteCommentPathParams['owner'],
+  repo: IssueDeleteCommentPathParams['repo'],
+  id: IssueDeleteCommentPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function issueDeleteComment(
     ResponseErrorConfig<IssueDeleteComment403 | IssueDeleteComment500>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueDeleteCommentUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

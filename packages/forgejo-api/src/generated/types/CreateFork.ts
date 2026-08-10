@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateForkOption } from "./CreateForkOption"
-import type { Repository } from "./Repository"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateForkOption } from './CreateForkOption';
+import type { Repository } from './Repository';
 
 export type CreateForkPathParams = {
   /**
@@ -60,10 +60,5 @@ export type CreateForkMutation = {
   Response: CreateFork202;
   Request: CreateForkMutationRequest;
   PathParams: CreateForkPathParams;
-  Errors:
-    | CreateFork403
-    | CreateFork404
-    | CreateFork409
-    | CreateFork413
-    | CreateFork422;
+  Errors: CreateFork403 | CreateFork404 | CreateFork409 | CreateFork413 | CreateFork422;
 };

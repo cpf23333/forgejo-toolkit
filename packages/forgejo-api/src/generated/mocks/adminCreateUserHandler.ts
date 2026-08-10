@@ -8,16 +8,14 @@ import type {
   AdminCreateUser400,
   AdminCreateUser403,
   AdminCreateUser422,
-} from "../types/AdminCreateUser"
-import { http } from "msw";
+} from '../types/AdminCreateUser';
+import { http } from 'msw';
 
-export function adminCreateUserHandlerResponse201(
-  data: AdminCreateUserMutationResponse,
-) {
+export function adminCreateUserHandlerResponse201(data: AdminCreateUserMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -26,7 +24,7 @@ export function adminCreateUserHandlerResponse400(data: AdminCreateUser400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,7 +33,7 @@ export function adminCreateUserHandlerResponse403(data: AdminCreateUser403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -44,7 +42,7 @@ export function adminCreateUserHandlerResponse422(data: AdminCreateUser422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -52,17 +50,15 @@ export function adminCreateUserHandlerResponse422(data: AdminCreateUser422) {
 export function adminCreateUserHandler(
   data?:
     | AdminCreateUserMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/admin/users`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

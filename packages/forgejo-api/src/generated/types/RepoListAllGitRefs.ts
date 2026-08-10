@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Reference } from "./Reference"
+import type { APINotFound } from './APINotFound';
+import type { Reference } from './Reference';
 
 export type RepoListAllGitRefsPathParams = {
   /**

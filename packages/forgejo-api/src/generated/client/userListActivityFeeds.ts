@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListActivityFeedsQueryResponse,
   UserListActivityFeedsPathParams,
   UserListActivityFeedsQueryParams,
   UserListActivityFeeds404,
-} from "../types/UserListActivityFeeds"
+} from '../types/UserListActivityFeeds';
 
-function getUserListActivityFeedsUrl(
-  username: UserListActivityFeedsPathParams["username"],
-) {
+function getUserListActivityFeedsUrl(username: UserListActivityFeedsPathParams['username']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/users/${username}/activities/feeds` as const,
   };
   return res;
@@ -31,21 +25,19 @@ function getUserListActivityFeedsUrl(
  * {@link /users/:username/activities/feeds}
  */
 export async function userListActivityFeeds(
-  username: UserListActivityFeedsPathParams["username"],
+  username: UserListActivityFeedsPathParams['username'],
   params?: UserListActivityFeedsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UserListActivityFeedsQueryResponse,
-    ResponseErrorConfig<UserListActivityFeeds404>,
-    unknown
-  >({
-    method: "GET",
-    url: getUserListActivityFeedsUrl(username).url.toString(),
-    params,
-    ...requestConfig,
-  });
+  const res = await request<UserListActivityFeedsQueryResponse, ResponseErrorConfig<UserListActivityFeeds404>, unknown>(
+    {
+      method: 'GET',
+      url: getUserListActivityFeedsUrl(username).url.toString(),
+      params,
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Commit } from "./Commit"
+import type { Commit } from './Commit';
 
 export type CommitList = Commit[];

@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { PackageFile } from "./PackageFile"
+import type { PackageFile } from './PackageFile';
 
 export type PackageFileList = PackageFile[];

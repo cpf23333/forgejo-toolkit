@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueResetTimeMutationResponse,
   IssueResetTimePathParams,
   IssueResetTime400,
   IssueResetTime403,
   IssueResetTime404,
-} from "../types/IssueResetTime"
+} from '../types/IssueResetTime';
 
 function getIssueResetTimeUrl(
-  owner: IssueResetTimePathParams["owner"],
-  repo: IssueResetTimePathParams["repo"],
-  index: IssueResetTimePathParams["index"],
+  owner: IssueResetTimePathParams['owner'],
+  repo: IssueResetTimePathParams['repo'],
+  index: IssueResetTimePathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/times` as const,
   };
   return res;
@@ -34,21 +30,19 @@ function getIssueResetTimeUrl(
  * {@link /repos/:owner/:repo/issues/:index/times}
  */
 export async function issueResetTime(
-  owner: IssueResetTimePathParams["owner"],
-  repo: IssueResetTimePathParams["repo"],
-  index: IssueResetTimePathParams["index"],
+  owner: IssueResetTimePathParams['owner'],
+  repo: IssueResetTimePathParams['repo'],
+  index: IssueResetTimePathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     IssueResetTimeMutationResponse,
-    ResponseErrorConfig<
-      IssueResetTime400 | IssueResetTime403 | IssueResetTime404
-    >,
+    ResponseErrorConfig<IssueResetTime400 | IssueResetTime403 | IssueResetTime404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueResetTimeUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

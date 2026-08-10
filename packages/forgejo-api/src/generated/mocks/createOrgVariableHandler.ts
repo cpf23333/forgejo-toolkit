@@ -7,43 +7,35 @@ import type {
   CreateOrgVariableMutationResponse,
   CreateOrgVariable400,
   CreateOrgVariable404,
-} from "../types/CreateOrgVariable"
-import { http } from "msw";
+} from '../types/CreateOrgVariable';
+import { http } from 'msw';
 
-export function createOrgVariableHandlerResponse201(
-  data?: CreateOrgVariableMutationResponse,
-) {
+export function createOrgVariableHandlerResponse201(data?: CreateOrgVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function createOrgVariableHandlerResponse204(
-  data?: CreateOrgVariableMutationResponse,
-) {
+export function createOrgVariableHandlerResponse204(data?: CreateOrgVariableMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function createOrgVariableHandlerResponse400(
-  data: CreateOrgVariable400,
-) {
+export function createOrgVariableHandlerResponse400(data: CreateOrgVariable400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function createOrgVariableHandlerResponse404(
-  data: CreateOrgVariable404,
-) {
+export function createOrgVariableHandlerResponse404(data: CreateOrgVariable404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -55,18 +47,13 @@ export function createOrgVariableHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/orgs/:org/actions/variables/:variablename`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/orgs/:org/actions/variables/:variablename`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

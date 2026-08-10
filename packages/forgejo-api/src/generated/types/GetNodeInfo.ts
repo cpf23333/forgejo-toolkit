@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { NodeInfo } from "./NodeInfo"
+import type { NodeInfo } from './NodeInfo';
 
 /**
  * @description NodeInfo

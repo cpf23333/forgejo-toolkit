@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetRepoVariablesListQueryResponse,
   GetRepoVariablesListPathParams,
   GetRepoVariablesListQueryParams,
   GetRepoVariablesList400,
   GetRepoVariablesList404,
-} from "../types/GetRepoVariablesList"
+} from '../types/GetRepoVariablesList';
 
 function getGetRepoVariablesListUrl(
-  owner: GetRepoVariablesListPathParams["owner"],
-  repo: GetRepoVariablesListPathParams["repo"],
+  owner: GetRepoVariablesListPathParams['owner'],
+  repo: GetRepoVariablesListPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/actions/variables` as const,
   };
   return res;
@@ -33,8 +29,8 @@ function getGetRepoVariablesListUrl(
  * {@link /repos/:owner/:repo/actions/variables}
  */
 export async function getRepoVariablesList(
-  owner: GetRepoVariablesListPathParams["owner"],
-  repo: GetRepoVariablesListPathParams["repo"],
+  owner: GetRepoVariablesListPathParams['owner'],
+  repo: GetRepoVariablesListPathParams['repo'],
   params?: GetRepoVariablesListQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -45,7 +41,7 @@ export async function getRepoVariablesList(
     ResponseErrorConfig<GetRepoVariablesList400 | GetRepoVariablesList404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetRepoVariablesListUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

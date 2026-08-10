@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoSearchRunJobsQueryResponse,
-  RepoSearchRunJobs403,
-} from "../types/RepoSearchRunJobs"
-import { http } from "msw";
+import type { RepoSearchRunJobsQueryResponse, RepoSearchRunJobs403 } from '../types/RepoSearchRunJobs';
+import { http } from 'msw';
 
-export function repoSearchRunJobsHandlerResponse200(
-  data: RepoSearchRunJobsQueryResponse,
-) {
+export function repoSearchRunJobsHandlerResponse200(data: RepoSearchRunJobsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoSearchRunJobsHandlerResponse403(
-  data: RepoSearchRunJobs403,
-) {
+export function repoSearchRunJobsHandlerResponse403(data: RepoSearchRunJobs403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +27,16 @@ export function repoSearchRunJobsHandlerResponse403(
 export function repoSearchRunJobsHandler(
   data?:
     | RepoSearchRunJobsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/actions/runners/jobs`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/actions/runners/jobs`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

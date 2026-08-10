@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetAdminRunnersQueryResponse,
   GetAdminRunnersQueryParams,
   GetAdminRunners400,
   GetAdminRunners404,
-} from "../types/GetAdminRunners"
+} from '../types/GetAdminRunners';
 
 function getGetAdminRunnersUrl() {
-  const res = { method: "GET", url: `/admin/actions/runners` as const };
+  const res = { method: 'GET', url: `/admin/actions/runners` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function getAdminRunners(
     ResponseErrorConfig<GetAdminRunners400 | GetAdminRunners404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetAdminRunnersUrl().url.toString(),
     params,
     ...requestConfig,

@@ -7,38 +7,32 @@ import type {
   IssueRemoveIssueDependenciesMutationResponse,
   IssueRemoveIssueDependencies404,
   IssueRemoveIssueDependencies423,
-} from "../types/IssueRemoveIssueDependencies"
-import { http } from "msw";
+} from '../types/IssueRemoveIssueDependencies';
+import { http } from 'msw';
 
-export function issueRemoveIssueDependenciesHandlerResponse200(
-  data: IssueRemoveIssueDependenciesMutationResponse,
-) {
+export function issueRemoveIssueDependenciesHandlerResponse200(data: IssueRemoveIssueDependenciesMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueRemoveIssueDependenciesHandlerResponse404(
-  data: IssueRemoveIssueDependencies404,
-) {
+export function issueRemoveIssueDependenciesHandlerResponse404(data: IssueRemoveIssueDependencies404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueRemoveIssueDependenciesHandlerResponse423(
-  data: IssueRemoveIssueDependencies423,
-) {
+export function issueRemoveIssueDependenciesHandlerResponse423(data: IssueRemoveIssueDependencies423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function issueRemoveIssueDependenciesHandlerResponse423(
 export function issueRemoveIssueDependenciesHandler(
   data?:
     | IssueRemoveIssueDependenciesMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/dependencies`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/dependencies`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

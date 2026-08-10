@@ -6,27 +6,23 @@
 import type {
   IssueListIssueDependenciesQueryResponse,
   IssueListIssueDependencies404,
-} from "../types/IssueListIssueDependencies"
-import { http } from "msw";
+} from '../types/IssueListIssueDependencies';
+import { http } from 'msw';
 
-export function issueListIssueDependenciesHandlerResponse200(
-  data: IssueListIssueDependenciesQueryResponse,
-) {
+export function issueListIssueDependenciesHandlerResponse200(data: IssueListIssueDependenciesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueListIssueDependenciesHandlerResponse404(
-  data: IssueListIssueDependencies404,
-) {
+export function issueListIssueDependenciesHandlerResponse404(data: IssueListIssueDependencies404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function issueListIssueDependenciesHandlerResponse404(
 export function issueListIssueDependenciesHandler(
   data?:
     | IssueListIssueDependenciesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/issues/:index/dependencies`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/issues/:index/dependencies`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIInternalServerError } from "./APIInternalServerError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { TimelineComment } from "./TimelineComment"
+import type { APIInternalServerError } from './APIInternalServerError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { TimelineComment } from './TimelineComment';
 
 export type IssueGetCommentsAndTimelinePathParams = {
   /**
@@ -69,15 +69,11 @@ export type IssueGetCommentsAndTimeline422 = APIValidationError;
  */
 export type IssueGetCommentsAndTimeline500 = APIInternalServerError;
 
-export type IssueGetCommentsAndTimelineQueryResponse =
-  IssueGetCommentsAndTimeline200;
+export type IssueGetCommentsAndTimelineQueryResponse = IssueGetCommentsAndTimeline200;
 
 export type IssueGetCommentsAndTimelineQuery = {
   Response: IssueGetCommentsAndTimeline200;
   PathParams: IssueGetCommentsAndTimelinePathParams;
   QueryParams: IssueGetCommentsAndTimelineQueryParams;
-  Errors:
-    | IssueGetCommentsAndTimeline404
-    | IssueGetCommentsAndTimeline422
-    | IssueGetCommentsAndTimeline500;
+  Errors: IssueGetCommentsAndTimeline404 | IssueGetCommentsAndTimeline422 | IssueGetCommentsAndTimeline500;
 };

@@ -3,27 +3,20 @@
  * Do not edit manually.
  */
 
-import type {
-  UserCheckFollowingQueryResponse,
-  UserCheckFollowing404,
-} from "../types/UserCheckFollowing"
-import { http } from "msw";
+import type { UserCheckFollowingQueryResponse, UserCheckFollowing404 } from '../types/UserCheckFollowing';
+import { http } from 'msw';
 
-export function userCheckFollowingHandlerResponse204(
-  data?: UserCheckFollowingQueryResponse,
-) {
+export function userCheckFollowingHandlerResponse204(data?: UserCheckFollowingQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCheckFollowingHandlerResponse404(
-  data: UserCheckFollowing404,
-) {
+export function userCheckFollowingHandlerResponse404(data: UserCheckFollowing404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,12 +28,10 @@ export function userCheckFollowingHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/following/:target`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { DeleteFileOptions } from "./DeleteFileOptions"
-import type { FileDeleteResponse } from "./FileDeleteResponse"
+import type { APIError } from './APIError';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { DeleteFileOptions } from './DeleteFileOptions';
+import type { FileDeleteResponse } from './FileDeleteResponse';
 
 export type RepoDeleteFilePathParams = {
   /**
@@ -64,10 +64,5 @@ export type RepoDeleteFileMutation = {
   Response: RepoDeleteFile200;
   Request: RepoDeleteFileMutationRequest;
   PathParams: RepoDeleteFilePathParams;
-  Errors:
-    | RepoDeleteFile400
-    | RepoDeleteFile403
-    | RepoDeleteFile404
-    | RepoDeleteFile413
-    | RepoDeleteFile423;
+  Errors: RepoDeleteFile400 | RepoDeleteFile403 | RepoDeleteFile404 | RepoDeleteFile413 | RepoDeleteFile423;
 };

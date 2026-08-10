@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCheckTeamQueryResponse,
   RepoCheckTeamPathParams,
   RepoCheckTeam404,
   RepoCheckTeam405,
-} from "../types/RepoCheckTeam"
+} from '../types/RepoCheckTeam';
 
 function getRepoCheckTeamUrl(
-  owner: RepoCheckTeamPathParams["owner"],
-  repo: RepoCheckTeamPathParams["repo"],
-  team: RepoCheckTeamPathParams["team"],
+  owner: RepoCheckTeamPathParams['owner'],
+  repo: RepoCheckTeamPathParams['repo'],
+  team: RepoCheckTeamPathParams['team'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/teams/${team}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoCheckTeamUrl(
  * {@link /repos/:owner/:repo/teams/:team}
  */
 export async function repoCheckTeam(
-  owner: RepoCheckTeamPathParams["owner"],
-  repo: RepoCheckTeamPathParams["repo"],
-  team: RepoCheckTeamPathParams["team"],
+  owner: RepoCheckTeamPathParams['owner'],
+  repo: RepoCheckTeamPathParams['repo'],
+  team: RepoCheckTeamPathParams['team'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoCheckTeam(
     ResponseErrorConfig<RepoCheckTeam404 | RepoCheckTeam405>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoCheckTeamUrl(owner, repo, team).url.toString(),
     ...requestConfig,
   });

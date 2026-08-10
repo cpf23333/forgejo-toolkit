@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  AdminUnadoptedListQueryResponse,
-  AdminUnadoptedList403,
-} from "../types/AdminUnadoptedList"
-import { http } from "msw";
+import type { AdminUnadoptedListQueryResponse, AdminUnadoptedList403 } from '../types/AdminUnadoptedList';
+import { http } from 'msw';
 
-export function adminUnadoptedListHandlerResponse200(
-  data: AdminUnadoptedListQueryResponse,
-) {
+export function adminUnadoptedListHandlerResponse200(data: AdminUnadoptedListQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminUnadoptedListHandlerResponse403(
-  data: AdminUnadoptedList403,
-) {
+export function adminUnadoptedListHandlerResponse403(data: AdminUnadoptedList403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function adminUnadoptedListHandlerResponse403(
 export function adminUnadoptedListHandler(
   data?:
     | AdminUnadoptedListQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/unadopted`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

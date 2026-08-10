@@ -10,19 +10,16 @@ export function buildFormData<T = unknown>(data: T): FormData {
       formData.append(key, value.toISOString());
       return;
     }
-    if (typeof value === "number" || typeof value === "boolean") {
+    if (typeof value === 'number' || typeof value === 'boolean') {
       formData.append(key, String(value));
       return;
     }
-    if (typeof value === "string") {
+    if (typeof value === 'string') {
       formData.append(key, value);
       return;
     }
-    if (typeof value === "object") {
-      formData.append(
-        key,
-        new Blob([JSON.stringify(value)], { type: "application/json" }),
-      );
+    if (typeof value === 'object') {
+      formData.append(key, new Blob([JSON.stringify(value)], { type: 'application/json' }));
       return;
     }
   }

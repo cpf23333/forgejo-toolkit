@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { QuotaRuleInfo } from "./QuotaRuleInfo"
+import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
 /**
  * @description QuotaGroup represents a quota group

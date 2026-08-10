@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GetSigningKeyQueryResponse } from "../types/GetSigningKey"
-import { http } from "msw";
+import type { GetSigningKeyQueryResponse } from '../types/GetSigningKey';
+import { http } from 'msw';
 
-export function getSigningKeyHandlerResponse200(
-  data: GetSigningKeyQueryResponse,
-) {
+export function getSigningKeyHandlerResponse200(data: GetSigningKeyQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "text/plain",
+      'Content-Type': 'text/plain',
     },
   });
 }
@@ -20,17 +18,15 @@ export function getSigningKeyHandlerResponse200(
 export function getSigningKeyHandler(
   data?:
     | GetSigningKeyQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/signing-key.gpg`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "text/plain",
+        'Content-Type': 'text/plain',
       },
     });
   });

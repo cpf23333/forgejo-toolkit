@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoEditBranchProtectionMutationRequest,
   RepoEditBranchProtectionMutationResponse,
@@ -16,15 +12,15 @@ import type {
   RepoEditBranchProtection404,
   RepoEditBranchProtection422,
   RepoEditBranchProtection423,
-} from "../types/RepoEditBranchProtection"
+} from '../types/RepoEditBranchProtection';
 
 function getRepoEditBranchProtectionUrl(
-  owner: RepoEditBranchProtectionPathParams["owner"],
-  repo: RepoEditBranchProtectionPathParams["repo"],
-  name: RepoEditBranchProtectionPathParams["name"],
+  owner: RepoEditBranchProtectionPathParams['owner'],
+  repo: RepoEditBranchProtectionPathParams['repo'],
+  name: RepoEditBranchProtectionPathParams['name'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/branch_protections/${name}` as const,
   };
   return res;
@@ -35,9 +31,9 @@ function getRepoEditBranchProtectionUrl(
  * {@link /repos/:owner/:repo/branch_protections/:name}
  */
 export async function repoEditBranchProtection(
-  owner: RepoEditBranchProtectionPathParams["owner"],
-  repo: RepoEditBranchProtectionPathParams["repo"],
-  name: RepoEditBranchProtectionPathParams["name"],
+  owner: RepoEditBranchProtectionPathParams['owner'],
+  repo: RepoEditBranchProtectionPathParams['repo'],
+  name: RepoEditBranchProtectionPathParams['name'],
   data?: RepoEditBranchProtectionMutationRequest,
   config: Partial<RequestConfig<RepoEditBranchProtectionMutationRequest>> & {
     client?: Client;
@@ -49,14 +45,10 @@ export async function repoEditBranchProtection(
 
   const res = await request<
     RepoEditBranchProtectionMutationResponse,
-    ResponseErrorConfig<
-      | RepoEditBranchProtection404
-      | RepoEditBranchProtection422
-      | RepoEditBranchProtection423
-    >,
+    ResponseErrorConfig<RepoEditBranchProtection404 | RepoEditBranchProtection422 | RepoEditBranchProtection423>,
     RepoEditBranchProtectionMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getRepoEditBranchProtectionUrl(owner, repo, name).url.toString(),
     data: requestData,
     ...requestConfig,

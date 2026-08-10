@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueCheckSubscriptionQueryResponse,
   IssueCheckSubscriptionPathParams,
   IssueCheckSubscription404,
-} from "../types/IssueCheckSubscription"
+} from '../types/IssueCheckSubscription';
 
 function getIssueCheckSubscriptionUrl(
-  owner: IssueCheckSubscriptionPathParams["owner"],
-  repo: IssueCheckSubscriptionPathParams["repo"],
-  index: IssueCheckSubscriptionPathParams["index"],
+  owner: IssueCheckSubscriptionPathParams['owner'],
+  repo: IssueCheckSubscriptionPathParams['repo'],
+  index: IssueCheckSubscriptionPathParams['index'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/${index}/subscriptions/check` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getIssueCheckSubscriptionUrl(
  * {@link /repos/:owner/:repo/issues/:index/subscriptions/check}
  */
 export async function issueCheckSubscription(
-  owner: IssueCheckSubscriptionPathParams["owner"],
-  repo: IssueCheckSubscriptionPathParams["repo"],
-  index: IssueCheckSubscriptionPathParams["index"],
+  owner: IssueCheckSubscriptionPathParams['owner'],
+  repo: IssueCheckSubscriptionPathParams['repo'],
+  index: IssueCheckSubscriptionPathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function issueCheckSubscription(
     ResponseErrorConfig<IssueCheckSubscription404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueCheckSubscriptionUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

@@ -9,20 +9,16 @@ import type {
   UpdateUserSecret401,
   UpdateUserSecret403,
   UpdateUserSecret404,
-} from "../types/UpdateUserSecret"
-import { http } from "msw";
+} from '../types/UpdateUserSecret';
+import { http } from 'msw';
 
-export function updateUserSecretHandlerResponse201(
-  data?: UpdateUserSecretMutationResponse,
-) {
+export function updateUserSecretHandlerResponse201(data?: UpdateUserSecretMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function updateUserSecretHandlerResponse204(
-  data?: UpdateUserSecretMutationResponse,
-) {
+export function updateUserSecretHandlerResponse204(data?: UpdateUserSecretMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -32,7 +28,7 @@ export function updateUserSecretHandlerResponse400(data: UpdateUserSecret400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,7 +37,7 @@ export function updateUserSecretHandlerResponse401(data: UpdateUserSecret401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -50,7 +46,7 @@ export function updateUserSecretHandlerResponse403(data: UpdateUserSecret403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,7 +55,7 @@ export function updateUserSecretHandlerResponse404(data: UpdateUserSecret404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -71,12 +67,10 @@ export function updateUserSecretHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/user/actions/secrets/:secretname`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,

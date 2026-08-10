@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { GetGeneralAPISettingsQueryResponse } from "../types/GetGeneralAPISettings"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetGeneralAPISettingsQueryResponse } from '../types/GetGeneralAPISettings';
 
 function getGetGeneralAPISettingsUrl() {
-  const res = { method: "GET", url: `/settings/api` as const };
+  const res = { method: 'GET', url: `/settings/api` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getGetGeneralAPISettingsUrl() {
  * @summary Get instance's global settings for api
  * {@link /settings/api}
  */
-export async function getGeneralAPISettings(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getGeneralAPISettings(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetGeneralAPISettingsQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetGeneralAPISettingsQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getGetGeneralAPISettingsUrl().url.toString(),
     ...requestConfig,
   });

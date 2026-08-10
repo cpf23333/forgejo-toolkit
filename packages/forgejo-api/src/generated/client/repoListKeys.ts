@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListKeysQueryResponse,
   RepoListKeysPathParams,
   RepoListKeysQueryParams,
   RepoListKeys404,
-} from "../types/RepoListKeys"
+} from '../types/RepoListKeys';
 
-function getRepoListKeysUrl(
-  owner: RepoListKeysPathParams["owner"],
-  repo: RepoListKeysPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/keys` as const };
+function getRepoListKeysUrl(owner: RepoListKeysPathParams['owner'], repo: RepoListKeysPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/keys` as const };
   return res;
 }
 
@@ -29,19 +22,15 @@ function getRepoListKeysUrl(
  * {@link /repos/:owner/:repo/keys}
  */
 export async function repoListKeys(
-  owner: RepoListKeysPathParams["owner"],
-  repo: RepoListKeysPathParams["repo"],
+  owner: RepoListKeysPathParams['owner'],
+  repo: RepoListKeysPathParams['repo'],
   params?: RepoListKeysQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListKeysQueryResponse,
-    ResponseErrorConfig<RepoListKeys404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListKeysQueryResponse, ResponseErrorConfig<RepoListKeys404>, unknown>({
+    method: 'GET',
     url: getRepoListKeysUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

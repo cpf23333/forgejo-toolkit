@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCheckCollaboratorQueryResponse,
   RepoCheckCollaboratorPathParams,
   RepoCheckCollaborator404,
   RepoCheckCollaborator422,
-} from "../types/RepoCheckCollaborator"
+} from '../types/RepoCheckCollaborator';
 
 function getRepoCheckCollaboratorUrl(
-  owner: RepoCheckCollaboratorPathParams["owner"],
-  repo: RepoCheckCollaboratorPathParams["repo"],
-  collaborator: RepoCheckCollaboratorPathParams["collaborator"],
+  owner: RepoCheckCollaboratorPathParams['owner'],
+  repo: RepoCheckCollaboratorPathParams['repo'],
+  collaborator: RepoCheckCollaboratorPathParams['collaborator'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/collaborators/${collaborator}` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoCheckCollaboratorUrl(
  * {@link /repos/:owner/:repo/collaborators/:collaborator}
  */
 export async function repoCheckCollaborator(
-  owner: RepoCheckCollaboratorPathParams["owner"],
-  repo: RepoCheckCollaboratorPathParams["repo"],
-  collaborator: RepoCheckCollaboratorPathParams["collaborator"],
+  owner: RepoCheckCollaboratorPathParams['owner'],
+  repo: RepoCheckCollaboratorPathParams['repo'],
+  collaborator: RepoCheckCollaboratorPathParams['collaborator'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,7 +42,7 @@ export async function repoCheckCollaborator(
     ResponseErrorConfig<RepoCheckCollaborator404 | RepoCheckCollaborator422>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoCheckCollaboratorUrl(owner, repo, collaborator).url.toString(),
     ...requestConfig,
   });

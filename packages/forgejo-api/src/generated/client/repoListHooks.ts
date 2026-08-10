@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListHooksQueryResponse,
   RepoListHooksPathParams,
   RepoListHooksQueryParams,
   RepoListHooks404,
-} from "../types/RepoListHooks"
+} from '../types/RepoListHooks';
 
-function getRepoListHooksUrl(
-  owner: RepoListHooksPathParams["owner"],
-  repo: RepoListHooksPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/hooks` as const };
+function getRepoListHooksUrl(owner: RepoListHooksPathParams['owner'], repo: RepoListHooksPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/hooks` as const };
   return res;
 }
 
@@ -29,19 +22,15 @@ function getRepoListHooksUrl(
  * {@link /repos/:owner/:repo/hooks}
  */
 export async function repoListHooks(
-  owner: RepoListHooksPathParams["owner"],
-  repo: RepoListHooksPathParams["repo"],
+  owner: RepoListHooksPathParams['owner'],
+  repo: RepoListHooksPathParams['repo'],
   params?: RepoListHooksQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListHooksQueryResponse,
-    ResponseErrorConfig<RepoListHooks404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListHooksQueryResponse, ResponseErrorConfig<RepoListHooks404>, unknown>({
+    method: 'GET',
     url: getRepoListHooksUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

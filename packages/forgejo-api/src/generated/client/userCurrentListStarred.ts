@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentListStarredQueryResponse,
   UserCurrentListStarredQueryParams,
   UserCurrentListStarred401,
   UserCurrentListStarred403,
-} from "../types/UserCurrentListStarred"
+} from '../types/UserCurrentListStarred';
 
 function getUserCurrentListStarredUrl() {
-  const res = { method: "GET", url: `/user/starred` as const };
+  const res = { method: 'GET', url: `/user/starred` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function userCurrentListStarred(
     ResponseErrorConfig<UserCurrentListStarred401 | UserCurrentListStarred403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentListStarredUrl().url.toString(),
     params,
     ...requestConfig,

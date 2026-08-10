@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoEditReleaseMutationResponse,
-  RepoEditRelease404,
-} from "../types/RepoEditRelease"
-import { http } from "msw";
+import type { RepoEditReleaseMutationResponse, RepoEditRelease404 } from '../types/RepoEditRelease';
+import { http } from 'msw';
 
-export function repoEditReleaseHandlerResponse200(
-  data: RepoEditReleaseMutationResponse,
-) {
+export function repoEditReleaseHandlerResponse200(data: RepoEditReleaseMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoEditReleaseHandlerResponse404(data: RepoEditRelease404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function repoEditReleaseHandlerResponse404(data: RepoEditRelease404) {
 export function repoEditReleaseHandler(
   data?:
     | RepoEditReleaseMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/repos/:owner/:repo/releases/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

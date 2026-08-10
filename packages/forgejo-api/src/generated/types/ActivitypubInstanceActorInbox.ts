@@ -8,8 +8,7 @@
  */
 export type ActivitypubInstanceActorInbox204 = any;
 
-export type ActivitypubInstanceActorInboxMutationResponse =
-  ActivitypubInstanceActorInbox204;
+export type ActivitypubInstanceActorInboxMutationResponse = ActivitypubInstanceActorInbox204;
 
 export type ActivitypubInstanceActorInboxMutation = {
   Response: ActivitypubInstanceActorInbox204;

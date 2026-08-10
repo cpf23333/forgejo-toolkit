@@ -9,16 +9,14 @@ import type {
   RepoTrackedTimes403,
   RepoTrackedTimes404,
   RepoTrackedTimes422,
-} from "../types/RepoTrackedTimes"
-import { http } from "msw";
+} from '../types/RepoTrackedTimes';
+import { http } from 'msw';
 
-export function repoTrackedTimesHandlerResponse200(
-  data: RepoTrackedTimesQueryResponse,
-) {
+export function repoTrackedTimesHandlerResponse200(data: RepoTrackedTimesQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -27,7 +25,7 @@ export function repoTrackedTimesHandlerResponse400(data: RepoTrackedTimes400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -36,7 +34,7 @@ export function repoTrackedTimesHandlerResponse403(data: RepoTrackedTimes403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -45,7 +43,7 @@ export function repoTrackedTimesHandlerResponse404(data: RepoTrackedTimes404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -54,7 +52,7 @@ export function repoTrackedTimesHandlerResponse422(data: RepoTrackedTimes422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -62,17 +60,15 @@ export function repoTrackedTimesHandlerResponse422(data: RepoTrackedTimes422) {
 export function repoTrackedTimesHandler(
   data?:
     | RepoTrackedTimesQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/times`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

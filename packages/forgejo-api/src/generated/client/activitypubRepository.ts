@@ -3,22 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ActivitypubRepositoryQueryResponse,
   ActivitypubRepositoryPathParams,
-} from "../types/ActivitypubRepository"
+} from '../types/ActivitypubRepository';
 
-function getActivitypubRepositoryUrl(
-  repositoryId: ActivitypubRepositoryPathParams["repository-id"],
-) {
+function getActivitypubRepositoryUrl(repositoryId: ActivitypubRepositoryPathParams['repository-id']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/activitypub/repository-id/${repositoryId}` as const,
   };
   return res;
@@ -29,17 +23,13 @@ function getActivitypubRepositoryUrl(
  * {@link /activitypub/repository-id/:repository-id}
  */
 export async function activitypubRepository(
-  repositoryId: ActivitypubRepositoryPathParams["repository-id"],
+  repositoryId: ActivitypubRepositoryPathParams['repository-id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ActivitypubRepositoryQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ActivitypubRepositoryQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getActivitypubRepositoryUrl(repositoryId).url.toString(),
     ...requestConfig,
   });

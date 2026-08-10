@@ -3,28 +3,24 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeletePullReviewCommentMutationResponse,
   RepoDeletePullReviewCommentPathParams,
   RepoDeletePullReviewComment403,
   RepoDeletePullReviewComment404,
-} from "../types/RepoDeletePullReviewComment"
+} from '../types/RepoDeletePullReviewComment';
 
 function getRepoDeletePullReviewCommentUrl(
-  owner: RepoDeletePullReviewCommentPathParams["owner"],
-  repo: RepoDeletePullReviewCommentPathParams["repo"],
-  index: RepoDeletePullReviewCommentPathParams["index"],
-  id: RepoDeletePullReviewCommentPathParams["id"],
-  comment: RepoDeletePullReviewCommentPathParams["comment"],
+  owner: RepoDeletePullReviewCommentPathParams['owner'],
+  repo: RepoDeletePullReviewCommentPathParams['repo'],
+  index: RepoDeletePullReviewCommentPathParams['index'],
+  id: RepoDeletePullReviewCommentPathParams['id'],
+  comment: RepoDeletePullReviewCommentPathParams['comment'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}/comments/${comment}` as const,
   };
   return res;
@@ -35,30 +31,22 @@ function getRepoDeletePullReviewCommentUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id/comments/:comment}
  */
 export async function repoDeletePullReviewComment(
-  owner: RepoDeletePullReviewCommentPathParams["owner"],
-  repo: RepoDeletePullReviewCommentPathParams["repo"],
-  index: RepoDeletePullReviewCommentPathParams["index"],
-  id: RepoDeletePullReviewCommentPathParams["id"],
-  comment: RepoDeletePullReviewCommentPathParams["comment"],
+  owner: RepoDeletePullReviewCommentPathParams['owner'],
+  repo: RepoDeletePullReviewCommentPathParams['repo'],
+  index: RepoDeletePullReviewCommentPathParams['index'],
+  id: RepoDeletePullReviewCommentPathParams['id'],
+  comment: RepoDeletePullReviewCommentPathParams['comment'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     RepoDeletePullReviewCommentMutationResponse,
-    ResponseErrorConfig<
-      RepoDeletePullReviewComment403 | RepoDeletePullReviewComment404
-    >,
+    ResponseErrorConfig<RepoDeletePullReviewComment403 | RepoDeletePullReviewComment404>,
     unknown
   >({
-    method: "DELETE",
-    url: getRepoDeletePullReviewCommentUrl(
-      owner,
-      repo,
-      index,
-      id,
-      comment,
-    ).url.toString(),
+    method: 'DELETE',
+    url: getRepoDeletePullReviewCommentUrl(owner, repo, index, id, comment).url.toString(),
     ...requestConfig,
   });
   return res.data;

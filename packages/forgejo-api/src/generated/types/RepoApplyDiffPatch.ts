@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { FileResponse } from "./FileResponse"
-import type { UpdateFileOptions } from "./UpdateFileOptions"
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { FileResponse } from './FileResponse';
+import type { UpdateFileOptions } from './UpdateFileOptions';
 
 export type RepoApplyDiffPatchPathParams = {
   /**

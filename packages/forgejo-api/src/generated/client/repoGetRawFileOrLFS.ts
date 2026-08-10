@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetRawFileOrLFSQueryResponse,
   RepoGetRawFileOrLFSPathParams,
   RepoGetRawFileOrLFSQueryParams,
   RepoGetRawFileOrLFS404,
-} from "../types/RepoGetRawFileOrLFS"
+} from '../types/RepoGetRawFileOrLFS';
 
 function getRepoGetRawFileOrLFSUrl(
-  owner: RepoGetRawFileOrLFSPathParams["owner"],
-  repo: RepoGetRawFileOrLFSPathParams["repo"],
-  filepath: RepoGetRawFileOrLFSPathParams["filepath"],
+  owner: RepoGetRawFileOrLFSPathParams['owner'],
+  repo: RepoGetRawFileOrLFSPathParams['repo'],
+  filepath: RepoGetRawFileOrLFSPathParams['filepath'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/media/${filepath}` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getRepoGetRawFileOrLFSUrl(
  * {@link /repos/:owner/:repo/media/:filepath}
  */
 export async function repoGetRawFileOrLFS(
-  owner: RepoGetRawFileOrLFSPathParams["owner"],
-  repo: RepoGetRawFileOrLFSPathParams["repo"],
-  filepath: RepoGetRawFileOrLFSPathParams["filepath"],
+  owner: RepoGetRawFileOrLFSPathParams['owner'],
+  repo: RepoGetRawFileOrLFSPathParams['repo'],
+  filepath: RepoGetRawFileOrLFSPathParams['filepath'],
   params?: RepoGetRawFileOrLFSQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetRawFileOrLFSQueryResponse,
-    ResponseErrorConfig<RepoGetRawFileOrLFS404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetRawFileOrLFSQueryResponse, ResponseErrorConfig<RepoGetRawFileOrLFS404>, unknown>({
+    method: 'GET',
     url: getRepoGetRawFileOrLFSUrl(owner, repo, filepath).url.toString(),
     params,
     ...requestConfig,

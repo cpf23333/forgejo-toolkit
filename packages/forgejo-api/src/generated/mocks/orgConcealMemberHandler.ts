@@ -7,12 +7,10 @@ import type {
   OrgConcealMemberMutationResponse,
   OrgConcealMember403,
   OrgConcealMember404,
-} from "../types/OrgConcealMember"
-import { http } from "msw";
+} from '../types/OrgConcealMember';
+import { http } from 'msw';
 
-export function orgConcealMemberHandlerResponse204(
-  data?: OrgConcealMemberMutationResponse,
-) {
+export function orgConcealMemberHandlerResponse204(data?: OrgConcealMemberMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +20,7 @@ export function orgConcealMemberHandlerResponse403(data: OrgConcealMember403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +29,7 @@ export function orgConcealMemberHandlerResponse404(data: OrgConcealMember404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +41,13 @@ export function orgConcealMemberHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/orgs/:org/public_members/:username`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/orgs/:org/public_members/:username`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

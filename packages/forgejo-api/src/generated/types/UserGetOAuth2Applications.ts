@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { OAuth2Application } from "./OAuth2Application"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { OAuth2Application } from './OAuth2Application';
 
 export type UserGetOAuth2ApplicationsQueryParams = {
   /**
@@ -35,8 +35,7 @@ export type UserGetOAuth2Applications401 = APIUnauthorizedError;
  */
 export type UserGetOAuth2Applications403 = APIForbiddenError;
 
-export type UserGetOAuth2ApplicationsQueryResponse =
-  UserGetOAuth2Applications200;
+export type UserGetOAuth2ApplicationsQueryResponse = UserGetOAuth2Applications200;
 
 export type UserGetOAuth2ApplicationsQuery = {
   Response: UserGetOAuth2Applications200;

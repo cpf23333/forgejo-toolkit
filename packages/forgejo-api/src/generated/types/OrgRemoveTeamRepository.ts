@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
 
 export type OrgRemoveTeamRepositoryPathParams = {
   /**
@@ -39,8 +39,7 @@ export type OrgRemoveTeamRepository403 = APIForbiddenError;
  */
 export type OrgRemoveTeamRepository404 = APINotFound;
 
-export type OrgRemoveTeamRepositoryMutationResponse =
-  OrgRemoveTeamRepository204;
+export type OrgRemoveTeamRepositoryMutationResponse = OrgRemoveTeamRepository204;
 
 export type OrgRemoveTeamRepositoryMutation = {
   Response: OrgRemoveTeamRepository204;

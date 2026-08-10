@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetMilestonesListQueryResponse,
   IssueGetMilestonesListPathParams,
   IssueGetMilestonesListQueryParams,
   IssueGetMilestonesList404,
-} from "../types/IssueGetMilestonesList"
+} from '../types/IssueGetMilestonesList';
 
 function getIssueGetMilestonesListUrl(
-  owner: IssueGetMilestonesListPathParams["owner"],
-  repo: IssueGetMilestonesListPathParams["repo"],
+  owner: IssueGetMilestonesListPathParams['owner'],
+  repo: IssueGetMilestonesListPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/milestones` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getIssueGetMilestonesListUrl(
  * {@link /repos/:owner/:repo/milestones}
  */
 export async function issueGetMilestonesList(
-  owner: IssueGetMilestonesListPathParams["owner"],
-  repo: IssueGetMilestonesListPathParams["repo"],
+  owner: IssueGetMilestonesListPathParams['owner'],
+  repo: IssueGetMilestonesListPathParams['repo'],
   params?: IssueGetMilestonesListQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -44,7 +40,7 @@ export async function issueGetMilestonesList(
     ResponseErrorConfig<IssueGetMilestonesList404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueGetMilestonesListUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

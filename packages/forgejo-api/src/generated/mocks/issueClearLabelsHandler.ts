@@ -7,12 +7,10 @@ import type {
   IssueClearLabelsMutationResponse,
   IssueClearLabels403,
   IssueClearLabels404,
-} from "../types/IssueClearLabels"
-import { http } from "msw";
+} from '../types/IssueClearLabels';
+import { http } from 'msw';
 
-export function issueClearLabelsHandlerResponse204(
-  data?: IssueClearLabelsMutationResponse,
-) {
+export function issueClearLabelsHandlerResponse204(data?: IssueClearLabelsMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +20,7 @@ export function issueClearLabelsHandlerResponse403(data: IssueClearLabels403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +29,7 @@ export function issueClearLabelsHandlerResponse404(data: IssueClearLabels404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,18 +41,13 @@ export function issueClearLabelsHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/labels`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/labels`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

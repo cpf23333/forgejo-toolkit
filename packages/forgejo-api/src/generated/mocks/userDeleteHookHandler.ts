@@ -3,16 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  UserDeleteHookMutationResponse,
-  UserDeleteHook401,
-  UserDeleteHook403,
-} from "../types/UserDeleteHook"
-import { http } from "msw";
+import type { UserDeleteHookMutationResponse, UserDeleteHook401, UserDeleteHook403 } from '../types/UserDeleteHook';
+import { http } from 'msw';
 
-export function userDeleteHookHandlerResponse204(
-  data?: UserDeleteHookMutationResponse,
-) {
+export function userDeleteHookHandlerResponse204(data?: UserDeleteHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -22,7 +16,7 @@ export function userDeleteHookHandlerResponse401(data: UserDeleteHook401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -31,7 +25,7 @@ export function userDeleteHookHandlerResponse403(data: UserDeleteHook403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -43,12 +37,10 @@ export function userDeleteHookHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/user/hooks/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

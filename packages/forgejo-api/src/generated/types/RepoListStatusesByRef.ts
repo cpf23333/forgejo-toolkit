@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { CommitStatus } from "./CommitStatus"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { CommitStatus } from './CommitStatus';
 
 export type RepoListStatusesByRefPathParams = {
   /**
@@ -26,22 +26,22 @@ export type RepoListStatusesByRefPathParams = {
 };
 
 export const repoListStatusesByRefQueryParamsSortEnum = {
-  oldest: "oldest",
-  recentupdate: "recentupdate",
-  leastupdate: "leastupdate",
-  leastindex: "leastindex",
-  highestindex: "highestindex",
+  oldest: 'oldest',
+  recentupdate: 'recentupdate',
+  leastupdate: 'leastupdate',
+  leastindex: 'leastindex',
+  highestindex: 'highestindex',
 } as const;
 
 export type RepoListStatusesByRefQueryParamsSortEnumKey =
   (typeof repoListStatusesByRefQueryParamsSortEnum)[keyof typeof repoListStatusesByRefQueryParamsSortEnum];
 
 export const repoListStatusesByRefQueryParamsStateEnum = {
-  pending: "pending",
-  success: "success",
-  error: "error",
-  failure: "failure",
-  warning: "warning",
+  pending: 'pending',
+  success: 'success',
+  error: 'error',
+  failure: 'failure',
+  warning: 'warning',
 } as const;
 
 export type RepoListStatusesByRefQueryParamsStateEnumKey =

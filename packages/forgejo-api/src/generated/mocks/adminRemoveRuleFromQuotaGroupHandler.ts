@@ -8,46 +8,38 @@ import type {
   AdminRemoveRuleFromQuotaGroup400,
   AdminRemoveRuleFromQuotaGroup403,
   AdminRemoveRuleFromQuotaGroup404,
-} from "../types/AdminRemoveRuleFromQuotaGroup"
-import { http } from "msw";
+} from '../types/AdminRemoveRuleFromQuotaGroup';
+import { http } from 'msw';
 
-export function adminRemoveRuleFromQuotaGroupHandlerResponse201(
-  data?: AdminRemoveRuleFromQuotaGroupMutationResponse,
-) {
+export function adminRemoveRuleFromQuotaGroupHandlerResponse201(data?: AdminRemoveRuleFromQuotaGroupMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function adminRemoveRuleFromQuotaGroupHandlerResponse400(
-  data: AdminRemoveRuleFromQuotaGroup400,
-) {
+export function adminRemoveRuleFromQuotaGroupHandlerResponse400(data: AdminRemoveRuleFromQuotaGroup400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminRemoveRuleFromQuotaGroupHandlerResponse403(
-  data: AdminRemoveRuleFromQuotaGroup403,
-) {
+export function adminRemoveRuleFromQuotaGroupHandlerResponse403(data: AdminRemoveRuleFromQuotaGroup403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminRemoveRuleFromQuotaGroupHandlerResponse404(
-  data: AdminRemoveRuleFromQuotaGroup404,
-) {
+export function adminRemoveRuleFromQuotaGroupHandlerResponse404(data: AdminRemoveRuleFromQuotaGroup404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,18 +51,13 @@ export function adminRemoveRuleFromQuotaGroupHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/admin/quota/groups/:quotagroup/rules/:quotarule`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/admin/quota/groups/:quotagroup/rules/:quotarule`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListTeamsQueryResponse,
   UserListTeamsQueryParams,
   UserListTeams401,
   UserListTeams403,
-} from "../types/UserListTeams"
+} from '../types/UserListTeams';
 
 function getUserListTeamsUrl() {
-  const res = { method: "GET", url: `/user/teams` as const };
+  const res = { method: 'GET', url: `/user/teams` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function userListTeams(
     ResponseErrorConfig<UserListTeams401 | UserListTeams403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserListTeamsUrl().url.toString(),
     params,
     ...requestConfig,

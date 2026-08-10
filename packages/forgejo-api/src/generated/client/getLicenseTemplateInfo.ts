@@ -3,22 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetLicenseTemplateInfoQueryResponse,
   GetLicenseTemplateInfoPathParams,
   GetLicenseTemplateInfo404,
-} from "../types/GetLicenseTemplateInfo"
+} from '../types/GetLicenseTemplateInfo';
 
-function getGetLicenseTemplateInfoUrl(
-  name: GetLicenseTemplateInfoPathParams["name"],
-) {
-  const res = { method: "GET", url: `/licenses/${name}` as const };
+function getGetLicenseTemplateInfoUrl(name: GetLicenseTemplateInfoPathParams['name']) {
+  const res = { method: 'GET', url: `/licenses/${name}` as const };
   return res;
 }
 
@@ -27,7 +21,7 @@ function getGetLicenseTemplateInfoUrl(
  * {@link /licenses/:name}
  */
 export async function getLicenseTemplateInfo(
-  name: GetLicenseTemplateInfoPathParams["name"],
+  name: GetLicenseTemplateInfoPathParams['name'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -37,7 +31,7 @@ export async function getLicenseTemplateInfo(
     ResponseErrorConfig<GetLicenseTemplateInfo404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetLicenseTemplateInfoUrl(name).url.toString(),
     ...requestConfig,
   });

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Issue } from "./Issue"
-import type { IssueMeta } from "./IssueMeta"
+import type { APINotFound } from './APINotFound';
+import type { Issue } from './Issue';
+import type { IssueMeta } from './IssueMeta';
 
 export type IssueRemoveIssueBlockingPathParams = {
   /**
@@ -37,8 +37,7 @@ export type IssueRemoveIssueBlocking404 = APINotFound;
 
 export type IssueRemoveIssueBlockingMutationRequest = IssueMeta;
 
-export type IssueRemoveIssueBlockingMutationResponse =
-  IssueRemoveIssueBlocking200;
+export type IssueRemoveIssueBlockingMutationResponse = IssueRemoveIssueBlocking200;
 
 export type IssueRemoveIssueBlockingMutation = {
   Response: IssueRemoveIssueBlocking200;

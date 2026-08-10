@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoRemoveNoteMutationResponse,
   RepoRemoveNotePathParams,
   RepoRemoveNote404,
   RepoRemoveNote422,
-} from "../types/RepoRemoveNote"
+} from '../types/RepoRemoveNote';
 
 function getRepoRemoveNoteUrl(
-  owner: RepoRemoveNotePathParams["owner"],
-  repo: RepoRemoveNotePathParams["repo"],
-  sha: RepoRemoveNotePathParams["sha"],
+  owner: RepoRemoveNotePathParams['owner'],
+  repo: RepoRemoveNotePathParams['repo'],
+  sha: RepoRemoveNotePathParams['sha'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/git/notes/${sha}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoRemoveNoteUrl(
  * {@link /repos/:owner/:repo/git/notes/:sha}
  */
 export async function repoRemoveNote(
-  owner: RepoRemoveNotePathParams["owner"],
-  repo: RepoRemoveNotePathParams["repo"],
-  sha: RepoRemoveNotePathParams["sha"],
+  owner: RepoRemoveNotePathParams['owner'],
+  repo: RepoRemoveNotePathParams['repo'],
+  sha: RepoRemoveNotePathParams['sha'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoRemoveNote(
     ResponseErrorConfig<RepoRemoveNote404 | RepoRemoveNote422>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoRemoveNoteUrl(owner, repo, sha).url.toString(),
     ...requestConfig,
   });

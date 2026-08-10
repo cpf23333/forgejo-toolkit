@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { GitObject } from "./GitObject"
+import type { GitObject } from './GitObject';
 
 /**
  * Reference represents a Git reference.

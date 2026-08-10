@@ -6,27 +6,23 @@
 import type {
   RepoDownloadPullDiffOrPatchQueryResponse,
   RepoDownloadPullDiffOrPatch404,
-} from "../types/RepoDownloadPullDiffOrPatch"
-import { http } from "msw";
+} from '../types/RepoDownloadPullDiffOrPatch';
+import { http } from 'msw';
 
-export function repoDownloadPullDiffOrPatchHandlerResponse200(
-  data: RepoDownloadPullDiffOrPatchQueryResponse,
-) {
+export function repoDownloadPullDiffOrPatchHandlerResponse200(data: RepoDownloadPullDiffOrPatchQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDownloadPullDiffOrPatchHandlerResponse404(
-  data: RepoDownloadPullDiffOrPatch404,
-) {
+export function repoDownloadPullDiffOrPatchHandlerResponse404(data: RepoDownloadPullDiffOrPatch404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function repoDownloadPullDiffOrPatchHandlerResponse404(
 export function repoDownloadPullDiffOrPatchHandler(
   data?:
     | RepoDownloadPullDiffOrPatchQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/pulls/:index.\\\\:diffType`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/pulls/:index.\\\\:diffType`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

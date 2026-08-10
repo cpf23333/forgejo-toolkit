@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueEditIssueMutationRequest,
   IssueEditIssueMutationResponse,
@@ -16,15 +12,15 @@ import type {
   IssueEditIssue403,
   IssueEditIssue404,
   IssueEditIssue412,
-} from "../types/IssueEditIssue"
+} from '../types/IssueEditIssue';
 
 function getIssueEditIssueUrl(
-  owner: IssueEditIssuePathParams["owner"],
-  repo: IssueEditIssuePathParams["repo"],
-  index: IssueEditIssuePathParams["index"],
+  owner: IssueEditIssuePathParams['owner'],
+  repo: IssueEditIssuePathParams['repo'],
+  index: IssueEditIssuePathParams['index'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/issues/${index}` as const,
   };
   return res;
@@ -35,9 +31,9 @@ function getIssueEditIssueUrl(
  * {@link /repos/:owner/:repo/issues/:index}
  */
 export async function issueEditIssue(
-  owner: IssueEditIssuePathParams["owner"],
-  repo: IssueEditIssuePathParams["repo"],
-  index: IssueEditIssuePathParams["index"],
+  owner: IssueEditIssuePathParams['owner'],
+  repo: IssueEditIssuePathParams['repo'],
+  index: IssueEditIssuePathParams['index'],
   data?: IssueEditIssueMutationRequest,
   config: Partial<RequestConfig<IssueEditIssueMutationRequest>> & {
     client?: Client;
@@ -49,12 +45,10 @@ export async function issueEditIssue(
 
   const res = await request<
     IssueEditIssueMutationResponse,
-    ResponseErrorConfig<
-      IssueEditIssue403 | IssueEditIssue404 | IssueEditIssue412
-    >,
+    ResponseErrorConfig<IssueEditIssue403 | IssueEditIssue404 | IssueEditIssue412>,
     IssueEditIssueMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getIssueEditIssueUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

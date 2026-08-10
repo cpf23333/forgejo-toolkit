@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { GetGeneralUISettingsQueryResponse } from "../types/GetGeneralUISettings"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetGeneralUISettingsQueryResponse } from '../types/GetGeneralUISettings';
 
 function getGetGeneralUISettingsUrl() {
-  const res = { method: "GET", url: `/settings/ui` as const };
+  const res = { method: 'GET', url: `/settings/ui` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getGetGeneralUISettingsUrl() {
  * @summary Get instance's global settings for ui
  * {@link /settings/ui}
  */
-export async function getGeneralUISettings(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getGeneralUISettings(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetGeneralUISettingsQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetGeneralUISettingsQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getGetGeneralUISettingsUrl().url.toString(),
     ...requestConfig,
   });

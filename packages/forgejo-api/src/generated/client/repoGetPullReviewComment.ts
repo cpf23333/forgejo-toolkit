@@ -3,28 +3,24 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetPullReviewCommentQueryResponse,
   RepoGetPullReviewCommentPathParams,
   RepoGetPullReviewComment403,
   RepoGetPullReviewComment404,
-} from "../types/RepoGetPullReviewComment"
+} from '../types/RepoGetPullReviewComment';
 
 function getRepoGetPullReviewCommentUrl(
-  owner: RepoGetPullReviewCommentPathParams["owner"],
-  repo: RepoGetPullReviewCommentPathParams["repo"],
-  index: RepoGetPullReviewCommentPathParams["index"],
-  id: RepoGetPullReviewCommentPathParams["id"],
-  comment: RepoGetPullReviewCommentPathParams["comment"],
+  owner: RepoGetPullReviewCommentPathParams['owner'],
+  repo: RepoGetPullReviewCommentPathParams['repo'],
+  index: RepoGetPullReviewCommentPathParams['index'],
+  id: RepoGetPullReviewCommentPathParams['id'],
+  comment: RepoGetPullReviewCommentPathParams['comment'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${index}/reviews/${id}/comments/${comment}` as const,
   };
   return res;
@@ -35,30 +31,22 @@ function getRepoGetPullReviewCommentUrl(
  * {@link /repos/:owner/:repo/pulls/:index/reviews/:id/comments/:comment}
  */
 export async function repoGetPullReviewComment(
-  owner: RepoGetPullReviewCommentPathParams["owner"],
-  repo: RepoGetPullReviewCommentPathParams["repo"],
-  index: RepoGetPullReviewCommentPathParams["index"],
-  id: RepoGetPullReviewCommentPathParams["id"],
-  comment: RepoGetPullReviewCommentPathParams["comment"],
+  owner: RepoGetPullReviewCommentPathParams['owner'],
+  repo: RepoGetPullReviewCommentPathParams['repo'],
+  index: RepoGetPullReviewCommentPathParams['index'],
+  id: RepoGetPullReviewCommentPathParams['id'],
+  comment: RepoGetPullReviewCommentPathParams['comment'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     RepoGetPullReviewCommentQueryResponse,
-    ResponseErrorConfig<
-      RepoGetPullReviewComment403 | RepoGetPullReviewComment404
-    >,
+    ResponseErrorConfig<RepoGetPullReviewComment403 | RepoGetPullReviewComment404>,
     unknown
   >({
-    method: "GET",
-    url: getRepoGetPullReviewCommentUrl(
-      owner,
-      repo,
-      index,
-      id,
-      comment,
-    ).url.toString(),
+    method: 'GET',
+    url: getRepoGetPullReviewCommentUrl(owner, repo, index, id, comment).url.toString(),
     ...requestConfig,
   });
   return res.data;

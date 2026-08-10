@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentCheckFollowingQueryResponse,
   UserCurrentCheckFollowingPathParams,
   UserCurrentCheckFollowing401,
   UserCurrentCheckFollowing403,
   UserCurrentCheckFollowing404,
-} from "../types/UserCurrentCheckFollowing"
+} from '../types/UserCurrentCheckFollowing';
 
-function getUserCurrentCheckFollowingUrl(
-  username: UserCurrentCheckFollowingPathParams["username"],
-) {
-  const res = { method: "GET", url: `/user/following/${username}` as const };
+function getUserCurrentCheckFollowingUrl(username: UserCurrentCheckFollowingPathParams['username']) {
+  const res = { method: 'GET', url: `/user/following/${username}` as const };
   return res;
 }
 
@@ -29,21 +23,17 @@ function getUserCurrentCheckFollowingUrl(
  * {@link /user/following/:username}
  */
 export async function userCurrentCheckFollowing(
-  username: UserCurrentCheckFollowingPathParams["username"],
+  username: UserCurrentCheckFollowingPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentCheckFollowingQueryResponse,
-    ResponseErrorConfig<
-      | UserCurrentCheckFollowing401
-      | UserCurrentCheckFollowing403
-      | UserCurrentCheckFollowing404
-    >,
+    ResponseErrorConfig<UserCurrentCheckFollowing401 | UserCurrentCheckFollowing403 | UserCurrentCheckFollowing404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentCheckFollowingUrl(username).url.toString(),
     ...requestConfig,
   });

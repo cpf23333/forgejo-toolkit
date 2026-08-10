@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { QuotaUsedPackage } from "./QuotaUsedPackage"
+import type { QuotaUsedPackage } from './QuotaUsedPackage';
 
 /**
  * @description QuotaUsedPackageList represents a list of packages counting towards a user\'s quota

@@ -3,25 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserDeleteOAuth2ApplicationMutationResponse,
   UserDeleteOAuth2ApplicationPathParams,
   UserDeleteOAuth2Application401,
   UserDeleteOAuth2Application403,
   UserDeleteOAuth2Application404,
-} from "../types/UserDeleteOAuth2Application"
+} from '../types/UserDeleteOAuth2Application';
 
-function getUserDeleteOAuth2ApplicationUrl(
-  id: UserDeleteOAuth2ApplicationPathParams["id"],
-) {
+function getUserDeleteOAuth2ApplicationUrl(id: UserDeleteOAuth2ApplicationPathParams['id']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/user/applications/oauth2/${id}` as const,
   };
   return res;
@@ -32,7 +26,7 @@ function getUserDeleteOAuth2ApplicationUrl(
  * {@link /user/applications/oauth2/:id}
  */
 export async function userDeleteOAuth2Application(
-  id: UserDeleteOAuth2ApplicationPathParams["id"],
+  id: UserDeleteOAuth2ApplicationPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -40,13 +34,11 @@ export async function userDeleteOAuth2Application(
   const res = await request<
     UserDeleteOAuth2ApplicationMutationResponse,
     ResponseErrorConfig<
-      | UserDeleteOAuth2Application401
-      | UserDeleteOAuth2Application403
-      | UserDeleteOAuth2Application404
+      UserDeleteOAuth2Application401 | UserDeleteOAuth2Application403 | UserDeleteOAuth2Application404
     >,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getUserDeleteOAuth2ApplicationUrl(id).url.toString(),
     ...requestConfig,
   });

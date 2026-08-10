@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetRawFileOrLFSQueryResponse,
-  RepoGetRawFileOrLFS404,
-} from "../types/RepoGetRawFileOrLFS"
-import { http } from "msw";
+import type { RepoGetRawFileOrLFSQueryResponse, RepoGetRawFileOrLFS404 } from '../types/RepoGetRawFileOrLFS';
+import { http } from 'msw';
 
-export function repoGetRawFileOrLFSHandlerResponse200(
-  data: RepoGetRawFileOrLFSQueryResponse,
-) {
+export function repoGetRawFileOrLFSHandlerResponse200(data: RepoGetRawFileOrLFSQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/octet-stream",
+      'Content-Type': 'application/octet-stream',
     },
   });
 }
 
-export function repoGetRawFileOrLFSHandlerResponse404(
-  data: RepoGetRawFileOrLFS404,
-) {
+export function repoGetRawFileOrLFSHandlerResponse404(data: RepoGetRawFileOrLFS404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +27,16 @@ export function repoGetRawFileOrLFSHandlerResponse404(
 export function repoGetRawFileOrLFSHandler(
   data?:
     | RepoGetRawFileOrLFSQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/media/:filepath`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/media/:filepath`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/octet-stream",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/octet-stream',
+      },
+    });
+  });
 }

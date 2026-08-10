@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ListPackageFilesQueryResponse,
   ListPackageFilesPathParams,
   ListPackageFiles404,
-} from "../types/ListPackageFiles"
+} from '../types/ListPackageFiles';
 
 function getListPackageFilesUrl(
-  owner: ListPackageFilesPathParams["owner"],
-  type: ListPackageFilesPathParams["type"],
-  name: ListPackageFilesPathParams["name"],
-  version: ListPackageFilesPathParams["version"],
+  owner: ListPackageFilesPathParams['owner'],
+  type: ListPackageFilesPathParams['type'],
+  name: ListPackageFilesPathParams['name'],
+  version: ListPackageFilesPathParams['version'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/packages/${owner}/${type}/${name}/${version}/files` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getListPackageFilesUrl(
  * {@link /packages/:owner/:type/:name/:version/files}
  */
 export async function listPackageFiles(
-  owner: ListPackageFilesPathParams["owner"],
-  type: ListPackageFilesPathParams["type"],
-  name: ListPackageFilesPathParams["name"],
-  version: ListPackageFilesPathParams["version"],
+  owner: ListPackageFilesPathParams['owner'],
+  type: ListPackageFilesPathParams['type'],
+  name: ListPackageFilesPathParams['name'],
+  version: ListPackageFilesPathParams['version'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ListPackageFilesQueryResponse,
-    ResponseErrorConfig<ListPackageFiles404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ListPackageFilesQueryResponse, ResponseErrorConfig<ListPackageFiles404>, unknown>({
+    method: 'GET',
     url: getListPackageFilesUrl(owner, type, name, version).url.toString(),
     ...requestConfig,
   });

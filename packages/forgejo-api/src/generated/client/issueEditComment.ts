@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueEditCommentMutationRequest,
   IssueEditCommentMutationResponse,
@@ -17,15 +13,15 @@ import type {
   IssueEditComment404,
   IssueEditComment423,
   IssueEditComment500,
-} from "../types/IssueEditComment"
+} from '../types/IssueEditComment';
 
 function getIssueEditCommentUrl(
-  owner: IssueEditCommentPathParams["owner"],
-  repo: IssueEditCommentPathParams["repo"],
-  id: IssueEditCommentPathParams["id"],
+  owner: IssueEditCommentPathParams['owner'],
+  repo: IssueEditCommentPathParams['repo'],
+  id: IssueEditCommentPathParams['id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/issues/comments/${id}` as const,
   };
   return res;
@@ -36,9 +32,9 @@ function getIssueEditCommentUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id}
  */
 export async function issueEditComment(
-  owner: IssueEditCommentPathParams["owner"],
-  repo: IssueEditCommentPathParams["repo"],
-  id: IssueEditCommentPathParams["id"],
+  owner: IssueEditCommentPathParams['owner'],
+  repo: IssueEditCommentPathParams['repo'],
+  id: IssueEditCommentPathParams['id'],
   data: IssueEditCommentMutationRequest,
   config: Partial<RequestConfig<IssueEditCommentMutationRequest>> & {
     client?: Client;
@@ -50,15 +46,10 @@ export async function issueEditComment(
 
   const res = await request<
     IssueEditCommentMutationResponse,
-    ResponseErrorConfig<
-      | IssueEditComment403
-      | IssueEditComment404
-      | IssueEditComment423
-      | IssueEditComment500
-    >,
+    ResponseErrorConfig<IssueEditComment403 | IssueEditComment404 | IssueEditComment423 | IssueEditComment500>,
     IssueEditCommentMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getIssueEditCommentUrl(owner, repo, id).url.toString(),
     data: requestData,
     ...requestConfig,

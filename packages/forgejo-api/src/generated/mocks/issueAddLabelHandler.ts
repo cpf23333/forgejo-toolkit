@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueAddLabelMutationResponse,
-  IssueAddLabel403,
-  IssueAddLabel404,
-} from "../types/IssueAddLabel"
-import { http } from "msw";
+import type { IssueAddLabelMutationResponse, IssueAddLabel403, IssueAddLabel404 } from '../types/IssueAddLabel';
+import { http } from 'msw';
 
-export function issueAddLabelHandlerResponse200(
-  data: IssueAddLabelMutationResponse,
-) {
+export function issueAddLabelHandlerResponse200(data: IssueAddLabelMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function issueAddLabelHandlerResponse403(data: IssueAddLabel403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function issueAddLabelHandlerResponse404(data: IssueAddLabel404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,21 +36,16 @@ export function issueAddLabelHandlerResponse404(data: IssueAddLabel404) {
 export function issueAddLabelHandler(
   data?:
     | IssueAddLabelMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/:index/labels`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/:index/labels`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

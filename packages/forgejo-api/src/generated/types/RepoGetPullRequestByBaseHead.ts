@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { PullRequest } from "./PullRequest"
+import type { APINotFound } from './APINotFound';
+import type { PullRequest } from './PullRequest';
 
 export type RepoGetPullRequestByBaseHeadPathParams = {
   /**
@@ -39,8 +39,7 @@ export type RepoGetPullRequestByBaseHead200 = PullRequest;
  */
 export type RepoGetPullRequestByBaseHead404 = APINotFound;
 
-export type RepoGetPullRequestByBaseHeadQueryResponse =
-  RepoGetPullRequestByBaseHead200;
+export type RepoGetPullRequestByBaseHeadQueryResponse = RepoGetPullRequestByBaseHead200;
 
 export type RepoGetPullRequestByBaseHeadQuery = {
   Response: RepoGetPullRequestByBaseHead200;

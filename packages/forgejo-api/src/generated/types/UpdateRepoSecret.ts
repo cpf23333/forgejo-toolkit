@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { CreateOrUpdateSecretOption } from "./CreateOrUpdateSecretOption"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { CreateOrUpdateSecretOption } from './CreateOrUpdateSecretOption';
 
 export type UpdateRepoSecretPathParams = {
   /**
@@ -50,8 +50,7 @@ export type UpdateRepoSecret404 = APINotFound;
  */
 export type UpdateRepoSecretMutationRequest = CreateOrUpdateSecretOption;
 
-export type UpdateRepoSecretMutationResponse =
-  UpdateRepoSecret201 | UpdateRepoSecret204;
+export type UpdateRepoSecretMutationResponse = UpdateRepoSecret201 | UpdateRepoSecret204;
 
 export type UpdateRepoSecretMutation = {
   Response: UpdateRepoSecret201 | UpdateRepoSecret204;

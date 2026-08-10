@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { RepoListBranchProtectionQueryResponse } from "../types/RepoListBranchProtection"
-import { http } from "msw";
+import type { RepoListBranchProtectionQueryResponse } from '../types/RepoListBranchProtection';
+import { http } from 'msw';
 
-export function repoListBranchProtectionHandlerResponse200(
-  data: RepoListBranchProtectionQueryResponse,
-) {
+export function repoListBranchProtectionHandlerResponse200(data: RepoListBranchProtectionQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,21 +18,16 @@ export function repoListBranchProtectionHandlerResponse200(
 export function repoListBranchProtectionHandler(
   data?:
     | RepoListBranchProtectionQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/branch_protections`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/branch_protections`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

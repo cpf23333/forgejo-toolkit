@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgUpdateAvatarMutationResponse,
-  OrgUpdateAvatar404,
-} from "../types/OrgUpdateAvatar"
-import { http } from "msw";
+import type { OrgUpdateAvatarMutationResponse, OrgUpdateAvatar404 } from '../types/OrgUpdateAvatar';
+import { http } from 'msw';
 
-export function orgUpdateAvatarHandlerResponse204(
-  data?: OrgUpdateAvatarMutationResponse,
-) {
+export function orgUpdateAvatarHandlerResponse204(data?: OrgUpdateAvatarMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,7 +16,7 @@ export function orgUpdateAvatarHandlerResponse404(data: OrgUpdateAvatar404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,12 +28,10 @@ export function orgUpdateAvatarHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/orgs/:org/avatar`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

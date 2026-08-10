@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  UserEditHookMutationResponse,
-  UserEditHook401,
-  UserEditHook403,
-} from "../types/UserEditHook"
-import { http } from "msw";
+import type { UserEditHookMutationResponse, UserEditHook401, UserEditHook403 } from '../types/UserEditHook';
+import { http } from 'msw';
 
-export function userEditHookHandlerResponse200(
-  data: UserEditHookMutationResponse,
-) {
+export function userEditHookHandlerResponse200(data: UserEditHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function userEditHookHandlerResponse401(data: UserEditHook401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function userEditHookHandlerResponse403(data: UserEditHook403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function userEditHookHandlerResponse403(data: UserEditHook403) {
 export function userEditHookHandler(
   data?:
     | UserEditHookMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/user/hooks/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

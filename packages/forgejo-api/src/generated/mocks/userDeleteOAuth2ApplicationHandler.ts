@@ -8,46 +8,38 @@ import type {
   UserDeleteOAuth2Application401,
   UserDeleteOAuth2Application403,
   UserDeleteOAuth2Application404,
-} from "../types/UserDeleteOAuth2Application"
-import { http } from "msw";
+} from '../types/UserDeleteOAuth2Application';
+import { http } from 'msw';
 
-export function userDeleteOAuth2ApplicationHandlerResponse204(
-  data?: UserDeleteOAuth2ApplicationMutationResponse,
-) {
+export function userDeleteOAuth2ApplicationHandlerResponse204(data?: UserDeleteOAuth2ApplicationMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userDeleteOAuth2ApplicationHandlerResponse401(
-  data: UserDeleteOAuth2Application401,
-) {
+export function userDeleteOAuth2ApplicationHandlerResponse401(data: UserDeleteOAuth2Application401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userDeleteOAuth2ApplicationHandlerResponse403(
-  data: UserDeleteOAuth2Application403,
-) {
+export function userDeleteOAuth2ApplicationHandlerResponse403(data: UserDeleteOAuth2Application403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userDeleteOAuth2ApplicationHandlerResponse404(
-  data: UserDeleteOAuth2Application404,
-) {
+export function userDeleteOAuth2ApplicationHandlerResponse404(data: UserDeleteOAuth2Application404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function userDeleteOAuth2ApplicationHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/user/applications/oauth2/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

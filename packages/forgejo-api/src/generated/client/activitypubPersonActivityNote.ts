@@ -3,23 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ActivitypubPersonActivityNoteQueryResponse,
   ActivitypubPersonActivityNotePathParams,
-} from "../types/ActivitypubPersonActivityNote"
+} from '../types/ActivitypubPersonActivityNote';
 
 function getActivitypubPersonActivityNoteUrl(
-  userId: ActivitypubPersonActivityNotePathParams["user-id"],
-  activityId: ActivitypubPersonActivityNotePathParams["activity-id"],
+  userId: ActivitypubPersonActivityNotePathParams['user-id'],
+  activityId: ActivitypubPersonActivityNotePathParams['activity-id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/activitypub/user-id/${userId}/activities/${activityId}` as const,
   };
   return res;
@@ -30,18 +26,14 @@ function getActivitypubPersonActivityNoteUrl(
  * {@link /activitypub/user-id/:user-id/activities/:activity-id}
  */
 export async function activitypubPersonActivityNote(
-  userId: ActivitypubPersonActivityNotePathParams["user-id"],
-  activityId: ActivitypubPersonActivityNotePathParams["activity-id"],
+  userId: ActivitypubPersonActivityNotePathParams['user-id'],
+  activityId: ActivitypubPersonActivityNotePathParams['activity-id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ActivitypubPersonActivityNoteQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ActivitypubPersonActivityNoteQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getActivitypubPersonActivityNoteUrl(userId, activityId).url.toString(),
     ...requestConfig,
   });

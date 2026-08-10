@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetUserVariablesListQueryResponse,
   GetUserVariablesListQueryParams,
@@ -16,10 +12,10 @@ import type {
   GetUserVariablesList401,
   GetUserVariablesList403,
   GetUserVariablesList404,
-} from "../types/GetUserVariablesList"
+} from '../types/GetUserVariablesList';
 
 function getGetUserVariablesListUrl() {
-  const res = { method: "GET", url: `/user/actions/variables` as const };
+  const res = { method: 'GET', url: `/user/actions/variables` as const };
   return res;
 }
 
@@ -36,14 +32,11 @@ export async function getUserVariablesList(
   const res = await request<
     GetUserVariablesListQueryResponse,
     ResponseErrorConfig<
-      | GetUserVariablesList400
-      | GetUserVariablesList401
-      | GetUserVariablesList403
-      | GetUserVariablesList404
+      GetUserVariablesList400 | GetUserVariablesList401 | GetUserVariablesList403 | GetUserVariablesList404
     >,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetUserVariablesListUrl().url.toString(),
     params,
     ...requestConfig,

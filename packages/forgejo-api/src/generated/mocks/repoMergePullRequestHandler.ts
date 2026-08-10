@@ -10,62 +10,50 @@ import type {
   RepoMergePullRequest409,
   RepoMergePullRequest413,
   RepoMergePullRequest423,
-} from "../types/RepoMergePullRequest"
-import { http } from "msw";
+} from '../types/RepoMergePullRequest';
+import { http } from 'msw';
 
-export function repoMergePullRequestHandlerResponse200(
-  data?: RepoMergePullRequestMutationResponse,
-) {
+export function repoMergePullRequestHandlerResponse200(data?: RepoMergePullRequestMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
 }
 
-export function repoMergePullRequestHandlerResponse404(
-  data: RepoMergePullRequest404,
-) {
+export function repoMergePullRequestHandlerResponse404(data: RepoMergePullRequest404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoMergePullRequestHandlerResponse405(
-  data?: RepoMergePullRequest405,
-) {
+export function repoMergePullRequestHandlerResponse405(data?: RepoMergePullRequest405) {
   return new Response(JSON.stringify(data), {
     status: 405,
   });
 }
 
-export function repoMergePullRequestHandlerResponse409(
-  data: RepoMergePullRequest409,
-) {
+export function repoMergePullRequestHandlerResponse409(data: RepoMergePullRequest409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoMergePullRequestHandlerResponse413(
-  data?: RepoMergePullRequest413,
-) {
+export function repoMergePullRequestHandlerResponse413(data?: RepoMergePullRequest413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function repoMergePullRequestHandlerResponse423(
-  data: RepoMergePullRequest423,
-) {
+export function repoMergePullRequestHandlerResponse423(data: RepoMergePullRequest423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -77,18 +65,13 @@ export function repoMergePullRequestHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/pulls/:index/merge`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/pulls/:index/merge`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+    });
+  });
 }

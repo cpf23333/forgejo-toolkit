@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListSubscribersQueryResponse,
   RepoListSubscribersPathParams,
   RepoListSubscribersQueryParams,
   RepoListSubscribers404,
-} from "../types/RepoListSubscribers"
+} from '../types/RepoListSubscribers';
 
 function getRepoListSubscribersUrl(
-  owner: RepoListSubscribersPathParams["owner"],
-  repo: RepoListSubscribersPathParams["repo"],
+  owner: RepoListSubscribersPathParams['owner'],
+  repo: RepoListSubscribersPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/subscribers` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoListSubscribersUrl(
  * {@link /repos/:owner/:repo/subscribers}
  */
 export async function repoListSubscribers(
-  owner: RepoListSubscribersPathParams["owner"],
-  repo: RepoListSubscribersPathParams["repo"],
+  owner: RepoListSubscribersPathParams['owner'],
+  repo: RepoListSubscribersPathParams['repo'],
   params?: RepoListSubscribersQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoListSubscribersQueryResponse,
-    ResponseErrorConfig<RepoListSubscribers404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoListSubscribersQueryResponse, ResponseErrorConfig<RepoListSubscribers404>, unknown>({
+    method: 'GET',
     url: getRepoListSubscribersUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

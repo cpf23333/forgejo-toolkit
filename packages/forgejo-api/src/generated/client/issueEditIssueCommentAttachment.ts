@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueEditIssueCommentAttachmentMutationRequest,
   IssueEditIssueCommentAttachmentMutationResponse,
@@ -16,16 +12,16 @@ import type {
   IssueEditIssueCommentAttachment404,
   IssueEditIssueCommentAttachment413,
   IssueEditIssueCommentAttachment423,
-} from "../types/IssueEditIssueCommentAttachment"
+} from '../types/IssueEditIssueCommentAttachment';
 
 function getIssueEditIssueCommentAttachmentUrl(
-  owner: IssueEditIssueCommentAttachmentPathParams["owner"],
-  repo: IssueEditIssueCommentAttachmentPathParams["repo"],
-  id: IssueEditIssueCommentAttachmentPathParams["id"],
-  attachment_id: IssueEditIssueCommentAttachmentPathParams["attachment_id"],
+  owner: IssueEditIssueCommentAttachmentPathParams['owner'],
+  repo: IssueEditIssueCommentAttachmentPathParams['repo'],
+  id: IssueEditIssueCommentAttachmentPathParams['id'],
+  attachment_id: IssueEditIssueCommentAttachmentPathParams['attachment_id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/issues/comments/${id}/assets/${attachment_id}` as const,
   };
   return res;
@@ -36,14 +32,12 @@ function getIssueEditIssueCommentAttachmentUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id/assets/:attachment_id}
  */
 export async function issueEditIssueCommentAttachment(
-  owner: IssueEditIssueCommentAttachmentPathParams["owner"],
-  repo: IssueEditIssueCommentAttachmentPathParams["repo"],
-  id: IssueEditIssueCommentAttachmentPathParams["id"],
-  attachment_id: IssueEditIssueCommentAttachmentPathParams["attachment_id"],
+  owner: IssueEditIssueCommentAttachmentPathParams['owner'],
+  repo: IssueEditIssueCommentAttachmentPathParams['repo'],
+  id: IssueEditIssueCommentAttachmentPathParams['id'],
+  attachment_id: IssueEditIssueCommentAttachmentPathParams['attachment_id'],
   data?: IssueEditIssueCommentAttachmentMutationRequest,
-  config: Partial<
-    RequestConfig<IssueEditIssueCommentAttachmentMutationRequest>
-  > & { client?: Client } = {},
+  config: Partial<RequestConfig<IssueEditIssueCommentAttachmentMutationRequest>> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
@@ -52,19 +46,12 @@ export async function issueEditIssueCommentAttachment(
   const res = await request<
     IssueEditIssueCommentAttachmentMutationResponse,
     ResponseErrorConfig<
-      | IssueEditIssueCommentAttachment404
-      | IssueEditIssueCommentAttachment413
-      | IssueEditIssueCommentAttachment423
+      IssueEditIssueCommentAttachment404 | IssueEditIssueCommentAttachment413 | IssueEditIssueCommentAttachment423
     >,
     IssueEditIssueCommentAttachmentMutationRequest
   >({
-    method: "PATCH",
-    url: getIssueEditIssueCommentAttachmentUrl(
-      owner,
-      repo,
-      id,
-      attachment_id,
-    ).url.toString(),
+    method: 'PATCH',
+    url: getIssueEditIssueCommentAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
     data: requestData,
     ...requestConfig,
   });

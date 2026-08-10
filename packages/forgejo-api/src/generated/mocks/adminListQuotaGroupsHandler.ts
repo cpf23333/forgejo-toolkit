@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  AdminListQuotaGroupsQueryResponse,
-  AdminListQuotaGroups403,
-} from "../types/AdminListQuotaGroups"
-import { http } from "msw";
+import type { AdminListQuotaGroupsQueryResponse, AdminListQuotaGroups403 } from '../types/AdminListQuotaGroups';
+import { http } from 'msw';
 
-export function adminListQuotaGroupsHandlerResponse200(
-  data: AdminListQuotaGroupsQueryResponse,
-) {
+export function adminListQuotaGroupsHandlerResponse200(data: AdminListQuotaGroupsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminListQuotaGroupsHandlerResponse403(
-  data: AdminListQuotaGroups403,
-) {
+export function adminListQuotaGroupsHandlerResponse403(data: AdminListQuotaGroups403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function adminListQuotaGroupsHandlerResponse403(
 export function adminListQuotaGroupsHandler(
   data?:
     | AdminListQuotaGroupsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/quota/groups`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

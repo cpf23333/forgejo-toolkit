@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserListBlockedUsersQueryResponse,
   UserListBlockedUsersQueryParams,
   UserListBlockedUsers401,
   UserListBlockedUsers403,
-} from "../types/UserListBlockedUsers"
+} from '../types/UserListBlockedUsers';
 
 function getUserListBlockedUsersUrl() {
-  const res = { method: "GET", url: `/user/list_blocked` as const };
+  const res = { method: 'GET', url: `/user/list_blocked` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function userListBlockedUsers(
     ResponseErrorConfig<UserListBlockedUsers401 | UserListBlockedUsers403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserListBlockedUsersUrl().url.toString(),
     params,
     ...requestConfig,

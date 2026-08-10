@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { ServerVersion } from "./ServerVersion"
+import type { ServerVersion } from './ServerVersion';
 
 /**
  * @description ServerVersion

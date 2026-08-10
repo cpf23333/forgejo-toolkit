@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { ActionRunner } from "./ActionRunner"
+import type { ActionRunner } from './ActionRunner';
 
 export type ActionRunnerList = ActionRunner[];

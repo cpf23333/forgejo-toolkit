@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgListTeamsQueryResponse,
-  OrgListTeams404,
-} from "../types/OrgListTeams"
-import { http } from "msw";
+import type { OrgListTeamsQueryResponse, OrgListTeams404 } from '../types/OrgListTeams';
+import { http } from 'msw';
 
-export function orgListTeamsHandlerResponse200(
-  data: OrgListTeamsQueryResponse,
-) {
+export function orgListTeamsHandlerResponse200(data: OrgListTeamsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function orgListTeamsHandlerResponse404(data: OrgListTeams404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function orgListTeamsHandlerResponse404(data: OrgListTeams404) {
 export function orgListTeamsHandler(
   data?:
     | OrgListTeamsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/teams`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

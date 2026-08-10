@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListReleaseAttachmentsQueryResponse,
   RepoListReleaseAttachmentsPathParams,
   RepoListReleaseAttachments404,
-} from "../types/RepoListReleaseAttachments"
+} from '../types/RepoListReleaseAttachments';
 
 function getRepoListReleaseAttachmentsUrl(
-  owner: RepoListReleaseAttachmentsPathParams["owner"],
-  repo: RepoListReleaseAttachmentsPathParams["repo"],
-  id: RepoListReleaseAttachmentsPathParams["id"],
+  owner: RepoListReleaseAttachmentsPathParams['owner'],
+  repo: RepoListReleaseAttachmentsPathParams['repo'],
+  id: RepoListReleaseAttachmentsPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/releases/${id}/assets` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getRepoListReleaseAttachmentsUrl(
  * {@link /repos/:owner/:repo/releases/:id/assets}
  */
 export async function repoListReleaseAttachments(
-  owner: RepoListReleaseAttachmentsPathParams["owner"],
-  repo: RepoListReleaseAttachmentsPathParams["repo"],
-  id: RepoListReleaseAttachmentsPathParams["id"],
+  owner: RepoListReleaseAttachmentsPathParams['owner'],
+  repo: RepoListReleaseAttachmentsPathParams['repo'],
+  id: RepoListReleaseAttachmentsPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function repoListReleaseAttachments(
     ResponseErrorConfig<RepoListReleaseAttachments404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoListReleaseAttachmentsUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

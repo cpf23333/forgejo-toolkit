@@ -3,14 +3,14 @@
  * Do not edit manually.
  */
 
-import type { UserGetQueryResponse, UserGet404 } from "../types/UserGet"
-import { http } from "msw";
+import type { UserGetQueryResponse, UserGet404 } from '../types/UserGet';
+import { http } from 'msw';
 
 export function userGetHandlerResponse200(data: UserGetQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -19,25 +19,21 @@ export function userGetHandlerResponse404(data: UserGet404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
 export function userGetHandler(
-  data?:
-    | UserGetQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+  data?: UserGetQueryResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { QuotaRuleInfo } from "./QuotaRuleInfo"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
 export type AdminGetQuotaRulePathParams = {
   /**

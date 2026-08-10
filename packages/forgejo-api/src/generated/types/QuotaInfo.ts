@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { QuotaGroupList } from "./QuotaGroupList"
-import type { QuotaUsed } from "./QuotaUsed"
+import type { QuotaGroupList } from './QuotaGroupList';
+import type { QuotaUsed } from './QuotaUsed';
 
 /**
  * @description QuotaInfo represents information about a user\'s quota

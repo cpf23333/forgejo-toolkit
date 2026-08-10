@@ -7,35 +7,29 @@ import type {
   RepoSyncForkBranchMutationResponse,
   RepoSyncForkBranch400,
   RepoSyncForkBranch404,
-} from "../types/RepoSyncForkBranch"
-import { http } from "msw";
+} from '../types/RepoSyncForkBranch';
+import { http } from 'msw';
 
-export function repoSyncForkBranchHandlerResponse204(
-  data?: RepoSyncForkBranchMutationResponse,
-) {
+export function repoSyncForkBranchHandlerResponse204(data?: RepoSyncForkBranchMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoSyncForkBranchHandlerResponse400(
-  data: RepoSyncForkBranch400,
-) {
+export function repoSyncForkBranchHandlerResponse400(data: RepoSyncForkBranch400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoSyncForkBranchHandlerResponse404(
-  data: RepoSyncForkBranch404,
-) {
+export function repoSyncForkBranchHandlerResponse404(data: RepoSyncForkBranch404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,18 +41,13 @@ export function repoSyncForkBranchHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/sync_fork/:branch`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/sync_fork/:branch`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
 
 export type RepoDeletePullReviewCommentPathParams = {
   /**
@@ -49,8 +49,7 @@ export type RepoDeletePullReviewComment403 = APIForbiddenError;
  */
 export type RepoDeletePullReviewComment404 = APINotFound;
 
-export type RepoDeletePullReviewCommentMutationResponse =
-  RepoDeletePullReviewComment204;
+export type RepoDeletePullReviewCommentMutationResponse = RepoDeletePullReviewComment204;
 
 export type RepoDeletePullReviewCommentMutation = {
   Response: RepoDeletePullReviewComment204;

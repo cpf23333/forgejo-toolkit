@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateTagMutationRequest,
   RepoCreateTagMutationResponse,
@@ -19,13 +15,10 @@ import type {
   RepoCreateTag413,
   RepoCreateTag422,
   RepoCreateTag423,
-} from "../types/RepoCreateTag"
+} from '../types/RepoCreateTag';
 
-function getRepoCreateTagUrl(
-  owner: RepoCreateTagPathParams["owner"],
-  repo: RepoCreateTagPathParams["repo"],
-) {
-  const res = { method: "POST", url: `/repos/${owner}/${repo}/tags` as const };
+function getRepoCreateTagUrl(owner: RepoCreateTagPathParams['owner'], repo: RepoCreateTagPathParams['repo']) {
+  const res = { method: 'POST', url: `/repos/${owner}/${repo}/tags` as const };
   return res;
 }
 
@@ -34,8 +27,8 @@ function getRepoCreateTagUrl(
  * {@link /repos/:owner/:repo/tags}
  */
 export async function repoCreateTag(
-  owner: RepoCreateTagPathParams["owner"],
-  repo: RepoCreateTagPathParams["repo"],
+  owner: RepoCreateTagPathParams['owner'],
+  repo: RepoCreateTagPathParams['repo'],
   data: RepoCreateTagMutationRequest,
   config: Partial<RequestConfig<RepoCreateTagMutationRequest>> & {
     client?: Client;
@@ -48,16 +41,11 @@ export async function repoCreateTag(
   const res = await request<
     RepoCreateTagMutationResponse,
     ResponseErrorConfig<
-      | RepoCreateTag404
-      | RepoCreateTag405
-      | RepoCreateTag409
-      | RepoCreateTag413
-      | RepoCreateTag422
-      | RepoCreateTag423
+      RepoCreateTag404 | RepoCreateTag405 | RepoCreateTag409 | RepoCreateTag413 | RepoCreateTag422 | RepoCreateTag423
     >,
     RepoCreateTagMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateTagUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Tag } from "./Tag"
+import type { APINotFound } from './APINotFound';
+import type { Tag } from './Tag';
 
 export type RepoListTagsPathParams = {
   /**

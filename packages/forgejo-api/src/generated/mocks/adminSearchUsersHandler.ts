@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  AdminSearchUsersQueryResponse,
-  AdminSearchUsers403,
-} from "../types/AdminSearchUsers"
-import { http } from "msw";
+import type { AdminSearchUsersQueryResponse, AdminSearchUsers403 } from '../types/AdminSearchUsers';
+import { http } from 'msw';
 
-export function adminSearchUsersHandlerResponse200(
-  data: AdminSearchUsersQueryResponse,
-) {
+export function adminSearchUsersHandlerResponse200(data: AdminSearchUsersQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function adminSearchUsersHandlerResponse403(data: AdminSearchUsers403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function adminSearchUsersHandlerResponse403(data: AdminSearchUsers403) {
 export function adminSearchUsersHandler(
   data?:
     | AdminSearchUsersQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/users`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

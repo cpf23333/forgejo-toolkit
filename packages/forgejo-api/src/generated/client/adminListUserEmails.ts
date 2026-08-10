@@ -3,24 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminListUserEmailsQueryResponse,
   AdminListUserEmailsPathParams,
   AdminListUserEmails403,
   AdminListUserEmails404,
-} from "../types/AdminListUserEmails"
+} from '../types/AdminListUserEmails';
 
-function getAdminListUserEmailsUrl(
-  username: AdminListUserEmailsPathParams["username"],
-) {
+function getAdminListUserEmailsUrl(username: AdminListUserEmailsPathParams['username']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/admin/users/${username}/emails` as const,
   };
   return res;
@@ -31,7 +25,7 @@ function getAdminListUserEmailsUrl(
  * {@link /admin/users/:username/emails}
  */
 export async function adminListUserEmails(
-  username: AdminListUserEmailsPathParams["username"],
+  username: AdminListUserEmailsPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -41,7 +35,7 @@ export async function adminListUserEmails(
     ResponseErrorConfig<AdminListUserEmails403 | AdminListUserEmails404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getAdminListUserEmailsUrl(username).url.toString(),
     ...requestConfig,
   });

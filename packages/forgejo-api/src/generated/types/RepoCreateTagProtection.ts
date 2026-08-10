@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateTagProtectionOption } from "./CreateTagProtectionOption"
-import type { TagProtection } from "./TagProtection"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateTagProtectionOption } from './CreateTagProtectionOption';
+import type { TagProtection } from './TagProtection';
 
 export type RepoCreateTagProtectionPathParams = {
   /**
@@ -50,8 +50,7 @@ export type RepoCreateTagProtection423 = APIRepoArchivedError;
 
 export type RepoCreateTagProtectionMutationRequest = CreateTagProtectionOption;
 
-export type RepoCreateTagProtectionMutationResponse =
-  RepoCreateTagProtection201;
+export type RepoCreateTagProtectionMutationResponse = RepoCreateTagProtection201;
 
 export type RepoCreateTagProtectionMutation = {
   Response: RepoCreateTagProtection201;

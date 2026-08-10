@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetContentsListQueryResponse,
   RepoGetContentsListPathParams,
   RepoGetContentsListQueryParams,
   RepoGetContentsList404,
-} from "../types/RepoGetContentsList"
+} from '../types/RepoGetContentsList';
 
 function getRepoGetContentsListUrl(
-  owner: RepoGetContentsListPathParams["owner"],
-  repo: RepoGetContentsListPathParams["repo"],
+  owner: RepoGetContentsListPathParams['owner'],
+  repo: RepoGetContentsListPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/contents` as const,
   };
   return res;
@@ -32,19 +28,15 @@ function getRepoGetContentsListUrl(
  * {@link /repos/:owner/:repo/contents}
  */
 export async function repoGetContentsList(
-  owner: RepoGetContentsListPathParams["owner"],
-  repo: RepoGetContentsListPathParams["repo"],
+  owner: RepoGetContentsListPathParams['owner'],
+  repo: RepoGetContentsListPathParams['repo'],
   params?: RepoGetContentsListQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetContentsListQueryResponse,
-    ResponseErrorConfig<RepoGetContentsList404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetContentsListQueryResponse, ResponseErrorConfig<RepoGetContentsList404>, unknown>({
+    method: 'GET',
     url: getRepoGetContentsListUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

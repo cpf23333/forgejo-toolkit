@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueEditCommentDeprecatedMutationRequest,
   IssueEditCommentDeprecatedMutationResponse,
@@ -16,16 +12,16 @@ import type {
   IssueEditCommentDeprecated403,
   IssueEditCommentDeprecated404,
   IssueEditCommentDeprecated500,
-} from "../types/IssueEditCommentDeprecated"
+} from '../types/IssueEditCommentDeprecated';
 
 function getIssueEditCommentDeprecatedUrl(
-  owner: IssueEditCommentDeprecatedPathParams["owner"],
-  repo: IssueEditCommentDeprecatedPathParams["repo"],
-  index: IssueEditCommentDeprecatedPathParams["index"],
-  id: IssueEditCommentDeprecatedPathParams["id"],
+  owner: IssueEditCommentDeprecatedPathParams['owner'],
+  repo: IssueEditCommentDeprecatedPathParams['repo'],
+  index: IssueEditCommentDeprecatedPathParams['index'],
+  id: IssueEditCommentDeprecatedPathParams['id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/issues/${index}/comments/${id}` as const,
   };
   return res;
@@ -37,10 +33,10 @@ function getIssueEditCommentDeprecatedUrl(
  * @deprecated
  */
 export async function issueEditCommentDeprecated(
-  owner: IssueEditCommentDeprecatedPathParams["owner"],
-  repo: IssueEditCommentDeprecatedPathParams["repo"],
-  index: IssueEditCommentDeprecatedPathParams["index"],
-  id: IssueEditCommentDeprecatedPathParams["id"],
+  owner: IssueEditCommentDeprecatedPathParams['owner'],
+  repo: IssueEditCommentDeprecatedPathParams['repo'],
+  index: IssueEditCommentDeprecatedPathParams['index'],
+  id: IssueEditCommentDeprecatedPathParams['id'],
   data: IssueEditCommentDeprecatedMutationRequest,
   config: Partial<RequestConfig<IssueEditCommentDeprecatedMutationRequest>> & {
     client?: Client;
@@ -52,20 +48,11 @@ export async function issueEditCommentDeprecated(
 
   const res = await request<
     IssueEditCommentDeprecatedMutationResponse,
-    ResponseErrorConfig<
-      | IssueEditCommentDeprecated403
-      | IssueEditCommentDeprecated404
-      | IssueEditCommentDeprecated500
-    >,
+    ResponseErrorConfig<IssueEditCommentDeprecated403 | IssueEditCommentDeprecated404 | IssueEditCommentDeprecated500>,
     IssueEditCommentDeprecatedMutationRequest
   >({
-    method: "PATCH",
-    url: getIssueEditCommentDeprecatedUrl(
-      owner,
-      repo,
-      index,
-      id,
-    ).url.toString(),
+    method: 'PATCH',
+    url: getIssueEditCommentDeprecatedUrl(owner, repo, index, id).url.toString(),
     data: requestData,
     ...requestConfig,
   });

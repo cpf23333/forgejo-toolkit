@@ -3,25 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetWikiPagesQueryResponse,
   RepoGetWikiPagesPathParams,
   RepoGetWikiPagesQueryParams,
   RepoGetWikiPages404,
-} from "../types/RepoGetWikiPages"
+} from '../types/RepoGetWikiPages';
 
-function getRepoGetWikiPagesUrl(
-  owner: RepoGetWikiPagesPathParams["owner"],
-  repo: RepoGetWikiPagesPathParams["repo"],
-) {
+function getRepoGetWikiPagesUrl(owner: RepoGetWikiPagesPathParams['owner'], repo: RepoGetWikiPagesPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/wiki/pages` as const,
   };
   return res;
@@ -32,19 +25,15 @@ function getRepoGetWikiPagesUrl(
  * {@link /repos/:owner/:repo/wiki/pages}
  */
 export async function repoGetWikiPages(
-  owner: RepoGetWikiPagesPathParams["owner"],
-  repo: RepoGetWikiPagesPathParams["repo"],
+  owner: RepoGetWikiPagesPathParams['owner'],
+  repo: RepoGetWikiPagesPathParams['repo'],
   params?: RepoGetWikiPagesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetWikiPagesQueryResponse,
-    ResponseErrorConfig<RepoGetWikiPages404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetWikiPagesQueryResponse, ResponseErrorConfig<RepoGetWikiPages404>, unknown>({
+    method: 'GET',
     url: getRepoGetWikiPagesUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

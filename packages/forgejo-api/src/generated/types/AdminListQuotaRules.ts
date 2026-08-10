@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { QuotaRuleInfo } from "./QuotaRuleInfo"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { QuotaRuleInfo } from './QuotaRuleInfo';
 
 /**
  * @description QuotaRuleInfoList

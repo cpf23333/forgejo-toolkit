@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgBlockUserMutationResponse,
   OrgBlockUserPathParams,
   OrgBlockUser404,
   OrgBlockUser422,
-} from "../types/OrgBlockUser"
+} from '../types/OrgBlockUser';
 
-function getOrgBlockUserUrl(
-  org: OrgBlockUserPathParams["org"],
-  username: OrgBlockUserPathParams["username"],
-) {
-  const res = { method: "PUT", url: `/orgs/${org}/block/${username}` as const };
+function getOrgBlockUserUrl(org: OrgBlockUserPathParams['org'], username: OrgBlockUserPathParams['username']) {
+  const res = { method: 'PUT', url: `/orgs/${org}/block/${username}` as const };
   return res;
 }
 
@@ -29,8 +22,8 @@ function getOrgBlockUserUrl(
  * {@link /orgs/:org/block/:username}
  */
 export async function orgBlockUser(
-  org: OrgBlockUserPathParams["org"],
-  username: OrgBlockUserPathParams["username"],
+  org: OrgBlockUserPathParams['org'],
+  username: OrgBlockUserPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -40,7 +33,7 @@ export async function orgBlockUser(
     ResponseErrorConfig<OrgBlockUser404 | OrgBlockUser422>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getOrgBlockUserUrl(org, username).url.toString(),
     ...requestConfig,
   });

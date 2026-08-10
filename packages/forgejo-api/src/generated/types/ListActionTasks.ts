@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { ActionTaskResponse } from "./ActionTaskResponse"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { ActionTaskResponse } from './ActionTaskResponse';
 
 export type ListActionTasksPathParams = {
   /**
@@ -23,14 +23,14 @@ export type ListActionTasksPathParams = {
 };
 
 export const listActionTasksQueryParamsStatusEnum = {
-  unknown: "unknown",
-  waiting: "waiting",
-  running: "running",
-  success: "success",
-  failure: "failure",
-  cancelled: "cancelled",
-  skipped: "skipped",
-  blocked: "blocked",
+  unknown: 'unknown',
+  waiting: 'waiting',
+  running: 'running',
+  success: 'success',
+  failure: 'failure',
+  cancelled: 'cancelled',
+  skipped: 'skipped',
+  blocked: 'blocked',
 } as const;
 
 export type ListActionTasksQueryParamsStatusEnumKey =
@@ -90,10 +90,5 @@ export type ListActionTasksQuery = {
   Response: ListActionTasks200;
   PathParams: ListActionTasksPathParams;
   QueryParams: ListActionTasksQueryParams;
-  Errors:
-    | ListActionTasks400
-    | ListActionTasks403
-    | ListActionTasks404
-    | ListActionTasks409
-    | ListActionTasks422;
+  Errors: ListActionTasks400 | ListActionTasks403 | ListActionTasks404 | ListActionTasks409 | ListActionTasks422;
 };

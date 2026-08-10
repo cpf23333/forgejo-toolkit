@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentListKeysQueryResponse,
   UserCurrentListKeysQueryParams,
   UserCurrentListKeys401,
   UserCurrentListKeys403,
-} from "../types/UserCurrentListKeys"
+} from '../types/UserCurrentListKeys';
 
 function getUserCurrentListKeysUrl() {
-  const res = { method: "GET", url: `/user/keys` as const };
+  const res = { method: 'GET', url: `/user/keys` as const };
   return res;
 }
 
@@ -36,7 +32,7 @@ export async function userCurrentListKeys(
     ResponseErrorConfig<UserCurrentListKeys401 | UserCurrentListKeys403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCurrentListKeysUrl().url.toString(),
     params,
     ...requestConfig,

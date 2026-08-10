@@ -11,16 +11,14 @@ import type {
   RepoUpdateFile413,
   RepoUpdateFile422,
   RepoUpdateFile423,
-} from "../types/RepoUpdateFile"
-import { http } from "msw";
+} from '../types/RepoUpdateFile';
+import { http } from 'msw';
 
-export function repoUpdateFileHandlerResponse200(
-  data: RepoUpdateFileMutationResponse,
-) {
+export function repoUpdateFileHandlerResponse200(data: RepoUpdateFileMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -29,7 +27,7 @@ export function repoUpdateFileHandlerResponse403(data: RepoUpdateFile403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -38,7 +36,7 @@ export function repoUpdateFileHandlerResponse404(data: RepoUpdateFile404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,7 +57,7 @@ export function repoUpdateFileHandlerResponse422(data: RepoUpdateFile422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -68,7 +66,7 @@ export function repoUpdateFileHandlerResponse423(data: RepoUpdateFile423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -76,21 +74,16 @@ export function repoUpdateFileHandlerResponse423(data: RepoUpdateFile423) {
 export function repoUpdateFileHandler(
   data?:
     | RepoUpdateFileMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.put(
-    `/repos/:owner/:repo/contents/:filepath`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.put(`/repos/:owner/:repo/contents/:filepath`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

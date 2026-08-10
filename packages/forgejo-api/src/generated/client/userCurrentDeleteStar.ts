@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentDeleteStarMutationResponse,
   UserCurrentDeleteStarPathParams,
   UserCurrentDeleteStar401,
   UserCurrentDeleteStar403,
   UserCurrentDeleteStar404,
-} from "../types/UserCurrentDeleteStar"
+} from '../types/UserCurrentDeleteStar';
 
 function getUserCurrentDeleteStarUrl(
-  owner: UserCurrentDeleteStarPathParams["owner"],
-  repo: UserCurrentDeleteStarPathParams["repo"],
+  owner: UserCurrentDeleteStarPathParams['owner'],
+  repo: UserCurrentDeleteStarPathParams['repo'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/user/starred/${owner}/${repo}` as const,
   };
   return res;
@@ -33,22 +29,18 @@ function getUserCurrentDeleteStarUrl(
  * {@link /user/starred/:owner/:repo}
  */
 export async function userCurrentDeleteStar(
-  owner: UserCurrentDeleteStarPathParams["owner"],
-  repo: UserCurrentDeleteStarPathParams["repo"],
+  owner: UserCurrentDeleteStarPathParams['owner'],
+  repo: UserCurrentDeleteStarPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentDeleteStarMutationResponse,
-    ResponseErrorConfig<
-      | UserCurrentDeleteStar401
-      | UserCurrentDeleteStar403
-      | UserCurrentDeleteStar404
-    >,
+    ResponseErrorConfig<UserCurrentDeleteStar401 | UserCurrentDeleteStar403 | UserCurrentDeleteStar404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getUserCurrentDeleteStarUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

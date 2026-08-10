@@ -7,20 +7,16 @@ import type {
   UpdateRepoSecretMutationResponse,
   UpdateRepoSecret400,
   UpdateRepoSecret404,
-} from "../types/UpdateRepoSecret"
-import { http } from "msw";
+} from '../types/UpdateRepoSecret';
+import { http } from 'msw';
 
-export function updateRepoSecretHandlerResponse201(
-  data?: UpdateRepoSecretMutationResponse,
-) {
+export function updateRepoSecretHandlerResponse201(data?: UpdateRepoSecretMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function updateRepoSecretHandlerResponse204(
-  data?: UpdateRepoSecretMutationResponse,
-) {
+export function updateRepoSecretHandlerResponse204(data?: UpdateRepoSecretMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -30,7 +26,7 @@ export function updateRepoSecretHandlerResponse400(data: UpdateRepoSecret400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -39,7 +35,7 @@ export function updateRepoSecretHandlerResponse404(data: UpdateRepoSecret404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -51,18 +47,13 @@ export function updateRepoSecretHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.put(
-    `/repos/:owner/:repo/actions/secrets/:secretname`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.put(`/repos/:owner/:repo/actions/secrets/:secretname`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

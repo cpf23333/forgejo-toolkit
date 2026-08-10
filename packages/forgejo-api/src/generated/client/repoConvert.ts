@@ -3,26 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoConvertMutationResponse,
   RepoConvertPathParams,
   RepoConvert403,
   RepoConvert404,
   RepoConvert422,
-} from "../types/RepoConvert"
+} from '../types/RepoConvert';
 
-function getRepoConvertUrl(
-  owner: RepoConvertPathParams["owner"],
-  repo: RepoConvertPathParams["repo"],
-) {
+function getRepoConvertUrl(owner: RepoConvertPathParams['owner'], repo: RepoConvertPathParams['repo']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/convert` as const,
   };
   return res;
@@ -33,8 +26,8 @@ function getRepoConvertUrl(
  * {@link /repos/:owner/:repo/convert}
  */
 export async function repoConvert(
-  owner: RepoConvertPathParams["owner"],
-  repo: RepoConvertPathParams["repo"],
+  owner: RepoConvertPathParams['owner'],
+  repo: RepoConvertPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +37,7 @@ export async function repoConvert(
     ResponseErrorConfig<RepoConvert403 | RepoConvert404 | RepoConvert422>,
     unknown
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoConvertUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgAddTeamMemberMutationResponse,
   OrgAddTeamMemberPathParams,
   OrgAddTeamMember404,
-} from "../types/OrgAddTeamMember"
+} from '../types/OrgAddTeamMember';
 
 function getOrgAddTeamMemberUrl(
-  id: OrgAddTeamMemberPathParams["id"],
-  username: OrgAddTeamMemberPathParams["username"],
+  id: OrgAddTeamMemberPathParams['id'],
+  username: OrgAddTeamMemberPathParams['username'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/teams/${id}/members/${username}` as const,
   };
   return res;
@@ -31,18 +27,14 @@ function getOrgAddTeamMemberUrl(
  * {@link /teams/:id/members/:username}
  */
 export async function orgAddTeamMember(
-  id: OrgAddTeamMemberPathParams["id"],
-  username: OrgAddTeamMemberPathParams["username"],
+  id: OrgAddTeamMemberPathParams['id'],
+  username: OrgAddTeamMemberPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgAddTeamMemberMutationResponse,
-    ResponseErrorConfig<OrgAddTeamMember404>,
-    unknown
-  >({
-    method: "PUT",
+  const res = await request<OrgAddTeamMemberMutationResponse, ResponseErrorConfig<OrgAddTeamMember404>, unknown>({
+    method: 'PUT',
     url: getOrgAddTeamMemberUrl(id, username).url.toString(),
     ...requestConfig,
   });

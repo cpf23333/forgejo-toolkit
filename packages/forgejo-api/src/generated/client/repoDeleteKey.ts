@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteKeyMutationResponse,
   RepoDeleteKeyPathParams,
   RepoDeleteKey403,
   RepoDeleteKey404,
-} from "../types/RepoDeleteKey"
+} from '../types/RepoDeleteKey';
 
 function getRepoDeleteKeyUrl(
-  owner: RepoDeleteKeyPathParams["owner"],
-  repo: RepoDeleteKeyPathParams["repo"],
-  id: RepoDeleteKeyPathParams["id"],
+  owner: RepoDeleteKeyPathParams['owner'],
+  repo: RepoDeleteKeyPathParams['repo'],
+  id: RepoDeleteKeyPathParams['id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/keys/${id}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoDeleteKeyUrl(
  * {@link /repos/:owner/:repo/keys/:id}
  */
 export async function repoDeleteKey(
-  owner: RepoDeleteKeyPathParams["owner"],
-  repo: RepoDeleteKeyPathParams["repo"],
-  id: RepoDeleteKeyPathParams["id"],
+  owner: RepoDeleteKeyPathParams['owner'],
+  repo: RepoDeleteKeyPathParams['repo'],
+  id: RepoDeleteKeyPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoDeleteKey(
     ResponseErrorConfig<RepoDeleteKey403 | RepoDeleteKey404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteKeyUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

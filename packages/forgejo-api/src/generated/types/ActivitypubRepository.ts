@@ -3,14 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ActivityPub } from "./ActivityPub"
+import type { ActivityPub } from './ActivityPub';
 
 export type ActivitypubRepositoryPathParams = {
   /**
    * @description repository ID of the repo
    * @type integer, int64
    */
-  "repository-id": number;
+  'repository-id': number;
 };
 
 /**

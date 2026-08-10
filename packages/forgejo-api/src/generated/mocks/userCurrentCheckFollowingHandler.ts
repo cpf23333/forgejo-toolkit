@@ -8,46 +8,38 @@ import type {
   UserCurrentCheckFollowing401,
   UserCurrentCheckFollowing403,
   UserCurrentCheckFollowing404,
-} from "../types/UserCurrentCheckFollowing"
-import { http } from "msw";
+} from '../types/UserCurrentCheckFollowing';
+import { http } from 'msw';
 
-export function userCurrentCheckFollowingHandlerResponse204(
-  data?: UserCurrentCheckFollowingQueryResponse,
-) {
+export function userCurrentCheckFollowingHandlerResponse204(data?: UserCurrentCheckFollowingQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentCheckFollowingHandlerResponse401(
-  data: UserCurrentCheckFollowing401,
-) {
+export function userCurrentCheckFollowingHandlerResponse401(data: UserCurrentCheckFollowing401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentCheckFollowingHandlerResponse403(
-  data: UserCurrentCheckFollowing403,
-) {
+export function userCurrentCheckFollowingHandlerResponse403(data: UserCurrentCheckFollowing403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentCheckFollowingHandlerResponse404(
-  data: UserCurrentCheckFollowing404,
-) {
+export function userCurrentCheckFollowingHandlerResponse404(data: UserCurrentCheckFollowing404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function userCurrentCheckFollowingHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/following/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

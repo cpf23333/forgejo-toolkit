@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIInvalidTopicsError } from "./APIInvalidTopicsError"
-import type { APINotFound } from "./APINotFound"
-import type { RepoTopicOptions } from "./RepoTopicOptions"
+import type { APIInvalidTopicsError } from './APIInvalidTopicsError';
+import type { APINotFound } from './APINotFound';
+import type { RepoTopicOptions } from './RepoTopicOptions';
 
 export type RepoUpdateTopicsPathParams = {
   /**

@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueCreateMilestoneMutationResponse,
-  IssueCreateMilestone404,
-} from "../types/IssueCreateMilestone"
-import { http } from "msw";
+import type { IssueCreateMilestoneMutationResponse, IssueCreateMilestone404 } from '../types/IssueCreateMilestone';
+import { http } from 'msw';
 
-export function issueCreateMilestoneHandlerResponse201(
-  data: IssueCreateMilestoneMutationResponse,
-) {
+export function issueCreateMilestoneHandlerResponse201(data: IssueCreateMilestoneMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueCreateMilestoneHandlerResponse404(
-  data: IssueCreateMilestone404,
-) {
+export function issueCreateMilestoneHandlerResponse404(data: IssueCreateMilestone404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function issueCreateMilestoneHandlerResponse404(
 export function issueCreateMilestoneHandler(
   data?:
     | IssueCreateMilestoneMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/milestones`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

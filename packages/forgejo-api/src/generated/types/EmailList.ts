@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Email } from "./Email"
+import type { Email } from './Email';
 
 export type EmailList = Email[];

@@ -3,16 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GetGeneralAttachmentSettingsQueryResponse } from "../types/GetGeneralAttachmentSettings"
-import { http } from "msw";
+import type { GetGeneralAttachmentSettingsQueryResponse } from '../types/GetGeneralAttachmentSettings';
+import { http } from 'msw';
 
-export function getGeneralAttachmentSettingsHandlerResponse200(
-  data: GetGeneralAttachmentSettingsQueryResponse,
-) {
+export function getGeneralAttachmentSettingsHandlerResponse200(data: GetGeneralAttachmentSettingsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -20,17 +18,15 @@ export function getGeneralAttachmentSettingsHandlerResponse200(
 export function getGeneralAttachmentSettingsHandler(
   data?:
     | GetGeneralAttachmentSettingsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/settings/attachment`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoEditMutationRequest,
   RepoEditMutationResponse,
@@ -16,13 +12,10 @@ import type {
   RepoEdit403,
   RepoEdit404,
   RepoEdit422,
-} from "../types/RepoEdit"
+} from '../types/RepoEdit';
 
-function getRepoEditUrl(
-  owner: RepoEditPathParams["owner"],
-  repo: RepoEditPathParams["repo"],
-) {
-  const res = { method: "PATCH", url: `/repos/${owner}/${repo}` as const };
+function getRepoEditUrl(owner: RepoEditPathParams['owner'], repo: RepoEditPathParams['repo']) {
+  const res = { method: 'PATCH', url: `/repos/${owner}/${repo}` as const };
   return res;
 }
 
@@ -31,8 +24,8 @@ function getRepoEditUrl(
  * {@link /repos/:owner/:repo}
  */
 export async function repoEdit(
-  owner: RepoEditPathParams["owner"],
-  repo: RepoEditPathParams["repo"],
+  owner: RepoEditPathParams['owner'],
+  repo: RepoEditPathParams['repo'],
   data?: RepoEditMutationRequest,
   config: Partial<RequestConfig<RepoEditMutationRequest>> & {
     client?: Client;
@@ -47,7 +40,7 @@ export async function repoEdit(
     ResponseErrorConfig<RepoEdit403 | RepoEdit404 | RepoEdit422>,
     RepoEditMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getRepoEditUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

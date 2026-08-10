@@ -7,38 +7,32 @@ import type {
   RepoSyncForkBranchInfoQueryResponse,
   RepoSyncForkBranchInfo400,
   RepoSyncForkBranchInfo404,
-} from "../types/RepoSyncForkBranchInfo"
-import { http } from "msw";
+} from '../types/RepoSyncForkBranchInfo';
+import { http } from 'msw';
 
-export function repoSyncForkBranchInfoHandlerResponse200(
-  data: RepoSyncForkBranchInfoQueryResponse,
-) {
+export function repoSyncForkBranchInfoHandlerResponse200(data: RepoSyncForkBranchInfoQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoSyncForkBranchInfoHandlerResponse400(
-  data: RepoSyncForkBranchInfo400,
-) {
+export function repoSyncForkBranchInfoHandlerResponse400(data: RepoSyncForkBranchInfo400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoSyncForkBranchInfoHandlerResponse404(
-  data: RepoSyncForkBranchInfo404,
-) {
+export function repoSyncForkBranchInfoHandlerResponse404(data: RepoSyncForkBranchInfo404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function repoSyncForkBranchInfoHandlerResponse404(
 export function repoSyncForkBranchInfoHandler(
   data?:
     | RepoSyncForkBranchInfoQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/sync_fork/:branch`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/sync_fork/:branch`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

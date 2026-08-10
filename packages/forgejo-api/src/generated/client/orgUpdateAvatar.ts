@@ -3,21 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgUpdateAvatarMutationRequest,
   OrgUpdateAvatarMutationResponse,
   OrgUpdateAvatarPathParams,
   OrgUpdateAvatar404,
-} from "../types/OrgUpdateAvatar"
+} from '../types/OrgUpdateAvatar';
 
-function getOrgUpdateAvatarUrl(org: OrgUpdateAvatarPathParams["org"]) {
-  const res = { method: "POST", url: `/orgs/${org}/avatar` as const };
+function getOrgUpdateAvatarUrl(org: OrgUpdateAvatarPathParams['org']) {
+  const res = { method: 'POST', url: `/orgs/${org}/avatar` as const };
   return res;
 }
 
@@ -26,7 +22,7 @@ function getOrgUpdateAvatarUrl(org: OrgUpdateAvatarPathParams["org"]) {
  * {@link /orgs/:org/avatar}
  */
 export async function orgUpdateAvatar(
-  org: OrgUpdateAvatarPathParams["org"],
+  org: OrgUpdateAvatarPathParams['org'],
   data?: OrgUpdateAvatarMutationRequest,
   config: Partial<RequestConfig<OrgUpdateAvatarMutationRequest>> & {
     client?: Client;
@@ -41,7 +37,7 @@ export async function orgUpdateAvatar(
     ResponseErrorConfig<OrgUpdateAvatar404>,
     OrgUpdateAvatarMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getOrgUpdateAvatarUrl(org).url.toString(),
     data: requestData,
     ...requestConfig,

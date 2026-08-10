@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteRepoRunnerMutationResponse,
   DeleteRepoRunnerPathParams,
   DeleteRepoRunner400,
   DeleteRepoRunner404,
-} from "../types/DeleteRepoRunner"
+} from '../types/DeleteRepoRunner';
 
 function getDeleteRepoRunnerUrl(
-  owner: DeleteRepoRunnerPathParams["owner"],
-  repo: DeleteRepoRunnerPathParams["repo"],
-  runner_id: DeleteRepoRunnerPathParams["runner_id"],
+  owner: DeleteRepoRunnerPathParams['owner'],
+  repo: DeleteRepoRunnerPathParams['repo'],
+  runner_id: DeleteRepoRunnerPathParams['runner_id'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/actions/runners/${runner_id}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getDeleteRepoRunnerUrl(
  * {@link /repos/:owner/:repo/actions/runners/:runner_id}
  */
 export async function deleteRepoRunner(
-  owner: DeleteRepoRunnerPathParams["owner"],
-  repo: DeleteRepoRunnerPathParams["repo"],
-  runner_id: DeleteRepoRunnerPathParams["runner_id"],
+  owner: DeleteRepoRunnerPathParams['owner'],
+  repo: DeleteRepoRunnerPathParams['repo'],
+  runner_id: DeleteRepoRunnerPathParams['runner_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function deleteRepoRunner(
     ResponseErrorConfig<DeleteRepoRunner400 | DeleteRepoRunner404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteRepoRunnerUrl(owner, repo, runner_id).url.toString(),
     ...requestConfig,
   });

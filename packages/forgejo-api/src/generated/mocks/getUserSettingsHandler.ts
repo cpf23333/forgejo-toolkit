@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  GetUserSettingsQueryResponse,
-  GetUserSettings401,
-  GetUserSettings403,
-} from "../types/GetUserSettings"
-import { http } from "msw";
+import type { GetUserSettingsQueryResponse, GetUserSettings401, GetUserSettings403 } from '../types/GetUserSettings';
+import { http } from 'msw';
 
-export function getUserSettingsHandlerResponse200(
-  data: GetUserSettingsQueryResponse,
-) {
+export function getUserSettingsHandlerResponse200(data: GetUserSettingsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function getUserSettingsHandlerResponse401(data: GetUserSettings401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function getUserSettingsHandlerResponse403(data: GetUserSettings403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +36,15 @@ export function getUserSettingsHandlerResponse403(data: GetUserSettings403) {
 export function getUserSettingsHandler(
   data?:
     | GetUserSettingsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/settings`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

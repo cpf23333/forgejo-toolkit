@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { Email } from "./Email"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { Email } from './Email';
 
 export type AdminSearchEmailsQueryParams = {
   /**

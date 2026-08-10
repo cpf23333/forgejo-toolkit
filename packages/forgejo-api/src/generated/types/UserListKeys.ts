@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { PublicKey } from "./PublicKey"
+import type { APINotFound } from './APINotFound';
+import type { PublicKey } from './PublicKey';
 
 export type UserListKeysPathParams = {
   /**

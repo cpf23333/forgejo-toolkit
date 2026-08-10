@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { Attachment } from "./Attachment"
+import type { APIError } from './APIError';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { APIValidationError } from './APIValidationError';
+import type { Attachment } from './Attachment';
 
 export type IssueCreateIssueCommentAttachment = {
   /**
@@ -85,8 +85,7 @@ export type IssueCreateIssueCommentAttachmentMutationRequest = {
   attachment: Blob;
 };
 
-export type IssueCreateIssueCommentAttachmentMutationResponse =
-  IssueCreateIssueCommentAttachment201;
+export type IssueCreateIssueCommentAttachmentMutationResponse = IssueCreateIssueCommentAttachment201;
 
 export type IssueCreateIssueCommentAttachmentMutation = {
   Response: IssueCreateIssueCommentAttachment201;

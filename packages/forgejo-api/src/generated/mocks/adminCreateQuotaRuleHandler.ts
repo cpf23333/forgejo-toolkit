@@ -9,60 +9,50 @@ import type {
   AdminCreateQuotaRule403,
   AdminCreateQuotaRule409,
   AdminCreateQuotaRule422,
-} from "../types/AdminCreateQuotaRule"
-import { http } from "msw";
+} from '../types/AdminCreateQuotaRule';
+import { http } from 'msw';
 
-export function adminCreateQuotaRuleHandlerResponse201(
-  data: AdminCreateQuotaRuleMutationResponse,
-) {
+export function adminCreateQuotaRuleHandlerResponse201(data: AdminCreateQuotaRuleMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreateQuotaRuleHandlerResponse400(
-  data: AdminCreateQuotaRule400,
-) {
+export function adminCreateQuotaRuleHandlerResponse400(data: AdminCreateQuotaRule400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreateQuotaRuleHandlerResponse403(
-  data: AdminCreateQuotaRule403,
-) {
+export function adminCreateQuotaRuleHandlerResponse403(data: AdminCreateQuotaRule403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreateQuotaRuleHandlerResponse409(
-  data: AdminCreateQuotaRule409,
-) {
+export function adminCreateQuotaRuleHandlerResponse409(data: AdminCreateQuotaRule409) {
   return new Response(JSON.stringify(data), {
     status: 409,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminCreateQuotaRuleHandlerResponse422(
-  data: AdminCreateQuotaRule422,
-) {
+export function adminCreateQuotaRuleHandlerResponse422(data: AdminCreateQuotaRule422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -70,17 +60,15 @@ export function adminCreateQuotaRuleHandlerResponse422(
 export function adminCreateQuotaRuleHandler(
   data?:
     | AdminCreateQuotaRuleMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/admin/quota/rules`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

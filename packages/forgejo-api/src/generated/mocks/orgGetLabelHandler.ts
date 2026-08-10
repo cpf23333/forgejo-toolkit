@@ -3,17 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgGetLabelQueryResponse,
-  OrgGetLabel404,
-} from "../types/OrgGetLabel"
-import { http } from "msw";
+import type { OrgGetLabelQueryResponse, OrgGetLabel404 } from '../types/OrgGetLabel';
+import { http } from 'msw';
 
 export function orgGetLabelHandlerResponse200(data: OrgGetLabelQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -22,7 +19,7 @@ export function orgGetLabelHandlerResponse404(data: OrgGetLabel404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -30,17 +27,15 @@ export function orgGetLabelHandlerResponse404(data: OrgGetLabel404) {
 export function orgGetLabelHandler(
   data?:
     | OrgGetLabelQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/labels/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

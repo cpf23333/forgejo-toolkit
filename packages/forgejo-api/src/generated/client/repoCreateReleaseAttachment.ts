@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateReleaseAttachmentMutationRequest,
   RepoCreateReleaseAttachmentMutationResponse,
@@ -17,16 +13,16 @@ import type {
   RepoCreateReleaseAttachment400,
   RepoCreateReleaseAttachment404,
   RepoCreateReleaseAttachment413,
-} from "../types/RepoCreateReleaseAttachment"
-import { buildFormData } from "../.kubb/config"
+} from '../types/RepoCreateReleaseAttachment';
+import { buildFormData } from '../.kubb/config';
 
 function getRepoCreateReleaseAttachmentUrl(
-  owner: RepoCreateReleaseAttachmentPathParams["owner"],
-  repo: RepoCreateReleaseAttachmentPathParams["repo"],
-  id: RepoCreateReleaseAttachmentPathParams["id"],
+  owner: RepoCreateReleaseAttachmentPathParams['owner'],
+  repo: RepoCreateReleaseAttachmentPathParams['repo'],
+  id: RepoCreateReleaseAttachmentPathParams['id'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/releases/${id}/assets` as const,
   };
   return res;
@@ -37,9 +33,9 @@ function getRepoCreateReleaseAttachmentUrl(
  * {@link /repos/:owner/:repo/releases/:id/assets}
  */
 export async function repoCreateReleaseAttachment(
-  owner: RepoCreateReleaseAttachmentPathParams["owner"],
-  repo: RepoCreateReleaseAttachmentPathParams["repo"],
-  id: RepoCreateReleaseAttachmentPathParams["id"],
+  owner: RepoCreateReleaseAttachmentPathParams['owner'],
+  repo: RepoCreateReleaseAttachmentPathParams['repo'],
+  id: RepoCreateReleaseAttachmentPathParams['id'],
   data?: RepoCreateReleaseAttachmentMutationRequest,
   params?: RepoCreateReleaseAttachmentQueryParams,
   config: Partial<RequestConfig<RepoCreateReleaseAttachmentMutationRequest>> & {
@@ -53,13 +49,11 @@ export async function repoCreateReleaseAttachment(
   const res = await request<
     RepoCreateReleaseAttachmentMutationResponse,
     ResponseErrorConfig<
-      | RepoCreateReleaseAttachment400
-      | RepoCreateReleaseAttachment404
-      | RepoCreateReleaseAttachment413
+      RepoCreateReleaseAttachment400 | RepoCreateReleaseAttachment404 | RepoCreateReleaseAttachment413
     >,
     RepoCreateReleaseAttachmentMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateReleaseAttachmentUrl(owner, repo, id).url.toString(),
     params,
     data: formData as FormData,

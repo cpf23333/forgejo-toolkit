@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { NotificationThread } from "./NotificationThread"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { NotificationThread } from './NotificationThread';
 
 export type NotifyGetThreadPathParams = {
   /**

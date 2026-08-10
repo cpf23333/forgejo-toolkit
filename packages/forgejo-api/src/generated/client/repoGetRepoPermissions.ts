@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetRepoPermissionsQueryResponse,
   RepoGetRepoPermissionsPathParams,
   RepoGetRepoPermissions403,
   RepoGetRepoPermissions404,
-} from "../types/RepoGetRepoPermissions"
+} from '../types/RepoGetRepoPermissions';
 
 function getRepoGetRepoPermissionsUrl(
-  owner: RepoGetRepoPermissionsPathParams["owner"],
-  repo: RepoGetRepoPermissionsPathParams["repo"],
-  collaborator: RepoGetRepoPermissionsPathParams["collaborator"],
+  owner: RepoGetRepoPermissionsPathParams['owner'],
+  repo: RepoGetRepoPermissionsPathParams['repo'],
+  collaborator: RepoGetRepoPermissionsPathParams['collaborator'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/collaborators/${collaborator}/permission` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoGetRepoPermissionsUrl(
  * {@link /repos/:owner/:repo/collaborators/:collaborator/permission}
  */
 export async function repoGetRepoPermissions(
-  owner: RepoGetRepoPermissionsPathParams["owner"],
-  repo: RepoGetRepoPermissionsPathParams["repo"],
-  collaborator: RepoGetRepoPermissionsPathParams["collaborator"],
+  owner: RepoGetRepoPermissionsPathParams['owner'],
+  repo: RepoGetRepoPermissionsPathParams['repo'],
+  collaborator: RepoGetRepoPermissionsPathParams['collaborator'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function repoGetRepoPermissions(
     ResponseErrorConfig<RepoGetRepoPermissions403 | RepoGetRepoPermissions404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetRepoPermissionsUrl(owner, repo, collaborator).url.toString(),
     ...requestConfig,
   });

@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListPinnedPullRequestsQueryResponse,
   RepoListPinnedPullRequestsPathParams,
   RepoListPinnedPullRequests404,
-} from "../types/RepoListPinnedPullRequests"
+} from '../types/RepoListPinnedPullRequests';
 
 function getRepoListPinnedPullRequestsUrl(
-  owner: RepoListPinnedPullRequestsPathParams["owner"],
-  repo: RepoListPinnedPullRequestsPathParams["repo"],
+  owner: RepoListPinnedPullRequestsPathParams['owner'],
+  repo: RepoListPinnedPullRequestsPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/pinned` as const,
   };
   return res;
@@ -31,8 +27,8 @@ function getRepoListPinnedPullRequestsUrl(
  * {@link /repos/:owner/:repo/pulls/pinned}
  */
 export async function repoListPinnedPullRequests(
-  owner: RepoListPinnedPullRequestsPathParams["owner"],
-  repo: RepoListPinnedPullRequestsPathParams["repo"],
+  owner: RepoListPinnedPullRequestsPathParams['owner'],
+  repo: RepoListPinnedPullRequestsPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -42,7 +38,7 @@ export async function repoListPinnedPullRequests(
     ResponseErrorConfig<RepoListPinnedPullRequests404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoListPinnedPullRequestsUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

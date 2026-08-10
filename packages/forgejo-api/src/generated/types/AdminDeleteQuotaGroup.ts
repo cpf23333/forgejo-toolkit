@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
 
 export type AdminDeleteQuotaGroupPathParams = {
   /**
@@ -40,8 +40,5 @@ export type AdminDeleteQuotaGroupMutationResponse = AdminDeleteQuotaGroup204;
 export type AdminDeleteQuotaGroupMutation = {
   Response: AdminDeleteQuotaGroup204;
   PathParams: AdminDeleteQuotaGroupPathParams;
-  Errors:
-    | AdminDeleteQuotaGroup400
-    | AdminDeleteQuotaGroup403
-    | AdminDeleteQuotaGroup404;
+  Errors: AdminDeleteQuotaGroup400 | AdminDeleteQuotaGroup403 | AdminDeleteQuotaGroup404;
 };

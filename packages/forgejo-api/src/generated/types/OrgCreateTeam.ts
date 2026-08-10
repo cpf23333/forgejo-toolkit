@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateTeamOption } from "./CreateTeamOption"
-import type { Team } from "./Team"
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateTeamOption } from './CreateTeamOption';
+import type { Team } from './Team';
 
 export type OrgCreateTeamPathParams = {
   /**

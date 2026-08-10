@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { TopicName } from "./TopicName"
+import type { APINotFound } from './APINotFound';
+import type { TopicName } from './TopicName';
 
 export type RepoListTopicsPathParams = {
   /**

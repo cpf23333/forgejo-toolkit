@@ -6,8 +6,8 @@
 import type {
   AdminDeleteUnadoptedRepositoryMutationResponse,
   AdminDeleteUnadoptedRepository403,
-} from "../types/AdminDeleteUnadoptedRepository"
-import { http } from "msw";
+} from '../types/AdminDeleteUnadoptedRepository';
+import { http } from 'msw';
 
 export function adminDeleteUnadoptedRepositoryHandlerResponse204(
   data?: AdminDeleteUnadoptedRepositoryMutationResponse,
@@ -17,13 +17,11 @@ export function adminDeleteUnadoptedRepositoryHandlerResponse204(
   });
 }
 
-export function adminDeleteUnadoptedRepositoryHandlerResponse403(
-  data: AdminDeleteUnadoptedRepository403,
-) {
+export function adminDeleteUnadoptedRepositoryHandlerResponse403(data: AdminDeleteUnadoptedRepository403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,12 +33,10 @@ export function adminDeleteUnadoptedRepositoryHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/admin/unadopted/:owner/:repo`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

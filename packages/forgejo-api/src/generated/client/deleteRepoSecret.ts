@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   DeleteRepoSecretMutationResponse,
   DeleteRepoSecretPathParams,
   DeleteRepoSecret400,
   DeleteRepoSecret404,
-} from "../types/DeleteRepoSecret"
+} from '../types/DeleteRepoSecret';
 
 function getDeleteRepoSecretUrl(
-  owner: DeleteRepoSecretPathParams["owner"],
-  repo: DeleteRepoSecretPathParams["repo"],
-  secretname: DeleteRepoSecretPathParams["secretname"],
+  owner: DeleteRepoSecretPathParams['owner'],
+  repo: DeleteRepoSecretPathParams['repo'],
+  secretname: DeleteRepoSecretPathParams['secretname'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/actions/secrets/${secretname}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getDeleteRepoSecretUrl(
  * {@link /repos/:owner/:repo/actions/secrets/:secretname}
  */
 export async function deleteRepoSecret(
-  owner: DeleteRepoSecretPathParams["owner"],
-  repo: DeleteRepoSecretPathParams["repo"],
-  secretname: DeleteRepoSecretPathParams["secretname"],
+  owner: DeleteRepoSecretPathParams['owner'],
+  repo: DeleteRepoSecretPathParams['repo'],
+  secretname: DeleteRepoSecretPathParams['secretname'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -45,7 +41,7 @@ export async function deleteRepoSecret(
     ResponseErrorConfig<DeleteRepoSecret400 | DeleteRepoSecret404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getDeleteRepoSecretUrl(owner, repo, secretname).url.toString(),
     ...requestConfig,
   });

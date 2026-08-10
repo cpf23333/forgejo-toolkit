@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueListBlocksQueryResponse,
-  IssueListBlocks404,
-} from "../types/IssueListBlocks"
-import { http } from "msw";
+import type { IssueListBlocksQueryResponse, IssueListBlocks404 } from '../types/IssueListBlocks';
+import { http } from 'msw';
 
-export function issueListBlocksHandlerResponse200(
-  data: IssueListBlocksQueryResponse,
-) {
+export function issueListBlocksHandlerResponse200(data: IssueListBlocksQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function issueListBlocksHandlerResponse404(data: IssueListBlocks404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,21 +27,16 @@ export function issueListBlocksHandlerResponse404(data: IssueListBlocks404) {
 export function issueListBlocksHandler(
   data?:
     | IssueListBlocksQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/issues/:index/blocks`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/issues/:index/blocks`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

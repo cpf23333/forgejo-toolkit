@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIInternalServerError } from "./APIInternalServerError"
-import type { APINotFound } from "./APINotFound"
-import type { Comment } from "./Comment"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIInternalServerError } from './APIInternalServerError';
+import type { APINotFound } from './APINotFound';
+import type { Comment } from './Comment';
 
 export type IssueGetCommentPathParams = {
   /**
@@ -51,8 +51,7 @@ export type IssueGetComment404 = APINotFound;
  */
 export type IssueGetComment500 = APIInternalServerError;
 
-export type IssueGetCommentQueryResponse =
-  IssueGetComment200 | IssueGetComment204;
+export type IssueGetCommentQueryResponse = IssueGetComment200 | IssueGetComment204;
 
 export type IssueGetCommentQuery = {
   Response: IssueGetComment200 | IssueGetComment204;

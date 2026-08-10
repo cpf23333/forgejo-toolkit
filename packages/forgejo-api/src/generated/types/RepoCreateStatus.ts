@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { CommitStatus } from "./CommitStatus"
-import type { CreateStatusOption } from "./CreateStatusOption"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { CommitStatus } from './CommitStatus';
+import type { CreateStatusOption } from './CreateStatusOption';
 
 export type RepoCreateStatusPathParams = {
   /**

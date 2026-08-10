@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminRemoveRuleFromQuotaGroupMutationResponse,
   AdminRemoveRuleFromQuotaGroupPathParams,
   AdminRemoveRuleFromQuotaGroup400,
   AdminRemoveRuleFromQuotaGroup403,
   AdminRemoveRuleFromQuotaGroup404,
-} from "../types/AdminRemoveRuleFromQuotaGroup"
+} from '../types/AdminRemoveRuleFromQuotaGroup';
 
 function getAdminRemoveRuleFromQuotaGroupUrl(
-  quotagroup: AdminRemoveRuleFromQuotaGroupPathParams["quotagroup"],
-  quotarule: AdminRemoveRuleFromQuotaGroupPathParams["quotarule"],
+  quotagroup: AdminRemoveRuleFromQuotaGroupPathParams['quotagroup'],
+  quotarule: AdminRemoveRuleFromQuotaGroupPathParams['quotarule'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/admin/quota/groups/${quotagroup}/rules/${quotarule}` as const,
   };
   return res;
@@ -33,8 +29,8 @@ function getAdminRemoveRuleFromQuotaGroupUrl(
  * {@link /admin/quota/groups/:quotagroup/rules/:quotarule}
  */
 export async function adminRemoveRuleFromQuotaGroup(
-  quotagroup: AdminRemoveRuleFromQuotaGroupPathParams["quotagroup"],
-  quotarule: AdminRemoveRuleFromQuotaGroupPathParams["quotarule"],
+  quotagroup: AdminRemoveRuleFromQuotaGroupPathParams['quotagroup'],
+  quotarule: AdminRemoveRuleFromQuotaGroupPathParams['quotarule'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -42,17 +38,12 @@ export async function adminRemoveRuleFromQuotaGroup(
   const res = await request<
     AdminRemoveRuleFromQuotaGroupMutationResponse,
     ResponseErrorConfig<
-      | AdminRemoveRuleFromQuotaGroup400
-      | AdminRemoveRuleFromQuotaGroup403
-      | AdminRemoveRuleFromQuotaGroup404
+      AdminRemoveRuleFromQuotaGroup400 | AdminRemoveRuleFromQuotaGroup403 | AdminRemoveRuleFromQuotaGroup404
     >,
     unknown
   >({
-    method: "DELETE",
-    url: getAdminRemoveRuleFromQuotaGroupUrl(
-      quotagroup,
-      quotarule,
-    ).url.toString(),
+    method: 'DELETE',
+    url: getAdminRemoveRuleFromQuotaGroupUrl(quotagroup, quotarule).url.toString(),
     ...requestConfig,
   });
   return res.data;

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { PullRequest } from "./PullRequest"
+import type { APINotFound } from './APINotFound';
+import type { PullRequest } from './PullRequest';
 
 export type RepoListPinnedPullRequestsPathParams = {
   /**
@@ -29,8 +29,7 @@ export type RepoListPinnedPullRequests200 = PullRequest[];
  */
 export type RepoListPinnedPullRequests404 = APINotFound;
 
-export type RepoListPinnedPullRequestsQueryResponse =
-  RepoListPinnedPullRequests200;
+export type RepoListPinnedPullRequestsQueryResponse = RepoListPinnedPullRequests200;
 
 export type RepoListPinnedPullRequestsQuery = {
   Response: RepoListPinnedPullRequests200;

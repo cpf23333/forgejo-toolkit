@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminSearchUsersQueryResponse,
   AdminSearchUsersQueryParams,
   AdminSearchUsers403,
-} from "../types/AdminSearchUsers"
+} from '../types/AdminSearchUsers';
 
 function getAdminSearchUsersUrl() {
-  const res = { method: "GET", url: `/admin/users` as const };
+  const res = { method: 'GET', url: `/admin/users` as const };
   return res;
 }
 
@@ -30,12 +26,8 @@ export async function adminSearchUsers(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminSearchUsersQueryResponse,
-    ResponseErrorConfig<AdminSearchUsers403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminSearchUsersQueryResponse, ResponseErrorConfig<AdminSearchUsers403>, unknown>({
+    method: 'GET',
     url: getAdminSearchUsersUrl().url.toString(),
     params,
     ...requestConfig,

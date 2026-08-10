@@ -3,26 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   GetRepoRunnersQueryResponse,
   GetRepoRunnersPathParams,
   GetRepoRunnersQueryParams,
   GetRepoRunners400,
   GetRepoRunners404,
-} from "../types/GetRepoRunners"
+} from '../types/GetRepoRunners';
 
-function getGetRepoRunnersUrl(
-  owner: GetRepoRunnersPathParams["owner"],
-  repo: GetRepoRunnersPathParams["repo"],
-) {
+function getGetRepoRunnersUrl(owner: GetRepoRunnersPathParams['owner'], repo: GetRepoRunnersPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/actions/runners` as const,
   };
   return res;
@@ -33,8 +26,8 @@ function getGetRepoRunnersUrl(
  * {@link /repos/:owner/:repo/actions/runners}
  */
 export async function getRepoRunners(
-  owner: GetRepoRunnersPathParams["owner"],
-  repo: GetRepoRunnersPathParams["repo"],
+  owner: GetRepoRunnersPathParams['owner'],
+  repo: GetRepoRunnersPathParams['repo'],
   params?: GetRepoRunnersQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -45,7 +38,7 @@ export async function getRepoRunners(
     ResponseErrorConfig<GetRepoRunners400 | GetRepoRunners404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getGetRepoRunnersUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { CommitDateOptions } from "./CommitDateOptions"
-import type { Identity } from "./Identity"
+import type { CommitDateOptions } from './CommitDateOptions';
+import type { Identity } from './Identity';
 
 /**
  * @description DeleteFileOptions options for deleting files (used for other File structs below)\nNote: `author` and `committer` are optional (if only one is given, it will be used for the other, otherwise the authenticated user will be used)

@@ -7,38 +7,32 @@ import type {
   UserCurrentListKeysQueryResponse,
   UserCurrentListKeys401,
   UserCurrentListKeys403,
-} from "../types/UserCurrentListKeys"
-import { http } from "msw";
+} from '../types/UserCurrentListKeys';
+import { http } from 'msw';
 
-export function userCurrentListKeysHandlerResponse200(
-  data: UserCurrentListKeysQueryResponse,
-) {
+export function userCurrentListKeysHandlerResponse200(data: UserCurrentListKeysQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentListKeysHandlerResponse401(
-  data: UserCurrentListKeys401,
-) {
+export function userCurrentListKeysHandlerResponse401(data: UserCurrentListKeys401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentListKeysHandlerResponse403(
-  data: UserCurrentListKeys403,
-) {
+export function userCurrentListKeysHandlerResponse403(data: UserCurrentListKeys403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function userCurrentListKeysHandlerResponse403(
 export function userCurrentListKeysHandler(
   data?:
     | UserCurrentListKeysQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/keys`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

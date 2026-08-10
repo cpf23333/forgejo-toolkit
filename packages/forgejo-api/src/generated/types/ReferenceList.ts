@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Reference } from "./Reference"
+import type { Reference } from './Reference';
 
 export type ReferenceList = Reference[];

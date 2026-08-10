@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { UpdateVariableOption } from "./UpdateVariableOption"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { UpdateVariableOption } from './UpdateVariableOption';
 
 export type UpdateOrgVariablePathParams = {
   /**
@@ -45,8 +45,7 @@ export type UpdateOrgVariable404 = APINotFound;
  */
 export type UpdateOrgVariableMutationRequest = UpdateVariableOption;
 
-export type UpdateOrgVariableMutationResponse =
-  UpdateOrgVariable201 | UpdateOrgVariable204;
+export type UpdateOrgVariableMutationResponse = UpdateOrgVariable201 | UpdateOrgVariable204;
 
 export type UpdateOrgVariableMutation = {
   Response: UpdateOrgVariable201 | UpdateOrgVariable204;

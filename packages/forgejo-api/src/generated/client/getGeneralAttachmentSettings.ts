@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { GetGeneralAttachmentSettingsQueryResponse } from "../types/GetGeneralAttachmentSettings"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { GetGeneralAttachmentSettingsQueryResponse } from '../types/GetGeneralAttachmentSettings';
 
 function getGetGeneralAttachmentSettingsUrl() {
-  const res = { method: "GET", url: `/settings/attachment` as const };
+  const res = { method: 'GET', url: `/settings/attachment` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getGetGeneralAttachmentSettingsUrl() {
  * @summary Get instance's global settings for Attachment
  * {@link /settings/attachment}
  */
-export async function getGeneralAttachmentSettings(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function getGeneralAttachmentSettings(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    GetGeneralAttachmentSettingsQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<GetGeneralAttachmentSettingsQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getGetGeneralAttachmentSettingsUrl().url.toString(),
     ...requestConfig,
   });

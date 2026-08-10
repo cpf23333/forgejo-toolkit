@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 export type DeleteUserSecretPathParams = {
   /**
@@ -46,9 +46,5 @@ export type DeleteUserSecretMutationResponse = DeleteUserSecret204;
 export type DeleteUserSecretMutation = {
   Response: DeleteUserSecret204;
   PathParams: DeleteUserSecretPathParams;
-  Errors:
-    | DeleteUserSecret400
-    | DeleteUserSecret401
-    | DeleteUserSecret403
-    | DeleteUserSecret404;
+  Errors: DeleteUserSecret400 | DeleteUserSecret401 | DeleteUserSecret403 | DeleteUserSecret404;
 };

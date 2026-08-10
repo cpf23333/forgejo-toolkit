@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgListLabelsQueryResponse,
-  OrgListLabels404,
-} from "../types/OrgListLabels"
-import { http } from "msw";
+import type { OrgListLabelsQueryResponse, OrgListLabels404 } from '../types/OrgListLabels';
+import { http } from 'msw';
 
-export function orgListLabelsHandlerResponse200(
-  data: OrgListLabelsQueryResponse,
-) {
+export function orgListLabelsHandlerResponse200(data: OrgListLabelsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function orgListLabelsHandlerResponse404(data: OrgListLabels404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function orgListLabelsHandlerResponse404(data: OrgListLabels404) {
 export function orgListLabelsHandler(
   data?:
     | OrgListLabelsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/labels`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

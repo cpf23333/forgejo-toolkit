@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIValidationError } from "./APIValidationError"
-import type { RenameUserOption } from "./RenameUserOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIValidationError } from './APIValidationError';
+import type { RenameUserOption } from './RenameUserOption';
 
 export type AdminRenameUserPathParams = {
   /**

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { QuotaUsedSizeAssetsAttachments } from "./QuotaUsedSizeAssetsAttachments"
-import type { QuotaUsedSizeAssetsPackages } from "./QuotaUsedSizeAssetsPackages"
+import type { QuotaUsedSizeAssetsAttachments } from './QuotaUsedSizeAssetsAttachments';
+import type { QuotaUsedSizeAssetsPackages } from './QuotaUsedSizeAssetsPackages';
 
 /**
  * @description QuotaUsedSizeAssets represents the size-based asset usage of a user

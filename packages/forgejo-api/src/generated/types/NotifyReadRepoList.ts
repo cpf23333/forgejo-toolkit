@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { NotificationThread } from "./NotificationThread"
+import type { NotificationThread } from './NotificationThread';
 
 export type NotifyReadRepoListPathParams = {
   /**
@@ -28,12 +28,12 @@ export type NotifyReadRepoListQueryParams = {
    * @description Mark notifications with the provided status types. Options are: unread, read and/or pinned. Defaults to unread.
    * @type array | undefined
    */
-  "status-types"?: string[];
+  'status-types'?: string[];
   /**
    * @description Status to mark notifications as. Defaults to read.
    * @type string | undefined
    */
-  "to-status"?: string;
+  'to-status'?: string;
   /**
    * @description Describes the last point that notifications were checked. Anything updated since this time will not be updated.
    * @type string | undefined, date-time

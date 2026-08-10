@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { Attachment } from "./Attachment"
-import type { EditAttachmentOptions } from "./EditAttachmentOptions"
+import type { APIError } from './APIError';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { Attachment } from './Attachment';
+import type { EditAttachmentOptions } from './EditAttachmentOptions';
 
 export type IssueEditIssueCommentAttachmentPathParams = {
   /**
@@ -51,18 +51,13 @@ export type IssueEditIssueCommentAttachment413 = any;
  */
 export type IssueEditIssueCommentAttachment423 = APIRepoArchivedError;
 
-export type IssueEditIssueCommentAttachmentMutationRequest =
-  EditAttachmentOptions;
+export type IssueEditIssueCommentAttachmentMutationRequest = EditAttachmentOptions;
 
-export type IssueEditIssueCommentAttachmentMutationResponse =
-  IssueEditIssueCommentAttachment201;
+export type IssueEditIssueCommentAttachmentMutationResponse = IssueEditIssueCommentAttachment201;
 
 export type IssueEditIssueCommentAttachmentMutation = {
   Response: IssueEditIssueCommentAttachment201;
   Request: IssueEditIssueCommentAttachmentMutationRequest;
   PathParams: IssueEditIssueCommentAttachmentPathParams;
-  Errors:
-    | IssueEditIssueCommentAttachment404
-    | IssueEditIssueCommentAttachment413
-    | IssueEditIssueCommentAttachment423;
+  Errors: IssueEditIssueCommentAttachment404 | IssueEditIssueCommentAttachment413 | IssueEditIssueCommentAttachment423;
 };

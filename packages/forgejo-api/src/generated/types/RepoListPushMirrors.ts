@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { PushMirror } from "./PushMirror"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { PushMirror } from './PushMirror';
 
 export type RepoListPushMirrorsPathParams = {
   /**
@@ -60,6 +60,5 @@ export type RepoListPushMirrorsQuery = {
   Response: RepoListPushMirrors200;
   PathParams: RepoListPushMirrorsPathParams;
   QueryParams: RepoListPushMirrorsQueryParams;
-  Errors:
-    RepoListPushMirrors400 | RepoListPushMirrors403 | RepoListPushMirrors404;
+  Errors: RepoListPushMirrors400 | RepoListPushMirrors403 | RepoListPushMirrors404;
 };

@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetCommitPullRequestQueryResponse,
   RepoGetCommitPullRequestPathParams,
   RepoGetCommitPullRequest404,
-} from "../types/RepoGetCommitPullRequest"
+} from '../types/RepoGetCommitPullRequest';
 
 function getRepoGetCommitPullRequestUrl(
-  owner: RepoGetCommitPullRequestPathParams["owner"],
-  repo: RepoGetCommitPullRequestPathParams["repo"],
-  sha: RepoGetCommitPullRequestPathParams["sha"],
+  owner: RepoGetCommitPullRequestPathParams['owner'],
+  repo: RepoGetCommitPullRequestPathParams['repo'],
+  sha: RepoGetCommitPullRequestPathParams['sha'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/commits/${sha}/pull` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getRepoGetCommitPullRequestUrl(
  * {@link /repos/:owner/:repo/commits/:sha/pull}
  */
 export async function repoGetCommitPullRequest(
-  owner: RepoGetCommitPullRequestPathParams["owner"],
-  repo: RepoGetCommitPullRequestPathParams["repo"],
-  sha: RepoGetCommitPullRequestPathParams["sha"],
+  owner: RepoGetCommitPullRequestPathParams['owner'],
+  repo: RepoGetCommitPullRequestPathParams['repo'],
+  sha: RepoGetCommitPullRequestPathParams['sha'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function repoGetCommitPullRequest(
     ResponseErrorConfig<RepoGetCommitPullRequest404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetCommitPullRequestUrl(owner, repo, sha).url.toString(),
     ...requestConfig,
   });

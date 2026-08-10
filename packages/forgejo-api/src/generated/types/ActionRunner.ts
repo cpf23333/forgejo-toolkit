@@ -4,13 +4,12 @@
  */
 
 export const actionRunnerStatusEnum = {
-  offline: "offline",
-  idle: "idle",
-  active: "active",
+  offline: 'offline',
+  idle: 'idle',
+  active: 'active',
 } as const;
 
-export type ActionRunnerStatusEnumKey =
-  (typeof actionRunnerStatusEnum)[keyof typeof actionRunnerStatusEnum];
+export type ActionRunnerStatusEnumKey = (typeof actionRunnerStatusEnum)[keyof typeof actionRunnerStatusEnum];
 
 /**
  * @description ActionRunner represents a runner

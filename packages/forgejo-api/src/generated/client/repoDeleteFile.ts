@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoDeleteFileMutationRequest,
   RepoDeleteFileMutationResponse,
@@ -18,15 +14,15 @@ import type {
   RepoDeleteFile404,
   RepoDeleteFile413,
   RepoDeleteFile423,
-} from "../types/RepoDeleteFile"
+} from '../types/RepoDeleteFile';
 
 function getRepoDeleteFileUrl(
-  owner: RepoDeleteFilePathParams["owner"],
-  repo: RepoDeleteFilePathParams["repo"],
-  filepath: RepoDeleteFilePathParams["filepath"],
+  owner: RepoDeleteFilePathParams['owner'],
+  repo: RepoDeleteFilePathParams['repo'],
+  filepath: RepoDeleteFilePathParams['filepath'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/contents/${filepath}` as const,
   };
   return res;
@@ -37,9 +33,9 @@ function getRepoDeleteFileUrl(
  * {@link /repos/:owner/:repo/contents/:filepath}
  */
 export async function repoDeleteFile(
-  owner: RepoDeleteFilePathParams["owner"],
-  repo: RepoDeleteFilePathParams["repo"],
-  filepath: RepoDeleteFilePathParams["filepath"],
+  owner: RepoDeleteFilePathParams['owner'],
+  repo: RepoDeleteFilePathParams['repo'],
+  filepath: RepoDeleteFilePathParams['filepath'],
   data: RepoDeleteFileMutationRequest,
   config: Partial<RequestConfig<RepoDeleteFileMutationRequest>> & {
     client?: Client;
@@ -52,15 +48,11 @@ export async function repoDeleteFile(
   const res = await request<
     RepoDeleteFileMutationResponse,
     ResponseErrorConfig<
-      | RepoDeleteFile400
-      | RepoDeleteFile403
-      | RepoDeleteFile404
-      | RepoDeleteFile413
-      | RepoDeleteFile423
+      RepoDeleteFile400 | RepoDeleteFile403 | RepoDeleteFile404 | RepoDeleteFile413 | RepoDeleteFile423
     >,
     RepoDeleteFileMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getRepoDeleteFileUrl(owner, repo, filepath).url.toString(),
     data: requestData,
     ...requestConfig,

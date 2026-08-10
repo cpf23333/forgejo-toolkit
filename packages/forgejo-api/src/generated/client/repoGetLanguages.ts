@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetLanguagesQueryResponse,
   RepoGetLanguagesPathParams,
   RepoGetLanguages404,
-} from "../types/RepoGetLanguages"
+} from '../types/RepoGetLanguages';
 
-function getRepoGetLanguagesUrl(
-  owner: RepoGetLanguagesPathParams["owner"],
-  repo: RepoGetLanguagesPathParams["repo"],
-) {
+function getRepoGetLanguagesUrl(owner: RepoGetLanguagesPathParams['owner'], repo: RepoGetLanguagesPathParams['repo']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/languages` as const,
   };
   return res;
@@ -31,18 +24,14 @@ function getRepoGetLanguagesUrl(
  * {@link /repos/:owner/:repo/languages}
  */
 export async function repoGetLanguages(
-  owner: RepoGetLanguagesPathParams["owner"],
-  repo: RepoGetLanguagesPathParams["repo"],
+  owner: RepoGetLanguagesPathParams['owner'],
+  repo: RepoGetLanguagesPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetLanguagesQueryResponse,
-    ResponseErrorConfig<RepoGetLanguages404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetLanguagesQueryResponse, ResponseErrorConfig<RepoGetLanguages404>, unknown>({
+    method: 'GET',
     url: getRepoGetLanguagesUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

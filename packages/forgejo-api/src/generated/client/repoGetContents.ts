@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetContentsQueryResponse,
   RepoGetContentsPathParams,
   RepoGetContentsQueryParams,
   RepoGetContents404,
-} from "../types/RepoGetContents"
+} from '../types/RepoGetContents';
 
 function getRepoGetContentsUrl(
-  owner: RepoGetContentsPathParams["owner"],
-  repo: RepoGetContentsPathParams["repo"],
-  filepath: RepoGetContentsPathParams["filepath"],
+  owner: RepoGetContentsPathParams['owner'],
+  repo: RepoGetContentsPathParams['repo'],
+  filepath: RepoGetContentsPathParams['filepath'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/contents/${filepath}` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getRepoGetContentsUrl(
  * {@link /repos/:owner/:repo/contents/:filepath}
  */
 export async function repoGetContents(
-  owner: RepoGetContentsPathParams["owner"],
-  repo: RepoGetContentsPathParams["repo"],
-  filepath: RepoGetContentsPathParams["filepath"],
+  owner: RepoGetContentsPathParams['owner'],
+  repo: RepoGetContentsPathParams['repo'],
+  filepath: RepoGetContentsPathParams['filepath'],
   params?: RepoGetContentsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetContentsQueryResponse,
-    ResponseErrorConfig<RepoGetContents404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetContentsQueryResponse, ResponseErrorConfig<RepoGetContents404>, unknown>({
+    method: 'GET',
     url: getRepoGetContentsUrl(owner, repo, filepath).url.toString(),
     params,
     ...requestConfig,

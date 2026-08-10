@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserDeleteAccessTokenMutationResponse,
   UserDeleteAccessTokenPathParams,
   UserDeleteAccessToken403,
   UserDeleteAccessToken404,
   UserDeleteAccessToken422,
-} from "../types/UserDeleteAccessToken"
+} from '../types/UserDeleteAccessToken';
 
 function getUserDeleteAccessTokenUrl(
-  username: UserDeleteAccessTokenPathParams["username"],
-  token: UserDeleteAccessTokenPathParams["token"],
+  username: UserDeleteAccessTokenPathParams['username'],
+  token: UserDeleteAccessTokenPathParams['token'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/users/${username}/tokens/${token}` as const,
   };
   return res;
@@ -33,22 +29,18 @@ function getUserDeleteAccessTokenUrl(
  * {@link /users/:username/tokens/:token}
  */
 export async function userDeleteAccessToken(
-  username: UserDeleteAccessTokenPathParams["username"],
-  token: UserDeleteAccessTokenPathParams["token"],
+  username: UserDeleteAccessTokenPathParams['username'],
+  token: UserDeleteAccessTokenPathParams['token'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserDeleteAccessTokenMutationResponse,
-    ResponseErrorConfig<
-      | UserDeleteAccessToken403
-      | UserDeleteAccessToken404
-      | UserDeleteAccessToken422
-    >,
+    ResponseErrorConfig<UserDeleteAccessToken403 | UserDeleteAccessToken404 | UserDeleteAccessToken422>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getUserDeleteAccessTokenUrl(username, token).url.toString(),
     ...requestConfig,
   });

@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserVerifyGPGKeyMutationRequest,
   UserVerifyGPGKeyMutationResponse,
@@ -16,10 +12,10 @@ import type {
   UserVerifyGPGKey403,
   UserVerifyGPGKey404,
   UserVerifyGPGKey422,
-} from "../types/UserVerifyGPGKey"
+} from '../types/UserVerifyGPGKey';
 
 function getUserVerifyGPGKeyUrl() {
-  const res = { method: "POST", url: `/user/gpg_key_verify` as const };
+  const res = { method: 'POST', url: `/user/gpg_key_verify` as const };
   return res;
 }
 
@@ -39,15 +35,10 @@ export async function userVerifyGPGKey(
 
   const res = await request<
     UserVerifyGPGKeyMutationResponse,
-    ResponseErrorConfig<
-      | UserVerifyGPGKey401
-      | UserVerifyGPGKey403
-      | UserVerifyGPGKey404
-      | UserVerifyGPGKey422
-    >,
+    ResponseErrorConfig<UserVerifyGPGKey401 | UserVerifyGPGKey403 | UserVerifyGPGKey404 | UserVerifyGPGKey422>,
     UserVerifyGPGKeyMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getUserVerifyGPGKeyUrl().url.toString(),
     data: requestData,
     ...requestConfig,

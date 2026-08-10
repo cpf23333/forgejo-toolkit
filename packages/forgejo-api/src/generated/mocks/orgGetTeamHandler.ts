@@ -3,17 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgGetTeamQueryResponse,
-  OrgGetTeam404,
-} from "../types/OrgGetTeam"
-import { http } from "msw";
+import type { OrgGetTeamQueryResponse, OrgGetTeam404 } from '../types/OrgGetTeam';
+import { http } from 'msw';
 
 export function orgGetTeamHandlerResponse200(data: OrgGetTeamQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -22,7 +19,7 @@ export function orgGetTeamHandlerResponse404(data: OrgGetTeam404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -30,17 +27,15 @@ export function orgGetTeamHandlerResponse404(data: OrgGetTeam404) {
 export function orgGetTeamHandler(
   data?:
     | OrgGetTeamQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/teams/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

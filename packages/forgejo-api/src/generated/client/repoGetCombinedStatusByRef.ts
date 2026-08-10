@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetCombinedStatusByRefQueryResponse,
   RepoGetCombinedStatusByRefPathParams,
   RepoGetCombinedStatusByRefQueryParams,
   RepoGetCombinedStatusByRef400,
   RepoGetCombinedStatusByRef404,
-} from "../types/RepoGetCombinedStatusByRef"
+} from '../types/RepoGetCombinedStatusByRef';
 
 function getRepoGetCombinedStatusByRefUrl(
-  owner: RepoGetCombinedStatusByRefPathParams["owner"],
-  repo: RepoGetCombinedStatusByRefPathParams["repo"],
-  ref: RepoGetCombinedStatusByRefPathParams["ref"],
+  owner: RepoGetCombinedStatusByRefPathParams['owner'],
+  repo: RepoGetCombinedStatusByRefPathParams['repo'],
+  ref: RepoGetCombinedStatusByRefPathParams['ref'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/commits/${ref}/status` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getRepoGetCombinedStatusByRefUrl(
  * {@link /repos/:owner/:repo/commits/:ref/status}
  */
 export async function repoGetCombinedStatusByRef(
-  owner: RepoGetCombinedStatusByRefPathParams["owner"],
-  repo: RepoGetCombinedStatusByRefPathParams["repo"],
-  ref: RepoGetCombinedStatusByRefPathParams["ref"],
+  owner: RepoGetCombinedStatusByRefPathParams['owner'],
+  repo: RepoGetCombinedStatusByRefPathParams['repo'],
+  ref: RepoGetCombinedStatusByRefPathParams['ref'],
   params?: RepoGetCombinedStatusByRefQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -44,12 +40,10 @@ export async function repoGetCombinedStatusByRef(
 
   const res = await request<
     RepoGetCombinedStatusByRefQueryResponse,
-    ResponseErrorConfig<
-      RepoGetCombinedStatusByRef400 | RepoGetCombinedStatusByRef404
-    >,
+    ResponseErrorConfig<RepoGetCombinedStatusByRef400 | RepoGetCombinedStatusByRef404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoGetCombinedStatusByRefUrl(owner, repo, ref).url.toString(),
     params,
     ...requestConfig,

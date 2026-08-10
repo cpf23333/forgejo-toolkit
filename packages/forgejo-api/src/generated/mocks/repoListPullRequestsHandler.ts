@@ -8,49 +8,41 @@ import type {
   RepoListPullRequests400,
   RepoListPullRequests404,
   RepoListPullRequests500,
-} from "../types/RepoListPullRequests"
-import { http } from "msw";
+} from '../types/RepoListPullRequests';
+import { http } from 'msw';
 
-export function repoListPullRequestsHandlerResponse200(
-  data: RepoListPullRequestsQueryResponse,
-) {
+export function repoListPullRequestsHandlerResponse200(data: RepoListPullRequestsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoListPullRequestsHandlerResponse400(
-  data: RepoListPullRequests400,
-) {
+export function repoListPullRequestsHandlerResponse400(data: RepoListPullRequests400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoListPullRequestsHandlerResponse404(
-  data: RepoListPullRequests404,
-) {
+export function repoListPullRequestsHandlerResponse404(data: RepoListPullRequests404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoListPullRequestsHandlerResponse500(
-  data: RepoListPullRequests500,
-) {
+export function repoListPullRequestsHandlerResponse500(data: RepoListPullRequests500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -58,17 +50,15 @@ export function repoListPullRequestsHandlerResponse500(
 export function repoListPullRequestsHandler(
   data?:
     | RepoListPullRequestsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/pulls`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

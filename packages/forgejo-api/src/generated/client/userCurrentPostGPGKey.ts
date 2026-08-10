@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentPostGPGKeyMutationRequest,
   UserCurrentPostGPGKeyMutationResponse,
@@ -16,10 +12,10 @@ import type {
   UserCurrentPostGPGKey403,
   UserCurrentPostGPGKey404,
   UserCurrentPostGPGKey422,
-} from "../types/UserCurrentPostGPGKey"
+} from '../types/UserCurrentPostGPGKey';
 
 function getUserCurrentPostGPGKeyUrl() {
-  const res = { method: "POST", url: `/user/gpg_keys` as const };
+  const res = { method: 'POST', url: `/user/gpg_keys` as const };
   return res;
 }
 
@@ -40,14 +36,11 @@ export async function userCurrentPostGPGKey(
   const res = await request<
     UserCurrentPostGPGKeyMutationResponse,
     ResponseErrorConfig<
-      | UserCurrentPostGPGKey401
-      | UserCurrentPostGPGKey403
-      | UserCurrentPostGPGKey404
-      | UserCurrentPostGPGKey422
+      UserCurrentPostGPGKey401 | UserCurrentPostGPGKey403 | UserCurrentPostGPGKey404 | UserCurrentPostGPGKey422
     >,
     UserCurrentPostGPGKeyMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getUserCurrentPostGPGKeyUrl().url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueCreateIssueBlockingMutationRequest,
   IssueCreateIssueBlockingMutationResponse,
   IssueCreateIssueBlockingPathParams,
   IssueCreateIssueBlocking404,
-} from "../types/IssueCreateIssueBlocking"
+} from '../types/IssueCreateIssueBlocking';
 
 function getIssueCreateIssueBlockingUrl(
-  owner: IssueCreateIssueBlockingPathParams["owner"],
-  repo: IssueCreateIssueBlockingPathParams["repo"],
-  index: IssueCreateIssueBlockingPathParams["index"],
+  owner: IssueCreateIssueBlockingPathParams['owner'],
+  repo: IssueCreateIssueBlockingPathParams['repo'],
+  index: IssueCreateIssueBlockingPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/blocks` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getIssueCreateIssueBlockingUrl(
  * {@link /repos/:owner/:repo/issues/:index/blocks}
  */
 export async function issueCreateIssueBlocking(
-  owner: IssueCreateIssueBlockingPathParams["owner"],
-  repo: IssueCreateIssueBlockingPathParams["repo"],
-  index: IssueCreateIssueBlockingPathParams["index"],
+  owner: IssueCreateIssueBlockingPathParams['owner'],
+  repo: IssueCreateIssueBlockingPathParams['repo'],
+  index: IssueCreateIssueBlockingPathParams['index'],
   data?: IssueCreateIssueBlockingMutationRequest,
   config: Partial<RequestConfig<IssueCreateIssueBlockingMutationRequest>> & {
     client?: Client;
@@ -50,7 +46,7 @@ export async function issueCreateIssueBlocking(
     ResponseErrorConfig<IssueCreateIssueBlocking404>,
     IssueCreateIssueBlockingMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueCreateIssueBlockingUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminDeleteUnadoptedRepositoryMutationResponse,
   AdminDeleteUnadoptedRepositoryPathParams,
   AdminDeleteUnadoptedRepository403,
-} from "../types/AdminDeleteUnadoptedRepository"
+} from '../types/AdminDeleteUnadoptedRepository';
 
 function getAdminDeleteUnadoptedRepositoryUrl(
-  owner: AdminDeleteUnadoptedRepositoryPathParams["owner"],
-  repo: AdminDeleteUnadoptedRepositoryPathParams["repo"],
+  owner: AdminDeleteUnadoptedRepositoryPathParams['owner'],
+  repo: AdminDeleteUnadoptedRepositoryPathParams['repo'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/admin/unadopted/${owner}/${repo}` as const,
   };
   return res;
@@ -31,8 +27,8 @@ function getAdminDeleteUnadoptedRepositoryUrl(
  * {@link /admin/unadopted/:owner/:repo}
  */
 export async function adminDeleteUnadoptedRepository(
-  owner: AdminDeleteUnadoptedRepositoryPathParams["owner"],
-  repo: AdminDeleteUnadoptedRepositoryPathParams["repo"],
+  owner: AdminDeleteUnadoptedRepositoryPathParams['owner'],
+  repo: AdminDeleteUnadoptedRepositoryPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -42,7 +38,7 @@ export async function adminDeleteUnadoptedRepository(
     ResponseErrorConfig<AdminDeleteUnadoptedRepository403>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getAdminDeleteUnadoptedRepositoryUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

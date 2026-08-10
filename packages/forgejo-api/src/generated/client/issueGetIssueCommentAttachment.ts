@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetIssueCommentAttachmentQueryResponse,
   IssueGetIssueCommentAttachmentPathParams,
   IssueGetIssueCommentAttachment404,
-} from "../types/IssueGetIssueCommentAttachment"
+} from '../types/IssueGetIssueCommentAttachment';
 
 function getIssueGetIssueCommentAttachmentUrl(
-  owner: IssueGetIssueCommentAttachmentPathParams["owner"],
-  repo: IssueGetIssueCommentAttachmentPathParams["repo"],
-  id: IssueGetIssueCommentAttachmentPathParams["id"],
-  attachment_id: IssueGetIssueCommentAttachmentPathParams["attachment_id"],
+  owner: IssueGetIssueCommentAttachmentPathParams['owner'],
+  repo: IssueGetIssueCommentAttachmentPathParams['repo'],
+  id: IssueGetIssueCommentAttachmentPathParams['id'],
+  attachment_id: IssueGetIssueCommentAttachmentPathParams['attachment_id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/comments/${id}/assets/${attachment_id}` as const,
   };
   return res;
@@ -33,10 +29,10 @@ function getIssueGetIssueCommentAttachmentUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id/assets/:attachment_id}
  */
 export async function issueGetIssueCommentAttachment(
-  owner: IssueGetIssueCommentAttachmentPathParams["owner"],
-  repo: IssueGetIssueCommentAttachmentPathParams["repo"],
-  id: IssueGetIssueCommentAttachmentPathParams["id"],
-  attachment_id: IssueGetIssueCommentAttachmentPathParams["attachment_id"],
+  owner: IssueGetIssueCommentAttachmentPathParams['owner'],
+  repo: IssueGetIssueCommentAttachmentPathParams['repo'],
+  id: IssueGetIssueCommentAttachmentPathParams['id'],
+  attachment_id: IssueGetIssueCommentAttachmentPathParams['attachment_id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,13 +42,8 @@ export async function issueGetIssueCommentAttachment(
     ResponseErrorConfig<IssueGetIssueCommentAttachment404>,
     unknown
   >({
-    method: "GET",
-    url: getIssueGetIssueCommentAttachmentUrl(
-      owner,
-      repo,
-      id,
-      attachment_id,
-    ).url.toString(),
+    method: 'GET',
+    url: getIssueGetIssueCommentAttachmentUrl(owner, repo, id, attachment_id).url.toString(),
     ...requestConfig,
   });
   return res.data;

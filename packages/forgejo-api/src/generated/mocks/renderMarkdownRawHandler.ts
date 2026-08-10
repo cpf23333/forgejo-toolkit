@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RenderMarkdownRawMutationResponse,
-  RenderMarkdownRaw422,
-} from "../types/RenderMarkdownRaw"
-import { http } from "msw";
+import type { RenderMarkdownRawMutationResponse, RenderMarkdownRaw422 } from '../types/RenderMarkdownRaw';
+import { http } from 'msw';
 
-export function renderMarkdownRawHandlerResponse200(
-  data: RenderMarkdownRawMutationResponse,
-) {
+export function renderMarkdownRawHandlerResponse200(data: RenderMarkdownRawMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function renderMarkdownRawHandlerResponse422(
-  data: RenderMarkdownRaw422,
-) {
+export function renderMarkdownRawHandlerResponse422(data: RenderMarkdownRaw422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function renderMarkdownRawHandlerResponse422(
 export function renderMarkdownRawHandler(
   data?:
     | RenderMarkdownRawMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/markdown/raw`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

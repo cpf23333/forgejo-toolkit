@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetTagProtectionQueryResponse,
-  RepoGetTagProtection404,
-} from "../types/RepoGetTagProtection"
-import { http } from "msw";
+import type { RepoGetTagProtectionQueryResponse, RepoGetTagProtection404 } from '../types/RepoGetTagProtection';
+import { http } from 'msw';
 
-export function repoGetTagProtectionHandlerResponse200(
-  data: RepoGetTagProtectionQueryResponse,
-) {
+export function repoGetTagProtectionHandlerResponse200(data: RepoGetTagProtectionQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetTagProtectionHandlerResponse404(
-  data: RepoGetTagProtection404,
-) {
+export function repoGetTagProtectionHandlerResponse404(data: RepoGetTagProtection404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +27,16 @@ export function repoGetTagProtectionHandlerResponse404(
 export function repoGetTagProtectionHandler(
   data?:
     | RepoGetTagProtectionQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/tag_protections/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/tag_protections/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

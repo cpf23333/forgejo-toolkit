@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { GenerateRepoOption } from "./GenerateRepoOption"
-import type { Repository } from "./Repository"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { GenerateRepoOption } from './GenerateRepoOption';
+import type { Repository } from './Repository';
 
 export type GenerateRepoPathParams = {
   /**
@@ -60,10 +60,5 @@ export type GenerateRepoMutation = {
   Response: GenerateRepo201;
   Request: GenerateRepoMutationRequest;
   PathParams: GenerateRepoPathParams;
-  Errors:
-    | GenerateRepo403
-    | GenerateRepo404
-    | GenerateRepo409
-    | GenerateRepo413
-    | GenerateRepo422;
+  Errors: GenerateRepo403 | GenerateRepo404 | GenerateRepo409 | GenerateRepo413 | GenerateRepo422;
 };

@@ -7,38 +7,32 @@ import type {
   RepoGetCombinedStatusByRefQueryResponse,
   RepoGetCombinedStatusByRef400,
   RepoGetCombinedStatusByRef404,
-} from "../types/RepoGetCombinedStatusByRef"
-import { http } from "msw";
+} from '../types/RepoGetCombinedStatusByRef';
+import { http } from 'msw';
 
-export function repoGetCombinedStatusByRefHandlerResponse200(
-  data: RepoGetCombinedStatusByRefQueryResponse,
-) {
+export function repoGetCombinedStatusByRefHandlerResponse200(data: RepoGetCombinedStatusByRefQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetCombinedStatusByRefHandlerResponse400(
-  data: RepoGetCombinedStatusByRef400,
-) {
+export function repoGetCombinedStatusByRefHandlerResponse400(data: RepoGetCombinedStatusByRef400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetCombinedStatusByRefHandlerResponse404(
-  data: RepoGetCombinedStatusByRef404,
-) {
+export function repoGetCombinedStatusByRefHandlerResponse404(data: RepoGetCombinedStatusByRef404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function repoGetCombinedStatusByRefHandlerResponse404(
 export function repoGetCombinedStatusByRefHandler(
   data?:
     | RepoGetCombinedStatusByRefQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/commits/:ref/status`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/commits/:ref/status`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

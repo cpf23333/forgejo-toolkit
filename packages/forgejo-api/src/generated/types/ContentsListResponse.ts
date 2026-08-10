@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { ContentsResponse } from "./ContentsResponse"
+import type { ContentsResponse } from './ContentsResponse';
 
 export type ContentsListResponse = ContentsResponse[];

@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueRemoveIssueDependenciesMutationRequest,
   IssueRemoveIssueDependenciesMutationResponse,
   IssueRemoveIssueDependenciesPathParams,
   IssueRemoveIssueDependencies404,
   IssueRemoveIssueDependencies423,
-} from "../types/IssueRemoveIssueDependencies"
+} from '../types/IssueRemoveIssueDependencies';
 
 function getIssueRemoveIssueDependenciesUrl(
-  owner: IssueRemoveIssueDependenciesPathParams["owner"],
-  repo: IssueRemoveIssueDependenciesPathParams["repo"],
-  index: IssueRemoveIssueDependenciesPathParams["index"],
+  owner: IssueRemoveIssueDependenciesPathParams['owner'],
+  repo: IssueRemoveIssueDependenciesPathParams['repo'],
+  index: IssueRemoveIssueDependenciesPathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/dependencies` as const,
   };
   return res;
@@ -34,13 +30,11 @@ function getIssueRemoveIssueDependenciesUrl(
  * {@link /repos/:owner/:repo/issues/:index/dependencies}
  */
 export async function issueRemoveIssueDependencies(
-  owner: IssueRemoveIssueDependenciesPathParams["owner"],
-  repo: IssueRemoveIssueDependenciesPathParams["repo"],
-  index: IssueRemoveIssueDependenciesPathParams["index"],
+  owner: IssueRemoveIssueDependenciesPathParams['owner'],
+  repo: IssueRemoveIssueDependenciesPathParams['repo'],
+  index: IssueRemoveIssueDependenciesPathParams['index'],
   data?: IssueRemoveIssueDependenciesMutationRequest,
-  config: Partial<
-    RequestConfig<IssueRemoveIssueDependenciesMutationRequest>
-  > & { client?: Client } = {},
+  config: Partial<RequestConfig<IssueRemoveIssueDependenciesMutationRequest>> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
@@ -48,12 +42,10 @@ export async function issueRemoveIssueDependencies(
 
   const res = await request<
     IssueRemoveIssueDependenciesMutationResponse,
-    ResponseErrorConfig<
-      IssueRemoveIssueDependencies404 | IssueRemoveIssueDependencies423
-    >,
+    ResponseErrorConfig<IssueRemoveIssueDependencies404 | IssueRemoveIssueDependencies423>,
     IssueRemoveIssueDependenciesMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueRemoveIssueDependenciesUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

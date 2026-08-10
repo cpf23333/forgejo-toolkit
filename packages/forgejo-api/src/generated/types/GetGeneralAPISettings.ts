@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { GeneralAPISettings } from "./GeneralAPISettings"
+import type { GeneralAPISettings } from './GeneralAPISettings';
 
 /**
  * @description GeneralAPISettings

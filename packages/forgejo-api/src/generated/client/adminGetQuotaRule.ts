@@ -3,25 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminGetQuotaRuleQueryResponse,
   AdminGetQuotaRulePathParams,
   AdminGetQuotaRule400,
   AdminGetQuotaRule403,
   AdminGetQuotaRule404,
-} from "../types/AdminGetQuotaRule"
+} from '../types/AdminGetQuotaRule';
 
-function getAdminGetQuotaRuleUrl(
-  quotarule: AdminGetQuotaRulePathParams["quotarule"],
-) {
+function getAdminGetQuotaRuleUrl(quotarule: AdminGetQuotaRulePathParams['quotarule']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/admin/quota/rules/${quotarule}` as const,
   };
   return res;
@@ -32,19 +26,17 @@ function getAdminGetQuotaRuleUrl(
  * {@link /admin/quota/rules/:quotarule}
  */
 export async function adminGetQuotaRule(
-  quotarule: AdminGetQuotaRulePathParams["quotarule"],
+  quotarule: AdminGetQuotaRulePathParams['quotarule'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     AdminGetQuotaRuleQueryResponse,
-    ResponseErrorConfig<
-      AdminGetQuotaRule400 | AdminGetQuotaRule403 | AdminGetQuotaRule404
-    >,
+    ResponseErrorConfig<AdminGetQuotaRule400 | AdminGetQuotaRule403 | AdminGetQuotaRule404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getAdminGetQuotaRuleUrl(quotarule).url.toString(),
     ...requestConfig,
   });

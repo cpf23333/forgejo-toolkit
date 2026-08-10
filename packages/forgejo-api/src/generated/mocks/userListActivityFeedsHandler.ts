@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  UserListActivityFeedsQueryResponse,
-  UserListActivityFeeds404,
-} from "../types/UserListActivityFeeds"
-import { http } from "msw";
+import type { UserListActivityFeedsQueryResponse, UserListActivityFeeds404 } from '../types/UserListActivityFeeds';
+import { http } from 'msw';
 
-export function userListActivityFeedsHandlerResponse200(
-  data: UserListActivityFeedsQueryResponse,
-) {
+export function userListActivityFeedsHandlerResponse200(data: UserListActivityFeedsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userListActivityFeedsHandlerResponse404(
-  data: UserListActivityFeeds404,
-) {
+export function userListActivityFeedsHandlerResponse404(data: UserListActivityFeeds404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function userListActivityFeedsHandlerResponse404(
 export function userListActivityFeedsHandler(
   data?:
     | UserListActivityFeedsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/users/:username/activities/feeds`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { RegistrationToken } from "./RegistrationToken"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { RegistrationToken } from './RegistrationToken';
 
 /**
  * @description RegistrationToken is a string used to register a runner with a server
@@ -22,8 +22,7 @@ export type UserGetRunnerRegistrationToken401 = APIUnauthorizedError;
  */
 export type UserGetRunnerRegistrationToken403 = APIForbiddenError;
 
-export type UserGetRunnerRegistrationTokenQueryResponse =
-  UserGetRunnerRegistrationToken200;
+export type UserGetRunnerRegistrationTokenQueryResponse = UserGetRunnerRegistrationToken200;
 
 export type UserGetRunnerRegistrationTokenQuery = {
   Response: UserGetRunnerRegistrationToken200;

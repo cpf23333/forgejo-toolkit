@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { CreateVariableOption } from "./CreateVariableOption"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { CreateVariableOption } from './CreateVariableOption';
 
 export type CreateUserVariablePathParams = {
   /**
@@ -52,16 +52,11 @@ export type CreateUserVariable404 = APINotFound;
  */
 export type CreateUserVariableMutationRequest = CreateVariableOption;
 
-export type CreateUserVariableMutationResponse =
-  CreateUserVariable201 | CreateUserVariable204;
+export type CreateUserVariableMutationResponse = CreateUserVariable201 | CreateUserVariable204;
 
 export type CreateUserVariableMutation = {
   Response: CreateUserVariable201 | CreateUserVariable204;
   Request: CreateUserVariableMutationRequest;
   PathParams: CreateUserVariablePathParams;
-  Errors:
-    | CreateUserVariable400
-    | CreateUserVariable401
-    | CreateUserVariable403
-    | CreateUserVariable404;
+  Errors: CreateUserVariable400 | CreateUserVariable401 | CreateUserVariable403 | CreateUserVariable404;
 };

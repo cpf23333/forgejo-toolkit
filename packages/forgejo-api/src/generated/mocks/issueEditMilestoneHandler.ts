@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  IssueEditMilestoneMutationResponse,
-  IssueEditMilestone404,
-} from "../types/IssueEditMilestone"
-import { http } from "msw";
+import type { IssueEditMilestoneMutationResponse, IssueEditMilestone404 } from '../types/IssueEditMilestone';
+import { http } from 'msw';
 
-export function issueEditMilestoneHandlerResponse200(
-  data: IssueEditMilestoneMutationResponse,
-) {
+export function issueEditMilestoneHandlerResponse200(data: IssueEditMilestoneMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueEditMilestoneHandlerResponse404(
-  data: IssueEditMilestone404,
-) {
+export function issueEditMilestoneHandlerResponse404(data: IssueEditMilestone404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +27,16 @@ export function issueEditMilestoneHandlerResponse404(
 export function issueEditMilestoneHandler(
   data?:
     | IssueEditMilestoneMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/milestones/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/milestones/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { ChangedFile } from "./ChangedFile"
+import type { ChangedFile } from './ChangedFile';
 
 export type ChangedFileListWithPagination = ChangedFile[];

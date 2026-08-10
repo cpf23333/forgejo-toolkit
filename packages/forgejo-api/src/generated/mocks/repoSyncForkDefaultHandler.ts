@@ -7,35 +7,29 @@ import type {
   RepoSyncForkDefaultMutationResponse,
   RepoSyncForkDefault400,
   RepoSyncForkDefault404,
-} from "../types/RepoSyncForkDefault"
-import { http } from "msw";
+} from '../types/RepoSyncForkDefault';
+import { http } from 'msw';
 
-export function repoSyncForkDefaultHandlerResponse204(
-  data?: RepoSyncForkDefaultMutationResponse,
-) {
+export function repoSyncForkDefaultHandlerResponse204(data?: RepoSyncForkDefaultMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoSyncForkDefaultHandlerResponse400(
-  data: RepoSyncForkDefault400,
-) {
+export function repoSyncForkDefaultHandlerResponse400(data: RepoSyncForkDefault400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoSyncForkDefaultHandlerResponse404(
-  data: RepoSyncForkDefault404,
-) {
+export function repoSyncForkDefaultHandlerResponse404(data: RepoSyncForkDefault404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,12 +41,10 @@ export function repoSyncForkDefaultHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/sync_fork`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

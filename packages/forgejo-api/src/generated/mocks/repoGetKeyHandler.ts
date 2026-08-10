@@ -3,17 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetKeyQueryResponse,
-  RepoGetKey404,
-} from "../types/RepoGetKey"
-import { http } from "msw";
+import type { RepoGetKeyQueryResponse, RepoGetKey404 } from '../types/RepoGetKey';
+import { http } from 'msw';
 
 export function repoGetKeyHandlerResponse200(data: RepoGetKeyQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -22,7 +19,7 @@ export function repoGetKeyHandlerResponse404(data: RepoGetKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -30,17 +27,15 @@ export function repoGetKeyHandlerResponse404(data: RepoGetKey404) {
 export function repoGetKeyHandler(
   data?:
     | RepoGetKeyQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/keys/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

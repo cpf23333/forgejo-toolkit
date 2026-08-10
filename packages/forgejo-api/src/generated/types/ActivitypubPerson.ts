@@ -3,14 +3,14 @@
  * Do not edit manually.
  */
 
-import type { ActivityPub } from "./ActivityPub"
+import type { ActivityPub } from './ActivityPub';
 
 export type ActivitypubPersonPathParams = {
   /**
    * @description user ID of the user
    * @type integer, int64
    */
-  "user-id": number;
+  'user-id': number;
 };
 
 /**

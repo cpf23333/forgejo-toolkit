@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoTrackedTimesQueryResponse,
   RepoTrackedTimesPathParams,
@@ -17,13 +13,10 @@ import type {
   RepoTrackedTimes403,
   RepoTrackedTimes404,
   RepoTrackedTimes422,
-} from "../types/RepoTrackedTimes"
+} from '../types/RepoTrackedTimes';
 
-function getRepoTrackedTimesUrl(
-  owner: RepoTrackedTimesPathParams["owner"],
-  repo: RepoTrackedTimesPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/times` as const };
+function getRepoTrackedTimesUrl(owner: RepoTrackedTimesPathParams['owner'], repo: RepoTrackedTimesPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/times` as const };
   return res;
 }
 
@@ -32,8 +25,8 @@ function getRepoTrackedTimesUrl(
  * {@link /repos/:owner/:repo/times}
  */
 export async function repoTrackedTimes(
-  owner: RepoTrackedTimesPathParams["owner"],
-  repo: RepoTrackedTimesPathParams["repo"],
+  owner: RepoTrackedTimesPathParams['owner'],
+  repo: RepoTrackedTimesPathParams['repo'],
   params?: RepoTrackedTimesQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -41,15 +34,10 @@ export async function repoTrackedTimes(
 
   const res = await request<
     RepoTrackedTimesQueryResponse,
-    ResponseErrorConfig<
-      | RepoTrackedTimes400
-      | RepoTrackedTimes403
-      | RepoTrackedTimes404
-      | RepoTrackedTimes422
-    >,
+    ResponseErrorConfig<RepoTrackedTimes400 | RepoTrackedTimes403 | RepoTrackedTimes404 | RepoTrackedTimes422>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoTrackedTimesUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

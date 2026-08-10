@@ -3,25 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgUnblockUserMutationResponse,
   OrgUnblockUserPathParams,
   OrgUnblockUser404,
   OrgUnblockUser422,
-} from "../types/OrgUnblockUser"
+} from '../types/OrgUnblockUser';
 
-function getOrgUnblockUserUrl(
-  org: OrgUnblockUserPathParams["org"],
-  username: OrgUnblockUserPathParams["username"],
-) {
+function getOrgUnblockUserUrl(org: OrgUnblockUserPathParams['org'], username: OrgUnblockUserPathParams['username']) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/orgs/${org}/unblock/${username}` as const,
   };
   return res;
@@ -32,8 +25,8 @@ function getOrgUnblockUserUrl(
  * {@link /orgs/:org/unblock/:username}
  */
 export async function orgUnblockUser(
-  org: OrgUnblockUserPathParams["org"],
-  username: OrgUnblockUserPathParams["username"],
+  org: OrgUnblockUserPathParams['org'],
+  username: OrgUnblockUserPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +36,7 @@ export async function orgUnblockUser(
     ResponseErrorConfig<OrgUnblockUser404 | OrgUnblockUser422>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getOrgUnblockUserUrl(org, username).url.toString(),
     ...requestConfig,
   });

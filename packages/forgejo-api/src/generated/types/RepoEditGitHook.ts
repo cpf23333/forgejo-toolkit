@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { EditGitHookOption } from "./EditGitHookOption"
-import type { GitHook } from "./GitHook"
+import type { APINotFound } from './APINotFound';
+import type { EditGitHookOption } from './EditGitHookOption';
+import type { GitHook } from './GitHook';
 
 export type RepoEditGitHookPathParams = {
   /**

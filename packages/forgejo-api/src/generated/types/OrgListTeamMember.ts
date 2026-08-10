@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { User } from "./User"
+import type { APINotFound } from './APINotFound';
+import type { User } from './User';
 
 export type OrgListTeamMemberPathParams = {
   /**

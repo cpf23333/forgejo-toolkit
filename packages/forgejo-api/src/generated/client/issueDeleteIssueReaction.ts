@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueDeleteIssueReactionMutationRequest,
   IssueDeleteIssueReactionMutationResponse,
   IssueDeleteIssueReactionPathParams,
   IssueDeleteIssueReaction403,
   IssueDeleteIssueReaction404,
-} from "../types/IssueDeleteIssueReaction"
+} from '../types/IssueDeleteIssueReaction';
 
 function getIssueDeleteIssueReactionUrl(
-  owner: IssueDeleteIssueReactionPathParams["owner"],
-  repo: IssueDeleteIssueReactionPathParams["repo"],
-  index: IssueDeleteIssueReactionPathParams["index"],
+  owner: IssueDeleteIssueReactionPathParams['owner'],
+  repo: IssueDeleteIssueReactionPathParams['repo'],
+  index: IssueDeleteIssueReactionPathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/reactions` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssueDeleteIssueReactionUrl(
  * {@link /repos/:owner/:repo/issues/:index/reactions}
  */
 export async function issueDeleteIssueReaction(
-  owner: IssueDeleteIssueReactionPathParams["owner"],
-  repo: IssueDeleteIssueReactionPathParams["repo"],
-  index: IssueDeleteIssueReactionPathParams["index"],
+  owner: IssueDeleteIssueReactionPathParams['owner'],
+  repo: IssueDeleteIssueReactionPathParams['repo'],
+  index: IssueDeleteIssueReactionPathParams['index'],
   data?: IssueDeleteIssueReactionMutationRequest,
   config: Partial<RequestConfig<IssueDeleteIssueReactionMutationRequest>> & {
     client?: Client;
@@ -48,12 +44,10 @@ export async function issueDeleteIssueReaction(
 
   const res = await request<
     IssueDeleteIssueReactionMutationResponse,
-    ResponseErrorConfig<
-      IssueDeleteIssueReaction403 | IssueDeleteIssueReaction404
-    >,
+    ResponseErrorConfig<IssueDeleteIssueReaction403 | IssueDeleteIssueReaction404>,
     IssueDeleteIssueReactionMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueDeleteIssueReactionUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminGetActionRunJobsQueryResponse,
   AdminGetActionRunJobsQueryParams,
   AdminGetActionRunJobs403,
-} from "../types/AdminGetActionRunJobs"
+} from '../types/AdminGetActionRunJobs';
 
 function getAdminGetActionRunJobsUrl() {
-  const res = { method: "GET", url: `/admin/actions/runners/jobs` as const };
+  const res = { method: 'GET', url: `/admin/actions/runners/jobs` as const };
   return res;
 }
 
@@ -30,15 +26,13 @@ export async function adminGetActionRunJobs(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminGetActionRunJobsQueryResponse,
-    ResponseErrorConfig<AdminGetActionRunJobs403>,
-    unknown
-  >({
-    method: "GET",
-    url: getAdminGetActionRunJobsUrl().url.toString(),
-    params,
-    ...requestConfig,
-  });
+  const res = await request<AdminGetActionRunJobsQueryResponse, ResponseErrorConfig<AdminGetActionRunJobs403>, unknown>(
+    {
+      method: 'GET',
+      url: getAdminGetActionRunJobsUrl().url.toString(),
+      params,
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

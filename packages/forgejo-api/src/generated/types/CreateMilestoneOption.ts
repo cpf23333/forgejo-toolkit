@@ -4,8 +4,8 @@
  */
 
 export const createMilestoneOptionStateEnum = {
-  open: "open",
-  closed: "closed",
+  open: 'open',
+  closed: 'closed',
 } as const;
 
 export type CreateMilestoneOptionStateEnumKey =

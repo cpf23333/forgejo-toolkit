@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   MoveIssuePinMutationResponse,
   MoveIssuePinPathParams,
   MoveIssuePin403,
   MoveIssuePin404,
-} from "../types/MoveIssuePin"
+} from '../types/MoveIssuePin';
 
 function getMoveIssuePinUrl(
-  owner: MoveIssuePinPathParams["owner"],
-  repo: MoveIssuePinPathParams["repo"],
-  index: MoveIssuePinPathParams["index"],
-  position: MoveIssuePinPathParams["position"],
+  owner: MoveIssuePinPathParams['owner'],
+  repo: MoveIssuePinPathParams['repo'],
+  index: MoveIssuePinPathParams['index'],
+  position: MoveIssuePinPathParams['position'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/issues/${index}/pin/${position}` as const,
   };
   return res;
@@ -34,10 +30,10 @@ function getMoveIssuePinUrl(
  * {@link /repos/:owner/:repo/issues/:index/pin/:position}
  */
 export async function moveIssuePin(
-  owner: MoveIssuePinPathParams["owner"],
-  repo: MoveIssuePinPathParams["repo"],
-  index: MoveIssuePinPathParams["index"],
-  position: MoveIssuePinPathParams["position"],
+  owner: MoveIssuePinPathParams['owner'],
+  repo: MoveIssuePinPathParams['repo'],
+  index: MoveIssuePinPathParams['index'],
+  position: MoveIssuePinPathParams['position'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -47,7 +43,7 @@ export async function moveIssuePin(
     ResponseErrorConfig<MoveIssuePin403 | MoveIssuePin404>,
     unknown
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getMoveIssuePinUrl(owner, repo, index, position).url.toString(),
     ...requestConfig,
   });

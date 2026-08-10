@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateReleaseOption } from "./CreateReleaseOption"
-import type { Release } from "./Release"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateReleaseOption } from './CreateReleaseOption';
+import type { Release } from './Release';
 
 export type RepoCreateReleasePathParams = {
   /**

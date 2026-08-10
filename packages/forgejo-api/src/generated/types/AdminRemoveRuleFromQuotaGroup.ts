@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
 
 export type AdminRemoveRuleFromQuotaGroupPathParams = {
   /**
@@ -40,14 +40,10 @@ export type AdminRemoveRuleFromQuotaGroup403 = APIForbiddenError;
  */
 export type AdminRemoveRuleFromQuotaGroup404 = APINotFound;
 
-export type AdminRemoveRuleFromQuotaGroupMutationResponse =
-  AdminRemoveRuleFromQuotaGroup201;
+export type AdminRemoveRuleFromQuotaGroupMutationResponse = AdminRemoveRuleFromQuotaGroup201;
 
 export type AdminRemoveRuleFromQuotaGroupMutation = {
   Response: AdminRemoveRuleFromQuotaGroup201;
   PathParams: AdminRemoveRuleFromQuotaGroupPathParams;
-  Errors:
-    | AdminRemoveRuleFromQuotaGroup400
-    | AdminRemoveRuleFromQuotaGroup403
-    | AdminRemoveRuleFromQuotaGroup404;
+  Errors: AdminRemoveRuleFromQuotaGroup400 | AdminRemoveRuleFromQuotaGroup403 | AdminRemoveRuleFromQuotaGroup404;
 };

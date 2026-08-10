@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListPushMirrorsQueryResponse,
   RepoListPushMirrorsPathParams,
@@ -16,14 +12,14 @@ import type {
   RepoListPushMirrors400,
   RepoListPushMirrors403,
   RepoListPushMirrors404,
-} from "../types/RepoListPushMirrors"
+} from '../types/RepoListPushMirrors';
 
 function getRepoListPushMirrorsUrl(
-  owner: RepoListPushMirrorsPathParams["owner"],
-  repo: RepoListPushMirrorsPathParams["repo"],
+  owner: RepoListPushMirrorsPathParams['owner'],
+  repo: RepoListPushMirrorsPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/push_mirrors` as const,
   };
   return res;
@@ -34,8 +30,8 @@ function getRepoListPushMirrorsUrl(
  * {@link /repos/:owner/:repo/push_mirrors}
  */
 export async function repoListPushMirrors(
-  owner: RepoListPushMirrorsPathParams["owner"],
-  repo: RepoListPushMirrorsPathParams["repo"],
+  owner: RepoListPushMirrorsPathParams['owner'],
+  repo: RepoListPushMirrorsPathParams['repo'],
   params?: RepoListPushMirrorsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -43,12 +39,10 @@ export async function repoListPushMirrors(
 
   const res = await request<
     RepoListPushMirrorsQueryResponse,
-    ResponseErrorConfig<
-      RepoListPushMirrors400 | RepoListPushMirrors403 | RepoListPushMirrors404
-    >,
+    ResponseErrorConfig<RepoListPushMirrors400 | RepoListPushMirrors403 | RepoListPushMirrors404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoListPushMirrorsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

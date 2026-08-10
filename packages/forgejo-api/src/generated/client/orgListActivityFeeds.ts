@@ -3,23 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListActivityFeedsQueryResponse,
   OrgListActivityFeedsPathParams,
   OrgListActivityFeedsQueryParams,
   OrgListActivityFeeds404,
-} from "../types/OrgListActivityFeeds"
+} from '../types/OrgListActivityFeeds';
 
-function getOrgListActivityFeedsUrl(
-  org: OrgListActivityFeedsPathParams["org"],
-) {
-  const res = { method: "GET", url: `/orgs/${org}/activities/feeds` as const };
+function getOrgListActivityFeedsUrl(org: OrgListActivityFeedsPathParams['org']) {
+  const res = { method: 'GET', url: `/orgs/${org}/activities/feeds` as const };
   return res;
 }
 
@@ -28,18 +22,14 @@ function getOrgListActivityFeedsUrl(
  * {@link /orgs/:org/activities/feeds}
  */
 export async function orgListActivityFeeds(
-  org: OrgListActivityFeedsPathParams["org"],
+  org: OrgListActivityFeedsPathParams['org'],
   params?: OrgListActivityFeedsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgListActivityFeedsQueryResponse,
-    ResponseErrorConfig<OrgListActivityFeeds404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgListActivityFeedsQueryResponse, ResponseErrorConfig<OrgListActivityFeeds404>, unknown>({
+    method: 'GET',
     url: getOrgListActivityFeedsUrl(org).url.toString(),
     params,
     ...requestConfig,

@@ -8,46 +8,38 @@ import type {
   RepoDeleteWikiPage403,
   RepoDeleteWikiPage404,
   RepoDeleteWikiPage423,
-} from "../types/RepoDeleteWikiPage"
-import { http } from "msw";
+} from '../types/RepoDeleteWikiPage';
+import { http } from 'msw';
 
-export function repoDeleteWikiPageHandlerResponse204(
-  data?: RepoDeleteWikiPageMutationResponse,
-) {
+export function repoDeleteWikiPageHandlerResponse204(data?: RepoDeleteWikiPageMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoDeleteWikiPageHandlerResponse403(
-  data: RepoDeleteWikiPage403,
-) {
+export function repoDeleteWikiPageHandlerResponse403(data: RepoDeleteWikiPage403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDeleteWikiPageHandlerResponse404(
-  data: RepoDeleteWikiPage404,
-) {
+export function repoDeleteWikiPageHandlerResponse404(data: RepoDeleteWikiPage404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoDeleteWikiPageHandlerResponse423(
-  data: RepoDeleteWikiPage423,
-) {
+export function repoDeleteWikiPageHandlerResponse423(data: RepoDeleteWikiPage423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,18 +51,13 @@ export function repoDeleteWikiPageHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/wiki/page/:pageName`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/wiki/page/:pageName`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

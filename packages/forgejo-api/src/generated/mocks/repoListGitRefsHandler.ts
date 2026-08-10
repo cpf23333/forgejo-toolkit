@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoListGitRefsQueryResponse,
-  RepoListGitRefs404,
-} from "../types/RepoListGitRefs"
-import { http } from "msw";
+import type { RepoListGitRefsQueryResponse, RepoListGitRefs404 } from '../types/RepoListGitRefs';
+import { http } from 'msw';
 
-export function repoListGitRefsHandlerResponse200(
-  data: RepoListGitRefsQueryResponse,
-) {
+export function repoListGitRefsHandlerResponse200(data: RepoListGitRefsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function repoListGitRefsHandlerResponse404(data: RepoListGitRefs404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function repoListGitRefsHandlerResponse404(data: RepoListGitRefs404) {
 export function repoListGitRefsHandler(
   data?:
     | RepoListGitRefsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/git/refs/:ref`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

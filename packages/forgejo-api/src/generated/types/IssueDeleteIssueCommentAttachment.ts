@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
+import type { APIError } from './APIError';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
 
 export type IssueDeleteIssueCommentAttachmentPathParams = {
   /**
@@ -44,12 +44,10 @@ export type IssueDeleteIssueCommentAttachment404 = APIError;
  */
 export type IssueDeleteIssueCommentAttachment423 = APIRepoArchivedError;
 
-export type IssueDeleteIssueCommentAttachmentMutationResponse =
-  IssueDeleteIssueCommentAttachment204;
+export type IssueDeleteIssueCommentAttachmentMutationResponse = IssueDeleteIssueCommentAttachment204;
 
 export type IssueDeleteIssueCommentAttachmentMutation = {
   Response: IssueDeleteIssueCommentAttachment204;
   PathParams: IssueDeleteIssueCommentAttachmentPathParams;
-  Errors:
-    IssueDeleteIssueCommentAttachment404 | IssueDeleteIssueCommentAttachment423;
+  Errors: IssueDeleteIssueCommentAttachment404 | IssueDeleteIssueCommentAttachment423;
 };

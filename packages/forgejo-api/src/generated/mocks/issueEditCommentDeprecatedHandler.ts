@@ -8,57 +8,47 @@ import type {
   IssueEditCommentDeprecated403,
   IssueEditCommentDeprecated404,
   IssueEditCommentDeprecated500,
-} from "../types/IssueEditCommentDeprecated"
-import { http } from "msw";
+} from '../types/IssueEditCommentDeprecated';
+import { http } from 'msw';
 
-export function issueEditCommentDeprecatedHandlerResponse200(
-  data: IssueEditCommentDeprecatedMutationResponse,
-) {
+export function issueEditCommentDeprecatedHandlerResponse200(data: IssueEditCommentDeprecatedMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueEditCommentDeprecatedHandlerResponse204(
-  data?: IssueEditCommentDeprecatedMutationResponse,
-) {
+export function issueEditCommentDeprecatedHandlerResponse204(data?: IssueEditCommentDeprecatedMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function issueEditCommentDeprecatedHandlerResponse403(
-  data: IssueEditCommentDeprecated403,
-) {
+export function issueEditCommentDeprecatedHandlerResponse403(data: IssueEditCommentDeprecated403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueEditCommentDeprecatedHandlerResponse404(
-  data: IssueEditCommentDeprecated404,
-) {
+export function issueEditCommentDeprecatedHandlerResponse404(data: IssueEditCommentDeprecated404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueEditCommentDeprecatedHandlerResponse500(
-  data: IssueEditCommentDeprecated500,
-) {
+export function issueEditCommentDeprecatedHandlerResponse500(data: IssueEditCommentDeprecated500) {
   return new Response(JSON.stringify(data), {
     status: 500,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -66,21 +56,16 @@ export function issueEditCommentDeprecatedHandlerResponse500(
 export function issueEditCommentDeprecatedHandler(
   data?:
     | IssueEditCommentDeprecatedMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/issues/:index/comments/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/issues/:index/comments/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

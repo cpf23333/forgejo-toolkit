@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   CreateOrgVariableMutationRequest,
   CreateOrgVariableMutationResponse,
   CreateOrgVariablePathParams,
   CreateOrgVariable400,
   CreateOrgVariable404,
-} from "../types/CreateOrgVariable"
+} from '../types/CreateOrgVariable';
 
 function getCreateOrgVariableUrl(
-  org: CreateOrgVariablePathParams["org"],
-  variablename: CreateOrgVariablePathParams["variablename"],
+  org: CreateOrgVariablePathParams['org'],
+  variablename: CreateOrgVariablePathParams['variablename'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/orgs/${org}/actions/variables/${variablename}` as const,
   };
   return res;
@@ -33,8 +29,8 @@ function getCreateOrgVariableUrl(
  * {@link /orgs/:org/actions/variables/:variablename}
  */
 export async function createOrgVariable(
-  org: CreateOrgVariablePathParams["org"],
-  variablename: CreateOrgVariablePathParams["variablename"],
+  org: CreateOrgVariablePathParams['org'],
+  variablename: CreateOrgVariablePathParams['variablename'],
   data: CreateOrgVariableMutationRequest,
   config: Partial<RequestConfig<CreateOrgVariableMutationRequest>> & {
     client?: Client;
@@ -49,7 +45,7 @@ export async function createOrgVariable(
     ResponseErrorConfig<CreateOrgVariable400 | CreateOrgVariable404>,
     CreateOrgVariableMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getCreateOrgVariableUrl(org, variablename).url.toString(),
     data: requestData,
     ...requestConfig,

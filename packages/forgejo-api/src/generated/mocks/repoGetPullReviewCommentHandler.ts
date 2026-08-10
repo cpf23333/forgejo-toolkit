@@ -7,38 +7,32 @@ import type {
   RepoGetPullReviewCommentQueryResponse,
   RepoGetPullReviewComment403,
   RepoGetPullReviewComment404,
-} from "../types/RepoGetPullReviewComment"
-import { http } from "msw";
+} from '../types/RepoGetPullReviewComment';
+import { http } from 'msw';
 
-export function repoGetPullReviewCommentHandlerResponse200(
-  data: RepoGetPullReviewCommentQueryResponse,
-) {
+export function repoGetPullReviewCommentHandlerResponse200(data: RepoGetPullReviewCommentQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetPullReviewCommentHandlerResponse403(
-  data: RepoGetPullReviewComment403,
-) {
+export function repoGetPullReviewCommentHandlerResponse403(data: RepoGetPullReviewComment403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetPullReviewCommentHandlerResponse404(
-  data: RepoGetPullReviewComment404,
-) {
+export function repoGetPullReviewCommentHandlerResponse404(data: RepoGetPullReviewComment404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function repoGetPullReviewCommentHandlerResponse404(
 export function repoGetPullReviewCommentHandler(
   data?:
     | RepoGetPullReviewCommentQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/pulls/:index/reviews/:id/comments/:comment`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/pulls/:index/reviews/:id/comments/:comment`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

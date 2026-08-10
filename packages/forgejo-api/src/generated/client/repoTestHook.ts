@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoTestHookMutationResponse,
   RepoTestHookPathParams,
   RepoTestHookQueryParams,
   RepoTestHook404,
-} from "../types/RepoTestHook"
+} from '../types/RepoTestHook';
 
 function getRepoTestHookUrl(
-  owner: RepoTestHookPathParams["owner"],
-  repo: RepoTestHookPathParams["repo"],
-  id: RepoTestHookPathParams["id"],
+  owner: RepoTestHookPathParams['owner'],
+  repo: RepoTestHookPathParams['repo'],
+  id: RepoTestHookPathParams['id'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/hooks/${id}/tests` as const,
   };
   return res;
@@ -33,20 +29,16 @@ function getRepoTestHookUrl(
  * {@link /repos/:owner/:repo/hooks/:id/tests}
  */
 export async function repoTestHook(
-  owner: RepoTestHookPathParams["owner"],
-  repo: RepoTestHookPathParams["repo"],
-  id: RepoTestHookPathParams["id"],
+  owner: RepoTestHookPathParams['owner'],
+  repo: RepoTestHookPathParams['repo'],
+  id: RepoTestHookPathParams['id'],
   params?: RepoTestHookQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoTestHookMutationResponse,
-    ResponseErrorConfig<RepoTestHook404>,
-    unknown
-  >({
-    method: "POST",
+  const res = await request<RepoTestHookMutationResponse, ResponseErrorConfig<RepoTestHook404>, unknown>({
+    method: 'POST',
     url: getRepoTestHookUrl(owner, repo, id).url.toString(),
     params,
     ...requestConfig,

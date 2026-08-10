@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetIssueConfigQueryResponse,
-  RepoGetIssueConfig404,
-} from "../types/RepoGetIssueConfig"
-import { http } from "msw";
+import type { RepoGetIssueConfigQueryResponse, RepoGetIssueConfig404 } from '../types/RepoGetIssueConfig';
+import { http } from 'msw';
 
-export function repoGetIssueConfigHandlerResponse200(
-  data: RepoGetIssueConfigQueryResponse,
-) {
+export function repoGetIssueConfigHandlerResponse200(data: RepoGetIssueConfigQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetIssueConfigHandlerResponse404(
-  data: RepoGetIssueConfig404,
-) {
+export function repoGetIssueConfigHandlerResponse404(data: RepoGetIssueConfig404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function repoGetIssueConfigHandlerResponse404(
 export function repoGetIssueConfigHandler(
   data?:
     | RepoGetIssueConfigQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/issue_config`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

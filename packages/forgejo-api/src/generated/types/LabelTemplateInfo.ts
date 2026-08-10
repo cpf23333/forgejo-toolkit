@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { LabelTemplate } from "./LabelTemplate"
+import type { LabelTemplate } from './LabelTemplate';
 
 export type LabelTemplateInfo = LabelTemplate[];

@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateFileMutationRequest,
   RepoCreateFileMutationResponse,
@@ -19,15 +15,15 @@ import type {
   RepoCreateFile413,
   RepoCreateFile422,
   RepoCreateFile423,
-} from "../types/RepoCreateFile"
+} from '../types/RepoCreateFile';
 
 function getRepoCreateFileUrl(
-  owner: RepoCreateFilePathParams["owner"],
-  repo: RepoCreateFilePathParams["repo"],
-  filepath: RepoCreateFilePathParams["filepath"],
+  owner: RepoCreateFilePathParams['owner'],
+  repo: RepoCreateFilePathParams['repo'],
+  filepath: RepoCreateFilePathParams['filepath'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/contents/${filepath}` as const,
   };
   return res;
@@ -38,9 +34,9 @@ function getRepoCreateFileUrl(
  * {@link /repos/:owner/:repo/contents/:filepath}
  */
 export async function repoCreateFile(
-  owner: RepoCreateFilePathParams["owner"],
-  repo: RepoCreateFilePathParams["repo"],
-  filepath: RepoCreateFilePathParams["filepath"],
+  owner: RepoCreateFilePathParams['owner'],
+  repo: RepoCreateFilePathParams['repo'],
+  filepath: RepoCreateFilePathParams['filepath'],
   data: RepoCreateFileMutationRequest,
   config: Partial<RequestConfig<RepoCreateFileMutationRequest>> & {
     client?: Client;
@@ -62,7 +58,7 @@ export async function repoCreateFile(
     >,
     RepoCreateFileMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateFileUrl(owner, repo, filepath).url.toString(),
     data: requestData,
     ...requestConfig,

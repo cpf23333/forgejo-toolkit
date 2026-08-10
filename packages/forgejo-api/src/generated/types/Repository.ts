@@ -3,16 +3,16 @@
  * Do not edit manually.
  */
 
-import type { ExternalTracker } from "./ExternalTracker"
-import type { ExternalWiki } from "./ExternalWiki"
-import type { InternalTracker } from "./InternalTracker"
-import type { Permission } from "./Permission"
-import type { RepoTransfer } from "./RepoTransfer"
-import type { User } from "./User"
+import type { ExternalTracker } from './ExternalTracker';
+import type { ExternalWiki } from './ExternalWiki';
+import type { InternalTracker } from './InternalTracker';
+import type { Permission } from './Permission';
+import type { RepoTransfer } from './RepoTransfer';
+import type { User } from './User';
 
 export const repositoryObjectFormatNameEnum = {
-  sha1: "sha1",
-  sha256: "sha256",
+  sha1: 'sha1',
+  sha256: 'sha256',
 } as const;
 
 export type RepositoryObjectFormatNameEnumKey =

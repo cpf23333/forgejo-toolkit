@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   CreateUserVariableMutationRequest,
   CreateUserVariableMutationResponse,
@@ -17,13 +13,11 @@ import type {
   CreateUserVariable401,
   CreateUserVariable403,
   CreateUserVariable404,
-} from "../types/CreateUserVariable"
+} from '../types/CreateUserVariable';
 
-function getCreateUserVariableUrl(
-  variablename: CreateUserVariablePathParams["variablename"],
-) {
+function getCreateUserVariableUrl(variablename: CreateUserVariablePathParams['variablename']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/user/actions/variables/${variablename}` as const,
   };
   return res;
@@ -34,7 +28,7 @@ function getCreateUserVariableUrl(
  * {@link /user/actions/variables/:variablename}
  */
 export async function createUserVariable(
-  variablename: CreateUserVariablePathParams["variablename"],
+  variablename: CreateUserVariablePathParams['variablename'],
   data: CreateUserVariableMutationRequest,
   config: Partial<RequestConfig<CreateUserVariableMutationRequest>> & {
     client?: Client;
@@ -46,15 +40,10 @@ export async function createUserVariable(
 
   const res = await request<
     CreateUserVariableMutationResponse,
-    ResponseErrorConfig<
-      | CreateUserVariable400
-      | CreateUserVariable401
-      | CreateUserVariable403
-      | CreateUserVariable404
-    >,
+    ResponseErrorConfig<CreateUserVariable400 | CreateUserVariable401 | CreateUserVariable403 | CreateUserVariable404>,
     CreateUserVariableMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getCreateUserVariableUrl(variablename).url.toString(),
     data: requestData,
     ...requestConfig,

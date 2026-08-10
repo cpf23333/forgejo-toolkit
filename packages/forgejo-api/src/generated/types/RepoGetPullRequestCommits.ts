@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Commit } from "./Commit"
+import type { APINotFound } from './APINotFound';
+import type { Commit } from './Commit';
 
 export type RepoGetPullRequestCommitsPathParams = {
   /**
@@ -57,8 +57,7 @@ export type RepoGetPullRequestCommits200 = Commit[];
  */
 export type RepoGetPullRequestCommits404 = APINotFound;
 
-export type RepoGetPullRequestCommitsQueryResponse =
-  RepoGetPullRequestCommits200;
+export type RepoGetPullRequestCommitsQueryResponse = RepoGetPullRequestCommits200;
 
 export type RepoGetPullRequestCommitsQuery = {
   Response: RepoGetPullRequestCommits200;

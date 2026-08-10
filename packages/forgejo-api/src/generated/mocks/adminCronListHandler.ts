@@ -3,19 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  AdminCronListQueryResponse,
-  AdminCronList403,
-} from "../types/AdminCronList"
-import { http } from "msw";
+import type { AdminCronListQueryResponse, AdminCronList403 } from '../types/AdminCronList';
+import { http } from 'msw';
 
-export function adminCronListHandlerResponse200(
-  data: AdminCronListQueryResponse,
-) {
+export function adminCronListHandlerResponse200(data: AdminCronListQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -24,7 +19,7 @@ export function adminCronListHandlerResponse403(data: AdminCronList403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,17 +27,15 @@ export function adminCronListHandlerResponse403(data: AdminCronList403) {
 export function adminCronListHandler(
   data?:
     | AdminCronListQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/admin/cron`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

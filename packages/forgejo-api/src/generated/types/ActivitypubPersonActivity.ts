@@ -3,19 +3,19 @@
  * Do not edit manually.
  */
 
-import type { ActivityPub } from "./ActivityPub"
+import type { ActivityPub } from './ActivityPub';
 
 export type ActivitypubPersonActivityPathParams = {
   /**
    * @description user ID of the user
    * @type integer
    */
-  "user-id": number;
+  'user-id': number;
   /**
    * @description activity ID of the sought activity
    * @type integer
    */
-  "activity-id": number;
+  'activity-id': number;
 };
 
 /**
@@ -23,8 +23,7 @@ export type ActivitypubPersonActivityPathParams = {
  */
 export type ActivitypubPersonActivity200 = ActivityPub;
 
-export type ActivitypubPersonActivityQueryResponse =
-  ActivitypubPersonActivity200;
+export type ActivitypubPersonActivityQueryResponse = ActivitypubPersonActivity200;
 
 export type ActivitypubPersonActivityQuery = {
   Response: ActivitypubPersonActivity200;

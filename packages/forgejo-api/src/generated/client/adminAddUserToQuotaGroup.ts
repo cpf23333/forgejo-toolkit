@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminAddUserToQuotaGroupMutationResponse,
   AdminAddUserToQuotaGroupPathParams,
@@ -17,14 +13,14 @@ import type {
   AdminAddUserToQuotaGroup404,
   AdminAddUserToQuotaGroup409,
   AdminAddUserToQuotaGroup422,
-} from "../types/AdminAddUserToQuotaGroup"
+} from '../types/AdminAddUserToQuotaGroup';
 
 function getAdminAddUserToQuotaGroupUrl(
-  quotagroup: AdminAddUserToQuotaGroupPathParams["quotagroup"],
-  username: AdminAddUserToQuotaGroupPathParams["username"],
+  quotagroup: AdminAddUserToQuotaGroupPathParams['quotagroup'],
+  username: AdminAddUserToQuotaGroupPathParams['username'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/admin/quota/groups/${quotagroup}/users/${username}` as const,
   };
   return res;
@@ -35,8 +31,8 @@ function getAdminAddUserToQuotaGroupUrl(
  * {@link /admin/quota/groups/:quotagroup/users/:username}
  */
 export async function adminAddUserToQuotaGroup(
-  quotagroup: AdminAddUserToQuotaGroupPathParams["quotagroup"],
-  username: AdminAddUserToQuotaGroupPathParams["username"],
+  quotagroup: AdminAddUserToQuotaGroupPathParams['quotagroup'],
+  username: AdminAddUserToQuotaGroupPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -52,7 +48,7 @@ export async function adminAddUserToQuotaGroup(
     >,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getAdminAddUserToQuotaGroupUrl(quotagroup, username).url.toString(),
     ...requestConfig,
   });

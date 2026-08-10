@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetLatestReleaseQueryResponse,
   RepoGetLatestReleasePathParams,
   RepoGetLatestRelease404,
-} from "../types/RepoGetLatestRelease"
+} from '../types/RepoGetLatestRelease';
 
 function getRepoGetLatestReleaseUrl(
-  owner: RepoGetLatestReleasePathParams["owner"],
-  repo: RepoGetLatestReleasePathParams["repo"],
+  owner: RepoGetLatestReleasePathParams['owner'],
+  repo: RepoGetLatestReleasePathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/releases/latest` as const,
   };
   return res;
@@ -31,18 +27,14 @@ function getRepoGetLatestReleaseUrl(
  * {@link /repos/:owner/:repo/releases/latest}
  */
 export async function repoGetLatestRelease(
-  owner: RepoGetLatestReleasePathParams["owner"],
-  repo: RepoGetLatestReleasePathParams["repo"],
+  owner: RepoGetLatestReleasePathParams['owner'],
+  repo: RepoGetLatestReleasePathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetLatestReleaseQueryResponse,
-    ResponseErrorConfig<RepoGetLatestRelease404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoGetLatestReleaseQueryResponse, ResponseErrorConfig<RepoGetLatestRelease404>, unknown>({
+    method: 'GET',
     url: getRepoGetLatestReleaseUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

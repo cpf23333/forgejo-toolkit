@@ -6,27 +6,23 @@
 import type {
   IssueRemoveIssueBlockingMutationResponse,
   IssueRemoveIssueBlocking404,
-} from "../types/IssueRemoveIssueBlocking"
-import { http } from "msw";
+} from '../types/IssueRemoveIssueBlocking';
+import { http } from 'msw';
 
-export function issueRemoveIssueBlockingHandlerResponse200(
-  data: IssueRemoveIssueBlockingMutationResponse,
-) {
+export function issueRemoveIssueBlockingHandlerResponse200(data: IssueRemoveIssueBlockingMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueRemoveIssueBlockingHandlerResponse404(
-  data: IssueRemoveIssueBlocking404,
-) {
+export function issueRemoveIssueBlockingHandlerResponse404(data: IssueRemoveIssueBlocking404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +30,16 @@ export function issueRemoveIssueBlockingHandlerResponse404(
 export function issueRemoveIssueBlockingHandler(
   data?:
     | IssueRemoveIssueBlockingMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/issues/:index/blocks`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/issues/:index/blocks`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

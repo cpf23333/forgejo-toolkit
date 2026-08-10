@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateBranchMutationRequest,
   RepoCreateBranchMutationResponse,
@@ -18,14 +14,11 @@ import type {
   RepoCreateBranch409,
   RepoCreateBranch413,
   RepoCreateBranch423,
-} from "../types/RepoCreateBranch"
+} from '../types/RepoCreateBranch';
 
-function getRepoCreateBranchUrl(
-  owner: RepoCreateBranchPathParams["owner"],
-  repo: RepoCreateBranchPathParams["repo"],
-) {
+function getRepoCreateBranchUrl(owner: RepoCreateBranchPathParams['owner'], repo: RepoCreateBranchPathParams['repo']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/branches` as const,
   };
   return res;
@@ -36,8 +29,8 @@ function getRepoCreateBranchUrl(
  * {@link /repos/:owner/:repo/branches}
  */
 export async function repoCreateBranch(
-  owner: RepoCreateBranchPathParams["owner"],
-  repo: RepoCreateBranchPathParams["repo"],
+  owner: RepoCreateBranchPathParams['owner'],
+  repo: RepoCreateBranchPathParams['repo'],
   data: RepoCreateBranchMutationRequest,
   config: Partial<RequestConfig<RepoCreateBranchMutationRequest>> & {
     client?: Client;
@@ -50,15 +43,11 @@ export async function repoCreateBranch(
   const res = await request<
     RepoCreateBranchMutationResponse,
     ResponseErrorConfig<
-      | RepoCreateBranch403
-      | RepoCreateBranch404
-      | RepoCreateBranch409
-      | RepoCreateBranch413
-      | RepoCreateBranch423
+      RepoCreateBranch403 | RepoCreateBranch404 | RepoCreateBranch409 | RepoCreateBranch413 | RepoCreateBranch423
     >,
     RepoCreateBranchMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateBranchUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

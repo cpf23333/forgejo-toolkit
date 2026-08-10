@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { ListGitignoresTemplatesQueryResponse } from "../types/ListGitignoresTemplates"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { ListGitignoresTemplatesQueryResponse } from '../types/ListGitignoresTemplates';
 
 function getListGitignoresTemplatesUrl() {
-  const res = { method: "GET", url: `/gitignore/templates` as const };
+  const res = { method: 'GET', url: `/gitignore/templates` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getListGitignoresTemplatesUrl() {
  * @summary Returns a list of all gitignore templates
  * {@link /gitignore/templates}
  */
-export async function listGitignoresTemplates(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function listGitignoresTemplates(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ListGitignoresTemplatesQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ListGitignoresTemplatesQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getListGitignoresTemplatesUrl().url.toString(),
     ...requestConfig,
   });

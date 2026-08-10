@@ -6,20 +6,16 @@
 import type {
   RepoPullRequestIsMergedQueryResponse,
   RepoPullRequestIsMerged404,
-} from "../types/RepoPullRequestIsMerged"
-import { http } from "msw";
+} from '../types/RepoPullRequestIsMerged';
+import { http } from 'msw';
 
-export function repoPullRequestIsMergedHandlerResponse204(
-  data?: RepoPullRequestIsMergedQueryResponse,
-) {
+export function repoPullRequestIsMergedHandlerResponse204(data?: RepoPullRequestIsMergedQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function repoPullRequestIsMergedHandlerResponse404(
-  data?: RepoPullRequestIsMerged404,
-) {
+export function repoPullRequestIsMergedHandlerResponse404(data?: RepoPullRequestIsMerged404) {
   return new Response(JSON.stringify(data), {
     status: 404,
   });
@@ -32,18 +28,13 @@ export function repoPullRequestIsMergedHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/pulls/:index/merge`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/pulls/:index/merge`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 204,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 204,
+    });
+  });
 }

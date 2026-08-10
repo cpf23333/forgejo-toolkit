@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoApplyDiffPatchMutationRequest,
   RepoApplyDiffPatchMutationResponse,
@@ -16,14 +12,14 @@ import type {
   RepoApplyDiffPatch404,
   RepoApplyDiffPatch413,
   RepoApplyDiffPatch423,
-} from "../types/RepoApplyDiffPatch"
+} from '../types/RepoApplyDiffPatch';
 
 function getRepoApplyDiffPatchUrl(
-  owner: RepoApplyDiffPatchPathParams["owner"],
-  repo: RepoApplyDiffPatchPathParams["repo"],
+  owner: RepoApplyDiffPatchPathParams['owner'],
+  repo: RepoApplyDiffPatchPathParams['repo'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/diffpatch` as const,
   };
   return res;
@@ -34,8 +30,8 @@ function getRepoApplyDiffPatchUrl(
  * {@link /repos/:owner/:repo/diffpatch}
  */
 export async function repoApplyDiffPatch(
-  owner: RepoApplyDiffPatchPathParams["owner"],
-  repo: RepoApplyDiffPatchPathParams["repo"],
+  owner: RepoApplyDiffPatchPathParams['owner'],
+  repo: RepoApplyDiffPatchPathParams['repo'],
   data: RepoApplyDiffPatchMutationRequest,
   config: Partial<RequestConfig<RepoApplyDiffPatchMutationRequest>> & {
     client?: Client;
@@ -47,12 +43,10 @@ export async function repoApplyDiffPatch(
 
   const res = await request<
     RepoApplyDiffPatchMutationResponse,
-    ResponseErrorConfig<
-      RepoApplyDiffPatch404 | RepoApplyDiffPatch413 | RepoApplyDiffPatch423
-    >,
+    ResponseErrorConfig<RepoApplyDiffPatch404 | RepoApplyDiffPatch413 | RepoApplyDiffPatch423>,
     RepoApplyDiffPatchMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoApplyDiffPatchUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

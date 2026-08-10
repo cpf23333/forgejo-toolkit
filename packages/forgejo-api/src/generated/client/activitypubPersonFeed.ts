@@ -3,23 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ActivitypubPersonFeedQueryResponse,
   ActivitypubPersonFeedPathParams,
   ActivitypubPersonFeed403,
-} from "../types/ActivitypubPersonFeed"
+} from '../types/ActivitypubPersonFeed';
 
-function getActivitypubPersonFeedUrl(
-  userId: ActivitypubPersonFeedPathParams["user-id"],
-) {
+function getActivitypubPersonFeedUrl(userId: ActivitypubPersonFeedPathParams['user-id']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/activitypub/user-id/${userId}/outbox` as const,
   };
   return res;
@@ -30,19 +24,17 @@ function getActivitypubPersonFeedUrl(
  * {@link /activitypub/user-id/:user-id/outbox}
  */
 export async function activitypubPersonFeed(
-  userId: ActivitypubPersonFeedPathParams["user-id"],
+  userId: ActivitypubPersonFeedPathParams['user-id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ActivitypubPersonFeedQueryResponse,
-    ResponseErrorConfig<ActivitypubPersonFeed403>,
-    unknown
-  >({
-    method: "GET",
-    url: getActivitypubPersonFeedUrl(userId).url.toString(),
-    ...requestConfig,
-  });
+  const res = await request<ActivitypubPersonFeedQueryResponse, ResponseErrorConfig<ActivitypubPersonFeed403>, unknown>(
+    {
+      method: 'GET',
+      url: getActivitypubPersonFeedUrl(userId).url.toString(),
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { ActivityPub } from "./ActivityPub"
+import type { ActivityPub } from './ActivityPub';
 
 /**
  * @description ActivityPub

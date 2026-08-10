@@ -7,38 +7,32 @@ import type {
   GetRepoVariablesListQueryResponse,
   GetRepoVariablesList400,
   GetRepoVariablesList404,
-} from "../types/GetRepoVariablesList"
-import { http } from "msw";
+} from '../types/GetRepoVariablesList';
+import { http } from 'msw';
 
-export function getRepoVariablesListHandlerResponse200(
-  data: GetRepoVariablesListQueryResponse,
-) {
+export function getRepoVariablesListHandlerResponse200(data: GetRepoVariablesListQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getRepoVariablesListHandlerResponse400(
-  data: GetRepoVariablesList400,
-) {
+export function getRepoVariablesListHandlerResponse400(data: GetRepoVariablesList400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getRepoVariablesListHandlerResponse404(
-  data: GetRepoVariablesList404,
-) {
+export function getRepoVariablesListHandlerResponse404(data: GetRepoVariablesList404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function getRepoVariablesListHandlerResponse404(
 export function getRepoVariablesListHandler(
   data?:
     | GetRepoVariablesListQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/actions/variables`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/actions/variables`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

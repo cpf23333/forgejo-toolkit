@@ -3,17 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoAddTeamMutationResponse,
-  RepoAddTeam404,
-  RepoAddTeam405,
-  RepoAddTeam422,
-} from "../types/RepoAddTeam"
-import { http } from "msw";
+import type { RepoAddTeamMutationResponse, RepoAddTeam404, RepoAddTeam405, RepoAddTeam422 } from '../types/RepoAddTeam';
+import { http } from 'msw';
 
-export function repoAddTeamHandlerResponse204(
-  data?: RepoAddTeamMutationResponse,
-) {
+export function repoAddTeamHandlerResponse204(data?: RepoAddTeamMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -23,7 +16,7 @@ export function repoAddTeamHandlerResponse404(data: RepoAddTeam404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +25,7 @@ export function repoAddTeamHandlerResponse405(data: RepoAddTeam405) {
   return new Response(JSON.stringify(data), {
     status: 405,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -41,7 +34,7 @@ export function repoAddTeamHandlerResponse422(data: RepoAddTeam422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -53,12 +46,10 @@ export function repoAddTeamHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/repos/:owner/:repo/teams/:team`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

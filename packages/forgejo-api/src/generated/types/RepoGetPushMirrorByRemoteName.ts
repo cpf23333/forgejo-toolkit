@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { PushMirror } from "./PushMirror"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { PushMirror } from './PushMirror';
 
 export type RepoGetPushMirrorByRemoteNamePathParams = {
   /**
@@ -46,14 +46,10 @@ export type RepoGetPushMirrorByRemoteName403 = APIForbiddenError;
  */
 export type RepoGetPushMirrorByRemoteName404 = APINotFound;
 
-export type RepoGetPushMirrorByRemoteNameQueryResponse =
-  RepoGetPushMirrorByRemoteName200;
+export type RepoGetPushMirrorByRemoteNameQueryResponse = RepoGetPushMirrorByRemoteName200;
 
 export type RepoGetPushMirrorByRemoteNameQuery = {
   Response: RepoGetPushMirrorByRemoteName200;
   PathParams: RepoGetPushMirrorByRemoteNamePathParams;
-  Errors:
-    | RepoGetPushMirrorByRemoteName400
-    | RepoGetPushMirrorByRemoteName403
-    | RepoGetPushMirrorByRemoteName404;
+  Errors: RepoGetPushMirrorByRemoteName400 | RepoGetPushMirrorByRemoteName403 | RepoGetPushMirrorByRemoteName404;
 };

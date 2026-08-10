@@ -3,17 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgGetHookQueryResponse,
-  OrgGetHook404,
-} from "../types/OrgGetHook"
-import { http } from "msw";
+import type { OrgGetHookQueryResponse, OrgGetHook404 } from '../types/OrgGetHook';
+import { http } from 'msw';
 
 export function orgGetHookHandlerResponse200(data: OrgGetHookQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -22,7 +19,7 @@ export function orgGetHookHandlerResponse404(data: OrgGetHook404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -30,17 +27,15 @@ export function orgGetHookHandlerResponse404(data: OrgGetHook404) {
 export function orgGetHookHandler(
   data?:
     | OrgGetHookQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/orgs/:org/hooks/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

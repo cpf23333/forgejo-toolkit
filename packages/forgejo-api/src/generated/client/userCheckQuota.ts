@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCheckQuotaQueryResponse,
   UserCheckQuotaQueryParams,
   UserCheckQuota401,
   UserCheckQuota403,
   UserCheckQuota422,
-} from "../types/UserCheckQuota"
+} from '../types/UserCheckQuota';
 
 function getUserCheckQuotaUrl() {
-  const res = { method: "GET", url: `/user/quota/check` as const };
+  const res = { method: 'GET', url: `/user/quota/check` as const };
   return res;
 }
 
@@ -34,12 +30,10 @@ export async function userCheckQuota(
 
   const res = await request<
     UserCheckQuotaQueryResponse,
-    ResponseErrorConfig<
-      UserCheckQuota401 | UserCheckQuota403 | UserCheckQuota422
-    >,
+    ResponseErrorConfig<UserCheckQuota401 | UserCheckQuota403 | UserCheckQuota422>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserCheckQuotaUrl().url.toString(),
     params,
     ...requestConfig,

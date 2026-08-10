@@ -8,16 +8,14 @@ import type {
   GetUserRunners400,
   GetUserRunners401,
   GetUserRunners404,
-} from "../types/GetUserRunners"
-import { http } from "msw";
+} from '../types/GetUserRunners';
+import { http } from 'msw';
 
-export function getUserRunnersHandlerResponse200(
-  data: GetUserRunnersQueryResponse,
-) {
+export function getUserRunnersHandlerResponse200(data: GetUserRunnersQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -26,7 +24,7 @@ export function getUserRunnersHandlerResponse400(data: GetUserRunners400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,7 +33,7 @@ export function getUserRunnersHandlerResponse401(data: GetUserRunners401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -44,7 +42,7 @@ export function getUserRunnersHandlerResponse404(data: GetUserRunners404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -52,17 +50,15 @@ export function getUserRunnersHandlerResponse404(data: GetUserRunners404) {
 export function getUserRunnersHandler(
   data?:
     | GetUserRunnersQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/actions/runners`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

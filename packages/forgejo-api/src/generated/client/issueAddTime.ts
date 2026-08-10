@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueAddTimeMutationRequest,
   IssueAddTimeMutationResponse,
@@ -16,15 +12,15 @@ import type {
   IssueAddTime400,
   IssueAddTime403,
   IssueAddTime404,
-} from "../types/IssueAddTime"
+} from '../types/IssueAddTime';
 
 function getIssueAddTimeUrl(
-  owner: IssueAddTimePathParams["owner"],
-  repo: IssueAddTimePathParams["repo"],
-  index: IssueAddTimePathParams["index"],
+  owner: IssueAddTimePathParams['owner'],
+  repo: IssueAddTimePathParams['repo'],
+  index: IssueAddTimePathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/times` as const,
   };
   return res;
@@ -35,9 +31,9 @@ function getIssueAddTimeUrl(
  * {@link /repos/:owner/:repo/issues/:index/times}
  */
 export async function issueAddTime(
-  owner: IssueAddTimePathParams["owner"],
-  repo: IssueAddTimePathParams["repo"],
-  index: IssueAddTimePathParams["index"],
+  owner: IssueAddTimePathParams['owner'],
+  repo: IssueAddTimePathParams['repo'],
+  index: IssueAddTimePathParams['index'],
   data: IssueAddTimeMutationRequest,
   config: Partial<RequestConfig<IssueAddTimeMutationRequest>> & {
     client?: Client;
@@ -52,7 +48,7 @@ export async function issueAddTime(
     ResponseErrorConfig<IssueAddTime400 | IssueAddTime403 | IssueAddTime404>,
     IssueAddTimeMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueAddTimeUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

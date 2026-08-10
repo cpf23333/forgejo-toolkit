@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  UserGetCurrentQueryResponse,
-  UserGetCurrent401,
-  UserGetCurrent403,
-} from "../types/UserGetCurrent"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { UserGetCurrentQueryResponse, UserGetCurrent401, UserGetCurrent403 } from '../types/UserGetCurrent';
 
 function getUserGetCurrentUrl() {
-  const res = { method: "GET", url: `/user` as const };
+  const res = { method: 'GET', url: `/user` as const };
   return res;
 }
 
@@ -24,9 +16,7 @@ function getUserGetCurrentUrl() {
  * @summary Get the authenticated user
  * {@link /user}
  */
-export async function userGetCurrent(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function userGetCurrent(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
@@ -34,7 +24,7 @@ export async function userGetCurrent(
     ResponseErrorConfig<UserGetCurrent401 | UserGetCurrent403>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getUserGetCurrentUrl().url.toString(),
     ...requestConfig,
   });

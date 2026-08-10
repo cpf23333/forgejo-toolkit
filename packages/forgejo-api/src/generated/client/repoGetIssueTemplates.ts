@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetIssueTemplatesQueryResponse,
   RepoGetIssueTemplatesPathParams,
   RepoGetIssueTemplates404,
-} from "../types/RepoGetIssueTemplates"
+} from '../types/RepoGetIssueTemplates';
 
 function getRepoGetIssueTemplatesUrl(
-  owner: RepoGetIssueTemplatesPathParams["owner"],
-  repo: RepoGetIssueTemplatesPathParams["repo"],
+  owner: RepoGetIssueTemplatesPathParams['owner'],
+  repo: RepoGetIssueTemplatesPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issue_templates` as const,
   };
   return res;
@@ -31,20 +27,18 @@ function getRepoGetIssueTemplatesUrl(
  * {@link /repos/:owner/:repo/issue_templates}
  */
 export async function repoGetIssueTemplates(
-  owner: RepoGetIssueTemplatesPathParams["owner"],
-  repo: RepoGetIssueTemplatesPathParams["repo"],
+  owner: RepoGetIssueTemplatesPathParams['owner'],
+  repo: RepoGetIssueTemplatesPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoGetIssueTemplatesQueryResponse,
-    ResponseErrorConfig<RepoGetIssueTemplates404>,
-    unknown
-  >({
-    method: "GET",
-    url: getRepoGetIssueTemplatesUrl(owner, repo).url.toString(),
-    ...requestConfig,
-  });
+  const res = await request<RepoGetIssueTemplatesQueryResponse, ResponseErrorConfig<RepoGetIssueTemplates404>, unknown>(
+    {
+      method: 'GET',
+      url: getRepoGetIssueTemplatesUrl(owner, repo).url.toString(),
+      ...requestConfig,
+    },
+  );
   return res.data;
 }

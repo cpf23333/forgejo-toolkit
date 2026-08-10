@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgIsPublicMemberQueryResponse,
   OrgIsPublicMemberPathParams,
   OrgIsPublicMember404,
-} from "../types/OrgIsPublicMember"
+} from '../types/OrgIsPublicMember';
 
 function getOrgIsPublicMemberUrl(
-  org: OrgIsPublicMemberPathParams["org"],
-  username: OrgIsPublicMemberPathParams["username"],
+  org: OrgIsPublicMemberPathParams['org'],
+  username: OrgIsPublicMemberPathParams['username'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/orgs/${org}/public_members/${username}` as const,
   };
   return res;
@@ -31,18 +27,14 @@ function getOrgIsPublicMemberUrl(
  * {@link /orgs/:org/public_members/:username}
  */
 export async function orgIsPublicMember(
-  org: OrgIsPublicMemberPathParams["org"],
-  username: OrgIsPublicMemberPathParams["username"],
+  org: OrgIsPublicMemberPathParams['org'],
+  username: OrgIsPublicMemberPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgIsPublicMemberQueryResponse,
-    ResponseErrorConfig<OrgIsPublicMember404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgIsPublicMemberQueryResponse, ResponseErrorConfig<OrgIsPublicMember404>, unknown>({
+    method: 'GET',
     url: getOrgIsPublicMemberUrl(org, username).url.toString(),
     ...requestConfig,
   });

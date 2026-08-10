@@ -3,25 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminDeleteUserEmailsMutationRequest,
   AdminDeleteUserEmailsMutationResponse,
   AdminDeleteUserEmailsPathParams,
   AdminDeleteUserEmails403,
   AdminDeleteUserEmails422,
-} from "../types/AdminDeleteUserEmails"
+} from '../types/AdminDeleteUserEmails';
 
-function getAdminDeleteUserEmailsUrl(
-  username: AdminDeleteUserEmailsPathParams["username"],
-) {
+function getAdminDeleteUserEmailsUrl(username: AdminDeleteUserEmailsPathParams['username']) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/admin/users/${username}/emails` as const,
   };
   return res;
@@ -32,7 +26,7 @@ function getAdminDeleteUserEmailsUrl(
  * {@link /admin/users/:username/emails}
  */
 export async function adminDeleteUserEmails(
-  username: AdminDeleteUserEmailsPathParams["username"],
+  username: AdminDeleteUserEmailsPathParams['username'],
   data?: AdminDeleteUserEmailsMutationRequest,
   config: Partial<RequestConfig<AdminDeleteUserEmailsMutationRequest>> & {
     client?: Client;
@@ -47,7 +41,7 @@ export async function adminDeleteUserEmails(
     ResponseErrorConfig<AdminDeleteUserEmails403 | AdminDeleteUserEmails422>,
     AdminDeleteUserEmailsMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getAdminDeleteUserEmailsUrl(username).url.toString(),
     data: requestData,
     ...requestConfig,

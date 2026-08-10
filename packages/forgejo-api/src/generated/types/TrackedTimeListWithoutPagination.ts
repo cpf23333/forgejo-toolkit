@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { TrackedTime } from "./TrackedTime"
+import type { TrackedTime } from './TrackedTime';
 
 export type TrackedTimeListWithoutPagination = TrackedTime[];

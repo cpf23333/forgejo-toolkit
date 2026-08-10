@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { DismissPullReviewOptions } from "./DismissPullReviewOptions"
-import type { PullReview } from "./PullReview"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { DismissPullReviewOptions } from './DismissPullReviewOptions';
+import type { PullReview } from './PullReview';
 
 export type RepoDismissPullReviewPathParams = {
   /**
@@ -60,8 +60,5 @@ export type RepoDismissPullReviewMutation = {
   Response: RepoDismissPullReview200;
   Request: RepoDismissPullReviewMutationRequest;
   PathParams: RepoDismissPullReviewPathParams;
-  Errors:
-    | RepoDismissPullReview403
-    | RepoDismissPullReview404
-    | RepoDismissPullReview422;
+  Errors: RepoDismissPullReview403 | RepoDismissPullReview404 | RepoDismissPullReview422;
 };

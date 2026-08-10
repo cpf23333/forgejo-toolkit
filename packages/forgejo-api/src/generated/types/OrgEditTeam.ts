@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { EditTeamOption } from "./EditTeamOption"
-import type { Team } from "./Team"
+import type { APINotFound } from './APINotFound';
+import type { EditTeamOption } from './EditTeamOption';
+import type { Team } from './Team';
 
 export type OrgEditTeamPathParams = {
   /**

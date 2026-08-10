@@ -3,22 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgGetRunnerRegistrationTokenQueryResponse,
   OrgGetRunnerRegistrationTokenPathParams,
-} from "../types/OrgGetRunnerRegistrationToken"
+} from '../types/OrgGetRunnerRegistrationToken';
 
-function getOrgGetRunnerRegistrationTokenUrl(
-  org: OrgGetRunnerRegistrationTokenPathParams["org"],
-) {
+function getOrgGetRunnerRegistrationTokenUrl(org: OrgGetRunnerRegistrationTokenPathParams['org']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/orgs/${org}/actions/runners/registration-token` as const,
   };
   return res;
@@ -31,17 +25,13 @@ function getOrgGetRunnerRegistrationTokenUrl(
  * @deprecated
  */
 export async function orgGetRunnerRegistrationToken(
-  org: OrgGetRunnerRegistrationTokenPathParams["org"],
+  org: OrgGetRunnerRegistrationTokenPathParams['org'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgGetRunnerRegistrationTokenQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgGetRunnerRegistrationTokenQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getOrgGetRunnerRegistrationTokenUrl(org).url.toString(),
     ...requestConfig,
   });

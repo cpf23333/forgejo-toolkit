@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  AdminCreateHookMutationRequest,
-  AdminCreateHookMutationResponse,
-} from "../types/AdminCreateHook"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AdminCreateHookMutationRequest, AdminCreateHookMutationResponse } from '../types/AdminCreateHook';
 
 function getAdminCreateHookUrl() {
-  const res = { method: "POST", url: `/admin/hooks` as const };
+  const res = { method: 'POST', url: `/admin/hooks` as const };
   return res;
 }
 
@@ -38,7 +31,7 @@ export async function adminCreateHook(
     ResponseErrorConfig<Error>,
     AdminCreateHookMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getAdminCreateHookUrl().url.toString(),
     data: requestData,
     ...requestConfig,

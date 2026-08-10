@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoGetPullRequestByBaseHeadQueryResponse,
   RepoGetPullRequestByBaseHeadPathParams,
   RepoGetPullRequestByBaseHead404,
-} from "../types/RepoGetPullRequestByBaseHead"
+} from '../types/RepoGetPullRequestByBaseHead';
 
 function getRepoGetPullRequestByBaseHeadUrl(
-  owner: RepoGetPullRequestByBaseHeadPathParams["owner"],
-  repo: RepoGetPullRequestByBaseHeadPathParams["repo"],
-  base: RepoGetPullRequestByBaseHeadPathParams["base"],
-  head: RepoGetPullRequestByBaseHeadPathParams["head"],
+  owner: RepoGetPullRequestByBaseHeadPathParams['owner'],
+  repo: RepoGetPullRequestByBaseHeadPathParams['repo'],
+  base: RepoGetPullRequestByBaseHeadPathParams['base'],
+  head: RepoGetPullRequestByBaseHeadPathParams['head'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/pulls/${base}/${head}` as const,
   };
   return res;
@@ -33,10 +29,10 @@ function getRepoGetPullRequestByBaseHeadUrl(
  * {@link /repos/:owner/:repo/pulls/:base/:head}
  */
 export async function repoGetPullRequestByBaseHead(
-  owner: RepoGetPullRequestByBaseHeadPathParams["owner"],
-  repo: RepoGetPullRequestByBaseHeadPathParams["repo"],
-  base: RepoGetPullRequestByBaseHeadPathParams["base"],
-  head: RepoGetPullRequestByBaseHeadPathParams["head"],
+  owner: RepoGetPullRequestByBaseHeadPathParams['owner'],
+  repo: RepoGetPullRequestByBaseHeadPathParams['repo'],
+  base: RepoGetPullRequestByBaseHeadPathParams['base'],
+  head: RepoGetPullRequestByBaseHeadPathParams['head'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -46,13 +42,8 @@ export async function repoGetPullRequestByBaseHead(
     ResponseErrorConfig<RepoGetPullRequestByBaseHead404>,
     unknown
   >({
-    method: "GET",
-    url: getRepoGetPullRequestByBaseHeadUrl(
-      owner,
-      repo,
-      base,
-      head,
-    ).url.toString(),
+    method: 'GET',
+    url: getRepoGetPullRequestByBaseHeadUrl(owner, repo, base, head).url.toString(),
     ...requestConfig,
   });
   return res.data;

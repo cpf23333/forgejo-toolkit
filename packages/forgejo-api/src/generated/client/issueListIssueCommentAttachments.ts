@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueListIssueCommentAttachmentsQueryResponse,
   IssueListIssueCommentAttachmentsPathParams,
   IssueListIssueCommentAttachments404,
-} from "../types/IssueListIssueCommentAttachments"
+} from '../types/IssueListIssueCommentAttachments';
 
 function getIssueListIssueCommentAttachmentsUrl(
-  owner: IssueListIssueCommentAttachmentsPathParams["owner"],
-  repo: IssueListIssueCommentAttachmentsPathParams["repo"],
-  id: IssueListIssueCommentAttachmentsPathParams["id"],
+  owner: IssueListIssueCommentAttachmentsPathParams['owner'],
+  repo: IssueListIssueCommentAttachmentsPathParams['repo'],
+  id: IssueListIssueCommentAttachmentsPathParams['id'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/comments/${id}/assets` as const,
   };
   return res;
@@ -32,9 +28,9 @@ function getIssueListIssueCommentAttachmentsUrl(
  * {@link /repos/:owner/:repo/issues/comments/:id/assets}
  */
 export async function issueListIssueCommentAttachments(
-  owner: IssueListIssueCommentAttachmentsPathParams["owner"],
-  repo: IssueListIssueCommentAttachmentsPathParams["repo"],
-  id: IssueListIssueCommentAttachmentsPathParams["id"],
+  owner: IssueListIssueCommentAttachmentsPathParams['owner'],
+  repo: IssueListIssueCommentAttachmentsPathParams['repo'],
+  id: IssueListIssueCommentAttachmentsPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -44,7 +40,7 @@ export async function issueListIssueCommentAttachments(
     ResponseErrorConfig<IssueListIssueCommentAttachments404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueListIssueCommentAttachmentsUrl(owner, repo, id).url.toString(),
     ...requestConfig,
   });

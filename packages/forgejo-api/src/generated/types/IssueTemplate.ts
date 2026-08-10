@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { IssueFormField } from "./IssueFormField"
-import type { IssueTemplateLabels } from "./IssueTemplateLabels"
+import type { IssueFormField } from './IssueFormField';
+import type { IssueTemplateLabels } from './IssueTemplateLabels';
 
 /**
  * @description IssueTemplate represents an issue template for a repository

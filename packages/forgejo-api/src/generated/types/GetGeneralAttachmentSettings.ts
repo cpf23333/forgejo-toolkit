@@ -3,15 +3,14 @@
  * Do not edit manually.
  */
 
-import type { GeneralAttachmentSettings } from "./GeneralAttachmentSettings"
+import type { GeneralAttachmentSettings } from './GeneralAttachmentSettings';
 
 /**
  * @description GeneralAttachmentSettings
  */
 export type GetGeneralAttachmentSettings200 = GeneralAttachmentSettings;
 
-export type GetGeneralAttachmentSettingsQueryResponse =
-  GetGeneralAttachmentSettings200;
+export type GetGeneralAttachmentSettingsQueryResponse = GetGeneralAttachmentSettings200;
 
 export type GetGeneralAttachmentSettingsQuery = {
   Response: GetGeneralAttachmentSettings200;

@@ -3,16 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type { ListLabelTemplatesQueryResponse } from "../types/ListLabelTemplates"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { ListLabelTemplatesQueryResponse } from '../types/ListLabelTemplates';
 
 function getListLabelTemplatesUrl() {
-  const res = { method: "GET", url: `/label/templates` as const };
+  const res = { method: 'GET', url: `/label/templates` as const };
   return res;
 }
 
@@ -20,17 +16,11 @@ function getListLabelTemplatesUrl() {
  * @summary Returns a list of all label templates
  * {@link /label/templates}
  */
-export async function listLabelTemplates(
-  config: Partial<RequestConfig> & { client?: Client } = {},
-) {
+export async function listLabelTemplates(config: Partial<RequestConfig> & { client?: Client } = {}) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    ListLabelTemplatesQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<ListLabelTemplatesQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getListLabelTemplatesUrl().url.toString(),
     ...requestConfig,
   });

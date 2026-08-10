@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Release } from "./Release"
+import type { Release } from './Release';
 
 export type ReleaseList = Release[];

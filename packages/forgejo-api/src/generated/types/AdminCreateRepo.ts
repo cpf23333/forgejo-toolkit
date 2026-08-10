@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateRepoOption } from "./CreateRepoOption"
-import type { Repository } from "./Repository"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateRepoOption } from './CreateRepoOption';
+import type { Repository } from './Repository';
 
 export type AdminCreateRepoPathParams = {
   /**
@@ -56,10 +56,5 @@ export type AdminCreateRepoMutation = {
   Response: AdminCreateRepo201;
   Request: AdminCreateRepoMutationRequest;
   PathParams: AdminCreateRepoPathParams;
-  Errors:
-    | AdminCreateRepo400
-    | AdminCreateRepo403
-    | AdminCreateRepo404
-    | AdminCreateRepo409
-    | AdminCreateRepo422;
+  Errors: AdminCreateRepo400 | AdminCreateRepo403 | AdminCreateRepo404 | AdminCreateRepo409 | AdminCreateRepo422;
 };

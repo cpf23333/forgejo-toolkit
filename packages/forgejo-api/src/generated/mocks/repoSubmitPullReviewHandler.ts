@@ -7,38 +7,32 @@ import type {
   RepoSubmitPullReviewMutationResponse,
   RepoSubmitPullReview404,
   RepoSubmitPullReview422,
-} from "../types/RepoSubmitPullReview"
-import { http } from "msw";
+} from '../types/RepoSubmitPullReview';
+import { http } from 'msw';
 
-export function repoSubmitPullReviewHandlerResponse200(
-  data: RepoSubmitPullReviewMutationResponse,
-) {
+export function repoSubmitPullReviewHandlerResponse200(data: RepoSubmitPullReviewMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoSubmitPullReviewHandlerResponse404(
-  data: RepoSubmitPullReview404,
-) {
+export function repoSubmitPullReviewHandlerResponse404(data: RepoSubmitPullReview404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoSubmitPullReviewHandlerResponse422(
-  data: RepoSubmitPullReview422,
-) {
+export function repoSubmitPullReviewHandlerResponse422(data: RepoSubmitPullReview422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function repoSubmitPullReviewHandlerResponse422(
 export function repoSubmitPullReviewHandler(
   data?:
     | RepoSubmitPullReviewMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/pulls/:index/reviews/:id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/pulls/:index/reviews/:id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

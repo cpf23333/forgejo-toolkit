@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueCreateIssueAttachmentMutationRequest,
   IssueCreateIssueAttachmentMutationResponse,
@@ -19,16 +15,16 @@ import type {
   IssueCreateIssueAttachment413,
   IssueCreateIssueAttachment422,
   IssueCreateIssueAttachment423,
-} from "../types/IssueCreateIssueAttachment"
-import { buildFormData } from "../.kubb/config"
+} from '../types/IssueCreateIssueAttachment';
+import { buildFormData } from '../.kubb/config';
 
 function getIssueCreateIssueAttachmentUrl(
-  owner: IssueCreateIssueAttachmentPathParams["owner"],
-  repo: IssueCreateIssueAttachmentPathParams["repo"],
-  index: IssueCreateIssueAttachmentPathParams["index"],
+  owner: IssueCreateIssueAttachmentPathParams['owner'],
+  repo: IssueCreateIssueAttachmentPathParams['repo'],
+  index: IssueCreateIssueAttachmentPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/assets` as const,
   };
   return res;
@@ -39,9 +35,9 @@ function getIssueCreateIssueAttachmentUrl(
  * {@link /repos/:owner/:repo/issues/:index/assets}
  */
 export async function issueCreateIssueAttachment(
-  owner: IssueCreateIssueAttachmentPathParams["owner"],
-  repo: IssueCreateIssueAttachmentPathParams["repo"],
-  index: IssueCreateIssueAttachmentPathParams["index"],
+  owner: IssueCreateIssueAttachmentPathParams['owner'],
+  repo: IssueCreateIssueAttachmentPathParams['repo'],
+  index: IssueCreateIssueAttachmentPathParams['index'],
   data: IssueCreateIssueAttachmentMutationRequest,
   params?: IssueCreateIssueAttachmentQueryParams,
   config: Partial<RequestConfig<IssueCreateIssueAttachmentMutationRequest>> & {
@@ -63,7 +59,7 @@ export async function issueCreateIssueAttachment(
     >,
     IssueCreateIssueAttachmentMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueCreateIssueAttachmentUrl(owner, repo, index).url.toString(),
     params,
     data: formData as FormData,

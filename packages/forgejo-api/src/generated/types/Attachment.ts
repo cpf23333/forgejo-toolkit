@@ -4,12 +4,11 @@
  */
 
 export const attachmentTypeEnum = {
-  attachment: "attachment",
-  external: "external",
+  attachment: 'attachment',
+  external: 'external',
 } as const;
 
-export type AttachmentTypeEnumKey =
-  (typeof attachmentTypeEnum)[keyof typeof attachmentTypeEnum];
+export type AttachmentTypeEnumKey = (typeof attachmentTypeEnum)[keyof typeof attachmentTypeEnum];
 
 /**
  * @description Attachment a generic attachment

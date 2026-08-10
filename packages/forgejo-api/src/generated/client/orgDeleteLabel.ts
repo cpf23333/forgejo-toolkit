@@ -3,23 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgDeleteLabelMutationResponse,
   OrgDeleteLabelPathParams,
   OrgDeleteLabel404,
-} from "../types/OrgDeleteLabel"
+} from '../types/OrgDeleteLabel';
 
-function getOrgDeleteLabelUrl(
-  org: OrgDeleteLabelPathParams["org"],
-  id: OrgDeleteLabelPathParams["id"],
-) {
-  const res = { method: "DELETE", url: `/orgs/${org}/labels/${id}` as const };
+function getOrgDeleteLabelUrl(org: OrgDeleteLabelPathParams['org'], id: OrgDeleteLabelPathParams['id']) {
+  const res = { method: 'DELETE', url: `/orgs/${org}/labels/${id}` as const };
   return res;
 }
 
@@ -28,18 +21,14 @@ function getOrgDeleteLabelUrl(
  * {@link /orgs/:org/labels/:id}
  */
 export async function orgDeleteLabel(
-  org: OrgDeleteLabelPathParams["org"],
-  id: OrgDeleteLabelPathParams["id"],
+  org: OrgDeleteLabelPathParams['org'],
+  id: OrgDeleteLabelPathParams['id'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgDeleteLabelMutationResponse,
-    ResponseErrorConfig<OrgDeleteLabel404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<OrgDeleteLabelMutationResponse, ResponseErrorConfig<OrgDeleteLabel404>, unknown>({
+    method: 'DELETE',
     url: getOrgDeleteLabelUrl(org, id).url.toString(),
     ...requestConfig,
   });

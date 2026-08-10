@@ -8,46 +8,38 @@ import type {
   UserCurrentPutFollow401,
   UserCurrentPutFollow403,
   UserCurrentPutFollow404,
-} from "../types/UserCurrentPutFollow"
-import { http } from "msw";
+} from '../types/UserCurrentPutFollow';
+import { http } from 'msw';
 
-export function userCurrentPutFollowHandlerResponse204(
-  data?: UserCurrentPutFollowMutationResponse,
-) {
+export function userCurrentPutFollowHandlerResponse204(data?: UserCurrentPutFollowMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentPutFollowHandlerResponse401(
-  data: UserCurrentPutFollow401,
-) {
+export function userCurrentPutFollowHandlerResponse401(data: UserCurrentPutFollow401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentPutFollowHandlerResponse403(
-  data: UserCurrentPutFollow403,
-) {
+export function userCurrentPutFollowHandlerResponse403(data: UserCurrentPutFollow403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentPutFollowHandlerResponse404(
-  data: UserCurrentPutFollow404,
-) {
+export function userCurrentPutFollowHandlerResponse404(data: UserCurrentPutFollow404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function userCurrentPutFollowHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/user/following/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

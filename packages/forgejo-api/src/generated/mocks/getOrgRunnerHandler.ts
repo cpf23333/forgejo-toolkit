@@ -3,20 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  GetOrgRunnerQueryResponse,
-  GetOrgRunner400,
-  GetOrgRunner404,
-} from "../types/GetOrgRunner"
-import { http } from "msw";
+import type { GetOrgRunnerQueryResponse, GetOrgRunner400, GetOrgRunner404 } from '../types/GetOrgRunner';
+import { http } from 'msw';
 
-export function getOrgRunnerHandlerResponse200(
-  data: GetOrgRunnerQueryResponse,
-) {
+export function getOrgRunnerHandlerResponse200(data: GetOrgRunnerQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +19,7 @@ export function getOrgRunnerHandlerResponse400(data: GetOrgRunner400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +28,7 @@ export function getOrgRunnerHandlerResponse404(data: GetOrgRunner404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,21 +36,16 @@ export function getOrgRunnerHandlerResponse404(data: GetOrgRunner404) {
 export function getOrgRunnerHandler(
   data?:
     | GetOrgRunnerQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/orgs/:org/actions/runners/:runner_id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/orgs/:org/actions/runners/:runner_id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

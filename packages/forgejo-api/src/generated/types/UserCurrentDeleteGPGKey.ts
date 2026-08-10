@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 export type UserCurrentDeleteGPGKeyPathParams = {
   /**
@@ -35,14 +35,10 @@ export type UserCurrentDeleteGPGKey403 = APIForbiddenError;
  */
 export type UserCurrentDeleteGPGKey404 = APINotFound;
 
-export type UserCurrentDeleteGPGKeyMutationResponse =
-  UserCurrentDeleteGPGKey204;
+export type UserCurrentDeleteGPGKeyMutationResponse = UserCurrentDeleteGPGKey204;
 
 export type UserCurrentDeleteGPGKeyMutation = {
   Response: UserCurrentDeleteGPGKey204;
   PathParams: UserCurrentDeleteGPGKeyPathParams;
-  Errors:
-    | UserCurrentDeleteGPGKey401
-    | UserCurrentDeleteGPGKey403
-    | UserCurrentDeleteGPGKey404;
+  Errors: UserCurrentDeleteGPGKey401 | UserCurrentDeleteGPGKey403 | UserCurrentDeleteGPGKey404;
 };

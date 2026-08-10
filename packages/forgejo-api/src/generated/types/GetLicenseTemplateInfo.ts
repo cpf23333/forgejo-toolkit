@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { LicenseTemplateInfo } from "./LicenseTemplateInfo"
+import type { APINotFound } from './APINotFound';
+import type { LicenseTemplateInfo } from './LicenseTemplateInfo';
 
 export type GetLicenseTemplateInfoPathParams = {
   /**

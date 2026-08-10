@@ -9,60 +9,50 @@ import type {
   GetUserVariablesList401,
   GetUserVariablesList403,
   GetUserVariablesList404,
-} from "../types/GetUserVariablesList"
-import { http } from "msw";
+} from '../types/GetUserVariablesList';
+import { http } from 'msw';
 
-export function getUserVariablesListHandlerResponse200(
-  data: GetUserVariablesListQueryResponse,
-) {
+export function getUserVariablesListHandlerResponse200(data: GetUserVariablesListQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getUserVariablesListHandlerResponse400(
-  data: GetUserVariablesList400,
-) {
+export function getUserVariablesListHandlerResponse400(data: GetUserVariablesList400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getUserVariablesListHandlerResponse401(
-  data: GetUserVariablesList401,
-) {
+export function getUserVariablesListHandlerResponse401(data: GetUserVariablesList401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getUserVariablesListHandlerResponse403(
-  data: GetUserVariablesList403,
-) {
+export function getUserVariablesListHandlerResponse403(data: GetUserVariablesList403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function getUserVariablesListHandlerResponse404(
-  data: GetUserVariablesList404,
-) {
+export function getUserVariablesListHandlerResponse404(data: GetUserVariablesList404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -70,17 +60,15 @@ export function getUserVariablesListHandlerResponse404(
 export function getUserVariablesListHandler(
   data?:
     | GetUserVariablesListQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/actions/variables`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

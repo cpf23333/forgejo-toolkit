@@ -8,8 +8,8 @@ import type {
   IssueEditIssueCommentAttachment404,
   IssueEditIssueCommentAttachment413,
   IssueEditIssueCommentAttachment423,
-} from "../types/IssueEditIssueCommentAttachment"
-import { http } from "msw";
+} from '../types/IssueEditIssueCommentAttachment';
+import { http } from 'msw';
 
 export function issueEditIssueCommentAttachmentHandlerResponse201(
   data: IssueEditIssueCommentAttachmentMutationResponse,
@@ -17,37 +17,31 @@ export function issueEditIssueCommentAttachmentHandlerResponse201(
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueEditIssueCommentAttachmentHandlerResponse404(
-  data: IssueEditIssueCommentAttachment404,
-) {
+export function issueEditIssueCommentAttachmentHandlerResponse404(data: IssueEditIssueCommentAttachment404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function issueEditIssueCommentAttachmentHandlerResponse413(
-  data?: IssueEditIssueCommentAttachment413,
-) {
+export function issueEditIssueCommentAttachmentHandlerResponse413(data?: IssueEditIssueCommentAttachment413) {
   return new Response(JSON.stringify(data), {
     status: 413,
   });
 }
 
-export function issueEditIssueCommentAttachmentHandlerResponse423(
-  data: IssueEditIssueCommentAttachment423,
-) {
+export function issueEditIssueCommentAttachmentHandlerResponse423(data: IssueEditIssueCommentAttachment423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -55,21 +49,16 @@ export function issueEditIssueCommentAttachmentHandlerResponse423(
 export function issueEditIssueCommentAttachmentHandler(
   data?:
     | IssueEditIssueCommentAttachmentMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.patch(
-    `/repos/:owner/:repo/issues/comments/:id/assets/:attachment_id`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.patch(`/repos/:owner/:repo/issues/comments/:id/assets/:attachment_id`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

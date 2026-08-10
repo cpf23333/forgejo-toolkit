@@ -9,12 +9,10 @@ import type {
   UserBlockUser403,
   UserBlockUser404,
   UserBlockUser422,
-} from "../types/UserBlockUser"
-import { http } from "msw";
+} from '../types/UserBlockUser';
+import { http } from 'msw';
 
-export function userBlockUserHandlerResponse204(
-  data?: UserBlockUserMutationResponse,
-) {
+export function userBlockUserHandlerResponse204(data?: UserBlockUserMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -24,7 +22,7 @@ export function userBlockUserHandlerResponse401(data: UserBlockUser401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,7 +31,7 @@ export function userBlockUserHandlerResponse403(data: UserBlockUser403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,7 +40,7 @@ export function userBlockUserHandlerResponse404(data: UserBlockUser404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -51,7 +49,7 @@ export function userBlockUserHandlerResponse422(data: UserBlockUser422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -63,12 +61,10 @@ export function userBlockUserHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.put(`/user/block/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

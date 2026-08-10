@@ -7,38 +7,32 @@ import type {
   UserListQuotaArtifactsQueryResponse,
   UserListQuotaArtifacts401,
   UserListQuotaArtifacts403,
-} from "../types/UserListQuotaArtifacts"
-import { http } from "msw";
+} from '../types/UserListQuotaArtifacts';
+import { http } from 'msw';
 
-export function userListQuotaArtifactsHandlerResponse200(
-  data: UserListQuotaArtifactsQueryResponse,
-) {
+export function userListQuotaArtifactsHandlerResponse200(data: UserListQuotaArtifactsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userListQuotaArtifactsHandlerResponse401(
-  data: UserListQuotaArtifacts401,
-) {
+export function userListQuotaArtifactsHandlerResponse401(data: UserListQuotaArtifacts401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userListQuotaArtifactsHandlerResponse403(
-  data: UserListQuotaArtifacts403,
-) {
+export function userListQuotaArtifactsHandlerResponse403(data: UserListQuotaArtifacts403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function userListQuotaArtifactsHandlerResponse403(
 export function userListQuotaArtifactsHandler(
   data?:
     | UserListQuotaArtifactsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/user/quota/artifacts`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

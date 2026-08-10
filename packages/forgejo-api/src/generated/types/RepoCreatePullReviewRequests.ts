@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIValidationError } from "./APIValidationError"
-import type { PullReview } from "./PullReview"
-import type { PullReviewRequestOptions } from "./PullReviewRequestOptions"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIValidationError } from './APIValidationError';
+import type { PullReview } from './PullReview';
+import type { PullReviewRequestOptions } from './PullReviewRequestOptions';
 
 export type RepoCreatePullReviewRequestsPathParams = {
   /**
@@ -47,18 +47,13 @@ export type RepoCreatePullReviewRequests404 = APINotFound;
  */
 export type RepoCreatePullReviewRequests422 = APIValidationError;
 
-export type RepoCreatePullReviewRequestsMutationRequest =
-  PullReviewRequestOptions;
+export type RepoCreatePullReviewRequestsMutationRequest = PullReviewRequestOptions;
 
-export type RepoCreatePullReviewRequestsMutationResponse =
-  RepoCreatePullReviewRequests201;
+export type RepoCreatePullReviewRequestsMutationResponse = RepoCreatePullReviewRequests201;
 
 export type RepoCreatePullReviewRequestsMutation = {
   Response: RepoCreatePullReviewRequests201;
   Request: RepoCreatePullReviewRequestsMutationRequest;
   PathParams: RepoCreatePullReviewRequestsPathParams;
-  Errors:
-    | RepoCreatePullReviewRequests403
-    | RepoCreatePullReviewRequests404
-    | RepoCreatePullReviewRequests422;
+  Errors: RepoCreatePullReviewRequests403 | RepoCreatePullReviewRequests404 | RepoCreatePullReviewRequests422;
 };

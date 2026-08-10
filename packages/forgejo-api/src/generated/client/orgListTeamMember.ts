@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgListTeamMemberQueryResponse,
   OrgListTeamMemberPathParams,
   OrgListTeamMember404,
-} from "../types/OrgListTeamMember"
+} from '../types/OrgListTeamMember';
 
 function getOrgListTeamMemberUrl(
-  id: OrgListTeamMemberPathParams["id"],
-  username: OrgListTeamMemberPathParams["username"],
+  id: OrgListTeamMemberPathParams['id'],
+  username: OrgListTeamMemberPathParams['username'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/teams/${id}/members/${username}` as const,
   };
   return res;
@@ -31,18 +27,14 @@ function getOrgListTeamMemberUrl(
  * {@link /teams/:id/members/:username}
  */
 export async function orgListTeamMember(
-  id: OrgListTeamMemberPathParams["id"],
-  username: OrgListTeamMemberPathParams["username"],
+  id: OrgListTeamMemberPathParams['id'],
+  username: OrgListTeamMemberPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgListTeamMemberQueryResponse,
-    ResponseErrorConfig<OrgListTeamMember404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgListTeamMemberQueryResponse, ResponseErrorConfig<OrgListTeamMember404>, unknown>({
+    method: 'GET',
     url: getOrgListTeamMemberUrl(id, username).url.toString(),
     ...requestConfig,
   });

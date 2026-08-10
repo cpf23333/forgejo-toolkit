@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { CreateOAuth2ApplicationOptions } from "./CreateOAuth2ApplicationOptions"
-import type { OAuth2Application } from "./OAuth2Application"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { CreateOAuth2ApplicationOptions } from './CreateOAuth2ApplicationOptions';
+import type { OAuth2Application } from './OAuth2Application';
 
 /**
  * OAuth2Application represents an OAuth2 application.
@@ -30,17 +30,12 @@ export type UserCreateOAuth2Application401 = APIUnauthorizedError;
  */
 export type UserCreateOAuth2Application403 = APIForbiddenError;
 
-export type UserCreateOAuth2ApplicationMutationRequest =
-  CreateOAuth2ApplicationOptions;
+export type UserCreateOAuth2ApplicationMutationRequest = CreateOAuth2ApplicationOptions;
 
-export type UserCreateOAuth2ApplicationMutationResponse =
-  UserCreateOAuth2Application201;
+export type UserCreateOAuth2ApplicationMutationResponse = UserCreateOAuth2Application201;
 
 export type UserCreateOAuth2ApplicationMutation = {
   Response: UserCreateOAuth2Application201;
   Request: UserCreateOAuth2ApplicationMutationRequest;
-  Errors:
-    | UserCreateOAuth2Application400
-    | UserCreateOAuth2Application401
-    | UserCreateOAuth2Application403;
+  Errors: UserCreateOAuth2Application400 | UserCreateOAuth2Application401 | UserCreateOAuth2Application403;
 };

@@ -9,16 +9,14 @@ import type {
   RepoMigrate409,
   RepoMigrate413,
   RepoMigrate422,
-} from "../types/RepoMigrate"
-import { http } from "msw";
+} from '../types/RepoMigrate';
+import { http } from 'msw';
 
-export function repoMigrateHandlerResponse201(
-  data: RepoMigrateMutationResponse,
-) {
+export function repoMigrateHandlerResponse201(data: RepoMigrateMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -27,7 +25,7 @@ export function repoMigrateHandlerResponse403(data: RepoMigrate403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -48,7 +46,7 @@ export function repoMigrateHandlerResponse422(data: RepoMigrate422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -56,17 +54,15 @@ export function repoMigrateHandlerResponse422(data: RepoMigrate422) {
 export function repoMigrateHandler(
   data?:
     | RepoMigrateMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/migrate`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

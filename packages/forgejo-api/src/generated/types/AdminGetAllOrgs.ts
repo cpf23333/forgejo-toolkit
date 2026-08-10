@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { Organization } from "./Organization"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { Organization } from './Organization';
 
 export type AdminGetAllOrgsQueryParams = {
   /**

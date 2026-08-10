@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  OrgDeleteMutationResponse,
-  OrgDeletePathParams,
-  OrgDelete404,
-} from "../types/OrgDelete"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { OrgDeleteMutationResponse, OrgDeletePathParams, OrgDelete404 } from '../types/OrgDelete';
 
-function getOrgDeleteUrl(org: OrgDeletePathParams["org"]) {
-  const res = { method: "DELETE", url: `/orgs/${org}` as const };
+function getOrgDeleteUrl(org: OrgDeletePathParams['org']) {
+  const res = { method: 'DELETE', url: `/orgs/${org}` as const };
   return res;
 }
 
@@ -25,17 +17,13 @@ function getOrgDeleteUrl(org: OrgDeletePathParams["org"]) {
  * {@link /orgs/:org}
  */
 export async function orgDelete(
-  org: OrgDeletePathParams["org"],
+  org: OrgDeletePathParams['org'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgDeleteMutationResponse,
-    ResponseErrorConfig<OrgDelete404>,
-    unknown
-  >({
-    method: "DELETE",
+  const res = await request<OrgDeleteMutationResponse, ResponseErrorConfig<OrgDelete404>, unknown>({
+    method: 'DELETE',
     url: getOrgDeleteUrl(org).url.toString(),
     ...requestConfig,
   });

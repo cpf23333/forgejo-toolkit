@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Reaction } from "./Reaction"
+import type { Reaction } from './Reaction';
 
 export type ReactionList = Reaction[];

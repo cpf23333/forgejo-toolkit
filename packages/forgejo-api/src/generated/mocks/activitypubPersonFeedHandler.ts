@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  ActivitypubPersonFeedQueryResponse,
-  ActivitypubPersonFeed403,
-} from "../types/ActivitypubPersonFeed"
-import { http } from "msw";
+import type { ActivitypubPersonFeedQueryResponse, ActivitypubPersonFeed403 } from '../types/ActivitypubPersonFeed';
+import { http } from 'msw';
 
-export function activitypubPersonFeedHandlerResponse200(
-  data: ActivitypubPersonFeedQueryResponse,
-) {
+export function activitypubPersonFeedHandlerResponse200(data: ActivitypubPersonFeedQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function activitypubPersonFeedHandlerResponse403(
-  data: ActivitypubPersonFeed403,
-) {
+export function activitypubPersonFeedHandlerResponse403(data: ActivitypubPersonFeed403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,21 +27,16 @@ export function activitypubPersonFeedHandlerResponse403(
 export function activitypubPersonFeedHandler(
   data?:
     | ActivitypubPersonFeedQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/activitypub/user-id/:user-id/outbox`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/activitypub/user-id/:user-id/outbox`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

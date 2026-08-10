@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueEditIssueDeadlineMutationRequest,
   IssueEditIssueDeadlineMutationResponse,
   IssueEditIssueDeadlinePathParams,
   IssueEditIssueDeadline403,
   IssueEditIssueDeadline404,
-} from "../types/IssueEditIssueDeadline"
+} from '../types/IssueEditIssueDeadline';
 
 function getIssueEditIssueDeadlineUrl(
-  owner: IssueEditIssueDeadlinePathParams["owner"],
-  repo: IssueEditIssueDeadlinePathParams["repo"],
-  index: IssueEditIssueDeadlinePathParams["index"],
+  owner: IssueEditIssueDeadlinePathParams['owner'],
+  repo: IssueEditIssueDeadlinePathParams['repo'],
+  index: IssueEditIssueDeadlinePathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/deadline` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssueEditIssueDeadlineUrl(
  * {@link /repos/:owner/:repo/issues/:index/deadline}
  */
 export async function issueEditIssueDeadline(
-  owner: IssueEditIssueDeadlinePathParams["owner"],
-  repo: IssueEditIssueDeadlinePathParams["repo"],
-  index: IssueEditIssueDeadlinePathParams["index"],
+  owner: IssueEditIssueDeadlinePathParams['owner'],
+  repo: IssueEditIssueDeadlinePathParams['repo'],
+  index: IssueEditIssueDeadlinePathParams['index'],
   data: IssueEditIssueDeadlineMutationRequest,
   config: Partial<RequestConfig<IssueEditIssueDeadlineMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function issueEditIssueDeadline(
     ResponseErrorConfig<IssueEditIssueDeadline403 | IssueEditIssueDeadline404>,
     IssueEditIssueDeadlineMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueEditIssueDeadlineUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

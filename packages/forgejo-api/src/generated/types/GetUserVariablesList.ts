@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { ActionVariable } from "./ActionVariable"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { ActionVariable } from './ActionVariable';
 
 export type GetUserVariablesListQueryParams = {
   /**
@@ -52,9 +52,5 @@ export type GetUserVariablesListQueryResponse = GetUserVariablesList200;
 export type GetUserVariablesListQuery = {
   Response: GetUserVariablesList200;
   QueryParams: GetUserVariablesListQueryParams;
-  Errors:
-    | GetUserVariablesList400
-    | GetUserVariablesList401
-    | GetUserVariablesList403
-    | GetUserVariablesList404;
+  Errors: GetUserVariablesList400 | GetUserVariablesList401 | GetUserVariablesList403 | GetUserVariablesList404;
 };

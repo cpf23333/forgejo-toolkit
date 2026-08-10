@@ -7,38 +7,32 @@ import type {
   RepoSyncForkDefaultInfoQueryResponse,
   RepoSyncForkDefaultInfo400,
   RepoSyncForkDefaultInfo404,
-} from "../types/RepoSyncForkDefaultInfo"
-import { http } from "msw";
+} from '../types/RepoSyncForkDefaultInfo';
+import { http } from 'msw';
 
-export function repoSyncForkDefaultInfoHandlerResponse200(
-  data: RepoSyncForkDefaultInfoQueryResponse,
-) {
+export function repoSyncForkDefaultInfoHandlerResponse200(data: RepoSyncForkDefaultInfoQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoSyncForkDefaultInfoHandlerResponse400(
-  data: RepoSyncForkDefaultInfo400,
-) {
+export function repoSyncForkDefaultInfoHandlerResponse400(data: RepoSyncForkDefaultInfo400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoSyncForkDefaultInfoHandlerResponse404(
-  data: RepoSyncForkDefaultInfo404,
-) {
+export function repoSyncForkDefaultInfoHandlerResponse404(data: RepoSyncForkDefaultInfo404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,17 +40,15 @@ export function repoSyncForkDefaultInfoHandlerResponse404(
 export function repoSyncForkDefaultInfoHandler(
   data?:
     | RepoSyncForkDefaultInfoQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/sync_fork`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

@@ -10,16 +10,14 @@ import type {
   RepoDeleteFile404,
   RepoDeleteFile413,
   RepoDeleteFile423,
-} from "../types/RepoDeleteFile"
-import { http } from "msw";
+} from '../types/RepoDeleteFile';
+import { http } from 'msw';
 
-export function repoDeleteFileHandlerResponse200(
-  data: RepoDeleteFileMutationResponse,
-) {
+export function repoDeleteFileHandlerResponse200(data: RepoDeleteFileMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -28,7 +26,7 @@ export function repoDeleteFileHandlerResponse400(data: RepoDeleteFile400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -37,7 +35,7 @@ export function repoDeleteFileHandlerResponse403(data: RepoDeleteFile403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,7 +44,7 @@ export function repoDeleteFileHandlerResponse404(data: RepoDeleteFile404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -61,7 +59,7 @@ export function repoDeleteFileHandlerResponse423(data: RepoDeleteFile423) {
   return new Response(JSON.stringify(data), {
     status: 423,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -69,21 +67,16 @@ export function repoDeleteFileHandlerResponse423(data: RepoDeleteFile423) {
 export function repoDeleteFileHandler(
   data?:
     | RepoDeleteFileMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.delete(
-    `/repos/:owner/:repo/contents/:filepath`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.delete(`/repos/:owner/:repo/contents/:filepath`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

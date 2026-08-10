@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgConcealMemberMutationResponse,
   OrgConcealMemberPathParams,
   OrgConcealMember403,
   OrgConcealMember404,
-} from "../types/OrgConcealMember"
+} from '../types/OrgConcealMember';
 
 function getOrgConcealMemberUrl(
-  org: OrgConcealMemberPathParams["org"],
-  username: OrgConcealMemberPathParams["username"],
+  org: OrgConcealMemberPathParams['org'],
+  username: OrgConcealMemberPathParams['username'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/orgs/${org}/public_members/${username}` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getOrgConcealMemberUrl(
  * {@link /orgs/:org/public_members/:username}
  */
 export async function orgConcealMember(
-  org: OrgConcealMemberPathParams["org"],
-  username: OrgConcealMemberPathParams["username"],
+  org: OrgConcealMemberPathParams['org'],
+  username: OrgConcealMemberPathParams['username'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -43,7 +39,7 @@ export async function orgConcealMember(
     ResponseErrorConfig<OrgConcealMember403 | OrgConcealMember404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getOrgConcealMemberUrl(org, username).url.toString(),
     ...requestConfig,
   });

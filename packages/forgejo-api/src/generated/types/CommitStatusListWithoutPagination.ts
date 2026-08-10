@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { CommitStatus } from "./CommitStatus"
+import type { CommitStatus } from './CommitStatus';
 
 export type CommitStatusListWithoutPagination = CommitStatus[];

@@ -3,22 +3,18 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   OrgSearchRunJobsQueryResponse,
   OrgSearchRunJobsPathParams,
   OrgSearchRunJobsQueryParams,
   OrgSearchRunJobs403,
-} from "../types/OrgSearchRunJobs"
+} from '../types/OrgSearchRunJobs';
 
-function getOrgSearchRunJobsUrl(org: OrgSearchRunJobsPathParams["org"]) {
+function getOrgSearchRunJobsUrl(org: OrgSearchRunJobsPathParams['org']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/orgs/${org}/actions/runners/jobs` as const,
   };
   return res;
@@ -29,18 +25,14 @@ function getOrgSearchRunJobsUrl(org: OrgSearchRunJobsPathParams["org"]) {
  * {@link /orgs/:org/actions/runners/jobs}
  */
 export async function orgSearchRunJobs(
-  org: OrgSearchRunJobsPathParams["org"],
+  org: OrgSearchRunJobsPathParams['org'],
   params?: OrgSearchRunJobsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    OrgSearchRunJobsQueryResponse,
-    ResponseErrorConfig<OrgSearchRunJobs403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<OrgSearchRunJobsQueryResponse, ResponseErrorConfig<OrgSearchRunJobs403>, unknown>({
+    method: 'GET',
     url: getOrgSearchRunJobsUrl(org).url.toString(),
     params,
     ...requestConfig,

@@ -3,30 +3,23 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoListAllGitRefsQueryResponse,
-  RepoListAllGitRefs404,
-} from "../types/RepoListAllGitRefs"
-import { http } from "msw";
+import type { RepoListAllGitRefsQueryResponse, RepoListAllGitRefs404 } from '../types/RepoListAllGitRefs';
+import { http } from 'msw';
 
-export function repoListAllGitRefsHandlerResponse200(
-  data: RepoListAllGitRefsQueryResponse,
-) {
+export function repoListAllGitRefsHandlerResponse200(data: RepoListAllGitRefsQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoListAllGitRefsHandlerResponse404(
-  data: RepoListAllGitRefs404,
-) {
+export function repoListAllGitRefsHandlerResponse404(data: RepoListAllGitRefs404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,17 +27,15 @@ export function repoListAllGitRefsHandlerResponse404(
 export function repoListAllGitRefsHandler(
   data?:
     | RepoListAllGitRefsQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.get(`/repos/:owner/:repo/git/refs`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

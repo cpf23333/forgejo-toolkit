@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Label } from "./Label"
+import type { APINotFound } from './APINotFound';
+import type { Label } from './Label';
 
 export type OrgGetLabelPathParams = {
   /**

@@ -8,46 +8,38 @@ import type {
   UserCurrentDeleteGPGKey401,
   UserCurrentDeleteGPGKey403,
   UserCurrentDeleteGPGKey404,
-} from "../types/UserCurrentDeleteGPGKey"
-import { http } from "msw";
+} from '../types/UserCurrentDeleteGPGKey';
+import { http } from 'msw';
 
-export function userCurrentDeleteGPGKeyHandlerResponse204(
-  data?: UserCurrentDeleteGPGKeyMutationResponse,
-) {
+export function userCurrentDeleteGPGKeyHandlerResponse204(data?: UserCurrentDeleteGPGKeyMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function userCurrentDeleteGPGKeyHandlerResponse401(
-  data: UserCurrentDeleteGPGKey401,
-) {
+export function userCurrentDeleteGPGKeyHandlerResponse401(data: UserCurrentDeleteGPGKey401) {
   return new Response(JSON.stringify(data), {
     status: 401,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentDeleteGPGKeyHandlerResponse403(
-  data: UserCurrentDeleteGPGKey403,
-) {
+export function userCurrentDeleteGPGKeyHandlerResponse403(data: UserCurrentDeleteGPGKey403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function userCurrentDeleteGPGKeyHandlerResponse404(
-  data: UserCurrentDeleteGPGKey404,
-) {
+export function userCurrentDeleteGPGKeyHandlerResponse404(data: UserCurrentDeleteGPGKey404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function userCurrentDeleteGPGKeyHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/user/gpg_keys/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminDeleteUserMutationResponse,
   AdminDeleteUserPathParams,
@@ -16,12 +12,10 @@ import type {
   AdminDeleteUser403,
   AdminDeleteUser404,
   AdminDeleteUser422,
-} from "../types/AdminDeleteUser"
+} from '../types/AdminDeleteUser';
 
-function getAdminDeleteUserUrl(
-  username: AdminDeleteUserPathParams["username"],
-) {
-  const res = { method: "DELETE", url: `/admin/users/${username}` as const };
+function getAdminDeleteUserUrl(username: AdminDeleteUserPathParams['username']) {
+  const res = { method: 'DELETE', url: `/admin/users/${username}` as const };
   return res;
 }
 
@@ -30,7 +24,7 @@ function getAdminDeleteUserUrl(
  * {@link /admin/users/:username}
  */
 export async function adminDeleteUser(
-  username: AdminDeleteUserPathParams["username"],
+  username: AdminDeleteUserPathParams['username'],
   params?: AdminDeleteUserQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -38,12 +32,10 @@ export async function adminDeleteUser(
 
   const res = await request<
     AdminDeleteUserMutationResponse,
-    ResponseErrorConfig<
-      AdminDeleteUser403 | AdminDeleteUser404 | AdminDeleteUser422
-    >,
+    ResponseErrorConfig<AdminDeleteUser403 | AdminDeleteUser404 | AdminDeleteUser422>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getAdminDeleteUserUrl(username).url.toString(),
     params,
     ...requestConfig,

@@ -3,12 +3,12 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIInternalServerError } from "./APIInternalServerError"
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { Comment } from "./Comment"
-import type { EditIssueCommentOption } from "./EditIssueCommentOption"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIInternalServerError } from './APIInternalServerError';
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { Comment } from './Comment';
+import type { EditIssueCommentOption } from './EditIssueCommentOption';
 
 export type IssueEditCommentPathParams = {
   /**
@@ -60,16 +60,11 @@ export type IssueEditComment500 = APIInternalServerError;
 
 export type IssueEditCommentMutationRequest = EditIssueCommentOption;
 
-export type IssueEditCommentMutationResponse =
-  IssueEditComment200 | IssueEditComment204;
+export type IssueEditCommentMutationResponse = IssueEditComment200 | IssueEditComment204;
 
 export type IssueEditCommentMutation = {
   Response: IssueEditComment200 | IssueEditComment204;
   Request: IssueEditCommentMutationRequest;
   PathParams: IssueEditCommentPathParams;
-  Errors:
-    | IssueEditComment403
-    | IssueEditComment404
-    | IssueEditComment423
-    | IssueEditComment500;
+  Errors: IssueEditComment403 | IssueEditComment404 | IssueEditComment423 | IssueEditComment500;
 };

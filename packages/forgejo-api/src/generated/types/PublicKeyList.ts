@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { PublicKey } from "./PublicKey"
+import type { PublicKey } from './PublicKey';
 
 export type PublicKeyList = PublicKey[];

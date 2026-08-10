@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoListActionsSecretsQueryResponse,
   RepoListActionsSecretsPathParams,
   RepoListActionsSecretsQueryParams,
   RepoListActionsSecrets404,
-} from "../types/RepoListActionsSecrets"
+} from '../types/RepoListActionsSecrets';
 
 function getRepoListActionsSecretsUrl(
-  owner: RepoListActionsSecretsPathParams["owner"],
-  repo: RepoListActionsSecretsPathParams["repo"],
+  owner: RepoListActionsSecretsPathParams['owner'],
+  repo: RepoListActionsSecretsPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/actions/secrets` as const,
   };
   return res;
@@ -32,8 +28,8 @@ function getRepoListActionsSecretsUrl(
  * {@link /repos/:owner/:repo/actions/secrets}
  */
 export async function repoListActionsSecrets(
-  owner: RepoListActionsSecretsPathParams["owner"],
-  repo: RepoListActionsSecretsPathParams["repo"],
+  owner: RepoListActionsSecretsPathParams['owner'],
+  repo: RepoListActionsSecretsPathParams['repo'],
   params?: RepoListActionsSecretsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -44,7 +40,7 @@ export async function repoListActionsSecrets(
     ResponseErrorConfig<RepoListActionsSecrets404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getRepoListActionsSecretsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

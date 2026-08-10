@@ -3,11 +3,11 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { APIRepoArchivedError } from "./APIRepoArchivedError"
-import type { APIValidationError } from "./APIValidationError"
-import type { CreateTagOption } from "./CreateTagOption"
-import type { Tag } from "./Tag"
+import type { APINotFound } from './APINotFound';
+import type { APIRepoArchivedError } from './APIRepoArchivedError';
+import type { APIValidationError } from './APIValidationError';
+import type { CreateTagOption } from './CreateTagOption';
+import type { Tag } from './Tag';
 
 export type RepoCreateTagPathParams = {
   /**

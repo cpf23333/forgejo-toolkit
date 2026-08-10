@@ -3,20 +3,16 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminSearchEmailsQueryResponse,
   AdminSearchEmailsQueryParams,
   AdminSearchEmails403,
-} from "../types/AdminSearchEmails"
+} from '../types/AdminSearchEmails';
 
 function getAdminSearchEmailsUrl() {
-  const res = { method: "GET", url: `/admin/emails/search` as const };
+  const res = { method: 'GET', url: `/admin/emails/search` as const };
   return res;
 }
 
@@ -30,12 +26,8 @@ export async function adminSearchEmails(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminSearchEmailsQueryResponse,
-    ResponseErrorConfig<AdminSearchEmails403>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminSearchEmailsQueryResponse, ResponseErrorConfig<AdminSearchEmails403>, unknown>({
+    method: 'GET',
     url: getAdminSearchEmailsUrl().url.toString(),
     params,
     ...requestConfig,

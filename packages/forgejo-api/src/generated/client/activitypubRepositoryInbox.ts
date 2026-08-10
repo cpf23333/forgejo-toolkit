@@ -3,23 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   ActivitypubRepositoryInboxMutationRequest,
   ActivitypubRepositoryInboxMutationResponse,
   ActivitypubRepositoryInboxPathParams,
-} from "../types/ActivitypubRepositoryInbox"
+} from '../types/ActivitypubRepositoryInbox';
 
-function getActivitypubRepositoryInboxUrl(
-  repositoryId: ActivitypubRepositoryInboxPathParams["repository-id"],
-) {
+function getActivitypubRepositoryInboxUrl(repositoryId: ActivitypubRepositoryInboxPathParams['repository-id']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/activitypub/repository-id/${repositoryId}/inbox` as const,
   };
   return res;
@@ -30,7 +24,7 @@ function getActivitypubRepositoryInboxUrl(
  * {@link /activitypub/repository-id/:repository-id/inbox}
  */
 export async function activitypubRepositoryInbox(
-  repositoryId: ActivitypubRepositoryInboxPathParams["repository-id"],
+  repositoryId: ActivitypubRepositoryInboxPathParams['repository-id'],
   data?: ActivitypubRepositoryInboxMutationRequest,
   config: Partial<RequestConfig<ActivitypubRepositoryInboxMutationRequest>> & {
     client?: Client;
@@ -45,7 +39,7 @@ export async function activitypubRepositoryInbox(
     ResponseErrorConfig<Error>,
     ActivitypubRepositoryInboxMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getActivitypubRepositoryInboxUrl(repositoryId).url.toString(),
     data: requestData,
     ...requestConfig,

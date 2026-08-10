@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { Repository } from "./Repository"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { Repository } from './Repository';
 
 export type UserCurrentListSubscriptionsQueryParams = {
   /**
@@ -35,8 +35,7 @@ export type UserCurrentListSubscriptions401 = APIUnauthorizedError;
  */
 export type UserCurrentListSubscriptions403 = APIForbiddenError;
 
-export type UserCurrentListSubscriptionsQueryResponse =
-  UserCurrentListSubscriptions200;
+export type UserCurrentListSubscriptionsQueryResponse = UserCurrentListSubscriptions200;
 
 export type UserCurrentListSubscriptionsQuery = {
   Response: UserCurrentListSubscriptions200;

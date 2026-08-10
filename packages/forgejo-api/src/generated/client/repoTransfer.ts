@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoTransferMutationRequest,
   RepoTransferMutationResponse,
@@ -17,14 +13,11 @@ import type {
   RepoTransfer404,
   RepoTransfer413,
   RepoTransfer422,
-} from "../types/RepoTransfer"
+} from '../types/RepoTransfer';
 
-function getRepoTransferUrl(
-  owner: RepoTransferPathParams["owner"],
-  repo: RepoTransferPathParams["repo"],
-) {
+function getRepoTransferUrl(owner: RepoTransferPathParams['owner'], repo: RepoTransferPathParams['repo']) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/transfer` as const,
   };
   return res;
@@ -35,8 +28,8 @@ function getRepoTransferUrl(
  * {@link /repos/:owner/:repo/transfer}
  */
 export async function repoTransfer(
-  owner: RepoTransferPathParams["owner"],
-  repo: RepoTransferPathParams["repo"],
+  owner: RepoTransferPathParams['owner'],
+  repo: RepoTransferPathParams['repo'],
   data: RepoTransferMutationRequest,
   config: Partial<RequestConfig<RepoTransferMutationRequest>> & {
     client?: Client;
@@ -48,12 +41,10 @@ export async function repoTransfer(
 
   const res = await request<
     RepoTransferMutationResponse,
-    ResponseErrorConfig<
-      RepoTransfer403 | RepoTransfer404 | RepoTransfer413 | RepoTransfer422
-    >,
+    ResponseErrorConfig<RepoTransfer403 | RepoTransfer404 | RepoTransfer413 | RepoTransfer422>,
     RepoTransferMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoTransferUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Attachment } from "./Attachment"
+import type { Attachment } from './Attachment';
 
 export type AttachmentList = Attachment[];

@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { RepositoryMeta } from "./RepositoryMeta"
+import type { RepositoryMeta } from './RepositoryMeta';
 
 /**
  * AccessToken represents an API access token.

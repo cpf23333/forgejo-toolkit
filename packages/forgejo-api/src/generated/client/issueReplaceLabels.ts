@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueReplaceLabelsMutationRequest,
   IssueReplaceLabelsMutationResponse,
   IssueReplaceLabelsPathParams,
   IssueReplaceLabels403,
   IssueReplaceLabels404,
-} from "../types/IssueReplaceLabels"
+} from '../types/IssueReplaceLabels';
 
 function getIssueReplaceLabelsUrl(
-  owner: IssueReplaceLabelsPathParams["owner"],
-  repo: IssueReplaceLabelsPathParams["repo"],
-  index: IssueReplaceLabelsPathParams["index"],
+  owner: IssueReplaceLabelsPathParams['owner'],
+  repo: IssueReplaceLabelsPathParams['repo'],
+  index: IssueReplaceLabelsPathParams['index'],
 ) {
   const res = {
-    method: "PUT",
+    method: 'PUT',
     url: `/repos/${owner}/${repo}/issues/${index}/labels` as const,
   };
   return res;
@@ -34,9 +30,9 @@ function getIssueReplaceLabelsUrl(
  * {@link /repos/:owner/:repo/issues/:index/labels}
  */
 export async function issueReplaceLabels(
-  owner: IssueReplaceLabelsPathParams["owner"],
-  repo: IssueReplaceLabelsPathParams["repo"],
-  index: IssueReplaceLabelsPathParams["index"],
+  owner: IssueReplaceLabelsPathParams['owner'],
+  repo: IssueReplaceLabelsPathParams['repo'],
+  index: IssueReplaceLabelsPathParams['index'],
   data?: IssueReplaceLabelsMutationRequest,
   config: Partial<RequestConfig<IssueReplaceLabelsMutationRequest>> & {
     client?: Client;
@@ -51,7 +47,7 @@ export async function issueReplaceLabels(
     ResponseErrorConfig<IssueReplaceLabels403 | IssueReplaceLabels404>,
     IssueReplaceLabelsMutationRequest
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getIssueReplaceLabelsUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

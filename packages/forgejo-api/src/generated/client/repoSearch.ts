@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RepoSearchQueryResponse,
-  RepoSearchQueryParams,
-  RepoSearch422,
-} from "../types/RepoSearch"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RepoSearchQueryResponse, RepoSearchQueryParams, RepoSearch422 } from '../types/RepoSearch';
 
 function getRepoSearchUrl() {
-  const res = { method: "GET", url: `/repos/search` as const };
+  const res = { method: 'GET', url: `/repos/search` as const };
   return res;
 }
 
@@ -30,12 +22,8 @@ export async function repoSearch(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    RepoSearchQueryResponse,
-    ResponseErrorConfig<RepoSearch422>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<RepoSearchQueryResponse, ResponseErrorConfig<RepoSearch422>, unknown>({
+    method: 'GET',
     url: getRepoSearchUrl().url.toString(),
     params,
     ...requestConfig,

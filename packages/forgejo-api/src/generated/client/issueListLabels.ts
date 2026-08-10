@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueListLabelsQueryResponse,
   IssueListLabelsPathParams,
   IssueListLabelsQueryParams,
   IssueListLabels404,
-} from "../types/IssueListLabels"
+} from '../types/IssueListLabels';
 
-function getIssueListLabelsUrl(
-  owner: IssueListLabelsPathParams["owner"],
-  repo: IssueListLabelsPathParams["repo"],
-) {
-  const res = { method: "GET", url: `/repos/${owner}/${repo}/labels` as const };
+function getIssueListLabelsUrl(owner: IssueListLabelsPathParams['owner'], repo: IssueListLabelsPathParams['repo']) {
+  const res = { method: 'GET', url: `/repos/${owner}/${repo}/labels` as const };
   return res;
 }
 
@@ -29,19 +22,15 @@ function getIssueListLabelsUrl(
  * {@link /repos/:owner/:repo/labels}
  */
 export async function issueListLabels(
-  owner: IssueListLabelsPathParams["owner"],
-  repo: IssueListLabelsPathParams["repo"],
+  owner: IssueListLabelsPathParams['owner'],
+  repo: IssueListLabelsPathParams['repo'],
   params?: IssueListLabelsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    IssueListLabelsQueryResponse,
-    ResponseErrorConfig<IssueListLabels404>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<IssueListLabelsQueryResponse, ResponseErrorConfig<IssueListLabels404>, unknown>({
+    method: 'GET',
     url: getIssueListLabelsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueRemoveIssueBlockingMutationRequest,
   IssueRemoveIssueBlockingMutationResponse,
   IssueRemoveIssueBlockingPathParams,
   IssueRemoveIssueBlocking404,
-} from "../types/IssueRemoveIssueBlocking"
+} from '../types/IssueRemoveIssueBlocking';
 
 function getIssueRemoveIssueBlockingUrl(
-  owner: IssueRemoveIssueBlockingPathParams["owner"],
-  repo: IssueRemoveIssueBlockingPathParams["repo"],
-  index: IssueRemoveIssueBlockingPathParams["index"],
+  owner: IssueRemoveIssueBlockingPathParams['owner'],
+  repo: IssueRemoveIssueBlockingPathParams['repo'],
+  index: IssueRemoveIssueBlockingPathParams['index'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/issues/${index}/blocks` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getIssueRemoveIssueBlockingUrl(
  * {@link /repos/:owner/:repo/issues/:index/blocks}
  */
 export async function issueRemoveIssueBlocking(
-  owner: IssueRemoveIssueBlockingPathParams["owner"],
-  repo: IssueRemoveIssueBlockingPathParams["repo"],
-  index: IssueRemoveIssueBlockingPathParams["index"],
+  owner: IssueRemoveIssueBlockingPathParams['owner'],
+  repo: IssueRemoveIssueBlockingPathParams['repo'],
+  index: IssueRemoveIssueBlockingPathParams['index'],
   data?: IssueRemoveIssueBlockingMutationRequest,
   config: Partial<RequestConfig<IssueRemoveIssueBlockingMutationRequest>> & {
     client?: Client;
@@ -50,7 +46,7 @@ export async function issueRemoveIssueBlocking(
     ResponseErrorConfig<IssueRemoveIssueBlocking404>,
     IssueRemoveIssueBlockingMutationRequest
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getIssueRemoveIssueBlockingUrl(owner, repo, index).url.toString(),
     data: requestData,
     ...requestConfig,

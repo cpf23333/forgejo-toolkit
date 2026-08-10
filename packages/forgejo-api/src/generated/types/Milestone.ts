@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { StateType } from "./StateType"
+import type { StateType } from './StateType';
 
 /**
  * @description Milestone milestone is a collection of issues on one repository

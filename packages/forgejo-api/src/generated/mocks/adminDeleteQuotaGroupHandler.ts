@@ -8,46 +8,38 @@ import type {
   AdminDeleteQuotaGroup400,
   AdminDeleteQuotaGroup403,
   AdminDeleteQuotaGroup404,
-} from "../types/AdminDeleteQuotaGroup"
-import { http } from "msw";
+} from '../types/AdminDeleteQuotaGroup';
+import { http } from 'msw';
 
-export function adminDeleteQuotaGroupHandlerResponse204(
-  data?: AdminDeleteQuotaGroupMutationResponse,
-) {
+export function adminDeleteQuotaGroupHandlerResponse204(data?: AdminDeleteQuotaGroupMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function adminDeleteQuotaGroupHandlerResponse400(
-  data: AdminDeleteQuotaGroup400,
-) {
+export function adminDeleteQuotaGroupHandlerResponse400(data: AdminDeleteQuotaGroup400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminDeleteQuotaGroupHandlerResponse403(
-  data: AdminDeleteQuotaGroup403,
-) {
+export function adminDeleteQuotaGroupHandlerResponse403(data: AdminDeleteQuotaGroup403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function adminDeleteQuotaGroupHandlerResponse404(
-  data: AdminDeleteQuotaGroup404,
-) {
+export function adminDeleteQuotaGroupHandlerResponse404(data: AdminDeleteQuotaGroup404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -59,12 +51,10 @@ export function adminDeleteQuotaGroupHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/admin/quota/groups/:quotagroup`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

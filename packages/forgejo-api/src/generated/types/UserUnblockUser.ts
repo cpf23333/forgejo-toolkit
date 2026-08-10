@@ -3,10 +3,10 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
-import type { APIValidationError } from "./APIValidationError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
+import type { APIValidationError } from './APIValidationError';
 
 export type UserUnblockUserPathParams = {
   /**
@@ -46,9 +46,5 @@ export type UserUnblockUserMutationResponse = UserUnblockUser204;
 export type UserUnblockUserMutation = {
   Response: UserUnblockUser204;
   PathParams: UserUnblockUserPathParams;
-  Errors:
-    | UserUnblockUser401
-    | UserUnblockUser403
-    | UserUnblockUser404
-    | UserUnblockUser422;
+  Errors: UserUnblockUser401 | UserUnblockUser403 | UserUnblockUser404 | UserUnblockUser422;
 };

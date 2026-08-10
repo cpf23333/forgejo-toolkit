@@ -3,26 +3,22 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoEditGitHookMutationRequest,
   RepoEditGitHookMutationResponse,
   RepoEditGitHookPathParams,
   RepoEditGitHook404,
-} from "../types/RepoEditGitHook"
+} from '../types/RepoEditGitHook';
 
 function getRepoEditGitHookUrl(
-  owner: RepoEditGitHookPathParams["owner"],
-  repo: RepoEditGitHookPathParams["repo"],
-  id: RepoEditGitHookPathParams["id"],
+  owner: RepoEditGitHookPathParams['owner'],
+  repo: RepoEditGitHookPathParams['repo'],
+  id: RepoEditGitHookPathParams['id'],
 ) {
   const res = {
-    method: "PATCH",
+    method: 'PATCH',
     url: `/repos/${owner}/${repo}/hooks/git/${id}` as const,
   };
   return res;
@@ -33,9 +29,9 @@ function getRepoEditGitHookUrl(
  * {@link /repos/:owner/:repo/hooks/git/:id}
  */
 export async function repoEditGitHook(
-  owner: RepoEditGitHookPathParams["owner"],
-  repo: RepoEditGitHookPathParams["repo"],
-  id: RepoEditGitHookPathParams["id"],
+  owner: RepoEditGitHookPathParams['owner'],
+  repo: RepoEditGitHookPathParams['repo'],
+  id: RepoEditGitHookPathParams['id'],
   data?: RepoEditGitHookMutationRequest,
   config: Partial<RequestConfig<RepoEditGitHookMutationRequest>> & {
     client?: Client;
@@ -50,7 +46,7 @@ export async function repoEditGitHook(
     ResponseErrorConfig<RepoEditGitHook404>,
     RepoEditGitHookMutationRequest
   >({
-    method: "PATCH",
+    method: 'PATCH',
     url: getRepoEditGitHookUrl(owner, repo, id).url.toString(),
     data: requestData,
     ...requestConfig,

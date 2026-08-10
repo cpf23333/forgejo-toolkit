@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { ListActionRunResponse } from "./ListActionRunResponse"
+import type { APIError } from './APIError';
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { ListActionRunResponse } from './ListActionRunResponse';
 
 export type ListActionRunsPathParams = {
   /**
@@ -21,14 +21,14 @@ export type ListActionRunsPathParams = {
 };
 
 export const listActionRunsQueryParamsStatusEnum = {
-  unknown: "unknown",
-  waiting: "waiting",
-  running: "running",
-  success: "success",
-  failure: "failure",
-  cancelled: "cancelled",
-  skipped: "skipped",
-  blocked: "blocked",
+  unknown: 'unknown',
+  waiting: 'waiting',
+  running: 'running',
+  success: 'success',
+  failure: 'failure',
+  cancelled: 'cancelled',
+  skipped: 'skipped',
+  blocked: 'blocked',
 } as const;
 
 export type ListActionRunsQueryParamsStatusEnumKey =

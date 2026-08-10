@@ -3,24 +3,20 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentDeleteSubscriptionMutationResponse,
   UserCurrentDeleteSubscriptionPathParams,
   UserCurrentDeleteSubscription404,
-} from "../types/UserCurrentDeleteSubscription"
+} from '../types/UserCurrentDeleteSubscription';
 
 function getUserCurrentDeleteSubscriptionUrl(
-  owner: UserCurrentDeleteSubscriptionPathParams["owner"],
-  repo: UserCurrentDeleteSubscriptionPathParams["repo"],
+  owner: UserCurrentDeleteSubscriptionPathParams['owner'],
+  repo: UserCurrentDeleteSubscriptionPathParams['repo'],
 ) {
   const res = {
-    method: "DELETE",
+    method: 'DELETE',
     url: `/repos/${owner}/${repo}/subscription` as const,
   };
   return res;
@@ -31,8 +27,8 @@ function getUserCurrentDeleteSubscriptionUrl(
  * {@link /repos/:owner/:repo/subscription}
  */
 export async function userCurrentDeleteSubscription(
-  owner: UserCurrentDeleteSubscriptionPathParams["owner"],
-  repo: UserCurrentDeleteSubscriptionPathParams["repo"],
+  owner: UserCurrentDeleteSubscriptionPathParams['owner'],
+  repo: UserCurrentDeleteSubscriptionPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
@@ -42,7 +38,7 @@ export async function userCurrentDeleteSubscription(
     ResponseErrorConfig<UserCurrentDeleteSubscription404>,
     unknown
   >({
-    method: "DELETE",
+    method: 'DELETE',
     url: getUserCurrentDeleteSubscriptionUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

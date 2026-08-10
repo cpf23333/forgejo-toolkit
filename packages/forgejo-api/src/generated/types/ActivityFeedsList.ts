@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Activity } from "./Activity"
+import type { Activity } from './Activity';
 
 export type ActivityFeedsList = Activity[];

@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { CommitStatusState } from "./CommitStatusState"
-import type { User } from "./User"
+import type { CommitStatusState } from './CommitStatusState';
+import type { User } from './User';
 
 /**
  * @description CommitStatus holds a single status of a single Commit

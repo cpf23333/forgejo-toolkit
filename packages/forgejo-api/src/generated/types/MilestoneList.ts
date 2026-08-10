@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Milestone } from "./Milestone"
+import type { Milestone } from './Milestone';
 
 export type MilestoneList = Milestone[];

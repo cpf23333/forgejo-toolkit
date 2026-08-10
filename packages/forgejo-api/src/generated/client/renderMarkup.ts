@@ -3,20 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  RenderMarkupMutationRequest,
-  RenderMarkupMutationResponse,
-  RenderMarkup422,
-} from "../types/RenderMarkup"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { RenderMarkupMutationRequest, RenderMarkupMutationResponse, RenderMarkup422 } from '../types/RenderMarkup';
 
 function getRenderMarkupUrl() {
-  const res = { method: "POST", url: `/markup` as const };
+  const res = { method: 'POST', url: `/markup` as const };
   return res;
 }
 
@@ -39,7 +31,7 @@ export async function renderMarkup(
     ResponseErrorConfig<RenderMarkup422>,
     RenderMarkupMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRenderMarkupUrl().url.toString(),
     data: requestData,
     ...requestConfig,

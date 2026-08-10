@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { GPGKeyEmail } from "./GPGKeyEmail"
+import type { GPGKeyEmail } from './GPGKeyEmail';
 
 /**
  * @description GPGKey a user GPG key to sign commit and tag in repository

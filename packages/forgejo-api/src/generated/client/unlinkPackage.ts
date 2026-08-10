@@ -3,25 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  UnlinkPackageMutationResponse,
-  UnlinkPackagePathParams,
-  UnlinkPackage404,
-} from "../types/UnlinkPackage"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { UnlinkPackageMutationResponse, UnlinkPackagePathParams, UnlinkPackage404 } from '../types/UnlinkPackage';
 
 function getUnlinkPackageUrl(
-  owner: UnlinkPackagePathParams["owner"],
-  type: UnlinkPackagePathParams["type"],
-  name: UnlinkPackagePathParams["name"],
+  owner: UnlinkPackagePathParams['owner'],
+  type: UnlinkPackagePathParams['type'],
+  name: UnlinkPackagePathParams['name'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/packages/${owner}/${type}/${name}/-/unlink` as const,
   };
   return res;
@@ -32,19 +24,15 @@ function getUnlinkPackageUrl(
  * {@link /packages/:owner/:type/:name/-/unlink}
  */
 export async function unlinkPackage(
-  owner: UnlinkPackagePathParams["owner"],
-  type: UnlinkPackagePathParams["type"],
-  name: UnlinkPackagePathParams["name"],
+  owner: UnlinkPackagePathParams['owner'],
+  type: UnlinkPackagePathParams['type'],
+  name: UnlinkPackagePathParams['name'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    UnlinkPackageMutationResponse,
-    ResponseErrorConfig<UnlinkPackage404>,
-    unknown
-  >({
-    method: "POST",
+  const res = await request<UnlinkPackageMutationResponse, ResponseErrorConfig<UnlinkPackage404>, unknown>({
+    method: 'POST',
     url: getUnlinkPackageUrl(owner, type, name).url.toString(),
     ...requestConfig,
   });

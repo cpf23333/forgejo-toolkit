@@ -3,24 +3,16 @@
  * Do not edit manually.
  */
 
-import type {
-  UpdateOrgSecretMutationResponse,
-  UpdateOrgSecret400,
-  UpdateOrgSecret404,
-} from "../types/UpdateOrgSecret"
-import { http } from "msw";
+import type { UpdateOrgSecretMutationResponse, UpdateOrgSecret400, UpdateOrgSecret404 } from '../types/UpdateOrgSecret';
+import { http } from 'msw';
 
-export function updateOrgSecretHandlerResponse201(
-  data?: UpdateOrgSecretMutationResponse,
-) {
+export function updateOrgSecretHandlerResponse201(data?: UpdateOrgSecretMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
   });
 }
 
-export function updateOrgSecretHandlerResponse204(
-  data?: UpdateOrgSecretMutationResponse,
-) {
+export function updateOrgSecretHandlerResponse204(data?: UpdateOrgSecretMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -30,7 +22,7 @@ export function updateOrgSecretHandlerResponse400(data: UpdateOrgSecret400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -39,7 +31,7 @@ export function updateOrgSecretHandlerResponse404(data: UpdateOrgSecret404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -51,18 +43,13 @@ export function updateOrgSecretHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.put>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.put>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.put(
-    `/orgs/:org/actions/secrets/:secretname`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.put(`/orgs/:org/actions/secrets/:secretname`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 201,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 201,
+    });
+  });
 }

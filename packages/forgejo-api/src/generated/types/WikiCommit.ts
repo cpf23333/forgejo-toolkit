@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { CommitUser } from "./CommitUser"
+import type { CommitUser } from './CommitUser';
 
 /**
  * @description WikiCommit page commit/revision

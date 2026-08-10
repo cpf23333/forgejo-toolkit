@@ -5,14 +5,7 @@
   "properties": {
     "Do": {
       "type": "string",
-      "enum": [
-        "merge",
-        "rebase",
-        "rebase-merge",
-        "squash",
-        "fast-forward-only",
-        "manually-merged"
-      ]
+      "enum": ["merge", "rebase", "rebase-merge", "squash", "fast-forward-only", "manually-merged"]
     },
     "MergeCommitID": { "type": "string" },
     "MergeMessageField": { "type": "string" },

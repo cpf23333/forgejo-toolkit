@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIForbiddenError } from "./APIForbiddenError"
-import type { APINotFound } from "./APINotFound"
-import type { APIUnauthorizedError } from "./APIUnauthorizedError"
+import type { APIForbiddenError } from './APIForbiddenError';
+import type { APINotFound } from './APINotFound';
+import type { APIUnauthorizedError } from './APIUnauthorizedError';
 
 export type UserCurrentDeleteStarPathParams = {
   /**
@@ -45,8 +45,5 @@ export type UserCurrentDeleteStarMutationResponse = UserCurrentDeleteStar204;
 export type UserCurrentDeleteStarMutation = {
   Response: UserCurrentDeleteStar204;
   PathParams: UserCurrentDeleteStarPathParams;
-  Errors:
-    | UserCurrentDeleteStar401
-    | UserCurrentDeleteStar403
-    | UserCurrentDeleteStar404;
+  Errors: UserCurrentDeleteStar401 | UserCurrentDeleteStar403 | UserCurrentDeleteStar404;
 };

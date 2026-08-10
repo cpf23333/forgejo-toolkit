@@ -3,19 +3,12 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  AdminListHooksQueryResponse,
-  AdminListHooksQueryParams,
-} from "../types/AdminListHooks"
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { AdminListHooksQueryResponse, AdminListHooksQueryParams } from '../types/AdminListHooks';
 
 function getAdminListHooksUrl() {
-  const res = { method: "GET", url: `/admin/hooks` as const };
+  const res = { method: 'GET', url: `/admin/hooks` as const };
   return res;
 }
 
@@ -29,12 +22,8 @@ export async function adminListHooks(
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
-  const res = await request<
-    AdminListHooksQueryResponse,
-    ResponseErrorConfig<Error>,
-    unknown
-  >({
-    method: "GET",
+  const res = await request<AdminListHooksQueryResponse, ResponseErrorConfig<Error>, unknown>({
+    method: 'GET',
     url: getAdminListHooksUrl().url.toString(),
     params,
     ...requestConfig,

@@ -3,7 +3,7 @@
  * Do not edit manually.
  */
 
-import type { CommitStatusState } from "./CommitStatusState"
+import type { CommitStatusState } from './CommitStatusState';
 
 /**
  * @description CreateStatusOption holds the information needed to create a new CommitStatus for a Commit

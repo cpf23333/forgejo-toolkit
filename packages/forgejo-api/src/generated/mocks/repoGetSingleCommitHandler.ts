@@ -7,38 +7,32 @@ import type {
   RepoGetSingleCommitQueryResponse,
   RepoGetSingleCommit404,
   RepoGetSingleCommit422,
-} from "../types/RepoGetSingleCommit"
-import { http } from "msw";
+} from '../types/RepoGetSingleCommit';
+import { http } from 'msw';
 
-export function repoGetSingleCommitHandlerResponse200(
-  data: RepoGetSingleCommitQueryResponse,
-) {
+export function repoGetSingleCommitHandlerResponse200(data: RepoGetSingleCommitQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetSingleCommitHandlerResponse404(
-  data: RepoGetSingleCommit404,
-) {
+export function repoGetSingleCommitHandlerResponse404(data: RepoGetSingleCommit404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function repoGetSingleCommitHandlerResponse422(
-  data: RepoGetSingleCommit422,
-) {
+export function repoGetSingleCommitHandlerResponse422(data: RepoGetSingleCommit422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -46,21 +40,16 @@ export function repoGetSingleCommitHandlerResponse422(
 export function repoGetSingleCommitHandler(
   data?:
     | RepoGetSingleCommitQueryResponse
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/git/commits/:sha`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/git/commits/:sha`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

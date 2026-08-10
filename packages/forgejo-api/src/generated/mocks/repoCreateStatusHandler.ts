@@ -7,16 +7,14 @@ import type {
   RepoCreateStatusMutationResponse,
   RepoCreateStatus400,
   RepoCreateStatus404,
-} from "../types/RepoCreateStatus"
-import { http } from "msw";
+} from '../types/RepoCreateStatus';
+import { http } from 'msw';
 
-export function repoCreateStatusHandlerResponse201(
-  data: RepoCreateStatusMutationResponse,
-) {
+export function repoCreateStatusHandlerResponse201(data: RepoCreateStatusMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -25,7 +23,7 @@ export function repoCreateStatusHandlerResponse400(data: RepoCreateStatus400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -34,7 +32,7 @@ export function repoCreateStatusHandlerResponse404(data: RepoCreateStatus404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -42,17 +40,15 @@ export function repoCreateStatusHandlerResponse404(data: RepoCreateStatus404) {
 export function repoCreateStatusHandler(
   data?:
     | RepoCreateStatusMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.post(`/repos/:owner/:repo/statuses/:sha`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 201,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

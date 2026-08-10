@@ -7,35 +7,29 @@ import type {
   OrgRemoveTeamRepositoryMutationResponse,
   OrgRemoveTeamRepository403,
   OrgRemoveTeamRepository404,
-} from "../types/OrgRemoveTeamRepository"
-import { http } from "msw";
+} from '../types/OrgRemoveTeamRepository';
+import { http } from 'msw';
 
-export function orgRemoveTeamRepositoryHandlerResponse204(
-  data?: OrgRemoveTeamRepositoryMutationResponse,
-) {
+export function orgRemoveTeamRepositoryHandlerResponse204(data?: OrgRemoveTeamRepositoryMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgRemoveTeamRepositoryHandlerResponse403(
-  data: OrgRemoveTeamRepository403,
-) {
+export function orgRemoveTeamRepositoryHandlerResponse403(data: OrgRemoveTeamRepository403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
 
-export function orgRemoveTeamRepositoryHandlerResponse404(
-  data: OrgRemoveTeamRepository404,
-) {
+export function orgRemoveTeamRepositoryHandlerResponse404(data: OrgRemoveTeamRepository404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -47,12 +41,10 @@ export function orgRemoveTeamRepositoryHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/teams/:id/repos/:org/:repo`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

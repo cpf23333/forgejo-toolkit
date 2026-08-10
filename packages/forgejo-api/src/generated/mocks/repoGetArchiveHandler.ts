@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoGetArchiveQueryResponse,
-  RepoGetArchive404,
-} from "../types/RepoGetArchive"
-import { http } from "msw";
+import type { RepoGetArchiveQueryResponse, RepoGetArchive404 } from '../types/RepoGetArchive';
+import { http } from 'msw';
 
-export function repoGetArchiveHandlerResponse200(
-  data?: RepoGetArchiveQueryResponse,
-) {
+export function repoGetArchiveHandlerResponse200(data?: RepoGetArchiveQueryResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
   });
@@ -21,7 +16,7 @@ export function repoGetArchiveHandlerResponse404(data: RepoGetArchive404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,18 +28,13 @@ export function repoGetArchiveHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.get>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.get(
-    `/repos/:owner/:repo/archive/:archive`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.get(`/repos/:owner/:repo/archive/:archive`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+    });
+  });
 }

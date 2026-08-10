@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueGetRepoCommentsQueryResponse,
   IssueGetRepoCommentsPathParams,
@@ -16,14 +12,14 @@ import type {
   IssueGetRepoComments404,
   IssueGetRepoComments422,
   IssueGetRepoComments500,
-} from "../types/IssueGetRepoComments"
+} from '../types/IssueGetRepoComments';
 
 function getIssueGetRepoCommentsUrl(
-  owner: IssueGetRepoCommentsPathParams["owner"],
-  repo: IssueGetRepoCommentsPathParams["repo"],
+  owner: IssueGetRepoCommentsPathParams['owner'],
+  repo: IssueGetRepoCommentsPathParams['repo'],
 ) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/repos/${owner}/${repo}/issues/comments` as const,
   };
   return res;
@@ -34,8 +30,8 @@ function getIssueGetRepoCommentsUrl(
  * {@link /repos/:owner/:repo/issues/comments}
  */
 export async function issueGetRepoComments(
-  owner: IssueGetRepoCommentsPathParams["owner"],
-  repo: IssueGetRepoCommentsPathParams["repo"],
+  owner: IssueGetRepoCommentsPathParams['owner'],
+  repo: IssueGetRepoCommentsPathParams['repo'],
   params?: IssueGetRepoCommentsQueryParams,
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
@@ -43,14 +39,10 @@ export async function issueGetRepoComments(
 
   const res = await request<
     IssueGetRepoCommentsQueryResponse,
-    ResponseErrorConfig<
-      | IssueGetRepoComments404
-      | IssueGetRepoComments422
-      | IssueGetRepoComments500
-    >,
+    ResponseErrorConfig<IssueGetRepoComments404 | IssueGetRepoComments422 | IssueGetRepoComments500>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getIssueGetRepoCommentsUrl(owner, repo).url.toString(),
     params,
     ...requestConfig,

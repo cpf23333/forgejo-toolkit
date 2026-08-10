@@ -3,6 +3,6 @@
  * Do not edit manually.
  */
 
-import type { Tag } from "./Tag"
+import type { Tag } from './Tag';
 
 export type TagList = Tag[];

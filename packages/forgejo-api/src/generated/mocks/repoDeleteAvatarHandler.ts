@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  RepoDeleteAvatarMutationResponse,
-  RepoDeleteAvatar404,
-} from "../types/RepoDeleteAvatar"
-import { http } from "msw";
+import type { RepoDeleteAvatarMutationResponse, RepoDeleteAvatar404 } from '../types/RepoDeleteAvatar';
+import { http } from 'msw';
 
-export function repoDeleteAvatarHandlerResponse204(
-  data?: RepoDeleteAvatarMutationResponse,
-) {
+export function repoDeleteAvatarHandlerResponse204(data?: RepoDeleteAvatarMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,7 +16,7 @@ export function repoDeleteAvatarHandlerResponse404(data: RepoDeleteAvatar404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,12 +28,10 @@ export function repoDeleteAvatarHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/repos/:owner/:repo/avatar`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

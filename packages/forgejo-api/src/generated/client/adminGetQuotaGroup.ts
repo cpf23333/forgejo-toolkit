@@ -3,25 +3,19 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   AdminGetQuotaGroupQueryResponse,
   AdminGetQuotaGroupPathParams,
   AdminGetQuotaGroup400,
   AdminGetQuotaGroup403,
   AdminGetQuotaGroup404,
-} from "../types/AdminGetQuotaGroup"
+} from '../types/AdminGetQuotaGroup';
 
-function getAdminGetQuotaGroupUrl(
-  quotagroup: AdminGetQuotaGroupPathParams["quotagroup"],
-) {
+function getAdminGetQuotaGroupUrl(quotagroup: AdminGetQuotaGroupPathParams['quotagroup']) {
   const res = {
-    method: "GET",
+    method: 'GET',
     url: `/admin/quota/groups/${quotagroup}` as const,
   };
   return res;
@@ -32,19 +26,17 @@ function getAdminGetQuotaGroupUrl(
  * {@link /admin/quota/groups/:quotagroup}
  */
 export async function adminGetQuotaGroup(
-  quotagroup: AdminGetQuotaGroupPathParams["quotagroup"],
+  quotagroup: AdminGetQuotaGroupPathParams['quotagroup'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     AdminGetQuotaGroupQueryResponse,
-    ResponseErrorConfig<
-      AdminGetQuotaGroup400 | AdminGetQuotaGroup403 | AdminGetQuotaGroup404
-    >,
+    ResponseErrorConfig<AdminGetQuotaGroup400 | AdminGetQuotaGroup403 | AdminGetQuotaGroup404>,
     unknown
   >({
-    method: "GET",
+    method: 'GET',
     url: getAdminGetQuotaGroupUrl(quotagroup).url.toString(),
     ...requestConfig,
   });

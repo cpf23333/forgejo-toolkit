@@ -3,12 +3,8 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoMigrateMutationRequest,
   RepoMigrateMutationResponse,
@@ -16,10 +12,10 @@ import type {
   RepoMigrate409,
   RepoMigrate413,
   RepoMigrate422,
-} from "../types/RepoMigrate"
+} from '../types/RepoMigrate';
 
 function getRepoMigrateUrl() {
-  const res = { method: "POST", url: `/repos/migrate` as const };
+  const res = { method: 'POST', url: `/repos/migrate` as const };
   return res;
 }
 
@@ -39,12 +35,10 @@ export async function repoMigrate(
 
   const res = await request<
     RepoMigrateMutationResponse,
-    ResponseErrorConfig<
-      RepoMigrate403 | RepoMigrate409 | RepoMigrate413 | RepoMigrate422
-    >,
+    ResponseErrorConfig<RepoMigrate403 | RepoMigrate409 | RepoMigrate413 | RepoMigrate422>,
     RepoMigrateMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoMigrateUrl().url.toString(),
     data: requestData,
     ...requestConfig,

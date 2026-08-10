@@ -3,8 +3,8 @@
  * Do not edit manually.
  */
 
-import type { APINotFound } from "./APINotFound"
-import type { Secret } from "./Secret"
+import type { APINotFound } from './APINotFound';
+import type { Secret } from './Secret';
 
 export type OrgListActionsSecretsPathParams = {
   /**

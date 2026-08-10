@@ -4,14 +4,14 @@
  */
 
 export const migrateRepoOptionsServiceEnum = {
-  git: "git",
-  github: "github",
-  gitea: "gitea",
-  gitlab: "gitlab",
-  gogs: "gogs",
-  onedev: "onedev",
-  gitbucket: "gitbucket",
-  codebase: "codebase",
+  git: 'git',
+  github: 'github',
+  gitea: 'gitea',
+  gitlab: 'gitlab',
+  gogs: 'gogs',
+  onedev: 'onedev',
+  gitbucket: 'gitbucket',
+  codebase: 'codebase',
 } as const;
 
 export type MigrateRepoOptionsServiceEnumKey =

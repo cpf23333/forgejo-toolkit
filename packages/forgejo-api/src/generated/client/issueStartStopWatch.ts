@@ -3,27 +3,23 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   IssueStartStopWatchMutationResponse,
   IssueStartStopWatchPathParams,
   IssueStartStopWatch403,
   IssueStartStopWatch404,
   IssueStartStopWatch409,
-} from "../types/IssueStartStopWatch"
+} from '../types/IssueStartStopWatch';
 
 function getIssueStartStopWatchUrl(
-  owner: IssueStartStopWatchPathParams["owner"],
-  repo: IssueStartStopWatchPathParams["repo"],
-  index: IssueStartStopWatchPathParams["index"],
+  owner: IssueStartStopWatchPathParams['owner'],
+  repo: IssueStartStopWatchPathParams['repo'],
+  index: IssueStartStopWatchPathParams['index'],
 ) {
   const res = {
-    method: "POST",
+    method: 'POST',
     url: `/repos/${owner}/${repo}/issues/${index}/stopwatch/start` as const,
   };
   return res;
@@ -34,21 +30,19 @@ function getIssueStartStopWatchUrl(
  * {@link /repos/:owner/:repo/issues/:index/stopwatch/start}
  */
 export async function issueStartStopWatch(
-  owner: IssueStartStopWatchPathParams["owner"],
-  repo: IssueStartStopWatchPathParams["repo"],
-  index: IssueStartStopWatchPathParams["index"],
+  owner: IssueStartStopWatchPathParams['owner'],
+  repo: IssueStartStopWatchPathParams['repo'],
+  index: IssueStartStopWatchPathParams['index'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     IssueStartStopWatchMutationResponse,
-    ResponseErrorConfig<
-      IssueStartStopWatch403 | IssueStartStopWatch404 | IssueStartStopWatch409
-    >,
+    ResponseErrorConfig<IssueStartStopWatch403 | IssueStartStopWatch404 | IssueStartStopWatch409>,
     unknown
   >({
-    method: "POST",
+    method: 'POST',
     url: getIssueStartStopWatchUrl(owner, repo, index).url.toString(),
     ...requestConfig,
   });

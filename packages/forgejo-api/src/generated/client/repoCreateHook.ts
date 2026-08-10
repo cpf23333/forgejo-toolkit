@@ -3,24 +3,17 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   RepoCreateHookMutationRequest,
   RepoCreateHookMutationResponse,
   RepoCreateHookPathParams,
   RepoCreateHook404,
-} from "../types/RepoCreateHook"
+} from '../types/RepoCreateHook';
 
-function getRepoCreateHookUrl(
-  owner: RepoCreateHookPathParams["owner"],
-  repo: RepoCreateHookPathParams["repo"],
-) {
-  const res = { method: "POST", url: `/repos/${owner}/${repo}/hooks` as const };
+function getRepoCreateHookUrl(owner: RepoCreateHookPathParams['owner'], repo: RepoCreateHookPathParams['repo']) {
+  const res = { method: 'POST', url: `/repos/${owner}/${repo}/hooks` as const };
   return res;
 }
 
@@ -29,8 +22,8 @@ function getRepoCreateHookUrl(
  * {@link /repos/:owner/:repo/hooks}
  */
 export async function repoCreateHook(
-  owner: RepoCreateHookPathParams["owner"],
-  repo: RepoCreateHookPathParams["repo"],
+  owner: RepoCreateHookPathParams['owner'],
+  repo: RepoCreateHookPathParams['repo'],
   data: RepoCreateHookMutationRequest,
   config: Partial<RequestConfig<RepoCreateHookMutationRequest>> & {
     client?: Client;
@@ -45,7 +38,7 @@ export async function repoCreateHook(
     ResponseErrorConfig<RepoCreateHook404>,
     RepoCreateHookMutationRequest
   >({
-    method: "POST",
+    method: 'POST',
     url: getRepoCreateHookUrl(owner, repo).url.toString(),
     data: requestData,
     ...requestConfig,

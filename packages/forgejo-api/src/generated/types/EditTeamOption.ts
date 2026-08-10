@@ -4,9 +4,9 @@
  */
 
 export const editTeamOptionPermissionEnum = {
-  read: "read",
-  write: "write",
-  admin: "admin",
+  read: 'read',
+  write: 'write',
+  admin: 'admin',
 } as const;
 
 export type EditTeamOptionPermissionEnumKey =

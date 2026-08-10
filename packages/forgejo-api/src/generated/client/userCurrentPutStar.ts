@@ -3,25 +3,21 @@
  * Do not edit manually.
  */
 
-import fetch from "@cpf23333-forgejo-toolkit/shared/request";
-import type {
-  Client,
-  RequestConfig,
-  ResponseErrorConfig,
-} from "@cpf23333-forgejo-toolkit/shared/request";
+import fetch from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, ResponseErrorConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import type {
   UserCurrentPutStarMutationResponse,
   UserCurrentPutStarPathParams,
   UserCurrentPutStar401,
   UserCurrentPutStar403,
   UserCurrentPutStar404,
-} from "../types/UserCurrentPutStar"
+} from '../types/UserCurrentPutStar';
 
 function getUserCurrentPutStarUrl(
-  owner: UserCurrentPutStarPathParams["owner"],
-  repo: UserCurrentPutStarPathParams["repo"],
+  owner: UserCurrentPutStarPathParams['owner'],
+  repo: UserCurrentPutStarPathParams['repo'],
 ) {
-  const res = { method: "PUT", url: `/user/starred/${owner}/${repo}` as const };
+  const res = { method: 'PUT', url: `/user/starred/${owner}/${repo}` as const };
   return res;
 }
 
@@ -30,20 +26,18 @@ function getUserCurrentPutStarUrl(
  * {@link /user/starred/:owner/:repo}
  */
 export async function userCurrentPutStar(
-  owner: UserCurrentPutStarPathParams["owner"],
-  repo: UserCurrentPutStarPathParams["repo"],
+  owner: UserCurrentPutStarPathParams['owner'],
+  repo: UserCurrentPutStarPathParams['repo'],
   config: Partial<RequestConfig> & { client?: Client } = {},
 ) {
   const { client: request = fetch, ...requestConfig } = config;
 
   const res = await request<
     UserCurrentPutStarMutationResponse,
-    ResponseErrorConfig<
-      UserCurrentPutStar401 | UserCurrentPutStar403 | UserCurrentPutStar404
-    >,
+    ResponseErrorConfig<UserCurrentPutStar401 | UserCurrentPutStar403 | UserCurrentPutStar404>,
     unknown
   >({
-    method: "PUT",
+    method: 'PUT',
     url: getUserCurrentPutStarUrl(owner, repo).url.toString(),
     ...requestConfig,
   });

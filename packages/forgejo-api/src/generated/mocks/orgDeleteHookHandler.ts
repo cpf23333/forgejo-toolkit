@@ -3,15 +3,10 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgDeleteHookMutationResponse,
-  OrgDeleteHook404,
-} from "../types/OrgDeleteHook"
-import { http } from "msw";
+import type { OrgDeleteHookMutationResponse, OrgDeleteHook404 } from '../types/OrgDeleteHook';
+import { http } from 'msw';
 
-export function orgDeleteHookHandlerResponse204(
-  data?: OrgDeleteHookMutationResponse,
-) {
+export function orgDeleteHookHandlerResponse204(data?: OrgDeleteHookMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
@@ -21,7 +16,7 @@ export function orgDeleteHookHandlerResponse404(data: OrgDeleteHook404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -33,12 +28,10 @@ export function orgDeleteHookHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/orgs/:org/hooks/:id`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,

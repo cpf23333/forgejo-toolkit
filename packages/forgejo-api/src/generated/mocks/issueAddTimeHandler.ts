@@ -8,16 +8,14 @@ import type {
   IssueAddTime400,
   IssueAddTime403,
   IssueAddTime404,
-} from "../types/IssueAddTime"
-import { http } from "msw";
+} from '../types/IssueAddTime';
+import { http } from 'msw';
 
-export function issueAddTimeHandlerResponse200(
-  data: IssueAddTimeMutationResponse,
-) {
+export function issueAddTimeHandlerResponse200(data: IssueAddTimeMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -26,7 +24,7 @@ export function issueAddTimeHandlerResponse400(data: IssueAddTime400) {
   return new Response(JSON.stringify(data), {
     status: 400,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,7 +33,7 @@ export function issueAddTimeHandlerResponse403(data: IssueAddTime403) {
   return new Response(JSON.stringify(data), {
     status: 403,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -44,7 +42,7 @@ export function issueAddTimeHandlerResponse404(data: IssueAddTime404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -52,21 +50,16 @@ export function issueAddTimeHandlerResponse404(data: IssueAddTime404) {
 export function issueAddTimeHandler(
   data?:
     | IssueAddTimeMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.post>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Response | Promise<Response>),
 ) {
-  return http.post(
-    `/repos/:owner/:repo/issues/:index/times`,
-    function handler(info) {
-      if (typeof data === "function") return data(info);
+  return http.post(`/repos/:owner/:repo/issues/:index/times`, function handler(info) {
+    if (typeof data === 'function') return data(info);
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-  );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
 }

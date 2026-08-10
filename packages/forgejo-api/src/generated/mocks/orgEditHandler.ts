@@ -3,18 +3,14 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgEditMutationResponse,
-  OrgEdit404,
-  OrgEdit422,
-} from "../types/OrgEdit"
-import { http } from "msw";
+import type { OrgEditMutationResponse, OrgEdit404, OrgEdit422 } from '../types/OrgEdit';
+import { http } from 'msw';
 
 export function orgEditHandlerResponse200(data: OrgEditMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -23,7 +19,7 @@ export function orgEditHandlerResponse404(data: OrgEdit404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -32,7 +28,7 @@ export function orgEditHandlerResponse422(data: OrgEdit422) {
   return new Response(JSON.stringify(data), {
     status: 422,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -40,17 +36,15 @@ export function orgEditHandlerResponse422(data: OrgEdit422) {
 export function orgEditHandler(
   data?:
     | OrgEditMutationResponse
-    | ((
-        info: Parameters<Parameters<typeof http.patch>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.patch>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.patch(`/orgs/:org`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     });
   });

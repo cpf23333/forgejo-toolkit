@@ -3,9 +3,9 @@
  * Do not edit manually.
  */
 
-import type { APIError } from "./APIError"
-import type { APINotFound } from "./APINotFound"
-import type { CreateOrUpdateSecretOption } from "./CreateOrUpdateSecretOption"
+import type { APIError } from './APIError';
+import type { APINotFound } from './APINotFound';
+import type { CreateOrUpdateSecretOption } from './CreateOrUpdateSecretOption';
 
 export type UpdateOrgSecretPathParams = {
   /**
@@ -45,8 +45,7 @@ export type UpdateOrgSecret404 = APINotFound;
  */
 export type UpdateOrgSecretMutationRequest = CreateOrUpdateSecretOption;
 
-export type UpdateOrgSecretMutationResponse =
-  UpdateOrgSecret201 | UpdateOrgSecret204;
+export type UpdateOrgSecretMutationResponse = UpdateOrgSecret201 | UpdateOrgSecret204;
 
 export type UpdateOrgSecretMutation = {
   Response: UpdateOrgSecret201 | UpdateOrgSecret204;

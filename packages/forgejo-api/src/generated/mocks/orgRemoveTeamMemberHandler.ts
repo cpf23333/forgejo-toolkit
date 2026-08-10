@@ -3,27 +3,20 @@
  * Do not edit manually.
  */
 
-import type {
-  OrgRemoveTeamMemberMutationResponse,
-  OrgRemoveTeamMember404,
-} from "../types/OrgRemoveTeamMember"
-import { http } from "msw";
+import type { OrgRemoveTeamMemberMutationResponse, OrgRemoveTeamMember404 } from '../types/OrgRemoveTeamMember';
+import { http } from 'msw';
 
-export function orgRemoveTeamMemberHandlerResponse204(
-  data?: OrgRemoveTeamMemberMutationResponse,
-) {
+export function orgRemoveTeamMemberHandlerResponse204(data?: OrgRemoveTeamMemberMutationResponse) {
   return new Response(JSON.stringify(data), {
     status: 204,
   });
 }
 
-export function orgRemoveTeamMemberHandlerResponse404(
-  data: OrgRemoveTeamMember404,
-) {
+export function orgRemoveTeamMemberHandlerResponse404(data: OrgRemoveTeamMember404) {
   return new Response(JSON.stringify(data), {
     status: 404,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
 }
@@ -35,12 +28,10 @@ export function orgRemoveTeamMemberHandler(
     | boolean
     | null
     | object
-    | ((
-        info: Parameters<Parameters<typeof http.delete>[1]>[0],
-      ) => Response | Promise<Response>),
+    | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Response | Promise<Response>),
 ) {
   return http.delete(`/teams/:id/members/:username`, function handler(info) {
-    if (typeof data === "function") return data(info);
+    if (typeof data === 'function') return data(info);
 
     return new Response(JSON.stringify(data), {
       status: 204,
