@@ -52,7 +52,7 @@ export type RepoGetAllCommitsQueryParams = {
    */
   page?: number;
   /**
-   * @description page size of results (ignored if used with \'path\')
+   * @description page size of results
    * @type integer | undefined
    */
   limit?: number;

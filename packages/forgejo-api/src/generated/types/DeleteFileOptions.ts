@@ -31,6 +31,11 @@ export type DeleteFileOptions = {
    */
   dates?: CommitDateOptions;
   /**
+   * @description (optional) will do a force-push if the new branch already exists
+   * @type boolean | undefined
+   */
+  force_overwrite_new_branch?: boolean;
+  /**
    * @description message (optional) for the commit of this file. if not supplied, a default message will be used
    * @type string | undefined
    */

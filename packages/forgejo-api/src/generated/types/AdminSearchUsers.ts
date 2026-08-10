@@ -30,6 +30,11 @@ export type AdminSearchUsersQueryParams = {
    */
   login_name?: string;
   /**
+   * @description whether or not to filter users with the 2fa enabled
+   * @type boolean | undefined
+   */
+  is_2fa_enabled?: boolean;
+  /**
    * @description sort order of results
    * @type string | undefined
    */

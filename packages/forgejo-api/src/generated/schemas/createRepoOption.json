@@ -19,7 +19,7 @@
       "x-go-name": "Description"
     },
     "gitignores": {
-      "description": "Gitignores to use",
+      "description": "Gitignores to use, separated by commas",
       "type": "string",
       "x-go-name": "Gitignores"
     },

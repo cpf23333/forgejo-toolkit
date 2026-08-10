@@ -76,7 +76,7 @@ export type RepoSearchQueryParams = {
    */
   is_private?: boolean;
   /**
-   * @description include template repositories this user has access to (defaults to true)
+   * @description show only template, non-template or all repositories (defaults to all)
    * @type boolean | undefined
    */
   template?: boolean;

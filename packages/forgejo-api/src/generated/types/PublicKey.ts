@@ -38,6 +38,10 @@ export type PublicKey = {
    */
   title?: string;
   /**
+   * @type string | undefined, date-time
+   */
+  updated_at?: string;
+  /**
    * @type string | undefined
    */
   url?: string;
@@ -46,4 +50,8 @@ export type PublicKey = {
    * @type object | undefined
    */
   user?: User;
+  /**
+   * @type boolean | undefined
+   */
+  verified?: boolean;
 };

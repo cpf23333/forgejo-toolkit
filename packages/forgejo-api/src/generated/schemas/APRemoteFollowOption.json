@@ -1,0 +1,6 @@
+{
+  "type": "object",
+  "properties": { "target": { "type": "string", "x-go-name": "Target" } },
+  "x-go-package": "forgejo.org/modules/structs",
+  "x-readme-ref-name": "APRemoteFollowOption"
+}

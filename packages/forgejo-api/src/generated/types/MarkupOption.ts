@@ -8,32 +8,32 @@
  */
 export type MarkupOption = {
   /**
-   * @description The current branch path where the form gets posted\n\nin: body
+   * @description The current branch path where the form gets posted
    * @type string | undefined
    */
   BranchPath?: string;
   /**
-   * @description Context to render\n\nin: body
+   * @description Context to render
    * @type string | undefined
    */
   Context?: string;
   /**
-   * @description File path for detecting extension in file mode\n\nin: body
+   * @description File path for detecting extension in file mode
    * @type string | undefined
    */
   FilePath?: string;
   /**
-   * @description Mode to render (comment, gfm, markdown, file)\n\nin: body
+   * @description Mode to render (comment, gfm, markdown, file)
    * @type string | undefined
    */
   Mode?: string;
   /**
-   * @description Text markup to render\n\nin: body
+   * @description Text markup to render
    * @type string | undefined
    */
   Text?: string;
   /**
-   * @description Is it a wiki page ?\n\nin: body
+   * @description Is it a wiki page ?
    * @type boolean | undefined
    */
   Wiki?: boolean;

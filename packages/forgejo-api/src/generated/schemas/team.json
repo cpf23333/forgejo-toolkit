@@ -18,6 +18,11 @@
       "type": "object",
       "properties": {
         "avatar_url": { "type": "string", "x-go-name": "AvatarURL" },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "x-go-name": "Created"
+        },
         "description": { "type": "string", "x-go-name": "Description" },
         "email": { "type": "string", "x-go-name": "Email" },
         "full_name": { "type": "string", "x-go-name": "FullName" },

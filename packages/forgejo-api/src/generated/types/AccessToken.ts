@@ -10,6 +10,10 @@ import type { RepositoryMeta } from './RepositoryMeta';
  */
 export type AccessToken = {
   /**
+   * @type string | undefined, date-time
+   */
+  created_at?: string;
+  /**
    * @type integer | undefined, int64
    */
   id?: number;

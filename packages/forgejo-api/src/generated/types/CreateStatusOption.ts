@@ -18,7 +18,7 @@ export type CreateStatusOption = {
    */
   description?: string;
   /**
-   * @description CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\" and \"warning\"
+   * @description CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\", \"warning\", or \"skipped\"
    * @type string | undefined
    */
   state?: CommitStatusState;

@@ -8,22 +8,22 @@
  */
 export type MarkdownOption = {
   /**
-   * @description Context to render\n\nin: body
+   * @description Context to render
    * @type string | undefined
    */
   Context?: string;
   /**
-   * @description Mode to render (comment, gfm, markdown)\n\nin: body
+   * @description Mode to render (comment, gfm, markdown)
    * @type string | undefined
    */
   Mode?: string;
   /**
-   * @description Text markdown to render\n\nin: body
+   * @description Text markdown to render
    * @type string | undefined
    */
   Text?: string;
   /**
-   * @description Is it a wiki page ?\n\nin: body
+   * @description Is it a wiki page ?
    * @type boolean | undefined
    */
   Wiki?: boolean;

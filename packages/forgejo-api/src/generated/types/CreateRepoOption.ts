@@ -41,7 +41,7 @@ export type CreateRepoOption = {
    */
   description?: string;
   /**
-   * @description Gitignores to use
+   * @description Gitignores to use, separated by commas
    * @type string | undefined
    */
   gitignores?: string;

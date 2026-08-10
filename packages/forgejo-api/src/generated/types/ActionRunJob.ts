@@ -43,6 +43,11 @@ export type ActionRunJob = {
    */
   repo_id?: number;
   /**
+   * @description Identifier of the workflow run this job belongs to.
+   * @type integer | undefined, int64
+   */
+  run_id?: number;
+  /**
    * @description the action run job labels to run on
    * @type array | undefined
    */

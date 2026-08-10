@@ -12,6 +12,11 @@ export type CreatePullReviewComment = {
    */
   body?: string;
   /**
+   * @description number of additional lines after the commented line (0 = single line comment)
+   * @type integer | undefined, int64
+   */
+  extra_lines_count?: number;
+  /**
    * @description if comment to new file line or 0
    * @type integer | undefined, int64
    */

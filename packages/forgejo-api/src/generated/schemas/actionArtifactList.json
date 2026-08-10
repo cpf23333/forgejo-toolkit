@@ -1,0 +1,59 @@
+{
+  "type": "array",
+  "items": {
+    "description": "ActionArtifact represents an artifact of a workflow run",
+    "type": "object",
+    "properties": {
+      "archive_download_url": {
+        "description": "the URL to download the artifact zip archive",
+        "type": "string",
+        "x-go-name": "ArchiveDownloadURL"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time",
+        "x-go-name": "CreatedAt"
+      },
+      "expired": {
+        "description": "whether the artifact has expired",
+        "type": "boolean",
+        "x-go-name": "Expired"
+      },
+      "expires_at": {
+        "type": "string",
+        "format": "date-time",
+        "x-go-name": "ExpiresAt"
+      },
+      "id": {
+        "description": "the artifact's ID",
+        "type": "integer",
+        "format": "int64",
+        "x-go-name": "ID"
+      },
+      "name": {
+        "description": "the artifact's name",
+        "type": "string",
+        "x-go-name": "Name"
+      },
+      "run_id": {
+        "description": "the ID of the workflow run that produced this artifact",
+        "type": "integer",
+        "format": "int64",
+        "x-go-name": "RunID"
+      },
+      "size_in_bytes": {
+        "description": "the total size of the artifact in bytes",
+        "type": "integer",
+        "format": "int64",
+        "x-go-name": "SizeInBytes"
+      },
+      "updated_at": {
+        "type": "string",
+        "format": "date-time",
+        "x-go-name": "UpdatedAt"
+      }
+    },
+    "x-go-package": "forgejo.org/modules/structs",
+    "x-readme-ref-name": "ActionArtifact"
+  }
+}

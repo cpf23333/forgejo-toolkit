@@ -13,6 +13,11 @@
     "key_type": { "type": "string", "x-go-name": "KeyType" },
     "read_only": { "type": "boolean", "x-go-name": "ReadOnly" },
     "title": { "type": "string", "x-go-name": "Title" },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "x-go-name": "Updated"
+    },
     "url": { "type": "string", "x-go-name": "URL" },
     "user": {
       "description": "User represents a user",
@@ -136,7 +141,8 @@
       },
       "x-go-package": "forgejo.org/modules/structs",
       "x-readme-ref-name": "User"
-    }
+    },
+    "verified": { "type": "boolean", "x-go-name": "Verified" }
   },
   "x-go-package": "forgejo.org/modules/structs",
   "x-readme-ref-name": "PublicKey"

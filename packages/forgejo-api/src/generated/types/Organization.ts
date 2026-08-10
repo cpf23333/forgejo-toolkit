@@ -12,6 +12,10 @@ export type Organization = {
    */
   avatar_url?: string;
   /**
+   * @type string | undefined, date-time
+   */
+  created?: string;
+  /**
    * @type string | undefined
    */
   description?: string;

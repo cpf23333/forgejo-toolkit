@@ -6,7 +6,7 @@
     "repository": { "$ref": "#/components/schemas/Repository" },
     "sha": { "type": "string", "x-go-name": "SHA" },
     "state": {
-      "description": "CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\" and \"warning\"",
+      "description": "CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\", \"warning\", or \"skipped\"",
       "type": "string",
       "x-go-package": "forgejo.org/modules/structs",
       "x-readme-ref-name": "CommitStatusState"
@@ -153,7 +153,7 @@
           "description": { "type": "string", "x-go-name": "Description" },
           "id": { "type": "integer", "format": "int64", "x-go-name": "ID" },
           "status": {
-            "description": "CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\" and \"warning\"",
+            "description": "CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\", \"warning\", or \"skipped\"",
             "type": "string",
             "x-go-package": "forgejo.org/modules/structs",
             "x-readme-ref-name": "CommitStatusState"

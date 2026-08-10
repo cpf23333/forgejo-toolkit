@@ -26,6 +26,11 @@ export type PullReviewComment = {
    */
   diff_hunk?: string;
   /**
+   * @description number of additional lines after the commented line (0 = single line comment)
+   * @type integer | undefined, int64
+   */
+  extra_lines_count?: number;
+  /**
    * @type string | undefined
    */
   html_url?: string;

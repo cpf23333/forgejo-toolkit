@@ -5,7 +5,7 @@
     "context": { "type": "string", "x-go-name": "Context" },
     "description": { "type": "string", "x-go-name": "Description" },
     "state": {
-      "description": "CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\" and \"warning\"",
+      "description": "CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\", \"warning\", or \"skipped\"",
       "type": "string",
       "x-go-package": "forgejo.org/modules/structs",
       "x-readme-ref-name": "CommitStatusState"

@@ -36,6 +36,11 @@ export type UpdateFileOptions = {
    */
   dates?: CommitDateOptions;
   /**
+   * @description (optional) will do a force-push if the new branch already exists
+   * @type boolean | undefined
+   */
+  force_overwrite_new_branch?: boolean;
+  /**
    * @description from_path (optional) is the path of the original file which will be moved/renamed to the path in the URL
    * @type string | undefined
    */

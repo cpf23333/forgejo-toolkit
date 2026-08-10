@@ -4,6 +4,6 @@
  */
 
 /**
- * @description CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\" and \"warning\"
+ * @description CommitStatusState holds the state of a CommitStatus\nIt can be \"pending\", \"success\", \"error\", \"failure\", \"warning\", or \"skipped\"
  */
 export type CommitStatusState = string;

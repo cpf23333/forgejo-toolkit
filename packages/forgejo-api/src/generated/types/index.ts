@@ -6,6 +6,7 @@ export type { APINotFound } from './APINotFound';
 export type { APIRepoArchivedError } from './APIRepoArchivedError';
 export type { APIUnauthorizedError } from './APIUnauthorizedError';
 export type { APIValidationError } from './APIValidationError';
+export type { APRemoteFollowOption } from './APRemoteFollowOption';
 export type {
   AcceptRepoTransfer202,
   AcceptRepoTransfer403,
@@ -17,6 +18,8 @@ export type {
 } from './AcceptRepoTransfer';
 export type { AccessToken } from './AccessToken';
 export type { AccessTokenList } from './AccessTokenList';
+export type { ActionArtifact } from './ActionArtifact';
+export type { ActionArtifactList } from './ActionArtifactList';
 export type {
   ActionRun,
   ActionRun200,
@@ -28,6 +31,7 @@ export type {
   ActionRunQueryResponse,
 } from './ActionRun';
 export type { ActionRunJob } from './ActionRunJob';
+export type { ActionRunJobList } from './ActionRunJobList';
 export type { ActionRunner, ActionRunnerStatusEnumKey } from './ActionRunner';
 export type { ActionRunnerList } from './ActionRunnerList';
 export type { ActionTask } from './ActionTask';
@@ -199,6 +203,16 @@ export type {
   AdminCreateUserMutationResponse,
 } from './AdminCreateUser';
 export type {
+  AdminCreateUserAccessToken201,
+  AdminCreateUserAccessToken400,
+  AdminCreateUserAccessToken403,
+  AdminCreateUserAccessToken404,
+  AdminCreateUserAccessTokenMutation,
+  AdminCreateUserAccessTokenMutationRequest,
+  AdminCreateUserAccessTokenMutationResponse,
+  AdminCreateUserAccessTokenPathParams,
+} from './AdminCreateUserAccessToken';
+export type {
   AdminCronList200,
   AdminCronList403,
   AdminCronListQuery,
@@ -253,6 +267,15 @@ export type {
   AdminDeleteUserPathParams,
   AdminDeleteUserQueryParams,
 } from './AdminDeleteUser';
+export type {
+  AdminDeleteUserAccessToken204,
+  AdminDeleteUserAccessToken403,
+  AdminDeleteUserAccessToken404,
+  AdminDeleteUserAccessToken422,
+  AdminDeleteUserAccessTokenMutation,
+  AdminDeleteUserAccessTokenMutationResponse,
+  AdminDeleteUserAccessTokenPathParams,
+} from './AdminDeleteUserAccessToken';
 export type {
   AdminDeleteUserEmails204,
   AdminDeleteUserEmails403,
@@ -382,6 +405,15 @@ export type {
   AdminListQuotaRulesQueryResponse,
 } from './AdminListQuotaRules';
 export type {
+  AdminListUserAccessTokens200,
+  AdminListUserAccessTokens403,
+  AdminListUserAccessTokens404,
+  AdminListUserAccessTokensPathParams,
+  AdminListUserAccessTokensQuery,
+  AdminListUserAccessTokensQueryParams,
+  AdminListUserAccessTokensQueryResponse,
+} from './AdminListUserAccessTokens';
+export type {
   AdminListUserEmails200,
   AdminListUserEmails403,
   AdminListUserEmails404,
@@ -475,6 +507,14 @@ export type { Branch } from './Branch';
 export type { BranchList } from './BranchList';
 export type { BranchProtection } from './BranchProtection';
 export type { BranchProtectionList } from './BranchProtectionList';
+export type {
+  CancelActionRun204,
+  CancelActionRun403,
+  CancelActionRun404,
+  CancelActionRunMutation,
+  CancelActionRunMutationResponse,
+  CancelActionRunPathParams,
+} from './CancelActionRun';
 export type { ChangeFileOperation, ChangeFileOperationOperationEnumKey } from './ChangeFileOperation';
 export type { ChangeFilesOptions } from './ChangeFilesOptions';
 export type { ChangedFile } from './ChangedFile';
@@ -614,6 +654,24 @@ export type { CreateWikiPageOptions } from './CreateWikiPageOptions';
 export type { Cron } from './Cron';
 export type { CronList } from './CronList';
 export type {
+  DeleteActionArtifact204,
+  DeleteActionArtifact400,
+  DeleteActionArtifact403,
+  DeleteActionArtifact404,
+  DeleteActionArtifactMutation,
+  DeleteActionArtifactMutationResponse,
+  DeleteActionArtifactPathParams,
+} from './DeleteActionArtifact';
+export type {
+  DeleteActionRun204,
+  DeleteActionRun400,
+  DeleteActionRun403,
+  DeleteActionRun404,
+  DeleteActionRunMutation,
+  DeleteActionRunMutationResponse,
+  DeleteActionRunPathParams,
+} from './DeleteActionRun';
+export type {
   DeleteAdminRunner204,
   DeleteAdminRunner400,
   DeleteAdminRunner404,
@@ -723,6 +781,15 @@ export type {
 } from './DispatchWorkflow';
 export type { DispatchWorkflowOption } from './DispatchWorkflowOption';
 export type { DispatchWorkflowRun } from './DispatchWorkflowRun';
+export type {
+  DownloadActionArtifact200,
+  DownloadActionArtifact400,
+  DownloadActionArtifact403,
+  DownloadActionArtifact404,
+  DownloadActionArtifactPathParams,
+  DownloadActionArtifactQuery,
+  DownloadActionArtifactQueryResponse,
+} from './DownloadActionArtifact';
 export type { Duration } from './Duration';
 export type { EditAttachmentOptions } from './EditAttachmentOptions';
 export type { EditBranchProtectionOption } from './EditBranchProtectionOption';
@@ -773,6 +840,15 @@ export type {
   GenerateRepoPathParams,
 } from './GenerateRepo';
 export type { GenerateRepoOption } from './GenerateRepoOption';
+export type {
+  GetActionArtifact200,
+  GetActionArtifact400,
+  GetActionArtifact403,
+  GetActionArtifact404,
+  GetActionArtifactPathParams,
+  GetActionArtifactQuery,
+  GetActionArtifactQueryResponse,
+} from './GetActionArtifact';
 export type { GetActionsRun200, GetActionsRunQuery, GetActionsRunQueryResponse } from './GetActionsRun';
 export type {
   GetAdminRunner200,
@@ -1623,6 +1699,34 @@ export type {
   LinkPackageMutationResponse,
   LinkPackagePathParams,
 } from './LinkPackage';
+export type {
+  ListActionArtifacts200,
+  ListActionArtifacts400,
+  ListActionArtifacts403,
+  ListActionArtifactsPathParams,
+  ListActionArtifactsQuery,
+  ListActionArtifactsQueryParams,
+  ListActionArtifactsQueryResponse,
+} from './ListActionArtifacts';
+export type {
+  ListActionRunArtifacts200,
+  ListActionRunArtifacts400,
+  ListActionRunArtifacts403,
+  ListActionRunArtifacts404,
+  ListActionRunArtifactsPathParams,
+  ListActionRunArtifactsQuery,
+  ListActionRunArtifactsQueryParams,
+  ListActionRunArtifactsQueryResponse,
+} from './ListActionRunArtifacts';
+export type {
+  ListActionRunJobs200,
+  ListActionRunJobs400,
+  ListActionRunJobs403,
+  ListActionRunJobs404,
+  ListActionRunJobsPathParams,
+  ListActionRunJobsQuery,
+  ListActionRunJobsQueryResponse,
+} from './ListActionRunJobs';
 export type { ListActionRunResponse } from './ListActionRunResponse';
 export type {
   ListActionRuns200,
@@ -2906,6 +3010,26 @@ export type {
 } from './RepoEditWikiPage';
 export type { RepoGet200, RepoGet404, RepoGetPathParams, RepoGetQuery, RepoGetQueryResponse } from './RepoGet';
 export type {
+  RepoGetActionJobLogs200,
+  RepoGetActionJobLogs206,
+  RepoGetActionJobLogs401,
+  RepoGetActionJobLogs403,
+  RepoGetActionJobLogs404,
+  RepoGetActionJobLogsPathParams,
+  RepoGetActionJobLogsQuery,
+  RepoGetActionJobLogsQueryParams,
+  RepoGetActionJobLogsQueryResponse,
+} from './RepoGetActionJobLogs';
+export type {
+  RepoGetActionRunLogs200,
+  RepoGetActionRunLogs401,
+  RepoGetActionRunLogs403,
+  RepoGetActionRunLogs404,
+  RepoGetActionRunLogsPathParams,
+  RepoGetActionRunLogsQuery,
+  RepoGetActionRunLogsQueryResponse,
+} from './RepoGetActionRunLogs';
+export type {
   RepoGetAllCommits200,
   RepoGetAllCommits404,
   RepoGetAllCommits409,
@@ -3875,6 +3999,15 @@ export type {
   UserCreateTokenMutationResponse,
   UserCreateTokenPathParams,
 } from './UserCreateToken';
+export type {
+  UserCurrentActivityPubFollow204,
+  UserCurrentActivityPubFollow401,
+  UserCurrentActivityPubFollow403,
+  UserCurrentActivityPubFollow404,
+  UserCurrentActivityPubFollowMutation,
+  UserCurrentActivityPubFollowMutationRequest,
+  UserCurrentActivityPubFollowMutationResponse,
+} from './UserCurrentActivityPubFollow';
 export type {
   UserCurrentCheckFollowing204,
   UserCurrentCheckFollowing401,

@@ -12,6 +12,12 @@
         "x-go-name": "Created"
       },
       "diff_hunk": { "type": "string", "x-go-name": "DiffHunk" },
+      "extra_lines_count": {
+        "description": "number of additional lines after the commented line (0 = single line comment)",
+        "type": "integer",
+        "format": "int64",
+        "x-go-name": "ExtraLinesCount"
+      },
       "html_url": { "type": "string", "x-go-name": "HTMLURL" },
       "id": { "type": "integer", "format": "int64", "x-go-name": "ID" },
       "original_commit_id": { "type": "string", "x-go-name": "OrigCommitID" },

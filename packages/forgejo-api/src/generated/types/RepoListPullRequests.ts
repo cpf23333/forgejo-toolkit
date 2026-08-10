@@ -70,6 +70,16 @@ export type RepoListPullRequestsQueryParams = {
    */
   poster?: string;
   /**
+   * @description Filter by base branch name
+   * @type string | undefined
+   */
+  base?: string;
+  /**
+   * @description Filter by head branch name
+   * @type string | undefined
+   */
+  head?: string;
+  /**
    * @description Page number of results to return (1-based)
    * @minLength 1
    * @default 1

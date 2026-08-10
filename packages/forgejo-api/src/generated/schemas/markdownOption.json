@@ -2,22 +2,13 @@
   "description": "MarkdownOption markdown options",
   "type": "object",
   "properties": {
-    "Context": {
-      "description": "Context to render\n\nin: body",
-      "type": "string"
-    },
+    "Context": { "description": "Context to render", "type": "string" },
     "Mode": {
-      "description": "Mode to render (comment, gfm, markdown)\n\nin: body",
+      "description": "Mode to render (comment, gfm, markdown)",
       "type": "string"
     },
-    "Text": {
-      "description": "Text markdown to render\n\nin: body",
-      "type": "string"
-    },
-    "Wiki": {
-      "description": "Is it a wiki page ?\n\nin: body",
-      "type": "boolean"
-    }
+    "Text": { "description": "Text markdown to render", "type": "string" },
+    "Wiki": { "description": "Is it a wiki page ?", "type": "boolean" }
   },
   "x-go-package": "forgejo.org/modules/structs",
   "x-readme-ref-name": "MarkdownOption"
