@@ -225,6 +225,16 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      command: 'actionRuns';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      page: number;
+      actionRuns?: unknown[];
+      totalCount?: number;
+      error?: string;
+    }
+  | {
       command: 'repoLabels';
       instanceId: string;
       owner: string;
@@ -770,6 +780,7 @@ export type WebviewToHostMessage =
     }
   | { command: 'getRepoIssues'; instanceId: string; owner: string; repo: string; state?: string }
   | { command: 'getRepoPullRequests'; instanceId: string; owner: string; repo: string; state?: string }
+  | { command: 'getActionRuns'; instanceId: string; owner: string; repo: string; page?: number; limit?: number }
   | { command: 'getRepoLabels'; instanceId: string; owner: string; repo: string }
   | { command: 'getRepoAssignees'; instanceId: string; owner: string; repo: string }
   | { command: 'getRepoMilestones'; instanceId: string; owner: string; repo: string }

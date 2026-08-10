@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState, repoBranchCommitsKey, repoDetailKey } from '../composables/useAppState';
+import RepoActions from '../components/RepoActions.vue';
 import RepoFileBrowser from '../components/RepoFileBrowser.vue';
 import RepoRefs from '../components/RepoRefs.vue';
 import ViewTabs from '../components/ViewTabs.vue';
@@ -35,7 +36,7 @@ const repoUrl = computed(() => detail.value?.repository.html_url ?? '');
 const cloneUrl = computed(() => (repoUrl.value ? `${repoUrl.value}.git` : ''));
 
 const selectedBranch = ref(detail.value?.repository.default_branch ?? '');
-const activeTab = ref<'overview' | 'files' | 'refs'>('overview');
+const activeTab = ref<'overview' | 'files' | 'refs' | 'actions'>('overview');
 
 watch(
   () => detail.value?.repository.default_branch,
@@ -211,6 +212,7 @@ function reloadRepo() {
           { key: 'overview', label: t('dashboard.overview') },
           { key: 'files', label: t('dashboard.files') },
           { key: 'refs', label: t('dashboard.refs') },
+          { key: 'actions', label: t('dashboard.tabs.actions') },
         ]"
       />
 
@@ -285,6 +287,10 @@ function reloadRepo() {
             :default-branch="detail.repository.default_branch"
             @select-branch="onSelectBranch"
           />
+        </div>
+
+        <div v-if="activeTab === 'actions'" class="tab-pane actions-tab">
+          <RepoActions :instance-id="instanceId" :owner="owner" :repo="repo" />
         </div>
       </div>
     </div>
@@ -538,6 +544,11 @@ function reloadRepo() {
 }
 
 .refs-tab {
+  min-height: 0;
+  overflow: auto;
+}
+
+.actions-tab {
   min-height: 0;
   overflow: auto;
 }

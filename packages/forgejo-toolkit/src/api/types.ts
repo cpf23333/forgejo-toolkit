@@ -203,3 +203,29 @@ export interface ForgejoCommit {
   committer?: ForgejoUser;
   html_url: string;
 }
+
+export interface ForgejoActionRun {
+  id?: number;
+  index_in_repo?: number;
+  title?: string;
+  status?: string;
+  event?: string;
+  trigger_event?: string;
+  workflow_id?: string;
+  commit_sha?: string;
+  prettyref?: string;
+  html_url?: string;
+  created?: string;
+  started?: string;
+  stopped?: string;
+  updated?: string;
+  duration?: number;
+  is_fork_pull_request?: boolean;
+  need_approval?: boolean;
+  trigger_user?: ForgejoUser;
+}
+
+export interface ForgejoActionRunList {
+  total_count?: number;
+  workflow_runs: ForgejoActionRun[];
+}

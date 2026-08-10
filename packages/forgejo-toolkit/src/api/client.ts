@@ -39,6 +39,7 @@ import {
   issueStartStopWatch,
   issueStopStopWatch,
   issueTrackedTimes,
+  listActionRuns,
   notifyGetList,
   notifyReadList,
   notifyReadThread,
@@ -76,6 +77,7 @@ import {
 } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
+  ActionRun,
   AddTimeOption,
   Attachment,
   Commit,
@@ -100,6 +102,7 @@ import type {
 } from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
 import type {
+  ForgejoActionRunList,
   ForgejoBranch,
   ForgejoChangedFile,
   ForgejoCommit,
@@ -169,6 +172,10 @@ export class ForgejoClient {
       { q: query, state: state as 'open' | 'closed' | 'all', type: 'pulls', limit },
       { client: this._client() },
     ) as Promise<ForgejoPullRequest[]>;
+  }
+
+  listActionRuns(owner: string, repo: string, page: number = 1, limit: number = 30): Promise<ForgejoActionRunList> {
+    return listActionRuns(owner, repo, { page, limit }, { client: this._client() }) as Promise<ForgejoActionRunList>;
   }
 
   async getNotifications(

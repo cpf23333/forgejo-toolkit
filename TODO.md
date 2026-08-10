@@ -2,12 +2,12 @@
 
 ## 待开始
 
-- [ ] 读取仓库 Actions 运行状态和历史（仓库详情页 / Actions 标签页）
 - [ ] 接入 MSW mock 用于测试或离线开发
 - [ ] 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试
 - [ ] 评估将 extension host 打包从 esbuild 迁移到 Rolldown，统一构建工具链
 - [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
 - [ ] 调研并补齐 Project 相关 API（当前生成的 client 中无 `/projects` 端点）
+- [ ] Actions 运行详情页：展示任务/步骤/日志，成功时展示制品列表并支持下载
 
 ## 已完成
 
@@ -43,6 +43,7 @@
 - [x] 分支 / 标签 / Release 管理列表
 - [x] 分支 / 标签 / Release 管理增强（创建 / 删除分支、创建标签 / Release）
 - [x] README Markdown 渲染预览
+- [x] 仓库详情页 Actions 标签页：读取 Actions 运行状态和历史
 
 ### Issue / PR
 

@@ -119,8 +119,8 @@
 
 ### CI / Actions
 
-- 读取仓库 Actions 运行状态和历史。
-- 在 PR 详情页展示状态检查（status checks）列表，帮助判断是否可以合并。
+- [x] 读取仓库 Actions 运行状态和历史。
+- [x] 在 PR 详情页展示状态检查（status checks）列表，帮助判断是否可以合并。
 
 ## 后续迭代
 

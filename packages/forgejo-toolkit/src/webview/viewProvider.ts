@@ -1842,6 +1842,41 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'getActionRuns': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string') {
+              return;
+            }
+            const page = typeof message.page === 'number' ? message.page : 1;
+            const limit = typeof message.limit === 'number' ? message.limit : 30;
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const result = await client.listActionRuns(owner, repo, page, limit);
+              this._reply('actionRuns', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                page,
+                actionRuns: result.workflow_runs ?? [],
+                totalCount: result.total_count ?? 0,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getActionRuns failed for ${instance.name}/${owner}/${repo}: ${err}`);
+              this._reply('actionRuns', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                page: typeof message.page === 'number' ? message.page : 1,
+                error: err,
+              });
+            }
+            return;
+          }
           case 'renderMarkdown': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {

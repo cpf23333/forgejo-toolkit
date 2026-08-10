@@ -35,7 +35,8 @@
     "tabs": {
       "repositories": "仓库",
       "issues": "Issues",
-      "pullRequests": "Pull Requests"
+      "pullRequests": "Pull Requests",
+      "actions": "Actions"
     },
     "noRepositories": "没有仓库",
     "noIssues": "没有与你相关的 Issues",
@@ -164,6 +165,16 @@
     "repoPullRequests": {
       "title": "Pull Requests · {repo}",
       "empty": "没有符合当前状态的 Pull Requests。"
+    },
+    "repoActions": {
+      "empty": "没有运行记录。",
+      "untitledRun": "未命名运行",
+      "loadMore": "加载更多"
+    },
+    "actionsDuration": {
+      "seconds": "{seconds} 秒",
+      "minutesSeconds": "{minutes} 分 {seconds} 秒",
+      "hoursMinutes": "{hours} 小时 {minutes} 分"
     },
     "actions": {
       "open": "在浏览器打开",

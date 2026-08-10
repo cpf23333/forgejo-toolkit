@@ -11,6 +11,7 @@ import { postMessage } from './vscode';
 const vscodeVersion = window.__FORGEJO_TOOLKIT_CONFIG__?.vscodeVersion ?? '';
 import type { Locale } from '../i18n';
 import type {
+  ForgejoActionRun,
   ForgejoChangedFile,
   ForgejoCommit,
   ForgejoRepository,
@@ -60,6 +61,8 @@ function createAppState() {
   const pullRequestDetails = ref<Map<string, ForgejoPullRequestDetail>>(new Map());
   const repoIssues = ref<Map<string, ForgejoIssue[]>>(new Map());
   const repoPullRequests = ref<Map<string, ForgejoPullRequest[]>>(new Map());
+  const actionRuns = ref<Map<string, ForgejoActionRun[]>>(new Map());
+  const actionRunTotalCount = ref<Map<string, number>>(new Map());
   const repoBranchCommits = ref<Map<string, ForgejoCommit[]>>(new Map());
   const pullRequestFiles = ref<Map<string, ForgejoChangedFile[]>>(new Map());
   const pullRequestComments = ref<Map<string, ForgejoTimelineComment[]>>(new Map());
@@ -642,6 +645,19 @@ function createAppState() {
             repo: string;
             state: string;
             pullRequests?: ForgejoPullRequest[];
+            error?: string;
+          },
+        );
+        break;
+      case 'actionRuns':
+        handleActionRuns(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            page: number;
+            actionRuns?: ForgejoActionRun[];
+            totalCount?: number;
             error?: string;
           },
         );
@@ -1719,6 +1735,29 @@ function createAppState() {
     } else {
       errors.delete(key);
       repoPullRequests.value.set(key, data.pullRequests ?? []);
+    }
+  }
+
+  function handleActionRuns(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    page: number;
+    actionRuns?: ForgejoActionRun[];
+    totalCount?: number;
+    error?: string;
+  }) {
+    const key = actionRunsKey(data.instanceId, data.owner, data.repo, data.page);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      actionRuns.value.set(key, data.actionRuns ?? []);
+      actionRunTotalCount.value.set(
+        `${data.instanceId}:${data.owner}/${data.repo}`,
+        data.totalCount ?? data.actionRuns?.length ?? 0,
+      );
     }
   }
 
@@ -2804,6 +2843,15 @@ function createAppState() {
     }
   }
 
+  function loadActionRuns(instanceId: string, owner: string, repo: string, page = 1, force = false) {
+    const key = actionRunsKey(instanceId, owner, repo, page);
+    if (force || !actionRuns.value.has(key)) {
+      loading.set(key, true);
+      errors.delete(key);
+      postMessage({ command: 'getActionRuns', instanceId, owner, repo, page, limit: 30 });
+    }
+  }
+
   function changeRepoIssuesState(instanceId: string, owner: string, repo: string, newState: string) {
     router.replace({ name: 'repoIssues', params: { instanceId, owner, repo, state: newState } });
     loadRepoIssues(instanceId, owner, repo, newState);
@@ -2984,6 +3032,8 @@ function createAppState() {
     pullRequestDetails,
     repoIssues,
     repoPullRequests,
+    actionRuns,
+    actionRunTotalCount,
     repoBranchCommits,
     pullRequestFiles,
     pullRequestComments,
@@ -3103,6 +3153,7 @@ function createAppState() {
     changeCommentReaction,
     openRepoPullRequests,
     loadRepoPullRequests,
+    loadActionRuns,
     changeRepoIssuesState,
     changeRepoPullRequestsState,
     loadLinkedRepository,
@@ -3234,7 +3285,11 @@ export function repoPullRequestsKey(instanceId: string, owner: string, repo: str
   return `${instanceId}:${owner}/${repo}:pulls:${state}`;
 }
 
-export function repoContentsKey(instanceId: string, owner: string, repo: string, ref: string, path: string): string {
+export function actionRunsKey(instanceId: string, owner: string, repo: string, page: number): string {
+  return `${instanceId}:${owner}/${repo}:actions:page-${page}`;
+}
+
+export function repoContentsKey(instanceId: string, owner: string, repo: string, ref: string, path: string) {
   return `${instanceId}:${owner}/${repo}:contents:${ref}:${path}`;
 }
 

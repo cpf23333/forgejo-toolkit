@@ -35,7 +35,8 @@
     "tabs": {
       "repositories": "Repositories",
       "issues": "Issues",
-      "pullRequests": "Pull Requests"
+      "pullRequests": "Pull Requests",
+      "actions": "Actions"
     },
     "noRepositories": "No repositories",
     "noIssues": "No issues assigned to you",
@@ -164,6 +165,16 @@
     "repoPullRequests": {
       "title": "Pull Requests · {repo}",
       "empty": "No pull requests match the selected state."
+    },
+    "repoActions": {
+      "empty": "No action runs.",
+      "untitledRun": "Untitled run",
+      "loadMore": "Load more"
+    },
+    "actionsDuration": {
+      "seconds": "{seconds}s",
+      "minutesSeconds": "{minutes}m {seconds}s",
+      "hoursMinutes": "{hours}h {minutes}m"
     },
     "actions": {
       "open": "Open in Browser",
