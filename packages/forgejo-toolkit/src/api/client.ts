@@ -77,7 +77,6 @@ import {
 } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
-  ActionRun,
   AddTimeOption,
   Attachment,
   Commit,
