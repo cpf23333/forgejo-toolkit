@@ -35,7 +35,6 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerDocumentLinkProvider({ scheme: 'file' }, mentionProvider),
     vscode.languages.registerDocumentLinkProvider({ scheme: FORGEJO_PR_SCHEME }, mentionProvider),
     vscode.languages.registerCompletionItemProvider({ scheme: 'file' }, mentionProvider, '#', '@'),
-    vscode.languages.registerCompletionItemProvider({ scheme: FORGEJO_PR_SCHEME }, mentionProvider, '#', '@'),
   );
 
   console.log('Forgejo Toolkit extension activated');
