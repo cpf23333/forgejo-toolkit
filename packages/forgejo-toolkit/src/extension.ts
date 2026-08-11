@@ -6,6 +6,7 @@ import { registerReadmeProvider } from './readmeProvider';
 import { registerRepoFileProvider } from './repoFileProvider';
 import { FORGEJO_PR_SCHEME, ForgejoPRFileSystemProvider } from './prFileSystemProvider';
 import { ForgejoPRDecorationProvider } from './prDecorationProvider';
+import { ForgejoIssueMentionProvider } from './editor/issueMentionProvider';
 import { logger } from './logger';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -28,6 +29,14 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   registerCommands(context, config, readmeProvider, viewProvider);
+
+  const mentionProvider = new ForgejoIssueMentionProvider(config);
+  context.subscriptions.push(
+    vscode.languages.registerDocumentLinkProvider({ scheme: 'file' }, mentionProvider),
+    vscode.languages.registerDocumentLinkProvider({ scheme: FORGEJO_PR_SCHEME }, mentionProvider),
+    vscode.languages.registerCompletionItemProvider({ scheme: 'file' }, mentionProvider, '#', '@'),
+    vscode.languages.registerCompletionItemProvider({ scheme: FORGEJO_PR_SCHEME }, mentionProvider, '#', '@'),
+  );
 
   console.log('Forgejo Toolkit extension activated');
 }

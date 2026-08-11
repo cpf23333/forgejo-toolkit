@@ -37,5 +37,7 @@
   "The current file is outside the linked repository": "The current file is outside the linked repository",
   "Permalink is not supported for this file type": "Permalink is not supported for this file type",
   "Permalink copied to clipboard": "Permalink copied to clipboard",
-  "Failed to copy permalink: {0}": "Failed to copy permalink: {0}"
+  "Failed to copy permalink: {0}": "Failed to copy permalink: {0}",
+  "Open issue/PR #{0}": "Open issue/PR #{0}",
+  "Open user profile @{0}": "Open user profile @{0}"
 }
