@@ -12,6 +12,8 @@ const vscodeVersion = window.__FORGEJO_TOOLKIT_CONFIG__?.vscodeVersion ?? '';
 import type { Locale } from '../i18n';
 import type {
   ForgejoActionRun,
+  ForgejoActionRunJob,
+  ForgejoActionArtifact,
   ForgejoChangedFile,
   ForgejoCommit,
   ForgejoRepository,
@@ -63,6 +65,10 @@ function createAppState() {
   const repoPullRequests = ref<Map<string, ForgejoPullRequest[]>>(new Map());
   const actionRuns = ref<Map<string, ForgejoActionRun[]>>(new Map());
   const actionRunTotalCount = ref<Map<string, number>>(new Map());
+  const actionRunDetails = ref<Map<string, ForgejoActionRun>>(new Map());
+  const actionRunJobs = ref<Map<string, ForgejoActionRunJob[]>>(new Map());
+  const actionRunArtifacts = ref<Map<string, ForgejoActionArtifact[]>>(new Map());
+  const actionJobLogs = ref<Map<string, string>>(new Map());
   const repoBranchCommits = ref<Map<string, ForgejoCommit[]>>(new Map());
   const pullRequestFiles = ref<Map<string, ForgejoChangedFile[]>>(new Map());
   const pullRequestComments = ref<Map<string, ForgejoTimelineComment[]>>(new Map());
@@ -658,6 +664,104 @@ function createAppState() {
             page: number;
             actionRuns?: ForgejoActionRun[];
             totalCount?: number;
+            error?: string;
+          },
+        );
+        break;
+      case 'actionRun':
+        handleActionRun(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            runId: number;
+            run?: ForgejoActionRun;
+            error?: string;
+          },
+        );
+        break;
+      case 'actionRunJobs':
+        handleActionRunJobs(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            runId: number;
+            jobs?: ForgejoActionRunJob[];
+            error?: string;
+          },
+        );
+        break;
+      case 'actionRunArtifacts':
+        handleActionRunArtifacts(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            runId: number;
+            artifacts?: ForgejoActionArtifact[];
+            error?: string;
+          },
+        );
+        break;
+      case 'actionJobLog':
+        handleActionJobLog(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            jobId: number;
+            log?: string;
+            error?: string;
+          },
+        );
+        break;
+      case 'actionRunDispatched':
+        handleActionRunDispatched(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            workflowfilename: string;
+            accepted?: boolean;
+            run?: unknown;
+            error?: string;
+          },
+        );
+        break;
+      case 'actionRunCancelled':
+        handleActionRunCancelled(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            runId: number;
+            success?: boolean;
+            error?: string;
+          },
+        );
+        break;
+      case 'actionRunDeleted':
+        handleActionRunDeleted(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            runId: number;
+            success?: boolean;
+            error?: string;
+          },
+        );
+        break;
+      case 'actionArtifactDownloaded':
+        handleActionArtifactDownloaded(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            artifactId: number;
+            path?: string;
+            cancelled?: boolean;
             error?: string;
           },
         );
@@ -1761,6 +1865,163 @@ function createAppState() {
     }
   }
 
+  function handleActionRun(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    runId: number;
+    run?: ForgejoActionRun;
+    error?: string;
+  }) {
+    const key = actionRunKey(data.instanceId, data.owner, data.repo, data.runId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else if (data.run) {
+      errors.delete(key);
+      actionRunDetails.value.set(key, data.run);
+    }
+  }
+
+  function handleActionRunJobs(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    runId: number;
+    jobs?: ForgejoActionRunJob[];
+    error?: string;
+  }) {
+    const key = actionRunJobsKey(data.instanceId, data.owner, data.repo, data.runId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      actionRunJobs.value.set(key, data.jobs ?? []);
+    }
+  }
+
+  function handleActionRunArtifacts(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    runId: number;
+    artifacts?: ForgejoActionArtifact[];
+    error?: string;
+  }) {
+    const key = actionRunArtifactsKey(data.instanceId, data.owner, data.repo, data.runId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      actionRunArtifacts.value.set(key, data.artifacts ?? []);
+    }
+  }
+
+  function handleActionJobLog(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    jobId: number;
+    log?: string;
+    error?: string;
+  }) {
+    const key = actionJobLogKey(data.instanceId, data.owner, data.repo, data.jobId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      actionJobLogs.value.set(key, data.log ?? '');
+    }
+  }
+
+  function handleActionRunDispatched(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    workflowfilename: string;
+    accepted?: boolean;
+    run?: unknown;
+    error?: string;
+  }) {
+    const key = dispatchWorkflowKey(data.instanceId, data.owner, data.repo, data.workflowfilename);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      if (data.run && typeof data.run === 'object' && (data.run as { id?: number }).id) {
+        const run = data.run as { id: number };
+        loadActionRun(data.instanceId, data.owner, data.repo, run.id, true);
+        loadActionRunJobs(data.instanceId, data.owner, data.repo, run.id, true);
+      }
+      loadActionRuns(data.instanceId, data.owner, data.repo, 1, true);
+    }
+  }
+
+  function handleActionRunCancelled(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    runId: number;
+    success?: boolean;
+    error?: string;
+  }) {
+    const key = actionRunCancelKey(data.instanceId, data.owner, data.repo, data.runId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      loadActionRun(data.instanceId, data.owner, data.repo, data.runId, true);
+      loadActionRunJobs(data.instanceId, data.owner, data.repo, data.runId, true);
+      loadActionRuns(data.instanceId, data.owner, data.repo, 1, true);
+    }
+  }
+
+  function handleActionRunDeleted(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    runId: number;
+    success?: boolean;
+    error?: string;
+  }) {
+    const key = actionRunDeleteKey(data.instanceId, data.owner, data.repo, data.runId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+      actionRunDetails.value.delete(actionRunKey(data.instanceId, data.owner, data.repo, data.runId));
+      actionRunJobs.value.delete(actionRunJobsKey(data.instanceId, data.owner, data.repo, data.runId));
+      actionRunArtifacts.value.delete(actionRunArtifactsKey(data.instanceId, data.owner, data.repo, data.runId));
+      actionRuns.value.clear();
+      actionRunTotalCount.value.delete(`${data.instanceId}:${data.owner}/${data.repo}`);
+      router.push({ name: 'repoActions', params: { instanceId: data.instanceId, owner: data.owner, repo: data.repo } });
+    }
+  }
+
+  function handleActionArtifactDownloaded(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    artifactId: number;
+    path?: string;
+    cancelled?: boolean;
+    error?: string;
+  }) {
+    const key = actionArtifactDownloadKey(data.instanceId, data.owner, data.repo, data.artifactId);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+    } else {
+      errors.delete(key);
+    }
+  }
+
   function handleRepoContents(data: {
     instanceId: string;
     owner: string;
@@ -2843,13 +3104,83 @@ function createAppState() {
     }
   }
 
-  function loadActionRuns(instanceId: string, owner: string, repo: string, page = 1, force = false) {
+  function loadActionRuns(instanceId: string, owner: string, repo: string, page = 1, _force = false) {
     const key = actionRunsKey(instanceId, owner, repo, page);
-    if (force || !actionRuns.value.has(key)) {
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getActionRuns', instanceId, owner, repo, page, limit: 30 });
+  }
+
+  function openActionRunDetail(instanceId: string, owner: string, repo: string, runId: number) {
+    router.push({ name: 'actionRunDetail', params: { instanceId, owner, repo, runId: String(runId) } });
+    loadActionRun(instanceId, owner, repo, runId);
+    loadActionRunJobs(instanceId, owner, repo, runId);
+    loadActionRunArtifacts(instanceId, owner, repo, runId);
+  }
+
+  function loadActionRun(instanceId: string, owner: string, repo: string, runId: number, _force = false) {
+    const key = actionRunKey(instanceId, owner, repo, runId);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getActionRun', instanceId, owner, repo, runId });
+  }
+
+  function loadActionRunJobs(instanceId: string, owner: string, repo: string, runId: number, _force = false) {
+    const key = actionRunJobsKey(instanceId, owner, repo, runId);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getActionRunJobs', instanceId, owner, repo, runId });
+  }
+
+  function loadActionRunArtifacts(instanceId: string, owner: string, repo: string, runId: number, _force = false) {
+    const key = actionRunArtifactsKey(instanceId, owner, repo, runId);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getActionRunArtifacts', instanceId, owner, repo, runId });
+  }
+
+  function loadActionJobLog(instanceId: string, owner: string, repo: string, jobId: number, force = false) {
+    const key = actionJobLogKey(instanceId, owner, repo, jobId);
+    if (force || !actionJobLogs.value.has(key)) {
       loading.set(key, true);
       errors.delete(key);
-      postMessage({ command: 'getActionRuns', instanceId, owner, repo, page, limit: 30 });
+      postMessage({ command: 'getActionJobLog', instanceId, owner, repo, jobId });
     }
+  }
+
+  function dispatchWorkflow(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    workflowfilename: string,
+    ref: string,
+    inputs?: Record<string, string>,
+  ) {
+    const key = dispatchWorkflowKey(instanceId, owner, repo, workflowfilename);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'dispatchWorkflow', instanceId, owner, repo, workflowfilename, ref, inputs });
+  }
+
+  function cancelActionRun(instanceId: string, owner: string, repo: string, runId: number) {
+    const key = actionRunCancelKey(instanceId, owner, repo, runId);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'cancelActionRun', instanceId, owner, repo, runId });
+  }
+
+  function deleteActionRun(instanceId: string, owner: string, repo: string, runId: number) {
+    const key = actionRunDeleteKey(instanceId, owner, repo, runId);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'deleteActionRun', instanceId, owner, repo, runId });
+  }
+
+  function downloadActionArtifact(instanceId: string, owner: string, repo: string, artifactId: number, name: string) {
+    const key = actionArtifactDownloadKey(instanceId, owner, repo, artifactId);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'downloadActionArtifact', instanceId, owner, repo, artifactId, name });
   }
 
   function changeRepoIssuesState(instanceId: string, owner: string, repo: string, newState: string) {
@@ -3034,6 +3365,10 @@ function createAppState() {
     repoPullRequests,
     actionRuns,
     actionRunTotalCount,
+    actionRunDetails,
+    actionRunJobs,
+    actionRunArtifacts,
+    actionJobLogs,
     repoBranchCommits,
     pullRequestFiles,
     pullRequestComments,
@@ -3154,6 +3489,15 @@ function createAppState() {
     openRepoPullRequests,
     loadRepoPullRequests,
     loadActionRuns,
+    openActionRunDetail,
+    loadActionRun,
+    loadActionRunJobs,
+    loadActionRunArtifacts,
+    loadActionJobLog,
+    dispatchWorkflow,
+    cancelActionRun,
+    deleteActionRun,
+    downloadActionArtifact,
     changeRepoIssuesState,
     changeRepoPullRequestsState,
     loadLinkedRepository,
@@ -3287,6 +3631,38 @@ export function repoPullRequestsKey(instanceId: string, owner: string, repo: str
 
 export function actionRunsKey(instanceId: string, owner: string, repo: string, page: number): string {
   return `${instanceId}:${owner}/${repo}:actions:page-${page}`;
+}
+
+export function actionRunKey(instanceId: string, owner: string, repo: string, runId: number): string {
+  return `${instanceId}:${owner}/${repo}:actions:run-${runId}`;
+}
+
+export function actionRunJobsKey(instanceId: string, owner: string, repo: string, runId: number): string {
+  return `${instanceId}:${owner}/${repo}:actions:run-${runId}:jobs`;
+}
+
+export function actionRunArtifactsKey(instanceId: string, owner: string, repo: string, runId: number): string {
+  return `${instanceId}:${owner}/${repo}:actions:run-${runId}:artifacts`;
+}
+
+export function actionJobLogKey(instanceId: string, owner: string, repo: string, jobId: number): string {
+  return `${instanceId}:${owner}/${repo}:actions:job-${jobId}:log`;
+}
+
+export function dispatchWorkflowKey(instanceId: string, owner: string, repo: string, workflowfilename: string): string {
+  return `${instanceId}:${owner}/${repo}:actions:dispatch:${workflowfilename}`;
+}
+
+export function actionRunCancelKey(instanceId: string, owner: string, repo: string, runId: number): string {
+  return `${instanceId}:${owner}/${repo}:actions:run-${runId}:cancel`;
+}
+
+export function actionRunDeleteKey(instanceId: string, owner: string, repo: string, runId: number): string {
+  return `${instanceId}:${owner}/${repo}:actions:run-${runId}:delete`;
+}
+
+export function actionArtifactDownloadKey(instanceId: string, owner: string, repo: string, artifactId: number): string {
+  return `${instanceId}:${owner}/${repo}:actions:artifact-${artifactId}:download`;
 }
 
 export function repoContentsKey(instanceId: string, owner: string, repo: string, ref: string, path: string) {

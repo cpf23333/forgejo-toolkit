@@ -40,6 +40,14 @@ import {
   issueStopStopWatch,
   issueTrackedTimes,
   listActionRuns,
+  actionRun,
+  listActionRunJobs,
+  listActionRunArtifacts,
+  repoGetActionJobLogs,
+  dispatchWorkflow,
+  cancelActionRun,
+  downloadActionArtifact,
+  deleteActionRun,
   notifyGetList,
   notifyReadList,
   notifyReadThread,
@@ -77,6 +85,9 @@ import {
 } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
+  ActionArtifact,
+  ActionRun,
+  ActionRunJob,
   AddTimeOption,
   Attachment,
   Commit,
@@ -85,6 +96,7 @@ import type {
   CreatePullRequestOption,
   CreateReleaseOption,
   CreateTagOption,
+  DispatchWorkflowRun,
   EditIssueOption,
   EditPullRequestOption,
   EditReleaseOption,
@@ -101,6 +113,8 @@ import type {
 } from '@cpf23333-forgejo-toolkit/api';
 import type { Logger } from '../logger';
 import type {
+  ForgejoActionRunJob,
+  ForgejoActionArtifact,
   ForgejoActionRunList,
   ForgejoBranch,
   ForgejoChangedFile,
@@ -175,6 +189,67 @@ export class ForgejoClient {
 
   listActionRuns(owner: string, repo: string, page: number = 1, limit: number = 30): Promise<ForgejoActionRunList> {
     return listActionRuns(owner, repo, { page, limit }, { client: this._client() }) as Promise<ForgejoActionRunList>;
+  }
+
+  async getActionRun(owner: string, repo: string, runId: number): Promise<ActionRun> {
+    return actionRun(owner, repo, runId, { client: this._client() }) as Promise<ActionRun>;
+  }
+
+  async getActionRunJobs(owner: string, repo: string, runId: number): Promise<ForgejoActionRunJob[]> {
+    const result = await listActionRunJobs(owner, repo, runId, { client: this._client() });
+    return (
+      Array.isArray(result) ? result : ((result as { jobs?: ActionRunJob[] }).jobs ?? [])
+    ) as ForgejoActionRunJob[];
+  }
+
+  async getActionRunArtifacts(owner: string, repo: string, runId: number): Promise<ForgejoActionArtifact[]> {
+    const result = await listActionRunArtifacts(owner, repo, runId, undefined, { client: this._client() });
+    return (
+      Array.isArray(result) ? result : ((result as { artifacts?: ActionArtifact[] }).artifacts ?? [])
+    ) as ForgejoActionArtifact[];
+  }
+
+  async getActionJobLog(owner: string, repo: string, jobId: number): Promise<string> {
+    const response = await repoGetActionJobLogs(owner, repo, jobId, undefined, {
+      client: this._client(),
+      responseType: 'text',
+    });
+    return (response as unknown as string) ?? '';
+  }
+
+  async dispatchWorkflow(
+    owner: string,
+    repo: string,
+    workflowfilename: string,
+    ref: string,
+    inputs?: Record<string, string>,
+  ): Promise<DispatchWorkflowRun | undefined> {
+    const result = await dispatchWorkflow(
+      owner,
+      repo,
+      workflowfilename,
+      { ref, inputs, return_run_info: true },
+      {
+        client: this._client(),
+      },
+    );
+    return (result as DispatchWorkflowRun | undefined) ?? undefined;
+  }
+
+  async cancelActionRun(owner: string, repo: string, runId: number): Promise<void> {
+    await cancelActionRun(owner, repo, runId, { client: this._client() });
+  }
+
+  async downloadActionArtifact(owner: string, repo: string, artifactId: number): Promise<Uint8Array> {
+    const response = await downloadActionArtifact(owner, repo, artifactId, {
+      client: this._client(),
+      responseType: 'arraybuffer',
+    });
+    return new Uint8Array(response as unknown as ArrayBuffer);
+  }
+
+  async deleteActionRun(owner: string, repo: string, runId: number): Promise<void> {
+    await deleteActionRun(owner, repo, runId, { client: this._client() });
   }
 
   async getNotifications(

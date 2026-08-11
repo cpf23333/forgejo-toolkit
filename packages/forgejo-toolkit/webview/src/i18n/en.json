@@ -169,7 +169,30 @@
     "repoActions": {
       "empty": "No action runs.",
       "untitledRun": "Untitled run",
-      "loadMore": "Load more"
+      "loadMore": "Load more",
+      "triggerWorkflow": "Trigger workflow",
+      "runWorkflow": "Run"
+    },
+    "actionRun": {
+      "jobs": "Jobs",
+      "artifacts": "Artifacts",
+      "logs": "Logs",
+      "download": "Download",
+      "workflowFile": "Workflow file",
+      "selectWorkflow": "Select a workflow file",
+      "workflowFilePlaceholder": "e.g. ci.yml",
+      "ref": "Ref (branch/tag)",
+      "selectRef": "Select a branch/tag",
+      "refPlaceholder": "e.g. main",
+      "inputKey": "Input key",
+      "inputValue": "Input value",
+      "addInput": "Add input",
+      "triggerWorkflow": "Trigger workflow",
+      "untitledJob": "Untitled job",
+      "noLogs": "No logs available.",
+      "cancelRun": "Cancel run",
+      "deleteRun": "Delete run",
+      "deleteConfirm": "Are you sure you want to delete this run? This cannot be undone."
     },
     "actionsDuration": {
       "seconds": "{seconds}s",

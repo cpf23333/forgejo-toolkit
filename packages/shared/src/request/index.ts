@@ -99,8 +99,17 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
   if ([204, 205, 304].includes(response.status)) {
     data = {} as TResponseData;
   } else {
-    const text = await response.text();
-    data = text ? (JSON.parse(text) as unknown as TResponseData) : ({} as TResponseData);
+    const responseType = paramsConfig.responseType ?? 'json';
+    if (responseType === 'text') {
+      data = (await response.text()) as unknown as TResponseData;
+    } else if (responseType === 'arraybuffer') {
+      data = (await response.arrayBuffer()) as unknown as TResponseData;
+    } else if (responseType === 'blob') {
+      data = (await response.blob()) as unknown as TResponseData;
+    } else {
+      const text = await response.text();
+      data = text ? (JSON.parse(text) as unknown as TResponseData) : ({} as TResponseData);
+    }
   }
 
   return {

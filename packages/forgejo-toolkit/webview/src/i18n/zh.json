@@ -169,7 +169,30 @@
     "repoActions": {
       "empty": "没有运行记录。",
       "untitledRun": "未命名运行",
-      "loadMore": "加载更多"
+      "loadMore": "加载更多",
+      "triggerWorkflow": "触发 workflow",
+      "runWorkflow": "运行"
+    },
+    "actionRun": {
+      "jobs": "任务",
+      "artifacts": "制品",
+      "logs": "日志",
+      "download": "下载",
+      "workflowFile": "Workflow 文件",
+      "selectWorkflow": "选择 workflow 文件",
+      "workflowFilePlaceholder": "例如 ci.yml",
+      "ref": "引用（分支/标签）",
+      "selectRef": "选择分支/标签",
+      "refPlaceholder": "例如 main",
+      "inputKey": "输入键",
+      "inputValue": "输入值",
+      "addInput": "添加输入",
+      "triggerWorkflow": "触发 workflow",
+      "untitledJob": "未命名任务",
+      "noLogs": "暂无日志。",
+      "cancelRun": "取消运行",
+      "deleteRun": "删除运行",
+      "deleteConfirm": "确定要删除这次运行吗？删除后无法恢复。"
     },
     "actionsDuration": {
       "seconds": "{seconds} 秒",

@@ -235,6 +235,80 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      command: 'actionRun';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      runId: number;
+      run?: unknown;
+      error?: string;
+    }
+  | {
+      command: 'actionRunJobs';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      runId: number;
+      jobs?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'actionRunArtifacts';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      runId: number;
+      artifacts?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'actionJobLog';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      jobId: number;
+      log?: string;
+      error?: string;
+    }
+  | {
+      command: 'actionRunDispatched';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      workflowfilename: string;
+      accepted?: boolean;
+      run?: unknown;
+      error?: string;
+    }
+  | {
+      command: 'actionRunCancelled';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      runId: number;
+      success?: boolean;
+      error?: string;
+    }
+  | {
+      command: 'actionArtifactDownloaded';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      artifactId: number;
+      path?: string;
+      cancelled?: boolean;
+      error?: string;
+    }
+  | {
+      command: 'actionRunDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      runId: number;
+      success?: boolean;
+      error?: string;
+    }
+  | {
       command: 'repoLabels';
       instanceId: string;
       owner: string;
@@ -781,6 +855,41 @@ export type WebviewToHostMessage =
   | { command: 'getRepoIssues'; instanceId: string; owner: string; repo: string; state?: string }
   | { command: 'getRepoPullRequests'; instanceId: string; owner: string; repo: string; state?: string }
   | { command: 'getActionRuns'; instanceId: string; owner: string; repo: string; page?: number; limit?: number }
+  | { command: 'getActionRun'; instanceId: string; owner: string; repo: string; runId: number }
+  | { command: 'getActionRunJobs'; instanceId: string; owner: string; repo: string; runId: number }
+  | { command: 'getActionRunArtifacts'; instanceId: string; owner: string; repo: string; runId: number }
+  | { command: 'getActionJobLog'; instanceId: string; owner: string; repo: string; jobId: number }
+  | {
+      command: 'dispatchWorkflow';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      workflowfilename: string;
+      ref: string;
+      inputs?: Record<string, string>;
+    }
+  | {
+      command: 'cancelActionRun';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      runId: number;
+    }
+  | {
+      command: 'deleteActionRun';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      runId: number;
+    }
+  | {
+      command: 'downloadActionArtifact';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      artifactId: number;
+      name: string;
+    }
   | { command: 'getRepoLabels'; instanceId: string; owner: string; repo: string }
   | { command: 'getRepoAssignees'; instanceId: string; owner: string; repo: string }
   | { command: 'getRepoMilestones'; instanceId: string; owner: string; repo: string }

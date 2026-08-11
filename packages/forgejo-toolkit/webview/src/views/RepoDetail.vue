@@ -290,7 +290,13 @@ function reloadRepo() {
         </div>
 
         <div v-if="activeTab === 'actions'" class="tab-pane actions-tab">
-          <RepoActions :instance-id="instanceId" :owner="owner" :repo="repo" />
+          <RepoActions
+            :instance-id="instanceId"
+            :owner="owner"
+            :repo="repo"
+            :default-branch="detail.repository.default_branch"
+            :branches="detail.branches"
+          />
         </div>
       </div>
     </div>

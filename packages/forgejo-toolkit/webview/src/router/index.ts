@@ -8,6 +8,7 @@ import RepoIssues from '../views/RepoIssues.vue';
 import RepoPullRequests from '../views/RepoPullRequests.vue';
 import IssueDetail from '../views/IssueDetail.vue';
 import PullRequestDetail from '../views/PullRequestDetail.vue';
+import ActionRunDetail from '../views/ActionRunDetail.vue';
 import Settings from '../views/Settings.vue';
 
 export const routes = [
@@ -35,6 +36,11 @@ export const routes = [
     path: '/pull/:instanceId/:owner/:repo/:index',
     component: PullRequestDetail,
     name: 'pullRequestDetail',
+  },
+  {
+    path: '/repo/:instanceId/:owner/:repo/actions/runs/:runId',
+    component: ActionRunDetail,
+    name: 'actionRunDetail',
   },
   { path: '/settings', component: Settings, name: 'settings' },
 ];

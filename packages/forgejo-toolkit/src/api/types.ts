@@ -229,3 +229,29 @@ export interface ForgejoActionRunList {
   total_count?: number;
   workflow_runs: ForgejoActionRun[];
 }
+
+export interface ForgejoActionRunJob {
+  id?: number;
+  name?: string;
+  status?: string;
+  attempt?: number;
+  handle?: string;
+  needs?: string[];
+  owner_id?: number;
+  repo_id?: number;
+  run_id?: number;
+  runs_on?: string[];
+  task_id?: number;
+}
+
+export interface ForgejoActionArtifact {
+  id?: number;
+  name?: string;
+  size_in_bytes?: number;
+  archive_download_url?: string;
+  created_at?: string;
+  updated_at?: string;
+  expires_at?: string;
+  expired?: boolean;
+  run_id?: number;
+}

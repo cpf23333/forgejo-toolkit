@@ -1877,6 +1877,271 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'getActionRun': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, runId } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const run = await client.getActionRun(owner, repo, runId);
+              this._reply('actionRun', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                runId,
+                run,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getActionRun failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
+              this._reply('actionRun', { instanceId: message.instanceId, owner, repo, runId, error: err });
+            }
+            return;
+          }
+          case 'getActionRunJobs': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, runId } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const jobs = await client.getActionRunJobs(owner, repo, runId);
+              this._reply('actionRunJobs', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                runId,
+                jobs,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getActionRunJobs failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
+              this._reply('actionRunJobs', { instanceId: message.instanceId, owner, repo, runId, error: err });
+            }
+            return;
+          }
+          case 'getActionRunArtifacts': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, runId } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const artifacts = await client.getActionRunArtifacts(owner, repo, runId);
+              this._reply('actionRunArtifacts', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                runId,
+                artifacts,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getActionRunArtifacts failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
+              this._reply('actionRunArtifacts', { instanceId: message.instanceId, owner, repo, runId, error: err });
+            }
+            return;
+          }
+          case 'getActionJobLog': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, jobId } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof jobId !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const log = await client.getActionJobLog(owner, repo, jobId);
+              this._reply('actionJobLog', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                jobId,
+                log,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getActionJobLog failed for ${instance.name}/${owner}/${repo}/jobs/${jobId}: ${err}`);
+              this._reply('actionJobLog', { instanceId: message.instanceId, owner, repo, jobId, error: err });
+            }
+            return;
+          }
+          case 'dispatchWorkflow': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, workflowfilename, ref, inputs } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof workflowfilename !== 'string' ||
+              typeof ref !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const run = await client.dispatchWorkflow(
+                owner,
+                repo,
+                workflowfilename,
+                ref,
+                inputs && typeof inputs === 'object' ? (inputs as Record<string, string>) : undefined,
+              );
+              this._reply('actionRunDispatched', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                workflowfilename,
+                accepted: true,
+                run,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`dispatchWorkflow failed for ${instance.name}/${owner}/${repo}/${workflowfilename}: ${err}`);
+              this._reply('actionRunDispatched', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                workflowfilename,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'cancelActionRun': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, runId } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.cancelActionRun(owner, repo, runId);
+              this._reply('actionRunCancelled', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                runId,
+                success: true,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`cancelActionRun failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
+              this._reply('actionRunCancelled', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                runId,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'deleteActionRun': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, runId } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              await client.deleteActionRun(owner, repo, runId);
+              this._reply('actionRunDeleted', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                runId,
+                success: true,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`deleteActionRun failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
+              this._reply('actionRunDeleted', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                runId,
+                error: err,
+              });
+            }
+            return;
+          }
+          case 'downloadActionArtifact': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, artifactId, name } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof artifactId !== 'number' ||
+              typeof name !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const data = await client.downloadActionArtifact(owner, repo, artifactId);
+              const defaultName = name.endsWith('.zip') ? name : `${name}.zip`;
+              const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(defaultName),
+                filters: { 'ZIP Archive': ['zip'] },
+              });
+              if (!uri) {
+                this._reply('actionArtifactDownloaded', {
+                  instanceId: message.instanceId,
+                  owner,
+                  repo,
+                  artifactId,
+                  cancelled: true,
+                });
+                return;
+              }
+              await fs.promises.writeFile(uri.fsPath, data);
+              this._reply('actionArtifactDownloaded', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                artifactId,
+                path: uri.fsPath,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`downloadActionArtifact failed for ${instance.name}/${owner}/${repo}/${artifactId}: ${err}`);
+              this._reply('actionArtifactDownloaded', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                artifactId,
+                error: err,
+              });
+            }
+            return;
+          }
           case 'renderMarkdown': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {
