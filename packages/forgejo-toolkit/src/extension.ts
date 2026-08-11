@@ -33,7 +33,6 @@ export function activate(context: vscode.ExtensionContext) {
   const mentionProvider = new ForgejoIssueMentionProvider(config);
   context.subscriptions.push(
     vscode.languages.registerDocumentLinkProvider({ scheme: 'file' }, mentionProvider),
-    vscode.languages.registerDocumentLinkProvider({ scheme: FORGEJO_PR_SCHEME }, mentionProvider),
     vscode.languages.registerCompletionItemProvider({ scheme: 'file' }, mentionProvider, '#', '@'),
   );
 
