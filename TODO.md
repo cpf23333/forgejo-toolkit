@@ -56,6 +56,10 @@
 - [x] Issue / PR 列表与详情页
 - [x] Issue / PR 详情页：展示评论、diff、时间线
 - [x] PR 详情页 diff 增强（按提交查看 diff）
+- [x] PR diff 使用 `merge_base` 与 `head.sha`，避免 fork PR 内容漂移
+- [x] PR 详情页直接展示 CI / commit status
+- [x] PR 打开新增/删除文件时给出状态提示
+- [x] PR 详情页支持撤销合并（Revert merge commit）
 - [x] Issue / PR 描述的 Markdown 渲染
 - [x] Issue / PR 附件列表
 - [x] 图片附件 extension-host 代理
