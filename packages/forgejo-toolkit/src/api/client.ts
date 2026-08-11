@@ -80,8 +80,10 @@ import {
   repoMergePullRequest,
   repoSearch,
   userCurrentListRepos,
+  userGet,
   userGetCurrent,
   userGetStopWatches,
+  userSearch,
 } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
@@ -133,6 +135,26 @@ import type {
   ForgejoTag,
   ForgejoUser,
 } from './types';
+
+export interface MentionUserItem {
+  value: string;
+  name: string;
+  full_name?: string;
+  avatar_url?: string;
+}
+
+export interface MentionIssueItem {
+  value: string;
+  title: string;
+  state?: string;
+  user?: ForgejoUser;
+  is_pull?: boolean;
+}
+
+export interface MentionSearchResult {
+  users: MentionUserItem[];
+  issues: MentionIssueItem[];
+}
 
 export class ForgejoClient {
   constructor(
@@ -629,6 +651,59 @@ export class ForgejoClient {
       { client: this._client() },
     );
     return (milestones ?? []) as Milestone[];
+  }
+
+  async searchMentions(
+    owner: string,
+    repo: string,
+    query: string,
+    type: 'user' | 'issue' | 'all',
+  ): Promise<MentionSearchResult> {
+    const searchUsers = type === 'user' || type === 'all';
+    const searchIssues = type === 'issue' || type === 'all';
+
+    const [userResults, issueResults] = await Promise.all([
+      searchUsers
+        ? userSearch({ q: query, limit: 10 }, { client: this._client() })
+            .then((result) => (result?.data ?? []) as User[])
+            .catch(() => [] as User[])
+        : Promise.resolve([] as User[]),
+      searchIssues
+        ? issueListIssues(owner, repo, { state: 'all', q: query, limit: 10 }, { client: this._client() })
+            .then((issues) => (issues ?? []) as ForgejoIssue[])
+            .catch(() => [] as ForgejoIssue[])
+        : Promise.resolve([] as ForgejoIssue[]),
+    ]);
+
+    return {
+      users: userResults
+        .map((user) => ({
+          value: user.login ?? '',
+          name: user.login ?? '',
+          full_name: user.full_name || undefined,
+          avatar_url: user.avatar_url || undefined,
+        }))
+        .filter((user) => user.value),
+      issues: issueResults
+        .map((issue) => ({
+          value: String(issue.number ?? ''),
+          title: issue.title ?? '',
+          state: issue.state ?? '',
+          user: issue.user,
+          is_pull: !!issue.pull_request,
+        }))
+        .filter((issue) => issue.value),
+    };
+  }
+
+  async getUserPreview(username: string): Promise<ForgejoUser | undefined> {
+    const user = await userGet(username, { client: this._client() }).catch(() => undefined);
+    return user as ForgejoUser | undefined;
+  }
+
+  async getIssuePreview(owner: string, repo: string, index: number): Promise<ForgejoIssue | undefined> {
+    const issue = await issueGetIssue(owner, repo, index, { client: this._client() }).catch(() => undefined);
+    return issue as ForgejoIssue | undefined;
   }
 
   getRepoPullRequests(owner: string, repo: string, state: string = 'open'): Promise<ForgejoPullRequest[]> {

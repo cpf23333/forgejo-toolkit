@@ -385,6 +385,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           v-else
           :html="renderedBodies[commentKey(comment)] ?? ''"
           :base-url="props.baseUrl"
+          :instance-id="props.instanceId"
           @open-external="state.openExternal($event)"
         />
       </div>
@@ -426,6 +427,9 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           :placeholder="t('dashboard.detail.addCommentPlaceholder')"
           :disabled="editLoading"
           :upload-image="handleUploadImageForEdit"
+          :instance-id="props.instanceId"
+          :owner="props.owner"
+          :repo="props.repo"
         />
         <div v-if="editingComment?.id !== undefined" class="edit-comment-attachments">
           <AttachmentList

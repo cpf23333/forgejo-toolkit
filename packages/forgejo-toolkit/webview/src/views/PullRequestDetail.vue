@@ -887,6 +887,7 @@ function reloadPullRequest() {
             :loading="bodyLoading"
             :error="bodyError"
             :base-url="baseUrl"
+            :instance-id="instanceId"
             @open-external="state.openExternal($event)"
           />
           <ReactionBar
@@ -935,6 +936,9 @@ function reloadPullRequest() {
               :placeholder="t('dashboard.detail.addCommentPlaceholder')"
               :disabled="commentLoading"
               :upload-image="handleCommentImageUpload"
+              :instance-id="instanceId"
+              :owner="owner"
+              :repo="repo"
             />
             <AttachmentList
               :assets="[]"
@@ -1336,6 +1340,9 @@ function reloadPullRequest() {
           :loading="formLoading"
           :error="editError"
           :upload-image="handleUploadImage"
+          :instance-id="instanceId"
+          :owner="owner"
+          :repo="repo"
           @submit="handleEditSubmit"
           @cancel="closeEdit"
         >

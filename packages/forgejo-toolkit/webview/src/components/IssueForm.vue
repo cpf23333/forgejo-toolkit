@@ -27,6 +27,9 @@ interface Props {
   loading?: boolean;
   error?: string;
   uploadImage?: (file: File, onSuccess: (url: string) => void, onError: (error: string) => void) => void;
+  instanceId?: string;
+  owner?: string;
+  repo?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -247,7 +250,14 @@ function handleSubmit() {
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.body') }}</label>
-      <EasyMdeEditor v-model="body" :placeholder="t('dashboard.form.bodyPlaceholder')" :upload-image="uploadImage" />
+      <EasyMdeEditor
+        v-model="body"
+        :placeholder="t('dashboard.form.bodyPlaceholder')"
+        :upload-image="uploadImage"
+        :instance-id="instanceId"
+        :owner="owner"
+        :repo="repo"
+      />
     </div>
     <div v-if="error" class="form-error">{{ t('dashboard.form.error', { message: error }) }}</div>
     <slot name="extra" />

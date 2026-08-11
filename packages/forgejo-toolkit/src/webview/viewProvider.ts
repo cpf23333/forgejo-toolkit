@@ -1888,6 +1888,76 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'searchMentions': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, query, type, _requestId } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof query !== 'string' ||
+              typeof _requestId !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const result = await client.searchMentions(owner, repo, query, type as 'user' | 'issue' | 'all');
+              this._reply('mentionSearchResult', { _requestId, users: result.users, issues: result.issues });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`searchMentions failed for ${instance.name}/${owner}/${repo}: ${err}`);
+              this._reply('mentionSearchResult', { _requestId, error: err });
+            }
+            return;
+          }
+          case 'getUserPreview': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { username, _requestId } = message;
+            if (typeof username !== 'string' || typeof _requestId !== 'string') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const user = await client.getUserPreview(username);
+              this._reply('userPreviewResult', { _requestId, user });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getUserPreview failed for ${instance.name}/${username}: ${err}`);
+              this._reply('userPreviewResult', { _requestId, error: err });
+            }
+            return;
+          }
+          case 'getIssuePreview': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index, _requestId } = message;
+            if (
+              typeof owner !== 'string' ||
+              typeof repo !== 'string' ||
+              typeof index !== 'number' ||
+              typeof _requestId !== 'string'
+            ) {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const issue = await client.getIssuePreview(owner, repo, index);
+              this._reply('issuePreviewResult', { _requestId, issue });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`getIssuePreview failed for ${instance.name}/${owner}/${repo}/${index}: ${err}`);
+              this._reply('issuePreviewResult', { _requestId, error: err });
+            }
+            return;
+          }
           case 'getRepoPullRequests': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {

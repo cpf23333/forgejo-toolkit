@@ -282,6 +282,9 @@ async function handleCreateSubmit(data: {
         :loading="createDialogLoading"
         :error="createError"
         :upload-image="handleUploadImageForCreate"
+        :instance-id="instanceId"
+        :owner="owner"
+        :repo="repo"
         @submit="handleCreateSubmit"
         @cancel="closeCreatePullRequest"
       >

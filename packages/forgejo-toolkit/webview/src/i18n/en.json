@@ -219,6 +219,15 @@
       "cancel": "Cancel",
       "set": "Set"
     },
+    "hoverCard": {
+      "loading": "Loading...",
+      "error": "Failed to load: {message}",
+      "issueState": {
+        "open": "Open",
+        "closed": "Closed"
+      },
+      "openedBy": "Opened by"
+    },
     "detail": {
       "status": "Status",
       "author": "Author",

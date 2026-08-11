@@ -654,6 +654,25 @@ export type HostToWebviewMessage =
       content: string;
       action: 'add' | 'remove';
       error?: string;
+    }
+  | {
+      command: 'mentionSearchResult';
+      _requestId: string;
+      users?: unknown[];
+      issues?: unknown[];
+      error?: string;
+    }
+  | {
+      command: 'userPreviewResult';
+      _requestId: string;
+      user?: unknown;
+      error?: string;
+    }
+  | {
+      command: 'issuePreviewResult';
+      _requestId: string;
+      issue?: unknown;
+      error?: string;
     };
 
 export type WebviewToHostMessage =
@@ -1176,4 +1195,27 @@ export type WebviewToHostMessage =
       commentId: number;
       content: string;
       add: boolean;
+    }
+  | {
+      command: 'searchMentions';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      query: string;
+      type: 'user' | 'issue' | 'all';
+      _requestId: string;
+    }
+  | {
+      command: 'getUserPreview';
+      instanceId: string;
+      username: string;
+      _requestId: string;
+    }
+  | {
+      command: 'getIssuePreview';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      _requestId: string;
     };

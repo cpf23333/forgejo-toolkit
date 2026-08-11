@@ -18,6 +18,7 @@ import type {
   ForgejoCommit,
   ForgejoRepository,
   ForgejoIssue,
+  ForgejoUser,
   ForgejoPullRequest,
   ForgejoRepoDetail,
   ForgejoIssueDetail,
@@ -48,6 +49,21 @@ import type {
   LinkedRepository,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { createTimedCache } from '../utils/createTimedCache';
+
+export interface MentionUser {
+  value: string;
+  name: string;
+  full_name?: string;
+  avatar_url?: string;
+}
+
+export interface MentionIssue {
+  value: string;
+  title: string;
+  state?: string;
+  user?: ForgejoUser;
+  is_pull?: boolean;
+}
 
 function createAppState() {
   const router = useRouter();
@@ -178,6 +194,21 @@ function createAppState() {
   const pendingReleaseCreations = new Map<
     string,
     { resolve: (release: ForgejoRelease) => void; reject: (error: Error) => void }
+  >();
+  let mentionSearchRequestId = 0;
+  const pendingMentionSearchRequests = new Map<
+    string,
+    { resolve: (result: { users: MentionUser[]; issues: MentionIssue[] }) => void; reject: (error: Error) => void }
+  >();
+  let userPreviewRequestId = 0;
+  const pendingUserPreviewRequests = new Map<
+    string,
+    { resolve: (user: ForgejoUser | undefined) => void; reject: (error: Error) => void }
+  >();
+  let issuePreviewRequestId = 0;
+  const pendingIssuePreviewRequests = new Map<
+    string,
+    { resolve: (issue: ForgejoIssue | undefined) => void; reject: (error: Error) => void }
   >();
 
   function handleMessage(event: MessageEvent<HostToWebviewMessage>) {
@@ -448,6 +479,17 @@ function createAppState() {
             error?: string;
           },
         );
+        break;
+      case 'mentionSearchResult':
+        handleMentionSearchResult(
+          message as { _requestId: string; users?: unknown[]; issues?: unknown[]; error?: string },
+        );
+        break;
+      case 'userPreviewResult':
+        handleUserPreviewResult(message as { _requestId: string; user?: unknown; error?: string });
+        break;
+      case 'issuePreviewResult':
+        handleIssuePreviewResult(message as { _requestId: string; issue?: unknown; error?: string });
         break;
       case 'pullRequestDetail':
         handlePullRequestDetail(
@@ -1405,6 +1447,53 @@ function createAppState() {
     } else {
       errors.delete(key);
       loadCommentReactions(data.instanceId, data.owner, data.repo, data.commentId, true);
+    }
+  }
+
+  function handleMentionSearchResult(data: {
+    _requestId: string;
+    users?: unknown[];
+    issues?: unknown[];
+    error?: string;
+  }) {
+    const pending = pendingMentionSearchRequests.get(data._requestId);
+    if (!pending) {
+      return;
+    }
+    pendingMentionSearchRequests.delete(data._requestId);
+    if (data.error) {
+      pending.reject(new Error(data.error));
+    } else {
+      pending.resolve({
+        users: (data.users ?? []) as MentionUser[],
+        issues: (data.issues ?? []) as MentionIssue[],
+      });
+    }
+  }
+
+  function handleUserPreviewResult(data: { _requestId: string; user?: unknown; error?: string }) {
+    const pending = pendingUserPreviewRequests.get(data._requestId);
+    if (!pending) {
+      return;
+    }
+    pendingUserPreviewRequests.delete(data._requestId);
+    if (data.error) {
+      pending.reject(new Error(data.error));
+    } else {
+      pending.resolve(data.user as ForgejoUser | undefined);
+    }
+  }
+
+  function handleIssuePreviewResult(data: { _requestId: string; issue?: unknown; error?: string }) {
+    const pending = pendingIssuePreviewRequests.get(data._requestId);
+    if (!pending) {
+      return;
+    }
+    pendingIssuePreviewRequests.delete(data._requestId);
+    if (data.error) {
+      pending.reject(new Error(data.error));
+    } else {
+      pending.resolve(data.issue as ForgejoIssue | undefined);
     }
   }
 
@@ -3295,6 +3384,41 @@ function createAppState() {
     });
   }
 
+  function searchMentions(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    query: string,
+    type: 'user' | 'issue' | 'all',
+  ): Promise<{ users: MentionUser[]; issues: MentionIssue[] }> {
+    const _requestId = `mention-${++mentionSearchRequestId}`;
+    return new Promise((resolve, reject) => {
+      pendingMentionSearchRequests.set(_requestId, { resolve, reject });
+      postMessage({ command: 'searchMentions', instanceId, owner, repo, query, type, _requestId });
+    });
+  }
+
+  function getUserPreview(instanceId: string, username: string): Promise<ForgejoUser | undefined> {
+    const _requestId = `user-preview-${++userPreviewRequestId}`;
+    return new Promise((resolve, reject) => {
+      pendingUserPreviewRequests.set(_requestId, { resolve, reject });
+      postMessage({ command: 'getUserPreview', instanceId, username, _requestId });
+    });
+  }
+
+  function getIssuePreview(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+  ): Promise<ForgejoIssue | undefined> {
+    const _requestId = `issue-preview-${++issuePreviewRequestId}`;
+    return new Promise((resolve, reject) => {
+      pendingIssuePreviewRequests.set(_requestId, { resolve, reject });
+      postMessage({ command: 'getIssuePreview', instanceId, owner, repo, index, _requestId });
+    });
+  }
+
   function loadRepositories(instanceId: string, force = false) {
     console.log('[useAppState] loadRepositories', instanceId);
     const key = `repos-${instanceId}`;
@@ -3552,6 +3676,9 @@ function createAppState() {
     browseWorktreeCacheDirectory,
     setDashboardActiveTab,
     renderMarkdown,
+    searchMentions,
+    getUserPreview,
+    getIssuePreview,
     loadRepositories,
     loadMyIssues,
     loadMyPullRequests,

@@ -290,6 +290,9 @@ async function handleCreateSubmit(data: {
         :branches="branches"
         :tags="tags"
         :upload-image="handleUploadImageForCreate"
+        :instance-id="instanceId"
+        :owner="owner"
+        :repo="repo"
         @submit="handleCreateSubmit"
         @cancel="closeCreateIssue"
       >

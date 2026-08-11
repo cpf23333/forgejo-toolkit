@@ -219,6 +219,15 @@
       "cancel": "取消",
       "set": "设置"
     },
+    "hoverCard": {
+      "loading": "加载中...",
+      "error": "加载失败：{message}",
+      "issueState": {
+        "open": "打开",
+        "closed": "已关闭"
+      },
+      "openedBy": "由"
+    },
     "detail": {
       "status": "状态",
       "author": "作者",

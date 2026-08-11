@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import MentionHoverCard from './MentionHoverCard.vue';
+import { useAppState } from '../composables/useAppState';
+import type { ForgejoIssue, ForgejoUser } from '../types/api';
 
 const props = defineProps<{
   html?: string;
   loading?: boolean;
   error?: string;
   baseUrl?: string;
+  instanceId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -14,10 +18,22 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const state = useAppState();
 
 const dangerousTags = new Set(['script', 'iframe', 'object', 'embed', 'form', 'input', 'textarea', 'button']);
 const dangerousSchemes = /^javascript:|data:text\/html|^data:image\/svg/i;
 const absoluteUrlPattern = /^[a-z][a-z0-9+.-]*:/i;
+
+const hoverType = ref<'user' | 'issue'>('user');
+const hoverData = ref<ForgejoUser | ForgejoIssue | undefined>(undefined);
+const hoverLoading = ref(false);
+const hoverError = ref<string | undefined>(undefined);
+const hoverX = ref(0);
+const hoverY = ref(0);
+const hoverVisible = ref(false);
+let hoverTimeout: ReturnType<typeof setTimeout> | undefined;
+let currentHoverTarget: HTMLElement | null = null;
+let pendingHoverRequest: Promise<unknown> | undefined;
 
 function resolveUrl(value: string): string {
   if (!props.baseUrl || absoluteUrlPattern.test(value) || value.startsWith('#')) {
@@ -112,6 +128,152 @@ function handleClick(event: MouseEvent) {
     return;
   }
 }
+
+function parseUserFromHref(href: string): string | undefined {
+  try {
+    const url = new URL(href);
+    const segments = url.pathname.split('/').filter(Boolean);
+    return segments[segments.length - 1];
+  } catch {
+    return undefined;
+  }
+}
+
+function parseIssueFromHref(href: string): { owner: string; repo: string; index: number } | undefined {
+  try {
+    const url = new URL(href);
+    const segments = url.pathname.split('/').filter(Boolean);
+    if (segments.length < 4) {
+      return undefined;
+    }
+    const indexSegment = segments[segments.length - 1];
+    const typeSegment = segments[segments.length - 2];
+    if (typeSegment !== 'issues' && typeSegment !== 'pulls') {
+      return undefined;
+    }
+    const index = Number.parseInt(indexSegment, 10);
+    if (Number.isNaN(index)) {
+      return undefined;
+    }
+    return {
+      owner: segments[segments.length - 4],
+      repo: segments[segments.length - 3],
+      index,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function clearHover() {
+  hoverVisible.value = false;
+  currentHoverTarget = null;
+  pendingHoverRequest = undefined;
+  if (hoverTimeout) {
+    clearTimeout(hoverTimeout);
+    hoverTimeout = undefined;
+  }
+}
+
+async function fetchHoverData(anchor: HTMLAnchorElement) {
+  const href = anchor.href;
+  const classList = anchor.classList;
+
+  if (classList.contains('mention')) {
+    const username = parseUserFromHref(href);
+    if (!username || !props.instanceId) {
+      clearHover();
+      return;
+    }
+    hoverType.value = 'user';
+    hoverLoading.value = true;
+    hoverError.value = undefined;
+    hoverData.value = undefined;
+    const request = state.getUserPreview(props.instanceId, username);
+    pendingHoverRequest = request;
+    try {
+      const user = await request;
+      if (pendingHoverRequest === request) {
+        hoverData.value = user;
+      }
+    } catch (error) {
+      if (pendingHoverRequest === request) {
+        hoverError.value = error instanceof Error ? error.message : String(error);
+      }
+    } finally {
+      if (pendingHoverRequest === request) {
+        hoverLoading.value = false;
+      }
+    }
+    return;
+  }
+
+  if (classList.contains('ref-issue') || classList.contains('ref-external-issue')) {
+    const parsed = parseIssueFromHref(href);
+    if (!parsed || !props.instanceId) {
+      clearHover();
+      return;
+    }
+    hoverType.value = 'issue';
+    hoverLoading.value = true;
+    hoverError.value = undefined;
+    hoverData.value = undefined;
+    const request = state.getIssuePreview(props.instanceId, parsed.owner, parsed.repo, parsed.index);
+    pendingHoverRequest = request;
+    try {
+      const issue = await request;
+      if (pendingHoverRequest === request) {
+        hoverData.value = issue;
+      }
+    } catch (error) {
+      if (pendingHoverRequest === request) {
+        hoverError.value = error instanceof Error ? error.message : String(error);
+      }
+    } finally {
+      if (pendingHoverRequest === request) {
+        hoverLoading.value = false;
+      }
+    }
+  }
+}
+
+function handleMouseMove(event: MouseEvent) {
+  const target = event.target as HTMLElement;
+  const anchor = target.closest('a') as HTMLAnchorElement | null;
+  if (
+    !anchor ||
+    (!anchor.classList.contains('mention') &&
+      !anchor.classList.contains('ref-issue') &&
+      !anchor.classList.contains('ref-external-issue'))
+  ) {
+    clearHover();
+    return;
+  }
+
+  hoverX.value = event.clientX;
+  hoverY.value = event.clientY;
+
+  if (currentHoverTarget === anchor) {
+    return;
+  }
+
+  currentHoverTarget = anchor;
+  hoverVisible.value = true;
+  hoverLoading.value = true;
+  hoverError.value = undefined;
+  hoverData.value = undefined;
+
+  if (hoverTimeout) {
+    clearTimeout(hoverTimeout);
+  }
+  hoverTimeout = setTimeout(() => {
+    fetchHoverData(anchor);
+  }, 200);
+}
+
+function handleMouseLeave() {
+  clearHover();
+}
 </script>
 
 <template>
@@ -119,7 +281,23 @@ function handleClick(event: MouseEvent) {
     <div v-if="loading" class="markdown-loading">{{ t('dashboard.detail.renderingBody') }}</div>
     <div v-else-if="error" class="markdown-error">{{ t('dashboard.error', { message: error }) }}</div>
     <div v-else-if="!html" class="markdown-empty">{{ t('dashboard.detail.noBody') }}</div>
-    <div v-else class="markdown-content" @click="handleClick" v-html="safeHtml" />
+    <div
+      v-else
+      class="markdown-content"
+      @click="handleClick"
+      @mousemove="handleMouseMove"
+      @mouseleave="handleMouseLeave"
+      v-html="safeHtml"
+    />
+    <MentionHoverCard
+      v-if="hoverVisible"
+      :type="hoverType"
+      :data="hoverData"
+      :loading="hoverLoading"
+      :error="hoverError"
+      :x="hoverX"
+      :y="hoverY"
+    />
   </div>
 </template>
 
