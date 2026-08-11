@@ -34,6 +34,10 @@ watch(
 
 const repoUrl = computed(() => detail.value?.repository.html_url ?? '');
 const cloneUrl = computed(() => (repoUrl.value ? `${repoUrl.value}.git` : ''));
+const hasIssues = computed(() => !detail.value?.repository.mirror && detail.value?.repository.has_issues !== false);
+const hasPullRequests = computed(
+  () => !detail.value?.repository.mirror && detail.value?.repository.has_pull_requests !== false,
+);
 
 const selectedBranch = ref(detail.value?.repository.default_branch ?? '');
 const activeTab = ref<'overview' | 'files' | 'refs' | 'actions'>('overview');
@@ -155,6 +159,7 @@ function reloadRepo() {
             {{ detail.repository.forks_count }}
           </span>
           <button
+            v-if="hasIssues"
             type="button"
             class="meta-item meta-link link-button"
             :title="t('dashboard.openIssues')"
@@ -164,6 +169,7 @@ function reloadRepo() {
             {{ detail.repository.open_issues_count }}
           </button>
           <button
+            v-if="hasPullRequests"
             type="button"
             class="meta-item meta-link link-button"
             :title="t('dashboard.openPullRequests')"

@@ -19,6 +19,9 @@ export interface ForgejoRepository {
   forks_count: number;
   open_issues_count: number;
   open_pr_counter?: number;
+  has_issues?: boolean;
+  has_pull_requests?: boolean;
+  mirror?: boolean;
 }
 
 export interface ForgejoIssue {

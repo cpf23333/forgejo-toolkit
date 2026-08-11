@@ -43,6 +43,9 @@ const uploadingIssueAttachmentCount = ref(0);
 const createDialogLoading = computed(() => createLoading.value || uploadingIssueAttachmentCount.value > 0);
 const repoKey = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
 const repoDetail = computed(() => state.repoDetails.value.get(repoKey.value));
+const hasPullRequests = computed(
+  () => !repoDetail.value?.repository.mirror && repoDetail.value?.repository.has_pull_requests !== false,
+);
 const branches = computed(() => repoDetail.value?.branches ?? []);
 const labelsKey = computed(() => repoLabelsKey(instanceId.value, owner.value, repo.value));
 const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? []);
@@ -54,7 +57,10 @@ const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.v
 watch(
   [instanceId, owner, repo, stateParam],
   () => {
-    state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value);
+    state.loadRepoDetail(instanceId.value, owner.value, repo.value);
+    if (hasPullRequests.value) {
+      state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value);
+    }
   },
   { immediate: true },
 );
@@ -224,7 +230,8 @@ async function handleCreateSubmit(data: {
       </div>
     </div>
 
-    <div v-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
+    <div v-if="!hasPullRequests" class="empty-list">{{ t('dashboard.repoPullRequests.disabled') }}</div>
+    <div v-else-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
     <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
     <div v-else-if="items.length" class="item-list">
       <div v-for="pr in items" :key="pr.id" class="item-card">

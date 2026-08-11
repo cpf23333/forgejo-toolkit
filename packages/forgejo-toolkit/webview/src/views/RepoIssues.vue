@@ -10,6 +10,7 @@ import PendingAttachmentList from '../components/PendingAttachmentList.vue';
 import {
   useAppState,
   issueFormKey,
+  repoDetailKey,
   repoIssuesKey,
   repoLabelsKey,
   repoAssigneesKey,
@@ -47,6 +48,11 @@ const assigneesKey = computed(() => repoAssigneesKey(instanceId.value, owner.val
 const milestonesKey = computed(() => repoMilestonesKey(instanceId.value, owner.value, repo.value));
 const refsKey = computed(() => repoRefsKey(instanceId.value, owner.value, repo.value));
 
+const repoKey = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
+const repoDetail = computed(() => state.repoDetails.value.get(repoKey.value));
+const hasIssues = computed(
+  () => !repoDetail.value?.repository.mirror && repoDetail.value?.repository.has_issues !== false,
+);
 const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? []);
 const assignees = computed(() => state.repoAssignees.value.get(assigneesKey.value) ?? []);
 const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.value) ?? []);
@@ -59,11 +65,14 @@ const tags = computed(() => refs.value?.tags.map((t) => t.name).filter((name): n
 watch(
   [instanceId, owner, repo, stateParam],
   () => {
-    state.loadRepoIssues(instanceId.value, owner.value, repo.value, stateParam.value);
-    state.loadRepoLabels(instanceId.value, owner.value, repo.value);
-    state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
-    state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
-    state.loadRepoRefs(instanceId.value, owner.value, repo.value);
+    state.loadRepoDetail(instanceId.value, owner.value, repo.value);
+    if (hasIssues.value) {
+      state.loadRepoIssues(instanceId.value, owner.value, repo.value, stateParam.value);
+      state.loadRepoLabels(instanceId.value, owner.value, repo.value);
+      state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
+      state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
+      state.loadRepoRefs(instanceId.value, owner.value, repo.value);
+    }
   },
   { immediate: true },
 );
@@ -228,7 +237,8 @@ async function handleCreateSubmit(data: {
       </div>
     </div>
 
-    <div v-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
+    <div v-if="!hasIssues" class="empty-list">{{ t('dashboard.repoIssues.disabled') }}</div>
+    <div v-else-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
     <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
     <div v-else-if="items.length" class="item-list">
       <div v-for="issue in items" :key="issue.id" class="item-card">
