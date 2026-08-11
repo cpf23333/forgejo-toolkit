@@ -111,6 +111,8 @@ export interface ForgejoIssueDetail {
 export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {
   base?: { ref?: string; sha?: string; repo?: { full_name?: string } };
   head?: { ref?: string; sha?: string; repo?: { full_name?: string } };
+  merge_base?: string;
+  merge_commit_sha?: string;
   additions?: number;
   deletions?: number;
   changed_files?: number;

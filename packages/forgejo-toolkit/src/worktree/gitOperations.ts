@@ -127,6 +127,17 @@ export function sanitizeForPath(title: string): string {
     .slice(0, 50);
 }
 
+export async function revertMergeCommit(repoPath: string, mergeCommitSha: string): Promise<void> {
+  const revertResult = await exec(`git revert -m 1 --no-edit ${mergeCommitSha}`, { cwd: repoPath });
+  if (revertResult.stderr && revertResult.stderr.toLowerCase().includes('error')) {
+    throw new Error(revertResult.stderr);
+  }
+  const pushResult = await exec('git push', { cwd: repoPath });
+  if (pushResult.stderr && pushResult.stderr.toLowerCase().includes('error')) {
+    throw new Error(pushResult.stderr);
+  }
+}
+
 export async function openWorktree(worktreePath: string, openInNewWindow: boolean): Promise<void> {
   const uri = vscode.Uri.file(worktreePath);
   if (openInNewWindow) {

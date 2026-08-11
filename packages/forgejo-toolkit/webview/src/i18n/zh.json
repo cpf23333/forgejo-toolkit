@@ -289,6 +289,8 @@
       "mergePullRequest": "合并 Pull Request",
       "merge": "合并",
       "merging": "正在合并...",
+      "revertMerge": "撤销合并",
+      "revertMergeConfirm": "确定要撤销这次合并吗？这会在基础分支上创建一个新的提交。",
       "mergeableStatus": {
         "mergeable": "可以合并",
         "unknown": "合并状态未知",
@@ -303,6 +305,7 @@
       },
       "checks": "状态检查",
       "checksEmpty": "没有状态检查",
+      "noStatusChecks": "没有状态检查",
       "checksState": {
         "success": "通过",
         "pending": "进行中",

@@ -148,6 +148,15 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      command: 'revertMergeCommitResult';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      success?: boolean;
+      error?: string;
+    }
+  | {
       command: 'issueAttachmentCreated';
       instanceId: string;
       owner: string;
@@ -762,6 +771,13 @@ export type WebviewToHostMessage =
       repo: string;
       index: number;
       strategy: 'merge' | 'rebase' | 'squash';
+    }
+  | {
+      command: 'revertMergeCommit';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
     }
   | {
       command: 'createIssueAttachment';

@@ -20,5 +20,13 @@
   "Confirm export password": "请再次输入导出密码",
   "Passwords do not match": "两次输入的密码不一致",
   "Enter import password": "请输入导入密码",
-  "Incorrect password or corrupted file": "密码错误或文件已损坏"
+  "Incorrect password or corrupted file": "密码错误或文件已损坏",
+  "This file was added in the pull request: {0}": "该文件在 PR 中新增：{0}",
+  "This file was removed in the pull request: {0}": "该文件在 PR 中被删除：{0}",
+  "Opening {0} added and {1} removed files from the pull request": "正在打开 PR 中的 {0} 个新增文件和 {1} 个删除文件",
+  "Opening {0} added files from the pull request": "正在打开 PR 中的 {0} 个新增文件",
+  "Opening {0} removed files from the pull request": "正在打开 PR 中的 {0} 个删除文件",
+  "Pull request {0}/{1}#{2} is not merged": "PR {0}/{1}#{2} 尚未合并",
+  "Pull request {0}/{1}#{2} does not have a recorded merge commit": "PR {0}/{1}#{2} 没有记录合并提交",
+  "No local repository found for {0}/{1}": "未找到 {0}/{1} 的本地仓库"
 }

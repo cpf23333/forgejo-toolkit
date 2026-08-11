@@ -23,6 +23,7 @@ import {
   isCurrentWorkspaceBaseRepo,
   isGitRepository,
   openWorktree,
+  revertMergeCommit,
   sanitizeForPath,
 } from '../worktree/gitOperations';
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
@@ -1337,6 +1338,51 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'revertMergeCommit': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const pr = await client.getPullRequestDetail(owner, repo, index);
+              if (!pr.merged) {
+                throw new Error(vscode.l10n.t('Pull request {0}/{1}#{2} is not merged', owner, repo, index));
+              }
+              if (!pr.merge_commit_sha) {
+                throw new Error(
+                  vscode.l10n.t('Pull request {0}/{1}#{2} does not have a recorded merge commit', owner, repo, index),
+                );
+              }
+              const localRepo = await findLocalRepo(instance.url, owner, repo);
+              if (!localRepo) {
+                throw new Error(vscode.l10n.t('No local repository found for {0}/{1}', owner, repo));
+              }
+              await revertMergeCommit(localRepo, pr.merge_commit_sha);
+              this._reply('revertMergeCommitResult', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+                success: true,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`revertMergeCommit failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('revertMergeCommitResult', {
+                instanceId: message.instanceId,
+                owner,
+                repo,
+                index,
+                error: err,
+              });
+            }
+            return;
+          }
           case 'createIssueAttachment': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {
@@ -1675,6 +1721,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               const headUri = this._buildDiffUri(instanceId, owner, repo, headSha, filename, false, status);
               const title = `${filename} (#${index})`;
               await vscode.commands.executeCommand('vscode.diff', baseUri, headUri, title);
+              if (status === 'added') {
+                vscode.window.showInformationMessage(
+                  vscode.l10n.t('This file was added in the pull request: {0}', filename),
+                );
+              } else if (status === 'removed') {
+                vscode.window.showInformationMessage(
+                  vscode.l10n.t('This file was removed in the pull request: {0}', filename),
+                );
+              }
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`openPullRequestDiff failed for ${owner}/${repo}#${index} ${filename}: ${err}`);
@@ -1711,6 +1766,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               });
               const title = `${owner}/${repo}#${index}`;
               await vscode.commands.executeCommand('vscode.changes', title, resourceList);
+              const addedCount = files.filter((file) =>
+                typeof file === 'string' ? false : file.status === 'added',
+              ).length;
+              const removedCount = files.filter((file) =>
+                typeof file === 'string' ? false : file.status === 'removed',
+              ).length;
+              if (addedCount > 0 && removedCount > 0) {
+                vscode.window.showInformationMessage(
+                  vscode.l10n.t(
+                    'Opening {0} added and {1} removed files from the pull request',
+                    addedCount,
+                    removedCount,
+                  ),
+                );
+              } else if (addedCount > 0) {
+                vscode.window.showInformationMessage(
+                  vscode.l10n.t('Opening {0} added files from the pull request', addedCount),
+                );
+              } else if (removedCount > 0) {
+                vscode.window.showInformationMessage(
+                  vscode.l10n.t('Opening {0} removed files from the pull request', removedCount),
+                );
+              }
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`openSelectedPullRequestDiffs failed for ${owner}/${repo}#${index}: ${err}`);

@@ -20,5 +20,13 @@
   "Confirm export password": "Confirm export password",
   "Passwords do not match": "Passwords do not match",
   "Enter import password": "Enter import password",
-  "Incorrect password or corrupted file": "Incorrect password or corrupted file"
+  "Incorrect password or corrupted file": "Incorrect password or corrupted file",
+  "This file was added in the pull request: {0}": "This file was added in the pull request: {0}",
+  "This file was removed in the pull request: {0}": "This file was removed in the pull request: {0}",
+  "Opening {0} added and {1} removed files from the pull request": "Opening {0} added and {1} removed files from the pull request",
+  "Opening {0} added files from the pull request": "Opening {0} added files from the pull request",
+  "Opening {0} removed files from the pull request": "Opening {0} removed files from the pull request",
+  "Pull request {0}/{1}#{2} is not merged": "Pull request {0}/{1}#{2} is not merged",
+  "Pull request {0}/{1}#{2} does not have a recorded merge commit": "Pull request {0}/{1}#{2} does not have a recorded merge commit",
+  "No local repository found for {0}/{1}": "No local repository found for {0}/{1}"
 }

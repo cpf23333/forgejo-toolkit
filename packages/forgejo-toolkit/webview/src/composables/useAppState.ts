@@ -552,6 +552,18 @@ function createAppState() {
           },
         );
         break;
+      case 'revertMergeCommitResult':
+        handleRevertMergeCommitResult(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            success?: boolean;
+            error?: string;
+          },
+        );
+        break;
       case 'issueAttachmentCreated':
         handleIssueAttachmentCreated(
           message as {
@@ -1699,6 +1711,27 @@ function createAppState() {
     myPullRequestsCache.clear();
   }
 
+  function handleRevertMergeCommitResult(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    success?: boolean;
+    error?: string;
+  }) {
+    const key = `revert-merge:${data.instanceId}:${data.owner}/${data.repo}#${data.index}`;
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+      return;
+    }
+    errors.delete(key);
+    loadPullRequestDetail(data.instanceId, data.owner, data.repo, data.index, true);
+    loadPullRequestComments(data.instanceId, data.owner, data.repo, data.index, true);
+    loadPullRequestCommits(data.instanceId, data.owner, data.repo, data.index, true);
+    loadPullRequestFiles(data.instanceId, data.owner, data.repo, data.index, undefined, undefined, true);
+  }
+
   function handlePullRequestSaved(
     command: 'pullRequestCreated' | 'pullRequestUpdated',
     data: {
@@ -2619,6 +2652,13 @@ function createAppState() {
     postMessage({ command: 'mergePullRequest', instanceId, owner, repo, index, strategy });
   }
 
+  function revertMergeCommit(instanceId: string, owner: string, repo: string, index: number) {
+    const key = `revert-merge:${instanceId}:${owner}/${repo}#${index}`;
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'revertMergeCommit', instanceId, owner, repo, index });
+  }
+
   function uploadIssueAttachment(
     instanceId: string,
     owner: string,
@@ -3457,6 +3497,7 @@ function createAppState() {
     createPullRequest,
     editPullRequest,
     mergePullRequest,
+    revertMergeCommit,
     openPullRequestDetail,
     loadPullRequestDetail,
     loadPullRequestFiles,

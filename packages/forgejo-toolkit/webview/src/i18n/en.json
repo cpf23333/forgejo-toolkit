@@ -289,6 +289,8 @@
       "mergePullRequest": "Merge Pull Request",
       "merge": "Merge",
       "merging": "Merging...",
+      "revertMerge": "Revert Merge",
+      "revertMergeConfirm": "Are you sure you want to revert this merge commit? This will create a new commit on the base branch.",
       "mergeableStatus": {
         "mergeable": "Ready to merge",
         "unknown": "Merge status unknown",
@@ -303,6 +305,7 @@
       },
       "checks": "Checks",
       "checksEmpty": "No checks",
+      "noStatusChecks": "No status checks",
       "checksState": {
         "success": "Passed",
         "pending": "Pending",

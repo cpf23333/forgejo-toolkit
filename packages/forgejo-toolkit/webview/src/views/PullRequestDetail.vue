@@ -156,7 +156,7 @@ watch(
         owner.value,
         repo.value,
         index.value,
-        detail.value.base?.sha,
+        detail.value.merge_base ?? detail.value.base?.sha,
         detail.value.head?.sha,
       );
       state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value);
@@ -280,7 +280,7 @@ function blockerText(blocker: MergeBlocker): string {
 }
 
 const statusChecks = computed(() => detail.value?.statusChecks);
-const hasStatusChecks = computed(() => (statusChecks.value?.statuses.length ?? 0) > 0);
+const hasStatusChecks = computed(() => statusChecks.value !== undefined);
 
 function checkStatusIcon(status?: string): string {
   switch (status) {
@@ -307,6 +307,24 @@ function handleMerge() {
     return;
   }
   state.mergePullRequest(instanceId.value, owner.value, repo.value, index.value, mergeStrategy.value);
+}
+
+const canRevertMerge = computed(() => detail.value?.merged === true && canManagePullRequest.value);
+const revertMergeFormKey = computed(
+  () => `revert-merge:${instanceId.value}:${owner.value}/${repo.value}#${index.value}`,
+);
+const revertMergeLoading = computed(() => state.loading.get(revertMergeFormKey.value) ?? false);
+const revertMergeError = computed(() => state.errors.get(revertMergeFormKey.value));
+
+async function handleRevertMerge() {
+  if (!canRevertMerge.value) {
+    return;
+  }
+  const confirmed = await state.showConfirm(t('dashboard.detail.revertMergeConfirm'));
+  if (!confirmed) {
+    return;
+  }
+  state.revertMergeCommit(instanceId.value, owner.value, repo.value, index.value);
 }
 
 const repoKey = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
@@ -498,7 +516,7 @@ watch(
 );
 
 function handleOpenDiff(filename: string, status: string) {
-  const baseSha = detail.value?.base?.sha;
+  const baseSha = detail.value?.merge_base ?? detail.value?.base?.sha;
   const headSha = detail.value?.head?.sha;
   if (!baseSha || !headSha) {
     return;
@@ -507,7 +525,7 @@ function handleOpenDiff(filename: string, status: string) {
 }
 
 function handleOpenSelectedDiffs(selectedFiles: { filename: string; status: string }[]) {
-  const baseSha = detail.value?.base?.sha;
+  const baseSha = detail.value?.merge_base ?? detail.value?.base?.sha;
   const headSha = detail.value?.head?.sha;
   if (!baseSha || !headSha || selectedFiles.length === 0) {
     return;
@@ -980,6 +998,9 @@ function reloadPullRequest() {
             <span>{{ t(`dashboard.detail.checksState.${statusChecks?.state ?? 'unknown'}`) }}</span>
           </div>
           <div class="checks-list">
+            <div v-if="(statusChecks?.statuses.length ?? 0) === 0" class="empty-state">
+              {{ t('dashboard.detail.noStatusChecks') }}
+            </div>
             <div v-for="check in statusChecks?.statuses" :key="check.id ?? check.context" class="check-item">
               <a
                 v-if="check.target_url"
@@ -1036,6 +1057,19 @@ function reloadPullRequest() {
             </vscode-button>
           </div>
           <div v-if="mergeError" class="error">{{ t('dashboard.error', { message: mergeError }) }}</div>
+        </div>
+
+        <div v-if="canRevertMerge" class="merge-section revert-section">
+          <h3>{{ t('dashboard.detail.revertMerge') }}</h3>
+          <vscode-button
+            variant="secondary"
+            icon="arrow-counter-clockwise"
+            :disabled="revertMergeLoading"
+            @click="handleRevertMerge"
+          >
+            {{ revertMergeLoading ? t('dashboard.loading') : t('dashboard.detail.revertMerge') }}
+          </vscode-button>
+          <div v-if="revertMergeError" class="error">{{ t('dashboard.error', { message: revertMergeError }) }}</div>
         </div>
 
         <div v-if="worktreeStatus" :class="['worktree-status', worktreeStatusType]">{{ worktreeStatus }}</div>
