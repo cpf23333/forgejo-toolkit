@@ -283,6 +283,8 @@
       "commentsAndTimeline": "评论 & 时间线",
       "commits": "提交",
       "noComments": "暂无评论",
+      "sortOldestFirst": "排序：最旧在前",
+      "sortNewestFirst": "排序：最新在前",
       "addCommentPlaceholder": "写下你的评论...",
       "postComment": "发表评论",
       "editComment": "编辑评论",

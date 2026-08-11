@@ -283,6 +283,8 @@
       "commentsAndTimeline": "Comments & Timeline",
       "commits": "Commits",
       "noComments": "No comments yet",
+      "sortOldestFirst": "Sort: oldest first",
+      "sortNewestFirst": "Sort: newest first",
       "addCommentPlaceholder": "Write a comment...",
       "postComment": "Post comment",
       "editComment": "Edit comment",

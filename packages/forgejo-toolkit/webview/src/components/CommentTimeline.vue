@@ -161,6 +161,22 @@ async function uploadAttachment(comment: ForgejoTimelineComment, file: File) {
   }
 }
 
+const sortOrder = ref<'asc' | 'desc'>('asc');
+
+const sortedComments = computed(() => {
+  const list = [...props.comments];
+  list.sort((a, b) => {
+    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return sortOrder.value === 'asc' ? ta - tb : tb - ta;
+  });
+  return list;
+});
+
+function toggleSortOrder() {
+  sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+}
+
 const menuRefs = ref<Map<number, HTMLElement>>(new Map());
 
 function openExternal(url: string) {
@@ -325,8 +341,13 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
 
 <template>
   <div class="comment-timeline">
+    <div v-if="comments.length > 0" class="timeline-sort">
+      <vscode-button variant="secondary" icon="sort-precedence" @click="toggleSortOrder">
+        {{ sortOrder === 'asc' ? t('dashboard.detail.sortOldestFirst') : t('dashboard.detail.sortNewestFirst') }}
+      </vscode-button>
+    </div>
     <div v-if="comments.length === 0" class="empty">{{ t('dashboard.detail.noComments') }}</div>
-    <div v-for="comment in comments" :key="commentKey(comment)" class="timeline-item">
+    <div v-for="comment in sortedComments" :key="commentKey(comment)" class="timeline-item">
       <div class="timeline-header">
         <img
           v-if="comment.user?.avatar_url"
@@ -439,6 +460,11 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.timeline-sort {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .empty {
