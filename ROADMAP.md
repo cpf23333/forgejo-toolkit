@@ -115,12 +115,18 @@
 - 移除实例前二次确认。
 - onboarding 面板与侧栏主视图通过事件同步实例变更。
 
-## 当前迭代
+## 已完成
 
 ### CI / Actions
 
 - [x] 读取仓库 Actions 运行状态和历史。
 - [x] 在 PR 详情页展示状态检查（status checks）列表，帮助判断是否可以合并。
+- [x] Actions 运行详情页：展示 job 列表、job 日志、制品列表。
+- [x] Actions 制品本地下载：通过 API 获取 ZIP 并调用系统 save dialog。
+- [x] Actions 运行详情页支持取消正在运行的记录。
+- [x] Actions 远程触发 workflow，支持输入参数，并轮询展示运行状态。
+
+## 当前迭代
 
 ## 后续迭代
 

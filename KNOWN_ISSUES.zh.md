@@ -61,3 +61,17 @@ Forgejo 上传 Release 附件的 API 端点是 `POST /repos/{owner}/{repo}/relea
 Forgejo 网页版在创建 Release 时提供了一个复选框，可以把 Release 标题和正文复制到自动创建的标签消息中。但官方的 `CreateReleaseOption` / `EditReleaseOption` 类型里并没有 `tag_message` 字段。
 
 所以扩展没有实现这个复选框；当 Forgejo 根据 `target_commitish` 自动创建标签时，标签消息使用 Forgejo 的默认行为。
+
+## Actions 运行步骤未在 REST API 中暴露
+
+Forgejo 网页界面会展示每个 job 的步骤（例如 "Set up job"、"actions/checkout"、"Run tests"）及其状态和耗时，但官方 REST API 没有提供步骤级别的数据。
+
+现有接口（`GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs` 和 `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs`）只能返回 job 级别的信息和日志。网页界面是通过解析 job 详情页 HTML 中的内部数据（`data-initial-post-response`）来渲染步骤的，而这种方式无法通过基于 token 的 API 认证访问。
+
+因此扩展目前只展示 job 级别的状态和日志。要实现步骤级拆解，要么等待 Forgejo 新增 API 端点，要么退回到网页爬取，但后者在私有仓库上存在认证限制。
+
+## 重新运行 Actions 运行记录未在 REST API 中暴露
+
+Forgejo 网页界面允许用户重新运行已完成的工作流运行，但官方 REST API 中没有对应的端点。`/repos/{owner}/{repo}/actions/runs/{run_id}/cancel` 端点可以取消 pending 或 running 状态的运行，但 API 路由中并没有 `/rerun` 或 `/re-run` 相关的实现或文档。
+
+因此扩展只为正在运行的记录提供「取消运行」按钮，不提供「重新运行」按钮。如果工作流支持 `workflow_dispatch`，用户可以通过「触发 workflow」按钮再次手动触发。

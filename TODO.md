@@ -7,8 +7,6 @@
 - [ ] 评估将 extension host 打包从 esbuild 迁移到 Rolldown，统一构建工具链
 - [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
 - [ ] 调研并补齐 Project 相关 API（当前生成的 client 中无 `/projects` 端点）
-- [ ] Actions 运行详情页：展示任务/步骤/日志，成功时展示制品列表并支持下载
-- [ ] Actions 远程触发与实时进度：在仓库详情页触发 workflow，并轮询展示运行状态、步骤日志
 
 ## 已完成
 
@@ -45,6 +43,13 @@
 - [x] 分支 / 标签 / Release 管理增强（创建 / 删除分支、创建标签 / Release）
 - [x] README Markdown 渲染预览
 - [x] 仓库详情页 Actions 标签页：读取 Actions 运行状态和历史
+
+### CI / Actions
+
+- [x] Actions 运行详情页：展示 job 列表、job 日志、制品列表
+- [x] Actions 制品支持本地下载（通过 API 获取 ZIP 并调用 save dialog）
+- [x] Actions 运行详情页支持取消正在运行的记录
+- [x] Actions 远程触发 workflow（支持输入参数）与实时轮询进度
 
 ### Issue / PR
 
