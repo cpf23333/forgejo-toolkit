@@ -127,6 +127,16 @@ export function sanitizeForPath(title: string): string {
     .slice(0, 50);
 }
 
+export async function getCurrentCommitSha(repoPath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await exec('git rev-parse HEAD', { cwd: repoPath });
+    const sha = stdout.trim();
+    return sha || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function revertMergeCommit(repoPath: string, mergeCommitSha: string): Promise<void> {
   const revertResult = await exec(`git revert -m 1 --no-edit ${mergeCommitSha}`, { cwd: repoPath });
   if (revertResult.stderr && revertResult.stderr.toLowerCase().includes('error')) {

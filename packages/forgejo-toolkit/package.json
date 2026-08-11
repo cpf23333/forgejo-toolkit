@@ -131,6 +131,12 @@
         "title": "Refresh Instances",
         "category": "Forgejo Toolkit",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "forgejoToolkit.copyPermalink",
+        "title": "Copy Permalink",
+        "category": "Forgejo Toolkit",
+        "icon": "$(link)"
       }
     ],
     "viewsContainers": {
@@ -170,6 +176,13 @@
         {
           "command": "forgejoToolkit.refreshInstances",
           "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "forgejoToolkit.copyPermalink",
+          "when": "editorHasSelection || true",
+          "group": "9_cutcopypaste@5"
         }
       ],
       "view/title": [

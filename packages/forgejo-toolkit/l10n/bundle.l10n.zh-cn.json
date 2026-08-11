@@ -28,5 +28,14 @@
   "Opening {0} removed files from the pull request": "正在打开 PR 中的 {0} 个删除文件",
   "Pull request {0}/{1}#{2} is not merged": "PR {0}/{1}#{2} 尚未合并",
   "Pull request {0}/{1}#{2} does not have a recorded merge commit": "PR {0}/{1}#{2} 没有记录合并提交",
-  "No local repository found for {0}/{1}": "未找到 {0}/{1} 的本地仓库"
+  "No local repository found for {0}/{1}": "未找到 {0}/{1} 的本地仓库",
+  "No active editor": "没有活动的编辑器",
+  "Unable to parse Forgejo PR file URI": "无法解析 Forgejo PR 文件 URI",
+  "Forgejo instance not found": "未找到 Forgejo 实例",
+  "No linked Forgejo repository found for the current workspace": "当前工作区没有关联的 Forgejo 仓库",
+  "Unable to determine current commit SHA": "无法确定当前 commit SHA",
+  "The current file is outside the linked repository": "当前文件不在关联仓库内",
+  "Permalink is not supported for this file type": "该文件类型不支持复制 permalink",
+  "Permalink copied to clipboard": "Permalink 已复制到剪贴板",
+  "Failed to copy permalink: {0}": "复制 permalink 失败：{0}"
 }
