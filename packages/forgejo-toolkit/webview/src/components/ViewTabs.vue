@@ -40,9 +40,17 @@ function selectTab(key: string) {
   display: flex;
   gap: 0;
   border-bottom: 1px solid var(--vscode-panel-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.view-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-button {
+  flex: 0 0 auto;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -50,6 +58,7 @@ function selectTab(key: string) {
   color: var(--vscode-foreground);
   cursor: pointer;
   font-size: 0.9em;
+  white-space: nowrap;
 }
 
 .tab-button:hover {

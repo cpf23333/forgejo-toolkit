@@ -103,7 +103,7 @@ const linkedRepository = computed(() => state.linkedRepository.value);
             :aria-label="t('dashboard.notifications.title')"
             @click="openNotifications"
           >
-            {{ t('dashboard.notifications.title') }}
+            <span class="button-label">{{ t('dashboard.notifications.title') }}</span>
             <span v-if="state.unreadNotificationCount.value > 0" class="notification-badge">
               {{ state.unreadNotificationCount.value }}
             </span>
@@ -115,7 +115,7 @@ const linkedRepository = computed(() => state.linkedRepository.value);
             :aria-label="t('dashboard.search.title')"
             @click="openSearch"
           >
-            {{ t('dashboard.search.searchButton') }}
+            <span class="button-label">{{ t('dashboard.search.searchButton') }}</span>
           </VscodeButton>
         </div>
       </div>
@@ -223,6 +223,7 @@ const linkedRepository = computed(() => state.linkedRepository.value);
 }
 
 .dashboard-toolbar {
+  container-type: inline-size;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -234,6 +235,13 @@ const linkedRepository = computed(() => state.linkedRepository.value);
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+}
+
+@container (max-width: 360px) {
+  .dashboard-toolbar-actions :deep(.button-label) {
+    display: none;
+  }
 }
 
 .dashboard-tabs {
