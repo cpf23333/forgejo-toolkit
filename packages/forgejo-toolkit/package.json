@@ -111,43 +111,43 @@
     "commands": [
       {
         "command": "forgejoToolkit.openDashboard",
-        "title": "Open Dashboard",
+        "title": "%command.openDashboard.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(home)"
       },
       {
         "command": "forgejoToolkit.openOnboarding",
-        "title": "Open Setup Guide",
+        "title": "%command.openOnboarding.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(book)"
       },
       {
         "command": "forgejoToolkit.openSettings",
-        "title": "Open Settings",
+        "title": "%command.openSettings.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(gear)"
       },
       {
         "command": "forgejoToolkit.refreshInstances",
-        "title": "Refresh Instances",
+        "title": "%command.refreshInstances.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(refresh)"
       },
       {
         "command": "forgejoToolkit.copyPermalink",
-        "title": "Copy Permalink",
+        "title": "%command.copyPermalink.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(link)"
       },
       {
         "command": "forgejoToolkit.deletePullReviewComment",
-        "title": "Delete Review Comment",
+        "title": "%command.deletePullReviewComment.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(trash)"
       },
       {
         "command": "forgejoToolkit.addPullReviewComment",
-        "title": "Add Pull Review Comment",
+        "title": "%command.addPullReviewComment.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(comment)"
       }

@@ -125,7 +125,6 @@ function parseFileDiff(block: string): FileDiffMap {
         inHunk = true;
         baseLine = Number(hunkMatch[1]) - 1;
         headLine = Number(hunkMatch[3]) - 1;
-        record({ type: 'header', content: rawLine });
       }
       continue;
     }
@@ -134,7 +133,6 @@ function parseFileDiff(block: string): FileDiffMap {
     if (nextHunkMatch) {
       baseLine = Number(nextHunkMatch[1]) - 1;
       headLine = Number(nextHunkMatch[3]) - 1;
-      record({ type: 'header', content: rawLine });
       continue;
     }
 

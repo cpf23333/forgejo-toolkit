@@ -67,6 +67,8 @@ When you need a new wrapper, create it in `packages/vscode-elements-vue/src/comp
 - The user decides when and what to commit. It is safe to stage files (`git add`) only when the user explicitly asks for it.
 - **Never auto-commit after finishing a change.** Even if the change looks complete, self-contained, or passing all checks, stop and report the status instead of committing.
 - Reporting that a change is "done" or that checks pass is **not** an implicit request to commit. Wait for an explicit commit instruction such as "提交" or "commit".
+- **Authorization is per-change.** A previous instruction such as "commit these files" or "submit it" applies only to the change it was given for. It does **not** extend to later fixes, follow-ups, or new changes.
+- Before every git mutation, explicitly verify that the user authorized it for the **current** change. When in doubt, stop and ask.
 - If a commit was made by mistake, stop and ask the user before undoing it.
 - When the user asks to commit, write the commit message in English.
 

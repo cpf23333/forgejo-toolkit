@@ -39,5 +39,9 @@
   "Permalink copied to clipboard": "Permalink 已复制到剪贴板",
   "Failed to copy permalink: {0}": "复制 permalink 失败：{0}",
   "Open issue/PR #{0}": "打开 Issue/PR #{0}",
-  "Open user profile @{0}": "打开用户主页 @{0}"
+  "Open user profile @{0}": "打开用户主页 @{0}",
+  "No Forgejo PR diff file is active": "当前没有激活的 Forgejo PR diff 文件",
+  "Unable to locate the file in the pull request diff": "无法在 PR diff 中定位该文件",
+  "Unable to map the selected line to a diff position": "无法将选定行映射到 diff 位置",
+  "Comments can only be added to added or deleted lines": "只能对新增或删除的行添加评论"
 }

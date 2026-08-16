@@ -135,7 +135,7 @@
 ### PR Review
 
 - PR 内联 review 评论（行级评论）：已支持在 VS Code 原生 diff 中查看、添加、删除评论。
-- PR diff 行级评论富文本输入：当前使用 `showInputBox`，后续改用 webview 内嵌 EasyMDE 提供 Markdown 工具栏与预览。
+- PR diff 行级评论富文本输入：使用独立 webview panel 内嵌 EasyMDE，提供 Markdown 工具栏、预览、@/# 提及、图片附件上传；支持「添加单条评论」和「开始评审/继续评审/提交评审」两种模式。
 
 ## 后续迭代
 

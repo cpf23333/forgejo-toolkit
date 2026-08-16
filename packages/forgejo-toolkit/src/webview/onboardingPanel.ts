@@ -382,7 +382,13 @@ export class OnboardingWebviewPanel {
   }
 
   private _update() {
-    this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, { panelMode: true });
+    const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
+    const locale =
+      configured && (configured === 'en' || configured === 'zh') ? configured : resolveLocale(vscode.env.language);
+    this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, {
+      panelMode: 'onboarding',
+      locale,
+    });
   }
 
   private _dispose() {

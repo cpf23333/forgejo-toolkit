@@ -55,10 +55,12 @@ import {
   repoCreateBranch,
   repoCreatePullRequest,
   repoCreatePullReview,
+  repoCreatePullReviewComment,
   repoCreateRelease,
   repoCreateReleaseAttachment,
   repoCreateTag,
   repoDeleteBranch,
+  repoDeletePullReview,
   repoDeletePullReviewComment,
   repoDeleteRelease,
   repoDeleteReleaseAttachment,
@@ -84,6 +86,7 @@ import {
   repoListTags,
   repoMergePullRequest,
   repoSearch,
+  repoSubmitPullReview,
   userCurrentListRepos,
   userGet,
   userGetCurrent,
@@ -1072,20 +1075,73 @@ export class ForgejoClient {
     index: number,
     comment: CreatePullReviewComment,
   ): Promise<PullReview> {
-    // Forgejo requires a non-empty review body when event is 'commented'.
-    // We pass a single space as the review-level body so the comment body
-    // can still be the actual user input.
+    // For event=COMMENT with comments, Forgejo does not require a review-level body.
+    // Leaving it empty avoids duplicating the comment text as a timeline entry.
     return repoCreatePullReview(
       owner,
       repo,
       index,
       {
-        event: 'commented',
-        body: ' ',
+        event: 'COMMENT',
         comments: [comment],
       },
       { client: this._client() },
     ) as Promise<PullReview>;
+  }
+
+  async createPendingPullReview(
+    owner: string,
+    repo: string,
+    index: number,
+    comment: CreatePullReviewComment,
+  ): Promise<PullReview> {
+    // Pending reviews require a non-empty body even when comments are attached.
+    // Use a placeholder; it will be replaced when the review is submitted.
+    return repoCreatePullReview(
+      owner,
+      repo,
+      index,
+      {
+        event: 'PENDING',
+        body: '.',
+        comments: [comment],
+      },
+      { client: this._client() },
+    ) as Promise<PullReview>;
+  }
+
+  async addPullReviewComment(
+    owner: string,
+    repo: string,
+    index: number,
+    reviewId: number,
+    comment: CreatePullReviewComment,
+  ): Promise<PullReviewComment> {
+    return repoCreatePullReviewComment(owner, repo, index, reviewId, comment, {
+      client: this._client(),
+    }) as Promise<PullReviewComment>;
+  }
+
+  async submitPullReview(
+    owner: string,
+    repo: string,
+    index: number,
+    reviewId: number,
+    event: string = 'COMMENT',
+    body?: string,
+  ): Promise<PullReview> {
+    return repoSubmitPullReview(
+      owner,
+      repo,
+      index,
+      reviewId,
+      { event, body: body ?? '' },
+      { client: this._client() },
+    ) as Promise<PullReview>;
+  }
+
+  async deletePullReview(owner: string, repo: string, index: number, reviewId: number): Promise<void> {
+    await repoDeletePullReview(owner, repo, index, reviewId, { client: this._client() });
   }
 
   async deletePullReviewComment(

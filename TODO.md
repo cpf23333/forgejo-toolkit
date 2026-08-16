@@ -7,7 +7,6 @@
 - [ ] 评估将 extension host 打包从 esbuild 迁移到 Rolldown，统一构建工具链
 - [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
 - [ ] 调研并补齐 Project 相关 API（当前生成的 client 中无 `/projects` 端点）
-- [ ] PR diff 行级评论支持富文本输入框（用 webview 内嵌 EasyMDE 替代 `showInputBox`）
 
 ## 已完成
 
@@ -79,6 +78,7 @@
 - [x] Issue 详情页支持依赖议题管理（添加/移除依赖、查看阻塞关系）
 - [x] PR 详情页改为左右两栏布局
 - [x] PR 详情页右侧栏展示标签、负责人、里程碑、到期时间、引用、参与者
+- [x] PR diff 行级评论支持富文本输入框（用 webview 内嵌 EasyMDE 替代 `showInputBox`），支持「添加单条评论」和「开始评审」两种模式
 - [x] PR 详情页支持反应表情
 - [x] PR 详情页支持订阅 / 取消订阅通知
 - [x] PR 详情页支持时间追踪

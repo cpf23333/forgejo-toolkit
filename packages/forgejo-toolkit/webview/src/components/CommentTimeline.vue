@@ -69,10 +69,10 @@ watch(
   () => props.comments,
   (comments) => {
     for (const comment of comments) {
-      if (comment.type === 'comment' && comment.body) {
+      if (comment.body) {
         renderComment(comment);
       }
-      if (comment.type === 'comment' && comment.id !== undefined) {
+      if (comment.id !== undefined) {
         state.loadCommentReactions(props.instanceId, props.owner, props.repo, comment.id);
       }
     }
@@ -102,6 +102,27 @@ function handleCommentReactionToggle(comment: ForgejoTimelineComment, content: s
     return;
   }
   state.changeCommentReaction(props.instanceId, props.owner, props.repo, comment.id, content, add);
+}
+
+interface PushEventData {
+  is_force_push?: boolean;
+  commit_ids?: string[];
+}
+
+function getPushEvent(comment: ForgejoTimelineComment): PushEventData | undefined {
+  if (comment.type !== 'pull_push' || !comment.body) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(comment.body) as PushEventData;
+  } catch {
+    return undefined;
+  }
+}
+
+function commitUrl(sha: string): string {
+  const base = props.baseUrl?.replace(/\/$/, '') ?? '';
+  return `${base}/${props.owner}/${props.repo}/commit/${sha}`;
 }
 
 function formatDate(date: string): string {
@@ -364,7 +385,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         <span v-if="comment.user" class="user-name">{{ comment.user.login }}</span>
         <span class="event-type">{{ eventText(comment) }}</span>
         <span v-if="comment.created_at" class="meta-item">{{ formatDate(comment.created_at) }}</span>
-        <div v-if="isOwnComment(comment)" class="comment-menu-wrapper">
+        <div v-if="isOwnComment(comment) && comment.type === 'comment'" class="comment-menu-wrapper">
           <vscode-icon
             name="kebab-vertical"
             size="16"
@@ -379,7 +400,23 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           />
         </div>
       </div>
-      <div v-if="comment.type === 'comment'" class="comment-body">
+      <div v-if="comment.type === 'pull_push'" class="push-event">
+        <div v-if="getPushEvent(comment)?.is_force_push" class="force-push-badge">
+          {{ t('dashboard.detail.forcePushed') }}
+        </div>
+        <div v-if="getPushEvent(comment)?.commit_ids?.length" class="push-commits">
+          <a
+            v-for="sha in getPushEvent(comment)?.commit_ids"
+            :key="sha"
+            class="commit-link"
+            href="javascript:void(0)"
+            @click.prevent.stop="openExternal(commitUrl(sha))"
+          >
+            {{ sha.slice(0, 7) }}
+          </a>
+        </div>
+      </div>
+      <div v-else-if="comment.body" class="comment-body">
         <div v-if="loadingIds.has(commentKey(comment))" class="loading">{{ t('dashboard.detail.renderingBody') }}</div>
         <MarkdownBody
           v-else
@@ -393,10 +430,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         <span v-if="comment.ref_commit_sha" class="commit-ref">{{ comment.ref_commit_sha.slice(0, 7) }}</span>
         <span v-else-if="comment.ref_comment" class="comment-ref">#{{ comment.ref_comment.id }}</span>
       </div>
-      <div
-        v-if="comment.type === 'comment' && comment.id !== undefined && comment.assets?.length"
-        class="comment-attachments"
-      >
+      <div v-if="comment.id !== undefined && comment.assets?.length" class="comment-attachments">
         <AttachmentList
           :assets="comment.assets"
           :allow-upload="false"
@@ -406,7 +440,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         />
       </div>
       <ReactionBar
-        v-if="comment.type === 'comment' && comment.id !== undefined"
+        v-if="comment.id !== undefined"
         class="comment-reactions"
         :reactions="getCommentReactions(comment)"
         :current-username="currentUsername"
@@ -533,6 +567,35 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
 .event-detail {
   font-size: 0.85em;
   color: var(--vscode-descriptionForeground);
+}
+
+.push-event {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9em;
+}
+
+.force-push-badge {
+  color: var(--vscode-testing-iconFailed);
+  font-size: 0.85em;
+}
+
+.push-commits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.commit-link {
+  color: var(--vscode-textLink-foreground);
+  font-family: var(--vscode-editor-font-family), monospace;
+  font-size: 0.85em;
+  text-decoration: none;
+}
+
+.commit-link:hover {
+  text-decoration: underline;
 }
 
 .commit-ref,

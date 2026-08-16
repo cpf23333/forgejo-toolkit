@@ -62,7 +62,17 @@ function sanitizeNode(node: Node): Node | null {
         element.removeAttribute(attr.name);
         continue;
       }
-      if (name === 'href' || name === 'src') {
+      if (name === 'href') {
+        const value = attr.value.trim();
+        if (dangerousSchemes.test(value) || value.startsWith('#')) {
+          element.setAttribute(attr.name, value);
+        } else {
+          element.setAttribute('data-href', resolveUrl(value));
+          element.setAttribute(attr.name, 'javascript:void(0)');
+        }
+        continue;
+      }
+      if (name === 'src') {
         const value = attr.value.trim();
         if (dangerousSchemes.test(value)) {
           element.setAttribute(attr.name, '');
@@ -119,12 +129,12 @@ function handleClick(event: MouseEvent) {
       return;
     }
 
-    const href = anchor.getAttribute('href');
-    if (!href || href.startsWith('#')) {
+    const href = anchor.getAttribute('data-href');
+    if (!href) {
       return;
     }
     event.preventDefault();
-    emit('openExternal', anchor.href);
+    emit('openExternal', href);
     return;
   }
 }
@@ -176,7 +186,7 @@ function clearHover() {
 }
 
 async function fetchHoverData(anchor: HTMLAnchorElement) {
-  const href = anchor.href;
+  const href = anchor.getAttribute('data-href') ?? anchor.href;
   const classList = anchor.classList;
 
   if (classList.contains('mention')) {

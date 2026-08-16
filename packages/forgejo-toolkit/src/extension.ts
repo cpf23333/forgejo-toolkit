@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
     webviewOptions: { retainContextWhenHidden: true },
   });
 
-  const pullReviewCommentController = new PullReviewCommentController(config, logger);
+  const pullReviewCommentController = new PullReviewCommentController(config, context.extensionUri, logger);
   context.subscriptions.push(pullReviewCommentController);
 
   registerCommands(context, config, readmeProvider, viewProvider, pullReviewCommentController);

@@ -1,0 +1,9 @@
+{
+  "command.openDashboard.title": "打开仪表板",
+  "command.openOnboarding.title": "打开设置向导",
+  "command.openSettings.title": "打开设置",
+  "command.refreshInstances.title": "刷新实例",
+  "command.copyPermalink.title": "复制永久链接",
+  "command.deletePullReviewComment.title": "删除审查评论",
+  "command.addPullReviewComment.title": "添加审查评论"
+}

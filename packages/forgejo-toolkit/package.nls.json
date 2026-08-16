@@ -1,0 +1,9 @@
+{
+  "command.openDashboard.title": "Open Dashboard",
+  "command.openOnboarding.title": "Open Setup Guide",
+  "command.openSettings.title": "Open Settings",
+  "command.refreshInstances.title": "Refresh Instances",
+  "command.copyPermalink.title": "Copy Permalink",
+  "command.deletePullReviewComment.title": "Delete Review Comment",
+  "command.addPullReviewComment.title": "Add Pull Review Comment"
+}

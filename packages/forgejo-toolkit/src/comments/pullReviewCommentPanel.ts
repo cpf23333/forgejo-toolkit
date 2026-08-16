@@ -1,0 +1,383 @@
+import * as vscode from 'vscode';
+import { ForgejoClient } from '../api/client';
+import { ConfigManager } from '../config';
+import { getWebviewContent } from '../webview/content';
+import { logger } from '../logger';
+import type { HostToWebviewMessage, WebviewToHostMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
+
+export interface PullReviewCommentContext {
+  instanceId: string;
+  owner: string;
+  repo: string;
+  index: number;
+  path: string;
+  position: number;
+  isBase: boolean;
+  lineNumber: number;
+  mode: 'single' | 'review';
+  pendingReviewId?: number;
+}
+
+export interface PullReviewCommentPanelCallbacks {
+  onSubmitted?: (context: PullReviewCommentContext) => void;
+  onDeleted?: (context: PullReviewCommentContext) => void;
+}
+
+export class PullReviewCommentPanel implements vscode.Disposable {
+  public static readonly viewType = 'forgejoToolkitPullReviewComment';
+  public static currentPanel?: PullReviewCommentPanel;
+
+  private readonly _panel: vscode.WebviewPanel;
+  private readonly _disposables: vscode.Disposable[] = [];
+  private _context: PullReviewCommentContext;
+
+  public static createOrShow(
+    extensionUri: vscode.Uri,
+    config: ConfigManager,
+    reviewContext: PullReviewCommentContext,
+    callbacks?: PullReviewCommentPanelCallbacks,
+  ): PullReviewCommentPanel {
+    const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
+
+    if (PullReviewCommentPanel.currentPanel) {
+      PullReviewCommentPanel.currentPanel._setContext(reviewContext);
+      PullReviewCommentPanel.currentPanel._panel.reveal(column);
+      return PullReviewCommentPanel.currentPanel;
+    }
+
+    const panel = vscode.window.createWebviewPanel(
+      PullReviewCommentPanel.viewType,
+      PullReviewCommentPanel._title(reviewContext),
+      column ?? vscode.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'out', 'webview')],
+        retainContextWhenHidden: true,
+      },
+    );
+
+    PullReviewCommentPanel.currentPanel = new PullReviewCommentPanel(
+      panel,
+      extensionUri,
+      config,
+      reviewContext,
+      callbacks,
+    );
+    return PullReviewCommentPanel.currentPanel;
+  }
+
+  private static _title(reviewContext: PullReviewCommentContext): string {
+    return `${reviewContext.path}:${reviewContext.lineNumber + 1}`;
+  }
+
+  private constructor(
+    panel: vscode.WebviewPanel,
+    private readonly _extensionUri: vscode.Uri,
+    private readonly _config: ConfigManager,
+    reviewContext: PullReviewCommentContext,
+    private readonly _callbacks?: PullReviewCommentPanelCallbacks,
+  ) {
+    this._panel = panel;
+    this._context = reviewContext;
+
+    this._update();
+
+    this._panel.onDidDispose(() => this._dispose(), null, this._disposables);
+
+    this._panel.webview.onDidReceiveMessage(
+      async (message) => {
+        logger.debug(`Received message from pull review comment webview: ${(message as WebviewToHostMessage).command}`);
+        switch ((message as WebviewToHostMessage).command) {
+          case 'closePullReviewCommentPanel': {
+            this._panel.dispose();
+            return;
+          }
+          case 'submitPullReviewComment': {
+            await this._handleSubmitPullReviewComment(message);
+            return;
+          }
+          case 'submitPullReview': {
+            await this._handleSubmitPullReview(message);
+            return;
+          }
+          case 'deletePullReview': {
+            await this._handleDeletePullReview(message);
+            return;
+          }
+          case 'createIssueAttachment': {
+            await this._handleCreateIssueAttachment(message);
+            return;
+          }
+        }
+      },
+      undefined,
+      this._disposables,
+    );
+
+    // Notify the webview of the current context so it can update if the panel
+    // was reused or the initial config was not enough.
+    this._sendOpenEditor();
+  }
+
+  dispose(): void {
+    this._panel.dispose();
+  }
+
+  private _setContext(reviewContext: PullReviewCommentContext): void {
+    this._context = reviewContext;
+    this._panel.title = PullReviewCommentPanel._title(reviewContext);
+    this._sendOpenEditor();
+  }
+
+  private _sendOpenEditor(): void {
+    this._reply('openPullReviewCommentEditor', {
+      instanceId: this._context.instanceId,
+      owner: this._context.owner,
+      repo: this._context.repo,
+      index: this._context.index,
+      path: this._context.path,
+      position: this._context.position,
+      isBase: this._context.isBase,
+      lineNumber: this._context.lineNumber,
+      mode: this._context.mode,
+      pendingReviewId: this._context.pendingReviewId,
+    });
+  }
+
+  private async _handleSubmitPullReviewComment(message: unknown): Promise<void> {
+    const data = message as {
+      body?: string;
+      mode?: 'single' | 'review';
+      pendingReviewId?: number;
+    };
+    const body = data.body?.trim();
+    if (!body) {
+      return;
+    }
+
+    const instance = this._findInstance(this._context.instanceId);
+    if (!instance) {
+      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(), error: 'Forgejo instance not found' });
+      return;
+    }
+
+    const comment: CreatePullReviewComment = {
+      body,
+      path: this._context.path,
+    };
+    if (this._context.isBase) {
+      comment.old_position = this._context.position;
+    } else {
+      comment.new_position = this._context.position;
+    }
+
+    const client = new ForgejoClient(instance.url, instance.token, logger);
+    try {
+      if (data.mode === 'review') {
+        if (typeof data.pendingReviewId === 'number') {
+          await client.addPullReviewComment(
+            this._context.owner,
+            this._context.repo,
+            this._context.index,
+            data.pendingReviewId,
+            comment,
+          );
+        } else {
+          const review = await client.createPendingPullReview(
+            this._context.owner,
+            this._context.repo,
+            this._context.index,
+            comment,
+          );
+          this._context.pendingReviewId = review.id;
+        }
+      } else {
+        await client.createPullReviewWithComment(this._context.owner, this._context.repo, this._context.index, comment);
+      }
+      this._reply('pullReviewCommentSubmitted', { ...this._repoParams() });
+      this._callbacks?.onSubmitted?.(this._context);
+      this._panel.dispose();
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to submit pull review comment: ${err}`);
+      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(), error: err });
+      vscode.window.showErrorMessage(vscode.l10n.t('Failed to add review comment: {0}', err));
+    }
+  }
+
+  private async _handleSubmitPullReview(message: unknown): Promise<void> {
+    const data = message as { reviewId?: number };
+    const reviewId = data.reviewId;
+    if (typeof reviewId !== 'number') {
+      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: 'No pending review' });
+      return;
+    }
+
+    const instance = this._findInstance(this._context.instanceId);
+    if (!instance) {
+      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: 'Forgejo instance not found' });
+      return;
+    }
+
+    const client = new ForgejoClient(instance.url, instance.token, logger);
+    try {
+      await client.submitPullReview(this._context.owner, this._context.repo, this._context.index, reviewId);
+      this._reply('pullReviewSubmitted', { ...this._repoParams() });
+      this._callbacks?.onSubmitted?.(this._context);
+      this._panel.dispose();
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to submit pull review ${reviewId}: ${err}`);
+      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: err });
+      vscode.window.showErrorMessage(vscode.l10n.t('Failed to submit review: {0}', err));
+    }
+  }
+
+  private async _handleDeletePullReview(message: unknown): Promise<void> {
+    const data = message as { reviewId?: number };
+    const reviewId = data.reviewId;
+    if (typeof reviewId !== 'number') {
+      this._reply('pullReviewDeleted', { ...this._repoParams(), error: 'No pending review' });
+      return;
+    }
+
+    const confirm = await vscode.window.showWarningMessage(
+      vscode.l10n.t('Cancel this pending review? All draft comments will be discarded.'),
+      { modal: true },
+      vscode.l10n.t('Cancel Review'),
+    );
+    if (confirm !== vscode.l10n.t('Cancel Review')) {
+      return;
+    }
+
+    const instance = this._findInstance(this._context.instanceId);
+    if (!instance) {
+      this._reply('pullReviewDeleted', { ...this._repoParams(), error: 'Forgejo instance not found' });
+      return;
+    }
+
+    const client = new ForgejoClient(instance.url, instance.token, logger);
+    try {
+      await client.deletePullReview(this._context.owner, this._context.repo, this._context.index, reviewId);
+      this._reply('pullReviewDeleted', { ...this._repoParams() });
+      this._callbacks?.onDeleted?.(this._context);
+      this._panel.dispose();
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to delete pull review ${reviewId}: ${err}`);
+      this._reply('pullReviewDeleted', { ...this._repoParams(), error: err });
+      vscode.window.showErrorMessage(vscode.l10n.t('Failed to cancel review: {0}', err));
+    }
+  }
+
+  private async _handleCreateIssueAttachment(message: unknown): Promise<void> {
+    const data = message as {
+      instanceId?: string;
+      owner?: string;
+      repo?: string;
+      index?: number;
+      name?: string;
+      data?: number[];
+      _requestId?: string;
+    };
+    const requestId = data._requestId ?? '';
+    const owner = data.owner ?? this._context.owner;
+    const repo = data.repo ?? this._context.repo;
+    const index = data.index ?? this._context.index;
+    const instance = this._findInstance(data.instanceId);
+    if (!instance) {
+      this._reply('issueAttachmentCreated', {
+        instanceId: data.instanceId ?? this._context.instanceId,
+        owner,
+        repo,
+        index,
+        error: 'Forgejo instance not found',
+        _requestId: requestId,
+      });
+      return;
+    }
+
+    if (typeof data.name !== 'string' || !Array.isArray(data.data)) {
+      this._reply('issueAttachmentCreated', {
+        instanceId: instance.id,
+        owner,
+        repo,
+        index,
+        error: 'Invalid attachment data',
+        _requestId: requestId,
+      });
+      return;
+    }
+
+    try {
+      const client = new ForgejoClient(instance.url, instance.token, logger);
+      const attachment = await client.createIssueAttachment(owner, repo, index, new Uint8Array(data.data), data.name);
+      this._reply('issueAttachmentCreated', {
+        instanceId: instance.id,
+        owner,
+        repo,
+        index,
+        uuid: attachment.uuid,
+        name: attachment.name,
+        size: attachment.size,
+        browser_download_url: attachment.browser_download_url,
+        _requestId: requestId,
+      });
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to create issue attachment for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+      this._reply('issueAttachmentCreated', {
+        instanceId: instance.id,
+        owner,
+        repo,
+        index,
+        error: err,
+        _requestId: requestId,
+      });
+    }
+  }
+
+  private _findInstance(id: unknown): { id: string; url: string; token: string; name: string } | undefined {
+    if (typeof id !== 'string') {
+      return undefined;
+    }
+    return this._config.getInstances().find((i) => i.id === id);
+  }
+
+  private _repoParams(): { instanceId: string; owner: string; repo: string; index: number } {
+    return {
+      instanceId: this._context.instanceId,
+      owner: this._context.owner,
+      repo: this._context.repo,
+      index: this._context.index,
+    };
+  }
+
+  private _reply<T extends HostToWebviewMessage['command']>(
+    command: T,
+    data: Omit<Extract<HostToWebviewMessage, { command: T }>, 'command'>,
+  ) {
+    this._panel.webview.postMessage({ command, ...data } as HostToWebviewMessage);
+  }
+
+  private _update(): void {
+    const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
+    const locale = configured && (configured === 'en' || configured === 'zh') ? configured : 'zh';
+    this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, {
+      panelMode: 'pullReviewComment',
+      locale,
+      pullReviewComment: this._context,
+    });
+  }
+
+  private _dispose(): void {
+    PullReviewCommentPanel.currentPanel = undefined;
+    while (this._disposables.length) {
+      const disposable = this._disposables.pop();
+      if (disposable) {
+        disposable.dispose();
+      }
+    }
+  }
+}

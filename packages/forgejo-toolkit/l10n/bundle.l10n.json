@@ -39,5 +39,9 @@
   "Permalink copied to clipboard": "Permalink copied to clipboard",
   "Failed to copy permalink: {0}": "Failed to copy permalink: {0}",
   "Open issue/PR #{0}": "Open issue/PR #{0}",
-  "Open user profile @{0}": "Open user profile @{0}"
+  "Open user profile @{0}": "Open user profile @{0}",
+  "No Forgejo PR diff file is active": "No Forgejo PR diff file is active",
+  "Unable to locate the file in the pull request diff": "Unable to locate the file in the pull request diff",
+  "Unable to map the selected line to a diff position": "Unable to map the selected line to a diff position",
+  "Comments can only be added to added or deleted lines": "Comments can only be added to added or deleted lines"
 }

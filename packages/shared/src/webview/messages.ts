@@ -673,6 +673,44 @@ export type HostToWebviewMessage =
       _requestId: string;
       issue?: unknown;
       error?: string;
+    }
+  | {
+      command: 'openPullReviewCommentEditor';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      path: string;
+      position: number;
+      isBase: boolean;
+      lineNumber: number;
+      mode: 'single' | 'review';
+      pendingReviewId?: number;
+    }
+  | {
+      command: 'pullReviewCommentSubmitted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      reviewId?: number;
+      error?: string;
+    }
+  | {
+      command: 'pullReviewSubmitted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      error?: string;
+    }
+  | {
+      command: 'pullReviewDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      error?: string;
     };
 
 export type WebviewToHostMessage =
@@ -1218,4 +1256,34 @@ export type WebviewToHostMessage =
       repo: string;
       index: number;
       _requestId: string;
-    };
+    }
+  | {
+      command: 'submitPullReviewComment';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      path: string;
+      position: number;
+      isBase: boolean;
+      body: string;
+      mode: 'single' | 'review';
+      pendingReviewId?: number;
+    }
+  | {
+      command: 'submitPullReview';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      reviewId: number;
+    }
+  | {
+      command: 'deletePullReview';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      reviewId: number;
+    }
+  | { command: 'closePullReviewCommentPanel' };

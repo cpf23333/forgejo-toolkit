@@ -29,6 +29,7 @@ import {
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { readExportDataFromUri } from './instanceImport';
+import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
@@ -2302,7 +2303,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             try {
               const client = new ForgejoClient(instance.url, instance.token, logger);
               const html = await client.renderMarkdown(text, message.context);
-              const htmlWithResolvedImages = await this._resolveImageUrls(html, instance);
+              const htmlWithResolvedImages = await resolveAttachmentImages(html, instance);
               this._reply('renderedMarkdown', { key, html: htmlWithResolvedImages });
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
@@ -3458,55 +3459,6 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       }),
     );
     return { ...detail, recentCommits: resolvedCommits };
-  }
-
-  private async _resolveImageUrls(html: string, instance: ForgejoInstance): Promise<string> {
-    const instanceBaseUrl = instance.url.replace(/\/$/, '');
-    const imgSrcRegex = /<img[^\u003e]*\s+src=["']([^"']+)["'][^\u003e]*>/gi;
-    const replacements: Array<{ start: number; end: number; value: string }> = [];
-    let match;
-    while ((match = imgSrcRegex.exec(html)) !== null) {
-      const src = match[1];
-      if (!src || src.startsWith('data:')) {
-        continue;
-      }
-      let absoluteUrl: string;
-      try {
-        absoluteUrl = new URL(src, instanceBaseUrl).href;
-      } catch {
-        continue;
-      }
-      try {
-        const response = await fetch(absoluteUrl, {
-          headers: { Authorization: `token ${instance.token}` },
-        });
-        if (!response.ok) {
-          continue;
-        }
-        const buffer = await response.arrayBuffer();
-        const base64 = Buffer.from(buffer).toString('base64');
-        const contentType = response.headers.get('content-type') ?? 'image/png';
-        replacements.push({
-          start: match.index,
-          end: imgSrcRegex.lastIndex,
-          value: `data:${contentType};base64,${base64}`,
-        });
-      } catch {
-        // ignore image fetch errors, keep original url
-      }
-    }
-    let result = html;
-    for (let i = replacements.length - 1; i >= 0; i--) {
-      const { start, end, value } = replacements[i];
-      const original = result.slice(start, end);
-      const srcMatch = /src=["'][^"']+["']/i.exec(original);
-      if (!srcMatch) {
-        continue;
-      }
-      const srcStart = start + srcMatch.index;
-      result = result.slice(0, srcStart + 5) + value + result.slice(srcStart + srcMatch[0].length - 1);
-    }
-    return result;
   }
 
   private async _resolveAvatarUrl(url: string): Promise<string> {

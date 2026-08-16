@@ -6,6 +6,8 @@ import { parsePullDiff, type ParsedPullDiff } from '../utils/parseDiff';
 import type { PullReview, PullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { Logger } from '../logger';
+import { PullReviewCommentPanel, type PullReviewCommentContext } from './pullReviewCommentPanel';
+import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 
 interface PullReviewData {
   review: PullReview;
@@ -36,14 +38,13 @@ export const COMMAND_DELETE_COMMENT = 'forgejoToolkit.deletePullReviewComment';
 
 export class PullReviewCommentController implements vscode.Disposable {
   private readonly _controller: vscode.CommentController;
-  private readonly _cache = new Map<string, PullRequestReviewCache>();
-  private readonly _loading = new Map<string, Promise<PullRequestReviewCache>>();
   private readonly _threads = new Map<string, vscode.CommentThread>();
   private readonly _commentContextMap = new Map<string, CommentContext>();
   private readonly _disposables: vscode.Disposable[] = [];
 
   constructor(
     private readonly _config: ConfigManager,
+    private readonly _extensionUri: vscode.Uri,
     private readonly _logger?: Logger,
   ) {
     this._controller = vscode.comments.createCommentController(CONTROLLER_ID, CONTROLLER_LABEL);
@@ -90,10 +91,6 @@ export class PullReviewCommentController implements vscode.Disposable {
     };
   }
 
-  private _cacheKey(params: { instanceId: string; owner: string; repo: string; index: number }): string {
-    return `${params.instanceId}:${params.owner}:${params.repo}:${params.index}`;
-  }
-
   private _threadKey(params: {
     owner: string;
     repo: string;
@@ -138,24 +135,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     repo: string;
     index: number;
   }): Promise<PullRequestReviewCache> {
-    const key = this._cacheKey(params);
-    const cached = this._cache.get(key);
-    if (cached) {
-      return cached;
-    }
-
-    const loading = this._loading.get(key);
-    if (loading) {
-      return loading;
-    }
-
-    const promise = this._fetchReviewData(params).then((data) => {
-      this._cache.set(key, data);
-      this._loading.delete(key);
-      return data;
-    });
-    this._loading.set(key, promise);
-    return promise;
+    return this._fetchReviewData(params);
   }
 
   private async _fetchReviewData(params: {
@@ -211,7 +191,7 @@ export class PullReviewCommentController implements vscode.Disposable {
 
     try {
       const data = await this._loadReviewData(params);
-      this._renderThreads(document, params, data);
+      await this._renderThreads(document, params, data);
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);
       this._logger?.error(
@@ -220,11 +200,11 @@ export class PullReviewCommentController implements vscode.Disposable {
     }
   }
 
-  private _renderThreads(
+  private async _renderThreads(
     document: vscode.TextDocument,
     params: ForgejoPrUriParams,
     data: PullRequestReviewCache,
-  ): void {
+  ): Promise<void> {
     const fileMap = data.diff.files.get(params.path);
     if (!fileMap) {
       return;
@@ -283,12 +263,12 @@ export class PullReviewCommentController implements vscode.Disposable {
         const instanceName = instance?.name ?? params.instanceId;
         const existing = this._threads.get(key);
         if (existing) {
-          existing.comments = [this._createComment(params, reviewId, comment, position, instanceName)];
+          existing.comments = [await this._createComment(params, reviewId, comment, position, instanceName)];
           continue;
         }
 
         const thread = this._controller.createCommentThread(uri, new vscode.Range(line, 0, line, 0), [
-          this._createComment(params, reviewId, comment, position, instanceName),
+          await this._createComment(params, reviewId, comment, position, instanceName),
         ]);
         thread.canReply = false;
         thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
@@ -319,16 +299,22 @@ export class PullReviewCommentController implements vscode.Disposable {
     });
   }
 
-  private _createComment(
+  private async _createComment(
     params: ForgejoPrUriParams,
     reviewId: number,
     comment: PullReviewComment,
     position: number,
     instanceName: string,
-  ): vscode.Comment {
+  ): Promise<vscode.Comment> {
     const user = comment.user;
     const authorName = user?.login ?? vscode.l10n.t('Unknown');
-    const bodyText = comment.body ?? '';
+    const instance = this._findInstance(params.instanceId);
+    let bodyText = comment.body ?? '';
+    if (instance?.token && instance.url) {
+      bodyText = await resolveAttachmentImages(bodyText, instance);
+    }
+    const bodyMarkdown = new vscode.MarkdownString(bodyText);
+    bodyMarkdown.supportHtml = true;
     const timestamp = comment.created_at ? new Date(comment.created_at) : undefined;
     const context: CommentContext = {
       instanceId: params.instanceId,
@@ -345,7 +331,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     this._commentContextMap.set(contextValue, context);
 
     return {
-      body: bodyText,
+      body: bodyMarkdown,
       mode: vscode.CommentMode.Preview,
       author: {
         name: authorName,
@@ -396,40 +382,44 @@ export class PullReviewCommentController implements vscode.Disposable {
       return;
     }
 
-    const body = await vscode.window.showInputBox({
-      prompt: vscode.l10n.t('Enter a review comment'),
-      placeHolder: vscode.l10n.t('Comment on this line'),
-      ignoreFocusOut: true,
-    });
-
-    if (!body || !body.trim()) {
+    const lineInfo = fileMap.positions.get(position);
+    if (lineInfo?.type === 'context') {
+      vscode.window.showWarningMessage(vscode.l10n.t('Comments can only be added to added or deleted lines'));
       return;
     }
 
-    const client = new ForgejoClient(instance.url, instance.token, this._logger);
-    try {
-      const comment: { body: string; path: string; old_position?: number; new_position?: number } = {
-        body: body.trim(),
-        path: params.path,
-      };
-      if (params.isBase) {
-        comment.old_position = position;
-      } else {
-        comment.new_position = position;
-      }
-      await client.createPullReviewWithComment(params.owner, params.repo, params.index, comment);
-      this._invalidateCache(params);
-      await this._refreshOpenPrDocuments(params);
-      vscode.window.showInformationMessage(vscode.l10n.t('Review comment added'));
-    } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
-      this._logger?.error(`Failed to create pull review comment: ${err}`);
-      vscode.window.showErrorMessage(vscode.l10n.t('Failed to add review comment: {0}', err));
-    }
-  }
+    const pendingReview = data.reviews.find(
+      (r) => r.review.state === 'PENDING' && r.review.user?.login === instance.username,
+    )?.review;
+    const pendingReviewId = typeof pendingReview?.id === 'number' ? pendingReview.id : undefined;
 
-  private _invalidateCache(params: { instanceId: string; owner: string; repo: string; index: number }): void {
-    this._cache.delete(this._cacheKey(params));
+    const context: PullReviewCommentContext = {
+      instanceId: params.instanceId,
+      owner: params.owner,
+      repo: params.repo,
+      index: params.index,
+      path: params.path,
+      position,
+      isBase: params.isBase,
+      lineNumber: line,
+      mode: 'review',
+      pendingReviewId,
+    };
+
+    PullReviewCommentPanel.createOrShow(this._extensionUri, this._config, context, {
+      onSubmitted: () => {
+        this._refreshOpenPrDocuments(params).catch((error: unknown) => {
+          const err = error instanceof Error ? error.message : String(error);
+          this._logger?.error(`Failed to refresh PR documents after review comment: ${err}`);
+        });
+      },
+      onDeleted: () => {
+        this._refreshOpenPrDocuments(params).catch((error: unknown) => {
+          const err = error instanceof Error ? error.message : String(error);
+          this._logger?.error(`Failed to refresh PR documents after review deletion: ${err}`);
+        });
+      },
+    });
   }
 
   private async _refreshOpenPrDocuments(params: {
@@ -477,7 +467,6 @@ export class PullReviewCommentController implements vscode.Disposable {
         context.reviewId,
         context.commentId,
       );
-      this._invalidateCache(context);
       await this._refreshOpenPrDocuments(context);
       vscode.window.showInformationMessage(vscode.l10n.t('Review comment deleted'));
     } catch (error) {

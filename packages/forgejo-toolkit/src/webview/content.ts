@@ -2,10 +2,28 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
+export interface WebviewContentOptions {
+  panelMode?: 'onboarding' | 'pullReviewComment';
+  locale?: 'en' | 'zh';
+  codiconCssPath?: string;
+  pullReviewComment?: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    path: string;
+    position: number;
+    isBase: boolean;
+    lineNumber: number;
+    mode: 'single' | 'review';
+    pendingReviewId?: number;
+  };
+}
+
 export function getWebviewContent(
   webview: vscode.Webview,
   extensionPath: string,
-  options?: { panelMode?: boolean; codiconCssPath?: string },
+  options?: WebviewContentOptions,
 ): string {
   const webviewDistPath = path.join(extensionPath, 'out', 'webview');
   const htmlPath = path.join(webviewDistPath, 'index.html');
@@ -24,9 +42,16 @@ export function getWebviewContent(
   const nonce = getNonce();
   let html = fs.readFileSync(htmlPath, 'utf8');
 
-  const config: { panelMode: boolean; vscodeVersion: string } = {
-    panelMode: options?.panelMode ?? false,
+  const config: {
+    panelMode?: 'onboarding' | 'pullReviewComment';
+    locale?: 'en' | 'zh';
+    vscodeVersion: string;
+    pullReviewComment?: WebviewContentOptions['pullReviewComment'];
+  } = {
+    panelMode: options?.panelMode,
+    locale: options?.locale,
     vscodeVersion: vscode.version,
+    pullReviewComment: options?.pullReviewComment,
   };
   const configScript = `<script nonce="${nonce}">window.__FORGEJO_TOOLKIT_CONFIG__ = ${JSON.stringify(config)};</script>`;
 

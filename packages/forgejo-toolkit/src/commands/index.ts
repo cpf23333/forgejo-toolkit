@@ -37,14 +37,15 @@ export function registerCommands(
       });
     }),
 
-    vscode.commands.registerCommand(COMMAND_ADD_COMMENT, (args?: { lineNumber?: number }) => {
+    vscode.commands.registerCommand(COMMAND_ADD_COMMENT, (uri?: vscode.Uri, lineNumber?: number) => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         vscode.window.showWarningMessage(vscode.l10n.t('No active editor'));
         return;
       }
-      const lineNumber = typeof args?.lineNumber === 'number' ? args.lineNumber : undefined;
-      pullReviewCommentController.addComment(editor, lineNumber).catch((error: unknown) => {
+      // editor/lineNumber/context passes the 1-based line number; convert to 0-based for the API.
+      const line = typeof lineNumber === 'number' ? lineNumber - 1 : editor.selection.active.line;
+      pullReviewCommentController.addComment(editor, line).catch((error: unknown) => {
         const err = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(vscode.l10n.t('Failed to add review comment: {0}', err));
       });
