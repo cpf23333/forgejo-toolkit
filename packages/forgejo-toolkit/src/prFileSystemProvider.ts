@@ -7,6 +7,8 @@ export interface ForgejoPrUriParams {
   instanceId: string;
   owner: string;
   repo: string;
+  /** Pull request index (number) used to fetch reviews and line comments. */
+  index: number;
   ref: string;
   path: string;
   isBase: boolean;
@@ -97,10 +99,12 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
         return undefined;
       }
       const [, instanceId, owner, repo, filepath] = pathMatch;
+      const index = typeof query.index === 'number' ? query.index : Number(query.index);
       return {
         instanceId,
         owner,
         repo,
+        index: Number.isNaN(index) ? 0 : index,
         ref: query.ref ?? '',
         path: filepath,
         isBase: query.isBase ?? false,

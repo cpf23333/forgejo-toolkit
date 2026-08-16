@@ -54,13 +54,16 @@ import {
   repoCompareDiff,
   repoCreateBranch,
   repoCreatePullRequest,
+  repoCreatePullReview,
   repoCreateRelease,
   repoCreateReleaseAttachment,
   repoCreateTag,
   repoDeleteBranch,
+  repoDeletePullReviewComment,
   repoDeleteRelease,
   repoDeleteReleaseAttachment,
   repoDeleteTag,
+  repoDownloadPullDiffOrPatch,
   repoEditPullRequest,
   repoEditRelease,
   repoGet,
@@ -73,8 +76,10 @@ import {
   repoGetPullRequest,
   repoGetPullRequestCommits,
   repoGetPullRequestFiles,
+  repoGetPullReviewComments,
   repoListBranches,
   repoListPullRequests,
+  repoListPullReviews,
   repoListReleases,
   repoListTags,
   repoMergePullRequest,
@@ -96,6 +101,7 @@ import type {
   CreateBranchRepoOption,
   CreateIssueOption,
   CreatePullRequestOption,
+  CreatePullReviewComment,
   CreateReleaseOption,
   CreateTagOption,
   DispatchWorkflowRun,
@@ -106,6 +112,8 @@ import type {
   IssueMeta,
   Label,
   Milestone,
+  PullReview,
+  PullReviewComment,
   Reaction,
   StopWatch,
   TimelineComment,
@@ -1033,6 +1041,61 @@ export class ForgejoClient {
 
   mergePullRequest(owner: string, repo: string, index: number, strategy: 'merge' | 'rebase' | 'squash'): Promise<void> {
     return repoMergePullRequest(owner, repo, index, { Do: strategy }, { client: this._client() }) as Promise<void>;
+  }
+
+  async getPullRequestDiff(owner: string, repo: string, index: number): Promise<string> {
+    const response = await repoDownloadPullDiffOrPatch(owner, repo, index, 'diff', undefined, {
+      client: this._client(),
+      responseType: 'text',
+    });
+    return (response as unknown as string) ?? '';
+  }
+
+  async listPullReviews(owner: string, repo: string, index: number): Promise<PullReview[]> {
+    const result = await repoListPullReviews(owner, repo, index, { limit: 100 }, { client: this._client() });
+    return (result ?? []) as PullReview[];
+  }
+
+  async getPullReviewComments(
+    owner: string,
+    repo: string,
+    index: number,
+    reviewId: number,
+  ): Promise<PullReviewComment[]> {
+    const result = await repoGetPullReviewComments(owner, repo, index, reviewId, { client: this._client() });
+    return (result ?? []) as PullReviewComment[];
+  }
+
+  async createPullReviewWithComment(
+    owner: string,
+    repo: string,
+    index: number,
+    comment: CreatePullReviewComment,
+  ): Promise<PullReview> {
+    // Forgejo requires a non-empty review body when event is 'commented'.
+    // We pass a single space as the review-level body so the comment body
+    // can still be the actual user input.
+    return repoCreatePullReview(
+      owner,
+      repo,
+      index,
+      {
+        event: 'commented',
+        body: ' ',
+        comments: [comment],
+      },
+      { client: this._client() },
+    ) as Promise<PullReview>;
+  }
+
+  async deletePullReviewComment(
+    owner: string,
+    repo: string,
+    index: number,
+    reviewId: number,
+    commentId: number,
+  ): Promise<void> {
+    await repoDeletePullReviewComment(owner, repo, index, reviewId, commentId, { client: this._client() });
   }
 
   async renderMarkdown(text: string, context?: string): Promise<string> {

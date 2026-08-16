@@ -7,6 +7,7 @@ import { registerRepoFileProvider } from './repoFileProvider';
 import { FORGEJO_PR_SCHEME, ForgejoPRFileSystemProvider } from './prFileSystemProvider';
 import { ForgejoPRDecorationProvider } from './prDecorationProvider';
 import { ForgejoIssueMentionProvider } from './editor/issueMentionProvider';
+import { PullReviewCommentController } from './comments/pullReviewCommentController';
 import { logger } from './logger';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -28,7 +29,10 @@ export function activate(context: vscode.ExtensionContext) {
     webviewOptions: { retainContextWhenHidden: true },
   });
 
-  registerCommands(context, config, readmeProvider, viewProvider);
+  const pullReviewCommentController = new PullReviewCommentController(config, logger);
+  context.subscriptions.push(pullReviewCommentController);
+
+  registerCommands(context, config, readmeProvider, viewProvider, pullReviewCommentController);
 
   const mentionProvider = new ForgejoIssueMentionProvider(config);
   context.subscriptions.push(

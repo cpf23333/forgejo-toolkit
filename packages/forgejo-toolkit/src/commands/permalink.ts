@@ -18,10 +18,12 @@ function parseForgejoPrUri(uri: vscode.Uri): ForgejoPrUriParams | undefined {
       return undefined;
     }
     const [, instanceId, owner, repo, filepath] = pathMatch;
+    const index = typeof query.index === 'number' ? query.index : Number(query.index);
     return {
       instanceId,
       owner,
       repo,
+      index: Number.isNaN(index) ? 0 : index,
       ref: query.ref ?? '',
       path: filepath,
       isBase: query.isBase ?? false,

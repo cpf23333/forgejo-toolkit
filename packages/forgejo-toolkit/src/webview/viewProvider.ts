@@ -1717,8 +1717,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const baseUri = this._buildDiffUri(instanceId, owner, repo, baseSha, filename, true, status);
-              const headUri = this._buildDiffUri(instanceId, owner, repo, headSha, filename, false, status);
+              const baseUri = this._buildDiffUri(instanceId, owner, repo, index, baseSha, filename, true, status);
+              const headUri = this._buildDiffUri(instanceId, owner, repo, index, headSha, filename, false, status);
               const title = `${filename} (#${index})`;
               await vscode.commands.executeCommand('vscode.diff', baseUri, headUri, title);
               if (status === 'added') {
@@ -1754,8 +1754,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               const resourceList = files.map((file) => {
                 const filename = typeof file === 'string' ? file : file.filename;
                 const status = typeof file === 'string' ? 'modified' : file.status;
-                const baseUri = this._buildDiffUri(instanceId, owner, repo, baseSha, filename, true, status);
-                const headUri = this._buildDiffUri(instanceId, owner, repo, headSha, filename, false, status);
+                const baseUri = this._buildDiffUri(instanceId, owner, repo, index, baseSha, filename, true, status);
+                const headUri = this._buildDiffUri(instanceId, owner, repo, index, headSha, filename, false, status);
                 if (status === 'added') {
                   return [headUri, undefined, headUri];
                 }
@@ -2948,12 +2948,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     instanceId: string,
     owner: string,
     repo: string,
+    index: number,
     ref: string,
     filepath: string,
     isBase: boolean,
     status?: string,
   ): vscode.Uri {
-    const params = { ref, isBase, status };
+    const params = { index, ref, isBase, status };
     return vscode.Uri.from({
       scheme: 'forgejo-pr',
       path: `/${instanceId}/${owner}/${repo}/${filepath}`,

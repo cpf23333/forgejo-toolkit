@@ -138,6 +138,18 @@
         "title": "Copy Permalink",
         "category": "Forgejo Toolkit",
         "icon": "$(link)"
+      },
+      {
+        "command": "forgejoToolkit.deletePullReviewComment",
+        "title": "Delete Review Comment",
+        "category": "Forgejo Toolkit",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "forgejoToolkit.addPullReviewComment",
+        "title": "Add Pull Review Comment",
+        "category": "Forgejo Toolkit",
+        "icon": "$(comment)"
       }
     ],
     "viewsContainers": {
@@ -177,6 +189,21 @@
         {
           "command": "forgejoToolkit.refreshInstances",
           "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.deletePullReviewComment",
+          "when": "false"
+        },
+        {
+          "command": "forgejoToolkit.addPullReviewComment",
+          "when": "false"
+        }
+      ],
+      "comment/context": [
+        {
+          "command": "forgejoToolkit.deletePullReviewComment",
+          "when": "comment =~ /forgejo:/",
+          "group": "navigation@0"
         }
       ],
       "editor/context": [
@@ -184,6 +211,13 @@
           "command": "forgejoToolkit.copyPermalink",
           "when": "editorHasSelection || true",
           "group": "9_cutcopypaste@5"
+        }
+      ],
+      "editor/lineNumber/context": [
+        {
+          "command": "forgejoToolkit.addPullReviewComment",
+          "when": "resourceScheme == forgejo-pr",
+          "group": "comments@0"
         }
       ],
       "view/title": [
