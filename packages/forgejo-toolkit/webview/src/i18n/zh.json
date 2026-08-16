@@ -5,6 +5,33 @@
     "back": "← 返回",
     "home": "主页"
   },
+  "editor": {
+    "toolbar": {
+      "heading": "标题",
+      "bold": "粗体",
+      "italic": "斜体",
+      "strikethrough": "删除线",
+      "quote": "引用",
+      "code": "代码块",
+      "inlineCode": "行内代码",
+      "link": "链接",
+      "image": "图片",
+      "uploadImage": "上传图片",
+      "unorderedList": "无序列表",
+      "orderedList": "有序列表",
+      "taskList": "任务列表",
+      "indent": "增加缩进",
+      "unindent": "减少缩进",
+      "table": "表格",
+      "horizontalRule": "分隔线",
+      "mention": "提及用户",
+      "ref": "引用议题/PR",
+      "preview": "预览",
+      "sideBySide": "并排预览",
+      "fullscreen": "全屏",
+      "guide": "Markdown 语法帮助"
+    }
+  },
   "onboarding": {
     "title": "欢迎使用 Forgejo Toolkit",
     "description": "完成以下几步即可开始使用。",

@@ -5,6 +5,33 @@
     "back": "← Back",
     "home": "Home"
   },
+  "editor": {
+    "toolbar": {
+      "heading": "Heading",
+      "bold": "Bold",
+      "italic": "Italic",
+      "strikethrough": "Strikethrough",
+      "quote": "Quote",
+      "code": "Code",
+      "inlineCode": "Inline Code",
+      "link": "Link",
+      "image": "Image",
+      "uploadImage": "Upload Image",
+      "unorderedList": "Unordered List",
+      "orderedList": "Ordered List",
+      "taskList": "Task List",
+      "indent": "Indent",
+      "unindent": "Unindent",
+      "table": "Table",
+      "horizontalRule": "Horizontal Rule",
+      "mention": "Mention",
+      "ref": "Reference",
+      "preview": "Preview",
+      "sideBySide": "Side by Side",
+      "fullscreen": "Fullscreen",
+      "guide": "Markdown Guide"
+    }
+  },
   "onboarding": {
     "title": "Welcome to Forgejo Toolkit",
     "description": "Complete the steps below to get started.",
