@@ -7,6 +7,7 @@
 - [ ] 评估将 extension host 打包从 esbuild 迁移到 Rolldown，统一构建工具链
 - [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
 - [ ] 调研并补齐 Project 相关 API（当前生成的 client 中无 `/projects` 端点）
+- [ ] PR diff 行级评论支持富文本输入框（用 webview 内嵌 EasyMDE 替代 `showInputBox`）
 
 ## 已完成
 

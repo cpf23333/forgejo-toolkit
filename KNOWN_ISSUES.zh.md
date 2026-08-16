@@ -75,3 +75,9 @@ Forgejo 网页界面会展示每个 job 的步骤（例如 "Set up job"、"actio
 Forgejo 网页界面允许用户重新运行已完成的工作流运行，但官方 REST API 中没有对应的端点。`/repos/{owner}/{repo}/actions/runs/{run_id}/cancel` 端点可以取消 pending 或 running 状态的运行，但 API 路由中并没有 `/rerun` 或 `/re-run` 相关的实现或文档。
 
 因此扩展只为正在运行的记录提供「取消运行」按钮，不提供「重新运行」按钮。如果工作流支持 `workflow_dispatch`，用户可以通过「触发 workflow」按钮再次手动触发。
+
+## PR diff 行级评论无法通过行号旁的 + 图标创建
+
+VS Code 稳定版 Comments API 没有暴露 `CommentController.onDidCreateCommentThread`，因此扩展无法捕获用户在 diff 编辑器行号旁点击 `+` 图标的动作。如果启用该按钮，只会显示一个无法提交的评论输入框，反而造成误导。
+
+因此新增 PR 审阅评论改通过编辑器右键菜单命令 **Add Pull Review Comment** 触发；已有评论仍会作为 `CommentThread` 渲染在对应的 base/head 行上。这是稳定版 VS Code API 的限制，短期内没有 workaround。

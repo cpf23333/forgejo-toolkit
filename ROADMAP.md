@@ -132,15 +132,16 @@
 
 ## 当前迭代
 
+### PR Review
+
+- PR 内联 review 评论（行级评论）：已支持在 VS Code 原生 diff 中查看、添加、删除评论。
+- PR diff 行级评论富文本输入：当前使用 `showInputBox`，后续改用 webview 内嵌 EasyMDE 提供 Markdown 工具栏与预览。
+
 ## 后续迭代
 
 ### 设置与数据
 
 - 设置同步（可选 VS Code Settings Sync）。
-
-### PR Review
-
-- PR 内联 review 评论（行级评论）。
 
 ### 构建工具统一
 
