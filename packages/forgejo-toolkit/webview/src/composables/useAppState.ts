@@ -236,6 +236,9 @@ function createAppState() {
       case 'openDashboard':
         router.push({ name: 'dashboard' });
         break;
+      case 'openNotifications':
+        router.push({ name: 'notifications' });
+        break;
       case 'setLocale':
         locale.value = message.locale;
         break;

@@ -26,6 +26,7 @@
 - [x] 多实例管理
 - [x] 移除实例二次确认
 - [x] onboarding 导入配置后侧栏主视图自动刷新
+- [x] 实例 URL 同步：`app.ini` ROOT_URL 与配置地址不一致时重写 API 返回的 URL
 
 ### 仓库与代码
 
@@ -90,6 +91,7 @@
 ### 通知与搜索
 
 - [x] Forgejo 通知中心（`/notifications` API）
+- [x] 通知后台轮询与推送：extension host 轮询 + VS Code 弹窗提醒 + webview 角标自动更新
 - [x] 全局仓库 / Issue / PR 搜索
 
 ### Worktree

@@ -43,5 +43,10 @@
   "No Forgejo PR diff file is active": "No Forgejo PR diff file is active",
   "Unable to locate the file in the pull request diff": "Unable to locate the file in the pull request diff",
   "Unable to map the selected line to a diff position": "Unable to map the selected line to a diff position",
-  "Comments can only be added to added or deleted lines": "Comments can only be added to added or deleted lines"
+  "Comments can only be added to added or deleted lines": "Comments can only be added to added or deleted lines",
+  "New notification from {0}": "New notification from {0}",
+  "{0} new notifications from {1}": "{0} new notifications from {1}",
+  "Open": "Open",
+  "Mark all as read": "Mark all as read",
+  "Failed to mark notifications as read: {0}": "Failed to mark notifications as read: {0}"
 }

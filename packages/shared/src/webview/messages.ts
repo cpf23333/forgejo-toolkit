@@ -36,6 +36,7 @@ export type HostToWebviewMessage =
     }
   | { command: 'openSettings' }
   | { command: 'openDashboard' }
+  | { command: 'openNotifications' }
   | { command: 'setLocale'; locale: 'en' | 'zh' }
   | { command: 'setDebug'; debug: boolean }
   | { command: 'repositories'; instanceId: string; repositories?: unknown[]; error?: string }

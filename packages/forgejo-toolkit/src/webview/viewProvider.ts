@@ -3244,6 +3244,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ command, ...data } as HostToWebviewMessage);
   }
 
+  public pushNotifications(instanceId: string, notifications: unknown[]): void {
+    this._reply('notifications', { instanceId, notifications });
+  }
+
+  public openNotifications(): void {
+    this._reply('openNotifications', {});
+  }
+
   private async _handleOpenPrWorktree(message: { instanceId: string; owner: string; repo: string; index: number }) {
     const { instanceId, owner, repo, index } = message;
     const instance = this._findInstance(instanceId);

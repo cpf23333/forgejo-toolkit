@@ -8,6 +8,7 @@ import { FORGEJO_PR_SCHEME, ForgejoPRFileSystemProvider } from './prFileSystemPr
 import { ForgejoPRDecorationProvider } from './prDecorationProvider';
 import { ForgejoIssueMentionProvider } from './editor/issueMentionProvider';
 import { PullReviewCommentController } from './comments/pullReviewCommentController';
+import { NotificationPoller } from './notifications/notificationPoller';
 import { logger } from './logger';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -28,6 +29,10 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.window.registerWebviewViewProvider(ForgejoToolkitViewProvider.viewType, viewProvider, {
     webviewOptions: { retainContextWhenHidden: true },
   });
+
+  const notificationPoller = new NotificationPoller(config, viewProvider, context, logger);
+  context.subscriptions.push(notificationPoller);
+  notificationPoller.start();
 
   const pullReviewCommentController = new PullReviewCommentController(config, context.extensionUri, logger);
   context.subscriptions.push(pullReviewCommentController);

@@ -5,6 +5,9 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 export type { ForgejoInstance };
 
 const INSTANCES_KEY = 'forgejoToolkit.instances';
+const DEFAULT_INTERVAL_SECONDS = 300;
+const MIN_INTERVAL_SECONDS = 60;
+const MAX_INTERVAL_SECONDS = 3600;
 
 export class ConfigManager {
   private readonly _onInstancesChanged = new vscode.EventEmitter<ForgejoInstance[]>();
@@ -66,5 +69,19 @@ export class ConfigManager {
 
   async setWorktreeCacheDirectory(directory: string): Promise<void> {
     await vscode.workspace.getConfiguration('forgejoToolkit').update('worktreeCacheDirectory', directory, true);
+  }
+
+  isNotificationPollingEnabled(): boolean {
+    return vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('notificationPollingEnabled', true);
+  }
+
+  getNotificationPollingInterval(): number {
+    const value = vscode.workspace
+      .getConfiguration('forgejoToolkit')
+      .get<number>('notificationPollingInterval', DEFAULT_INTERVAL_SECONDS);
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return DEFAULT_INTERVAL_SECONDS;
+    }
+    return Math.max(MIN_INTERVAL_SECONDS, Math.min(MAX_INTERVAL_SECONDS, Math.round(value)));
   }
 }

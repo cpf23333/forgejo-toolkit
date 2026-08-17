@@ -105,6 +105,18 @@
           "type": "string",
           "default": "",
           "description": "Custom parent directory for PR worktrees. Leave empty to use the default extension storage location."
+        },
+        "forgejoToolkit.notificationPollingEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Periodically poll Forgejo instances for unread notifications and show VS Code alerts."
+        },
+        "forgejoToolkit.notificationPollingInterval": {
+          "type": "number",
+          "default": 300,
+          "minimum": 60,
+          "maximum": 3600,
+          "description": "Interval in seconds between notification polls."
         }
       }
     },
