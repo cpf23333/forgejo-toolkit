@@ -84,5 +84,4 @@ VS Code 稳定版 Comments API 没有暴露 `CommentController.onDidCreateCommen
 
 ---
 
-*各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。*
-
+_各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_

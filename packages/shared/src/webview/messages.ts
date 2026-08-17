@@ -4,6 +4,7 @@ export interface ForgejoInstance {
   token: string;
   name: string;
   username: string;
+  syncApiUrlsToInstanceUrl?: boolean;
 }
 
 export interface ExportSettings {
@@ -717,8 +718,8 @@ export type WebviewToHostMessage =
   | { command: 'getInitialState' }
   | { command: 'getLinkedRepository' }
   | { command: 'testConnection'; url: string; token: string }
-  | { command: 'saveInstance'; url: string; token: string }
-  | { command: 'editInstance'; id: string; url: string; token: string }
+  | { command: 'saveInstance'; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean }
+  | { command: 'editInstance'; id: string; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean }
   | { command: 'removeInstance'; id: string }
   | {
       command: 'deleteIssueAttachment';

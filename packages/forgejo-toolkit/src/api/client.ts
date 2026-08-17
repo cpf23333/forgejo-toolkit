@@ -168,11 +168,19 @@ export interface MentionSearchResult {
 }
 
 export class ForgejoClient {
+  private readonly configuredOrigin: string;
+  private detectedServerOrigin: string | undefined;
+  private readonly syncApiUrlsToInstanceUrl: boolean;
+
   constructor(
     private url: string,
     private token: string,
     private logger?: Logger,
-  ) {}
+    syncApiUrlsToInstanceUrl?: boolean,
+  ) {
+    this.configuredOrigin = new URL(this.url.replace(/\/$/, '')).origin;
+    this.syncApiUrlsToInstanceUrl = syncApiUrlsToInstanceUrl ?? true;
+  }
 
   getCurrentUser(): Promise<ForgejoUser> {
     return userGetCurrent({ client: this._client() }) as Promise<ForgejoUser>;
@@ -1172,6 +1180,84 @@ export class ForgejoClient {
     return response.text();
   }
 
+  private _rewriteResponseData<T>(data: T): T {
+    if (!this.syncApiUrlsToInstanceUrl) {
+      return data;
+    }
+
+    if (this.detectedServerOrigin === undefined) {
+      const detected = this._detectServerOrigin(data);
+      if (!detected) {
+        return data;
+      }
+      this.detectedServerOrigin = detected;
+    }
+
+    return this._rewriteUrls(data, this.detectedServerOrigin, this.configuredOrigin);
+  }
+
+  private _detectServerOrigin(data: unknown): string | undefined {
+    const counts = new Map<string, number>();
+
+    const visit = (value: unknown) => {
+      if (typeof value === 'string') {
+        const parsed = this._parseUrl(value);
+        if (parsed && parsed.origin !== this.configuredOrigin) {
+          counts.set(parsed.origin, (counts.get(parsed.origin) ?? 0) + 1);
+        }
+        return;
+      }
+      if (Array.isArray(value)) {
+        for (const item of value) visit(item);
+        return;
+      }
+      if (value && typeof value === 'object') {
+        for (const item of Object.values(value)) visit(item);
+      }
+    };
+
+    visit(data);
+
+    let bestOrigin: string | undefined;
+    let bestCount = 0;
+    for (const [origin, count] of counts) {
+      if (count > bestCount) {
+        bestCount = count;
+        bestOrigin = origin;
+      }
+    }
+    return bestOrigin;
+  }
+
+  private _rewriteUrls<T>(data: T, fromOrigin: string, toOrigin: string): T {
+    if (typeof data === 'string') {
+      const parsed = this._parseUrl(data);
+      if (parsed && parsed.origin === fromOrigin) {
+        return data.replace(fromOrigin, toOrigin) as T;
+      }
+      return data;
+    }
+    if (Array.isArray(data)) {
+      return data.map((item) => this._rewriteUrls(item, fromOrigin, toOrigin)) as T;
+    }
+    if (data && typeof data === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(data)) {
+        result[key] = this._rewriteUrls(value, fromOrigin, toOrigin);
+      }
+      return result as T;
+    }
+    return data;
+  }
+
+  private _parseUrl(value: string): URL | undefined {
+    try {
+      return new URL(value);
+    } catch {
+      return undefined;
+    }
+  }
+
   private _client(): Client {
     const baseURL = `${this.url.replace(/\/$/, '')}/api/v1`;
 
@@ -1197,7 +1283,10 @@ export class ForgejoClient {
           this.logger?.debug(`Response body: ${JSON.stringify(response.data).slice(0, 2000)}`);
         }
 
-        return response;
+        return {
+          ...response,
+          data: this._rewriteResponseData(response.data),
+        };
       } catch (error) {
         if (debugEnabled) {
           const duration = Date.now() - start;

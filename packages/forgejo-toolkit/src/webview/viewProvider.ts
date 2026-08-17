@@ -131,7 +131,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             return;
           }
           case 'saveInstance': {
-            const { url, token } = message;
+            const { url, token, syncApiUrlsToInstanceUrl } = message;
             if (typeof url !== 'string' || typeof token !== 'string') {
               this._reply('saveInstanceResult', { success: false, error: 'Invalid input' });
               return;
@@ -148,6 +148,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 token,
                 name: `${user.login}@${instanceHost}`,
                 username: user.login,
+                syncApiUrlsToInstanceUrl,
               };
 
               await this._config.addInstance(instance);
@@ -163,7 +164,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             return;
           }
           case 'editInstance': {
-            const { id, url, token } = message;
+            const { id, url, token, syncApiUrlsToInstanceUrl } = message;
             if (typeof id !== 'string' || typeof url !== 'string' || typeof token !== 'string') {
               this._reply('saveInstanceResult', { success: false, error: 'Invalid input' });
               return;
@@ -178,6 +179,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 token,
                 name: `${user.login}@${new URL(normalizedUrl).host}`,
                 username: user.login,
+                syncApiUrlsToInstanceUrl,
               });
               this._sendInstances();
               this._detectAndSendLinkedRepository();
@@ -253,7 +255,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const repos = await client.getUserRepositories();
               logger.info(`getRepositories returned ${repos.length} repos for ${instance.name}`);
               this._reply('repositories', { instanceId: instance.id, repositories: repos });
@@ -270,7 +272,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const issues = await client.getUserIssues(message.state ?? 'open');
               this._reply('myIssues', { instanceId: instance.id, issues });
             } catch (error) {
@@ -286,7 +288,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const pulls = await client.getUserPullRequests(message.state ?? 'open');
               this._reply('myPullRequests', { instanceId: instance.id, pullRequests: pulls });
             } catch (error) {
@@ -313,7 +315,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             const scope = rawScope as 'all' | 'repositories' | 'issues' | 'pullRequests';
             const state = ['open', 'closed', 'all'].includes(searchState) ? searchState : 'all';
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const [repositories, issues, pullRequests] = await Promise.all([
                 scope === 'all' || scope === 'repositories'
                   ? client.searchRepositories(query, limit ?? 20)
@@ -357,7 +359,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             const { statusTypes, subjectType, limit } = message;
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const notifications = await client.getNotifications(
                 Array.isArray(statusTypes) ? statusTypes : undefined,
                 Array.isArray(subjectType)
@@ -389,7 +391,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.markNotificationRead(id);
               this._reply('notificationMarkedRead', { instanceId: instance.id, id });
             } catch (error) {
@@ -405,7 +407,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.markAllNotificationsRead();
               this._reply('allNotificationsMarkedRead', { instanceId: instance.id });
             } catch (error) {
@@ -425,7 +427,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const detail = await client.getRepoDetail(owner, repo);
               const detailWithResolvedAvatars = await this._resolveCommitAvatars(detail);
               this._reply('repoDetail', {
@@ -451,7 +453,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const commits = await client.getRepoBranchCommits(owner, repo, branch);
               const commitsWithResolvedAvatars = await this._resolveCommitAvatars({
                 repository: {},
@@ -488,7 +490,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const detail = await client.getIssueDetail(owner, repo, index);
               this._reply('issueDetail', {
                 instanceId: instance.id,
@@ -520,7 +522,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const item = await client.createIssue(owner, repo, data);
               this._reply('issueCreated', {
                 instanceId: instance.id,
@@ -554,7 +556,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const { labels, ...issueData } = data as {
                 title?: string;
                 body?: string;
@@ -593,7 +595,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const info = await client.checkIssueSubscription(owner, repo, index);
               this._reply('issueSubscriptionChecked', {
                 instanceId: instance.id,
@@ -630,7 +632,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               if (subscribe) {
                 await client.addIssueSubscription(owner, repo, index, user);
               } else {
@@ -668,7 +670,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               let action: 'start' | 'stop' | 'delete';
               if (message.command === 'startIssueStopwatch') {
                 action = 'start';
@@ -707,7 +709,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const stopwatches = await client.getUserStopWatches();
               this._reply('userStopwatches', {
                 instanceId: instance.id,
@@ -733,7 +735,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const times = await client.listIssueTrackedTimes(owner, repo, index);
               this._reply('issueTrackedTimes', {
                 instanceId: instance.id,
@@ -770,7 +772,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const trackedTime = await client.addIssueTime(owner, repo, index, time);
               this._reply('issueTimeAdded', {
                 instanceId: instance.id,
@@ -802,7 +804,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.resetIssueTime(owner, repo, index);
               this._reply('issueTimeReset', {
                 instanceId: instance.id,
@@ -838,7 +840,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.deleteIssueTime(owner, repo, index, id);
               this._reply('issueTimeDeleted', {
                 instanceId: instance.id,
@@ -871,7 +873,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const dependencies = await client.listIssueDependencies(owner, repo, index);
               this._reply('issueDependencies', {
                 instanceId: instance.id,
@@ -909,7 +911,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const action = message.command === 'createIssueDependency' ? ('add' as const) : ('remove' as const);
               if (message.command === 'createIssueDependency') {
                 await client.createIssueDependency(owner, repo, index, dependencyIndex);
@@ -949,7 +951,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const reactions = await client.getIssueReactions(owner, repo, index);
               this._reply('issueReactions', {
                 instanceId: instance.id,
@@ -986,7 +988,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               if (add) {
                 await client.addIssueReaction(owner, repo, index, content);
               } else {
@@ -1025,7 +1027,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const reactions = await client.getCommentReactions(owner, repo, commentId);
               this._reply('commentReactions', {
                 instanceId: instance.id,
@@ -1064,7 +1066,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               if (add) {
                 await client.addCommentReaction(owner, repo, commentId, content);
               } else {
@@ -1110,7 +1112,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const comment = await client.createIssueComment(owner, repo, index, body);
               this._reply('issueCommentCreated', {
                 instanceId: instance.id,
@@ -1151,7 +1153,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const attachment = await client.createIssueCommentAttachment(
                 owner,
                 repo,
@@ -1204,7 +1206,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const comment = await client.editIssueComment(owner, repo, commentId, body);
               this._reply('issueCommentEdited', {
                 instanceId: instance.id,
@@ -1238,7 +1240,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.deleteIssueComment(owner, repo, commentId);
               this._reply('issueCommentDeleted', {
                 instanceId: instance.id,
@@ -1276,7 +1278,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.deleteIssueCommentAttachment(owner, repo, commentId, attachmentId);
               this._reply('issueCommentAttachmentDeleted', {
                 instanceId: instance.id,
@@ -1318,7 +1320,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.mergePullRequest(owner, repo, index, strategy);
               this._reply('pullRequestMerged', {
                 instanceId: instance.id,
@@ -1349,7 +1351,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const pr = await client.getPullRequestDetail(owner, repo, index);
               if (!pr.merged) {
                 throw new Error(vscode.l10n.t('Pull request {0}/{1}#{2} is not merged', owner, repo, index));
@@ -1400,7 +1402,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const attachment = await client.createIssueAttachment(owner, repo, index, new Uint8Array(data), name);
               this._reply('issueAttachmentCreated', {
                 instanceId: instance.id,
@@ -1442,7 +1444,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.deleteIssueAttachment(owner, repo, index, attachmentId);
               this._reply('issueAttachmentDeleted', {
                 instanceId: instance.id,
@@ -1477,7 +1479,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const detail = await client.getPullRequestDetail(owner, repo, index);
               this._reply('pullRequestDetail', {
                 instanceId: instance.id,
@@ -1509,7 +1511,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const item = await client.createPullRequest(owner, repo, data);
               this._reply('pullRequestCreated', {
                 instanceId: instance.id,
@@ -1543,7 +1545,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const item = await client.editPullRequest(owner, repo, index, data);
               this._reply('pullRequestUpdated', {
                 instanceId: instance.id,
@@ -1575,7 +1577,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               let files: ForgejoChangedFile[];
               if (typeof baseSha === 'string' && typeof headSha === 'string') {
                 try {
@@ -1647,7 +1649,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const comments = await client.getPullRequestCommentsAndTimeline(owner, repo, index);
               this._reply('pullRequestCommentsAndTimeline', {
                 instanceId: instance.id,
@@ -1681,7 +1683,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const commits = await client.getPullRequestCommits(owner, repo, index);
               this._reply('pullRequestCommits', {
                 instanceId: instance.id,
@@ -1807,7 +1809,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const issues = await client.getRepoIssues(owner, repo, message.state ?? 'open');
               this._reply('repoIssues', {
                 instanceId: instance.id,
@@ -1839,7 +1841,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const labels = await client.getRepoLabels(owner, repo);
               this._reply('repoLabels', { instanceId: instance.id, owner, repo, labels });
             } catch (error) {
@@ -1859,7 +1861,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const assignees = await client.getRepoAssignees(owner, repo);
               this._reply('repoAssignees', { instanceId: instance.id, owner, repo, assignees });
             } catch (error) {
@@ -1879,7 +1881,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const milestones = await client.getRepoMilestones(owner, repo);
               this._reply('repoMilestones', { instanceId: instance.id, owner, repo, milestones });
             } catch (error) {
@@ -1904,7 +1906,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const result = await client.searchMentions(owner, repo, query, type as 'user' | 'issue' | 'all');
               this._reply('mentionSearchResult', { _requestId, users: result.users, issues: result.issues });
             } catch (error) {
@@ -1924,7 +1926,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const user = await client.getUserPreview(username);
               this._reply('userPreviewResult', { _requestId, user });
             } catch (error) {
@@ -1949,7 +1951,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const issue = await client.getIssuePreview(owner, repo, index);
               this._reply('issuePreviewResult', { _requestId, issue });
             } catch (error) {
@@ -1969,7 +1971,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const pullRequests = await client.getRepoPullRequests(owner, repo, message.state ?? 'open');
               this._reply('repoPullRequests', {
                 instanceId: instance.id,
@@ -2003,7 +2005,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             const page = typeof message.page === 'number' ? message.page : 1;
             const limit = typeof message.limit === 'number' ? message.limit : 30;
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const result = await client.listActionRuns(owner, repo, page, limit);
               this._reply('actionRuns', {
                 instanceId: instance.id,
@@ -2036,7 +2038,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const run = await client.getActionRun(owner, repo, runId);
               this._reply('actionRun', {
                 instanceId: instance.id,
@@ -2062,7 +2064,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const jobs = await client.getActionRunJobs(owner, repo, runId);
               this._reply('actionRunJobs', {
                 instanceId: instance.id,
@@ -2088,7 +2090,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const artifacts = await client.getActionRunArtifacts(owner, repo, runId);
               this._reply('actionRunArtifacts', {
                 instanceId: instance.id,
@@ -2114,7 +2116,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const log = await client.getActionJobLog(owner, repo, jobId);
               this._reply('actionJobLog', {
                 instanceId: instance.id,
@@ -2145,7 +2147,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const run = await client.dispatchWorkflow(
                 owner,
                 repo,
@@ -2184,7 +2186,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.cancelActionRun(owner, repo, runId);
               this._reply('actionRunCancelled', {
                 instanceId: instance.id,
@@ -2216,7 +2218,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.deleteActionRun(owner, repo, runId);
               this._reply('actionRunDeleted', {
                 instanceId: instance.id,
@@ -2253,7 +2255,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const data = await client.downloadActionArtifact(owner, repo, artifactId);
               const defaultName = name.endsWith('.zip') ? name : `${name}.zip`;
               const uri = await vscode.window.showSaveDialog({
@@ -2301,7 +2303,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const html = await client.renderMarkdown(text, message.context);
               const htmlWithResolvedImages = await resolveAttachmentImages(html, instance);
               this._reply('renderedMarkdown', { key, html: htmlWithResolvedImages });
@@ -2327,7 +2329,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const entries = await client.getRepoContents(owner, repo, path, ref || undefined);
               logger.debug(
                 `getRepoContents returned ${entries.length} entries for ${instance.name}/${owner}/${repo}/${path}@${ref}: ${JSON.stringify(entries.map((e) => ({ name: e.name, path: e.path, type: e.type })))}`,
@@ -2390,7 +2392,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const files = await client.searchRepoFiles(owner, repo, ref, query);
               this._reply('repoFilesSearchResult', {
                 instanceId: instance.id,
@@ -2429,7 +2431,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const commits = await client.getFileHistory(owner, repo, path, ref);
               this._reply('fileHistory', {
                 instanceId: instance.id,
@@ -2491,7 +2493,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const [branches, tags, releases] = await Promise.all([
                 client.getRepoBranches(owner, repo),
                 client.getRepoTags(owner, repo),
@@ -2520,7 +2522,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const oldRef = typeof oldRefName === 'string' ? oldRefName : undefined;
               await client.createBranch(owner, repo, { new_branch_name: newBranchName, old_ref_name: oldRef });
               this._reply('repoBranchCreated', { instanceId, owner, repo, branch: newBranchName });
@@ -2546,7 +2548,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.deleteBranch(owner, repo, branch);
               this._reply('repoBranchDeleted', { instanceId, owner, repo, branch });
             } catch (error) {
@@ -2571,7 +2573,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.createTag(owner, repo, {
                 tag_name: tagName,
                 target: typeof target === 'string' ? target : undefined,
@@ -2600,7 +2602,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.deleteTag(owner, repo, tag);
               this._reply('repoTagDeleted', { instanceId, owner, repo, tag });
             } catch (error) {
@@ -2638,7 +2640,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const release = await client.createRelease(owner, repo, {
                 tag_name: tagName,
                 name: typeof name === 'string' ? name : undefined,
@@ -2685,7 +2687,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.deleteRelease(owner, repo, id);
               this._reply('repoReleaseDeleted', { instanceId, owner, repo, release: String(id) });
             } catch (error) {
@@ -2712,7 +2714,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.editRelease(owner, repo, id, {
                 tag_name: typeof data.tag_name === 'string' ? data.tag_name : undefined,
                 name: typeof data.name === 'string' ? data.name : undefined,
@@ -2748,7 +2750,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const file = new Uint8Array(data);
               const attachment = await client.createReleaseAttachment(owner, repo, id, file, name);
               this._reply('releaseAttachmentCreated', {
@@ -2790,7 +2792,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               await client.deleteReleaseAttachment(owner, repo, id, attachmentId);
               this._reply('releaseAttachmentDeleted', {
                 instanceId,
@@ -3283,7 +3285,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const client = new ForgejoClient(instance.url, instance.token, logger);
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       const pr = await client.getPullRequestDetail(owner, repo, index);
       const headBranch = pr.head?.ref;
       const headSha = pr.head?.sha;

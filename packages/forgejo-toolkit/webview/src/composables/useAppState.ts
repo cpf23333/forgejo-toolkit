@@ -2329,12 +2329,12 @@ function createAppState() {
     postMessage({ command: 'testConnection', url, token });
   }
 
-  function saveInstance(url: string, token: string) {
-    postMessage({ command: 'saveInstance', url, token });
+  function saveInstance(url: string, token: string, syncApiUrlsToInstanceUrl?: boolean) {
+    postMessage({ command: 'saveInstance', url, token, syncApiUrlsToInstanceUrl });
   }
 
-  function editInstance(id: string, url: string, token: string) {
-    postMessage({ command: 'editInstance', id, url, token });
+  function editInstance(id: string, url: string, token: string, syncApiUrlsToInstanceUrl?: boolean) {
+    postMessage({ command: 'editInstance', id, url, token, syncApiUrlsToInstanceUrl });
   }
 
   function removeInstance(id: string) {

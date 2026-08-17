@@ -162,7 +162,7 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
     const items: vscode.CompletionItem[] = [];
 
     try {
-      const client = new ForgejoClient(instance.url, instance.token, logger);
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
 
       if (trigger === '#') {
         const [issues, pullRequests] = await Promise.all([

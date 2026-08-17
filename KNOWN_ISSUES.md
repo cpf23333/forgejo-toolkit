@@ -84,5 +84,4 @@ New pull-request review comments are therefore added through the editor context-
 
 ---
 
-*For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md).*
-
+_For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._

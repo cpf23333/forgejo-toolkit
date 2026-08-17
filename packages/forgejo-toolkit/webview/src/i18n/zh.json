@@ -454,6 +454,10 @@
     "accessToken": "访问令牌",
     "accessTokenDescription": "令牌至少需要有 read:repository、read:issue、read:pull 权限；编辑/创建 Issue、PR 或上传附件还需要 write:issue、write:pull 和 write:repository 权限。",
     "accessTokenPlaceholder": "请输入 Forgejo 访问令牌",
+    "syncApiUrlsToInstanceUrl": {
+      "label": "将 API 返回的 URL 同步为实例地址",
+      "description": "把 Forgejo 返回的 URL（html_url、avatar_url、download_url 等）重写为上方配置的实例地址。如需保留服务端声明的原始地址，请关闭此选项。"
+    },
     "testConnection": "测试连接",
     "testing": "测试中...",
     "addInstance": "添加实例",

@@ -63,7 +63,7 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
     }
 
     try {
-      const client = new ForgejoClient(instance.url, instance.token, logger);
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       const content = await client.getFileContent(owner, repo, params.path, ref);
       return new TextEncoder().encode(content);
     } catch (error) {

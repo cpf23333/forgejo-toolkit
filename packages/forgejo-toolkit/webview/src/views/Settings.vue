@@ -23,6 +23,7 @@ watch(
 
 const url = ref('');
 const token = ref('');
+const syncApiUrlsToInstanceUrl = ref(true);
 const testing = ref(false);
 const saving = ref(false);
 const status = ref('');
@@ -100,7 +101,7 @@ function handleSave() {
   }
   saving.value = true;
   setStatus(t('settings.status.testing'));
-  state.saveInstance(url.value.trim(), token.value.trim());
+  state.saveInstance(url.value.trim(), token.value.trim(), syncApiUrlsToInstanceUrl.value);
 }
 
 function handleUpdate() {
@@ -109,13 +110,14 @@ function handleUpdate() {
   }
   saving.value = true;
   setStatus(t('settings.status.testing'));
-  state.editInstance(editingInstance.value.id, url.value.trim(), token.value.trim());
+  state.editInstance(editingInstance.value.id, url.value.trim(), token.value.trim(), syncApiUrlsToInstanceUrl.value);
 }
 
 function startEdit(instance: ForgejoInstance) {
   editingInstance.value = instance;
   url.value = instance.url;
   token.value = instance.token;
+  syncApiUrlsToInstanceUrl.value = instance.syncApiUrlsToInstanceUrl ?? true;
   setStatus('');
 }
 
@@ -123,6 +125,7 @@ function cancelEdit() {
   editingInstance.value = null;
   url.value = '';
   token.value = '';
+  syncApiUrlsToInstanceUrl.value = true;
   setStatus('');
 }
 
@@ -432,6 +435,17 @@ defineExpose({
           type="password"
         />
         <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
+      </div>
+
+      <div class="form-row">
+        <vscode-checkbox
+          id="forgejo-sync-urls"
+          :checked="syncApiUrlsToInstanceUrl"
+          @change="syncApiUrlsToInstanceUrl = ($event.target as HTMLInputElement).checked"
+        >
+          {{ t('settings.syncApiUrlsToInstanceUrl.label') }}
+        </vscode-checkbox>
+        <p class="field-description">{{ t('settings.syncApiUrlsToInstanceUrl.description') }}</p>
       </div>
 
       <div class="actions">

@@ -73,7 +73,7 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
     }
 
     try {
-      const client = new ForgejoClient(instance.url, instance.token, logger);
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       const entries = await client.getRepoContents(params.owner, params.repo, params.path, params.ref);
 
       if (entries.length === 0) {
@@ -115,7 +115,7 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
     }
 
     try {
-      const client = new ForgejoClient(instance.url, instance.token, logger);
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       const entries = await client.getRepoContents(params.owner, params.repo, params.path, params.ref);
 
       return entries.map((entry): [string, vscode.FileType] => [
@@ -141,7 +141,7 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
     }
 
     try {
-      const client = new ForgejoClient(instance.url, instance.token, logger);
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       const entries = await client.getRepoContents(params.owner, params.repo, params.path, params.ref);
       const entry = entries[0];
 

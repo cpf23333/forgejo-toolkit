@@ -110,7 +110,7 @@ export class OnboardingWebviewPanel {
             return;
           }
           case 'saveInstance': {
-            const { url, token } = message;
+            const { url, token, syncApiUrlsToInstanceUrl } = message;
             if (typeof url !== 'string' || typeof token !== 'string') {
               this._reply('saveInstanceResult', { success: false, error: 'Invalid input' });
               return;
@@ -126,6 +126,7 @@ export class OnboardingWebviewPanel {
                 token,
                 name: `${user.login}@${new URL(normalizedUrl).hostname}`,
                 username: user.login,
+                syncApiUrlsToInstanceUrl,
               };
 
               await this._config.addInstance(instance);
@@ -228,7 +229,7 @@ export class OnboardingWebviewPanel {
               return;
             }
             try {
-              const client = new ForgejoClient(instance.url, instance.token, logger);
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const html = await client.renderMarkdown(text, message.context);
               const htmlWithResolvedImages = await this._resolveImageUrls(html, instance);
               this._reply('renderedMarkdown', { key, html: htmlWithResolvedImages });

@@ -4,6 +4,7 @@ import { ConfigManager } from '../config';
 import { getWebviewContent } from '../webview/content';
 import { logger } from '../logger';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 
 export interface PullReviewCommentContext {
@@ -172,7 +173,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       comment.new_position = this._context.position;
     }
 
-    const client = new ForgejoClient(instance.url, instance.token, logger);
+    const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
     try {
       if (data.mode === 'review') {
         if (typeof data.pendingReviewId === 'number') {
@@ -220,7 +221,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       return;
     }
 
-    const client = new ForgejoClient(instance.url, instance.token, logger);
+    const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
     try {
       await client.submitPullReview(this._context.owner, this._context.repo, this._context.index, reviewId);
       this._reply('pullReviewSubmitted', { ...this._repoParams() });
@@ -257,7 +258,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       return;
     }
 
-    const client = new ForgejoClient(instance.url, instance.token, logger);
+    const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
     try {
       await client.deletePullReview(this._context.owner, this._context.repo, this._context.index, reviewId);
       this._reply('pullReviewDeleted', { ...this._repoParams() });
@@ -311,7 +312,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     }
 
     try {
-      const client = new ForgejoClient(instance.url, instance.token, logger);
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       const attachment = await client.createIssueAttachment(owner, repo, index, new Uint8Array(data.data), data.name);
       this._reply('issueAttachmentCreated', {
         instanceId: instance.id,
@@ -338,7 +339,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     }
   }
 
-  private _findInstance(id: unknown): { id: string; url: string; token: string; name: string } | undefined {
+  private _findInstance(id: unknown): ForgejoInstance | undefined {
     if (typeof id !== 'string') {
       return undefined;
     }

@@ -4,6 +4,7 @@ export interface ForgejoInstance {
   token: string;
   name: string;
   username: string;
+  syncApiUrlsToInstanceUrl?: boolean;
 }
 
 export * from './api';

@@ -149,7 +149,7 @@ export class PullReviewCommentController implements vscode.Disposable {
       throw new Error(`Forgejo instance not found: ${params.instanceId}`);
     }
 
-    const client = new ForgejoClient(instance.url, instance.token, this._logger);
+    const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
     const [diffText, reviews] = await Promise.all([
       client.getPullRequestDiff(params.owner, params.repo, params.index),
       client.listPullReviews(params.owner, params.repo, params.index),
@@ -458,7 +458,7 @@ export class PullReviewCommentController implements vscode.Disposable {
       return;
     }
 
-    const client = new ForgejoClient(instance.url, instance.token, this._logger);
+    const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
     try {
       await client.deletePullReviewComment(
         context.owner,
