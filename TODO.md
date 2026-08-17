@@ -16,7 +16,7 @@
 - [x] 创建 mock handlers 覆盖核心 API 端点
 - [x] 创建 MSW Node server 封装（start / stop / reset）
 - [x] 改造 `shared/src/request/__tests__/index.test.ts` 使用 MSW
-- [x] 新增 `ForgejoClient` MSW 测试，覆盖所有已 mock 的读取/搜索接口
+- [x] 新增 `ForgejoClient` MSW 测试，覆盖所有公开方法
 - [x] 修复 `getUserIssues` / `getUserPullRequests` / `searchIssues` / `searchPullRequests` 未从响应体取 `data` 的问题
 - [x] 新增 `forgejoToolkit.useMockApi` 配置，支持 extension host 离线开发
 - [x] 新增 extension 测试配置（`vitest.extension.config.ts`）与 `vscode` mock setup

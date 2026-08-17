@@ -3423,14 +3423,11 @@ function createAppState() {
   }
 
   function loadRepositories(instanceId: string, force = false) {
-    console.log('[useAppState] loadRepositories', instanceId);
     const key = `repos-${instanceId}`;
     if (!force && repositoriesCache.has(instanceId)) {
-      console.log('[useAppState] loadRepositories skipped, cached', instanceId);
       return;
     }
     if (loading.get(key)) {
-      console.log('[useAppState] loadRepositories skipped, already loading', instanceId);
       return;
     }
     loading.set(key, true);
