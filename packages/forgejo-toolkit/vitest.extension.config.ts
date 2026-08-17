@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['src/request/__tests__/setup.ts'],
+    include: ['src/**/*.test.ts'],
+    exclude: ['webview/**'],
+    setupFiles: ['src/__tests__/extension-setup.ts'],
   },
 });

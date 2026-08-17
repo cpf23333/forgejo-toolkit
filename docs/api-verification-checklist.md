@@ -393,13 +393,15 @@
 - [x] 源码位置：`routers/api/v1/repo/repo.go:44-260`
 - [x] 差异记录：当前 `searchRepositories` 取 `result.data`，与源码一致
 
-### `GET /issues/search`
+### `GET /repos/issues/search`
 
+- [x] 路径：实际是 `/repos/issues/search`，不是 `/issues/search`
 - [x] 参数：`q`、`state`、`type`、`limit`、`page`、`labels`、`milestones`、`assigned`、`created` 等
 - [x] 与 `issueSearchIssues` 是同一端点；`type=issues`/`pulls` 过滤 is_pull
 - [x] `limit` 默认 `setting.UI.IssuePagingNum`，最大 `setting.API.MaxResponseItems`
+- [x] 响应结构：**直接返回 `Issue[]` 数组**，总条数通过响应头 `X-Total-Count` 返回，不是 `{ ok, data, total_count }`
 - [x] 源码位置：`routers/api/v1/repo/issue.go:35-339`
-- [x] 差异记录：无
+- [x] 差异记录：当前 `getUserIssues` / `getUserPullRequests` / `searchIssues` / `searchPullRequests` 直接返回数组，与源码一致
 
 ### `GET /users/search`
 

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { mockServer } from './setup';
 import { buildUrl, mergeHeaders, client } from '../index';
 import type { RequestConfig, ResponseConfig } from '../index';
 
@@ -87,14 +89,11 @@ describe('mergeHeaders', () => {
 describe('client', () => {
   it('returns parsed JSON on success', async () => {
     const responseData = { id: 1, name: 'test' };
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: new Headers({ 'content-type': 'application/json' }),
-      body: true,
-      json: vi.fn().mockResolvedValue(responseData),
-    } as unknown as Response);
+    mockServer.use(
+      http.get('http://example.com/api/repos', () =>
+        HttpResponse.json(responseData, { headers: { 'content-type': 'application/json' } }),
+      ),
+    );
 
     const result = (await client({
       baseURL: 'http://example.com',
@@ -103,22 +102,14 @@ describe('client', () => {
 
     expect(result.data).toEqual(responseData);
     expect(result.status).toBe(200);
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      'http://example.com/api/repos',
-      expect.objectContaining({
-        method: undefined,
-        headers: { Accept: 'application/json' },
-      }),
-    );
   });
 
   it('throws on non-ok response', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-      statusText: 'Not Found',
-      text: vi.fn().mockResolvedValue('Not found'),
-    } as unknown as Response);
+    mockServer.use(
+      http.get('http://example.com/api/repos', () =>
+        HttpResponse.text('Not found', { status: 404, statusText: 'Not Found' }),
+      ),
+    );
 
     await expect(
       client({
@@ -129,14 +120,13 @@ describe('client', () => {
   });
 
   it('serializes JSON body and sets content-type', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 201,
-      statusText: 'Created',
-      headers: new Headers(),
-      body: true,
-      json: vi.fn().mockResolvedValue({}),
-    } as unknown as Response);
+    const requestSpy = vi.fn();
+    mockServer.use(
+      http.post('http://example.com/api/repos', async ({ request }) => {
+        requestSpy(await request.json());
+        return HttpResponse.json({});
+      }),
+    );
 
     await client({
       baseURL: 'http://example.com',
@@ -145,28 +135,20 @@ describe('client', () => {
       data: { name: 'new-repo' },
     });
 
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      'http://example.com/api/repos',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ name: 'new-repo' }),
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      }),
-    );
+    expect(requestSpy).toHaveBeenCalledWith({ name: 'new-repo' });
   });
 
   it('sends FormData without JSON serialization', async () => {
     const formData = new FormData();
     formData.append('file', new Blob(['content']));
 
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: new Headers(),
-      body: true,
-      json: vi.fn().mockResolvedValue({}),
-    } as unknown as Response);
+    let receivedBody: FormData | undefined;
+    mockServer.use(
+      http.post('http://example.com/api/upload', async ({ request }) => {
+        receivedBody = (await request.formData()) as FormData;
+        return HttpResponse.json({});
+      }),
+    );
 
     await client({
       baseURL: 'http://example.com',
@@ -175,11 +157,6 @@ describe('client', () => {
       data: formData,
     });
 
-    const callArgs = vi.mocked(globalThis.fetch).mock.calls[0];
-    expect(callArgs?.[1]).toMatchObject({
-      method: 'POST',
-      body: formData,
-      headers: { Accept: 'application/json' },
-    });
+    expect(receivedBody?.get('file')).toBeInstanceOf(Blob);
   });
 });

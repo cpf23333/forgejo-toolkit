@@ -16,6 +16,19 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push({ dispose: () => logger.dispose() });
 
   const config = new ConfigManager(context);
+
+  if (config.isMockApiEnabled()) {
+    import('./test/mocks/server')
+      .then(({ startMockServer }) => {
+        startMockServer();
+        logger.info('Mock API server started for offline development');
+      })
+      .catch((error: unknown) => {
+        const err = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to start mock API server: ${err}`);
+      });
+  }
+
   const readmeProvider = registerReadmeProvider(context);
   registerRepoFileProvider(context, config);
   const prFileSystemProvider = new ForgejoPRFileSystemProvider(config);

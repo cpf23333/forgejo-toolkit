@@ -84,4 +84,8 @@ export class ConfigManager {
     }
     return Math.max(MIN_INTERVAL_SECONDS, Math.min(MAX_INTERVAL_SECONDS, Math.round(value)));
   }
+
+  isMockApiEnabled(): boolean {
+    return vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('useMockApi', false);
+  }
 }
