@@ -256,7 +256,7 @@ describe('useAppState', () => {
 
   describe('data message handlers', () => {
     it('repositories updates repositories Map', async () => {
-      const { state, mod } = await createState();
+      const { state } = await createState();
       dispatchMessage({
         command: 'repositories',
         instanceId: 'inst-1',
