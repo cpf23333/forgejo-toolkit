@@ -1,5 +1,4 @@
 import type { Commit } from '@cpf23333-forgejo-toolkit/api';
-import { mockUser } from './users';
 
 export const mockHistoryCommit: Commit = {
   sha: 'history-sha',

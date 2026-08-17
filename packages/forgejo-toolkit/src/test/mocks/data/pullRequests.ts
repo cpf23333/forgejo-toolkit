@@ -1,6 +1,5 @@
 import type { ForgejoPullRequest, ForgejoPullRequestDetail } from '../../../api/types';
 import { mockUser } from './users';
-import { mockRepository } from './repositories';
 
 export const mockPullRequest: ForgejoPullRequest = {
   id: 2,
