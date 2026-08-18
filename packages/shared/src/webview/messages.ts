@@ -90,6 +90,14 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      command: 'issueDeleted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      error?: string;
+    }
+  | {
       command: 'issueCommentCreated';
       instanceId: string;
       owner: string;
@@ -780,6 +788,13 @@ export type WebviewToHostMessage =
       };
     }
   | {
+      command: 'deleteIssue';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
       command: 'createIssueComment';
       instanceId: string;
       owner: string;
@@ -1067,7 +1082,7 @@ export type WebviewToHostMessage =
       };
     }
   | { command: 'showInputBox'; id: string; prompt: string; value?: string; placeHolder?: string }
-  | { command: 'showConfirm'; id: string; message: string }
+  | { command: 'showConfirm'; id: string; message: string; confirmLabel: string }
   | { command: 'copyToClipboard'; text: string }
   | { command: 'openExternal'; url: string }
   | { command: 'previewReadme'; owner: string; repo: string; content: string }

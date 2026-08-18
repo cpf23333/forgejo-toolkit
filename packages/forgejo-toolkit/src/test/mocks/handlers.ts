@@ -127,6 +127,8 @@ export const handlers = [
     });
   }),
 
+  http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index', () => new HttpResponse(null, { status: 204 })),
+
   http.put('https://*/api/v1/repos/:owner/:repo/issues/:index/labels', async ({ request }) => {
     const body = (await request.json()) as { labels?: number[] };
     return json(

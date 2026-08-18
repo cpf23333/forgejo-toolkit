@@ -440,6 +440,11 @@ describe('ForgejoClient with MSW', () => {
       expect(issue.title).toBe('Updated issue');
     });
 
+    it('deletes an issue', async () => {
+      const client = createClient();
+      await expect(client.deleteIssue('demo-user', 'demo-repo', 1)).resolves.toBeDefined();
+    });
+
     it('replaces issue labels', async () => {
       const client = createClient();
       const labels = await client.replaceIssueLabels('demo-user', 'demo-repo', 1, [1, 2]);

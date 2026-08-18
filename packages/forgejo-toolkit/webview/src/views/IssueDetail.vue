@@ -409,6 +409,16 @@ function toggleState() {
   state.editIssue(instanceId.value, owner.value, repo.value, index.value, { state: nextState });
 }
 
+async function handleDeleteIssue() {
+  const confirmed = await state.showConfirm(
+    t('dashboard.detail.deleteIssueConfirm', { number: detail.value?.number ?? index.value }),
+  );
+  if (!confirmed) {
+    return;
+  }
+  state.deleteIssue(instanceId.value, owner.value, repo.value, index.value);
+}
+
 watch(
   () => state.lastSavedIssue.value,
   async (saved) => {
@@ -562,6 +572,13 @@ function reloadIssue() {
                 :title="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
                 :aria-label="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
                 @click="toggleState"
+              />
+              <VscodeButton
+                variant="icon"
+                icon="trash"
+                :title="t('dashboard.actions.delete')"
+                :aria-label="t('dashboard.actions.delete')"
+                @click="handleDeleteIssue"
               />
             </template>
           </div>

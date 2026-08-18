@@ -5,6 +5,10 @@
     "back": "← Back",
     "home": "Home"
   },
+  "common": {
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
   "editor": {
     "toolbar": {
       "heading": "Heading",
@@ -31,6 +35,14 @@
       "fullscreen": "Fullscreen",
       "guide": "Markdown Guide"
     }
+  },
+  "datePicker": {
+    "placeholder": "Select date and time",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today",
+    "clear": "Clear",
+    "time": "Time"
   },
   "onboarding": {
     "title": "Welcome to Forgejo Toolkit",
@@ -257,6 +269,7 @@
     },
     "detail": {
       "status": "Status",
+      "deleteIssueConfirm": "Delete issue #{number}? This cannot be undone.",
       "author": "Author",
       "createdAt": "Created",
       "updatedAt": "Updated",

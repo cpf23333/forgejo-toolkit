@@ -11,6 +11,7 @@ import {
   issueCreateIssueAttachment,
   issueCreateIssueCommentAttachment,
   issueCreateIssueDependencies,
+  issueDelete,
   issueDeleteComment,
   issueDeleteCommentReaction,
   issueDeleteIssueAttachment,
@@ -740,6 +741,10 @@ export class ForgejoClient {
 
   editIssue(owner: string, repo: string, index: number, data: EditIssueOption): Promise<ForgejoIssue> {
     return issueEditIssue(owner, repo, index, data, { client: this._client() }) as Promise<ForgejoIssue>;
+  }
+
+  deleteIssue(owner: string, repo: string, index: number): Promise<unknown> {
+    return issueDelete(owner, repo, index, { client: this._client() });
   }
 
   replaceIssueLabels(owner: string, repo: string, index: number, labels: number[]): Promise<Label[]> {

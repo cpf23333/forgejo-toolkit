@@ -520,6 +520,17 @@ function createAppState() {
           },
         );
         break;
+      case 'issueDeleted':
+        handleIssueDeleted(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+            error?: string;
+          },
+        );
+        break;
       case 'issueCommentCreated':
         handleIssueCommentCreated(
           message as {
@@ -1611,6 +1622,27 @@ function createAppState() {
     }
   }
 
+  function handleIssueDeleted(data: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    error?: string;
+  }) {
+    const key = issueDetailKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
+    if (data.error) {
+      errors.set(key, data.error);
+      return;
+    }
+    errors.delete(key);
+    issueDetails.value.delete(key);
+    repoIssues.value.clear();
+    myIssues.value.clear();
+    myIssuesCache.clear();
+    router.go(-1);
+  }
+
   function handleIssueCommentCreated(data: {
     instanceId: string;
     owner: string;
@@ -2593,7 +2625,12 @@ function createAppState() {
     const id = `confirm-${++inputRequestId}`;
     return new Promise((resolve) => {
       confirmPromises.set(id, resolve);
-      postMessage({ command: 'showConfirm', id, message });
+      postMessage({
+        command: 'showConfirm',
+        id,
+        message,
+        confirmLabel: t('common.confirm'),
+      });
     });
   }
 
@@ -2671,6 +2708,19 @@ function createAppState() {
         due_date: data.dueDate,
         unset_due_date: data.unsetDueDate,
       },
+    });
+  }
+
+  function deleteIssue(instanceId: string, owner: string, repo: string, index: number) {
+    const key = issueDetailKey(instanceId, owner, repo, index);
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({
+      command: 'deleteIssue',
+      instanceId,
+      owner,
+      repo,
+      index,
     });
   }
 
@@ -3609,6 +3659,7 @@ function createAppState() {
     openRepoFileDiff,
     createIssue,
     editIssue,
+    deleteIssue,
     createIssueComment,
     editIssueComment,
     deleteIssueComment,

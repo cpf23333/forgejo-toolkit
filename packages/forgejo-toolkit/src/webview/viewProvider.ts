@@ -585,6 +585,31 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             return;
           }
+          case 'deleteIssue': {
+            const instance = this._findInstance(message.instanceId);
+            if (!instance) {
+              return;
+            }
+            const { owner, repo, index } = message;
+            if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
+              return;
+            }
+            try {
+              const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+              await client.deleteIssue(owner, repo, index);
+              this._reply('issueDeleted', {
+                instanceId: instance.id,
+                owner,
+                repo,
+                index,
+              });
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`deleteIssue failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+              this._reply('issueDeleted', { instanceId: message.instanceId, owner, repo, index, error: err });
+            }
+            return;
+          }
           case 'checkIssueSubscription': {
             const instance = this._findInstance(message.instanceId);
             if (!instance) {
@@ -2834,12 +2859,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             return;
           }
           case 'showConfirm': {
-            const { id, message: confirmMessage } = message;
-            if (typeof id !== 'string' || typeof confirmMessage !== 'string') {
+            const { id, message: confirmMessage, confirmLabel } = message;
+            if (typeof id !== 'string' || typeof confirmMessage !== 'string' || typeof confirmLabel !== 'string') {
               return;
             }
-            const result = await vscode.window.showInformationMessage(confirmMessage, { modal: true }, 'Yes', 'No');
-            this._reply('showConfirmResult', { id, confirmed: result === 'Yes' });
+            const result = await vscode.window.showInformationMessage(confirmMessage, { modal: true }, confirmLabel);
+            this._reply('showConfirmResult', { id, confirmed: result === confirmLabel });
             return;
           }
           case 'copyToClipboard': {
