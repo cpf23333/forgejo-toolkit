@@ -3,7 +3,6 @@
 ## 待开始
 
 - [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
-- [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
 
 ## 已完成
 

@@ -12,11 +12,11 @@ The runtime may compact or drop earlier context, including the cached copy of th
 
 This rule takes precedence over any compacted summary, TODO list, or earlier user instruction that may have been lost or simplified.
 
-## 最高优先级规则（不可在压缩中忽略）
+## Highest-priority rules (must survive context compaction)
 
-- 每次会话恢复、上下文压缩、或本文件内容未在上下文中清晰呈现时，必须重新从磁盘读取本文件。
-- 在重新读取并确认本文件内容之前，不得执行任何 build、commit、push、reset、rebase、checkout 或代码修改。
-- 如果本文件中的规则与任何压缩摘要、TODO 列表或用户之前的口头授权相冲突，以本文件为准；不确定时停止并询问用户。
+- On every session resume, context compaction, or whenever this file is not clearly present in the current context, re-read `AGENTS.md` from disk.
+- Do not perform any build, commit, push, reset, rebase, checkout, or code change until you have re-read and confirmed this file.
+- If any rule in this file conflicts with a compacted summary, TODO list, or earlier user instruction, this file takes precedence. When in doubt, stop and ask the user.
 
 ## Package scope
 
@@ -71,6 +71,28 @@ When you need a new wrapper, create it in `packages/vscode-elements-vue/src/comp
 - Before every git mutation, explicitly verify that the user authorized it for the **current** change. When in doubt, stop and ask.
 - If a commit was made by mistake, stop and ask the user before undoing it.
 - When the user asks to commit, write the commit message in English.
+
+### Required commit confirmation workflow
+
+To prevent accidental commits, the agent **must** follow this exact sequence for every change that may need to be committed:
+
+1. Complete the requested work (write files, run checks/tests, verify).
+2. Report the status to the user, including:
+   - What files were modified or created.
+   - The result of `pnpm check` and any relevant tests.
+3. **Explicitly ask** "是否提交？" (or "Shall I commit?" if the conversation is in English).
+4. Run `git commit` **only** after the user replies with an explicit commit instruction such as "提交" or "commit".
+
+The following are **not** implicit requests to commit, even if they result in file changes:
+
+- "写进 ..." / "write it into ..."
+- "更新 ..." / "update ..."
+- "完成 ..." / "finish ..."
+- "处理 ..." / "handle ..."
+- "添加到 ..." / "add it to ..."
+- Any task description that does not contain an explicit commit instruction.
+
+If the user says "提交刚才的改动" or similar, that authorization applies **only** to the specific change referenced. It does **not** authorize committing any follow-up edits, cleanups, or doc syncs made afterwards.
 
 ## Codeberg hosting and resource usage
 
