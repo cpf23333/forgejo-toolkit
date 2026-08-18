@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n';
 import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import EasyMdeEditor from './EasyMdeEditor.vue';
-import { VscodeDateField, VscodeSingleSelect } from '../vscode-controls';
+import { VscodeSingleSelect } from '../vscode-controls';
+import DateTimePicker from './DateTimePicker.vue';
 import type { ForgejoLabel, ForgejoMilestone } from '../types/api';
 
 const { t } = useI18n();
@@ -69,7 +70,7 @@ const selectedRef = ref<string | undefined>(props.initialRef || undefined);
 const selectedLabelIds = ref<number[]>([...props.initialLabelIds]);
 const selectedAssignees = ref<string[]>([...props.initialAssignees]);
 const selectedMilestoneId = ref<number | undefined>(props.initialMilestoneId);
-const dueDate = ref<string | undefined>(props.initialDueDate);
+const dueDate = ref<string | null>(props.initialDueDate ?? null);
 
 watch(
   () => props.initialTitle,
@@ -116,7 +117,7 @@ watch(
 watch(
   () => props.initialDueDate,
   (value) => {
-    dueDate.value = value;
+    dueDate.value = value ?? null;
   },
 );
 
@@ -246,7 +247,7 @@ function handleSubmit() {
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.dueDate') }}</label>
-      <VscodeDateField v-model="dueDate" />
+      <DateTimePicker v-model="dueDate" type="date" />
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.body') }}</label>

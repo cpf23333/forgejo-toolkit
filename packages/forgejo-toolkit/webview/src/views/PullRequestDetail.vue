@@ -13,7 +13,8 @@ import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import ReactionBar from '../components/ReactionBar.vue';
-import { CollapsibleSection, VscodeDateField } from '../vscode-controls';
+import { CollapsibleSection } from '../vscode-controls';
+import DateTimePicker from '../components/DateTimePicker.vue';
 import {
   useAppState,
   pullRequestDetailKey,
@@ -1109,7 +1110,7 @@ function reloadPullRequest() {
 
         <CollapsibleSection :title="t('dashboard.detail.dueDate')">
           <div v-if="isEditingDueDate" class="due-date-edit">
-            <VscodeDateField v-model="dueDateValue" />
+            <DateTimePicker v-model="dueDateValue" type="date" />
             <div class="due-date-edit-actions">
               <button type="button" class="link-button" :title="t('dashboard.actions.save')" @click="saveDueDate">
                 <vscode-icon name="check" />
