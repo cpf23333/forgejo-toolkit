@@ -2,8 +2,6 @@
 
 ## 待开始
 
-- [ ] 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试
-- [ ] 评估将 extension host 打包从 esbuild 迁移到 Rolldown，统一构建工具链
 - [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
 - [ ] 调研并补齐 Project 相关 API（当前生成的 client 中无 `/projects` 端点）
 
@@ -135,4 +133,6 @@
   - [x] 为 shared request 客户端添加单元测试
   - [x] 为 webview ModalDialog 组件添加测试
   - [x] 为 webview FileTreeItem 组件添加测试
+  - [x] 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试
+- [x] 评估将 extension host 打包从 esbuild 迁移到 Rolldown（结论：可行，但收益有限，暂缓实施）
 - [x] 接入 Changesets 管理 monorepo 版本号
