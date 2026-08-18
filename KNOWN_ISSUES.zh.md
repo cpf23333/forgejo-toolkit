@@ -82,6 +82,19 @@ VS Code 稳定版 Comments API 没有暴露 `CommentController.onDidCreateCommen
 
 因此新增 PR 审阅评论改通过编辑器右键菜单命令 **Add Pull Review Comment** 触发；已有评论仍会作为 `CommentThread` 渲染在对应的 base/head 行上。这是稳定版 VS Code API 的限制，短期内没有 workaround。
 
+## 项目看板未在 REST API 中暴露
+
+Forgejo 网页界面为仓库和组织提供了项目看板功能，包括创建项目、管理列、把 Issue 分配到项目等。但官方 v1 REST API 没有暴露任何 `/projects` 端点。
+
+API 中唯一与项目相关的字段只有：
+
+- 仓库设置里的 `has_projects`，仅用于控制是否启用项目单元。
+- `TimelineComment` 里的 `project_id` / `old_project_id`，仅在 Issue 被移动项目时作为时间线事件记录。
+
+目前没有接口可以列出、创建、更新、删除项目，也没有接口可以把 Issue 分配到项目或从项目移除。因此扩展无法提供项目看板功能。
+
+这是 Forgejo API 本身的限制。要实现项目看板支持，需要 Forgejo 在 v1 REST API 中增加专门的项目端点。
+
 ---
 
 _各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_

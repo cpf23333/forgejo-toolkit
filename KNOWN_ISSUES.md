@@ -82,6 +82,19 @@ VS Code's stable Comments API does not expose `CommentController.onDidCreateComm
 
 New pull-request review comments are therefore added through the editor context-menu command **Add Pull Review Comment** instead. Existing comments are still rendered as `CommentThread`s on the appropriate base/head line. This is a limitation of the stable VS Code API; there is no short-term workaround.
 
+## Project boards are not exposed through the REST API
+
+Forgejo's web UI provides project boards for repositories and organizations, including creating projects, managing columns, and assigning issues to projects. However, the official v1 REST API does not expose any `/projects` endpoints.
+
+The only project-related fields available through the API are:
+
+- `has_projects` on repository settings, which only controls whether the project unit is enabled.
+- `project_id` / `old_project_id` on `TimelineComment`, which record when an issue was moved between projects.
+
+There is no API to list, create, update, or delete projects, and no API to assign or remove an issue from a project. Because of this, the extension cannot provide project board functionality.
+
+This is a Forgejo API limitation. Project board support would require Forgejo to expose dedicated project endpoints in the v1 REST API.
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._
