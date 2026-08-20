@@ -73,7 +73,7 @@
 ### Issue / PR 操作
 
 - 创建 Issue / PR：仓库 Issue/PR 列表页提供新建弹窗。
-- 编辑 / 关闭 / 重新打开 Issue 和 PR：详情页弹窗编辑，保存成功后重新获取详情。
+- 编辑 / 关闭 / 重新打开 / 删除 Issue 和 PR：详情页弹窗编辑，保存成功后重新获取详情；删除 Issue 需二次确认。
 - 编辑弹窗使用原生 `<dialog>` 封装，不留下路由历史。
 - 为 Issue / PR 添加评论，支持附件上传。
 - 合并 PR，支持 merge / squash / rebase 策略。
@@ -136,6 +136,10 @@
 - [x] Actions 远程触发 workflow，支持输入参数，并轮询展示运行状态。
 
 ## 当前迭代
+
+- 自研 VS Code 风格日期时间选择器组件，替代浏览器原生 `datetime-local`/`date` 输入；集成到 Issue / PR 创建与编辑表单、详情页到期时间编辑。
+- Issue 详情页支持删除 Issue（需确认，删除后返回上一页）。
+- 清理已废弃的 `VscodeDateField` / `VscodeDateTimeField` 组件。
 
 本轮迭代内容已全部完成并提交。
 

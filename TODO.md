@@ -2,9 +2,12 @@
 
 ## 待开始
 
-- [ ] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
-
 ## 已完成
+
+### 最近完成
+
+- [x] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
+- [x] Issue 详情页支持删除 Issue
 
 ### MSW Mock
 
