@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n';
 import { useAppState, globalSearchKey } from '../composables/useAppState';
 import type { ForgejoIssue, ForgejoPullRequest, ForgejoRepository, GlobalSearchResult } from '../types/api';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { VscodeButton, VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import ViewTabs from '../components/ViewTabs.vue';
 
 const { t } = useI18n();
@@ -204,15 +203,16 @@ watch(stateFilter, () => {
       <h1 class="search-title">{{ t('dashboard.search.title') }}</h1>
       <p class="search-description">{{ t('dashboard.search.description') }}</p>
       <div class="search-controls">
-        <VscodeTextfield
-          v-model="query"
+        <vscode-textfield
+          :value="query"
+          @input="query = ($event.target as HTMLInputElement).value"
           class="search-input"
           :placeholder="t('dashboard.search.placeholder')"
           @keydown="handleInputKeydown"
         />
-        <VscodeButton icon="search" @click="runSearch">
+        <vscode-button icon="search" @click="runSearch">
           {{ t('dashboard.search.searchButton') }}
-        </VscodeButton>
+        </vscode-button>
       </div>
       <div class="filters">
         <div class="filter-group">
@@ -277,7 +277,7 @@ watch(stateFilter, () => {
               <vscode-icon
                 name="refresh"
                 action-icon
-                size="16"
+                :size="16"
                 :title="t('dashboard.retry')"
                 :aria-label="t('dashboard.retry')"
                 @click.stop.prevent="runSearch()"
@@ -304,7 +304,7 @@ watch(stateFilter, () => {
                     <vscode-icon
                       name="link-external"
                       action-icon
-                      size="16"
+                      :size="16"
                       :title="t('dashboard.actions.open')"
                       :aria-label="t('dashboard.actions.open')"
                       @click.prevent="state.openExternal(repo.html_url)"
@@ -312,7 +312,7 @@ watch(stateFilter, () => {
                     <vscode-icon
                       name="copy"
                       action-icon
-                      size="16"
+                      :size="16"
                       :title="t('dashboard.actions.copyClone')"
                       :aria-label="t('dashboard.actions.copyClone')"
                       @click.prevent="state.copyToClipboard(repoCloneUrl(instance, repo))"
@@ -332,7 +332,7 @@ watch(stateFilter, () => {
                   <vscode-icon
                     name="link-external"
                     action-icon
-                    size="16"
+                    :size="16"
                     :title="t('dashboard.actions.open')"
                     :aria-label="t('dashboard.actions.open')"
                     @click.prevent="state.openExternal(repo.html_url)"
@@ -340,7 +340,7 @@ watch(stateFilter, () => {
                   <vscode-icon
                     name="copy"
                     action-icon
-                    size="16"
+                    :size="16"
                     :title="t('dashboard.actions.copyClone')"
                     :aria-label="t('dashboard.actions.copyClone')"
                     @click.prevent="state.copyToClipboard(repoCloneUrl(instance, repo))"
@@ -364,7 +364,7 @@ watch(stateFilter, () => {
                     <vscode-icon
                       name="link-external"
                       action-icon
-                      size="16"
+                      :size="16"
                       :title="t('dashboard.actions.open')"
                       :aria-label="t('dashboard.actions.open')"
                       @click.prevent="state.openExternal(issue.html_url)"
@@ -372,7 +372,7 @@ watch(stateFilter, () => {
                     <vscode-icon
                       name="copy"
                       action-icon
-                      size="16"
+                      :size="16"
                       :title="t('dashboard.actions.copyUrl')"
                       :aria-label="t('dashboard.actions.copyUrl')"
                       @click.prevent="state.copyToClipboard(issue.html_url)"
@@ -392,7 +392,7 @@ watch(stateFilter, () => {
                   <vscode-icon
                     name="link-external"
                     action-icon
-                    size="16"
+                    :size="16"
                     :title="t('dashboard.actions.open')"
                     :aria-label="t('dashboard.actions.open')"
                     @click.prevent="state.openExternal(issue.html_url)"
@@ -400,7 +400,7 @@ watch(stateFilter, () => {
                   <vscode-icon
                     name="copy"
                     action-icon
-                    size="16"
+                    :size="16"
                     :title="t('dashboard.actions.copyUrl')"
                     :aria-label="t('dashboard.actions.copyUrl')"
                     @click.prevent="state.copyToClipboard(issue.html_url)"
@@ -428,7 +428,7 @@ watch(stateFilter, () => {
                     <vscode-icon
                       name="link-external"
                       action-icon
-                      size="16"
+                      :size="16"
                       :title="t('dashboard.actions.open')"
                       :aria-label="t('dashboard.actions.open')"
                       @click.prevent="state.openExternal(pr.html_url)"
@@ -436,7 +436,7 @@ watch(stateFilter, () => {
                     <vscode-icon
                       name="copy"
                       action-icon
-                      size="16"
+                      :size="16"
                       :title="t('dashboard.actions.copyUrl')"
                       :aria-label="t('dashboard.actions.copyUrl')"
                       @click.prevent="state.copyToClipboard(pr.html_url)"
@@ -456,7 +456,7 @@ watch(stateFilter, () => {
                   <vscode-icon
                     name="link-external"
                     action-icon
-                    size="16"
+                    :size="16"
                     :title="t('dashboard.actions.open')"
                     :aria-label="t('dashboard.actions.open')"
                     @click.prevent="state.openExternal(pr.html_url)"
@@ -464,7 +464,7 @@ watch(stateFilter, () => {
                   <vscode-icon
                     name="copy"
                     action-icon
-                    size="16"
+                    :size="16"
                     :title="t('dashboard.actions.copyUrl')"
                     :aria-label="t('dashboard.actions.copyUrl')"
                     @click.prevent="state.copyToClipboard(pr.html_url)"

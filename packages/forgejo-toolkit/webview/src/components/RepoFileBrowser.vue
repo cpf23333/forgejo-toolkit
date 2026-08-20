@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
-import { VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState, repoContentsKey, repoFileSearchKey } from '../composables/useAppState';
 import FileTreeItem from './FileTreeItem.vue';
 import RepoFileHistoryDialog from './RepoFileHistoryDialog.vue';
@@ -171,7 +170,7 @@ onUnmounted(() => {
 <template>
   <div class="file-browser">
     <div class="file-browser-toolbar">
-      <vscode-single-select filter :value="selectedRef" class="branch-select" @change="onBranchChange">
+      <vscode-single-select filter="fuzzy" :value="selectedRef" class="branch-select" @change="onBranchChange">
         <vscode-option v-for="branch in branches" :key="branch" :value="branch" :selected="branch === selectedRef">
           {{ branch }}
         </vscode-option>
@@ -189,9 +188,10 @@ onUnmounted(() => {
     </div>
 
     <div class="file-search-bar">
-      <VscodeTextfield
+      <vscode-textfield
         ref="searchInputRef"
-        v-model="searchQuery"
+        :value="searchQuery"
+        @input="searchQuery = ($event.target as HTMLInputElement).value"
         class="search-input"
         :placeholder="state.t('dashboard.fileBrowser.searchPlaceholder')"
       />

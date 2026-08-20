@@ -82,7 +82,7 @@ async function attachMentions() {
           const original = item.original as MentionUser;
           const avatar = original.avatar_url
             ? `<img src="${escapeHtml(original.avatar_url)}" class="mention-avatar" alt="" />`
-            : `<span class="mention-avatar mention-avatar-fallback"><vscode-icon name="account" size="16"></vscode-icon></span>`;
+            : `<span class="mention-avatar mention-avatar-fallback"><vscode-icon name="account" :size="16"></vscode-icon></span>`;
           const fullName = original.full_name
             ? `<span class="mention-fullname">${escapeHtml(original.full_name)}</span>`
             : '';
@@ -107,7 +107,7 @@ async function attachMentions() {
           const original = item.original as MentionIssue;
           const icon = original.is_pull ? 'git-pull-request' : 'issues';
           const stateClass = original.state === 'open' ? 'state-open' : 'state-closed';
-          return `<div class="mention-item mention-issue"><vscode-icon name="${icon}" size="14" class="mention-issue-icon ${stateClass}"></vscode-icon><span class="mention-issue-number">#${escapeHtml(original.value)}</span><span class="mention-issue-title">${escapeHtml(original.title)}</span></div>`;
+          return `<div class="mention-item mention-issue"><vscode-icon name="${icon}" :size="14" class="mention-issue-icon ${stateClass}"></vscode-icon><span class="mention-issue-number">#${escapeHtml(original.value)}</span><span class="mention-issue-title">${escapeHtml(original.title)}</span></div>`;
         },
         values: (text: string, callback: (result: any[]) => void) => {
           state

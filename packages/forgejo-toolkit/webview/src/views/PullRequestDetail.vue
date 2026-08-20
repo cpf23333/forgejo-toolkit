@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import MarkdownBody from '../components/MarkdownBody.vue';
 import AttachmentList from '../components/AttachmentList.vue';
 import PendingAttachmentList from '../components/PendingAttachmentList.vue';
@@ -189,7 +188,7 @@ const manualTimeHours = ref(0);
 const manualTimeMinutes = ref(0);
 const selectedDependencyNumber = ref<number | undefined>(undefined);
 const isEditingDueDate = ref(false);
-const dueDateValue = ref<string | undefined>(undefined);
+const dueDateValue = ref<string | null>(null);
 
 function handleCommentAttachmentUpload(file: File) {
   pendingCommentAttachments.value.push(file);
@@ -260,6 +259,11 @@ const mergeFormKey = computed(() => pullRequestMergeFormKey(instanceId.value, ow
 const mergeLoading = computed(() => state.loading.get(mergeFormKey.value) ?? false);
 const mergeError = computed(() => state.errors.get(mergeFormKey.value));
 const mergeStrategy = ref<'merge' | 'rebase' | 'squash'>('merge');
+
+function onMergeStrategyChange(event: Event) {
+  mergeStrategy.value = (event.target as HTMLSelectElement).value as 'merge' | 'rebase' | 'squash';
+}
+
 const canMerge = computed(() => detail.value?.state === 'open' && !detail.value?.merged && canManagePullRequest.value);
 const isMergeable = computed(() => detail.value?.mergeable === true);
 const mergeBlockers = computed(() => detail.value?.mergeBlockers ?? []);
@@ -471,13 +475,13 @@ function addDependency() {
 }
 
 function startEditDueDate() {
-  dueDateValue.value = detail.value?.due_date;
+  dueDateValue.value = detail.value?.due_date ?? null;
   isEditingDueDate.value = true;
 }
 
 function cancelEditDueDate() {
   isEditingDueDate.value = false;
-  dueDateValue.value = undefined;
+  dueDateValue.value = null;
 }
 
 function saveDueDate() {
@@ -485,7 +489,7 @@ function saveDueDate() {
     dueDate: dueDateValue.value || undefined,
   });
   isEditingDueDate.value = false;
-  dueDateValue.value = undefined;
+  dueDateValue.value = null;
 }
 
 function clearDueDate() {
@@ -766,9 +770,9 @@ function reloadPullRequest() {
     </div>
     <div v-else-if="error" class="error-state">
       <span>{{ t('dashboard.error', { message: error }) }}</span>
-      <VscodeButton variant="secondary" icon="refresh" @click="reloadPullRequest">
+      <vscode-button icon="refresh" @click="reloadPullRequest" secondary>
         {{ t('dashboard.retry') }}
-      </VscodeButton>
+      </vscode-button>
     </div>
     <div v-else-if="detail" class="detail-content">
       <div class="detail-main">
@@ -781,34 +785,34 @@ function reloadPullRequest() {
             <span class="state-badge" :class="prStateClass(detail.state, detail.merged)">
               {{ prStateText(detail.state, detail.merged) }}
             </span>
-            <VscodeButton
-              variant="icon"
+            <vscode-button
               icon="link-external"
               :title="t('dashboard.detail.openPullRequest')"
               :aria-label="t('dashboard.detail.openPullRequest')"
               @click="state.openExternal(prUrl)"
+              icon-only
             />
-            <VscodeButton
-              variant="icon"
+            <vscode-button
               icon="copy"
               :title="t('dashboard.detail.copyLink')"
               :aria-label="t('dashboard.detail.copyLink')"
               @click="state.copyToClipboard(prUrl)"
+              icon-only
             />
             <template v-if="canManagePullRequest">
-              <VscodeButton
-                variant="icon"
+              <vscode-button
                 icon="edit"
                 :title="t('dashboard.actions.edit')"
                 :aria-label="t('dashboard.actions.edit')"
                 @click="openEdit"
+                icon-only
               />
-              <VscodeButton
-                variant="icon"
+              <vscode-button
                 :icon="detail.state === 'open' ? 'close' : 'refresh'"
                 :title="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
                 :aria-label="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
                 @click="toggleState"
+                icon-only
               />
             </template>
           </div>
@@ -953,8 +957,7 @@ function reloadPullRequest() {
               @remove="removePendingCommentAttachment($event)"
             />
             <div class="comment-form-actions">
-              <VscodeButton
-                variant="primary"
+              <vscode-button
                 :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
                 @click="handleCommentSubmit"
               >
@@ -963,7 +966,7 @@ function reloadPullRequest() {
                     ? t('dashboard.form.saving')
                     : t('dashboard.detail.postComment')
                 }}
-              </VscodeButton>
+              </vscode-button>
             </div>
             <div v-if="commentError" class="error">{{ t('dashboard.error', { message: commentError }) }}</div>
           </div>
@@ -1052,11 +1055,11 @@ function reloadPullRequest() {
             </div>
           </div>
           <div class="merge-form">
-            <vscode-select v-model="mergeStrategy">
+            <vscode-single-select :value="mergeStrategy" @change="onMergeStrategyChange">
               <vscode-option value="merge">{{ t('dashboard.detail.mergeStrategy.merge') }}</vscode-option>
               <vscode-option value="squash">{{ t('dashboard.detail.mergeStrategy.squash') }}</vscode-option>
               <vscode-option value="rebase">{{ t('dashboard.detail.mergeStrategy.rebase') }}</vscode-option>
-            </vscode-select>
+            </vscode-single-select>
             <vscode-button :disabled="mergeLoading || !isMergeable || hasMergeBlockers" @click="handleMerge">
               {{ mergeLoading ? t('dashboard.detail.merging') : t('dashboard.detail.merge') }}
             </vscode-button>
@@ -1067,7 +1070,7 @@ function reloadPullRequest() {
         <div v-if="canRevertMerge" class="merge-section revert-section">
           <h3>{{ t('dashboard.detail.revertMerge') }}</h3>
           <vscode-button
-            variant="secondary"
+            secondary
             icon="arrow-counter-clockwise"
             :disabled="revertMergeLoading"
             @click="handleRevertMerge"
@@ -1195,13 +1198,13 @@ function reloadPullRequest() {
         <CollapsibleSection :title="t('dashboard.detail.subscription')">
           <div v-if="subscription === undefined" class="loading-inline">{{ t('dashboard.loading') }}</div>
           <div v-else class="subscription-actions">
-            <VscodeButton
-              variant="secondary"
+            <vscode-button
               :icon="subscription.subscribed ? 'bell-slash' : 'bell'"
               @click="toggleSubscription"
+              secondary
             >
               {{ subscription.subscribed ? t('dashboard.detail.unsubscribe') : t('dashboard.detail.subscribe') }}
-            </VscodeButton>
+            </vscode-button>
           </div>
         </CollapsibleSection>
 
@@ -1212,42 +1215,42 @@ function reloadPullRequest() {
             }}</span>
           </div>
           <div class="time-tracking-actions">
-            <VscodeButton
+            <vscode-button
               v-if="!isStopwatchRunning"
-              variant="secondary"
               icon="play"
               @click="state.startIssueStopwatch(instanceId, owner, repo, index)"
+              secondary
             >
               {{ t('dashboard.detail.startStopwatch') }}
-            </VscodeButton>
-            <VscodeButton
+            </vscode-button>
+            <vscode-button
               v-else
-              variant="secondary"
               icon="debug-pause"
               @click="state.stopIssueStopwatch(instanceId, owner, repo, index)"
+              secondary
             >
               {{ t('dashboard.detail.stopStopwatch') }}
-            </VscodeButton>
+            </vscode-button>
           </div>
           <div class="time-tracking-form">
             <vscode-textfield
               type="number"
               :value="String(manualTimeHours)"
-              min="0"
+              :min="0"
               @input="manualTimeHours = Number(($event.target as HTMLInputElement).value)"
             />
             <span>{{ t('dashboard.detail.hours') }}</span>
             <vscode-textfield
               type="number"
               :value="String(manualTimeMinutes)"
-              min="0"
-              max="59"
+              :min="0"
+              :max="59"
               @input="manualTimeMinutes = Number(($event.target as HTMLInputElement).value)"
             />
             <span>{{ t('dashboard.detail.minutes') }}</span>
-            <VscodeButton variant="secondary" icon="add" @click="addManualTime">
+            <vscode-button icon="add" @click="addManualTime" secondary>
               {{ t('dashboard.detail.addTime') }}
-            </VscodeButton>
+            </vscode-button>
           </div>
           <div v-if="trackedTimes.length" class="tracked-time-list">
             <div v-for="time in trackedTimes" :key="time.id" class="tracked-time-item">
@@ -1299,14 +1302,14 @@ function reloadPullRequest() {
                   #{{ issue.number }} {{ issue.title }}
                 </option>
               </select>
-              <VscodeButton
-                variant="secondary"
+              <vscode-button
                 icon="add"
                 :disabled="!selectedDependencyNumber || availableDependencies.length === 0"
                 @click="addDependency"
+                secondary
               >
                 {{ t('dashboard.detail.addDependency') }}
-              </VscodeButton>
+              </vscode-button>
             </template>
           </div>
           <div v-if="!repoIssuesLoading && availableDependencies.length === 0" class="dependency-status empty">

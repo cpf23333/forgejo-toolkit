@@ -7,7 +7,6 @@
   "scripts": {
     "build": "pnpm -r run build",
     "build:extension": "pnpm --filter forgejo-toolkit run build",
-    "build:vscode-elements-vue": "pnpm --filter @cpf23333-forgejo-toolkit/vscode-elements-vue run build",
     "check": "pnpm -r run check",
     "dev": "pnpm -r --parallel run dev",
     "clean": "pnpm -r run clean",

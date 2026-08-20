@@ -51,8 +51,8 @@
 
 ### 工程规范
 
-- 使用 `vue-tsc` 推导 `.vue` 组件类型。
-- `@vscode-elements/elements` 组件必须在 `packages/vscode-elements-vue/src/components` 中定义 Vue wrapper 后使用。
+- 使用 `vue-tsc` 推导 `.vue` 组件类型，并开启 `strictTemplates` 进行严格模板类型检查。
+- `@vscode-elements/elements` web components 直接在 webview 中使用，不再维护 Vue wrapper 包；为所有使用的原生组件补充 `DefineCustomElement` props / events 类型声明。
 - 使用 `oxlint` + `oxfmt` 作为 lint/format 工具。
 - 使用 Changesets 管理 monorepo 版本号与 CHANGELOG。
 
@@ -140,8 +140,9 @@
 - 自研 VS Code 风格日期时间选择器组件，替代浏览器原生 `datetime-local`/`date` 输入；集成到 Issue / PR 创建与编辑表单、详情页到期时间编辑。
 - Issue 详情页支持删除 Issue（需确认，删除后返回上一页）。
 - 清理已废弃的 `VscodeDateField` / `VscodeDateTimeField` 组件。
+- 移除 `packages/vscode-elements-vue` 包，按钮 / 输入框改用原生 `@vscode-elements/elements` 组件。
 
-本轮迭代内容已全部完成并提交。
+本轮迭代内容已全部完成。
 
 ## 后续迭代
 

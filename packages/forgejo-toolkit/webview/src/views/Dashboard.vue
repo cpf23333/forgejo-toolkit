@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
 import { postMessage } from '../composables/vscode';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import DashboardInstanceItem from '../components/DashboardInstanceItem.vue';
 import ViewTabs from '../components/ViewTabs.vue';
 
@@ -40,9 +39,9 @@ const linkedRepository = computed(() => state.linkedRepository.value);
     <div v-if="instances.length === 0" class="empty">
       <p>{{ t('dashboard.emptyTitle') }}</p>
       <p>{{ t('dashboard.emptyHint', { button: t('dashboard.openOnboarding') }) }}</p>
-      <VscodeButton variant="primary" @click="openOnboarding">
+      <vscode-button @click="openOnboarding">
         {{ t('dashboard.openOnboarding') }}
-      </VscodeButton>
+      </vscode-button>
     </div>
 
     <div v-else class="dashboard-content">
@@ -57,30 +56,30 @@ const linkedRepository = computed(() => state.linkedRepository.value);
             <span class="linked-repo-instance">{{ linkedRepository.remoteUrl }}</span>
           </div>
           <div class="linked-repo-actions">
-            <VscodeButton
-              variant="secondary"
+            <vscode-button
               icon="repo"
               :title="t('dashboard.linkedRepository.openRepo')"
               @click="state.openLinkedRepositoryDetail()"
+              secondary
             >
               {{ t('dashboard.linkedRepository.openRepo') }}
-            </VscodeButton>
-            <VscodeButton
-              variant="secondary"
+            </vscode-button>
+            <vscode-button
               icon="issues"
               :title="t('dashboard.linkedRepository.openIssues')"
               @click="state.openLinkedRepositoryIssues()"
+              secondary
             >
               {{ t('dashboard.linkedRepository.openIssues') }}
-            </VscodeButton>
-            <VscodeButton
-              variant="secondary"
+            </vscode-button>
+            <vscode-button
               icon="git-pull-request"
               :title="t('dashboard.linkedRepository.openPullRequests')"
               @click="state.openLinkedRepositoryPullRequests()"
+              secondary
             >
               {{ t('dashboard.linkedRepository.openPullRequests') }}
-            </VscodeButton>
+            </vscode-button>
           </div>
         </div>
       </div>
@@ -96,27 +95,27 @@ const linkedRepository = computed(() => state.linkedRepository.value);
           ]"
         />
         <div class="dashboard-toolbar-actions">
-          <VscodeButton
-            variant="secondary"
+          <vscode-button
             icon="bell"
             :title="t('dashboard.notifications.title')"
             :aria-label="t('dashboard.notifications.title')"
             @click="openNotifications"
+            secondary
           >
             <span class="button-label">{{ t('dashboard.notifications.title') }}</span>
             <span v-if="state.unreadNotificationCount.value > 0" class="notification-badge">
               {{ state.unreadNotificationCount.value }}
             </span>
-          </VscodeButton>
-          <VscodeButton
-            variant="secondary"
+          </vscode-button>
+          <vscode-button
             icon="search"
             :title="t('dashboard.search.title')"
             :aria-label="t('dashboard.search.title')"
             @click="openSearch"
+            secondary
           >
             <span class="button-label">{{ t('dashboard.search.searchButton') }}</span>
-          </VscodeButton>
+          </vscode-button>
         </div>
       </div>
 

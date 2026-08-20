@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState, actionRunsKey, dispatchWorkflowKey } from '../composables/useAppState';
 
 const props = defineProps<{
@@ -235,7 +234,7 @@ onUnmounted(() => {
     </div>
     <div v-else-if="error" class="error-state">
       <span>{{ t('dashboard.error', { message: error }) }}</span>
-      <vscode-button variant="secondary" icon="refresh" @click="reload">
+      <vscode-button secondary icon="refresh" @click="reload">
         {{ t('dashboard.retry') }}
       </vscode-button>
     </div>
@@ -244,7 +243,7 @@ onUnmounted(() => {
     </div>
 
     <div class="trigger-section">
-      <vscode-button v-if="!showTrigger" variant="secondary" icon="rocket" @click="showTrigger = true">
+      <vscode-button v-if="!showTrigger" secondary icon="rocket" @click="showTrigger = true">
         {{ t('dashboard.repoActions.triggerWorkflow') }}
       </vscode-button>
       <div v-else class="trigger-form">
@@ -260,9 +259,10 @@ onUnmounted(() => {
               {{ wf }}
             </vscode-option>
           </vscode-single-select>
-          <VscodeTextfield
+          <vscode-textfield
             v-else
-            v-model="triggerWorkflow"
+            :value="triggerWorkflow"
+            @input="triggerWorkflow = ($event.target as HTMLInputElement).value"
             :placeholder="t('dashboard.actionRun.workflowFilePlaceholder')"
           />
         </div>
@@ -279,15 +279,28 @@ onUnmounted(() => {
               {{ branch }}
             </vscode-option>
           </vscode-single-select>
-          <VscodeTextfield v-else v-model="triggerRef" :placeholder="t('dashboard.actionRun.refPlaceholder')" />
+          <vscode-textfield
+            v-else
+            :value="triggerRef"
+            @input="triggerRef = ($event.target as HTMLInputElement).value"
+            :placeholder="t('dashboard.actionRun.refPlaceholder')"
+          />
         </div>
         <div class="trigger-inputs">
           <div v-for="(input, index) in triggerInputs" :key="index" class="trigger-input-row">
-            <VscodeTextfield v-model="input.key" :placeholder="t('dashboard.actionRun.inputKey')" />
-            <VscodeTextfield v-model="input.value" :placeholder="t('dashboard.actionRun.inputValue')" />
-            <vscode-button variant="icon" icon="trash" @click="removeTriggerInput(index)" />
+            <vscode-textfield
+              :value="input.key"
+              @input="input.key = ($event.target as HTMLInputElement).value"
+              :placeholder="t('dashboard.actionRun.inputKey')"
+            />
+            <vscode-textfield
+              :value="input.value"
+              @input="input.value = ($event.target as HTMLInputElement).value"
+              :placeholder="t('dashboard.actionRun.inputValue')"
+            />
+            <vscode-button icon-only icon="trash" @click="removeTriggerInput(index)" />
           </div>
-          <vscode-button variant="secondary" icon="add" @click="addTriggerInput">
+          <vscode-button secondary icon="add" @click="addTriggerInput">
             {{ t('dashboard.actionRun.addInput') }}
           </vscode-button>
         </div>
@@ -301,7 +314,7 @@ onUnmounted(() => {
           >
             {{ dispatchLoading ? t('dashboard.loading') : t('dashboard.repoActions.runWorkflow') }}
           </vscode-button>
-          <vscode-button variant="secondary" :disabled="dispatchLoading" @click="resetTrigger">
+          <vscode-button secondary :disabled="dispatchLoading" @click="resetTrigger">
             {{ t('dashboard.actions.cancel') }}
           </vscode-button>
         </div>
@@ -319,7 +332,7 @@ onUnmounted(() => {
             <span class="run-index">#{{ run.index_in_repo }}</span>
             <vscode-button
               v-if="run.html_url"
-              variant="icon"
+              icon-only
               icon="globe"
               :title="t('dashboard.actions.open')"
               @click.stop="state.openExternal(run.html_url)"
@@ -350,7 +363,7 @@ onUnmounted(() => {
       </div>
       <div v-if="totalCount > runs.length" class="actions-footer">
         <vscode-button
-          variant="secondary"
+          secondary
           :disabled="loading"
           @click="
             page++;

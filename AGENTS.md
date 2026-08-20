@@ -36,11 +36,9 @@ Review and update `.agents/skills/impeccable/` periodically or whenever its guid
 
 ## `@vscode-elements/elements` usage rule
 
-`@vscode-elements/elements` web components may be used directly in `forgejo-toolkit` webview code. Using Vue wrappers from `packages/vscode-elements-vue/src/components` is preferred when they exist and work reliably, but it is **not required**.
+`@vscode-elements/elements` web components are used directly in `forgejo-toolkit` webview code. The `packages/vscode-elements-vue` wrapper package has been removed.
 
-If a wrapper exists and behaves correctly, use it to get better `vue-tsc` checking and Vue-specific bindings (`v-model`, scoped slots, event modifiers). If a wrapper is missing, buggy, or cannot forward the Lit context a component needs (as with `<vscode-tree>` / `<vscode-tree-item>`), use the underlying web component directly instead.
-
-When you need a new wrapper, create it in `packages/vscode-elements-vue/src/components`, then export it from `packages/vscode-elements-vue/src/components/index.ts` (and add a matching declaration if the project uses an `index.d.ts`).
+Use the underlying web components directly and declare their types in `packages/forgejo-toolkit/webview/src/types/global.d.ts` when needed. Do not re-introduce a wrapper package unless there is a strong, well-documented reason.
 
 ## License and attribution
 

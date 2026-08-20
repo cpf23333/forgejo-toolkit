@@ -5,7 +5,6 @@ import { useRouter } from 'vue-router';
 import { useAppState, notificationsKey } from '../composables/useAppState';
 import type { ForgejoNotification } from '../types/api';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -224,24 +223,24 @@ onMounted(() => {
       <div class="notifications-toolbar">
         <h1 class="notifications-title">{{ t('dashboard.notifications.title') }}</h1>
         <div class="notifications-toolbar-actions">
-          <VscodeButton
-            variant="secondary"
+          <vscode-button
             icon="check-all"
             :disabled="isLoading() || unreadCount === 0"
             :title="t('dashboard.notifications.markAllAsRead')"
             @click="markAllAsRead"
+            secondary
           >
             {{ t('dashboard.notifications.markAllAsRead') }}
-          </VscodeButton>
-          <VscodeButton
-            variant="secondary"
+          </vscode-button>
+          <vscode-button
             icon="refresh"
             :disabled="isLoading()"
             :title="t('dashboard.retry')"
             @click="loadAll"
+            secondary
           >
             {{ t('dashboard.retry') }}
-          </VscodeButton>
+          </vscode-button>
         </div>
       </div>
 
@@ -303,7 +302,7 @@ onMounted(() => {
             @click.capture="openNotification($event, notification, instance.id)"
           >
             <span class="notification-title" :class="{ unread: notification.unread }">
-              <vscode-icon class="notification-type-icon" :name="notificationTypeIcon(notification)" size="16" />
+              <vscode-icon class="notification-type-icon" :name="notificationTypeIcon(notification)" :size="16" />
               <span v-if="notification.unread" class="unread-dot" />
               {{ notification.subject?.title ?? t('dashboard.notifications.untitled') }}
             </span>
@@ -315,7 +314,7 @@ onMounted(() => {
                 v-if="notification.unread"
                 name="check"
                 action-icon
-                size="16"
+                :size="16"
                 :title="t('dashboard.notifications.markAsRead')"
                 :aria-label="t('dashboard.notifications.markAsRead')"
                 @click.stop.prevent="markAsRead($event, instance.id, notification)"
@@ -323,7 +322,7 @@ onMounted(() => {
               <vscode-icon
                 name="link-external"
                 action-icon
-                size="16"
+                :size="16"
                 :title="t('dashboard.actions.open')"
                 :aria-label="t('dashboard.actions.open')"
                 @click.stop.prevent="state.openExternal(notification.subject?.html_url ?? '')"
@@ -336,7 +335,7 @@ onMounted(() => {
               slot="actions"
               name="refresh"
               action-icon
-              size="16"
+              :size="16"
               :title="t('dashboard.retry')"
               :aria-label="t('dashboard.retry')"
               @click.stop.prevent="state.loadNotifications(instance.id, statusTypes, subjectType)"

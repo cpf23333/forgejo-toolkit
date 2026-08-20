@@ -1,9 +1,17 @@
 import { defineConfig } from 'vite';
 import path from 'path';
-import vscodeElementsVue from '@cpf23333-forgejo-toolkit/vscode-elements-vue/vite-plugin';
+import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
-  plugins: [vscodeElementsVue()],
+  plugins: [
+    vue({
+      template: {
+        compilerOptions: {
+          isCustomElement: (tag: string) => tag.startsWith('vscode-'),
+        },
+      },
+    }),
+  ],
   root: path.resolve(__dirname),
   base: './',
   resolve: {

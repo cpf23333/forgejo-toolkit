@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState } from '../composables/useAppState';
 import ImportPreview from './ImportPreview.vue';
 import type { Locale } from '../i18n';
@@ -267,9 +266,9 @@ watch(
               <li v-for="instance in state.instances.value" :key="instance.id" class="instance-item">
                 <span class="instance-name">{{ instance.name }}</span>
                 <span class="instance-url">{{ instance.url }}</span>
-                <VscodeButton variant="secondary" @click="handleRemoveInstance(instance.id)">
+                <vscode-button @click="handleRemoveInstance(instance.id)" secondary>
                   {{ t('settings.remove') }}
-                </VscodeButton>
+                </vscode-button>
               </li>
             </ul>
           </div>
@@ -278,9 +277,10 @@ watch(
             <label for="onboarding-url">{{ t('settings.instanceUrl') }}</label>
             <vscode-textfield
               id="onboarding-url"
-              v-model="url"
+              :value="url"
               :placeholder="t('settings.instanceUrlPlaceholder')"
               type="url"
+              @input="url = ($event.target as HTMLInputElement).value"
             />
           </div>
 
@@ -288,20 +288,21 @@ watch(
             <label for="onboarding-token">{{ t('settings.accessToken') }}</label>
             <vscode-textfield
               id="onboarding-token"
-              v-model="token"
+              :value="token"
               :placeholder="t('settings.accessTokenPlaceholder')"
               type="password"
+              @input="token = ($event.target as HTMLInputElement).value"
             />
             <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
           </div>
 
           <div class="actions">
-            <VscodeButton variant="secondary" :disabled="!canTest || testing" @click="handleTest">
+            <vscode-button :disabled="!canTest || testing" @click="handleTest" secondary>
               {{ testing ? t('settings.testing') : t('settings.testConnection') }}
-            </VscodeButton>
-            <VscodeButton variant="primary" :disabled="!canSaveInstance || saving" @click="handleSave">
+            </vscode-button>
+            <vscode-button :disabled="!canSaveInstance || saving" @click="handleSave">
               {{ saving ? t('settings.saving') : t('settings.addInstance') }}
-            </VscodeButton>
+            </vscode-button>
           </div>
 
           <div v-if="connectionStatus" :class="['status', connectionStatusType]">{{ connectionStatus }}</div>
@@ -334,12 +335,12 @@ watch(
               @change="applyWorktreeCacheDirectory"
             />
             <div class="cache-directory-actions">
-              <VscodeButton variant="secondary" @click="browseWorktreeCacheDirectory">
+              <vscode-button @click="browseWorktreeCacheDirectory" secondary>
                 {{ t('settings.worktree.browse') }}
-              </VscodeButton>
-              <VscodeButton variant="secondary" @click="restoreDefaultCacheDirectory">
+              </vscode-button>
+              <vscode-button @click="restoreDefaultCacheDirectory" secondary>
                 {{ t('settings.worktree.restoreDefault') }}
-              </VscodeButton>
+              </vscode-button>
             </div>
           </div>
         </section>
@@ -363,11 +364,11 @@ watch(
       </div>
 
       <div class="step-actions">
-        <VscodeButton v-if="step > 0" variant="secondary" @click="prevStep">{{ t('onboarding.prev') }}</VscodeButton>
-        <VscodeButton v-if="step < 3" variant="secondary" @click="nextStep">{{ t('onboarding.next') }}</VscodeButton>
-        <VscodeButton v-else variant="primary" :disabled="!canFinish" @click="finish">
+        <vscode-button v-if="step > 0" secondary @click="prevStep">{{ t('onboarding.prev') }}</vscode-button>
+        <vscode-button v-if="step < 3" @click="nextStep" secondary>{{ t('onboarding.next') }}</vscode-button>
+        <vscode-button v-else :disabled="!canFinish" @click="finish">
           {{ t('onboarding.finish') }}
-        </VscodeButton>
+        </vscode-button>
       </div>
     </template>
     <ImportPreview v-else />

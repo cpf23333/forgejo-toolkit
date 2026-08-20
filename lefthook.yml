@@ -19,6 +19,3 @@ pre-commit:
     typecheck-shared:
       glob: 'packages/shared/src/**/*.ts'
       run: pnpm --filter @cpf23333-forgejo-toolkit/shared exec tsc --noEmit
-    typecheck-vscode-elements-vue:
-      glob: 'packages/vscode-elements-vue/src/**/*.{ts,vue}'
-      run: pnpm --filter @cpf23333-forgejo-toolkit/vscode-elements-vue exec vue-tsc --noEmit

@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
-import { VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import EasyMdeEditor from './EasyMdeEditor.vue';
-import { VscodeSingleSelect } from '../vscode-controls';
 import DateTimePicker from './DateTimePicker.vue';
 import type { ForgejoLabel, ForgejoMilestone } from '../types/api';
 
@@ -166,13 +163,17 @@ function handleSubmit() {
   <form class="pr-form" @submit.prevent="handleSubmit">
     <div class="form-field">
       <label>{{ t('dashboard.form.title') }}</label>
-      <VscodeTextfield v-model="title" :placeholder="t('dashboard.form.titlePlaceholder')" />
+      <vscode-textfield
+        :value="title"
+        @input="title = ($event.target as HTMLInputElement).value"
+        :placeholder="t('dashboard.form.titlePlaceholder')"
+      />
     </div>
     <div class="form-row">
       <div class="form-field">
         <label>{{ t('dashboard.form.base') }}</label>
         <vscode-single-select
-          filter
+          filter="fuzzy"
           :value="base"
           class="branch-select"
           @change="base = ($event.target as HTMLInputElement).value"
@@ -185,7 +186,7 @@ function handleSubmit() {
       <div v-if="mode === 'create'" class="form-field">
         <label>{{ t('dashboard.form.head') }}</label>
         <vscode-single-select
-          filter
+          filter="fuzzy"
           :value="head"
           class="branch-select"
           @change="head = ($event.target as HTMLInputElement).value"
@@ -229,9 +230,14 @@ function handleSubmit() {
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.milestone') }}</label>
-      <VscodeSingleSelect
+      <vscode-single-select
         :value="selectedMilestoneId === undefined ? '' : String(selectedMilestoneId)"
-        @change="selectedMilestoneId = Number(($event.target as HTMLInputElement).value) || undefined"
+        @change="
+          selectedMilestoneId =
+            ($event.target as HTMLSelectElement).value === ''
+              ? undefined
+              : Number(($event.target as HTMLSelectElement).value)
+        "
       >
         <vscode-option value="">{{ t('dashboard.form.noMilestone') }}</vscode-option>
         <vscode-option
@@ -242,7 +248,7 @@ function handleSubmit() {
         >
           {{ milestone.title }}
         </vscode-option>
-      </VscodeSingleSelect>
+      </vscode-single-select>
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.dueDate') }}</label>
@@ -262,12 +268,12 @@ function handleSubmit() {
     <div v-if="error" class="form-error">{{ t('dashboard.form.error', { message: error }) }}</div>
     <slot name="extra" />
     <div class="form-actions">
-      <VscodeButton type="submit" :disabled="loading || !title.trim() || !base || (mode === 'create' && !head)">
+      <vscode-button type="submit" :disabled="loading || !title.trim() || !base || (mode === 'create' && !head)">
         {{ loading ? t('dashboard.form.saving') : submitLabel }}
-      </VscodeButton>
-      <VscodeButton type="button" secondary @click="emit('cancel')">
+      </vscode-button>
+      <vscode-button type="button" secondary @click="emit('cancel')">
         {{ t('dashboard.form.cancel') }}
-      </VscodeButton>
+      </vscode-button>
     </div>
   </form>
 </template>

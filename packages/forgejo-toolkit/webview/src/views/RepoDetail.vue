@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState, repoBranchCommitsKey, repoDetailKey } from '../composables/useAppState';
 import RepoActions from '../components/RepoActions.vue';
 import RepoFileBrowser from '../components/RepoFileBrowser.vue';
@@ -133,9 +132,9 @@ function reloadRepo() {
     </div>
     <div v-else-if="error" class="error-state">
       <span>{{ t('dashboard.error', { message: error }) }}</span>
-      <VscodeButton variant="secondary" icon="refresh" @click="reloadRepo">
+      <vscode-button icon="refresh" @click="reloadRepo" secondary>
         {{ t('dashboard.retry') }}
-      </VscodeButton>
+      </vscode-button>
     </div>
     <div v-else-if="detail" class="detail-content">
       <div class="repo-header">
@@ -181,32 +180,32 @@ function reloadRepo() {
         </div>
         <div class="actions">
           <div class="action-group primary-actions">
-            <VscodeButton variant="secondary" icon="link-external" @click="state.openExternal(repoUrl)">
+            <vscode-button icon="link-external" @click="state.openExternal(repoUrl)" secondary>
               {{ t('dashboard.actions.open') }}
-            </VscodeButton>
-            <VscodeButton
+            </vscode-button>
+            <vscode-button
               v-if="detail.readme"
-              variant="secondary"
               icon="preview"
               @click="state.previewReadme(owner, repo, detail.readme)"
+              secondary
             >
               {{ t('dashboard.actions.previewReadme') }}
-            </VscodeButton>
+            </vscode-button>
           </div>
           <div class="action-group secondary-actions">
-            <VscodeButton
-              variant="icon"
+            <vscode-button
               icon="copy"
               :title="t('dashboard.actions.copyClone')"
               :aria-label="t('dashboard.actions.copyClone')"
               @click="state.copyToClipboard(cloneUrl)"
+              icon-only
             />
-            <VscodeButton
-              variant="icon"
+            <vscode-button
               icon="link"
               :title="t('dashboard.actions.copyUrl')"
               :aria-label="t('dashboard.actions.copyUrl')"
               @click="state.copyToClipboard(repoUrl)"
+              icon-only
             />
           </div>
         </div>
@@ -227,15 +226,15 @@ function reloadRepo() {
           <section v-if="detail.empty" class="section">
             <div class="empty-repo">
               <p>{{ t('dashboard.emptyRepository') }}</p>
-              <VscodeButton variant="secondary" icon="link-external" @click="state.openExternal(repoUrl)">
+              <vscode-button icon="link-external" @click="state.openExternal(repoUrl)" secondary>
                 {{ t('dashboard.actions.open') }}
-              </VscodeButton>
+              </vscode-button>
             </div>
           </section>
 
           <section v-if="detail.branches.length" class="section">
             <h3>{{ t('dashboard.branches') }}</h3>
-            <vscode-single-select filter :value="selectedBranch" class="branch-select" @change="onBranchChange">
+            <vscode-single-select filter="fuzzy" :value="selectedBranch" class="branch-select" @change="onBranchChange">
               <vscode-option
                 v-for="branch in detail.branches"
                 :key="branch"

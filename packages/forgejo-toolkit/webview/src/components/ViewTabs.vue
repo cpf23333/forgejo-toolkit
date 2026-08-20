@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends string">
 export interface TabItem {
   key: string;
   label: string;
@@ -6,16 +6,16 @@ export interface TabItem {
 
 interface Props {
   tabs: TabItem[];
-  modelValue: string;
+  modelValue: T;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'update:modelValue', key: string): void;
+  (e: 'update:modelValue', key: T): void;
 }>();
 
 function selectTab(key: string) {
-  emit('update:modelValue', key);
+  emit('update:modelValue', key as T);
 }
 </script>
 

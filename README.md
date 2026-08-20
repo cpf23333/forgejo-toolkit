@@ -100,12 +100,11 @@ This is a pnpm workspace monorepo.
 
 ### Package Structure
 
-| Package                                                          | Description                                                                                                                  |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit)         | VS Code extension host.                                                                                                      |
-| [`packages/vscode-elements-vue`](./packages/vscode-elements-vue) | Vue 3 adapter for [@vscode-elements/elements](https://www.npmjs.com/package/@vscode-elements/elements) types and components. |
-| [`packages/shared`](./packages/shared)                           | Shared request client and common types.                                                                                      |
-| [`packages/forgejo-api`](./packages/forgejo-api)                 | API client generated from the Forgejo OpenAPI specification.                                                                 |
+| Package                                                  | Description                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------------ |
+| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit) | VS Code extension host.                                      |
+| [`packages/shared`](./packages/shared)                   | Shared request client and common types.                      |
+| [`packages/forgejo-api`](./packages/forgejo-api)         | API client generated from the Forgejo OpenAPI specification. |
 
 ### Tech Stack
 

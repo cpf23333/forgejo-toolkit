@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
-import { VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import EasyMdeEditor from './EasyMdeEditor.vue';
-import { VscodeSingleSelect } from '../vscode-controls';
+
 import DateTimePicker from './DateTimePicker.vue';
 import type { ForgejoLabel, ForgejoMilestone } from '../types/api';
 
@@ -159,9 +157,14 @@ function channelLuminance(channel: number): number {
   return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
 }
 
+function handleRefChange(event: Event) {
+  const value = (event.target as HTMLSelectElement).value;
+  selectedRef.value = value || undefined;
+}
+
 function handleMilestoneChange(event: Event) {
-  const value = Number((event.target as HTMLSelectElement).value);
-  selectedMilestoneId.value = Number.isNaN(value) ? undefined : value;
+  const value = (event.target as HTMLSelectElement).value;
+  selectedMilestoneId.value = value === '' ? undefined : Number(value);
 }
 
 function handleSubmit() {
@@ -181,11 +184,15 @@ function handleSubmit() {
   <form class="issue-form" @submit.prevent="handleSubmit">
     <div class="form-field">
       <label>{{ t('dashboard.form.title') }}</label>
-      <VscodeTextfield v-model="title" :placeholder="t('dashboard.form.titlePlaceholder')" />
+      <vscode-textfield
+        :value="title"
+        @input="title = ($event.target as HTMLInputElement).value"
+        :placeholder="t('dashboard.form.titlePlaceholder')"
+      />
     </div>
     <div v-if="props.branches.length || props.tags.length" class="form-field">
       <label>{{ t('dashboard.form.ref') }}</label>
-      <VscodeSingleSelect v-model="selectedRef">
+      <vscode-single-select :value="selectedRef ?? ''" @change="handleRefChange">
         <vscode-option value="">{{ t('dashboard.form.noRef') }}</vscode-option>
         <vscode-option
           v-for="branch in props.branches"
@@ -198,7 +205,7 @@ function handleSubmit() {
         <vscode-option v-for="tag in props.tags" :key="`tag-${tag}`" :value="tag" :selected="tag === selectedRef">
           {{ t('dashboard.form.tagPrefix', { tag }) }}
         </vscode-option>
-      </VscodeSingleSelect>
+      </vscode-single-select>
     </div>
     <div v-if="labels.length" class="form-field">
       <label>{{ t('dashboard.form.labels') }}</label>
@@ -233,17 +240,17 @@ function handleSubmit() {
     </div>
     <div v-if="milestones.length" class="form-field">
       <label>{{ t('dashboard.form.milestone') }}</label>
-      <VscodeSingleSelect v-model="selectedMilestoneId">
+      <vscode-single-select :value="String(selectedMilestoneId ?? '')" @change="handleMilestoneChange">
         <vscode-option value="">{{ t('dashboard.form.noMilestone') }}</vscode-option>
         <vscode-option
           v-for="milestone in milestones"
           :key="milestone.id ?? milestone.title"
-          :value="milestone.id"
+          :value="String(milestone.id)"
           :selected="milestone.id === selectedMilestoneId"
         >
           {{ milestone.title }}
         </vscode-option>
-      </VscodeSingleSelect>
+      </vscode-single-select>
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.dueDate') }}</label>
@@ -263,12 +270,12 @@ function handleSubmit() {
     <div v-if="error" class="form-error">{{ t('dashboard.form.error', { message: error }) }}</div>
     <slot name="extra" />
     <div class="form-actions">
-      <VscodeButton type="button" variant="secondary" @click="emit('cancel')">
+      <vscode-button type="button" @click="emit('cancel')" secondary>
         {{ t('dashboard.form.cancel') }}
-      </VscodeButton>
-      <VscodeButton type="submit" variant="primary" :disabled="loading || !title.trim()">
+      </vscode-button>
+      <vscode-button type="submit" :disabled="loading || !title.trim()">
         {{ loading ? t('dashboard.form.saving') : submitLabel }}
-      </VscodeButton>
+      </vscode-button>
     </div>
   </form>
 </template>

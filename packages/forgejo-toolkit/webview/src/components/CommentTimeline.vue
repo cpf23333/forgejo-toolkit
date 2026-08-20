@@ -363,7 +363,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
 <template>
   <div class="comment-timeline">
     <div v-if="comments.length > 0" class="timeline-sort">
-      <vscode-button variant="secondary" icon="sort-precedence" @click="toggleSortOrder">
+      <vscode-button secondary icon="sort-precedence" @click="toggleSortOrder">
         {{ sortOrder === 'asc' ? t('dashboard.detail.sortOldestFirst') : t('dashboard.detail.sortNewestFirst') }}
       </vscode-button>
     </div>
@@ -388,7 +388,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         <div v-if="isOwnComment(comment) && comment.type === 'comment'" class="comment-menu-wrapper">
           <vscode-icon
             name="kebab-vertical"
-            size="16"
+            :size="16"
             action-icon
             :title="t('dashboard.actions.more')"
             :aria-label="t('dashboard.actions.more')"

@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
 import AttachmentList from '../components/AttachmentList.vue';
@@ -213,9 +212,9 @@ async function handleCreateSubmit(data: {
     <div class="list-header">
       <h2>{{ t('dashboard.repoPullRequests.title', { repo: title }) }}</h2>
       <div class="header-actions">
-        <VscodeButton variant="primary" icon="add" @click="openCreatePullRequest">
+        <vscode-button icon="add" @click="openCreatePullRequest">
           {{ t('dashboard.actions.newPullRequest') }}
-        </VscodeButton>
+        </vscode-button>
         <div class="state-filter">
           <button
             v-for="s in states"

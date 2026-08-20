@@ -322,19 +322,19 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
 <template>
   <div class="action-run-detail">
     <div class="run-header">
-      <vscode-button v-if="run" variant="secondary" icon="trash" :disabled="deleteLoading" @click="deleteRun">
+      <vscode-button v-if="run" secondary icon="trash" :disabled="deleteLoading" @click="deleteRun">
         {{ deleteLoading ? t('dashboard.loading') : t('dashboard.actionRun.deleteRun') }}
       </vscode-button>
       <vscode-button
         v-if="run && canCancelRun(run.status)"
-        variant="secondary"
+        secondary
         icon="circle-slash"
         :disabled="cancelLoading"
         @click="cancelRun"
       >
         {{ cancelLoading ? t('dashboard.loading') : t('dashboard.actionRun.cancelRun') }}
       </vscode-button>
-      <vscode-button v-if="run?.html_url" variant="secondary" icon="globe" @click="state.openExternal(run.html_url)">
+      <vscode-button v-if="run?.html_url" secondary icon="globe" @click="state.openExternal(run.html_url)">
         {{ t('dashboard.actions.open') }}
       </vscode-button>
     </div>
@@ -433,7 +433,7 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
               ({{ (artifact.size_in_bytes / 1024).toFixed(1) }} KB)
             </span>
             <vscode-button
-              variant="secondary"
+              secondary
               icon="cloud-download"
               :disabled="artifactDownloadLoading(artifact.id)"
               @click="downloadArtifact(artifact)"

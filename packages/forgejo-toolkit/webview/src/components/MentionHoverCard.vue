@@ -43,7 +43,7 @@ function formatDate(value?: string): string {
     <div v-else-if="error" class="hover-error">{{ t('dashboard.hoverCard.error', { message: error }) }}</div>
     <div v-else-if="user" class="hover-user">
       <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.login" class="hover-avatar" />
-      <vscode-icon v-else name="account" size="32" class="hover-avatar hover-avatar-fallback" />
+      <vscode-icon v-else name="account" :size="32" class="hover-avatar hover-avatar-fallback" />
       <div class="hover-user-info">
         <div class="hover-login">{{ user.login }}</div>
         <div v-if="user.full_name" class="hover-fullname">{{ user.full_name }}</div>
@@ -51,7 +51,7 @@ function formatDate(value?: string): string {
     </div>
     <div v-else-if="issue" class="hover-issue">
       <div class="hover-issue-header">
-        <vscode-icon :name="issueIcon" size="16" class="hover-issue-icon" :class="issueStateClass" />
+        <vscode-icon :name="issueIcon" :size="16" class="hover-issue-icon" :class="issueStateClass" />
         <span class="hover-issue-number">#{{ issue.number }}</span>
         <span class="hover-issue-state" :class="issueStateClass">
           {{

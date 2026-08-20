@@ -3,7 +3,6 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 const { t } = useI18n();
@@ -117,12 +116,12 @@ watch(
     <div class="import-preview-header">
       <h1 class="import-preview-title">{{ t('settings.importPreview.title') }}</h1>
       <div class="import-preview-actions">
-        <VscodeButton variant="secondary" :disabled="instances.length === 0" @click="selectAll">
+        <vscode-button :disabled="instances.length === 0" @click="selectAll" secondary>
           {{ t('settings.importPreview.selectAll') }}
-        </VscodeButton>
-        <VscodeButton variant="secondary" :disabled="selectedIds.size === 0" @click="deselectAll">
+        </vscode-button>
+        <vscode-button :disabled="selectedIds.size === 0" @click="deselectAll" secondary>
           {{ t('settings.importPreview.deselectAll') }}
-        </VscodeButton>
+        </vscode-button>
       </div>
     </div>
 
@@ -180,10 +179,10 @@ watch(
     </div>
 
     <div class="import-preview-footer">
-      <VscodeButton variant="secondary" @click="cancel">{{ t('settings.importPreview.cancel') }}</VscodeButton>
-      <VscodeButton variant="primary" :disabled="selectedIds.size === 0" @click="handleImport">
+      <vscode-button @click="cancel" secondary>{{ t('settings.importPreview.cancel') }}</vscode-button>
+      <vscode-button :disabled="selectedIds.size === 0" @click="handleImport">
         {{ t('settings.importPreview.importSelected', { count: selectedIds.size }) }}
-      </VscodeButton>
+      </vscode-button>
     </div>
   </div>
 </template>

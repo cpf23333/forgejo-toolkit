@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton, VscodeTextfield } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import ModalDialog from './ModalDialog.vue';
 import EasyMdeEditor from './EasyMdeEditor.vue';
 import PendingAttachmentList from './PendingAttachmentList.vue';
@@ -219,24 +218,36 @@ function title(): string {
     <form class="ref-form" @submit.prevent="handleSubmit">
       <div v-if="mode !== 'release'" class="form-field">
         <label>{{ t('dashboard.repoRefs.nameLabel') }}</label>
-        <VscodeTextfield v-model="name" :placeholder="t('dashboard.repoRefs.nameLabel')" />
+        <vscode-textfield
+          :value="name"
+          @input="name = ($event.target as HTMLInputElement).value"
+          :placeholder="t('dashboard.repoRefs.nameLabel')"
+        />
       </div>
 
       <template v-if="mode === 'branch'">
         <div class="form-field">
           <label>{{ t('dashboard.repoRefs.createBranchFromPrompt') }}</label>
-          <VscodeTextfield v-model="oldRef" :placeholder="defaultBranch ?? ''" />
+          <vscode-textfield
+            :value="oldRef"
+            @input="oldRef = ($event.target as HTMLInputElement).value"
+            :placeholder="defaultBranch ?? ''"
+          />
         </div>
       </template>
 
       <template v-if="mode === 'tag'">
         <div class="form-field">
           <label>{{ t('dashboard.repoRefs.createTagTargetPrompt') }}</label>
-          <VscodeTextfield v-model="tagTarget" :placeholder="defaultBranch ?? ''" />
+          <vscode-textfield
+            :value="tagTarget"
+            @input="tagTarget = ($event.target as HTMLInputElement).value"
+            :placeholder="defaultBranch ?? ''"
+          />
         </div>
         <div class="form-field">
           <label>{{ t('dashboard.repoRefs.createTagMessagePrompt') }}</label>
-          <VscodeTextfield v-model="tagMessage" />
+          <vscode-textfield :value="tagMessage" @input="tagMessage = ($event.target as HTMLInputElement).value" />
         </div>
       </template>
 
@@ -244,7 +255,12 @@ function title(): string {
         <div class="form-field">
           <label>{{ t('dashboard.repoRefs.releaseTagNameLabel') }}</label>
           <div class="tag-target-row">
-            <VscodeTextfield v-model="name" :placeholder="t('dashboard.repoRefs.nameLabel')" class="tag-name-input" />
+            <vscode-textfield
+              :value="name"
+              @input="name = ($event.target as HTMLInputElement).value"
+              :placeholder="t('dashboard.repoRefs.nameLabel')"
+              class="tag-name-input"
+            />
             <span class="at-separator">@</span>
             <input
               v-model="releaseTarget"
@@ -261,7 +277,7 @@ function title(): string {
 
         <div class="form-field">
           <label>{{ t('dashboard.repoRefs.createReleaseNamePrompt') }}</label>
-          <VscodeTextfield v-model="releaseName" />
+          <vscode-textfield :value="releaseName" @input="releaseName = ($event.target as HTMLInputElement).value" />
         </div>
 
         <div class="form-field">
@@ -272,9 +288,9 @@ function title(): string {
         <div v-if="mode === 'release'" class="form-field attachment-field">
           <label>{{ t('dashboard.repoRefs.attachmentsLabel') }}</label>
           <input ref="fileInputRef" type="file" multiple hidden @change="handleAttachmentSelected" />
-          <VscodeButton type="button" secondary class="add-attachment-button" @click="fileInputRef?.click()">
+          <vscode-button type="button" secondary class="add-attachment-button" @click="fileInputRef?.click()">
             {{ t('dashboard.repoRefs.addAttachment') }}
-          </VscodeButton>
+          </vscode-button>
           <div v-if="attachmentError" class="attachment-error">{{ attachmentError }}</div>
           <ul v-if="release && attachments.length" class="attachment-list">
             <li v-for="att in attachments" :key="att.id" class="attachment-item">
@@ -316,15 +332,15 @@ function title(): string {
 
       <div class="form-actions">
         <template v-if="mode === 'release' && !release">
-          <VscodeButton type="button" secondary :disabled="loading || !name.trim()" @click="submitWithDraft(true)">
+          <vscode-button type="button" secondary :disabled="loading || !name.trim()" @click="submitWithDraft(true)">
             {{ loading ? t('dashboard.form.saving') : t('dashboard.repoRefs.saveDraft') }}
-          </VscodeButton>
-          <VscodeButton type="button" :disabled="loading || !name.trim()" @click="submitWithDraft(false)">
+          </vscode-button>
+          <vscode-button type="button" :disabled="loading || !name.trim()" @click="submitWithDraft(false)">
             {{ loading ? t('dashboard.form.saving') : t('dashboard.repoRefs.publishRelease') }}
-          </VscodeButton>
+          </vscode-button>
         </template>
         <template v-else>
-          <VscodeButton type="submit" :disabled="loading || !name.trim()">
+          <vscode-button type="submit" :disabled="loading || !name.trim()">
             {{
               loading
                 ? t('dashboard.form.saving')
@@ -332,11 +348,11 @@ function title(): string {
                   ? t('dashboard.form.save')
                   : t('dashboard.form.create')
             }}
-          </VscodeButton>
+          </vscode-button>
         </template>
-        <VscodeButton type="button" secondary @click="emit('close')">
+        <vscode-button type="button" secondary @click="emit('close')">
           {{ t('dashboard.form.cancel') }}
-        </VscodeButton>
+        </vscode-button>
       </div>
     </form>
   </ModalDialog>

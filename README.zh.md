@@ -100,12 +100,11 @@ pnpm --filter forgejo-toolkit package
 
 ### 包结构
 
-| Package                                                          | 说明                                                                                                                          |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit)         | VS Code 扩展主体。                                                                                                            |
-| [`packages/vscode-elements-vue`](./packages/vscode-elements-vue) | Vue 3 适配 [@vscode-elements/elements](https://www.npmjs.com/package/@vscode-elements/elements) 的类型、Vite 插件和包装组件。 |
-| [`packages/shared`](./packages/shared)                           | 共享请求客户端与通用类型。                                                                                                    |
-| [`packages/forgejo-api`](./packages/forgejo-api)                 | 基于 Forgejo OpenAPI 规范生成的 API 客户端。                                                                                  |
+| Package                                                  | 说明                                         |
+| -------------------------------------------------------- | -------------------------------------------- |
+| [`packages/forgejo-toolkit`](./packages/forgejo-toolkit) | VS Code 扩展主体。                           |
+| [`packages/shared`](./packages/shared)                   | 共享请求客户端与通用类型。                   |
+| [`packages/forgejo-api`](./packages/forgejo-api)         | 基于 Forgejo OpenAPI 规范生成的 API 客户端。 |
 
 ### 技术栈
 

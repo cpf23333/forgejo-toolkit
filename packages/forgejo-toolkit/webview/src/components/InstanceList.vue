@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ForgejoInstance } from '../types/instance';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 
 defineProps<{
   instances: ForgejoInstance[];
@@ -32,9 +31,7 @@ const emit = defineEmits<{
         Use the command palette (<kbd>Ctrl+Shift+P</kbd>) and run
         <code>Forgejo Toolkit: Add Instance</code>.
       </p>
-      <VscodeButton variant="primary" @click="emit('openExternal', 'https://forgejo.org/')">
-        Learn more about Forgejo
-      </VscodeButton>
+      <vscode-button @click="emit('openExternal', 'https://forgejo.org/')"> Learn more about Forgejo </vscode-button>
     </div>
   </div>
 </template>

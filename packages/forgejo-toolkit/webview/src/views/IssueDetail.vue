@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { CollapsibleSection } from '../vscode-controls';
 import DateTimePicker from '../components/DateTimePicker.vue';
 import MarkdownBody from '../components/MarkdownBody.vue';
@@ -290,7 +289,7 @@ const manualTimeHours = ref(0);
 const manualTimeMinutes = ref(0);
 const selectedDependencyNumber = ref<number | undefined>(undefined);
 const isEditingDueDate = ref(false);
-const dueDateValue = ref<string | undefined>(undefined);
+const dueDateValue = ref<string | null>(null);
 
 function addManualTime() {
   const hours = manualTimeHours.value || 0;
@@ -314,13 +313,13 @@ function addDependency() {
 }
 
 function startEditDueDate() {
-  dueDateValue.value = detail.value?.due_date;
+  dueDateValue.value = detail.value?.due_date ?? null;
   isEditingDueDate.value = true;
 }
 
 function cancelEditDueDate() {
   isEditingDueDate.value = false;
-  dueDateValue.value = undefined;
+  dueDateValue.value = null;
 }
 
 function saveDueDate() {
@@ -328,7 +327,7 @@ function saveDueDate() {
     dueDate: dueDateValue.value || undefined,
   });
   isEditingDueDate.value = false;
-  dueDateValue.value = undefined;
+  dueDateValue.value = null;
 }
 
 function clearDueDate() {
@@ -532,9 +531,9 @@ function reloadIssue() {
     </div>
     <div v-else-if="error" class="error-state">
       <span>{{ t('dashboard.error', { message: error }) }}</span>
-      <VscodeButton variant="secondary" icon="refresh" @click="reloadIssue">
+      <vscode-button icon="refresh" @click="reloadIssue" secondary>
         {{ t('dashboard.retry') }}
-      </VscodeButton>
+      </vscode-button>
     </div>
     <div v-else-if="detail" class="detail-content">
       <div class="detail-main">
@@ -545,41 +544,41 @@ function reloadIssue() {
           </h2>
           <div class="header-actions">
             <span class="state-badge" :class="`state-${detail.state ?? 'open'}`">{{ detail.state }}</span>
-            <VscodeButton
-              variant="icon"
+            <vscode-button
               icon="link-external"
               :title="t('dashboard.detail.openIssue')"
               :aria-label="t('dashboard.detail.openIssue')"
               @click="state.openExternal(issueUrl)"
+              icon-only
             />
-            <VscodeButton
-              variant="icon"
+            <vscode-button
               icon="copy"
               :title="t('dashboard.detail.copyLink')"
               :aria-label="t('dashboard.detail.copyLink')"
               @click="state.copyToClipboard(issueUrl)"
+              icon-only
             />
             <template v-if="canManageIssue">
-              <VscodeButton
-                variant="icon"
+              <vscode-button
                 icon="edit"
                 :title="t('dashboard.actions.edit')"
                 :aria-label="t('dashboard.actions.edit')"
                 @click="openEdit"
+                icon-only
               />
-              <VscodeButton
-                variant="icon"
+              <vscode-button
                 :icon="detail.state === 'open' ? 'close' : 'refresh'"
                 :title="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
                 :aria-label="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
                 @click="toggleState"
+                icon-only
               />
-              <VscodeButton
-                variant="icon"
+              <vscode-button
                 icon="trash"
                 :title="t('dashboard.actions.delete')"
                 :aria-label="t('dashboard.actions.delete')"
                 @click="handleDeleteIssue"
+                icon-only
               />
             </template>
           </div>
@@ -664,8 +663,7 @@ function reloadIssue() {
               @remove="removePendingCommentAttachment($event)"
             />
             <div class="comment-form-actions">
-              <VscodeButton
-                variant="primary"
+              <vscode-button
                 :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
                 @click="handleCommentSubmit"
               >
@@ -674,7 +672,7 @@ function reloadIssue() {
                     ? t('dashboard.form.saving')
                     : t('dashboard.detail.postComment')
                 }}
-              </VscodeButton>
+              </vscode-button>
             </div>
             <div v-if="commentError" class="error">{{ t('dashboard.error', { message: commentError }) }}</div>
           </div>
@@ -796,13 +794,13 @@ function reloadIssue() {
         <CollapsibleSection :title="t('dashboard.detail.subscription')">
           <div v-if="subscription === undefined" class="loading-inline">{{ t('dashboard.loading') }}</div>
           <div v-else class="subscription-actions">
-            <VscodeButton
-              variant="secondary"
+            <vscode-button
               :icon="subscription.subscribed ? 'bell-slash' : 'bell'"
               @click="toggleSubscription"
+              secondary
             >
               {{ subscription.subscribed ? t('dashboard.detail.unsubscribe') : t('dashboard.detail.subscribe') }}
-            </VscodeButton>
+            </vscode-button>
           </div>
         </CollapsibleSection>
 
@@ -813,42 +811,42 @@ function reloadIssue() {
             }}</span>
           </div>
           <div class="time-tracking-actions">
-            <VscodeButton
+            <vscode-button
               v-if="!isStopwatchRunning"
-              variant="secondary"
               icon="play"
               @click="state.startIssueStopwatch(instanceId, owner, repo, index)"
+              secondary
             >
               {{ t('dashboard.detail.startStopwatch') }}
-            </VscodeButton>
-            <VscodeButton
+            </vscode-button>
+            <vscode-button
               v-else
-              variant="secondary"
               icon="debug-pause"
               @click="state.stopIssueStopwatch(instanceId, owner, repo, index)"
+              secondary
             >
               {{ t('dashboard.detail.stopStopwatch') }}
-            </VscodeButton>
+            </vscode-button>
           </div>
           <div class="time-tracking-form">
             <vscode-textfield
               type="number"
               :value="String(manualTimeHours)"
-              min="0"
+              :min="0"
               @input="manualTimeHours = Number(($event.target as HTMLInputElement).value)"
             />
             <span>{{ t('dashboard.detail.hours') }}</span>
             <vscode-textfield
               type="number"
               :value="String(manualTimeMinutes)"
-              min="0"
-              max="59"
+              :min="0"
+              :max="59"
               @input="manualTimeMinutes = Number(($event.target as HTMLInputElement).value)"
             />
             <span>{{ t('dashboard.detail.minutes') }}</span>
-            <VscodeButton variant="secondary" icon="add" @click="addManualTime">
+            <vscode-button icon="add" @click="addManualTime" secondary>
               {{ t('dashboard.detail.addTime') }}
-            </VscodeButton>
+            </vscode-button>
           </div>
           <div v-if="trackedTimes.length" class="tracked-time-list">
             <div v-for="time in trackedTimes" :key="time.id" class="tracked-time-item">
@@ -900,14 +898,14 @@ function reloadIssue() {
                   #{{ issue.number }} {{ issue.title }}
                 </option>
               </select>
-              <VscodeButton
-                variant="secondary"
+              <vscode-button
                 icon="add"
                 :disabled="!selectedDependencyNumber || availableDependencies.length === 0"
                 @click="addDependency"
+                secondary
               >
                 {{ t('dashboard.detail.addDependency') }}
-              </VscodeButton>
+              </vscode-button>
             </template>
           </div>
           <div v-if="!repoIssuesLoading && availableDependencies.length === 0" class="dependency-status empty">

@@ -237,7 +237,7 @@ function loadingKey(): string {
         <vscode-icon
           name="refresh"
           action-icon
-          size="16"
+          :size="16"
           :title="t('dashboard.retry')"
           :aria-label="t('dashboard.retry')"
           @click.stop.prevent="loadForTab(true)"
@@ -273,7 +273,7 @@ function loadingKey(): string {
               <vscode-icon
                 name="link-external"
                 action-icon
-                size="16"
+                :size="16"
                 :title="t('dashboard.actions.open')"
                 :aria-label="t('dashboard.actions.open')"
                 @click.prevent="state.openExternal(repo.html_url)"
@@ -281,7 +281,7 @@ function loadingKey(): string {
               <vscode-icon
                 name="copy"
                 action-icon
-                size="16"
+                :size="16"
                 :title="t('dashboard.actions.copyClone')"
                 :aria-label="t('dashboard.actions.copyClone')"
                 @click.prevent="state.copyToClipboard(cloneUrl(repo))"
@@ -308,7 +308,7 @@ function loadingKey(): string {
             <vscode-icon
               name="link-external"
               action-icon
-              size="16"
+              :size="16"
               :title="t('dashboard.actions.open')"
               :aria-label="t('dashboard.actions.open')"
               @click.prevent="state.openExternal(issue.html_url)"
@@ -316,7 +316,7 @@ function loadingKey(): string {
             <vscode-icon
               name="copy"
               action-icon
-              size="16"
+              :size="16"
               :title="t('dashboard.actions.copyUrl')"
               :aria-label="t('dashboard.actions.copyUrl')"
               @click.prevent="state.copyToClipboard(issue.html_url)"
@@ -342,7 +342,7 @@ function loadingKey(): string {
             <vscode-icon
               name="link-external"
               action-icon
-              size="16"
+              :size="16"
               :title="t('dashboard.actions.open')"
               :aria-label="t('dashboard.actions.open')"
               @click.prevent="state.openExternal(pr.html_url)"
@@ -350,7 +350,7 @@ function loadingKey(): string {
             <vscode-icon
               name="copy"
               action-icon
-              size="16"
+              :size="16"
               :title="t('dashboard.actions.copyUrl')"
               :aria-label="t('dashboard.actions.copyUrl')"
               @click.prevent="state.copyToClipboard(pr.html_url)"

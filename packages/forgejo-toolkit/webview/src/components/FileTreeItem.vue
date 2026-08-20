@@ -33,13 +33,7 @@ function onHistoryClick(event: Event) {
 </script>
 
 <template>
-  <vscode-tree-item
-    :branch="isDir || undefined"
-    :level="level ?? 0"
-    :data-file-path="entry.path"
-    :data-type="entry.type"
-    :data-size="entry.size"
-  >
+  <vscode-tree-item :branch="isDir || undefined" :level="level ?? 0">
     <span class="tree-label">{{ entry.name }}</span>
     <span v-if="!isDir && error" class="tree-status error" :title="error">{{ error }}</span>
     <span v-if="!isDir" slot="actions">

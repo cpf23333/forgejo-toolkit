@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import { useAppState } from '../composables/useAppState';
 import ModalDialog from '../components/ModalDialog.vue';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -379,12 +378,12 @@ defineExpose({
           @change="applyWorktreeCacheDirectory"
         />
         <div class="cache-directory-actions">
-          <VscodeButton variant="secondary" @click="browseWorktreeCacheDirectory">
+          <vscode-button @click="browseWorktreeCacheDirectory" secondary>
             {{ t('settings.worktree.browse') }}
-          </VscodeButton>
-          <VscodeButton variant="secondary" @click="restoreDefaultCacheDirectory">{{
+          </vscode-button>
+          <vscode-button @click="restoreDefaultCacheDirectory" secondary>{{
             t('settings.worktree.restoreDefault')
-          }}</VscodeButton>
+          }}</vscode-button>
         </div>
       </div>
 
@@ -400,12 +399,10 @@ defineExpose({
               <div class="saved-path">{{ worktree.worktreePath }}</div>
             </div>
             <div class="worktree-actions">
-              <VscodeButton variant="secondary" @click="openWorktree(worktree.worktreePath)">{{
+              <vscode-button @click="openWorktree(worktree.worktreePath)" secondary>{{
                 t('settings.worktree.open')
-              }}</VscodeButton>
-              <VscodeButton variant="icon" @click="deleteWorktree(worktree.id)">{{
-                t('settings.worktree.delete')
-              }}</VscodeButton>
+              }}</vscode-button>
+              <vscode-button @click="deleteWorktree(worktree.id)">{{ t('settings.worktree.delete') }}</vscode-button>
             </div>
           </li>
         </ul>
@@ -420,9 +417,10 @@ defineExpose({
         <label for="forgejo-url">{{ t('settings.instanceUrl') }}</label>
         <vscode-textfield
           id="forgejo-url"
-          v-model="url"
+          :value="url"
           :placeholder="t('settings.instanceUrlPlaceholder')"
           type="url"
+          @input="url = ($event.target as HTMLInputElement).value"
         />
       </div>
 
@@ -430,9 +428,10 @@ defineExpose({
         <label for="forgejo-token">{{ t('settings.accessToken') }}</label>
         <vscode-textfield
           id="forgejo-token"
-          v-model="token"
+          :value="token"
           :placeholder="t('settings.accessTokenPlaceholder')"
           type="password"
+          @input="token = ($event.target as HTMLInputElement).value"
         />
         <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
       </div>
@@ -449,18 +448,18 @@ defineExpose({
       </div>
 
       <div class="actions">
-        <VscodeButton variant="secondary" :disabled="!canSubmit || testing" @click="handleTest">
+        <vscode-button :disabled="!canSubmit || testing" @click="handleTest" secondary>
           {{ testing ? t('settings.testing') : t('settings.testConnection') }}
-        </VscodeButton>
-        <VscodeButton v-if="editingInstance" variant="primary" :disabled="!canSubmit || saving" @click="handleUpdate">
+        </vscode-button>
+        <vscode-button v-if="editingInstance" :disabled="!canSubmit || saving" @click="handleUpdate">
           {{ saving ? t('settings.saving') : t('settings.updateInstance') }}
-        </VscodeButton>
-        <VscodeButton v-else variant="primary" :disabled="!canSubmit || saving" @click="handleSave">
+        </vscode-button>
+        <vscode-button v-else :disabled="!canSubmit || saving" @click="handleSave">
           {{ saving ? t('settings.saving') : t('settings.addInstance') }}
-        </VscodeButton>
-        <VscodeButton v-if="editingInstance" variant="secondary" @click="cancelEdit">
+        </vscode-button>
+        <vscode-button v-if="editingInstance" @click="cancelEdit" secondary>
           {{ t('settings.cancelEdit') }}
-        </VscodeButton>
+        </vscode-button>
       </div>
 
       <div v-if="status" :class="['status', statusType]">{{ status }}</div>
@@ -470,17 +469,17 @@ defineExpose({
       <div class="section-header">
         <h2>{{ t('settings.savedInstances') }}</h2>
         <div class="section-actions">
-          <VscodeButton
+          <vscode-button
             v-if="state.instances.value.length > 0"
-            variant="secondary"
+            secondary
             icon="desktop-download"
             @click="handleExportInstances"
           >
             {{ t('settings.exportInstances') }}
-          </VscodeButton>
-          <VscodeButton variant="secondary" icon="file-directory" @click="handleImportInstances">
+          </vscode-button>
+          <vscode-button icon="file-directory" @click="handleImportInstances" secondary>
             {{ t('settings.importInstances') }}
-          </VscodeButton>
+          </vscode-button>
         </div>
       </div>
       <div v-if="exportStatus" :class="['status', exportStatus.type]">{{ exportStatus.message }}</div>
@@ -492,10 +491,8 @@ defineExpose({
             <div class="saved-url">{{ instance.url }}</div>
           </div>
           <div class="saved-actions">
-            <VscodeButton variant="secondary" @click="startEdit(instance)">{{
-              t('settings.editInstance')
-            }}</VscodeButton>
-            <VscodeButton variant="icon" @click="removeInstance(instance.id)">{{ t('settings.remove') }}</VscodeButton>
+            <vscode-button @click="startEdit(instance)" secondary>{{ t('settings.editInstance') }}</vscode-button>
+            <vscode-button @click="removeInstance(instance.id)">{{ t('settings.remove') }}</vscode-button>
           </div>
         </li>
       </ul>
@@ -519,15 +516,15 @@ defineExpose({
           </li>
         </ul>
         <div class="export-dialog-actions">
-          <VscodeButton variant="secondary" @click="cancelExport">
+          <vscode-button @click="cancelExport" secondary>
             {{ t('settings.exportDialogCancel') }}
-          </VscodeButton>
-          <VscodeButton variant="secondary" :disabled="selectedExportIds.size === 0" @click="copyExportToClipboard">
+          </vscode-button>
+          <vscode-button :disabled="selectedExportIds.size === 0" @click="copyExportToClipboard" secondary>
             {{ t('settings.copyToClipboard') }}
-          </VscodeButton>
-          <VscodeButton variant="primary" :disabled="selectedExportIds.size === 0" @click="confirmExport">
+          </vscode-button>
+          <vscode-button :disabled="selectedExportIds.size === 0" @click="confirmExport">
             {{ t('settings.exportSelected', { count: selectedExportIds.size }) }}
-          </VscodeButton>
+          </vscode-button>
         </div>
       </div>
     </ModalDialog>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { VscodeButton } from '@cpf23333-forgejo-toolkit/vscode-elements-vue/components';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import type { PullReviewCommentContext } from '../types/config';
 import { postMessage } from '../composables/vscode';
@@ -126,36 +125,36 @@ function uploadImage(file: File, onSuccess: (url: string) => void, onError: (err
       :repo="context.repo"
     />
     <div class="editor-actions">
-      <VscodeButton
+      <vscode-button
         v-if="!isReviewMode || !hasPendingReview"
         :disabled="submitting || !body.trim()"
         @click="submitSingle"
       >
         {{ t('pullReviewCommentEditor.addSingleComment') }}
-      </VscodeButton>
-      <VscodeButton
+      </vscode-button>
+      <vscode-button
         v-if="isReviewMode && !hasPendingReview"
         :disabled="submitting || !body.trim()"
         @click="startOrAddToReview"
       >
         {{ t('pullReviewCommentEditor.startReview') }}
-      </VscodeButton>
-      <VscodeButton
+      </vscode-button>
+      <vscode-button
         v-if="isReviewMode && hasPendingReview"
         :disabled="submitting || !body.trim()"
         @click="startOrAddToReview"
       >
         {{ t('pullReviewCommentEditor.addToReview') }}
-      </VscodeButton>
-      <VscodeButton v-if="isReviewMode && hasPendingReview" appearance="primary" @click="submitReview">
+      </vscode-button>
+      <vscode-button v-if="isReviewMode && hasPendingReview" @click="submitReview">
         {{ t('pullReviewCommentEditor.submitReview') }}
-      </VscodeButton>
-      <VscodeButton v-if="isReviewMode && hasPendingReview" appearance="secondary" @click="cancelReview">
+      </vscode-button>
+      <vscode-button v-if="isReviewMode && hasPendingReview" secondary @click="cancelReview">
         {{ t('pullReviewCommentEditor.cancelReview') }}
-      </VscodeButton>
-      <VscodeButton appearance="secondary" @click="closePanel">
+      </vscode-button>
+      <vscode-button secondary @click="closePanel">
         {{ t('pullReviewCommentEditor.close') }}
-      </VscodeButton>
+      </vscode-button>
     </div>
   </div>
 </template>

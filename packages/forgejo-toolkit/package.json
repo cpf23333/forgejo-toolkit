@@ -42,7 +42,6 @@
   "dependencies": {
     "@cpf23333-forgejo-toolkit/api": "workspace:*",
     "@cpf23333-forgejo-toolkit/shared": "workspace:*",
-    "@cpf23333-forgejo-toolkit/vscode-elements-vue": "workspace:*",
     "easymde": "^2.21.0",
     "font-awesome": "^4.7.0",
     "tributejs": "^5.1.3",

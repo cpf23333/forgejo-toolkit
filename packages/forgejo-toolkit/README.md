@@ -12,7 +12,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) with a rich Webview-base
 ## Tech Stack
 
 - **Extension host**: TypeScript + esbuild (CJS)
-- **Webview UI**: Vue 3 + Vite 8 + @vscode-elements/elements + @cpf23333-forgejo-toolkit/vscode-elements-vue
+- **Webview UI**: Vue 3 + Vite 8 + @vscode-elements/elements
 
 ## Development
 
@@ -46,4 +46,4 @@ npx vsce package
 - The extension communicates with Forgejo via the REST API (`/api/v1`).
 - Access tokens are stored in VS Code's global state.
 - The webview uses `acquireVsCodeApi()` to communicate with the extension host.
-- The Vite configuration uses `@cpf23333-forgejo-toolkit/vscode-elements-vue` to automatically mark every `vscode-*` tag as a custom element.
+- The Vite configuration marks every `vscode-*` tag as a custom element so Vue passes attributes through to the underlying web components.

@@ -9,7 +9,6 @@ Forgejo Toolkit is a VS Code extension with a Webview-based user interface. It i
 - `packages/forgejo-toolkit` — VS Code extension host.
 - `packages/forgejo-api` — Generated Forgejo API client.
 - `packages/shared` — Shared HTTP client and common types.
-- `packages/vscode-elements-vue` — Vue 3 wrappers for `@vscode-elements/elements`.
 
 ## Extension host
 
