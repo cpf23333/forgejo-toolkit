@@ -249,11 +249,16 @@ const linkedRepository = computed(() => state.linkedRepository.value);
 }
 
 .notification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background-color: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
-  border-radius: 10px;
-  padding: 2px 6px;
-  font-size: 0.75em;
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 0.7em;
+  line-height: 1;
+  min-height: 16px;
   margin-left: 4px;
 }
 

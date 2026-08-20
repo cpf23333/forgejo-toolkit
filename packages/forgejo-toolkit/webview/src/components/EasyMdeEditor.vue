@@ -6,6 +6,7 @@ import 'easymde/dist/easymde.min.css';
 import 'tributejs/tribute.css';
 import Tribute from 'tributejs';
 import { isImageFile } from '../utils/file';
+import { sanitizeMarkdownHtml } from '../utils/markdown';
 import { useAppState, type MentionUser, type MentionIssue } from '../composables/useAppState';
 
 type MentionItem = MentionUser | MentionIssue;
@@ -42,10 +43,21 @@ const textareaRef = ref<HTMLTextAreaElement | null>(null);
 let easyMDE: EasyMDE | null = null;
 let visibilityObserver: IntersectionObserver | null = null;
 let tribute: Tribute<any> | null = null;
+let previewRenderTimer: ReturnType<typeof setTimeout> | undefined;
+const renderedHtml = ref('');
+const previewRendering = ref(false);
+const isFullscreen = ref(false);
 
 const mentionsEnabled = computed(
   () => props.instanceId !== undefined && props.owner !== undefined && props.repo !== undefined,
 );
+
+const baseUrl = computed(() => {
+  if (!props.instanceId) {
+    return undefined;
+  }
+  return state.instances.value.find((instance) => instance.id === props.instanceId)?.url;
+});
 
 function getMentionInput(): HTMLElement | null {
   return easyMDE?.codemirror.getInputField() ?? null;
@@ -54,6 +66,46 @@ function getMentionInput(): HTMLElement | null {
 function isTributeActive(): boolean {
   const container = document.querySelector('.tribute-container') as HTMLElement | null;
   return container !== null && container.style.display !== 'none';
+}
+
+function getActivePreviewElement(): HTMLElement | null {
+  return (
+    (wrapperRef.value?.querySelector(
+      '.editor-preview-full.editor-preview-active, .editor-preview-side.editor-preview-active-side',
+    ) as HTMLElement | null) ?? null
+  );
+}
+
+async function renderPreviewHtml(markdown: string) {
+  let html: string;
+  if (!props.instanceId) {
+    html = (easyMDE as any)?.markdown(markdown) ?? '';
+  } else {
+    previewRendering.value = true;
+    try {
+      const context = props.owner && props.repo ? `${props.owner}/${props.repo}` : undefined;
+      html = await state.renderMarkdown(props.instanceId, markdown, context);
+    } finally {
+      previewRendering.value = false;
+    }
+  }
+  renderedHtml.value = sanitizeMarkdownHtml(html, baseUrl.value);
+}
+
+function schedulePreviewRender() {
+  if (previewRenderTimer) {
+    clearTimeout(previewRenderTimer);
+  }
+  previewRenderTimer = setTimeout(() => {
+    previewRenderTimer = undefined;
+    const markdown = easyMDE?.value() ?? '';
+    void renderPreviewHtml(markdown).then(() => {
+      const previewEl = getActivePreviewElement();
+      if (previewEl) {
+        previewEl.innerHTML = renderedHtml.value;
+      }
+    });
+  }, 300);
 }
 
 async function attachMentions() {
@@ -147,13 +199,13 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
     ? {
         name: 'upload-image',
         action: EasyMDE.drawUploadedImage,
-        className: 'fa fa-upload',
+        className: 'codicon codicon-cloud-upload',
         title: t('editor.toolbar.uploadImage'),
       }
     : {
         name: 'image',
         action: EasyMDE.drawImage,
-        className: 'fa fa-image',
+        className: 'codicon codicon-file-media',
         title: t('editor.toolbar.image'),
       };
 
@@ -161,102 +213,130 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
     heading: {
       name: 'heading',
       action: EasyMDE.toggleHeadingSmaller,
-      className: 'fa fa-header',
+      className: 'codicon codicon-symbol-keyword',
       title: t('editor.toolbar.heading'),
     },
     'heading-1': {
       name: 'heading-1',
       action: EasyMDE.toggleHeading1,
-      className: 'fa fa-header',
+      className: 'codicon codicon-symbol-keyword',
       title: `${t('editor.toolbar.heading')} 1`,
     },
     'heading-2': {
       name: 'heading-2',
       action: EasyMDE.toggleHeading2,
-      className: 'fa fa-header',
+      className: 'codicon codicon-symbol-keyword',
       title: `${t('editor.toolbar.heading')} 2`,
     },
     'heading-3': {
       name: 'heading-3',
       action: EasyMDE.toggleHeading3,
-      className: 'fa fa-header',
+      className: 'codicon codicon-symbol-keyword',
       title: `${t('editor.toolbar.heading')} 3`,
     },
     'heading-bigger': {
       name: 'heading-bigger',
       action: EasyMDE.toggleHeadingBigger,
-      className: 'fa fa-header',
+      className: 'codicon codicon-symbol-keyword',
       title: t('editor.toolbar.heading'),
     },
     'heading-smaller': {
       name: 'heading-smaller',
       action: EasyMDE.toggleHeadingSmaller,
-      className: 'fa fa-header',
+      className: 'codicon codicon-symbol-keyword',
       title: t('editor.toolbar.heading'),
     },
-    bold: { name: 'bold', action: EasyMDE.toggleBold, className: 'fa fa-bold', title: t('editor.toolbar.bold') },
+    bold: {
+      name: 'bold',
+      action: EasyMDE.toggleBold,
+      className: 'codicon codicon-bold',
+      title: t('editor.toolbar.bold'),
+    },
     italic: {
       name: 'italic',
       action: EasyMDE.toggleItalic,
-      className: 'fa fa-italic',
+      className: 'codicon codicon-italic',
       title: t('editor.toolbar.italic'),
     },
     strikethrough: {
       name: 'strikethrough',
       action: EasyMDE.toggleStrikethrough,
-      className: 'fa fa-strikethrough',
+      className: 'codicon codicon-strikethrough',
       title: t('editor.toolbar.strikethrough'),
     },
     quote: {
       name: 'quote',
       action: EasyMDE.toggleBlockquote,
-      className: 'fa fa-quote-left',
+      className: 'codicon codicon-quote',
       title: t('editor.toolbar.quote'),
     },
-    code: { name: 'code', action: EasyMDE.toggleCodeBlock, className: 'fa fa-code', title: t('editor.toolbar.code') },
-    link: { name: 'link', action: EasyMDE.drawLink, className: 'fa fa-link', title: t('editor.toolbar.link') },
-    image: { name: 'image', action: EasyMDE.drawImage, className: 'fa fa-image', title: t('editor.toolbar.image') },
-    table: { name: 'table', action: EasyMDE.drawTable, className: 'fa fa-table', title: t('editor.toolbar.table') },
+    code: {
+      name: 'code',
+      action: EasyMDE.toggleCodeBlock,
+      className: 'codicon codicon-code',
+      title: t('editor.toolbar.code'),
+    },
+    link: {
+      name: 'link',
+      action: EasyMDE.drawLink,
+      className: 'codicon codicon-link',
+      title: t('editor.toolbar.link'),
+    },
+    image: {
+      name: 'image',
+      action: EasyMDE.drawImage,
+      className: 'codicon codicon-file-media',
+      title: t('editor.toolbar.image'),
+    },
+    table: {
+      name: 'table',
+      action: EasyMDE.drawTable,
+      className: 'codicon codicon-table',
+      title: t('editor.toolbar.table'),
+    },
     'horizontal-rule': {
       name: 'horizontal-rule',
       action: EasyMDE.drawHorizontalRule,
-      className: 'fa fa-minus',
+      className: 'codicon codicon-dash',
       title: t('editor.toolbar.horizontalRule'),
     },
     'unordered-list': {
       name: 'unordered-list',
       action: EasyMDE.toggleUnorderedList,
-      className: 'fa fa-list-ul',
+      className: 'codicon codicon-list-unordered',
       title: t('editor.toolbar.unorderedList'),
     },
     'ordered-list': {
       name: 'ordered-list',
       action: EasyMDE.toggleOrderedList,
-      className: 'fa fa-list-ol',
+      className: 'codicon codicon-list-ordered',
       title: t('editor.toolbar.orderedList'),
     },
     preview: {
       name: 'preview',
       action: EasyMDE.togglePreview,
-      className: 'fa fa-eye',
+      className: 'codicon codicon-preview',
+      noDisable: true,
       title: t('editor.toolbar.preview'),
     },
     fullscreen: {
       name: 'fullscreen',
       action: EasyMDE.toggleFullScreen,
-      className: 'fa fa-arrows-alt',
+      className: 'codicon codicon-screen-full',
+      noDisable: true,
       title: t('editor.toolbar.fullscreen'),
     },
     'side-by-side': {
       name: 'side-by-side',
       action: EasyMDE.toggleSideBySide,
-      className: 'fa fa-columns',
+      className: 'codicon codicon-split-horizontal',
+      noDisable: true,
       title: t('editor.toolbar.sideBySide'),
     },
     guide: {
       name: 'guide',
       action: 'https://www.markdownguide.org/basic-syntax/',
-      className: 'fa fa-question-circle',
+      className: 'codicon codicon-question',
       title: t('editor.toolbar.guide'),
     },
   };
@@ -275,7 +355,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
         }
         cm.focus();
       },
-      className: 'fa fa-check-square-o',
+      className: 'codicon codicon-checklist',
       title: t('editor.toolbar.taskList'),
     },
     indent: {
@@ -284,7 +364,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
         editor.codemirror.indentSelection('add');
         editor.codemirror.focus();
       },
-      className: 'fa fa-indent',
+      className: 'codicon codicon-arrow-right',
       title: t('editor.toolbar.indent'),
     },
     unindent: {
@@ -293,7 +373,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
         editor.codemirror.indentSelection('subtract');
         editor.codemirror.focus();
       },
-      className: 'fa fa-outdent',
+      className: 'codicon codicon-arrow-left',
       title: t('editor.toolbar.unindent'),
     },
     mention: {
@@ -303,7 +383,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
         cm.replaceSelection('@');
         cm.focus();
       },
-      className: 'fa fa-at',
+      className: 'codicon codicon-mention',
       title: t('editor.toolbar.mention'),
     },
     ref: {
@@ -313,7 +393,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
         cm.replaceSelection('#');
         cm.focus();
       },
-      className: 'fa fa-hashtag',
+      className: 'codicon codicon-tag',
       title: t('editor.toolbar.ref'),
     },
     'inline-code': {
@@ -328,7 +408,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
         }
         cm.focus();
       },
-      className: 'fa fa-terminal',
+      className: 'codicon codicon-terminal',
       title: t('editor.toolbar.inlineCode'),
     },
     'checkbox-empty': {
@@ -339,7 +419,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
         cm.replaceSelection(`\n- [ ] ${selection}`);
         cm.focus();
       },
-      className: 'fa fa-square-o',
+      className: 'codicon codicon-primitive-square',
       title: t('editor.toolbar.taskList'),
     },
     'checkbox-checked': {
@@ -350,7 +430,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
         cm.replaceSelection(`\n- [x] ${selection}`);
         cm.focus();
       },
-      className: 'fa fa-check-square-o',
+      className: 'codicon codicon-checklist',
       title: t('editor.toolbar.taskList'),
     },
   };
@@ -383,6 +463,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
     '|',
     builtin.preview,
     builtin['side-by-side'],
+    builtin.fullscreen,
     '|',
     builtin.guide,
   ];
@@ -410,6 +491,7 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
     '|',
     builtin.preview,
     builtin['side-by-side'],
+    builtin.fullscreen,
     '|',
     builtin.guide,
   ];
@@ -441,7 +523,14 @@ onMounted(() => {
     spellChecker: false,
     status: false,
     autoDownloadFontAwesome: false,
+    sideBySideFullscreen: false,
     minHeight: '120px',
+    previewRender() {
+      if (previewRendering.value && !renderedHtml.value) {
+        return `<div class="editor-preview-loading">${t('dashboard.loading')}</div>`;
+      }
+      return renderedHtml.value;
+    },
     toolbar: buildToolbar(uploadEnabled),
     uploadImage: uploadEnabled,
     imageAccept: 'image/*',
@@ -464,11 +553,28 @@ onMounted(() => {
       // Suppress the default alert() which is blocked in VS Code webviews.
       // Permission errors are reported via the extension host notification.
     },
+    onToggleFullScreen(active) {
+      isFullscreen.value = active;
+      if (active) {
+        wrapperRef.value?.classList.add('is-fullscreen');
+      } else {
+        wrapperRef.value?.classList.remove('is-fullscreen');
+      }
+    },
   };
 
   easyMDE = new EasyMDE(options);
   easyMDE.codemirror.on('change', () => {
     emit('update:modelValue', easyMDE?.value() ?? '');
+    schedulePreviewRender();
+  });
+
+  const toolbarElements = (easyMDE as any).toolbarElements as Record<string, HTMLElement> | undefined;
+  toolbarElements?.preview?.addEventListener('click', () => {
+    schedulePreviewRender();
+  });
+  toolbarElements?.['side-by-side']?.addEventListener('click', () => {
+    schedulePreviewRender();
   });
 
   easyMDE.codemirror.setOption('extraKeys', {
@@ -511,6 +617,10 @@ onUnmounted(() => {
   detachMentions();
   visibilityObserver?.disconnect();
   visibilityObserver = null;
+  if (previewRenderTimer) {
+    clearTimeout(previewRenderTimer);
+    previewRenderTimer = undefined;
+  }
   easyMDE?.cleanup();
   easyMDE = null;
 });
@@ -549,7 +659,7 @@ watch(
 </script>
 
 <template>
-  <div ref="wrapperRef" class="easy-mde-editor">
+  <div ref="wrapperRef" class="easy-mde-editor" :class="{ 'is-fullscreen': isFullscreen }">
     <textarea ref="textareaRef"></textarea>
   </div>
 </template>
@@ -566,15 +676,40 @@ watch(
 .easy-mde-editor :deep(.editor-toolbar) {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  min-height: 36px;
+  height: auto;
   background-color: var(--vscode-editor-inactiveSelectionBackground);
   border-color: var(--vscode-panel-border);
 }
 
 .easy-mde-editor :deep(.editor-toolbar button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
   color: var(--vscode-foreground);
 }
 
+.easy-mde-editor :deep(.editor-toolbar button.active) {
+  background-color: var(--vscode-toolbar-activeBackground);
+  border-color: var(--vscode-focusBorder);
+}
+
+.easy-mde-editor :deep(.editor-toolbar i) {
+  font-family: 'codicon', sans-serif;
+  font-size: 16px;
+  font-style: normal;
+  pointer-events: none;
+}
+
 .easy-mde-editor :deep(.editor-toolbar i.separator) {
+  align-self: stretch;
+  width: 1px;
+  margin: 4px 6px;
   color: transparent;
   border-left-color: var(--vscode-panel-border);
   border-right-color: transparent;
@@ -582,6 +717,132 @@ watch(
 
 .easy-mde-editor :deep(.editor-toolbar button:hover) {
   background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.easy-mde-editor :deep(.editor-toolbar button.heading-1::after),
+.easy-mde-editor :deep(.editor-toolbar button.heading-2::after),
+.easy-mde-editor :deep(.editor-toolbar button.heading-3::after),
+.easy-mde-editor :deep(.editor-toolbar button.heading-bigger::after),
+.easy-mde-editor :deep(.editor-toolbar button.heading-smaller::after) {
+  display: none;
+}
+
+.easy-mde-editor :deep(.EasyMDEContainer) {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 2fr 3fr;
+  position: relative;
+}
+
+.easy-mde-editor :deep(.editor-toolbar) {
+  grid-row: 1;
+  grid-column: 1 / -1;
+}
+
+.easy-mde-editor :deep(.CodeMirror) {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  width: 100% !important;
+}
+
+.easy-mde-editor :deep(.CodeMirror.CodeMirror-sided) {
+  grid-column: 1 / 2;
+}
+
+.easy-mde-editor :deep(.editor-preview-side) {
+  position: static;
+  grid-row: 2;
+  grid-column: 2;
+  display: none;
+  width: 100%;
+  height: 100%;
+  border-left: 1px solid var(--vscode-panel-border);
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+}
+
+.easy-mde-editor :deep(.editor-preview-side.editor-preview-active-side) {
+  display: block;
+}
+
+.easy-mde-editor :deep(.editor-preview-loading) {
+  padding: 8px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+/* Fullscreen mode: EasyMDE uses fixed positioning inside the webview, but
+ * nested transforms/containment in VS Code webviews can break that. Instead
+ * we make the wrapper itself fixed and lay the editor out with a grid.
+ * The preview pane keeps EasyMDE's default absolute positioning, which is
+ * relative to the CodeMirror wrapper.
+ */
+.easy-mde-editor.is-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10000;
+  background-color: var(--vscode-editor-background);
+  padding: 8px;
+}
+
+.easy-mde-editor.is-fullscreen :deep(.EasyMDEContainer) {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 1fr 1fr;
+  height: 100%;
+}
+
+.easy-mde-editor.is-fullscreen :deep(.editor-toolbar) {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  position: relative !important;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: auto;
+}
+
+.easy-mde-editor.is-fullscreen :deep(.CodeMirror) {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  position: relative !important;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0;
+}
+
+.easy-mde-editor.is-fullscreen :deep(.CodeMirror.CodeMirror-sided) {
+  grid-column: 1 / 2;
+}
+
+.easy-mde-editor.is-fullscreen :deep(.editor-preview-side) {
+  grid-row: 2;
+  grid-column: 2;
+  display: none;
+  position: relative !important;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  border: none;
+  align-self: stretch;
+}
+
+.easy-mde-editor.is-fullscreen :deep(.editor-preview-side.editor-preview-active-side) {
+  display: block;
+}
+
+.easy-mde-editor.is-fullscreen :deep(.CodeMirror.CodeMirror-sided) {
+  border-right: none;
 }
 
 .easy-mde-editor :deep(.CodeMirror) {

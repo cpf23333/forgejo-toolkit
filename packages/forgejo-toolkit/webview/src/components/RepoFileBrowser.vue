@@ -183,7 +183,7 @@ onUnmounted(() => {
         :aria-label="state.t('dashboard.fileBrowser.refresh')"
         @click="loadRoot(true)"
       >
-        <i class="fa fa-refresh" :class="{ 'fa-spin': rootLoading }"></i>
+        <i class="codicon codicon-refresh" :class="{ 'codicon-modifier-spin': rootLoading }"></i>
       </button>
     </div>
 

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import MentionHoverCard from './MentionHoverCard.vue';
 import { useAppState } from '../composables/useAppState';
+import { sanitizeMarkdownHtml } from '../utils/markdown';
 import type { ForgejoIssue, ForgejoUser } from '../types/api';
 
 const props = defineProps<{
@@ -20,10 +21,6 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const state = useAppState();
 
-const dangerousTags = new Set(['script', 'iframe', 'object', 'embed', 'form', 'input', 'textarea', 'button']);
-const dangerousSchemes = /^javascript:|data:text\/html|^data:image\/svg/i;
-const absoluteUrlPattern = /^[a-z][a-z0-9+.-]*:/i;
-
 const hoverType = ref<'user' | 'issue'>('user');
 const hoverData = ref<ForgejoUser | ForgejoIssue | undefined>(undefined);
 const hoverLoading = ref(false);
@@ -35,84 +32,7 @@ let hoverTimeout: ReturnType<typeof setTimeout> | undefined;
 let currentHoverTarget: HTMLElement | null = null;
 let pendingHoverRequest: Promise<unknown> | undefined;
 
-function resolveUrl(value: string): string {
-  if (!props.baseUrl || absoluteUrlPattern.test(value) || value.startsWith('#')) {
-    return value;
-  }
-  try {
-    return new URL(value, props.baseUrl).href;
-  } catch {
-    return value;
-  }
-}
-
-function sanitizeNode(node: Node): Node | null {
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    const element = node as Element;
-    const tagName = element.tagName.toLowerCase();
-
-    if (dangerousTags.has(tagName)) {
-      return null;
-    }
-
-    const attributes = Array.from(element.attributes);
-    for (const attr of attributes) {
-      const name = attr.name.toLowerCase();
-      if (name.startsWith('on')) {
-        element.removeAttribute(attr.name);
-        continue;
-      }
-      if (name === 'href') {
-        const value = attr.value.trim();
-        if (dangerousSchemes.test(value) || value.startsWith('#')) {
-          element.setAttribute(attr.name, value);
-        } else {
-          element.setAttribute('data-href', resolveUrl(value));
-          element.setAttribute(attr.name, 'javascript:void(0)');
-        }
-        continue;
-      }
-      if (name === 'src') {
-        const value = attr.value.trim();
-        if (dangerousSchemes.test(value)) {
-          element.setAttribute(attr.name, '');
-        } else {
-          element.setAttribute(attr.name, resolveUrl(value));
-        }
-        continue;
-      }
-      if (name === 'target') {
-        element.removeAttribute(attr.name);
-        continue;
-      }
-    }
-
-    const children = Array.from(element.childNodes);
-    for (const child of children) {
-      const sanitized = sanitizeNode(child);
-      if (sanitized !== child) {
-        if (sanitized) {
-          element.replaceChild(sanitized, child);
-        } else {
-          element.removeChild(child);
-        }
-      }
-    }
-  }
-  return node;
-}
-
-function sanitizeHtml(html: string): string {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const children = Array.from(doc.body.childNodes);
-  for (const child of children) {
-    sanitizeNode(child);
-  }
-  return doc.body.innerHTML;
-}
-
-const safeHtml = computed(() => (props.html ? sanitizeHtml(props.html) : ''));
+const safeHtml = computed(() => (props.html ? sanitizeMarkdownHtml(props.html, props.baseUrl) : ''));
 
 function handleClick(event: MouseEvent) {
   const target = event.target as HTMLElement;

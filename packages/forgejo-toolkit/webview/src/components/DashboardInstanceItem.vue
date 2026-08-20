@@ -364,11 +364,16 @@ function loadingKey(): string {
 
 <style scoped>
 .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background-color: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
-  border-radius: 10px;
-  padding: 2px 8px;
-  font-size: 0.75em;
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 0.7em;
+  line-height: 1;
+  min-height: 16px;
   flex-shrink: 0;
 }
 
