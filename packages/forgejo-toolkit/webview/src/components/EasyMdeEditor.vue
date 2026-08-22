@@ -7,6 +7,7 @@ import 'tributejs/tribute.css';
 import Tribute from 'tributejs';
 import { isImageFile } from '../utils/file';
 import { sanitizeMarkdownHtml } from '../utils/markdown';
+import { createTimedCache } from '../utils/createTimedCache';
 import { useAppState, type MentionUser, type MentionIssue } from '../composables/useAppState';
 
 type MentionItem = MentionUser | MentionIssue;
@@ -44,6 +45,8 @@ let easyMDE: EasyMDE | null = null;
 let visibilityObserver: IntersectionObserver | null = null;
 let tribute: Tribute<any> | null = null;
 let previewRenderTimer: ReturnType<typeof setTimeout> | undefined;
+const mentionSearchCache = createTimedCache<{ users: MentionUser[]; issues: MentionIssue[] }>(30_000);
+const mentionSearchTimers = new Map<'user' | 'issue', ReturnType<typeof setTimeout>>();
 const renderedHtml = ref('');
 const previewRendering = ref(false);
 const isFullscreen = ref(false);
@@ -108,6 +111,39 @@ function schedulePreviewRender() {
   }, 300);
 }
 
+function searchMentionsDebounced(
+  instanceId: string,
+  owner: string,
+  repo: string,
+  type: 'user' | 'issue',
+  text: string,
+  callback: (result: any[]) => void,
+) {
+  const cacheKey = `${type}:${text}`;
+  const cached = mentionSearchCache.get(cacheKey);
+  if (cached) {
+    callback(type === 'user' ? cached.users : cached.issues);
+    return;
+  }
+  const existingTimer = mentionSearchTimers.get(type);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+  mentionSearchTimers.set(
+    type,
+    setTimeout(() => {
+      mentionSearchTimers.delete(type);
+      state
+        .searchMentions(instanceId, owner, repo, text, type)
+        .then((result) => {
+          mentionSearchCache.set(cacheKey, result);
+          callback(type === 'user' ? result.users : result.issues);
+        })
+        .catch(() => callback([]));
+    }, 300),
+  );
+}
+
 async function attachMentions() {
   if (!mentionsEnabled.value) {
     return;
@@ -141,10 +177,7 @@ async function attachMentions() {
           return `<div class="mention-item">${avatar}<span class="mention-name">${escapeHtml(original.name)}</span>${fullName}</div>`;
         },
         values: (text: string, callback: (result: any[]) => void) => {
-          state
-            .searchMentions(instanceId, owner, repo, text, 'user')
-            .then((result) => callback(result.users))
-            .catch(() => callback([]));
+          searchMentionsDebounced(instanceId, owner, repo, 'user', text, callback);
         },
       },
       {
@@ -162,10 +195,7 @@ async function attachMentions() {
           return `<div class="mention-item mention-issue"><vscode-icon name="${icon}" :size="14" class="mention-issue-icon ${stateClass}"></vscode-icon><span class="mention-issue-number">#${escapeHtml(original.value)}</span><span class="mention-issue-title">${escapeHtml(original.title)}</span></div>`;
         },
         values: (text: string, callback: (result: any[]) => void) => {
-          state
-            .searchMentions(instanceId, owner, repo, text, 'issue')
-            .then((result) => callback(result.issues))
-            .catch(() => callback([]));
+          searchMentionsDebounced(instanceId, owner, repo, 'issue', text, callback);
         },
       },
     ],
@@ -621,6 +651,10 @@ onUnmounted(() => {
     clearTimeout(previewRenderTimer);
     previewRenderTimer = undefined;
   }
+  for (const timer of mentionSearchTimers.values()) {
+    clearTimeout(timer);
+  }
+  mentionSearchTimers.clear();
   easyMDE?.cleanup();
   easyMDE = null;
 });

@@ -1,6 +1,18 @@
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 /**
+ * Session-level cache of resolved attachment images. Attachment content at a
+ * UUID URL is immutable, so a resolved data URL never expires. Failed lookups
+ * are not cached.
+ */
+const resolvedImageCache = new Map<string, string>();
+
+/** Clear the session-level image cache. Exported for tests. */
+export function clearResolvedImageCache(): void {
+  resolvedImageCache.clear();
+}
+
+/**
  * Find attachment image URLs inside markdown or HTML and replace them with
  * base64 data URLs so they can be rendered without exposing the API token.
  *
@@ -16,6 +28,11 @@ export async function resolveAttachmentImages(text: string, instance: ForgejoIns
   const dataUrlMap = new Map<string, string>();
   await Promise.all(
     Array.from(imageUrls).map(async (url) => {
+      const cached = resolvedImageCache.get(url);
+      if (cached) {
+        dataUrlMap.set(url, cached);
+        return;
+      }
       try {
         const response = await fetch(url, {
           headers: { Authorization: `token ${instance.token}` },
@@ -26,7 +43,9 @@ export async function resolveAttachmentImages(text: string, instance: ForgejoIns
         const buffer = await response.arrayBuffer();
         const base64 = Buffer.from(buffer).toString('base64');
         const contentType = response.headers.get('content-type') ?? guessMimeType(url);
-        dataUrlMap.set(url, `data:${contentType};base64,${base64}`);
+        const dataUrl = `data:${contentType};base64,${base64}`;
+        resolvedImageCache.set(url, dataUrl);
+        dataUrlMap.set(url, dataUrl);
       } catch {
         // Keep the original URL on failure.
       }

@@ -15,6 +15,13 @@ interface RepoContext {
 const ISSUE_MENTION_REGEX = /#(\d+)/g;
 const USER_MENTION_REGEX = /@([a-zA-Z0-9_.-]+)/g;
 
+const MENTION_CACHE_TTL_MS = 60_000;
+
+interface MentionCacheEntry {
+  value: unknown[];
+  expiresAt: number;
+}
+
 function parseForgejoPrUri(uri: vscode.Uri): ForgejoPrUriParams | undefined {
   if (uri.scheme !== FORGEJO_PR_SCHEME || !uri.query) {
     return undefined;
@@ -96,7 +103,33 @@ function getMentionRange(document: vscode.TextDocument, position: vscode.Positio
 }
 
 export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider, vscode.CompletionItemProvider {
+  private readonly mentionCache = new Map<string, MentionCacheEntry>();
+
   constructor(private readonly config: ConfigManager) {}
+
+  /**
+   * Fetch a completion list with a short per-repo TTL cache. Failures are not
+   * cached so a transient error does not blank completions for a minute.
+   */
+  private async getCachedList<T>(
+    kind: 'issues' | 'prs' | 'assignees',
+    context: RepoContext,
+    fetcher: () => Promise<T[]>,
+  ): Promise<T[]> {
+    const key = `${kind}:${context.instanceId}/${context.owner}/${context.repo}`;
+    const entry = this.mentionCache.get(key);
+    if (entry && entry.expiresAt > Date.now()) {
+      return entry.value as T[];
+    }
+    this.mentionCache.delete(key);
+    try {
+      const value = await fetcher();
+      this.mentionCache.set(key, { value, expiresAt: Date.now() + MENTION_CACHE_TTL_MS });
+      return value;
+    } catch {
+      return [];
+    }
+  }
 
   async provideDocumentLinks(
     document: vscode.TextDocument,
@@ -166,8 +199,8 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
 
       if (trigger === '#') {
         const [issues, pullRequests] = await Promise.all([
-          client.getRepoIssues(context.owner, context.repo, 'open').catch(() => []),
-          client.getRepoPullRequests(context.owner, context.repo, 'open').catch(() => []),
+          this.getCachedList('issues', context, () => client.getRepoIssues(context.owner, context.repo, 'open')),
+          this.getCachedList('prs', context, () => client.getRepoPullRequests(context.owner, context.repo, 'open')),
         ]);
         const seen = new Set<number>();
         for (const issue of issues) {
@@ -193,7 +226,9 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
           items.push(item);
         }
       } else {
-        const users = await client.getRepoAssignees(context.owner, context.repo).catch(() => []);
+        const users = await this.getCachedList('assignees', context, () =>
+          client.getRepoAssignees(context.owner, context.repo),
+        );
         for (const username of users) {
           const item = new vscode.CompletionItem(`@${username}`, vscode.CompletionItemKind.User);
           item.insertText = `@${username}`;

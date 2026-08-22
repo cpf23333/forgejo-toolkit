@@ -1659,6 +1659,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 owner,
                 repo,
                 index,
+                baseSha,
+                headSha,
                 files,
               });
             } catch (error) {
@@ -1669,6 +1671,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 owner,
                 repo,
                 index,
+                baseSha,
+                headSha,
                 error: err,
               });
             }

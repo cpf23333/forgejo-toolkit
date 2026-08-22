@@ -209,6 +209,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       index: number;
+      baseSha?: string;
+      headSha?: string;
       files?: unknown[];
       error?: string;
     }

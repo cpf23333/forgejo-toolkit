@@ -803,6 +803,131 @@ describe('useAppState', () => {
         releases: [fakeRelease],
       });
     });
+
+    it('renderMarkdown serves identical repeat input from cache', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+      const promise = state.renderMarkdown('inst-1', '**bold**', 'owner/repo');
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'renderMarkdown', instanceId: 'inst-1', text: '**bold**' }),
+      );
+      const calls = vscodePostMessage().mock.calls;
+      const key = (calls[calls.length - 1][0] as { key: string }).key;
+      dispatchMessage({ command: 'renderedMarkdown', key, html: '<p><strong>bold</strong></p>' });
+      await expect(promise).resolves.toBe('<p><strong>bold</strong></p>');
+      vscodePostMessage().mockClear();
+
+      await expect(state.renderMarkdown('inst-1', '**bold**', 'owner/repo')).resolves.toBe(
+        '<p><strong>bold</strong></p>',
+      );
+      expect(vscodePostMessage()).not.toHaveBeenCalled();
+    });
+
+    it('renderMarkdown refetches when text or context differs', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+      const promise = state.renderMarkdown('inst-1', '**bold**', 'owner/repo');
+      const calls = vscodePostMessage().mock.calls;
+      const key = (calls[calls.length - 1][0] as { key: string }).key;
+      dispatchMessage({ command: 'renderedMarkdown', key, html: '<p><strong>bold</strong></p>' });
+      await promise;
+      vscodePostMessage().mockClear();
+
+      void state.renderMarkdown('inst-1', '*italic*', 'owner/repo');
+      void state.renderMarkdown('inst-1', '**bold**', 'other/repo');
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(2);
+    });
+
+    it('loadIssueDetail only sends one message while loading', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+      state.loadIssueDetail('inst-1', 'owner', 'repo', 1);
+      state.loadIssueDetail('inst-1', 'owner', 'repo', 1);
+      state.loadIssueDetail('inst-1', 'owner', 'repo', 1, true);
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getIssueDetail', instanceId: 'inst-1', index: 1 }),
+      );
+    });
+
+    it('loadPullRequestDetail only sends one message while loading', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+      state.loadPullRequestDetail('inst-1', 'owner', 'repo', 2);
+      state.loadPullRequestDetail('inst-1', 'owner', 'repo', 2);
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getPullRequestDetail', instanceId: 'inst-1', index: 2 }),
+      );
+    });
+
+    it('loadActionRun only sends one message while loading', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+      state.loadActionRun('inst-1', 'owner', 'repo', 7);
+      state.loadActionRun('inst-1', 'owner', 'repo', 7);
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getActionRun', instanceId: 'inst-1', runId: 7 }),
+      );
+    });
+
+    it('pullRequestFilesKey differs by diff range', async () => {
+      const { mod } = await createState();
+      const withoutShas = mod.pullRequestFilesKey('inst-1', 'owner', 'repo', 2);
+      const withShas = mod.pullRequestFilesKey('inst-1', 'owner', 'repo', 2, 'base1', 'head1');
+
+      expect(withShas).not.toBe(withoutShas);
+      expect(mod.pullRequestFilesKey('inst-1', 'owner', 'repo', 2, 'base2', 'head1')).not.toBe(withShas);
+      expect(mod.pullRequestFilesKey('inst-1', 'owner', 'repo', 2, 'base1', 'head2')).not.toBe(withShas);
+      expect(mod.pullRequestFilesKey('inst-1', 'owner', 'repo', 2, 'base1', 'head1')).toBe(withShas);
+    });
+
+    it('loadPullRequestFiles dedups in-flight calls and caches per diff range', async () => {
+      const { state, mod } = await createState();
+      vscodePostMessage().mockClear();
+      state.loadPullRequestFiles('inst-1', 'owner', 'repo', 2, 'base1', 'head1');
+      state.loadPullRequestFiles('inst-1', 'owner', 'repo', 2, 'base1', 'head1');
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: 'getPullRequestFiles',
+          instanceId: 'inst-1',
+          index: 2,
+          baseSha: 'base1',
+          headSha: 'head1',
+        }),
+      );
+
+      dispatchMessage({
+        command: 'pullRequestFiles',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+        baseSha: 'base1',
+        headSha: 'head1',
+        files: [fakeChangedFile],
+      });
+      await nextTick();
+
+      const key = mod.pullRequestFilesKey('inst-1', 'owner', 'repo', 2, 'base1', 'head1');
+      expect(state.pullRequestFiles.value.get(key)).toEqual([fakeChangedFile]);
+      vscodePostMessage().mockClear();
+
+      state.loadPullRequestFiles('inst-1', 'owner', 'repo', 2, 'base1', 'head1');
+      expect(vscodePostMessage()).not.toHaveBeenCalled();
+
+      state.loadPullRequestFiles('inst-1', 'owner', 'repo', 2, 'base1', 'head2');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('promise resolution', () => {

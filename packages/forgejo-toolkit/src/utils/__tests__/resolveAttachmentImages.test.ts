@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { resolveAttachmentImages } from '../resolveAttachmentImages';
+import { resolveAttachmentImages, clearResolvedImageCache } from '../resolveAttachmentImages';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 function createInstance(): ForgejoInstance {
@@ -15,6 +15,7 @@ function createInstance(): ForgejoInstance {
 
 describe('resolveAttachmentImages', () => {
   beforeEach(() => {
+    clearResolvedImageCache();
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
@@ -86,5 +87,19 @@ describe('resolveAttachmentImages', () => {
     // fetch should have been called against the configured instance origin.
     const fetchCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls as string[][];
     expect(fetchCalls.some(([url]) => url.startsWith('https://forgejo.example.com'))).toBe(true);
+  });
+
+  it('serves repeated resolves of the same URL from cache without refetching', async () => {
+    const html = '<p><img src="/attachments/cache-uuid" alt="screenshot"></p>';
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+
+    const first = await resolveAttachmentImages(html, createInstance());
+    expect(first).toContain('data:image/png;base64,');
+    const callsAfterFirst = fetchMock.mock.calls.length;
+    expect(callsAfterFirst).toBe(1);
+
+    const second = await resolveAttachmentImages(html, createInstance());
+    expect(second).toBe(first);
+    expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
   });
 });

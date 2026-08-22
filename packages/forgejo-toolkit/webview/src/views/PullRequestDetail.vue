@@ -62,7 +62,16 @@ const canManagePullRequest = computed(() => {
   return permissions?.admin === true || permissions?.push === true;
 });
 
-const filesKey = computed(() => pullRequestFilesKey(instanceId.value, owner.value, repo.value, index.value));
+const filesKey = computed(() =>
+  pullRequestFilesKey(
+    instanceId.value,
+    owner.value,
+    repo.value,
+    index.value,
+    detail.value?.merge_base ?? detail.value?.base?.sha,
+    detail.value?.head?.sha,
+  ),
+);
 const files = computed(() => state.pullRequestFiles.value.get(filesKey.value) ?? []);
 const filesError = computed(() => state.errors.get(filesKey.value));
 const filesLoading = computed(() => files.value.length === 0 && !filesError.value);

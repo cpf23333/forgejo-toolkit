@@ -95,7 +95,6 @@ function createAppState() {
   );
   const repoFileSearchResults = ref<Map<string, GitEntry[]>>(new Map());
   const fileHistories = ref<Map<string, ForgejoCommit[]>>(new Map());
-  const renderedMarkdown = ref<Map<string, string>>(new Map());
   const globalSearchResults = ref<Map<string, GlobalSearchResult>>(new Map());
   const globalSearchActiveScope = ref<'all' | 'repositories' | 'issues' | 'pullRequests'>('all');
   const globalSearchQuery = ref<string>('');
@@ -125,6 +124,7 @@ function createAppState() {
   const issueDetailCache = createTimedCache<ForgejoIssueDetail>(5_000);
   const pullRequestDetailCache = createTimedCache<ForgejoPullRequestDetail>(5_000);
   const pullRequestCommentsCache = createTimedCache<ForgejoTimelineComment[]>(5_000);
+  const renderedMarkdownCache = createTimedCache<string>(30_000);
 
   let inputRequestId = 0;
   const inputBoxPromises = new Map<string, (value: string | undefined) => void>();
@@ -167,7 +167,7 @@ function createAppState() {
   let renderMarkdownRequestId = 0;
   const pendingRenderMarkdownRequests = new Map<
     string,
-    { resolve: (html: string) => void; reject: (error: Error) => void }
+    { resolve: (html: string) => void; reject: (error: Error) => void; cacheKey: string }
   >();
   let attachmentUploadRequestId = 0;
   const pendingAttachmentUploads = new Map<
@@ -1921,10 +1921,15 @@ function createAppState() {
     owner: string;
     repo: string;
     index: number;
+    baseSha?: string;
+    headSha?: string;
     files?: ForgejoChangedFile[];
     error?: string;
   }) {
-    const key = pullRequestFilesKey(data.instanceId, data.owner, data.repo, data.index);
+    // The host echoes baseSha/headSha back, so the response lands under the
+    // exact key its request used.
+    const key = pullRequestFilesKey(data.instanceId, data.owner, data.repo, data.index, data.baseSha, data.headSha);
+    loading.set(key, false);
     if (data.error) {
       errors.set(key, data.error);
     } else {
@@ -1944,6 +1949,7 @@ function createAppState() {
     error?: string;
   }) {
     const key = pullRequestCommentsKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
     if (data.error) {
       errors.set(key, data.error);
     } else {
@@ -1963,6 +1969,7 @@ function createAppState() {
     error?: string;
   }) {
     const key = pullRequestCommitsKey(data.instanceId, data.owner, data.repo, data.index);
+    loading.set(key, false);
     if (data.error) {
       errors.set(key, data.error);
     } else {
@@ -2350,8 +2357,9 @@ function createAppState() {
     if (data.error) {
       pending.reject(new Error(data.error));
     } else {
-      renderedMarkdown.value.set(data.key, data.html ?? '');
-      pending.resolve(data.html ?? '');
+      const html = data.html ?? '';
+      renderedMarkdownCache.set(pending.cacheKey, html);
+      pending.resolve(html);
     }
   }
 
@@ -2425,15 +2433,22 @@ function createAppState() {
 
   function loadRepoDetail(instanceId: string, owner: string, repo: string) {
     const key = repoDetailKey(instanceId, owner, repo);
-    if (!repoDetails.value.has(key)) {
-      loading.set(key, true);
-      postMessage({ command: 'getRepoDetail', instanceId, owner, repo });
+    if (repoDetails.value.has(key)) {
+      return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    postMessage({ command: 'getRepoDetail', instanceId, owner, repo });
   }
 
   function loadRepoBranchCommits(instanceId: string, owner: string, repo: string, branch: string, force = false) {
     const key = repoBranchCommitsKey(instanceId, owner, repo, branch);
     if (!force && repoBranchCommitsCache.has(key)) {
+      return;
+    }
+    if (loading.get(key)) {
       return;
     }
     loading.set(key, true);
@@ -2460,6 +2475,9 @@ function createAppState() {
     if (!force && repoContentsCache.has(key)) {
       return;
     }
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'getRepoContents', instanceId, owner, repo, path, ref });
@@ -2467,6 +2485,9 @@ function createAppState() {
 
   function loadRepoFileSearch(instanceId: string, owner: string, repo: string, ref: string, query: string) {
     const key = repoFileSearchKey(instanceId, owner, repo, ref, query);
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'searchRepoFiles', instanceId, owner, repo, ref, query });
@@ -2474,6 +2495,9 @@ function createAppState() {
 
   function loadFileHistory(instanceId: string, owner: string, repo: string, path: string, ref: string) {
     const key = fileHistoryKey(instanceId, owner, repo, path, ref);
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'getFileHistory', instanceId, owner, repo, path, ref });
@@ -2482,6 +2506,9 @@ function createAppState() {
   function loadRepoRefs(instanceId: string, owner: string, repo: string, force = false) {
     const key = repoRefsKey(instanceId, owner, repo);
     if (!force && repoRefsCache.has(key)) {
+      return;
+    }
+    if (loading.get(key)) {
       return;
     }
     loading.set(key, true);
@@ -2983,10 +3010,14 @@ function createAppState() {
 
   function loadIssueDetail(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = issueDetailKey(instanceId, owner, repo, index);
-    if (force || !issueDetailCache.has(key)) {
-      loading.set(key, true);
-      postMessage({ command: 'getIssueDetail', instanceId, owner, repo, index });
+    if (!force && issueDetailCache.has(key)) {
+      return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    postMessage({ command: 'getIssueDetail', instanceId, owner, repo, index });
   }
 
   function openPullRequestDetail(instanceId: string, owner: string, repo: string, index: number) {
@@ -2996,10 +3027,14 @@ function createAppState() {
 
   function loadPullRequestDetail(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = pullRequestDetailKey(instanceId, owner, repo, index);
-    if (force || !pullRequestDetailCache.has(key)) {
-      loading.set(key, true);
-      postMessage({ command: 'getPullRequestDetail', instanceId, owner, repo, index });
+    if (!force && pullRequestDetailCache.has(key)) {
+      return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    postMessage({ command: 'getPullRequestDetail', instanceId, owner, repo, index });
   }
 
   function loadPullRequestFiles(
@@ -3011,10 +3046,14 @@ function createAppState() {
     headSha?: string,
     force = false,
   ) {
-    const key = pullRequestFilesKey(instanceId, owner, repo, index);
+    const key = pullRequestFilesKey(instanceId, owner, repo, index, baseSha, headSha);
     if (!force && pullRequestFilesCache.has(key)) {
       return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
     postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index, baseSha, headSha });
   }
 
@@ -3023,6 +3062,10 @@ function createAppState() {
     if (!force && pullRequestCommentsCache.has(key)) {
       return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
     postMessage({ command: 'getPullRequestCommentsAndTimeline', instanceId, owner, repo, index });
   }
 
@@ -3031,6 +3074,10 @@ function createAppState() {
     if (!force && pullRequestCommitsCache.has(key)) {
       return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
     postMessage({ command: 'getPullRequestCommits', instanceId, owner, repo, index });
   }
 
@@ -3085,39 +3132,58 @@ function createAppState() {
 
   function loadRepoIssues(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
     const key = repoIssuesKey(instanceId, owner, repo, state, query);
-    if (!repoIssues.value.has(key)) {
-      loading.set(key, true);
-      postMessage({ command: 'getRepoIssues', instanceId, owner, repo, state, query: query?.trim() || undefined });
+    if (repoIssues.value.has(key)) {
+      return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    postMessage({ command: 'getRepoIssues', instanceId, owner, repo, state, query: query?.trim() || undefined });
   }
 
   function loadRepoLabels(instanceId: string, owner: string, repo: string) {
     const key = repoLabelsKey(instanceId, owner, repo);
-    if (!repoLabels.value.has(key)) {
-      loading.set(key, true);
-      postMessage({ command: 'getRepoLabels', instanceId, owner, repo });
+    if (repoLabels.value.has(key)) {
+      return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    postMessage({ command: 'getRepoLabels', instanceId, owner, repo });
   }
 
   function loadRepoAssignees(instanceId: string, owner: string, repo: string) {
     const key = repoAssigneesKey(instanceId, owner, repo);
-    if (!repoAssignees.value.has(key)) {
-      loading.set(key, true);
-      postMessage({ command: 'getRepoAssignees', instanceId, owner, repo });
+    if (repoAssignees.value.has(key)) {
+      return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    postMessage({ command: 'getRepoAssignees', instanceId, owner, repo });
   }
 
   function loadRepoMilestones(instanceId: string, owner: string, repo: string) {
     const key = repoMilestonesKey(instanceId, owner, repo);
-    if (!repoMilestones.value.has(key)) {
-      loading.set(key, true);
-      postMessage({ command: 'getRepoMilestones', instanceId, owner, repo });
+    if (repoMilestones.value.has(key)) {
+      return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    postMessage({ command: 'getRepoMilestones', instanceId, owner, repo });
   }
 
   function loadIssueSubscription(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = issueSubscriptionKey(instanceId, owner, repo, index);
     if (!force && issueSubscriptions.value.has(key)) {
+      return;
+    }
+    if (loading.get(key)) {
       return;
     }
     loading.set(key, true);
@@ -3144,6 +3210,9 @@ function createAppState() {
     if (!force && userStopwatches.value.has(key)) {
       return;
     }
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'getUserStopwatches', instanceId });
@@ -3152,6 +3221,9 @@ function createAppState() {
   function loadIssueTrackedTimes(instanceId: string, owner: string, repo: string, index: number, force = false) {
     const key = issueTrackedTimesKey(instanceId, owner, repo, index);
     if (!force && issueTrackedTimes.value.has(key)) {
+      return;
+    }
+    if (loading.get(key)) {
       return;
     }
     loading.set(key, true);
@@ -3206,6 +3278,9 @@ function createAppState() {
     if (!force && issueDependencies.value.has(key)) {
       return;
     }
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'getIssueDependencies', instanceId, owner, repo, index });
@@ -3242,6 +3317,9 @@ function createAppState() {
     if (!force && issueReactions.value.has(key)) {
       return;
     }
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'getIssueReactions', instanceId, owner, repo, index });
@@ -3264,6 +3342,9 @@ function createAppState() {
   function loadCommentReactions(instanceId: string, owner: string, repo: string, commentId: number, force = false) {
     const key = commentReactionsKey(instanceId, owner, repo, commentId);
     if (!force && commentReactions.value.has(key)) {
+      return;
+    }
+    if (loading.get(key)) {
       return;
     }
     loading.set(key, true);
@@ -3301,21 +3382,28 @@ function createAppState() {
 
   function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
     const key = repoPullRequestsKey(instanceId, owner, repo, state, query);
-    if (!repoPullRequests.value.has(key)) {
-      loading.set(key, true);
-      postMessage({
-        command: 'getRepoPullRequests',
-        instanceId,
-        owner,
-        repo,
-        state,
-        query: query?.trim() || undefined,
-      });
+    if (repoPullRequests.value.has(key)) {
+      return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    postMessage({
+      command: 'getRepoPullRequests',
+      instanceId,
+      owner,
+      repo,
+      state,
+      query: query?.trim() || undefined,
+    });
   }
 
   function loadActionRuns(instanceId: string, owner: string, repo: string, page = 1, _force = false) {
     const key = actionRunsKey(instanceId, owner, repo, page);
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'getActionRuns', instanceId, owner, repo, page, limit: 30 });
@@ -3330,6 +3418,9 @@ function createAppState() {
 
   function loadActionRun(instanceId: string, owner: string, repo: string, runId: number, _force = false) {
     const key = actionRunKey(instanceId, owner, repo, runId);
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'getActionRun', instanceId, owner, repo, runId });
@@ -3337,6 +3428,9 @@ function createAppState() {
 
   function loadActionRunJobs(instanceId: string, owner: string, repo: string, runId: number, _force = false) {
     const key = actionRunJobsKey(instanceId, owner, repo, runId);
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'getActionRunJobs', instanceId, owner, repo, runId });
@@ -3344,6 +3438,9 @@ function createAppState() {
 
   function loadActionRunArtifacts(instanceId: string, owner: string, repo: string, runId: number, _force = false) {
     const key = actionRunArtifactsKey(instanceId, owner, repo, runId);
+    if (loading.get(key)) {
+      return;
+    }
     loading.set(key, true);
     errors.delete(key);
     postMessage({ command: 'getActionRunArtifacts', instanceId, owner, repo, runId });
@@ -3351,11 +3448,15 @@ function createAppState() {
 
   function loadActionJobLog(instanceId: string, owner: string, repo: string, jobId: number, force = false) {
     const key = actionJobLogKey(instanceId, owner, repo, jobId);
-    if (force || !actionJobLogs.value.has(key)) {
-      loading.set(key, true);
-      errors.delete(key);
-      postMessage({ command: 'getActionJobLog', instanceId, owner, repo, jobId });
+    if (!force && actionJobLogs.value.has(key)) {
+      return;
     }
+    if (loading.get(key)) {
+      return;
+    }
+    loading.set(key, true);
+    errors.delete(key);
+    postMessage({ command: 'getActionJobLog', instanceId, owner, repo, jobId });
   }
 
   function dispatchWorkflow(
@@ -3458,9 +3559,14 @@ function createAppState() {
   }
 
   function renderMarkdown(instanceId: string, text: string, context?: string): Promise<string> {
+    const cacheKey = `${instanceId}:${context ?? ''}:${text}`;
+    const cached = renderedMarkdownCache.get(cacheKey);
+    if (cached !== undefined) {
+      return Promise.resolve(cached);
+    }
     const key = `render-${++renderMarkdownRequestId}`;
     return new Promise((resolve, reject) => {
-      pendingRenderMarkdownRequests.set(key, { resolve, reject });
+      pendingRenderMarkdownRequests.set(key, { resolve, reject, cacheKey });
       postMessage({ command: 'renderMarkdown', instanceId, text, context, key });
     });
   }
@@ -3822,8 +3928,15 @@ export function pullRequestDetailKey(instanceId: string, owner: string, repo: st
   return `${instanceId}:${owner}/${repo}#pr-${index}`;
 }
 
-export function pullRequestFilesKey(instanceId: string, owner: string, repo: string, index: number): string {
-  return `${instanceId}:${owner}/${repo}#pr-${index}:files`;
+export function pullRequestFilesKey(
+  instanceId: string,
+  owner: string,
+  repo: string,
+  index: number,
+  baseSha?: string,
+  headSha?: string,
+): string {
+  return `${instanceId}:${owner}/${repo}#pr-${index}:files:${baseSha ?? ''}:${headSha ?? ''}`;
 }
 
 export function pullRequestCommentsKey(instanceId: string, owner: string, repo: string, index: number): string {
