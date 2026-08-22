@@ -11,11 +11,12 @@ import { PullReviewCommentController } from './comments/pullReviewCommentControl
 import { NotificationPoller } from './notifications/notificationPoller';
 import { logger } from './logger';
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   logger.watch();
   context.subscriptions.push({ dispose: () => logger.dispose() });
 
   const config = new ConfigManager(context);
+  await config.init();
 
   if (config.isMockApiEnabled()) {
     import('./test/mocks/server')

@@ -3444,7 +3444,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       }
 
       const localBranch = `pr-${index}-${headSha.slice(0, 7)}`;
-      await fetchPullRequestHead(sourceRepoPath, 'origin', index, localBranch);
+      await fetchPullRequestHead(sourceRepoPath, 'origin', index, localBranch, instance.token);
 
       await createWorktreeFromBranch(sourceRepoPath, worktreePath, localBranch);
 

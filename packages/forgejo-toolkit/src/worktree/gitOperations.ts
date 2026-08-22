@@ -51,8 +51,11 @@ export async function findLocalRepo(instanceUrl: string, owner: string, repo: st
 
 export async function cloneRepository(url: string, targetPath: string, token?: string): Promise<void> {
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
-  const cloneUrl = token ? injectTokenIntoUrl(url, token) : url;
-  const { stderr } = await exec(`git clone --bare "${cloneUrl}" "${targetPath}"`);
+  // Pass the token via a per-command header so it is not persisted in the
+  // cloned repository's remote URL. Tokens are alphanumeric, so embedding the
+  // token inside the double-quoted header value is shell-safe.
+  const authArgs = token ? `-c http.extraHeader="Authorization: token ${token}" ` : '';
+  const { stderr } = await exec(`git ${authArgs}clone --bare "${url}" "${targetPath}"`);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -63,9 +66,11 @@ export async function fetchPullRequestHead(
   remote: string,
   prIndex: number,
   localBranch: string,
+  token?: string,
 ): Promise<void> {
   const ref = `refs/pull/${prIndex}/head`;
-  const { stderr } = await exec(`git fetch ${remote} ${ref}:${localBranch}`, { cwd: repoPath });
+  const authArgs = token ? `-c http.extraHeader="Authorization: token ${token}" ` : '';
+  const { stderr } = await exec(`git ${authArgs}fetch ${remote} ${ref}:${localBranch}`, { cwd: repoPath });
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -235,15 +240,4 @@ export async function detectLinkedRepository(instances: ForgejoInstance[]): Prom
   }
   logger.debug('[detectLinkedRepository] no match');
   return undefined;
-}
-
-function injectTokenIntoUrl(url: string, token: string): string {
-  try {
-    const parsed = new URL(url);
-    parsed.username = token;
-    parsed.password = '';
-    return parsed.toString();
-  } catch {
-    return url;
-  }
 }

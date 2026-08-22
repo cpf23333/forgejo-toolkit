@@ -5,6 +5,7 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 export type { ForgejoInstance };
 
 const INSTANCES_KEY = 'forgejoToolkit.instances';
+const TOKEN_SECRET_PREFIX = 'forgejoToolkit.instanceToken.';
 const DEFAULT_INTERVAL_SECONDS = 300;
 const MIN_INTERVAL_SECONDS = 60;
 const MAX_INTERVAL_SECONDS = 3600;
@@ -12,35 +13,83 @@ const MAX_INTERVAL_SECONDS = 3600;
 export class ConfigManager {
   private readonly _onInstancesChanged = new vscode.EventEmitter<ForgejoInstance[]>();
   readonly onInstancesChanged = this._onInstancesChanged.event;
+  private readonly _tokens = new Map<string, string>();
 
   constructor(private context: vscode.ExtensionContext) {}
 
+  // Loads tokens from SecretStorage into memory and migrates legacy plaintext
+  // tokens out of globalState. Must be called once during extension activation.
+  async init(): Promise<void> {
+    const stored = this._getStoredInstances();
+    let migrated = false;
+    for (const instance of stored) {
+      const secret = await this.context.secrets.get(this._tokenSecretKey(instance.id));
+      if (secret !== undefined) {
+        this._tokens.set(instance.id, secret);
+      } else if (instance.token) {
+        await this.context.secrets.store(this._tokenSecretKey(instance.id), instance.token);
+        this._tokens.set(instance.id, instance.token);
+      }
+      if (instance.token) {
+        migrated = true;
+      }
+    }
+    if (migrated) {
+      await this.context.globalState.update(
+        INSTANCES_KEY,
+        stored.map((instance) => ({ ...instance, token: '' })),
+      );
+    }
+  }
+
   getInstances(): ForgejoInstance[] {
-    return this.context.globalState.get<ForgejoInstance[]>(INSTANCES_KEY, []);
+    return this._getStoredInstances().map((instance) => ({
+      ...instance,
+      token: this._tokens.get(instance.id) ?? '',
+    }));
   }
 
   async addInstance(instance: ForgejoInstance): Promise<void> {
-    const instances = this.getInstances().filter((i) => i.id !== instance.id);
-    instances.push(instance);
+    if (instance.token) {
+      await this.context.secrets.store(this._tokenSecretKey(instance.id), instance.token);
+      this._tokens.set(instance.id, instance.token);
+    }
+    const instances = this._getStoredInstances().filter((i) => i.id !== instance.id);
+    instances.push({ ...instance, token: '' });
     await this.context.globalState.update(INSTANCES_KEY, instances);
-    this._onInstancesChanged.fire(instances);
+    this._onInstancesChanged.fire(this.getInstances());
   }
 
   async updateInstance(id: string, updates: Partial<Omit<ForgejoInstance, 'id'>>): Promise<void> {
-    const instances = this.getInstances();
+    const instances = this._getStoredInstances();
     const index = instances.findIndex((i) => i.id === id);
     if (index === -1) {
       return;
     }
-    instances[index] = { ...instances[index], ...updates };
+    // An empty token update means "unchanged", so the stored secret is kept.
+    if (updates.token) {
+      await this.context.secrets.store(this._tokenSecretKey(id), updates.token);
+      this._tokens.set(id, updates.token);
+    }
+    instances[index] = { ...instances[index], ...updates, token: '' };
     await this.context.globalState.update(INSTANCES_KEY, instances);
-    this._onInstancesChanged.fire(instances);
+    this._onInstancesChanged.fire(this.getInstances());
   }
 
   async removeInstance(id: string): Promise<void> {
-    const instances = this.getInstances().filter((i) => i.id !== id);
+    this._tokens.delete(id);
+    await this.context.secrets.delete(this._tokenSecretKey(id));
+    const instances = this._getStoredInstances().filter((i) => i.id !== id);
     await this.context.globalState.update(INSTANCES_KEY, instances);
-    this._onInstancesChanged.fire(instances);
+    this._onInstancesChanged.fire(this.getInstances());
+  }
+
+  private _getStoredInstances(): ForgejoInstance[] {
+    return this.context.globalState.get<ForgejoInstance[]>(INSTANCES_KEY, []);
+  }
+
+  private _tokenSecretKey(id: string): string {
+    return `${TOKEN_SECRET_PREFIX}${id}`;
   }
 
   getWorktreeOpenMode(): 'ask' | 'currentWindow' | 'newWindow' {
