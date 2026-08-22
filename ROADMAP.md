@@ -118,6 +118,13 @@
 - 根据当前 workspace 的 git remote 自动识别 Forgejo 仓库和对应实例。
 - 在 Dashboard 顶部显示关联仓库卡片，支持快捷打开仓库、Issues、Pull Requests。
 - workspace 文件夹变化或实例增删时自动重新检测。
+- 发布本地仓库到 Forgejo：「Publish to Forgejo」命令引导选择实例、仓库名与可见性，自动创建远程仓库、添加 origin 并推送当前分支；已关联 Forgejo 仓库时该命令直接推送当前分支。
+
+### 状态栏
+
+- 当前 workspace 关联 Forgejo 仓库、当前分支非默认分支且无开放 PR 时，状态栏显示「创建 PR」按钮；点击按需推送分支并打开预填 head/base 的新建 PR 弹窗。
+- 分支已有开放 PR 时显示「PR #n」，点击直达 PR 详情。
+- 通过监听 `.git/HEAD` 与实例变更事件驱动刷新，不轮询。
 
 ### 通知与搜索
 
