@@ -5,6 +5,8 @@ import type {
   VscodeIcon,
   VscodeOption,
   VscodeProgressRing,
+  VscodeRadio,
+  VscodeRadioGroup,
   VscodeSingleSelect,
   VscodeTextfield,
   VscodeTree,
@@ -66,6 +68,10 @@ type VscodeIconProps = Pick<VscodeIcon, 'label' | 'name' | 'size' | 'spin' | 'sp
 type VscodeOptionProps = Pick<VscodeOption, 'value' | 'description' | 'selected' | 'disabled'>;
 
 type VscodeProgressRingProps = Pick<VscodeProgressRing, 'ariaLabel'>;
+
+type VscodeRadioProps = Pick<VscodeRadio, 'checked' | 'defaultChecked' | 'disabled' | 'name' | 'required' | 'value'>;
+
+type VscodeRadioGroupProps = Pick<VscodeRadioGroup, 'variant'>;
 
 type VscodeSingleSelectProps = Pick<
   VscodeSingleSelect,
@@ -129,6 +135,8 @@ declare module 'vue' {
     'vscode-icon': DefineCustomElement<VscodeIcon, {}, keyof VscodeIconProps>;
     'vscode-option': DefineCustomElement<VscodeOption, {}, keyof VscodeOptionProps>;
     'vscode-progress-ring': DefineCustomElement<VscodeProgressRing, {}, keyof VscodeProgressRingProps>;
+    'vscode-radio': DefineCustomElement<VscodeRadio, { change: Event }, keyof VscodeRadioProps>;
+    'vscode-radio-group': DefineCustomElement<VscodeRadioGroup, { change: Event }, keyof VscodeRadioGroupProps>;
     'vscode-single-select': DefineCustomElement<
       VscodeSingleSelect,
       { change: Event; input: Event; 'vsc-single-select-create-option': VscSingleSelectCreateOptionEvent },

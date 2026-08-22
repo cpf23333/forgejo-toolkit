@@ -551,6 +551,10 @@
     "addToReview": "Add to review",
     "submitReview": "Submit review",
     "cancelReview": "Cancel review",
+    "reviewEvent": "Review conclusion",
+    "eventComment": "Comment — submit general feedback without approval",
+    "eventApprove": "Approve — submit feedback and approve merging these changes",
+    "eventRequestChanges": "Request changes — submit feedback that must be addressed before merging",
     "close": "Close"
   },
   "locales": {

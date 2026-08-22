@@ -675,7 +675,7 @@ describe('ForgejoClient with MSW', () => {
 
     it('submits a pull review', async () => {
       const client = createClient();
-      const review = await client.submitPullReview('demo-user', 'demo-repo', 2, 100, 'APPROVE');
+      const review = await client.submitPullReview('demo-user', 'demo-repo', 2, 100, 'APPROVED');
       expect(review.id).toBe(mockPullReview.id);
     });
 

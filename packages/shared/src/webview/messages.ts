@@ -22,6 +22,9 @@ export interface LinkedRepository {
   remoteUrl: string;
 }
 
+/** Events accepted by the Forgejo API when submitting a pending pull review. */
+export type PullReviewSubmitEvent = 'COMMENT' | 'APPROVED' | 'REQUEST_CHANGES';
+
 export type HostToWebviewMessage =
   | { command: 'instances'; data: ForgejoInstance[] }
   | {
@@ -1294,6 +1297,8 @@ export type WebviewToHostMessage =
       repo: string;
       index: number;
       reviewId: number;
+      event?: PullReviewSubmitEvent;
+      body?: string;
     }
   | {
       command: 'deletePullReview';

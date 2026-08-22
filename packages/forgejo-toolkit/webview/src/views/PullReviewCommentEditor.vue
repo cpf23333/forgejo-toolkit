@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import type { PullReviewCommentContext } from '../types/config';
+import type { PullReviewSubmitEvent } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { postMessage } from '../composables/vscode';
 import { useAppState } from '../composables/useAppState';
 
@@ -16,6 +17,7 @@ const state = useAppState();
 const body = ref('');
 const submitting = ref(false);
 const pendingReviewId = ref<number | undefined>(props.context.pendingReviewId);
+const reviewEvent = ref<PullReviewSubmitEvent>('COMMENT');
 
 const mode = ref<'single' | 'review'>(props.context.mode);
 
@@ -80,6 +82,8 @@ function submitReview() {
     repo: props.context.repo,
     index: props.context.index,
     reviewId: pendingReviewId.value,
+    event: reviewEvent.value,
+    body: body.value.trim(),
   });
 }
 
@@ -124,6 +128,24 @@ function uploadImage(file: File, onSuccess: (url: string) => void, onError: (err
       :owner="context.owner"
       :repo="context.repo"
     />
+    <div v-if="isReviewMode && hasPendingReview" class="review-event">
+      <span class="review-event-label">{{ t('pullReviewCommentEditor.reviewEvent') }}</span>
+      <vscode-radio-group variant="vertical">
+        <vscode-radio value="COMMENT" :checked="reviewEvent === 'COMMENT'" @change="reviewEvent = 'COMMENT'">
+          {{ t('pullReviewCommentEditor.eventComment') }}
+        </vscode-radio>
+        <vscode-radio value="APPROVED" :checked="reviewEvent === 'APPROVED'" @change="reviewEvent = 'APPROVED'">
+          {{ t('pullReviewCommentEditor.eventApprove') }}
+        </vscode-radio>
+        <vscode-radio
+          value="REQUEST_CHANGES"
+          :checked="reviewEvent === 'REQUEST_CHANGES'"
+          @change="reviewEvent = 'REQUEST_CHANGES'"
+        >
+          {{ t('pullReviewCommentEditor.eventRequestChanges') }}
+        </vscode-radio>
+      </vscode-radio-group>
+    </div>
     <div class="editor-actions">
       <vscode-button
         v-if="!isReviewMode || !hasPendingReview"
@@ -184,6 +206,17 @@ function uploadImage(file: File, onSuccess: (url: string) => void, onError: (err
 
 .context-path {
   font-family: var(--vscode-editor-font-family);
+}
+
+.review-event {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.review-event-label {
+  font-size: 0.9em;
+  color: var(--vscode-descriptionForeground);
 }
 
 .editor-actions {

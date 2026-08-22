@@ -6,7 +6,6 @@
 
 ### 高优先级
 
-- [ ] PR review 提交支持 Approve / Request changes（API 层 `submitPullReview` 已支持任意 event，仅差 UI 入口）
 - [ ] Access token 迁移到 VS Code SecretStorage；clone 时不再把 token 写入 HTTPS URL
 - [ ] 仓库内 Issue / PR 列表支持关键词搜索（服务端搜索 API 现成）
 
@@ -25,6 +24,7 @@
 
 ### 最近完成
 
+- [x] PR review 提交支持选择结论：评论 / 批准（Approve）/ 要求修改（Request changes），可附带评审总结
 - [x] 自研 VS Code 风格日期时间选择器组件（替代浏览器原生 datetime-local 弹窗）
 - [x] Issue 详情页支持删除 Issue
 - [x] 清理已废弃的 `VscodeDateField` / `VscodeDateTimeField` 组件

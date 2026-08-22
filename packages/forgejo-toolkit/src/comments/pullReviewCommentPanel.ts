@@ -4,7 +4,7 @@ import { ConfigManager } from '../config';
 import { getWebviewContent } from '../webview/content';
 import { logger } from '../logger';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ForgejoInstance, PullReviewSubmitEvent } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 
 export interface PullReviewCommentContext {
@@ -208,12 +208,16 @@ export class PullReviewCommentPanel implements vscode.Disposable {
   }
 
   private async _handleSubmitPullReview(message: unknown): Promise<void> {
-    const data = message as { reviewId?: number };
+    const data = message as { reviewId?: number; event?: string; body?: string };
     const reviewId = data.reviewId;
     if (typeof reviewId !== 'number') {
       this._reply('pullReviewSubmitted', { ...this._repoParams(), error: 'No pending review' });
       return;
     }
+
+    const event: PullReviewSubmitEvent =
+      data.event === 'APPROVED' || data.event === 'REQUEST_CHANGES' ? data.event : 'COMMENT';
+    const body = typeof data.body === 'string' ? data.body.trim() : '';
 
     const instance = this._findInstance(this._context.instanceId);
     if (!instance) {
@@ -223,7 +227,14 @@ export class PullReviewCommentPanel implements vscode.Disposable {
 
     const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
     try {
-      await client.submitPullReview(this._context.owner, this._context.repo, this._context.index, reviewId);
+      await client.submitPullReview(
+        this._context.owner,
+        this._context.repo,
+        this._context.index,
+        reviewId,
+        event,
+        body,
+      );
       this._reply('pullReviewSubmitted', { ...this._repoParams() });
       this._callbacks?.onSubmitted?.(this._context);
       this._panel.dispose();

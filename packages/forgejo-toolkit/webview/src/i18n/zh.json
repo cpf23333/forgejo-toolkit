@@ -551,6 +551,10 @@
     "addToReview": "添加评论",
     "submitReview": "提交评审",
     "cancelReview": "取消评审",
+    "reviewEvent": "评审结论",
+    "eventComment": "评论 — 仅提交反馈，不表达批准意见",
+    "eventApprove": "批准 — 提交反馈并批准合并这些更改",
+    "eventRequestChanges": "要求修改 — 提交必须在合并前处理的反馈",
     "close": "关闭"
   },
   "locales": {

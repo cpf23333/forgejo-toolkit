@@ -12,6 +12,8 @@ import '@vscode-elements/elements/dist/vscode-context-menu-item/index.js';
 import '@vscode-elements/elements/dist/vscode-icon/index.js';
 import '@vscode-elements/elements/dist/vscode-option/index.js';
 import '@vscode-elements/elements/dist/vscode-progress-ring/index.js';
+import '@vscode-elements/elements/dist/vscode-radio/index.js';
+import '@vscode-elements/elements/dist/vscode-radio-group/index.js';
 import '@vscode-elements/elements/dist/vscode-single-select/index.js';
 import '@vscode-elements/elements/dist/vscode-textfield/index.js';
 import '@vscode-elements/elements/dist/vscode-tree/index.js';
