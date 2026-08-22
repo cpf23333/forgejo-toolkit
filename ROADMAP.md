@@ -55,6 +55,7 @@
 - `@vscode-elements/elements` web components 直接在 webview 中使用，不再维护 Vue wrapper 包；为所有使用的原生组件补充 `DefineCustomElement` props / events 类型声明。
 - 使用 `oxlint` + `oxfmt` 作为 lint/format 工具。
 - 使用 Changesets 管理 monorepo 版本号与 CHANGELOG。
+- 图标统一使用 VS Code `codicon`（含 EasyMDE 工具栏的自定义按钮），已移除 `font-awesome` 依赖。
 
 ### Mock 与测试
 
@@ -157,7 +158,6 @@
 
 ## 长期可能
 
-- 图标库统一：用 VS Code `codicon` 替代 `font-awesome`，减少依赖并保持与 VS Code 风格一致。当前 `font-awesome` 仅用于文件浏览器刷新按钮和 EasyMDE 工具栏图标，EasyMDE 部分需要自定义按钮才能迁移。
 - Issue / PR 与 Git 分支联动：例如 Start Work on Issue（从 Issue 一键创建分支并 checkout）；PR 检出到 worktree 已支持。
 - 多账号权限管理：区分只读 / 读写 token。
 - 文件浏览器增强：文件重命名 / 删除（目前更推荐本地 clone 后操作）。
