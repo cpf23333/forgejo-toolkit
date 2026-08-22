@@ -5,7 +5,7 @@
 ### 多实例管理
 
 - 添加、删除、测试连接多个 Forgejo/Codeberg 实例。
-- Access token 随实例配置保存（当前存于 `globalState`，计划迁移至 SecretStorage，见 TODO.md）。
+- 使用 VS Code SecretStorage 安全保存 access token。
 
 ### Dashboard 面板
 
@@ -124,6 +124,7 @@
 - Forgejo 通知中心：未读角标、按状态和类型筛选、标记已读/全部已读、Issue/PR 通知直接跳转详情。
 - 通知后台轮询与推送：extension host 定期拉取所有实例未读通知，检测到新通知时弹出 VS Code 消息提醒，并自动更新首页铃铛角标；支持开关与轮询间隔配置。
 - 全局仓库 / Issue / PR 搜索：跨实例搜索，支持实例、类型、状态筛选。
+- 仓库内 Issue / PR 列表支持关键词搜索（服务端 `q` 参数），与状态筛选组合使用。
 
 ### 设置与数据
 
