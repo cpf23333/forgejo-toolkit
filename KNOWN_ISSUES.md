@@ -74,6 +74,8 @@ The extension therefore shows job-level status and logs only. Step-level breakdo
 
 Forgejo's web UI allows users to re-run a completed workflow run, but there is no corresponding endpoint in the official REST API. The `/repos/{owner}/{repo}/actions/runs/{run_id}/cancel` endpoint exists for cancelling pending or running jobs, but no `/rerun` or `/re-run` endpoint is documented or implemented in the API router.
 
+Verified against the Forgejo server source: re-run only exists as the session-authenticated web route `POST /{owner}/{repo}/actions/runs/{run}/rerun` (registered in `routers/web/web.go`, handler `routers/web/repo/actions/view.go`), while `routers/api/v1/api.go` registers no rerun route. Simulating the web form request from the extension is not advisable, so this is accepted as a platform limitation.
+
 The extension therefore provides "Cancel run" for active runs but does not offer a "Re-run" button. Users can re-run a workflow by triggering it again through the "Trigger workflow" button if the workflow supports `workflow_dispatch`.
 
 ## PR diff line comments cannot be created via the gutter + icon

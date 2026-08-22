@@ -74,6 +74,8 @@ Forgejo 网页界面会展示每个 job 的步骤（例如 "Set up job"、"actio
 
 Forgejo 网页界面允许用户重新运行已完成的工作流运行，但官方 REST API 中没有对应的端点。`/repos/{owner}/{repo}/actions/runs/{run_id}/cancel` 端点可以取消 pending 或 running 状态的运行，但 API 路由中并没有 `/rerun` 或 `/re-run` 相关的实现或文档。
 
+已对 Forgejo 服务端源码核实：rerun 仅以基于 session 认证的 web 路由形式存在（`POST /{owner}/{repo}/actions/runs/{run}/rerun`，注册于 `routers/web/web.go`，handler 在 `routers/web/repo/actions/view.go`），而 `routers/api/v1/api.go` 中没有注册任何 rerun 路由。不建议在扩展中模拟 web 表单请求，因此将其作为平台限制接受。
+
 因此扩展只为正在运行的记录提供「取消运行」按钮，不提供「重新运行」按钮。如果工作流支持 `workflow_dispatch`，用户可以通过「触发 workflow」按钮再次手动触发。
 
 ## PR diff 行级评论无法通过行号旁的 + 图标创建

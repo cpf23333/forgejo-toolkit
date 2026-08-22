@@ -464,6 +464,12 @@
 - [x] 源码位置：`routers/api/v1/repo/action.go:1099-1158`
 - [x] 差异记录：无
 
+### rerun（重新运行 workflow run）—— REST API 不存在（负向核对）
+
+- [x] `routers/api/v1/api.go` 的 actions 路由组中未注册任何 rerun 路由；仅有 cancel（`api.go:909`）与 dispatch（`api.go:917`）
+- [x] rerun 仅以 web 路由存在：`POST /{owner}/{repo}/actions/runs/{run}/rerun`（`routers/web/web.go:1636`、`1649`，handler `routers/web/repo/actions/view.go:502`），属 session 认证组，不接受 API token
+- [x] 差异记录：扩展不提供「重新运行」按钮，已作为平台限制记录在 `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`；不建议模拟 web 表单请求
+
 ### `GET /repos/{owner}/{repo}/actions/artifacts/{artifactId}/zip`
 
 - [x] 响应 `Content-Type: application/zip`，直接返回 ZIP 二进制

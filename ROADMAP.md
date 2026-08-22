@@ -5,7 +5,7 @@
 ### 多实例管理
 
 - 添加、删除、测试连接多个 Forgejo/Codeberg 实例。
-- 使用 VS Code SecretStorage 安全保存 access token。
+- Access token 随实例配置保存（当前存于 `globalState`，计划迁移至 SecretStorage，见 TODO.md）。
 
 ### Dashboard 面板
 
@@ -56,6 +56,12 @@
 - 使用 `oxlint` + `oxfmt` 作为 lint/format 工具。
 - 使用 Changesets 管理 monorepo 版本号与 CHANGELOG。
 
+### Mock 与测试
+
+- 接入 MSW mock：覆盖核心 API 端点的 fixtures 与 handlers，支持离线开发（`forgejoToolkit.useMockApi`）。
+- `ForgejoClient` MSW 测试覆盖所有公开方法；shared request 客户端单元测试。
+- webview `ModalDialog`、`FileTreeItem` 组件测试与 `useAppState` 的 API 调用 / 消息处理单元测试。
+
 ### Issue / PR 详情
 
 - Issue / PR 列表与详情页。
@@ -80,6 +86,7 @@
 - 撤销已合并 PR（Revert merge commit）：在本地仓库执行 `git revert -m 1` 并 push。
 - Issue 详情页支持订阅/取消订阅通知、时间追踪、依赖议题管理。
 - PR 编辑表单支持负责人、标签、里程碑、到期时间、引用分支/标签。
+- 自研 VS Code 风格日期时间选择器，替代浏览器原生 `datetime-local`/`date` 输入；集成到 Issue / PR 创建与编辑表单、详情页到期时间编辑。
 
 ### PR Review
 
@@ -128,39 +135,18 @@
 
 ### CI / Actions
 
-- [x] 读取仓库 Actions 运行状态和历史。
-- [x] 在 PR 详情页展示状态检查（status checks）列表，帮助判断是否可以合并。
-- [x] Actions 运行详情页：展示 job 列表、job 日志、制品列表。
-- [x] Actions 制品本地下载：通过 API 获取 ZIP 并调用系统 save dialog。
-- [x] Actions 运行详情页支持取消正在运行的记录。
-- [x] Actions 远程触发 workflow，支持输入参数，并轮询展示运行状态。
-
-## 当前迭代
-
-- 自研 VS Code 风格日期时间选择器组件，替代浏览器原生 `datetime-local`/`date` 输入；集成到 Issue / PR 创建与编辑表单、详情页到期时间编辑。
-- Issue 详情页支持删除 Issue（需确认，删除后返回上一页）。
-- 清理已废弃的 `VscodeDateField` / `VscodeDateTimeField` 组件。
-- 移除 `packages/vscode-elements-vue` 包，按钮 / 输入框改用原生 `@vscode-elements/elements` 组件。
-
-本轮迭代内容已全部完成。
+- 读取仓库 Actions 运行状态和历史。
+- 在 PR 详情页展示状态检查（status checks）列表，帮助判断是否可以合并。
+- Actions 运行详情页：展示 job 列表、job 日志、制品列表。
+- Actions 制品本地下载：通过 API 获取 ZIP 并调用系统 save dialog。
+- Actions 运行详情页支持取消正在运行的记录。
+- Actions 远程触发 workflow，支持输入参数，并轮询展示运行状态。
 
 ## 后续迭代
 
 ### 设置与数据
 
 - 设置同步（可选 VS Code Settings Sync）。
-
-### 构建工具统一
-
-- Vite 8 已默认基于 Rolldown，但 extension host 仍使用 esbuild。
-- 评估将 extension host 的打包从 esbuild 迁移到 Rolldown，统一整个项目的构建工具链，减少依赖和配置差异。
-- 需要验证 Node builtins 处理、CJS 输出、sourcemap、minify、watch 模式等能力。
-
-### Mock 与测试
-
-- 接入 MSW mock 用于测试或离线开发。
-- 为 webview `ModalDialog`、`FileTreeItem` 等组件添加更多测试。
-- 为 webview `useAppState` 的 API 调用与消息处理逻辑添加单元测试。
 
 ### 旧版本 Forgejo / Gitea 兼容
 
@@ -171,8 +157,7 @@
 ## 长期可能
 
 - 图标库统一：用 VS Code `codicon` 替代 `font-awesome`，减少依赖并保持与 VS Code 风格一致。当前 `font-awesome` 仅用于文件浏览器刷新按钮和 EasyMDE 工具栏图标，EasyMDE 部分需要自定义按钮才能迁移。
-- 本地仓库关联：将 VS Code 已打开的 workspace 与 Forgejo 仓库关联（目前已支持检测本地仓库作为 worktree 源）。
-- Issue / PR 与 Git 分支联动：例如点击 PR 自动检出对应分支到 worktree（worktree 已支持）。
-- 通知推送：后台轮询 + VS Code 消息提醒。
+- Issue / PR 与 Git 分支联动：例如 Start Work on Issue（从 Issue 一键创建分支并 checkout）；PR 检出到 worktree 已支持。
 - 多账号权限管理：区分只读 / 读写 token。
 - 文件浏览器增强：文件重命名 / 删除（目前更推荐本地 clone 后操作）。
+- 构建工具统一：将 extension host 打包从 esbuild 迁移到 Rolldown。已评估：可行但收益有限，暂缓实施；需验证 Node builtins 处理、CJS 输出、sourcemap、minify、watch 模式等能力。
