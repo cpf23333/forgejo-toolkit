@@ -9,6 +9,7 @@ import { ForgejoPRDecorationProvider } from './prDecorationProvider';
 import { ForgejoIssueMentionProvider } from './editor/issueMentionProvider';
 import { PullReviewCommentController } from './comments/pullReviewCommentController';
 import { NotificationPoller } from './notifications/notificationPoller';
+import { CreatePrStatusBarController } from './statusBar/createPrStatusBar';
 import { logger } from './logger';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -50,6 +51,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const pullReviewCommentController = new PullReviewCommentController(config, context.extensionUri, logger);
   context.subscriptions.push(pullReviewCommentController);
+
+  const createPrStatusBar = new CreatePrStatusBarController(config);
+  context.subscriptions.push(createPrStatusBar);
+  viewProvider.onPullRequestCreated = () => createPrStatusBar.notifyPullRequestCreated();
 
   registerCommands(context, config, readmeProvider, viewProvider, pullReviewCommentController);
 

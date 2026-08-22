@@ -78,6 +78,38 @@ describe('ForgejoClient with MSW', () => {
     expect(repos[1].full_name).toBe(mockRepository2.full_name);
   });
 
+  it('creates a user repository', async () => {
+    const client = createClient();
+    let receivedBody: Record<string, unknown> | undefined;
+    mockServer.use(
+      http.post('https://*/api/v1/user/repos', async ({ request }) => {
+        receivedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            ...mockRepository,
+            name: String(receivedBody.name ?? mockRepository.name),
+            private: Boolean(receivedBody.private),
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    const repo = await client.createUserRepo({ name: 'new-repo', private: true, auto_init: false });
+    expect(receivedBody).toEqual({ name: 'new-repo', private: true, auto_init: false });
+    expect(repo.name).toBe('new-repo');
+    expect(repo.private).toBe(true);
+  });
+
+  it('surfaces API errors when creating a user repository', async () => {
+    const client = createClient();
+    mockServer.use(
+      http.post('https://*/api/v1/user/repos', () =>
+        HttpResponse.json({ message: 'The repository with the same name already exists.' }, { status: 409 }),
+      ),
+    );
+    await expect(client.createUserRepo({ name: 'demo-repo' })).rejects.toThrow('Forgejo API error 409');
+  });
+
   it('fetches user issues', async () => {
     const client = createClient();
     const issues = await client.getUserIssues('open');

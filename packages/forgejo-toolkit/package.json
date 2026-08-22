@@ -158,6 +158,18 @@
         "icon": "$(link)"
       },
       {
+        "command": "forgejoToolkit.publishToForgejo",
+        "title": "%command.publishToForgejo.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "forgejoToolkit.createPrFromCurrentBranch",
+        "title": "%command.createPrFromCurrentBranch.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(git-pull-request-create)"
+      },
+      {
         "command": "forgejoToolkit.deletePullReviewComment",
         "title": "%command.deletePullReviewComment.title%",
         "category": "Forgejo Toolkit",

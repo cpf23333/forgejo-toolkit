@@ -5,6 +5,19 @@ vi.mock('vscode', () => ({
     showErrorMessage: vi.fn(),
     showInformationMessage: vi.fn(),
     showWarningMessage: vi.fn(),
+    createStatusBarItem: vi.fn(() => ({
+      text: '',
+      tooltip: undefined,
+      command: undefined,
+      show: vi.fn(),
+      hide: vi.fn(),
+      dispose: vi.fn(),
+    })),
+    createOutputChannel: vi.fn(() => ({
+      appendLine: vi.fn(),
+      show: vi.fn(),
+      dispose: vi.fn(),
+    })),
   },
   workspace: {
     getConfiguration: vi.fn(() => ({
@@ -13,7 +26,19 @@ vi.mock('vscode', () => ({
     })),
     onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
     onDidChangeWorkspaceFolders: vi.fn(() => ({ dispose: vi.fn() })),
+    createFileSystemWatcher: vi.fn(() => ({
+      onDidChange: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidCreate: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidDelete: vi.fn(() => ({ dispose: vi.fn() })),
+      dispose: vi.fn(),
+    })),
+    workspaceFolders: [],
   },
+  commands: {
+    executeCommand: vi.fn(),
+  },
+  StatusBarAlignment: { Left: 1, Right: 2 },
+  RelativePattern: vi.fn().mockImplementation((base: unknown, pattern: unknown) => ({ base, pattern })),
   Uri: {
     file: vi.fn((path: string) => ({ fsPath: path })),
     joinPath: vi.fn((...args: unknown[]) => ({ fsPath: args.join('/') })),

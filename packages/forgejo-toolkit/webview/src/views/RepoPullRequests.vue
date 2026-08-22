@@ -37,6 +37,7 @@ const error = computed(() => state.errors.get(key.value));
 
 const isCreating = ref(false);
 const createFormResetKey = ref(0);
+const createInitialHead = ref('');
 const createFormKey = computed(() => pullRequestFormKey(instanceId.value, owner.value, repo.value, 0));
 const createLoading = computed(() => state.loading.get(createFormKey.value) ?? false);
 const createError = computed(() => state.errors.get(createFormKey.value));
@@ -50,6 +51,13 @@ const hasPullRequests = computed(
   () => !repoDetail.value?.repository.mirror && repoDetail.value?.repository.has_pull_requests !== false,
 );
 const branches = computed(() => repoDetail.value?.branches ?? []);
+// The prefilled head branch may not be among the first branches returned by
+// the API; append it so the select can display it.
+const createBranches = computed(() =>
+  createInitialHead.value && !branches.value.includes(createInitialHead.value)
+    ? [...branches.value, createInitialHead.value]
+    : branches.value,
+);
 const labelsKey = computed(() => repoLabelsKey(instanceId.value, owner.value, repo.value));
 const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? []);
 const assigneesKey = computed(() => repoAssigneesKey(instanceId.value, owner.value, repo.value));
@@ -123,7 +131,8 @@ function changeState(newState: string) {
   state.changeRepoPullRequestsState(instanceId.value, owner.value, repo.value, newState);
 }
 
-function openCreatePullRequest() {
+function openCreatePullRequest(head = '') {
+  createInitialHead.value = head;
   createFormResetKey.value += 1;
   state.errors.delete(createFormKey.value);
   state.loadRepoDetail(instanceId.value, owner.value, repo.value);
@@ -132,6 +141,20 @@ function openCreatePullRequest() {
   state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
   isCreating.value = true;
 }
+
+// Open the create dialog prefilled from the current branch when the host asked
+// us to (status bar / command palette), both on mount and while this view is
+// already active.
+watch(
+  [instanceId, owner, repo, () => state.pendingCreatePr.value],
+  () => {
+    const pending = state.consumePendingCreatePr(instanceId.value, owner.value, repo.value);
+    if (pending) {
+      openCreatePullRequest(pending.head);
+    }
+  },
+  { immediate: true },
+);
 
 function closeCreatePullRequest() {
   for (const url of pendingImageObjectUrls.value.keys()) {
@@ -233,7 +256,7 @@ async function handleCreateSubmit(data: {
           :placeholder="t('dashboard.repoPullRequests.searchPlaceholder')"
           @input="searchInput = ($event.target as HTMLInputElement).value"
         />
-        <vscode-button icon="add" @click="openCreatePullRequest">
+        <vscode-button icon="add" @click="openCreatePullRequest()">
           {{ t('dashboard.actions.newPullRequest') }}
         </vscode-button>
         <div class="state-filter">
@@ -294,7 +317,8 @@ async function handleCreateSubmit(data: {
       <PullRequestForm
         :key="createFormResetKey"
         :initial-base="repoDetail?.repository.default_branch"
-        :branches="branches"
+        :initial-head="createInitialHead"
+        :branches="createBranches"
         :labels="labels"
         :assignees="assignees"
         :milestones="milestones"

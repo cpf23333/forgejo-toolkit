@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
+  createCurrentUserRepo,
   getTree,
   issueAddSubscription,
   issueAddTime,
@@ -107,6 +108,7 @@ import type {
   CreatePullRequestOption,
   CreatePullReviewComment,
   CreateReleaseOption,
+  CreateRepoOption,
   CreateTagOption,
   DispatchWorkflowRun,
   EditIssueOption,
@@ -119,6 +121,7 @@ import type {
   PullReview,
   PullReviewComment,
   Reaction,
+  Repository,
   StopWatch,
   TimelineComment,
   TrackedTime,
@@ -193,6 +196,10 @@ export class ForgejoClient {
 
   getUserRepositories(): Promise<ForgejoRepository[]> {
     return userCurrentListRepos({ limit: 100 }, { client: this._client() }) as Promise<ForgejoRepository[]>;
+  }
+
+  createUserRepo(data: CreateRepoOption): Promise<Repository> {
+    return createCurrentUserRepo(data, { client: this._client() });
   }
 
   getUserIssues(state: string = 'open'): Promise<ForgejoIssue[]> {

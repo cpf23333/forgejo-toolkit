@@ -49,6 +49,51 @@ export async function findLocalRepo(instanceUrl: string, owner: string, repo: st
   return undefined;
 }
 
+export async function addRemote(dirPath: string, remote: string, url: string): Promise<void> {
+  const { stderr } = await exec(`git remote add ${remote} "${url}"`, { cwd: dirPath });
+  if (stderr && stderr.toLowerCase().includes('error')) {
+    throw new Error(stderr);
+  }
+}
+
+export async function getCurrentBranch(dirPath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await exec('git rev-parse --abbrev-ref HEAD', { cwd: dirPath });
+    const branch = stdout.trim();
+    // A detached HEAD makes git print "HEAD" instead of a branch name.
+    return branch && branch !== 'HEAD' ? branch : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function getUpstreamBranch(dirPath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await exec('git rev-parse --abbrev-ref @{upstream}', { cwd: dirPath });
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function pushBranch(
+  dirPath: string,
+  remote: string,
+  branch: string,
+  token?: string,
+  setUpstream = false,
+): Promise<void> {
+  // Pass the token via a per-command header so it is not persisted in the
+  // repository config. Tokens are alphanumeric, so embedding the token inside
+  // the double-quoted header value is shell-safe.
+  const authArgs = token ? `-c http.extraHeader="Authorization: token ${token}" ` : '';
+  const upstreamArg = setUpstream ? '-u ' : '';
+  const { stderr } = await exec(`git ${authArgs}push ${upstreamArg}${remote} ${branch}`, { cwd: dirPath });
+  if (stderr && stderr.toLowerCase().includes('error')) {
+    throw new Error(stderr);
+  }
+}
+
 export async function cloneRepository(url: string, targetPath: string, token?: string): Promise<void> {
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
   // Pass the token via a per-command header so it is not persisted in the

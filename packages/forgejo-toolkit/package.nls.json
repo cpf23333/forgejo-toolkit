@@ -4,6 +4,8 @@
   "command.openSettings.title": "Open Settings",
   "command.refreshInstances.title": "Refresh Instances",
   "command.copyPermalink.title": "Copy Permalink",
+  "command.publishToForgejo.title": "Publish to Forgejo",
+  "command.createPrFromCurrentBranch.title": "Create PR from Current Branch",
   "command.deletePullReviewComment.title": "Delete Review Comment",
   "command.addPullReviewComment.title": "Add Pull Review Comment"
 }

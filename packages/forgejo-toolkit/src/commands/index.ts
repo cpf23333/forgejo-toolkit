@@ -5,6 +5,9 @@ import type { ConfigManager } from '../config';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { COMMAND_ADD_COMMENT, PullReviewCommentController } from '../comments/pullReviewCommentController';
 import { copyPermalink } from './permalink';
+import { publishToForgejo } from './publish';
+import { createPrFromCurrentBranch, type CreatePrFromCurrentBranchArgs } from './createPullRequest';
+import { logger } from '../logger';
 
 export function registerCommands(
   context: vscode.ExtensionContext,
@@ -36,6 +39,25 @@ export function registerCommands(
         vscode.window.showErrorMessage(vscode.l10n.t('Failed to copy permalink: {0}', err));
       });
     }),
+
+    vscode.commands.registerCommand('forgejoToolkit.publishToForgejo', () => {
+      publishToForgejo(config).catch((error: unknown) => {
+        const err = error instanceof Error ? error.message : String(error);
+        logger.error(`[publishToForgejo] ${err}`);
+        vscode.window.showErrorMessage(vscode.l10n.t('Failed to publish to Forgejo: {0}', err));
+      });
+    }),
+
+    vscode.commands.registerCommand(
+      'forgejoToolkit.createPrFromCurrentBranch',
+      (args?: CreatePrFromCurrentBranchArgs) => {
+        createPrFromCurrentBranch(config, viewProvider, args).catch((error: unknown) => {
+          const err = error instanceof Error ? error.message : String(error);
+          logger.error(`[createPrFromCurrentBranch] ${err}`);
+          vscode.window.showErrorMessage(vscode.l10n.t('Failed to create pull request: {0}', err));
+        });
+      },
+    ),
 
     vscode.commands.registerCommand(COMMAND_ADD_COMMENT, (uri?: vscode.Uri, lineNumber?: number) => {
       const editor = vscode.window.activeTextEditor;

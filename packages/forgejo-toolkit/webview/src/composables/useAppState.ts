@@ -143,6 +143,7 @@ function createAppState() {
   const supportsMultiDiff = computed(() => isVersionAtLeast(vscodeVersion, '1.86.0'));
   const dashboardActiveTab = ref<'repositories' | 'issues' | 'pullRequests'>('repositories');
   const linkedRepository = ref<LinkedRepository | undefined>(undefined);
+  const pendingCreatePr = ref<{ instanceId: string; owner: string; repo: string; head: string } | null>(null);
   const testConnectionResult = ref<{ success: boolean; username?: string; error?: string } | undefined>(undefined);
   const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
   const exportInstancesResult = ref<{ success: boolean; path?: string; error?: string } | undefined>(undefined);
@@ -238,6 +239,15 @@ function createAppState() {
         break;
       case 'openNotifications':
         router.push({ name: 'notifications' });
+        break;
+      case 'openCreatePullRequest': {
+        const { instanceId, owner, repo, head } = message;
+        pendingCreatePr.value = { instanceId, owner, repo, head };
+        router.push({ name: 'repoPullRequests', params: { instanceId, owner, repo, state: 'open' } });
+        break;
+      }
+      case 'openPullRequestDetail':
+        openPullRequestDetail(message.instanceId, message.owner, message.repo, message.index);
         break;
       case 'setLocale':
         locale.value = message.locale;
@@ -3280,6 +3290,15 @@ function createAppState() {
     loadRepoPullRequests(instanceId, owner, repo, state);
   }
 
+  function consumePendingCreatePr(instanceId: string, owner: string, repo: string) {
+    const pending = pendingCreatePr.value;
+    if (!pending || pending.instanceId !== instanceId || pending.owner !== owner || pending.repo !== repo) {
+      return undefined;
+    }
+    pendingCreatePr.value = null;
+    return pending;
+  }
+
   function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
     const key = repoPullRequestsKey(instanceId, owner, repo, state, query);
     if (!repoPullRequests.value.has(key)) {
@@ -3625,6 +3644,7 @@ function createAppState() {
     supportsMultiDiff,
     dashboardActiveTab,
     linkedRepository,
+    pendingCreatePr,
     testConnectionResult,
     saveInstanceResult,
     exportInstancesResult,
@@ -3713,6 +3733,7 @@ function createAppState() {
     changeCommentReaction,
     openRepoPullRequests,
     loadRepoPullRequests,
+    consumePendingCreatePr,
     loadActionRuns,
     openActionRunDetail,
     loadActionRun,

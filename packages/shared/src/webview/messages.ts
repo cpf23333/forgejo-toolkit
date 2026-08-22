@@ -40,6 +40,8 @@ export type HostToWebviewMessage =
   | { command: 'openSettings' }
   | { command: 'openDashboard' }
   | { command: 'openNotifications' }
+  | { command: 'openCreatePullRequest'; instanceId: string; owner: string; repo: string; head: string }
+  | { command: 'openPullRequestDetail'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'setLocale'; locale: 'en' | 'zh' }
   | { command: 'setDebug'; debug: boolean }
   | { command: 'repositories'; instanceId: string; repositories?: unknown[]; error?: string }

@@ -34,7 +34,11 @@ import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
 
+  /** Invoked after a pull request is successfully created through the webview. */
+  public onPullRequestCreated: (() => void) | undefined;
+
   private _view?: vscode.WebviewView;
+  private _pendingMessage?: HostToWebviewMessage;
   private readonly _worktreeManager: WorktreeManager;
 
   constructor(
@@ -106,6 +110,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               worktreeCacheDirectoryDefault: defaultDirectory,
             });
             this._detectAndSendLinkedRepository();
+            if (this._pendingMessage) {
+              const pending = this._pendingMessage;
+              this._pendingMessage = undefined;
+              this._view?.webview.postMessage(pending);
+            }
             return;
           }
           case 'getLinkedRepository': {
@@ -1546,6 +1555,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 item,
                 _requestId: message._requestId,
               });
+              this.onPullRequestCreated?.();
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`createPullRequest failed for ${instance.name}/${owner}/${repo}: ${err}`);
@@ -2964,6 +2974,25 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
   public openDashboard() {
     this._view?.webview.postMessage({ command: 'openDashboard' });
+  }
+
+  public openCreatePullRequest(payload: { instanceId: string; owner: string; repo: string; head: string }) {
+    this._postOrQueue({ command: 'openCreatePullRequest', ...payload });
+  }
+
+  public openPullRequestDetail(payload: { instanceId: string; owner: string; repo: string; index: number }) {
+    this._postOrQueue({ command: 'openPullRequestDetail', ...payload });
+  }
+
+  private _postOrQueue(message: HostToWebviewMessage) {
+    // When the sidebar has never been shown the webview does not exist yet;
+    // queue the message and flush it once the webview mounts and asks for its
+    // initial state (see the getInitialState handler).
+    if (this._view) {
+      this._view.webview.postMessage(message);
+    } else {
+      this._pendingMessage = message;
+    }
   }
 
   public refresh() {
