@@ -26,7 +26,11 @@ const instanceId = computed(() => String(route.params.instanceId));
 const owner = computed(() => String(route.params.owner));
 const repo = computed(() => String(route.params.repo));
 const stateParam = computed(() => String(route.params.state || 'open'));
-const key = computed(() => repoIssuesKey(instanceId.value, owner.value, repo.value, stateParam.value));
+const searchInput = ref('');
+const appliedQuery = ref('');
+const key = computed(() =>
+  repoIssuesKey(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value),
+);
 
 const items = computed(() => state.repoIssues.value.get(key.value) ?? []);
 const loading = computed(() => state.loading.get(key.value) ?? false);
@@ -66,7 +70,7 @@ watch(
   () => {
     state.loadRepoDetail(instanceId.value, owner.value, repo.value);
     if (hasIssues.value) {
-      state.loadRepoIssues(instanceId.value, owner.value, repo.value, stateParam.value);
+      state.loadRepoIssues(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value);
       state.loadRepoLabels(instanceId.value, owner.value, repo.value);
       state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
       state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
@@ -75,6 +79,17 @@ watch(
   },
   { immediate: true },
 );
+
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+watch(searchInput, (value) => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    appliedQuery.value = value.trim();
+    if (hasIssues.value) {
+      state.loadRepoIssues(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value);
+    }
+  }, 300);
+});
 
 const states = ['open', 'closed', 'all'];
 
@@ -219,6 +234,12 @@ async function handleCreateSubmit(data: {
     <div class="list-header">
       <h2>{{ t('dashboard.repoIssues.title', { repo: title }) }}</h2>
       <div class="header-actions">
+        <vscode-textfield
+          :value="searchInput"
+          class="search-input"
+          :placeholder="t('dashboard.repoIssues.searchPlaceholder')"
+          @input="searchInput = ($event.target as HTMLInputElement).value"
+        />
         <vscode-button icon="add" @click="openCreateIssue">
           {{ t('dashboard.actions.newIssue') }}
         </vscode-button>
@@ -342,6 +363,10 @@ async function handleCreateSubmit(data: {
 .state-filter {
   display: flex;
   gap: 6px;
+}
+
+.search-input {
+  min-width: 180px;
 }
 
 .filter-button {

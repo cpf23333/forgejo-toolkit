@@ -234,6 +234,7 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       state: string;
+      query?: string;
       issues?: unknown[];
       error?: string;
     }
@@ -243,6 +244,7 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       state: string;
+      query?: string;
       pullRequests?: unknown[];
       error?: string;
     }
@@ -945,8 +947,8 @@ export type WebviewToHostMessage =
       baseSha: string;
       headSha: string;
     }
-  | { command: 'getRepoIssues'; instanceId: string; owner: string; repo: string; state?: string }
-  | { command: 'getRepoPullRequests'; instanceId: string; owner: string; repo: string; state?: string }
+  | { command: 'getRepoIssues'; instanceId: string; owner: string; repo: string; state?: string; query?: string }
+  | { command: 'getRepoPullRequests'; instanceId: string; owner: string; repo: string; state?: string; query?: string }
   | { command: 'getActionRuns'; instanceId: string; owner: string; repo: string; page?: number; limit?: number }
   | { command: 'getActionRun'; instanceId: string; owner: string; repo: string; runId: number }
   | { command: 'getActionRunJobs'; instanceId: string; owner: string; repo: string; runId: number }

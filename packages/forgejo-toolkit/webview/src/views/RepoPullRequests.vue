@@ -25,7 +25,11 @@ const instanceId = computed(() => String(route.params.instanceId));
 const owner = computed(() => String(route.params.owner));
 const repo = computed(() => String(route.params.repo));
 const stateParam = computed(() => String(route.params.state || 'open'));
-const key = computed(() => repoPullRequestsKey(instanceId.value, owner.value, repo.value, stateParam.value));
+const searchInput = ref('');
+const appliedQuery = ref('');
+const key = computed(() =>
+  repoPullRequestsKey(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value),
+);
 
 const items = computed(() => state.repoPullRequests.value.get(key.value) ?? []);
 const loading = computed(() => state.loading.get(key.value) ?? false);
@@ -58,11 +62,22 @@ watch(
   () => {
     state.loadRepoDetail(instanceId.value, owner.value, repo.value);
     if (hasPullRequests.value) {
-      state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value);
+      state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value);
     }
   },
   { immediate: true },
 );
+
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+watch(searchInput, (value) => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    appliedQuery.value = value.trim();
+    if (hasPullRequests.value) {
+      state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value);
+    }
+  }, 300);
+});
 
 const states = ['open', 'closed', 'all'];
 
@@ -212,6 +227,12 @@ async function handleCreateSubmit(data: {
     <div class="list-header">
       <h2>{{ t('dashboard.repoPullRequests.title', { repo: title }) }}</h2>
       <div class="header-actions">
+        <vscode-textfield
+          :value="searchInput"
+          class="search-input"
+          :placeholder="t('dashboard.repoPullRequests.searchPlaceholder')"
+          @input="searchInput = ($event.target as HTMLInputElement).value"
+        />
         <vscode-button icon="add" @click="openCreatePullRequest">
           {{ t('dashboard.actions.newPullRequest') }}
         </vscode-button>
@@ -334,6 +355,10 @@ async function handleCreateSubmit(data: {
 .state-filter {
   display: flex;
   gap: 6px;
+}
+
+.search-input {
+  min-width: 180px;
 }
 
 .filter-button {

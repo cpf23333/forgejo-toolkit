@@ -644,11 +644,12 @@ export class ForgejoClient {
     return blockers;
   }
 
-  getRepoIssues(owner: string, repo: string, state: string = 'open'): Promise<ForgejoIssue[]> {
+  getRepoIssues(owner: string, repo: string, state: string = 'open', query?: string): Promise<ForgejoIssue[]> {
+    const q = query?.trim();
     return issueListIssues(
       owner,
       repo,
-      { state: state as 'open' | 'closed' | 'all', type: 'issues' },
+      { state: state as 'open' | 'closed' | 'all', type: 'issues', ...(q ? { q } : {}) },
       { client: this._client() },
     ) as Promise<ForgejoIssue[]>;
   }
@@ -726,7 +727,22 @@ export class ForgejoClient {
     return issue as ForgejoIssue | undefined;
   }
 
-  getRepoPullRequests(owner: string, repo: string, state: string = 'open'): Promise<ForgejoPullRequest[]> {
+  getRepoPullRequests(
+    owner: string,
+    repo: string,
+    state: string = 'open',
+    query?: string,
+  ): Promise<ForgejoPullRequest[]> {
+    const q = query?.trim();
+    if (q) {
+      // repoListPullRequests has no keyword filter; the issues endpoint supports `q` with `type=pulls`.
+      return issueListIssues(
+        owner,
+        repo,
+        { state: state as 'open' | 'closed' | 'all', type: 'pulls', q },
+        { client: this._client() },
+      ) as Promise<ForgejoPullRequest[]>;
+    }
     return repoListPullRequests(
       owner,
       repo,

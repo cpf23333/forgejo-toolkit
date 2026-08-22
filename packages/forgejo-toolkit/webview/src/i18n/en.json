@@ -200,12 +200,14 @@
     "repoIssues": {
       "title": "Issues · {repo}",
       "empty": "No issues match the selected state.",
-      "disabled": "Issues are disabled for this repository."
+      "disabled": "Issues are disabled for this repository.",
+      "searchPlaceholder": "Search issues…"
     },
     "repoPullRequests": {
       "title": "Pull Requests · {repo}",
       "empty": "No pull requests match the selected state.",
-      "disabled": "Pull requests are disabled for this repository."
+      "disabled": "Pull requests are disabled for this repository.",
+      "searchPlaceholder": "Search pull requests…"
     },
     "repoActions": {
       "empty": "No action runs.",

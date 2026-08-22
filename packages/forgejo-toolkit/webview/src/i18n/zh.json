@@ -200,12 +200,14 @@
     "repoIssues": {
       "title": "Issues · {repo}",
       "empty": "没有符合当前状态的 Issues。",
-      "disabled": "该仓库未启用 Issues。"
+      "disabled": "该仓库未启用 Issues。",
+      "searchPlaceholder": "搜索 Issues…"
     },
     "repoPullRequests": {
       "title": "Pull Requests · {repo}",
       "empty": "没有符合当前状态的 Pull Requests。",
-      "disabled": "该仓库未启用 Pull Requests。"
+      "disabled": "该仓库未启用 Pull Requests。",
+      "searchPlaceholder": "搜索 Pull Requests…"
     },
     "repoActions": {
       "empty": "没有运行记录。",

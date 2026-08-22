@@ -1835,12 +1835,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             try {
               const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-              const issues = await client.getRepoIssues(owner, repo, message.state ?? 'open');
+              const issues = await client.getRepoIssues(owner, repo, message.state ?? 'open', message.query);
               this._reply('repoIssues', {
                 instanceId: instance.id,
                 owner,
                 repo,
                 state: message.state ?? 'open',
+                query: message.query,
                 issues,
               });
             } catch (error) {
@@ -1851,6 +1852,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 owner,
                 repo,
                 state: message.state ?? 'open',
+                query: message.query,
                 error: err,
               });
             }
@@ -1997,12 +1999,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             }
             try {
               const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-              const pullRequests = await client.getRepoPullRequests(owner, repo, message.state ?? 'open');
+              const pullRequests = await client.getRepoPullRequests(
+                owner,
+                repo,
+                message.state ?? 'open',
+                message.query,
+              );
               this._reply('repoPullRequests', {
                 instanceId: instance.id,
                 owner,
                 repo,
                 state: message.state ?? 'open',
+                query: message.query,
                 pullRequests,
               });
             } catch (error) {
@@ -2013,6 +2021,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 owner,
                 repo,
                 state: message.state ?? 'open',
+                query: message.query,
                 error: err,
               });
             }

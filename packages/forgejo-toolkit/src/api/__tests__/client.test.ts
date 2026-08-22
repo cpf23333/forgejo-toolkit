@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { http, HttpResponse } from 'msw';
 import type {
   CreateBranchRepoOption,
   CreateIssueOption,
@@ -11,7 +12,7 @@ import type {
   EditReleaseOption,
 } from '@cpf23333-forgejo-toolkit/api';
 import { ForgejoClient } from '../client';
-import { startMockServer, stopMockServer, resetMockServer } from '../../test/mocks/server';
+import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
 import {
   mockUser,
   mockRepository,
@@ -208,6 +209,55 @@ describe('ForgejoClient with MSW', () => {
     const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'open');
     expect(pulls).toHaveLength(mockPullRequests.length);
     expect(pulls[0].title).toBe(mockPullRequests[0].title);
+  });
+
+  it('passes the trimmed search query to the repository issues endpoint', async () => {
+    const client = createClient();
+    let receivedQuery: string | null = null;
+    let receivedType: string | null = null;
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
+        const url = new URL(request.url);
+        receivedQuery = url.searchParams.get('q');
+        receivedType = url.searchParams.get('type');
+        return HttpResponse.json([]);
+      }),
+    );
+    const issues = await client.getRepoIssues('demo-user', 'demo-repo', 'open', '  bug  ');
+    expect(issues).toEqual([]);
+    expect(receivedQuery).toBe('bug');
+    expect(receivedType).toBe('issues');
+  });
+
+  it('omits the search query when it is empty', async () => {
+    const client = createClient();
+    let receivedQuery: string | null = null;
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
+        receivedQuery = new URL(request.url).searchParams.get('q');
+        return HttpResponse.json([]);
+      }),
+    );
+    await client.getRepoIssues('demo-user', 'demo-repo', 'open', '   ');
+    expect(receivedQuery).toBeNull();
+  });
+
+  it('searches repository pull requests via the issues endpoint', async () => {
+    const client = createClient();
+    let receivedQuery: string | null = null;
+    let receivedType: string | null = null;
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
+        const url = new URL(request.url);
+        receivedQuery = url.searchParams.get('q');
+        receivedType = url.searchParams.get('type');
+        return HttpResponse.json([]);
+      }),
+    );
+    const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'open', 'dark mode');
+    expect(pulls).toEqual([]);
+    expect(receivedQuery).toBe('dark mode');
+    expect(receivedType).toBe('pulls');
   });
 
   it('fetches issue detail', async () => {

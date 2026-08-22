@@ -1968,10 +1968,11 @@ function createAppState() {
     owner: string;
     repo: string;
     state: string;
+    query?: string;
     issues?: ForgejoIssue[];
     error?: string;
   }) {
-    const key = repoIssuesKey(data.instanceId, data.owner, data.repo, data.state);
+    const key = repoIssuesKey(data.instanceId, data.owner, data.repo, data.state, data.query);
     loading.set(key, false);
     if (data.error) {
       errors.set(key, data.error);
@@ -1986,10 +1987,11 @@ function createAppState() {
     owner: string;
     repo: string;
     state: string;
+    query?: string;
     pullRequests?: ForgejoPullRequest[];
     error?: string;
   }) {
-    const key = repoPullRequestsKey(data.instanceId, data.owner, data.repo, data.state);
+    const key = repoPullRequestsKey(data.instanceId, data.owner, data.repo, data.state, data.query);
     loading.set(key, false);
     if (data.error) {
       errors.set(key, data.error);
@@ -3071,11 +3073,11 @@ function createAppState() {
     loadRepoIssues(instanceId, owner, repo, state);
   }
 
-  function loadRepoIssues(instanceId: string, owner: string, repo: string, state = 'open') {
-    const key = repoIssuesKey(instanceId, owner, repo, state);
+  function loadRepoIssues(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
+    const key = repoIssuesKey(instanceId, owner, repo, state, query);
     if (!repoIssues.value.has(key)) {
       loading.set(key, true);
-      postMessage({ command: 'getRepoIssues', instanceId, owner, repo, state });
+      postMessage({ command: 'getRepoIssues', instanceId, owner, repo, state, query: query?.trim() || undefined });
     }
   }
 
@@ -3278,11 +3280,18 @@ function createAppState() {
     loadRepoPullRequests(instanceId, owner, repo, state);
   }
 
-  function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open') {
-    const key = repoPullRequestsKey(instanceId, owner, repo, state);
+  function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
+    const key = repoPullRequestsKey(instanceId, owner, repo, state, query);
     if (!repoPullRequests.value.has(key)) {
       loading.set(key, true);
-      postMessage({ command: 'getRepoPullRequests', instanceId, owner, repo, state });
+      postMessage({
+        command: 'getRepoPullRequests',
+        instanceId,
+        owner,
+        repo,
+        state,
+        query: query?.trim() || undefined,
+      });
     }
   }
 
@@ -3804,8 +3813,10 @@ export function pullRequestCommitsKey(instanceId: string, owner: string, repo: s
   return `${instanceId}:${owner}/${repo}#pr-${index}:commits`;
 }
 
-export function repoIssuesKey(instanceId: string, owner: string, repo: string, state: string): string {
-  return `${instanceId}:${owner}/${repo}:issues:${state}`;
+export function repoIssuesKey(instanceId: string, owner: string, repo: string, state: string, query?: string): string {
+  const base = `${instanceId}:${owner}/${repo}:issues:${state}`;
+  const q = query?.trim();
+  return q ? `${base}:q=${q}` : base;
 }
 
 export function repoLabelsKey(instanceId: string, owner: string, repo: string): string {
@@ -3844,8 +3855,16 @@ export function commentReactionsKey(instanceId: string, owner: string, repo: str
   return `${instanceId}:${owner}/${repo}:comment-${commentId}:reactions`;
 }
 
-export function repoPullRequestsKey(instanceId: string, owner: string, repo: string, state: string): string {
-  return `${instanceId}:${owner}/${repo}:pulls:${state}`;
+export function repoPullRequestsKey(
+  instanceId: string,
+  owner: string,
+  repo: string,
+  state: string,
+  query?: string,
+): string {
+  const base = `${instanceId}:${owner}/${repo}:pulls:${state}`;
+  const q = query?.trim();
+  return q ? `${base}:q=${q}` : base;
 }
 
 export function actionRunsKey(instanceId: string, owner: string, repo: string, page: number): string {
