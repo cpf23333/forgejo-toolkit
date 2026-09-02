@@ -163,6 +163,7 @@ watch(
 
 const issueUrl = computed(() => detail.value?.html_url ?? '');
 const isEditing = ref(false);
+const editFormDirty = ref(false);
 const uploadingAttachmentCount = ref(0);
 const deletingAttachmentId = ref<number | undefined>(undefined);
 const isDeletingAttachments = ref(false);
@@ -914,7 +915,14 @@ function reloadIssue() {
         </CollapsibleSection>
       </div>
 
-      <ModalDialog :open="isEditing" :title="t('dashboard.form.editIssue')" :loading="formLoading" @close="closeEdit">
+      <ModalDialog
+        :open="isEditing"
+        :title="t('dashboard.form.editIssue')"
+        :loading="formLoading"
+        :confirm-close-if-dirty="true"
+        :is-dirty="editFormDirty"
+        @close="closeEdit"
+      >
         <IssueForm
           mode="edit"
           :initial-title="detail.title"
@@ -937,6 +945,7 @@ function reloadIssue() {
           :repo="repo"
           @submit="handleEditSubmit"
           @cancel="closeEdit"
+          @dirty="editFormDirty = $event"
         >
           <template #extra>
             <AttachmentList

@@ -28,6 +28,9 @@ const uploadingCommentCount = ref(0);
 const uploadErrors = reactive<Record<number, string>>({});
 const editingComment = ref<ForgejoTimelineComment | undefined>(undefined);
 const editBody = ref('');
+const editDirty = computed(
+  () => editingComment.value !== undefined && editBody.value !== (editingComment.value.body ?? ''),
+);
 const pendingDeleteAttachmentIds = ref<number[]>([]);
 const deletingAttachmentIds = ref<Set<number>>(new Set());
 const isSavingEdit = ref(false);
@@ -453,6 +456,8 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
       :open="editingComment !== undefined"
       :title="t('dashboard.detail.editComment')"
       :loading="editLoading"
+      :confirm-close-if-dirty="true"
+      :is-dirty="editDirty"
       @close="closeEdit"
     >
       <div class="edit-comment-form">

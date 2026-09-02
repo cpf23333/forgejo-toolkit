@@ -14,7 +14,7 @@ import { cloneRepository, fetchPullRequestHead, pushBranch } from '../gitOperati
 
 type ExecFileCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
-function failWithTokenInCommandLine(token: string) {
+function failWithTokenInCommandLine() {
   mocks.execFile.mockImplementation((_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
     // Simulate what promisify(cp.execFile) produces on failure: error.message
     // contains the full command line (including the token), stderr is attached.
@@ -32,18 +32,18 @@ describe('gitOperations token leak prevention', () => {
   });
 
   it('pushBranch rethrows without the token in the message', async () => {
-    failWithTokenInCommandLine(token);
+    failWithTokenInCommandLine();
     await expect(pushBranch('/repo', 'origin', 'main', token, true)).rejects.toThrow('fatal: Authentication failed');
     await expect(pushBranch('/repo', 'origin', 'main', token, true)).rejects.not.toThrow(token);
   });
 
   it('cloneRepository rethrows without the token in the message', async () => {
-    failWithTokenInCommandLine(token);
+    failWithTokenInCommandLine();
     await expect(cloneRepository('https://forgejo.example.com/a/b.git', '/tmp/b', token)).rejects.not.toThrow(token);
   });
 
   it('fetchPullRequestHead rethrows without the token in the message', async () => {
-    failWithTokenInCommandLine(token);
+    failWithTokenInCommandLine();
     await expect(fetchPullRequestHead('/repo', 'origin', 1, 'pr-1', token)).rejects.not.toThrow(token);
   });
 

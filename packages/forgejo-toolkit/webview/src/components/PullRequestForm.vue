@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import EasyMdeEditor from './EasyMdeEditor.vue';
 import DateTimePicker from './DateTimePicker.vue';
@@ -60,6 +60,7 @@ const emit = defineEmits<{
     },
   ];
   cancel: [];
+  dirty: [dirty: boolean];
 }>();
 
 const title = ref(props.initialTitle);
@@ -125,6 +126,31 @@ watch(
   (value) => {
     dueDate.value = value ?? null;
   },
+);
+
+function sameItems<T>(a: T[], b: T[]): boolean {
+  return a.length === b.length && [...a].sort().every((item, index) => item === [...b].sort()[index]);
+}
+
+const isDirty = computed(
+  () =>
+    title.value !== props.initialTitle ||
+    body.value !== props.initialBody ||
+    (base.value ?? '') !== props.initialBase ||
+    (head.value ?? '') !== props.initialHead ||
+    selectedMilestoneId.value !== props.initialMilestoneId ||
+    (dueDate.value ?? '') !== (props.initialDueDate ?? '') ||
+    !sameItems(selectedLabelIds.value, props.initialLabelIds) ||
+    !sameItems(selectedAssignees.value, props.initialAssignees),
+);
+
+// Immediate so a freshly (re)mounted form also publishes its initial clean state.
+watch(
+  isDirty,
+  (dirty) => {
+    emit('dirty', dirty);
+  },
+  { immediate: true },
 );
 
 function toggleLabel(id: number) {

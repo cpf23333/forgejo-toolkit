@@ -7,7 +7,8 @@
   },
   "common": {
     "confirm": "确定",
-    "cancel": "取消"
+    "cancel": "取消",
+    "discardChangesConfirm": "有未保存的更改，确定要放弃吗？"
   },
   "editor": {
     "toolbar": {

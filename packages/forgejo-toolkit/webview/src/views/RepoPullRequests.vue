@@ -38,6 +38,7 @@ const error = computed(() => state.errors.get(key.value));
 const isCreating = ref(false);
 const createFormResetKey = ref(0);
 const createInitialHead = ref('');
+const createFormDirty = ref(false);
 const createFormKey = computed(() => pullRequestFormKey(instanceId.value, owner.value, repo.value, 0));
 const createLoading = computed(() => state.loading.get(createFormKey.value) ?? false);
 const createError = computed(() => state.errors.get(createFormKey.value));
@@ -312,6 +313,8 @@ async function handleCreateSubmit(data: {
       :open="isCreating"
       :title="t('dashboard.form.newPullRequest')"
       :loading="createDialogLoading"
+      :confirm-close-if-dirty="true"
+      :is-dirty="createFormDirty"
       @close="closeCreatePullRequest"
     >
       <PullRequestForm
@@ -331,6 +334,7 @@ async function handleCreateSubmit(data: {
         :repo="repo"
         @submit="handleCreateSubmit"
         @cancel="closeCreatePullRequest"
+        @dirty="createFormDirty = $event"
       >
         <template #extra>
           <AttachmentList
