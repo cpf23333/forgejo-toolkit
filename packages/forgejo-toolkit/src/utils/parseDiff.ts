@@ -1,23 +1,10 @@
-export type DiffLineType = 'header' | 'context' | 'deleted' | 'added';
-
-export interface DiffPositionInfo {
-  /** Type of the diff line at this position. */
-  type: DiffLineType;
-  /** 0-based line number in the base (left) side, if applicable. */
-  baseLine?: number;
-  /** 0-based line number in the head (right) side, if applicable. */
-  headLine?: number;
-  /** Raw content of the diff line (without the leading +/- prefix). */
-  content: string;
-}
+export type DiffLineType = 'context' | 'deleted' | 'added';
 
 export interface FileDiffMap {
-  /** position (1-based within the file's diff) -> line info. */
-  positions: Map<number, DiffPositionInfo>;
-  /** base line (0-based) -> positions that map to it. */
-  baseLineToPositions: Map<number, number[]>;
-  /** head line (0-based) -> positions that map to it. */
-  headLineToPositions: Map<number, number[]>;
+  /** 0-based line number in the base (left) file -> diff line type. */
+  baseLines: Map<number, DiffLineType>;
+  /** 0-based line number in the head (right) file -> diff line type. */
+  headLines: Map<number, DiffLineType>;
 }
 
 export interface ParsedPullDiff {
@@ -28,9 +15,12 @@ export interface ParsedPullDiff {
 /**
  * Parse a unified diff for a pull request.
  *
- * Forgejo's review comment `position` is the 1-based index of a line within
- * the file's diff, starting from the first hunk header (`@@`). Hunk headers
- * themselves occupy a position.
+ * Forgejo review comment positions are 1-based file line numbers (not
+ * GitHub-style diff positions), so this map only records which file lines
+ * are part of the diff and whether each line is added, deleted, or context.
+ * It is used when creating comments to decide which side (base/head) a line
+ * can be commented on; rendering resolves comment positions directly
+ * against the opened document.
  */
 export function parsePullDiff(diffText: string): ParsedPullDiff {
   const files = new Map<string, FileDiffMap>();
@@ -45,7 +35,7 @@ export function parsePullDiff(diffText: string): ParsedPullDiff {
       continue;
     }
     const map = parseFileDiff(block);
-    if (map.positions.size > 0) {
+    if (map.baseLines.size > 0 || map.headLines.size > 0) {
       files.set(path, map);
     }
   }
@@ -93,30 +83,13 @@ function extractFilePath(block: string): string | undefined {
 const HUNK_HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
 function parseFileDiff(block: string): FileDiffMap {
-  const positions = new Map<number, DiffPositionInfo>();
-  const baseLineToPositions = new Map<number, number[]>();
-  const headLineToPositions = new Map<number, number[]>();
+  const baseLines = new Map<number, DiffLineType>();
+  const headLines = new Map<number, DiffLineType>();
 
   const lines = block.split(/\r?\n/);
-  let position = 0;
   let baseLine = 0;
   let headLine = 0;
   let inHunk = false;
-
-  function record(info: DiffPositionInfo) {
-    position += 1;
-    positions.set(position, info);
-    if (info.baseLine !== undefined) {
-      const list = baseLineToPositions.get(info.baseLine) ?? [];
-      list.push(position);
-      baseLineToPositions.set(info.baseLine, list);
-    }
-    if (info.headLine !== undefined) {
-      const list = headLineToPositions.get(info.headLine) ?? [];
-      list.push(position);
-      headLineToPositions.set(info.headLine, list);
-    }
-  }
 
   for (const rawLine of lines) {
     if (!inHunk) {
@@ -138,33 +111,27 @@ function parseFileDiff(block: string): FileDiffMap {
 
     if (rawLine.length === 0) {
       // Empty line inside a hunk is treated as context.
+      baseLines.set(baseLine, 'context');
+      headLines.set(headLine, 'context');
       baseLine += 1;
       headLine += 1;
-      record({ type: 'context', baseLine: baseLine - 1, headLine: headLine - 1, content: rawLine });
       continue;
     }
 
     const marker = rawLine.charAt(0);
     if (marker === '+') {
+      headLines.set(headLine, 'added');
       headLine += 1;
-      record({
-        type: 'added',
-        headLine: headLine - 1,
-        content: rawLine.slice(1),
-      });
     } else if (marker === '-') {
+      baseLines.set(baseLine, 'deleted');
       baseLine += 1;
-      record({
-        type: 'deleted',
-        baseLine: baseLine - 1,
-        content: rawLine.slice(1),
-      });
     } else if (marker === ' ' || marker === '\t') {
+      baseLines.set(baseLine, 'context');
+      headLines.set(headLine, 'context');
       baseLine += 1;
       headLine += 1;
-      record({ type: 'context', baseLine: baseLine - 1, headLine: headLine - 1, content: rawLine.slice(1) });
     } else if (rawLine.startsWith('\\ No newline at end of file')) {
-      // This meta line does not occupy a position.
+      // This meta line does not occupy a file line.
       continue;
     } else {
       // Anything outside a hunk ends parsing for this file.
@@ -172,5 +139,5 @@ function parseFileDiff(block: string): FileDiffMap {
     }
   }
 
-  return { positions, baseLineToPositions, headLineToPositions };
+  return { baseLines, headLines };
 }

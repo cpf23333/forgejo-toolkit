@@ -14,6 +14,7 @@
 - [ ] Start Work on Issue：从 Issue 一键创建分支并 checkout
 - [ ] 多仓库 / 嵌套仓库 workspace 支持
 - [ ] 作为 VS Code Git clone 源（`RemoteSourceProvider`，支持服务端搜索仓库）
+- [ ] 多行 review 评论（Forgejo API 的 `ExtraLinesCount`）：渲染侧把 thread range 扩成多行（容易）；提交侧需先验证锚点语义（`position` 为首行、向后延伸），再改 diff 编辑器选区触发评论的交互（主要工作量）
 
 ### 用户视角走查发现的问题（2026-08-24）
 
@@ -62,9 +63,7 @@
 
 **必须尽快修（确认 bug / 安全问题）**
 
-- [ ] 评论位置语义整体错位：`parseDiff.ts` 按 GitHub diff-position 建模，但 Forgejo API 的 `position`/`new_position`/`old_position` 是文件行号（已核对 Forgejo 源码）；渲染错行、左侧评论（position=0）永不显示、提交评论落错行或被 422；废弃 diff-position 映射，渲染直接用 `position || original_position`，提交直接发文件行号
-- [ ] `_renderThreads` 清理循环 dispose 全局 `_threads` 中所有不匹配线程：开同 PR 的文件 B 清掉文件 A 的线程，开 PR #2 清掉 PR #1 的；`_threadKey` 不含 instanceId 跨实例互串（`pullReviewCommentController.ts:280-285`）
-- [ ] 评论面板复用时新 callbacks 被丢弃，沿用旧 PR 闭包：对 PR B 提交评论后刷新的是 PR A 的文档（`pullReviewCommentPanel.ts:44-48`）
+（本节三项已全部修复，见「最近完成」的阶段 2 条目）
 
 **高（功能正确性）**
 
@@ -102,6 +101,8 @@
 
 ### 最近完成
 
+- [x] 审查修复阶段 2（评论系统位置语义重写）：渲染/提交两侧废弃 GitHub 式 diff-position 映射，直接用 Forgejo 的文件行号语义（`position`/`original_position`，新增 `resolveReviewCommentLine` 纯函数，左侧评论 position=0 现在能渲染）；`_renderThreads` 清理范围限定到当前文档 scope，thread key 改 JSON 序列化并含 instanceId（不再跨文件/跨 PR/跨实例误删）；评论面板复用时同步更新 callbacks（提交后刷新正确的 PR）；放开 context 行评论限制；parseDiff 缩减为「行是否属于本 PR diff」校验；补 parseDiff/位置解析/thread key/panel 复用共 20 个单测，修正 mock 的 position 语义
+- [x] ModalDialog 增强：`closeOnEsc` 参数 + 脏检查确认（`confirmCloseIfDirty`/`isDirty`，Esc/背景点击/× 统一走确认，i18n 双语）；新建/编辑 Issue、新建/编辑 PR、编辑评论五处表单接入
 - [x] 审查修复阶段 1（安全与一行级 bug）：git 操作改 `execFile` 数组参数并清洗错误消息（杜绝 push 失败时 token 进日志/弹窗与分支名 shell 注入）；数组 query 参数改重复键序列化（修复通知状态过滤对真实服务器失效，同步修 mock）；删除 Action Run 后导航到不存在的 `repoActions` 路由改为 `repoDetail` 并加迟到响应守卫；`getPullRequestFiles` 的 `??`/`+` 优先级 bug；webview provider 注册入 subscriptions、workspaceFolders 监听去累积、`_view` 加 onDidDispose 清理；`locale` 删默认 `zh` 统一走系统语言兜底；ModalDialog 原生 close 事件同步父组件（Esc 不再失联）；合并 PR / 删除 worktree / 取消 Action 运行加二次确认（i18n 双语）；ActionRunDetail 错误状态补重试按钮；Copy Permalink 右键菜单改 `forgejoToolkit.hasLinkedRepo` 上下文键（去掉 `\|\| true` 调试残留）
 - [x] API 缓存审计与第一批修复：mention 补全加 TTL 缓存、Markdown 渲染按内容缓存、loader 全量 in-flight 去重、PR 文件列表缓存 key 包含 diff 范围
 - [x] API 缓存第二批修复：时间线附件请求按正文引用过滤（消除 N+1）、仓库文件搜索复用 git tree 缓存（60s）、labels/assignees/milestones/repoDetails 改为 60s 定时缓存、Action 轮询不再重拉已完成 job 日志、状态栏 PR 缓存加 60s TTL

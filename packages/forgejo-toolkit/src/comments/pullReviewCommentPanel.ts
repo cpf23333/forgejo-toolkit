@@ -14,6 +14,7 @@ export interface PullReviewCommentContext {
   repo: string;
   index: number;
   path: string;
+  /** 1-based line number in the file (new file for head side, old file for base side). */
   position: number;
   isBase: boolean;
   lineNumber: number;
@@ -43,7 +44,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
 
     if (PullReviewCommentPanel.currentPanel) {
-      PullReviewCommentPanel.currentPanel._setContext(reviewContext);
+      PullReviewCommentPanel.currentPanel._setContext(reviewContext, callbacks);
       PullReviewCommentPanel.currentPanel._panel.reveal(column);
       return PullReviewCommentPanel.currentPanel;
     }
@@ -78,7 +79,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     private readonly _extensionUri: vscode.Uri,
     private readonly _config: ConfigManager,
     reviewContext: PullReviewCommentContext,
-    private readonly _callbacks?: PullReviewCommentPanelCallbacks,
+    private _callbacks?: PullReviewCommentPanelCallbacks,
   ) {
     this._panel = panel;
     this._context = reviewContext;
@@ -126,8 +127,10 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     this._panel.dispose();
   }
 
-  private _setContext(reviewContext: PullReviewCommentContext): void {
+  private _setContext(reviewContext: PullReviewCommentContext, callbacks?: PullReviewCommentPanelCallbacks): void {
     this._context = reviewContext;
+    // Reused panels must not keep the closures of the previous pull request.
+    this._callbacks = callbacks;
     this._panel.title = PullReviewCommentPanel._title(reviewContext);
     this._sendOpenEditor();
   }
@@ -168,6 +171,8 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       body,
       path: this._context.path,
     };
+    // `position` is the 1-based file line number; Forgejo expects exactly
+    // one of `new_position` (head side) or `old_position` (base side).
     if (this._context.isBase) {
       comment.old_position = this._context.position;
     } else {

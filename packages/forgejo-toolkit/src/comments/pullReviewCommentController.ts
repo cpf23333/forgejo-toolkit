@@ -3,6 +3,8 @@ import { ForgejoClient } from '../api/client';
 import { ConfigManager } from '../config';
 import { FORGEJO_PR_SCHEME, type ForgejoPrUriParams } from '../prFileSystemProvider';
 import { parsePullDiff, type ParsedPullDiff } from '../utils/parseDiff';
+import { resolveReviewCommentLine } from './reviewCommentPosition';
+import { pullReviewThreadKey, pullReviewThreadMatchesScope, type PullReviewThreadScope } from './pullReviewThreadKeys';
 import type { PullReview, PullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { Logger } from '../logger';
@@ -28,6 +30,7 @@ export interface CommentContext {
   reviewId: number;
   commentId: number;
   path: string;
+  /** 1-based line number in the side's file the comment was rendered on. */
   position: number;
 }
 
@@ -91,15 +94,14 @@ export class PullReviewCommentController implements vscode.Disposable {
     };
   }
 
-  private _threadKey(params: {
-    owner: string;
-    repo: string;
-    index: number;
-    path: string;
-    reviewId: number;
-    commentId: number;
-  }): string {
-    return `${params.owner}:${params.repo}:${params.index}:${params.path}:${params.reviewId}:${params.commentId}`;
+  private _threadScope(params: ForgejoPrUriParams): PullReviewThreadScope {
+    return {
+      instanceId: params.instanceId,
+      owner: params.owner,
+      repo: params.repo,
+      index: params.index,
+      path: params.path,
+    };
   }
 
   private _parseUri(uri: vscode.Uri): ForgejoPrUriParams | undefined {
@@ -205,11 +207,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     params: ForgejoPrUriParams,
     data: PullRequestReviewCache,
   ): Promise<void> {
-    const fileMap = data.diff.files.get(params.path);
-    if (!fileMap) {
-      return;
-    }
-
+    const scope = this._threadScope(params);
     const threadsToKeep = new Set<string>();
 
     for (const { review, comments } of data.reviews) {
@@ -219,56 +217,46 @@ export class PullReviewCommentController implements vscode.Disposable {
       }
       for (const comment of comments) {
         const commentId = comment.id;
-        const position = comment.position ?? comment.original_position;
         const path = comment.path;
-        if (typeof commentId !== 'number' || typeof position !== 'number' || !path) {
+        if (typeof commentId !== 'number' || !path) {
           continue;
         }
         if (path !== params.path) {
           continue;
         }
 
-        const lineInfo = fileMap.positions.get(position);
-        if (!lineInfo) {
+        // Forgejo positions are 1-based file line numbers, not diff
+        // positions, so resolve the comment directly against the file.
+        const resolved = resolveReviewCommentLine(comment);
+        if (!resolved) {
           continue;
         }
 
-        let uri: vscode.Uri;
-        let line: number | undefined;
-        if (lineInfo.type === 'deleted') {
-          uri = this._buildUri({ ...params, isBase: true });
-          line = lineInfo.baseLine;
-        } else {
-          uri = this._buildUri({ ...params, isBase: false });
-          line = lineInfo.headLine;
-        }
-        if (line === undefined) {
-          continue;
-        }
+        const uri = this._buildUri({ ...params, isBase: resolved.side === 'base' });
         if (document.uri.toString() !== uri.toString()) {
           continue;
         }
+        if (resolved.line >= document.lineCount) {
+          // Outdated comment whose line no longer exists in this revision.
+          this._logger?.info(
+            `Skipping pull review comment ${commentId} on ${path}: line ${resolved.line + 1} exceeds the document (${document.lineCount} lines)`,
+          );
+          continue;
+        }
 
-        const key = this._threadKey({
-          owner: params.owner,
-          repo: params.repo,
-          index: params.index,
-          path: params.path,
-          reviewId,
-          commentId,
-        });
+        const key = pullReviewThreadKey(scope, reviewId, commentId);
         threadsToKeep.add(key);
 
         const instance = this._findInstance(params.instanceId);
         const instanceName = instance?.name ?? params.instanceId;
         const existing = this._threads.get(key);
         if (existing) {
-          existing.comments = [await this._createComment(params, reviewId, comment, position, instanceName)];
+          existing.comments = [await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName)];
           continue;
         }
 
-        const thread = this._controller.createCommentThread(uri, new vscode.Range(line, 0, line, 0), [
-          await this._createComment(params, reviewId, comment, position, instanceName),
+        const thread = this._controller.createCommentThread(uri, new vscode.Range(resolved.line, 0, resolved.line, 0), [
+          await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName),
         ]);
         thread.canReply = false;
         thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
@@ -276,9 +264,10 @@ export class PullReviewCommentController implements vscode.Disposable {
       }
     }
 
-    // Dispose threads for comments that no longer exist.
+    // Dispose only threads of the document being re-rendered; threads of
+    // other files or pull requests stay untouched.
     for (const [key, thread] of this._threads.entries()) {
-      if (!threadsToKeep.has(key)) {
+      if (pullReviewThreadMatchesScope(key, scope) && !threadsToKeep.has(key)) {
         thread.dispose();
         this._threads.delete(key);
       }
@@ -375,18 +364,17 @@ export class PullReviewCommentController implements vscode.Disposable {
       return;
     }
 
-    const positions = params.isBase ? fileMap.baseLineToPositions.get(line) : fileMap.headLineToPositions.get(line);
-    const position = positions?.[0];
-    if (typeof position !== 'number') {
-      vscode.window.showErrorMessage(vscode.l10n.t('Unable to map the selected line to a diff position'));
+    // Forgejo expects 1-based file line numbers (`new_position` /
+    // `old_position`), so no diff-position conversion is needed. The diff
+    // map only guards that the line is part of the pull request diff;
+    // context lines are allowed, matching Forgejo's own web UI.
+    const lineType = params.isBase ? fileMap.baseLines.get(line) : fileMap.headLines.get(line);
+    if (!lineType) {
+      vscode.window.showErrorMessage(vscode.l10n.t('Comments can only be added to lines within the pull request diff'));
       return;
     }
 
-    const lineInfo = fileMap.positions.get(position);
-    if (lineInfo?.type === 'context') {
-      vscode.window.showWarningMessage(vscode.l10n.t('Comments can only be added to added or deleted lines'));
-      return;
-    }
+    const position = line + 1;
 
     const pendingReview = data.reviews.find(
       (r) => r.review.state === 'PENDING' && r.review.user?.login === instance.username,
