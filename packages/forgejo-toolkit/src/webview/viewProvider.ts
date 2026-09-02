@@ -30,6 +30,7 @@ import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { readExportDataFromUri } from './instanceImport';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
+import { resolveLocale } from '../utils/resolveLocale';
 
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
@@ -57,6 +58,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       );
 
     this._context.subscriptions.push(this._config.onInstancesChanged(() => this._sendInstances()));
+    this._context.subscriptions.push(
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this._detectAndSendLinkedRepository()),
+    );
   }
 
   public resolveWebviewView(
@@ -80,9 +84,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       codiconCssPath,
     });
 
-    this._context.subscriptions.push(
-      vscode.workspace.onDidChangeWorkspaceFolders(() => this._detectAndSendLinkedRepository()),
-    );
+    webviewView.onDidDispose(() => {
+      if (this._view === webviewView) {
+        this._view = undefined;
+      }
+    });
 
     webviewView.webview.onDidReceiveMessage(
       async (message) => {
@@ -92,10 +98,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             const configured = vscode.workspace
               .getConfiguration('forgejoToolkit')
               .get<'en' | 'zh' | undefined>('locale');
-            const locale: 'en' | 'zh' =
-              configured && (configured === 'en' || configured === 'zh')
-                ? configured
-                : resolveLocale(vscode.env.language);
+            const locale: 'en' | 'zh' = resolveLocale(configured);
             const debug = vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('debug', false);
             const directory = this._config.getWorktreeCacheDirectory() ?? '';
             const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
@@ -1644,7 +1647,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                     ...file,
                     additions: counts.additions ?? file.additions,
                     deletions: counts.deletions ?? file.deletions,
-                    changes: counts.changes ?? counts.additions ?? 0 + (counts.deletions ?? 0),
+                    changes: counts.changes ?? (counts.additions ?? 0) + (counts.deletions ?? 0),
                   };
                 });
               } catch {
@@ -3301,6 +3304,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     const linked = await detectLinkedRepository(this._config.getInstances());
+    // Gate the editor context menu (Copy Permalink) on whether the workspace
+    // is linked to a Forgejo repository.
+    void vscode.commands.executeCommand('setContext', 'forgejoToolkit.hasLinkedRepo', Boolean(linked));
     this._reply('linkedRepository', { linked });
   }
 
@@ -3562,12 +3568,4 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       return url;
     }
   }
-}
-
-function resolveLocale(vscodeLanguage: string): 'en' | 'zh' {
-  const lang = vscodeLanguage.toLowerCase();
-  if (lang.startsWith('zh')) {
-    return 'zh';
-  }
-  return 'en';
 }

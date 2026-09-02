@@ -31,10 +31,7 @@
 
 **严重**
 
-- [ ] `forgejoToolkit.locale` 配置项 `default: "zh"` 导致非中文用户首启看到全中文界面（`resolveLocale(vscode.env.language)` 兜底失效，`pullReviewCommentPanel.ts` 直接写死 `'zh'`）；应去掉默认值让系统语言兜底生效
 - [ ] 首次安装零引导：无 walkthrough / viewsWelcome / 首次激活逻辑，`openDashboard`/`openOnboarding` 等核心命令还被 `when: "false"` 从命令面板隐藏；应加 walkthrough、首启自动打开引导、解禁核心命令
-- [ ] `ModalDialog` 用原生 `<dialog>` 但不监听 `close` 事件：Esc 关闭弹窗后父组件 `isCreating` 仍为 true，「新建」按钮从此无响应，必须刷新 webview；给 `<dialog>` 加 `@close` 同步父状态
-- [ ] 不可逆操作缺二次确认：合并 PR 无确认（同文件 revert 却有）；设置页删 worktree 是 `useTrash: false` 物理删除且无确认；取消运行中的 Action 无确认
 - [ ] 请求无超时：client 无 `AbortSignal`/timeout，webview pending 请求无超时，host 侧大量 `if (!instance) return` 早退不回包（如 mergePullRequest），提交按钮可永久卡 loading；应统一加超时 reject，host 每个 case 保证必然 `_reply`
 - [ ] 网络错误与 HTTP 状态码无归类：断网/实例宕机显示 `fetch failed` 英文原文；401/404/409/422 一律 `Failed to X: {raw}`（PR 合并冲突 409 只显示原始报错）；应在 client 层抛结构化错误，按状态码映射 i18n 文案
 
@@ -45,7 +42,6 @@
 - [ ] Issue/PR 列表无分页（不传 limit/page），超出服务端默认页大小的老条目静默消失；全局搜索 limit 20、通知 limit 50，截断无提示；至少加「加载更多」或截断标识
 - [ ] 通知异常不可见：某实例 token 失效且无通知时显示「暂无通知」而非错误；轮询失败只写日志，列表停在旧数据无感知
 - [ ] `#`/`@` 补全和文档链接注册到所有文件类型（`scheme: 'file'` 无语言过滤），写 Python `#` 注释、C `#include` 都会触发 issue 补全；限定语言或加行内上下文判断（需实测干扰程度）
-- [ ] Copy Permalink 右键菜单 when 条件是 `editorHasSelection || true`（调试残留），无关项目也常驻；改用 `setContext` 维护上下文键
 - [ ] 403 scope 不足提示每请求弹一次且无去重（轮询 + 手动刷新会持续弹英文 toast）；按 instance+scope 去重，每会话一次并附「打开设置」
 - [ ] 报错通知无可行动按钮（24 处 showErrorMessage 仅 1 处带按钮）；无「查看日志」命令，OutputChannel 默认日志不带 URL/状态码
 - [ ] 关闭/重开 Issue/PR 失败时错误写入编辑弹窗的 key，用户毫无反馈；需单独的错误展示位
@@ -66,15 +62,9 @@
 
 **必须尽快修（确认 bug / 安全问题）**
 
-- [ ] Push 失败时明文 token 泄露：`git -c http.extraHeader="Authorization: token ..."` 失败时 exec 抛出的 Error.message 含完整命令行，写进日志并弹进错误通知（`gitOperations.ts:89-91` → `publish.ts:154/182` → `commands/index.ts:44-48`，已实测复现）；git 操作层 catch 后重抛只含 stderr 的错误
 - [ ] 评论位置语义整体错位：`parseDiff.ts` 按 GitHub diff-position 建模，但 Forgejo API 的 `position`/`new_position`/`old_position` 是文件行号（已核对 Forgejo 源码）；渲染错行、左侧评论（position=0）永不显示、提交评论落错行或被 422；废弃 diff-position 映射，渲染直接用 `position || original_position`，提交直接发文件行号
 - [ ] `_renderThreads` 清理循环 dispose 全局 `_threads` 中所有不匹配线程：开同 PR 的文件 B 清掉文件 A 的线程，开 PR #2 清掉 PR #1 的；`_threadKey` 不含 instanceId 跨实例互串（`pullReviewCommentController.ts:280-285`）
 - [ ] 评论面板复用时新 callbacks 被丢弃，沿用旧 PR 闭包：对 PR B 提交评论后刷新的是 PR A 的文档（`pullReviewCommentPanel.ts:44-48`）
-- [ ] 数组 query 参数被逗号拼接，通知状态过滤对真实服务器失效（`shared/request/index.ts:36`、`client.ts:325-331`；Forgejo 只认重复键，mock `handlers.ts:52-53` 的 `split(',')` 掩盖了 bug）；`buildUrl` 对数组逐项 append，并删掉 mock 的逗号拆分
-- [ ] 删除 Action Run 后 `router.push({ name: 'repoActions' })` 导航到不存在的路由名，渲染空白（`useAppState.ts:2190`）
-- [ ] `getPullRequestFiles` 运算符优先级 bug：`counts.changes ?? counts.additions ?? 0 + (counts.deletions ?? 0)`，`+` 优先于 `??`（`viewProvider.ts:1647`）
-- [ ] 生命周期泄漏：webview provider 注册未进 `context.subscriptions`（`extension.ts:44-46`）；`onDidChangeWorkspaceFolders` 监听每次 resolveWebviewView 都新建一份累积（`viewProvider.ts:83-85`）；`_view` 无 onDidDispose 清理，webview 销毁后主动推送的消息静默丢失且不再入队
-- [ ] 分支名未转义直接拼 shell 命令：git refname 允许 `$`/反引号/`;`，存在命令注入面（`gitOperations.ts:91,118`）；改 `execFile` 数组参数或双引号包裹
 
 **高（功能正确性）**
 
@@ -101,7 +91,7 @@
 - [ ] 配置激活链路：`config.init()` 的 secrets 迁移失败会导致整个扩展激活失败（无 keyring 环境），应 try/catch 降级；同 id 空 token 重新添加时旧 token 残留
 - [ ] `openExternal` 不校验 scheme（webview 可传 `file://`）且未 await；viewProvider 多个 handler 无 try/catch 兜底（globalState.update 抛错 → unhandled rejection）
 - [ ] 无版本探测/降级：Actions、`return_run_info`、PR files 等较新端点对老 Gitea/Forgejo 实例直接 404；建议首次连接调 `/api/v1/version` 特性门控，或文档声明最低版本
-- [ ] 杂项：`_pendingMessage` 单槽位连续两条 open* 消息第一条被覆盖；`readmeProvider` 模块级 Map 只增不减；`extension.ts` 残留 `console.log`；`useVsCodeMessages.ts` 全库无人使用（可删）；`DashboardInstanceItem.vue` 遗留 console.log；`loadMyIssues` 的 state 参数不进缓存 key（签名陷阱）
+- [ ] 杂项：`_pendingMessage` 单槽位连续两条 open\* 消息第一条被覆盖；`readmeProvider` 模块级 Map 只增不减；`extension.ts` 残留 `console.log`；`useVsCodeMessages.ts` 全库无人使用（可删）；`DashboardInstanceItem.vue` 遗留 console.log；`loadMyIssues` 的 state 参数不进缓存 key（签名陷阱）
 - [ ] 测试覆盖偏科：`config.ts`、viewProvider 消息协议、`parseDiff`、`permalink`、`issueMentionProvider`、`worktreeManager`、`gitOperations`、`publish.ts`、`createPullRequest.ts` 全部零测试；两处 mock（评论 position、通知逗号拆分）恰好掩盖真实 bug；优先补纯函数（parsePullDiff 位置映射、permalink URL 构造、getMentionRange 边界）与 findInstanceForRemote/push 错误路径用例
 
 ## 进行中
@@ -112,6 +102,7 @@
 
 ### 最近完成
 
+- [x] 审查修复阶段 1（安全与一行级 bug）：git 操作改 `execFile` 数组参数并清洗错误消息（杜绝 push 失败时 token 进日志/弹窗与分支名 shell 注入）；数组 query 参数改重复键序列化（修复通知状态过滤对真实服务器失效，同步修 mock）；删除 Action Run 后导航到不存在的 `repoActions` 路由改为 `repoDetail` 并加迟到响应守卫；`getPullRequestFiles` 的 `??`/`+` 优先级 bug；webview provider 注册入 subscriptions、workspaceFolders 监听去累积、`_view` 加 onDidDispose 清理；`locale` 删默认 `zh` 统一走系统语言兜底；ModalDialog 原生 close 事件同步父组件（Esc 不再失联）；合并 PR / 删除 worktree / 取消 Action 运行加二次确认（i18n 双语）；ActionRunDetail 错误状态补重试按钮；Copy Permalink 右键菜单改 `forgejoToolkit.hasLinkedRepo` 上下文键（去掉 `\|\| true` 调试残留）
 - [x] API 缓存审计与第一批修复：mention 补全加 TTL 缓存、Markdown 渲染按内容缓存、loader 全量 in-flight 去重、PR 文件列表缓存 key 包含 diff 范围
 - [x] API 缓存第二批修复：时间线附件请求按正文引用过滤（消除 N+1）、仓库文件搜索复用 git tree 缓存（60s）、labels/assignees/milestones/repoDetails 改为 60s 定时缓存、Action 轮询不再重拉已完成 job 日志、状态栏 PR 缓存加 60s TTL
 - [x] 状态栏「创建 PR」按钮：当前分支非默认分支且无开放 PR 时显示，点击按需推送分支并打开预填的新建 PR 弹窗；分支已有开放 PR 时显示「PR #n」直达详情

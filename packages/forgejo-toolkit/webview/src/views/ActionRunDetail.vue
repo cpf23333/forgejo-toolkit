@@ -267,8 +267,12 @@ function canCancelRun(status?: string): boolean {
   return ['running', 'waiting', 'pending', 'requested'].includes(status ?? '');
 }
 
-function cancelRun() {
+async function cancelRun() {
   if (!canCancelRun(run.value?.status)) {
+    return;
+  }
+  const confirmed = await state.showConfirm(t('dashboard.actionRun.cancelConfirm'));
+  if (!confirmed) {
     return;
   }
   state.cancelActionRun(instanceId.value, owner.value, repo.value, runId.value);
@@ -290,6 +294,25 @@ function artifactDownloadKey(artifactId?: number): string {
     return '';
   }
   return actionArtifactDownloadKey(instanceId.value, owner.value, repo.value, artifactId);
+}
+
+function reloadRun() {
+  state.loadActionRun(instanceId.value, owner.value, repo.value, runId.value, true);
+}
+
+function reloadJobs() {
+  state.loadActionRunJobs(instanceId.value, owner.value, repo.value, runId.value, true);
+}
+
+function reloadArtifacts() {
+  state.loadActionRunArtifacts(instanceId.value, owner.value, repo.value, runId.value, true);
+}
+
+function reloadJobLog(jobId?: number) {
+  if (jobId === undefined) {
+    return;
+  }
+  state.loadActionJobLog(instanceId.value, owner.value, repo.value, jobId, true);
 }
 
 function artifactDownloadLoading(artifactId?: number): boolean {
@@ -352,6 +375,9 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
     </div>
     <div v-else-if="runError" class="error-state">
       <span>{{ t('dashboard.error', { message: runError }) }}</span>
+      <vscode-button secondary icon="refresh" @click="reloadRun">
+        {{ t('dashboard.retry') }}
+      </vscode-button>
     </div>
     <div v-else-if="run" class="run-summary">
       <div class="run-title-row">
@@ -384,6 +410,9 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
 
     <div v-if="jobsError" class="error-state">
       <span>{{ t('dashboard.error', { message: jobsError }) }}</span>
+      <vscode-button secondary icon="refresh" @click="reloadJobs">
+        {{ t('dashboard.retry') }}
+      </vscode-button>
     </div>
     <div v-else-if="jobs.length > 0 || jobsLoading" class="jobs-section">
       <h3>{{ t('dashboard.actionRun.jobs') }}</h3>
@@ -406,6 +435,9 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
             </div>
             <div v-else-if="jobLogError(job.id)" class="error-state">
               <span>{{ t('dashboard.error', { message: jobLogError(job.id) }) }}</span>
+              <vscode-button secondary icon="refresh" @click="reloadJobLog(job.id)">
+                {{ t('dashboard.retry') }}
+              </vscode-button>
             </div>
             <pre
               v-else-if="jobLog(job.id)"
@@ -422,6 +454,9 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
 
     <div v-if="artifactsError" class="error-state">
       <span>{{ t('dashboard.error', { message: artifactsError }) }}</span>
+      <vscode-button secondary icon="refresh" @click="reloadArtifacts">
+        {{ t('dashboard.retry') }}
+      </vscode-button>
     </div>
     <div v-else-if="artifacts.length > 0" class="artifacts-section">
       <h3>{{ t('dashboard.actionRun.artifacts') }}</h3>

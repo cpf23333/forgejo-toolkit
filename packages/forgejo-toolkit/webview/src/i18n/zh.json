@@ -235,7 +235,8 @@
       "noLogs": "暂无日志。",
       "cancelRun": "取消运行",
       "deleteRun": "删除运行",
-      "deleteConfirm": "确定要删除这次运行吗？删除后无法恢复。"
+      "deleteConfirm": "确定要删除这次运行吗？删除后无法恢复。",
+      "cancelConfirm": "确定要取消这次运行吗？进行中的任务将被停止。"
     },
     "actionsDuration": {
       "seconds": "{seconds} 秒",
@@ -347,6 +348,7 @@
       "merging": "正在合并...",
       "revertMerge": "撤销合并",
       "revertMergeConfirm": "确定要撤销这次合并吗？这会在基础分支上创建一个新的提交。",
+      "mergeConfirm": "确定要以「{strategy}」方式合并此 Pull Request 吗？此操作无法撤销。",
       "mergeableStatus": {
         "mergeable": "可以合并",
         "unknown": "合并状态未知",
@@ -539,6 +541,7 @@
       "savedWorktrees": "已创建的 Worktree",
       "open": "打开",
       "delete": "删除",
+      "deleteConfirm": "确定要删除此 worktree 吗？本地目录将被永久删除（不会进入回收站），未提交的改动将丢失。",
       "noWorktrees": "还没有创建过 worktree。"
     }
   },

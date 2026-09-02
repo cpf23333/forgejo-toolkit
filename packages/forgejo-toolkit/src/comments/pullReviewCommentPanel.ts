@@ -6,6 +6,7 @@ import { logger } from '../logger';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { ForgejoInstance, PullReviewSubmitEvent } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
+import { resolveLocale } from '../utils/resolveLocale';
 
 export interface PullReviewCommentContext {
   instanceId: string;
@@ -375,7 +376,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
 
   private _update(): void {
     const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
-    const locale = configured && (configured === 'en' || configured === 'zh') ? configured : 'zh';
+    const locale = resolveLocale(configured);
     this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, {
       panelMode: 'pullReviewComment',
       locale,

@@ -41,9 +41,11 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(vscode.window.registerFileDecorationProvider(new ForgejoPRDecorationProvider()));
 
   const viewProvider = new ForgejoToolkitViewProvider(context, context.extensionUri, config, readmeProvider);
-  vscode.window.registerWebviewViewProvider(ForgejoToolkitViewProvider.viewType, viewProvider, {
-    webviewOptions: { retainContextWhenHidden: true },
-  });
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(ForgejoToolkitViewProvider.viewType, viewProvider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+  );
 
   const notificationPoller = new NotificationPoller(config, viewProvider, context, logger);
   context.subscriptions.push(notificationPoller);

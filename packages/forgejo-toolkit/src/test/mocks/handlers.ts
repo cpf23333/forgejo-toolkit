@@ -49,8 +49,8 @@ export const handlers = [
 
   http.get('https://*/api/v1/notifications', ({ request }) => {
     const url = new URL(request.url);
-    const rawStatusTypes = url.searchParams.getAll('status-types');
-    const statusTypes = rawStatusTypes.flatMap((value) => value.split(','));
+    // Forgejo uses collectionFormat: multi — array params arrive as repeated keys.
+    const statusTypes = url.searchParams.getAll('status-types');
     let result = mockNotifications;
     if (statusTypes.length > 0 && !statusTypes.includes('all')) {
       result = result.filter((notification) => {

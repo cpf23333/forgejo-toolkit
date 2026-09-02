@@ -229,7 +229,11 @@ function openWorktree(path: string) {
   state.openExternal(`file://${path}`);
 }
 
-function deleteWorktree(id: string) {
+async function deleteWorktree(id: string) {
+  const confirmed = await state.showConfirm(t('settings.worktree.deleteConfirm'));
+  if (!confirmed) {
+    return;
+  }
   state.removeWorktree(id);
 }
 

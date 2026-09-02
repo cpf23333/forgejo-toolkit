@@ -82,4 +82,28 @@ describe('ModalDialog', () => {
     expect(wrapper.emitted('close')).toBeFalsy();
     expect(wrapper.find('.modal-close').exists()).toBe(false);
   });
+
+  it('emits close on native close event (e.g. Esc) when open', async () => {
+    const wrapper = mount(ModalDialog, { props: { open: true } });
+
+    await wrapper.find('dialog').trigger('close');
+
+    expect(wrapper.emitted('close')).toHaveLength(1);
+  });
+
+  it('does not emit close on native close event when loading', async () => {
+    const wrapper = mount(ModalDialog, { props: { open: true, loading: true } });
+
+    await wrapper.find('dialog').trigger('close');
+
+    expect(wrapper.emitted('close')).toBeFalsy();
+  });
+
+  it('does not emit close on native close event when already closed by the parent', async () => {
+    const wrapper = mount(ModalDialog, { props: { open: false } });
+
+    await wrapper.find('dialog').trigger('close');
+
+    expect(wrapper.emitted('close')).toBeFalsy();
+  });
 });

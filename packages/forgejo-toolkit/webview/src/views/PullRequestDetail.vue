@@ -316,8 +316,13 @@ function checkStatusClass(status?: string): string {
   return status ?? 'unknown';
 }
 
-function handleMerge() {
+async function handleMerge() {
   if (!canMerge.value) {
+    return;
+  }
+  const strategy = t(`dashboard.detail.mergeStrategy.${mergeStrategy.value}`);
+  const confirmed = await state.showConfirm(t('dashboard.detail.mergeConfirm', { strategy }));
+  if (!confirmed) {
     return;
   }
   state.mergePullRequest(instanceId.value, owner.value, repo.value, index.value, mergeStrategy.value);

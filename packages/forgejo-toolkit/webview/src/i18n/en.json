@@ -235,7 +235,8 @@
       "noLogs": "No logs available.",
       "cancelRun": "Cancel run",
       "deleteRun": "Delete run",
-      "deleteConfirm": "Are you sure you want to delete this run? This cannot be undone."
+      "deleteConfirm": "Are you sure you want to delete this run? This cannot be undone.",
+      "cancelConfirm": "Cancel this run? In-progress jobs will be stopped."
     },
     "actionsDuration": {
       "seconds": "{seconds}s",
@@ -347,6 +348,7 @@
       "merging": "Merging...",
       "revertMerge": "Revert Merge",
       "revertMergeConfirm": "Are you sure you want to revert this merge commit? This will create a new commit on the base branch.",
+      "mergeConfirm": "Merge this pull request using \"{strategy}\"? This cannot be undone.",
       "mergeableStatus": {
         "mergeable": "Ready to merge",
         "unknown": "Merge status unknown",
@@ -539,6 +541,7 @@
       "savedWorktrees": "Saved Worktrees",
       "open": "Open",
       "delete": "Delete",
+      "deleteConfirm": "Delete this worktree? The local directory will be permanently deleted (not moved to the recycle bin) and any uncommitted changes will be lost.",
       "noWorktrees": "No worktrees created yet."
     }
   },

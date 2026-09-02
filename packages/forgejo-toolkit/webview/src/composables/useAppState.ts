@@ -1661,7 +1661,18 @@ function createAppState() {
     repoIssues.value.clear();
     myIssues.value.clear();
     myIssuesCache.clear();
-    router.go(-1);
+    // Only navigate back if the user is still viewing the deleted issue;
+    // a late response must not hijack a later navigation.
+    const current = router.currentRoute.value;
+    if (
+      current.name === 'issueDetail' &&
+      String(current.params.instanceId) === data.instanceId &&
+      String(current.params.owner) === data.owner &&
+      String(current.params.repo) === data.repo &&
+      String(current.params.index) === String(data.index)
+    ) {
+      router.go(-1);
+    }
   }
 
   function handleIssueCommentCreated(data: {
@@ -2187,7 +2198,22 @@ function createAppState() {
       actionRunArtifacts.value.delete(actionRunArtifactsKey(data.instanceId, data.owner, data.repo, data.runId));
       actionRuns.value.clear();
       actionRunTotalCount.value.delete(`${data.instanceId}:${data.owner}/${data.repo}`);
-      router.push({ name: 'repoActions', params: { instanceId: data.instanceId, owner: data.owner, repo: data.repo } });
+      // There is no standalone "actions" route (actions live inside RepoDetail),
+      // so return to the repo detail page. Only navigate if the user is still
+      // viewing the deleted run; a late response must not hijack a later navigation.
+      const current = router.currentRoute.value;
+      if (
+        current.name === 'actionRunDetail' &&
+        String(current.params.instanceId) === data.instanceId &&
+        String(current.params.owner) === data.owner &&
+        String(current.params.repo) === data.repo &&
+        String(current.params.runId) === String(data.runId)
+      ) {
+        router.push({
+          name: 'repoDetail',
+          params: { instanceId: data.instanceId, owner: data.owner, repo: data.repo },
+        });
+      }
     }
   }
 

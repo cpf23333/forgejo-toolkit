@@ -75,7 +75,6 @@
       "properties": {
         "forgejoToolkit.locale": {
           "type": "string",
-          "default": "zh",
           "enum": [
             "en",
             "zh"
@@ -239,7 +238,7 @@
       "editor/context": [
         {
           "command": "forgejoToolkit.copyPermalink",
-          "when": "editorHasSelection || true",
+          "when": "resourceScheme == forgejo-pr || (resourceScheme == file && forgejoToolkit.hasLinkedRepo)",
           "group": "9_cutcopypaste@5"
         }
       ],

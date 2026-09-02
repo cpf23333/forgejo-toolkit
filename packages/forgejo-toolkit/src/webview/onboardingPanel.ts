@@ -8,6 +8,7 @@ import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
 import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { readExportDataFromUri } from './instanceImport';
+import { resolveLocale } from '../utils/resolveLocale';
 
 export class OnboardingWebviewPanel {
   public static readonly viewType = 'forgejoToolkitOnboarding';
@@ -73,10 +74,7 @@ export class OnboardingWebviewPanel {
             const configured = vscode.workspace
               .getConfiguration('forgejoToolkit')
               .get<'en' | 'zh' | undefined>('locale');
-            const locale: 'en' | 'zh' =
-              configured && (configured === 'en' || configured === 'zh')
-                ? configured
-                : resolveLocale(vscode.env.language);
+            const locale: 'en' | 'zh' = resolveLocale(configured);
             const debug = vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('debug', false);
             const directory = this._config.getWorktreeCacheDirectory() ?? '';
             const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
@@ -384,8 +382,7 @@ export class OnboardingWebviewPanel {
 
   private _update() {
     const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
-    const locale =
-      configured && (configured === 'en' || configured === 'zh') ? configured : resolveLocale(vscode.env.language);
+    const locale = resolveLocale(configured);
     this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, {
       panelMode: 'onboarding',
       locale,
@@ -451,12 +448,4 @@ export class OnboardingWebviewPanel {
     }
     return result;
   }
-}
-
-function resolveLocale(vscodeLanguage: string): 'en' | 'zh' {
-  const lang = vscodeLanguage.toLowerCase();
-  if (lang.startsWith('zh')) {
-    return 'zh';
-  }
-  return 'en';
 }

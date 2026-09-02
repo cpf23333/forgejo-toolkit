@@ -65,10 +65,20 @@ function handleCancel(event: Event) {
     event.preventDefault();
   }
 }
+
+function handleClose() {
+  // Native closes (e.g. Esc) bypass our emit paths; forward them so parents can
+  // reset their state. Skip when the parent already closed us via the open prop
+  // (props.open is false) or while loading (cancel is prevented anyway).
+  if (props.loading || !props.open) {
+    return;
+  }
+  emit('close');
+}
 </script>
 
 <template>
-  <dialog ref="dialogRef" class="modal-dialog" @click="handleClick" @cancel="handleCancel">
+  <dialog ref="dialogRef" class="modal-dialog" @click="handleClick" @cancel="handleCancel" @close="handleClose">
     <div class="modal-header">
       <h3 v-if="title" class="modal-title">{{ title }}</h3>
       <button v-if="!loading" type="button" class="modal-close" aria-label="Close" @click="emit('close')">×</button>

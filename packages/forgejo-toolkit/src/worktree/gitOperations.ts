@@ -8,6 +8,29 @@ import { normalizeGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/s
 import { logger } from '../logger';
 
 const exec = promisify(cp.exec);
+const execFile = promisify(cp.execFile);
+
+/**
+ * Run git with an argument array (no shell, so ref/path arguments cannot be
+ * used for shell injection). On failure, cp.execFile errors embed the full
+ * command line in error.message — which would leak the token passed via
+ * `-c http.extraHeader` — so re-throw an error carrying only git's stderr,
+ * which never echoes the command line.
+ */
+async function runGit(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string }> {
+  try {
+    return await execFile('git', args, { cwd });
+  } catch (error) {
+    const stderr = (error as { stderr?: unknown }).stderr;
+    const message = typeof stderr === 'string' && stderr.trim() ? stderr.trim() : 'Git operation failed';
+    throw new Error(message);
+  }
+}
+
+/** Arguments that carry the auth token via a per-command header (not persisted in repo config). */
+function authArgs(token?: string): string[] {
+  return token ? ['-c', `http.extraHeader=Authorization: token ${token}`] : [];
+}
 
 export async function isGitRepository(dirPath: string): Promise<boolean> {
   try {
@@ -83,12 +106,12 @@ export async function pushBranch(
   token?: string,
   setUpstream = false,
 ): Promise<void> {
-  // Pass the token via a per-command header so it is not persisted in the
-  // repository config. Tokens are alphanumeric, so embedding the token inside
-  // the double-quoted header value is shell-safe.
-  const authArgs = token ? `-c http.extraHeader="Authorization: token ${token}" ` : '';
-  const upstreamArg = setUpstream ? '-u ' : '';
-  const { stderr } = await exec(`git ${authArgs}push ${upstreamArg}${remote} ${branch}`, { cwd: dirPath });
+  const args = [...authArgs(token), 'push'];
+  if (setUpstream) {
+    args.push('-u');
+  }
+  args.push(remote, branch);
+  const { stderr } = await runGit(args, dirPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -97,10 +120,8 @@ export async function pushBranch(
 export async function cloneRepository(url: string, targetPath: string, token?: string): Promise<void> {
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
   // Pass the token via a per-command header so it is not persisted in the
-  // cloned repository's remote URL. Tokens are alphanumeric, so embedding the
-  // token inside the double-quoted header value is shell-safe.
-  const authArgs = token ? `-c http.extraHeader="Authorization: token ${token}" ` : '';
-  const { stderr } = await exec(`git ${authArgs}clone --bare "${url}" "${targetPath}"`);
+  // cloned repository's remote URL.
+  const { stderr } = await runGit([...authArgs(token), 'clone', '--bare', url, targetPath]);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -114,8 +135,7 @@ export async function fetchPullRequestHead(
   token?: string,
 ): Promise<void> {
   const ref = `refs/pull/${prIndex}/head`;
-  const authArgs = token ? `-c http.extraHeader="Authorization: token ${token}" ` : '';
-  const { stderr } = await exec(`git ${authArgs}fetch ${remote} ${ref}:${localBranch}`, { cwd: repoPath });
+  const { stderr } = await runGit([...authArgs(token), 'fetch', remote, `${ref}:${localBranch}`], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }

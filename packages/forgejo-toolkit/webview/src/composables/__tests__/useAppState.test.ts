@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-utils';
+import { routes } from '../../router';
 import type {
   ForgejoActionRun,
   ForgejoBranch,
@@ -80,7 +81,7 @@ async function createState() {
     },
   );
   await flushPromises();
-  return { wrapper, state: wrapper.vm.state as ReturnType<typeof mod.useAppState>, mod };
+  return { wrapper, state: wrapper.vm.state as ReturnType<typeof mod.useAppState>, mod, router };
 }
 
 const fakeUser = {
@@ -548,6 +549,95 @@ describe('useAppState', () => {
 
       const key = mod.repoDetailKey('inst-1', 'owner', 'repo');
       expect(state.errors.get(key)).toBe('Not found');
+    });
+  });
+
+  describe('navigation on deletion', () => {
+    it('route names used by deletion handlers exist in the routes table', () => {
+      const names = routes.map((route) => route.name);
+      expect(names).toContain('repoDetail');
+      expect(names).toContain('issueDetail');
+      expect(names).toContain('actionRunDetail');
+    });
+
+    it('actionRunDeleted navigates to repoDetail when viewing the deleted run', async () => {
+      const { router } = await createState();
+      await router.push({
+        name: 'actionRunDetail',
+        params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo', runId: 7 },
+      });
+
+      dispatchMessage({
+        command: 'actionRunDeleted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        runId: 7,
+      });
+      await flushPromises();
+
+      expect(router.currentRoute.value.name).toBe('repoDetail');
+      expect(router.currentRoute.value.params).toMatchObject({ instanceId: 'inst-1', owner: 'owner', repo: 'repo' });
+    });
+
+    it('actionRunDeleted does not navigate when the user has moved elsewhere', async () => {
+      const { router } = await createState();
+      await router.push({
+        name: 'actionRunDetail',
+        params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo', runId: 7 },
+      });
+      await router.push({ name: 'dashboard' });
+
+      dispatchMessage({
+        command: 'actionRunDeleted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        runId: 7,
+      });
+      await flushPromises();
+
+      expect(router.currentRoute.value.name).toBe('dashboard');
+    });
+
+    it('issueDeleted navigates back when viewing the deleted issue', async () => {
+      const { router } = await createState();
+      await router.push({ name: 'repoIssues', params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo' } });
+      await router.push({
+        name: 'issueDetail',
+        params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo', index: 1 },
+      });
+
+      dispatchMessage({
+        command: 'issueDeleted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 1,
+      });
+      await flushPromises();
+
+      expect(router.currentRoute.value.name).toBe('repoIssues');
+    });
+
+    it('issueDeleted does not navigate when the user has moved elsewhere', async () => {
+      const { router } = await createState();
+      await router.push({
+        name: 'issueDetail',
+        params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo', index: 1 },
+      });
+      await router.push({ name: 'dashboard' });
+
+      dispatchMessage({
+        command: 'issueDeleted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 1,
+      });
+      await flushPromises();
+
+      expect(router.currentRoute.value.name).toBe('dashboard');
     });
   });
 

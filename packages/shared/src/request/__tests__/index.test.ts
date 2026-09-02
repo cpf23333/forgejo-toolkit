@@ -41,6 +41,33 @@ describe('buildUrl', () => {
     };
     expect(buildUrl(config)).toBe('http://example.com/api/repos?page=2');
   });
+
+  it('serializes arrays as repeated keys (collectionFormat: multi)', () => {
+    const config: RequestConfig = {
+      baseURL: 'http://example.com',
+      url: '/api/notifications',
+      params: { 'status-types': ['unread', 'pinned'] },
+    };
+    expect(buildUrl(config)).toBe('http://example.com/api/notifications?status-types=unread&status-types=pinned');
+  });
+
+  it('skips undefined entries inside arrays and serializes null as "null"', () => {
+    const config: RequestConfig = {
+      baseURL: 'http://example.com',
+      url: '/api/repos',
+      params: { label: ['bug', undefined, null] },
+    };
+    expect(buildUrl(config)).toBe('http://example.com/api/repos?label=bug&label=null');
+  });
+
+  it('omits empty arrays entirely', () => {
+    const config: RequestConfig = {
+      baseURL: 'http://example.com',
+      url: '/api/repos',
+      params: { label: [], page: 1 },
+    };
+    expect(buildUrl(config)).toBe('http://example.com/api/repos?page=1');
+  });
 });
 
 describe('mergeHeaders', () => {

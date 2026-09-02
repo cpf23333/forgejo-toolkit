@@ -32,9 +32,19 @@ export type Client = <TResponseData, _TError = unknown, TRequestData = unknown>(
 export function buildUrl(config: RequestConfig): string {
   const normalizedParams = new URLSearchParams();
   Object.entries(config.params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value));
+    if (value === undefined) {
+      return;
     }
+    if (Array.isArray(value)) {
+      // Forgejo API expects collectionFormat: multi — repeat the key per element.
+      value.forEach((item) => {
+        if (item !== undefined) {
+          normalizedParams.append(key, item === null ? 'null' : String(item));
+        }
+      });
+      return;
+    }
+    normalizedParams.append(key, value === null ? 'null' : String(value));
   });
 
   const baseURL = (config.baseURL ?? '').replace(/\/$/, '');
