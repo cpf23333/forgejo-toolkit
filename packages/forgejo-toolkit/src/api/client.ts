@@ -151,6 +151,19 @@ import type {
   ForgejoUser,
 } from './types';
 
+// Attachments uploaded through the extension are always referenced in the
+// comment body as `/attachments/<uuid>` links (the EasyMDE upload flow inserts
+// `![image](/attachments/{uuid})`), so only comments matching this pattern
+// need their attachment list fetched.
+const ATTACHMENT_REFERENCE_REGEX = /\/attachments\/[0-9a-fA-F-]{36}/;
+
+const TREE_CACHE_TTL_MS = 60_000;
+
+interface TreeCacheEntry {
+  value: GitEntry[];
+  expiresAt: number;
+}
+
 export interface MentionUserItem {
   value: string;
   name: string;
@@ -175,6 +188,9 @@ export class ForgejoClient {
   private readonly configuredOrigin: string;
   private detectedServerOrigin: string | undefined;
   private readonly syncApiUrlsToInstanceUrl: boolean;
+  // Short-lived cache of the recursive git tree per ref, so debounced file
+  // searches do not refetch every page on each keystroke.
+  private readonly _treeCache = new Map<string, TreeCacheEntry>();
 
   constructor(
     private url: string,
@@ -440,27 +456,10 @@ export class ForgejoClient {
       return [];
     }
 
-    const allFiles: GitEntry[] = [];
-    let page = 1;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const response = await getTree(
-        owner,
-        repo,
-        ref,
-        { recursive: true, page, per_page: 100 },
-        { client: this._client() },
-      );
-      const files = (response?.tree ?? []).filter(
-        (entry): entry is GitEntry =>
-          entry.type === 'blob' && typeof entry.path === 'string' && entry.path.toLowerCase().includes(normalizedQuery),
-      );
-      allFiles.push(...files);
-      if (!(response?.truncated ?? false)) {
-        break;
-      }
-      page += 1;
-    }
+    const tree = await this._getRepoTree(owner, repo, ref);
+    const allFiles = tree.filter(
+      (entry) => typeof entry.path === 'string' && entry.path.toLowerCase().includes(normalizedQuery),
+    );
 
     return allFiles.sort((a, b) => {
       const pathA = a.path?.toLowerCase() ?? '';
@@ -475,6 +474,50 @@ export class ForgejoClient {
       }
       return pathA.localeCompare(pathB);
     });
+  }
+
+  /**
+   * Fetches the full recursive git tree (blob entries only) for a ref,
+   * serving it from a short-lived cache when possible.
+   */
+  private async _getRepoTree(owner: string, repo: string, ref: string): Promise<GitEntry[]> {
+    const key = `${owner}/${repo}@${ref}`;
+    const cached = this._treeCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+    this._treeCache.delete(key);
+
+    const allFiles: GitEntry[] = [];
+    let page = 1;
+    let truncated = false;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const response = await getTree(
+        owner,
+        repo,
+        ref,
+        { recursive: true, page, per_page: 100 },
+        { client: this._client() },
+      );
+      const files = (response?.tree ?? []).filter(
+        (entry): entry is GitEntry => entry.type === 'blob' && typeof entry.path === 'string',
+      );
+      allFiles.push(...files);
+      truncated = response?.truncated ?? false;
+      if (!truncated) {
+        break;
+      }
+      page += 1;
+    }
+
+    // A truncated tree may be incomplete, so it is not cached; whatever was
+    // returned is still filtered for the current query. Failures are not
+    // cached either: an error above propagates before this point.
+    if (!truncated) {
+      this._treeCache.set(key, { value: allFiles, expiresAt: Date.now() + TREE_CACHE_TTL_MS });
+    }
+    return allFiles;
   }
 
   async getRepoBranches(owner: string, repo: string): Promise<ForgejoBranch[]> {
@@ -980,7 +1023,13 @@ export class ForgejoClient {
       { client: this._client() },
     )) as TimelineComment[] | null | undefined;
     const comments = response ?? [];
-    const commentIds = comments.map((c) => c.id).filter((id): id is number => id !== undefined);
+    // Body-reference heuristic: only comments whose body links an attachment
+    // (see ATTACHMENT_REFERENCE_REGEX) get an attachment-list request, instead
+    // of one API call per comment. Note the behavior change: attachments that
+    // were uploaded but later unlinked from the body are no longer listed.
+    const commentIds = comments
+      .filter((c) => c.id !== undefined && ATTACHMENT_REFERENCE_REGEX.test(c.body ?? ''))
+      .map((c) => c.id as number);
     const assetsMap = new Map<number, ForgejoIssueAttachment[]>();
     await Promise.all(
       commentIds.map(async (commentId) => {

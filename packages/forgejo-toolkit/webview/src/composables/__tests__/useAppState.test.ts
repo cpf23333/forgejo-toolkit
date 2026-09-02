@@ -10,6 +10,8 @@ import type {
   ForgejoContentEntry,
   ForgejoIssue,
   ForgejoIssueDetail,
+  ForgejoLabel,
+  ForgejoMilestone,
   ForgejoNotification,
   ForgejoPullRequest,
   ForgejoPullRequestCommit,
@@ -172,6 +174,9 @@ const fakeCommit: ForgejoCommit = {
 const fakeBranch: ForgejoBranch = { name: 'main' };
 const fakeTag: ForgejoTag = { name: 'v1.0.0' };
 const fakeRelease: ForgejoRelease = { id: 1, name: 'v1.0.0', tag_name: 'v1.0.0' };
+
+const fakeLabel: ForgejoLabel = { id: 1, name: 'bug', color: 'ee0701' };
+const fakeMilestone: ForgejoMilestone = { id: 1, title: 'v1.0' };
 
 const fakeActionRun: ForgejoActionRun = {
   id: 1,
@@ -927,6 +932,114 @@ describe('useAppState', () => {
 
       state.loadPullRequestFiles('inst-1', 'owner', 'repo', 2, 'base1', 'head2');
       expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+    });
+
+    it('repo metadata loaders use cache on repeat calls and refetch after expiry', async () => {
+      const { state, mod } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.loadRepoLabels('inst-1', 'owner', 'repo');
+      state.loadRepoAssignees('inst-1', 'owner', 'repo');
+      state.loadRepoMilestones('inst-1', 'owner', 'repo');
+      state.loadRepoDetail('inst-1', 'owner', 'repo');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(4);
+
+      dispatchMessage({
+        command: 'repoLabels',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        labels: [fakeLabel],
+      });
+      dispatchMessage({
+        command: 'repoAssignees',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        assignees: ['user'],
+      });
+      dispatchMessage({
+        command: 'repoMilestones',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        milestones: [fakeMilestone],
+      });
+      dispatchMessage({
+        command: 'repoDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        detail: fakeRepoDetail,
+      });
+      await nextTick();
+
+      const labelsKey = mod.repoLabelsKey('inst-1', 'owner', 'repo');
+      const assigneesKey = mod.repoAssigneesKey('inst-1', 'owner', 'repo');
+      const milestonesKey = mod.repoMilestonesKey('inst-1', 'owner', 'repo');
+      const detailKey = mod.repoDetailKey('inst-1', 'owner', 'repo');
+      expect(state.repoLabels.value.get(labelsKey)).toEqual([fakeLabel]);
+      expect(state.repoAssignees.value.get(assigneesKey)).toEqual(['user']);
+      expect(state.repoMilestones.value.get(milestonesKey)).toEqual([fakeMilestone]);
+      expect(state.repoLabelsCache.has(labelsKey)).toBe(true);
+      expect(state.repoAssigneesCache.has(assigneesKey)).toBe(true);
+      expect(state.repoMilestonesCache.has(milestonesKey)).toBe(true);
+      expect(state.repoDetailsCache.has(detailKey)).toBe(true);
+      vscodePostMessage().mockClear();
+
+      state.loadRepoLabels('inst-1', 'owner', 'repo');
+      state.loadRepoAssignees('inst-1', 'owner', 'repo');
+      state.loadRepoMilestones('inst-1', 'owner', 'repo');
+      state.loadRepoDetail('inst-1', 'owner', 'repo');
+      expect(vscodePostMessage()).not.toHaveBeenCalled();
+
+      vi.useFakeTimers();
+      try {
+        vi.advanceTimersByTime(60_001);
+
+        state.loadRepoLabels('inst-1', 'owner', 'repo');
+        state.loadRepoAssignees('inst-1', 'owner', 'repo');
+        state.loadRepoMilestones('inst-1', 'owner', 'repo');
+        state.loadRepoDetail('inst-1', 'owner', 'repo');
+
+        expect(vscodePostMessage()).toHaveBeenCalledTimes(4);
+        expect(vscodePostMessage()).toHaveBeenCalledWith(
+          expect.objectContaining({ command: 'getRepoLabels', instanceId: 'inst-1' }),
+        );
+        expect(vscodePostMessage()).toHaveBeenCalledWith(
+          expect.objectContaining({ command: 'getRepoAssignees', instanceId: 'inst-1' }),
+        );
+        expect(vscodePostMessage()).toHaveBeenCalledWith(
+          expect.objectContaining({ command: 'getRepoMilestones', instanceId: 'inst-1' }),
+        );
+        expect(vscodePostMessage()).toHaveBeenCalledWith(
+          expect.objectContaining({ command: 'getRepoDetail', instanceId: 'inst-1' }),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('loadRepoLabels with force refetches despite a fresh cache', async () => {
+      const { state } = await createState();
+      dispatchMessage({
+        command: 'repoLabels',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        labels: [fakeLabel],
+      });
+      await nextTick();
+      vscodePostMessage().mockClear();
+
+      state.loadRepoLabels('inst-1', 'owner', 'repo');
+      expect(vscodePostMessage()).not.toHaveBeenCalled();
+
+      state.loadRepoLabels('inst-1', 'owner', 'repo', true);
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getRepoLabels', instanceId: 'inst-1', owner: 'owner', repo: 'repo' }),
+      );
     });
   });
 

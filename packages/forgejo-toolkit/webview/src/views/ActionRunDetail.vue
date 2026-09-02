@@ -75,7 +75,8 @@ function refreshRun() {
   for (const job of jobs.value) {
     const jobId = job.id;
     if (jobId !== undefined) {
-      state.loadActionJobLog(instanceId.value, owner.value, repo.value, jobId, true);
+      // Logs of finished jobs are immutable; only force-refetch logs of live jobs.
+      state.loadActionJobLog(instanceId.value, owner.value, repo.value, jobId, !isFinalStatus(job.status));
     }
   }
 }

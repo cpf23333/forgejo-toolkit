@@ -38,6 +38,7 @@ import {
   mockPullRequestDiff,
   mockTimelineComment,
   mockHistoryCommit,
+  mockCommentAttachment,
 } from '../../test/mocks/data';
 
 describe('ForgejoClient with MSW', () => {
@@ -392,6 +393,30 @@ describe('ForgejoClient with MSW', () => {
       expect(files.length).toBeGreaterThan(0);
       expect(files[0].path).toContain('index');
     });
+
+    it('caches the git tree across searches on the same ref', async () => {
+      const client = createClient();
+      let treeRequests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', () => {
+          treeRequests += 1;
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [
+              { path: 'src/index.ts', type: 'blob' },
+              { path: 'src/utils.ts', type: 'blob' },
+              { path: 'README.md', type: 'blob' },
+            ],
+            truncated: false,
+          });
+        }),
+      );
+      const indexFiles = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'index');
+      const utilsFiles = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'utils');
+      expect(indexFiles.map((f) => f.path)).toEqual(['src/index.ts']);
+      expect(utilsFiles.map((f) => f.path)).toEqual(['src/utils.ts']);
+      expect(treeRequests).toBe(1);
+    });
   });
 
   describe('Branch, tag, and release CRUD', () => {
@@ -694,6 +719,47 @@ describe('ForgejoClient with MSW', () => {
       const comments = await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2);
       expect(comments).toHaveLength(1);
       expect(comments[0].id).toBe(mockTimelineComment.id);
+    });
+
+    it('skips attachment requests for comments without attachment references', async () => {
+      const client = createClient();
+      let assetRequests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => {
+          assetRequests += 1;
+          return HttpResponse.json([mockCommentAttachment]);
+        }),
+      );
+      // mockTimelineComment.body has no /attachments/<uuid> reference.
+      const comments = await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2);
+      expect(comments).toHaveLength(1);
+      expect((comments[0] as { assets?: unknown[] }).assets).toEqual([]);
+      expect(assetRequests).toBe(0);
+    });
+
+    it('fetches attachments once for a comment referencing an attachment', async () => {
+      const client = createClient();
+      let assetRequests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', () =>
+          HttpResponse.json([
+            {
+              ...mockTimelineComment,
+              body: 'See ![log](/attachments/123e4567-e89b-42d3-a456-426614174000)',
+            },
+          ]),
+        ),
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => {
+          assetRequests += 1;
+          return HttpResponse.json([mockCommentAttachment]);
+        }),
+      );
+      const comments = await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2);
+      expect(comments).toHaveLength(1);
+      const assets = (comments[0] as { assets?: { uuid?: string }[] }).assets;
+      expect(assets).toHaveLength(1);
+      expect(assets?.[0].uuid).toBe(mockCommentAttachment.uuid);
+      expect(assetRequests).toBe(1);
     });
 
     it('fetches pull request commits', async () => {

@@ -146,4 +146,19 @@ describe('CreatePrStatusBarController', () => {
     await controller!.refresh();
     expect(getRepoDetail).toHaveBeenCalledTimes(1);
   });
+
+  it('caches the open-PR lookup until the TTL expires', async () => {
+    vi.useFakeTimers();
+    try {
+      createController();
+      await controller!.refresh();
+      await controller!.refresh();
+      expect(getRepoPullRequests).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(Date.now() + 61_000);
+      await controller!.refresh();
+      expect(getRepoPullRequests).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

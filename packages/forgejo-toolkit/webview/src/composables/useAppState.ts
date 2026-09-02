@@ -120,6 +120,10 @@ function createAppState() {
   const repoBranchCommitsCache = createTimedCache<ForgejoCommit[]>(30_000);
   const pullRequestFilesCache = createTimedCache<ForgejoChangedFile[]>(30_000);
   const pullRequestCommitsCache = createTimedCache<ForgejoPullRequestCommit[]>(30_000);
+  const repoDetailsCache = createTimedCache<ForgejoRepoDetail>(60_000);
+  const repoLabelsCache = createTimedCache<ForgejoLabel[]>(60_000);
+  const repoAssigneesCache = createTimedCache<string[]>(60_000);
+  const repoMilestonesCache = createTimedCache<ForgejoMilestone[]>(60_000);
 
   const issueDetailCache = createTimedCache<ForgejoIssueDetail>(5_000);
   const pullRequestDetailCache = createTimedCache<ForgejoPullRequestDetail>(5_000);
@@ -1128,6 +1132,7 @@ function createAppState() {
     } else if (data.detail) {
       errors.delete(key);
       repoDetails.value.set(key, data.detail);
+      repoDetailsCache.set(key, data.detail);
     }
   }
 
@@ -1183,7 +1188,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      repoLabels.value.set(key, data.labels ?? []);
+      const list = data.labels ?? [];
+      repoLabels.value.set(key, list);
+      repoLabelsCache.set(key, list);
     }
   }
 
@@ -1200,7 +1207,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      repoAssignees.value.set(key, data.assignees ?? []);
+      const list = data.assignees ?? [];
+      repoAssignees.value.set(key, list);
+      repoAssigneesCache.set(key, list);
     }
   }
 
@@ -1217,7 +1226,9 @@ function createAppState() {
       errors.set(key, data.error);
     } else {
       errors.delete(key);
-      repoMilestones.value.set(key, data.milestones ?? []);
+      const list = data.milestones ?? [];
+      repoMilestones.value.set(key, list);
+      repoMilestonesCache.set(key, list);
     }
   }
 
@@ -2431,9 +2442,9 @@ function createAppState() {
     loadRepoDetail(instanceId, owner, repo);
   }
 
-  function loadRepoDetail(instanceId: string, owner: string, repo: string) {
+  function loadRepoDetail(instanceId: string, owner: string, repo: string, force = false) {
     const key = repoDetailKey(instanceId, owner, repo);
-    if (repoDetails.value.has(key)) {
+    if (!force && repoDetailsCache.has(key)) {
       return;
     }
     if (loading.get(key)) {
@@ -3142,9 +3153,9 @@ function createAppState() {
     postMessage({ command: 'getRepoIssues', instanceId, owner, repo, state, query: query?.trim() || undefined });
   }
 
-  function loadRepoLabels(instanceId: string, owner: string, repo: string) {
+  function loadRepoLabels(instanceId: string, owner: string, repo: string, force = false) {
     const key = repoLabelsKey(instanceId, owner, repo);
-    if (repoLabels.value.has(key)) {
+    if (!force && repoLabelsCache.has(key)) {
       return;
     }
     if (loading.get(key)) {
@@ -3154,9 +3165,9 @@ function createAppState() {
     postMessage({ command: 'getRepoLabels', instanceId, owner, repo });
   }
 
-  function loadRepoAssignees(instanceId: string, owner: string, repo: string) {
+  function loadRepoAssignees(instanceId: string, owner: string, repo: string, force = false) {
     const key = repoAssigneesKey(instanceId, owner, repo);
-    if (repoAssignees.value.has(key)) {
+    if (!force && repoAssigneesCache.has(key)) {
       return;
     }
     if (loading.get(key)) {
@@ -3166,9 +3177,9 @@ function createAppState() {
     postMessage({ command: 'getRepoAssignees', instanceId, owner, repo });
   }
 
-  function loadRepoMilestones(instanceId: string, owner: string, repo: string) {
+  function loadRepoMilestones(instanceId: string, owner: string, repo: string, force = false) {
     const key = repoMilestonesKey(instanceId, owner, repo);
-    if (repoMilestones.value.has(key)) {
+    if (!force && repoMilestonesCache.has(key)) {
       return;
     }
     if (loading.get(key)) {
@@ -3733,6 +3744,10 @@ function createAppState() {
     repoLabels,
     repoAssignees,
     repoMilestones,
+    repoDetailsCache,
+    repoLabelsCache,
+    repoAssigneesCache,
+    repoMilestonesCache,
     issueSubscriptions,
     issueTrackedTimes,
     issueDependencies,

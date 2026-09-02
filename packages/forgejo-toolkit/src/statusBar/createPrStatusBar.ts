@@ -5,6 +5,12 @@ import { logger } from '../logger';
 import { detectLinkedRepository, getCurrentBranch } from '../worktree/gitOperations';
 
 const REFRESH_DEBOUNCE_MS = 300;
+const OPEN_PR_CACHE_TTL_MS = 60_000;
+
+interface OpenPrCacheEntry {
+  value: number | undefined;
+  expiresAt: number;
+}
 
 /**
  * Shows a context-aware "Create PR" button in the status bar for the workspace
@@ -16,9 +22,12 @@ export class CreatePrStatusBarController implements vscode.Disposable {
   private _headWatchers: vscode.Disposable[] = [];
   private _refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private _generation = 0;
-  // Session caches: repo default branch and open-PR lookup results.
+  // Session-level cache: the default branch rarely changes, and being briefly
+  // wrong about it only affects whether the button appears, so no TTL.
   private readonly _defaultBranchCache = new Map<string, string | undefined>();
-  private readonly _openPrCache = new Map<string, number | undefined>();
+  // Short TTL: a PR merged or closed outside the extension must not leave the
+  // status bar stale for the whole session.
+  private readonly _openPrCache = new Map<string, OpenPrCacheEntry>();
 
   constructor(private readonly _config: ConfigManager) {
     // Slightly below the git extension's branch item (priority 100) so the
@@ -103,17 +112,18 @@ export class CreatePrStatusBarController implements vscode.Disposable {
       }
 
       const prKey = `${repoKey}:${branch}`;
-      if (!this._openPrCache.has(prKey)) {
+      const cachedPr = this._openPrCache.get(prKey);
+      if (!cachedPr || cachedPr.expiresAt <= Date.now()) {
         const pulls = await client.getRepoPullRequests(linked.owner, linked.repo, 'open');
         // Only the first page of open pull requests is checked; a PR for this
         // branch beyond the default page size will not be detected.
         const match = pulls.find((pr) => pr.head?.ref === branch || (pr.head?.label?.endsWith(`:${branch}`) ?? false));
-        this._openPrCache.set(prKey, match?.number);
+        this._openPrCache.set(prKey, { value: match?.number, expiresAt: Date.now() + OPEN_PR_CACHE_TTL_MS });
       }
       if (isStale()) {
         return;
       }
-      const prNumber = this._openPrCache.get(prKey);
+      const prNumber = this._openPrCache.get(prKey)?.value;
 
       if (prNumber !== undefined) {
         this._item.text = `$(git-pull-request) PR #${prNumber}`;
