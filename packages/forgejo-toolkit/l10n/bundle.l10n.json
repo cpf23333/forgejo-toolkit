@@ -71,6 +71,8 @@
   "Failed to publish to Forgejo: {0}": "Failed to publish to Forgejo: {0}",
   "Push": "Push",
   "Branch \"{0}\" has not been pushed. Push it now?": "Branch \"{0}\" has not been pushed. Push it now?",
+  "Branch \"{0}\" has unpushed commits. Push it now?": "Branch \"{0}\" has unpushed commits. Push it now?",
+  "Branch \"{0}\" is the default branch. Switch to another branch to create a pull request.": "Branch \"{0}\" is the default branch. Switch to another branch to create a pull request.",
   "Failed to push branch {0}: {1}": "Failed to push branch {0}: {1}",
   "Failed to create pull request: {0}": "Failed to create pull request: {0}",
   "Create PR": "Create PR",

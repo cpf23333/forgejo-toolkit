@@ -56,7 +56,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const createPrStatusBar = new CreatePrStatusBarController(config);
   context.subscriptions.push(createPrStatusBar);
-  viewProvider.onPullRequestCreated = () => createPrStatusBar.notifyPullRequestCreated();
+  viewProvider.onPullRequestsChanged = () => createPrStatusBar.notifyPullRequestsChanged();
 
   registerCommands(context, config, readmeProvider, viewProvider, pullReviewCommentController);
 

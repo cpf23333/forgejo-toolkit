@@ -71,6 +71,8 @@
   "Failed to publish to Forgejo: {0}": "发布到 Forgejo 失败：{0}",
   "Push": "推送",
   "Branch \"{0}\" has not been pushed. Push it now?": "分支 \"{0}\" 尚未推送。现在推送吗？",
+  "Branch \"{0}\" has unpushed commits. Push it now?": "分支 \"{0}\" 有未推送的提交。现在推送吗？",
+  "Branch \"{0}\" is the default branch. Switch to another branch to create a pull request.": "分支 \"{0}\" 是默认分支。请切换到其他分支再创建 PR。",
   "Failed to push branch {0}: {1}": "推送分支 {0} 失败：{1}",
   "Failed to create pull request: {0}": "创建 PR 失败：{0}",
   "Create PR": "创建 PR",

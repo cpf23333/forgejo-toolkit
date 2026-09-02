@@ -1,8 +1,10 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { ForgejoClient } from '../api/client';
+import type { ForgejoPullRequest } from '../api/types';
 import type { ConfigManager } from '../config';
 import { logger } from '../logger';
-import { detectLinkedRepository, getCurrentBranch } from '../worktree/gitOperations';
+import { detectLinkedRepository, getCurrentBranch, getGitHeadPath } from '../worktree/gitOperations';
 
 const REFRESH_DEBOUNCE_MS = 300;
 const OPEN_PR_CACHE_TTL_MS = 60_000;
@@ -13,6 +15,36 @@ interface OpenPrCacheEntry {
 }
 
 /**
+ * Whether an open pull request's head is the given branch of the current
+ * repository. A fork's same-named branch must not match, so when the API
+ * reports the head repository it has to be the current one. head.repo is null
+ * when the fork was deleted; then fall back to the label, which is
+ * "<owner>:<branch>" cross-repo and "<branch>" within the same repository.
+ */
+function isOpenPrForBranch(pr: ForgejoPullRequest, branch: string, owner: string, repo: string): boolean {
+  const head = pr.head;
+  if (!head?.ref || head.ref !== branch) {
+    return false;
+  }
+  const fullName = head.repo?.full_name;
+  if (fullName) {
+    return fullName.toLowerCase() === `${owner}/${repo}`.toLowerCase();
+  }
+  const label = head.label;
+  if (!label) {
+    return false;
+  }
+  if (label === branch) {
+    return true;
+  }
+  if (!label.endsWith(`:${branch}`)) {
+    return false;
+  }
+  const labelOwner = label.slice(0, label.length - branch.length - 1);
+  return labelOwner.toLowerCase() === owner.toLowerCase();
+}
+
+/**
  * Shows a context-aware "Create PR" button in the status bar for the workspace
  * repository linked to a configured Forgejo instance.
  */
@@ -20,6 +52,7 @@ export class CreatePrStatusBarController implements vscode.Disposable {
   private readonly _item: vscode.StatusBarItem;
   private readonly _disposables: vscode.Disposable[] = [];
   private _headWatchers: vscode.Disposable[] = [];
+  private _watchedHeadPath: string | undefined;
   private _refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private _generation = 0;
   // Session-level cache: the default branch rarely changes, and being briefly
@@ -36,12 +69,8 @@ export class CreatePrStatusBarController implements vscode.Disposable {
     this._disposables.push(
       this._item,
       this._config.onInstancesChanged(() => this.scheduleRefresh()),
-      vscode.workspace.onDidChangeWorkspaceFolders(() => {
-        this._resetHeadWatchers();
-        this.scheduleRefresh();
-      }),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleRefresh()),
     );
-    this._resetHeadWatchers();
     this.scheduleRefresh();
   }
 
@@ -64,8 +93,8 @@ export class CreatePrStatusBarController implements vscode.Disposable {
     }, REFRESH_DEBOUNCE_MS);
   }
 
-  /** Called when a pull request is created through the extension. */
-  public notifyPullRequestCreated(): void {
+  /** Called when a pull request is created, merged, or closed through the extension. */
+  public notifyPullRequestsChanged(): void {
     this._openPrCache.clear();
     this.scheduleRefresh();
   }
@@ -78,6 +107,11 @@ export class CreatePrStatusBarController implements vscode.Disposable {
       if (isStale()) {
         return;
       }
+      const headPath = linked ? await getGitHeadPath(linked.localPath) : undefined;
+      if (isStale()) {
+        return;
+      }
+      this._setHeadWatcher(headPath);
       if (!linked) {
         this._item.hide();
         return;
@@ -117,7 +151,7 @@ export class CreatePrStatusBarController implements vscode.Disposable {
         const pulls = await client.getRepoPullRequests(linked.owner, linked.repo, 'open');
         // Only the first page of open pull requests is checked; a PR for this
         // branch beyond the default page size will not be detected.
-        const match = pulls.find((pr) => pr.head?.ref === branch || (pr.head?.label?.endsWith(`:${branch}`) ?? false));
+        const match = pulls.find((pr) => isOpenPrForBranch(pr, branch, linked.owner, linked.repo));
         this._openPrCache.set(prKey, { value: match?.number, expiresAt: Date.now() + OPEN_PR_CACHE_TTL_MS });
       }
       if (isStale()) {
@@ -140,23 +174,35 @@ export class CreatePrStatusBarController implements vscode.Disposable {
       }
       this._item.show();
     } catch (error) {
+      // A failed lookup (e.g. a transient network error) is not proof that the
+      // button should disappear — keep the last known state and only log.
       logger.error(`[createPrStatusBar] refresh failed: ${error instanceof Error ? error.message : String(error)}`);
-      if (!isStale()) {
-        this._item.hide();
-      }
     }
   }
 
-  private _resetHeadWatchers(): void {
-    this._disposeHeadWatchers();
-    for (const folder of vscode.workspace.workspaceFolders ?? []) {
-      // Branch switches rewrite .git/HEAD, so watching it catches checkouts.
-      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '.git/HEAD'));
-      watcher.onDidChange(() => this.scheduleRefresh());
-      watcher.onDidCreate(() => this.scheduleRefresh());
-      watcher.onDidDelete(() => this.scheduleRefresh());
-      this._headWatchers.push(watcher);
+  /**
+   * Watch the real HEAD file of the linked repository: the git root can sit
+   * above the workspace folder, and linked worktrees keep HEAD in the main
+   * repository's .git/worktrees/<name>/ directory. Rebuilds the watcher only
+   * when the resolved path changes.
+   */
+  private _setHeadWatcher(headPath: string | undefined): void {
+    if (headPath === this._watchedHeadPath) {
+      return;
     }
+    this._watchedHeadPath = headPath;
+    this._disposeHeadWatchers();
+    if (!headPath) {
+      return;
+    }
+    // Branch switches rewrite HEAD, so watching it catches checkouts.
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(path.dirname(headPath), path.basename(headPath)),
+    );
+    watcher.onDidChange(() => this.scheduleRefresh());
+    watcher.onDidCreate(() => this.scheduleRefresh());
+    watcher.onDidDelete(() => this.scheduleRefresh());
+    this._headWatchers.push(watcher);
   }
 
   private _disposeHeadWatchers(): void {

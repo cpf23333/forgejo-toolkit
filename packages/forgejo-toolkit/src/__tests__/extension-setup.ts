@@ -42,7 +42,9 @@ vi.mock('vscode', () => ({
   StatusBarAlignment: { Left: 1, Right: 2 },
   ViewColumn: { Active: -1, Beside: 2, One: 1, Two: 2 },
   version: '1.99.0',
-  RelativePattern: vi.fn().mockImplementation((base: unknown, pattern: unknown) => ({ base, pattern })),
+  RelativePattern: vi.fn().mockImplementation(function (base: unknown, pattern: unknown) {
+    return { base, pattern };
+  }),
   Uri: {
     file: vi.fn((path: string) => ({ fsPath: path })),
     joinPath: vi.fn((...args: unknown[]) => ({ fsPath: args.join('/') })),

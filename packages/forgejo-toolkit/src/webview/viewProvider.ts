@@ -35,8 +35,8 @@ import { resolveLocale } from '../utils/resolveLocale';
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
 
-  /** Invoked after a pull request is successfully created through the webview. */
-  public onPullRequestCreated: (() => void) | undefined;
+  /** Invoked after a pull request is created, merged, or closed through the webview. */
+  public onPullRequestsChanged: (() => void) | undefined;
 
   private _view?: vscode.WebviewView;
   private _pendingMessage?: HostToWebviewMessage;
@@ -1365,6 +1365,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 repo,
                 index,
               });
+              this.onPullRequestsChanged?.();
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`mergePullRequest failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
@@ -1558,7 +1559,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 item,
                 _requestId: message._requestId,
               });
-              this.onPullRequestCreated?.();
+              this.onPullRequestsChanged?.();
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`createPullRequest failed for ${instance.name}/${owner}/${repo}: ${err}`);
@@ -1592,6 +1593,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 index,
                 item,
               });
+              // Closing (or reopening) a PR changes the status bar's open-PR lookup.
+              if (data.state) {
+                this.onPullRequestsChanged?.();
+              }
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`editPullRequest failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);

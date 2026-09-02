@@ -67,8 +67,6 @@
 
 **高（功能正确性）**
 
-- [ ] 「按需推送」缺口：只在无 upstream 时才推送，有 upstream 但本地领先 N 个 commit 时直接开弹窗，创建的 PR 不含未推送 commit（`createPullRequest.ts:44-63`）；用 `git rev-list --count @{upstream}..HEAD` 判断 ahead>0 一并提示
-- [ ] 状态栏「已有开放 PR」匹配不校验 head 仓库 owner：他人 fork 中同名分支的开放 PR 会命中，遮蔽自己的创建入口（`createPrStatusBar.ts:120`）
 - [ ] 多窗口实例配置互相覆盖：globalState 读-改-写无跨窗口监听，窗口 B 用陈旧列表回写丢掉窗口 A 新增的实例（`config.ts` `addInstance`/`removeInstance`）
 - [ ] token 全量推送到 webview（`_sendInstances`/`initialState` 含明文 token），CSP 允许 `connect-src http: https:`，一旦有注入点所有实例 token 可外带；默认剥离 token，仅导出流程按需单独取
 - [ ] 10 处列表请求 `limit: 100` 超服务端默认上限 50 且无翻页（用户仓库/分支/tag/release/label/milestone/PR files/时间线/PR commits/reviews），大仓库数据静默缺失；加分页循环或处理 `X-Total-Count`
@@ -82,7 +80,6 @@
 **中低**
 
 - [ ] 发布功能：422 被合并误判为「名称冲突」且无客户端仓库名校验；空仓库（无 commit）发布提示「No branch is checked out」偏离真实原因且已创建半成品远程仓库；发布成功后无任何列表刷新；同主机多账号 `findInstanceForRemote` 只取第一个命中，可能用错 token push
-- [ ] 状态栏：PR 合并/关闭后「PR #n」可无限期残留（TTL 只在 refresh 触发时求值，merge/close 路径不通知）；`.git/HEAD` watcher 漏掉仓库根在 folder 之上与 worktree 场景；命令面板入口未拦截默认分支；瞬时网络错误导致按钮消失而非保持旧状态
 - [ ] 实例导入：`importInstances` 对 webview 回传数据无逐项校验；文件导入漏拷 `syncApiUrlsToInstanceUrl` 字段（导出有、导入丢）
 - [ ] `_getRepoTree` 对不支持分页参数的老服务器有死循环风险（仅以 truncated 为退出条件）
 - [ ] 错误体/Action 日志/artifact 下载无大小限制（整段塞进 Error.message 或内存）；debug 日志把响应体写进输出通道（CI 日志可能含密钥明文）
@@ -101,6 +98,7 @@
 
 ### 最近完成
 
+- [x] 审查修复阶段 3（创建 PR 与状态栏判定）：有 upstream 但 ahead>0 时也会提示推送（`getAheadCount`）；预填 head 用 upstream 远端分支名（本地/远端名不同不再创建失败）；状态栏开放 PR 匹配校验 head 仓库 owner（fork 同名分支不再误判）；merge/close PR 成功后通知状态栏失效缓存（`notifyPullRequestsChanged`）；命令面板入口拦截默认分支；查询失败保留上一次显示状态而非直接隐藏；HEAD watcher 改监听解析后的实际 gitdir（覆盖仓库根在 folder 之上与 worktree 场景）；补 createPrFromCurrentBranch 7 个用例 + 状态栏测试更新至 15 个
 - [x] 审查修复阶段 2（评论系统位置语义重写）：渲染/提交两侧废弃 GitHub 式 diff-position 映射，直接用 Forgejo 的文件行号语义（`position`/`original_position`，新增 `resolveReviewCommentLine` 纯函数，左侧评论 position=0 现在能渲染）；`_renderThreads` 清理范围限定到当前文档 scope，thread key 改 JSON 序列化并含 instanceId（不再跨文件/跨 PR/跨实例误删）；评论面板复用时同步更新 callbacks（提交后刷新正确的 PR）；放开 context 行评论限制；parseDiff 缩减为「行是否属于本 PR diff」校验；补 parseDiff/位置解析/thread key/panel 复用共 20 个单测，修正 mock 的 position 语义
 - [x] ModalDialog 增强：`closeOnEsc` 参数 + 脏检查确认（`confirmCloseIfDirty`/`isDirty`，Esc/背景点击/× 统一走确认，i18n 双语）；新建/编辑 Issue、新建/编辑 PR、编辑评论五处表单接入
 - [x] 审查修复阶段 1（安全与一行级 bug）：git 操作改 `execFile` 数组参数并清洗错误消息（杜绝 push 失败时 token 进日志/弹窗与分支名 shell 注入）；数组 query 参数改重复键序列化（修复通知状态过滤对真实服务器失效，同步修 mock）；删除 Action Run 后导航到不存在的 `repoActions` 路由改为 `repoDetail` 并加迟到响应守卫；`getPullRequestFiles` 的 `??`/`+` 优先级 bug；webview provider 注册入 subscriptions、workspaceFolders 监听去累积、`_view` 加 onDidDispose 清理；`locale` 删默认 `zh` 统一走系统语言兜底；ModalDialog 原生 close 事件同步父组件（Esc 不再失联）；合并 PR / 删除 worktree / 取消 Action 运行加二次确认（i18n 双语）；ActionRunDetail 错误状态补重试按钮；Copy Permalink 右键菜单改 `forgejoToolkit.hasLinkedRepo` 上下文键（去掉 `\|\| true` 调试残留）

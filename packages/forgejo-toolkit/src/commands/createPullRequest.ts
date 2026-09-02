@@ -1,8 +1,15 @@
 import * as vscode from 'vscode';
 import type { ConfigManager } from '../config';
 import type { ForgejoToolkitViewProvider } from '../webview/viewProvider';
+import { ForgejoClient } from '../api/client';
 import { logger } from '../logger';
-import { detectLinkedRepository, getCurrentBranch, getUpstreamBranch, pushBranch } from '../worktree/gitOperations';
+import {
+  detectLinkedRepository,
+  getAheadCount,
+  getCurrentBranch,
+  getUpstreamBranch,
+  pushBranch,
+} from '../worktree/gitOperations';
 
 export interface CreatePrFromCurrentBranchArgs {
   /** When set, the command opens the existing pull request instead of starting the create flow. */
@@ -41,11 +48,46 @@ export async function createPrFromCurrentBranch(
     return;
   }
 
+  // The status bar hides this command on the default branch, but the command
+  // palette does not — block creating a PR from the default branch here too.
+  const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+  const detail = await client.getRepoDetail(linked.owner, linked.repo);
+  const defaultBranch = detail.repository.default_branch;
+  if (defaultBranch && branch === defaultBranch) {
+    vscode.window.showInformationMessage(
+      vscode.l10n.t('Branch "{0}" is the default branch. Switch to another branch to create a pull request.', branch),
+    );
+    return;
+  }
+
+  // The PR head must exist on the remote under the upstream's branch name,
+  // which can differ from the local branch name (e.g. upstream origin/rename).
   const upstream = await getUpstreamBranch(linked.localPath);
-  if (!upstream) {
+  let head = branch;
+  let pushRemote = 'origin';
+  let pushRefspec = branch;
+  let setUpstream = true;
+  let needsPush = !upstream;
+  if (upstream) {
+    const slash = upstream.indexOf('/');
+    if (slash > 0 && slash < upstream.length - 1) {
+      pushRemote = upstream.slice(0, slash);
+      head = upstream.slice(slash + 1);
+      pushRefspec = head === branch ? branch : `${branch}:${head}`;
+    }
+    setUpstream = false;
+    const ahead = await getAheadCount(linked.localPath);
+    // Undefined ahead means the upstream ref cannot be resolved (e.g. the
+    // remote branch was deleted) — push then, so the PR head exists remotely.
+    needsPush = ahead === undefined || ahead > 0;
+  }
+
+  if (needsPush) {
     const push = vscode.l10n.t('Push');
     const choice = await vscode.window.showWarningMessage(
-      vscode.l10n.t('Branch "{0}" has not been pushed. Push it now?', branch),
+      upstream
+        ? vscode.l10n.t('Branch "{0}" has unpushed commits. Push it now?', branch)
+        : vscode.l10n.t('Branch "{0}" has not been pushed. Push it now?', branch),
       { modal: true },
       push,
     );
@@ -53,7 +95,7 @@ export async function createPrFromCurrentBranch(
       return;
     }
     try {
-      await pushBranch(linked.localPath, 'origin', branch, instance.token, true);
+      await pushBranch(linked.localPath, pushRemote, pushRefspec, instance.token, setUpstream);
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);
       logger.error(`[createPrFromCurrentBranch] failed to push branch: ${err}`);
@@ -67,6 +109,6 @@ export async function createPrFromCurrentBranch(
     instanceId: linked.instanceId,
     owner: linked.owner,
     repo: linked.repo,
-    head: branch,
+    head,
   });
 }

@@ -99,10 +99,15 @@ export async function getUpstreamBranch(dirPath: string): Promise<string | undef
   }
 }
 
+/**
+ * Push a branch to a remote. `refspec` is usually just the branch name, but a
+ * `local:remote` refspec pushes the local branch to a differently-named remote
+ * branch (used when the upstream branch was renamed on the remote).
+ */
 export async function pushBranch(
   dirPath: string,
   remote: string,
-  branch: string,
+  refspec: string,
   token?: string,
   setUpstream = false,
 ): Promise<void> {
@@ -110,10 +115,49 @@ export async function pushBranch(
   if (setUpstream) {
     args.push('-u');
   }
-  args.push(remote, branch);
+  args.push(remote, refspec);
   const { stderr } = await runGit(args, dirPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
+  }
+}
+
+/**
+ * Number of commits on HEAD that are not yet pushed to its upstream. Undefined
+ * when the upstream ref cannot be resolved (e.g. the remote-tracking branch is
+ * missing because the remote branch was deleted).
+ */
+export async function getAheadCount(dirPath: string): Promise<number | undefined> {
+  try {
+    const { stdout } = await runGit(['rev-list', '--count', '@{upstream}..HEAD'], dirPath);
+    const count = Number.parseInt(stdout.trim(), 10);
+    return Number.isNaN(count) ? undefined : count;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Absolute path of the HEAD file for the repository at dirPath. Linked
+ * worktrees have a .git file whose "gitdir:" pointer locates the real gitdir
+ * (where HEAD lives); regular checkouts use <dirPath>/.git/HEAD.
+ */
+export async function getGitHeadPath(dirPath: string): Promise<string | undefined> {
+  try {
+    const gitPath = path.join(dirPath, '.git');
+    const stat = await fs.promises.stat(gitPath);
+    if (stat.isDirectory()) {
+      return path.join(gitPath, 'HEAD');
+    }
+    const content = await fs.promises.readFile(gitPath, 'utf8');
+    const match = /^gitdir:\s*(.+)$/m.exec(content);
+    if (!match) {
+      return undefined;
+    }
+    const gitdir = match[1].trim();
+    return path.join(path.isAbsolute(gitdir) ? gitdir : path.resolve(dirPath, gitdir), 'HEAD');
+  } catch {
+    return undefined;
   }
 }
 

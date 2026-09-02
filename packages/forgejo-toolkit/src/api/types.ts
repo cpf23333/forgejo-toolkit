@@ -49,7 +49,7 @@ export interface ForgejoPullRequest {
   body: string;
   created_at: string;
   updated_at: string;
-  head?: { ref?: string; label?: string };
+  head?: { ref?: string; label?: string; repo?: { full_name?: string } | null };
 }
 
 export interface ForgejoNotification {
