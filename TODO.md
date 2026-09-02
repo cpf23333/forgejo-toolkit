@@ -60,6 +60,50 @@
 - [ ] Onboarding 缺「去实例上创建 token」链接；`scm/title` 缺 Publish/Create PR 图形入口；「刷新实例」按钮可能只刷新实例列表不刷新数据（需实测）
 - [ ] `InstanceList.vue` 整段英文硬编码且已无人引用（死代码，可删）
 
+### 代码审查发现的问题（2026-08-24）
+
+六个方向（发布功能、状态栏创建 PR、宿主核心、评论/worktree 等子系统、API 层、webview 状态层）的深度审查结论。修复优先级建议：安全与数据正确性先行，一行级 bug 随手修。
+
+**必须尽快修（确认 bug / 安全问题）**
+
+- [ ] Push 失败时明文 token 泄露：`git -c http.extraHeader="Authorization: token ..."` 失败时 exec 抛出的 Error.message 含完整命令行，写进日志并弹进错误通知（`gitOperations.ts:89-91` → `publish.ts:154/182` → `commands/index.ts:44-48`，已实测复现）；git 操作层 catch 后重抛只含 stderr 的错误
+- [ ] 评论位置语义整体错位：`parseDiff.ts` 按 GitHub diff-position 建模，但 Forgejo API 的 `position`/`new_position`/`old_position` 是文件行号（已核对 Forgejo 源码）；渲染错行、左侧评论（position=0）永不显示、提交评论落错行或被 422；废弃 diff-position 映射，渲染直接用 `position || original_position`，提交直接发文件行号
+- [ ] `_renderThreads` 清理循环 dispose 全局 `_threads` 中所有不匹配线程：开同 PR 的文件 B 清掉文件 A 的线程，开 PR #2 清掉 PR #1 的；`_threadKey` 不含 instanceId 跨实例互串（`pullReviewCommentController.ts:280-285`）
+- [ ] 评论面板复用时新 callbacks 被丢弃，沿用旧 PR 闭包：对 PR B 提交评论后刷新的是 PR A 的文档（`pullReviewCommentPanel.ts:44-48`）
+- [ ] 数组 query 参数被逗号拼接，通知状态过滤对真实服务器失效（`shared/request/index.ts:36`、`client.ts:325-331`；Forgejo 只认重复键，mock `handlers.ts:52-53` 的 `split(',')` 掩盖了 bug）；`buildUrl` 对数组逐项 append，并删掉 mock 的逗号拆分
+- [ ] 删除 Action Run 后 `router.push({ name: 'repoActions' })` 导航到不存在的路由名，渲染空白（`useAppState.ts:2190`）
+- [ ] `getPullRequestFiles` 运算符优先级 bug：`counts.changes ?? counts.additions ?? 0 + (counts.deletions ?? 0)`，`+` 优先于 `??`（`viewProvider.ts:1647`）
+- [ ] 生命周期泄漏：webview provider 注册未进 `context.subscriptions`（`extension.ts:44-46`）；`onDidChangeWorkspaceFolders` 监听每次 resolveWebviewView 都新建一份累积（`viewProvider.ts:83-85`）；`_view` 无 onDidDispose 清理，webview 销毁后主动推送的消息静默丢失且不再入队
+- [ ] 分支名未转义直接拼 shell 命令：git refname 允许 `$`/反引号/`;`，存在命令注入面（`gitOperations.ts:91,118`）；改 `execFile` 数组参数或双引号包裹
+
+**高（功能正确性）**
+
+- [ ] 「按需推送」缺口：只在无 upstream 时才推送，有 upstream 但本地领先 N 个 commit 时直接开弹窗，创建的 PR 不含未推送 commit（`createPullRequest.ts:44-63`）；用 `git rev-list --count @{upstream}..HEAD` 判断 ahead>0 一并提示
+- [ ] 状态栏「已有开放 PR」匹配不校验 head 仓库 owner：他人 fork 中同名分支的开放 PR 会命中，遮蔽自己的创建入口（`createPrStatusBar.ts:120`）
+- [ ] 多窗口实例配置互相覆盖：globalState 读-改-写无跨窗口监听，窗口 B 用陈旧列表回写丢掉窗口 A 新增的实例（`config.ts` `addInstance`/`removeInstance`）
+- [ ] token 全量推送到 webview（`_sendInstances`/`initialState` 含明文 token），CSP 允许 `connect-src http: https:`，一旦有注入点所有实例 token 可外带；默认剥离 token，仅导出流程按需单独取
+- [ ] 10 处列表请求 `limit: 100` 超服务端默认上限 50 且无翻页（用户仓库/分支/tag/release/label/milestone/PR files/时间线/PR commits/reviews），大仓库数据静默缺失；加分页循环或处理 `X-Total-Count`
+- [ ] 生成客户端路径参数全程未 encodeURIComponent：分支名含 `#`、tag 含 `/`（如 `release/1.0`）、文件路径含 `?` 时对应 API 直接坏（`packages/forgejo-api/src/generated/client/` 统一模板）
+- [ ] keep-alive 下轮询定时器不停止：`ActionRunDetail` 切走后仍每 4s 全量刷新直到被 LRU 挤出；全代码库无一个 `onDeactivated`，deactivated 视图的 route watch 仍触发加载；轮询与 watch 改用 onActivated/onDeactivated 启停
+- [ ] webview 状态层竞态：删除响应晚到无条件 `router.go(-1)` 篡改用户后续导航；列表 clear 后 Dashboard 显示空列表需手动切页签才恢复；`actionJobLogs` 在删除 run 时漏清理（体积最大的条目永不释放）；单槽 ref（testConnectionResult 等）无 requestId，快速操作响应乱序覆盖
+- [ ] mention 补全 range 回扫吞字：`foo@` 触发补全选中后 `foo` 被整体替换删除（`issueMentionProvider.ts:90-103`）；`@` 文档链接误匹配邮箱 `foo@bar.com`；`forgejo-pr` scheme 分支是死代码（只注册了 `file` scheme）
+- [ ] permalink 不做 URL 编码：文件名含 `#`/`?`/`%` 生成坏链接（`permalink.ts:69,92`）；新增文件的 base 侧生成 404 链接
+- [ ] worktree 子系统：删除用 `fs.delete` 而非 `git worktree remove`（`.git/worktrees` 元数据残留、分支仍标记 checked out，且先删记录后删目录，Windows 文件锁失败时无入口自愈）；创建无并发锁（双击并发 fetch/worktree add 同路径）；残留目录只查存在性不校验合法性/新旧；裸缓存仓库永不清理无磁盘策略
+
+**中低**
+
+- [ ] 发布功能：422 被合并误判为「名称冲突」且无客户端仓库名校验；空仓库（无 commit）发布提示「No branch is checked out」偏离真实原因且已创建半成品远程仓库；发布成功后无任何列表刷新；同主机多账号 `findInstanceForRemote` 只取第一个命中，可能用错 token push
+- [ ] 状态栏：PR 合并/关闭后「PR #n」可无限期残留（TTL 只在 refresh 触发时求值，merge/close 路径不通知）；`.git/HEAD` watcher 漏掉仓库根在 folder 之上与 worktree 场景；命令面板入口未拦截默认分支；瞬时网络错误导致按钮消失而非保持旧状态
+- [ ] 实例导入：`importInstances` 对 webview 回传数据无逐项校验；文件导入漏拷 `syncApiUrlsToInstanceUrl` 字段（导出有、导入丢）
+- [ ] `_getRepoTree` 对不支持分页参数的老服务器有死循环风险（仅以 truncated 为退出条件）
+- [ ] 错误体/Action 日志/artifact 下载无大小限制（整段塞进 Error.message 或内存）；debug 日志把响应体写进输出通道（CI 日志可能含密钥明文）
+- [ ] NotificationPoller：dispose 后仍可 start；并发 poll 的 `_updateSeenIds` 读-改-写丢 seen ids 导致重复 toast；全新安装首 poll 把所有未读当新通知弹一遍；实例删除后在途 poll 仍推送
+- [ ] 配置激活链路：`config.init()` 的 secrets 迁移失败会导致整个扩展激活失败（无 keyring 环境），应 try/catch 降级；同 id 空 token 重新添加时旧 token 残留
+- [ ] `openExternal` 不校验 scheme（webview 可传 `file://`）且未 await；viewProvider 多个 handler 无 try/catch 兜底（globalState.update 抛错 → unhandled rejection）
+- [ ] 无版本探测/降级：Actions、`return_run_info`、PR files 等较新端点对老 Gitea/Forgejo 实例直接 404；建议首次连接调 `/api/v1/version` 特性门控，或文档声明最低版本
+- [ ] 杂项：`_pendingMessage` 单槽位连续两条 open* 消息第一条被覆盖；`readmeProvider` 模块级 Map 只增不减；`extension.ts` 残留 `console.log`；`useVsCodeMessages.ts` 全库无人使用（可删）；`DashboardInstanceItem.vue` 遗留 console.log；`loadMyIssues` 的 state 参数不进缓存 key（签名陷阱）
+- [ ] 测试覆盖偏科：`config.ts`、viewProvider 消息协议、`parseDiff`、`permalink`、`issueMentionProvider`、`worktreeManager`、`gitOperations`、`publish.ts`、`createPullRequest.ts` 全部零测试；两处 mock（评论 position、通知逗号拆分）恰好掩盖真实 bug；优先补纯函数（parsePullDiff 位置映射、permalink URL 构造、getMentionRange 边界）与 findInstanceForRemote/push 错误路径用例
+
 ## 进行中
 
 （空）
