@@ -819,6 +819,25 @@ watch(
   },
 );
 
+// A failed openPrWorktree (host replied worktreeError) must clear the loading
+// state and surface the error, or the button would spin forever.
+watch(
+  () => state.lastWorktreeError.value,
+  (worktreeError) => {
+    if (
+      worktreeError?.operation === 'open' &&
+      worktreeLoading.value &&
+      worktreeError.instanceId === instanceId.value &&
+      worktreeError.owner === owner.value &&
+      worktreeError.repo === repo.value &&
+      worktreeError.index === index.value
+    ) {
+      worktreeLoading.value = false;
+      setWorktreeStatus(worktreeError.error, 'error');
+    }
+  },
+);
+
 function reloadPullRequest() {
   state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value, true);
   state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value, true);

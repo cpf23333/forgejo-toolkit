@@ -63,7 +63,7 @@ describe('WorktreeManager.removeWorktree', () => {
     expect(store.get(WORKTREES_KEY)).toEqual([other]);
   });
 
-  it('keeps the record and reports the error when git removal fails', async () => {
+  it('keeps the record and rethrows without toasting when git removal fails', async () => {
     const target = makeWorktree();
     const { context, store } = createContext([target]);
     const manager = new WorktreeManager(context);
@@ -72,7 +72,9 @@ describe('WorktreeManager.removeWorktree', () => {
     await expect(manager.removeWorktree(target.id)).rejects.toThrow('fatal: removal failed');
 
     expect(store.get(WORKTREES_KEY)).toEqual([target]);
-    expect(vscode.window.showErrorMessage).toHaveBeenCalled();
+    // The view provider surfaces the error via worktreeError; the manager
+    // must not also toast, or the user would see the error twice.
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it('is a no-op for an unknown id', async () => {

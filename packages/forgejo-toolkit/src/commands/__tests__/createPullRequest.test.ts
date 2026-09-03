@@ -152,6 +152,22 @@ describe('createPrFromCurrentBranch', () => {
     expect(viewProvider.openCreatePullRequest).not.toHaveBeenCalled();
   });
 
+  it('degrades gracefully when the default-branch lookup fails (offline)', async () => {
+    getRepoDetail.mockRejectedValue(new Error('network down'));
+    // With an up-to-date upstream no push prompt appears; the flow continues.
+    vi.mocked(getUpstreamBranch).mockResolvedValue('origin/feature');
+    vi.mocked(getAheadCount).mockResolvedValue(0);
+    const viewProvider = createViewProvider();
+    await createPrFromCurrentBranch(createConfig(), viewProvider);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    expect(viewProvider.openCreatePullRequest).toHaveBeenCalledWith({
+      instanceId: 'inst1',
+      owner: 'owner',
+      repo: 'repo',
+      head: 'feature',
+    });
+  });
+
   it('opens the existing pull request directly when an index is given', async () => {
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider, { index: 5 });

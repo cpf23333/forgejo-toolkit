@@ -181,13 +181,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       }
 
       case 'testConnection': {
-        const { url, token } = message;
+        const { url, token, instanceId } = message;
         if (typeof url !== 'string' || typeof token !== 'string') {
           this._reply('testConnectionResult', { success: false, error: 'Invalid input' });
           return;
         }
+        // When editing an instance the token field is left empty to keep the
+        // stored token (tokens are never sent to the webview); fall back to it
+        // so testing the connection of a private instance does not fail.
+        let effectiveToken = token;
+        if (!effectiveToken && typeof instanceId === 'string') {
+          effectiveToken = this._findInstance(instanceId)?.token ?? token;
+        }
         try {
-          const client = new ForgejoClient(url, token, logger);
+          const client = new ForgejoClient(url, effectiveToken, logger);
           const user = await client.getCurrentUser();
           this._reply('testConnectionResult', { success: true, username: user.login });
         } catch (error) {
@@ -2436,23 +2443,22 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'renderMarkdown': {
+        const { text, _requestId } = message;
         const instance = this._findInstance(message.instanceId);
-        if (!instance) {
-          return;
-        }
-        const { text, key } = message;
-        if (typeof text !== 'string' || typeof key !== 'string') {
+        // Early returns are safe for requests carrying a _requestId: the
+        // dispatch wrapper answers them with a generic requestError.
+        if (!instance || typeof text !== 'string' || typeof _requestId !== 'string') {
           return;
         }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const html = await client.renderMarkdown(text, message.context);
           const htmlWithResolvedImages = await resolveAttachmentImages(html, instance);
-          this._reply('renderedMarkdown', { key, html: htmlWithResolvedImages });
+          this._reply('renderedMarkdown', { _requestId, html: htmlWithResolvedImages });
         } catch (error) {
           const err = error instanceof Error ? error.message : String(error);
           logger.error(`renderMarkdown failed for ${instance.name}: ${err}`);
-          this._reply('renderedMarkdown', { key, error: err });
+          this._reply('renderedMarkdown', { _requestId, error: err });
         }
         return;
       }
@@ -3003,10 +3009,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             await this._worktreeManager.removeWorktree(id);
             this._reply('worktreeRemoved', { id });
           } catch (error) {
-            // removeWorktree keeps the record on failure and has already
-            // surfaced the error; notify the webview so it can react.
+            // removeWorktree keeps the record on failure so the user can
+            // retry; the error reaches the user exactly once, through this
+            // worktreeError notification shown by the webview.
             const err = error instanceof Error ? error.message : String(error);
-            this._reply('worktreeError', { error: err });
+            const record = this._worktreeManager.getWorktree(id);
+            this._reply('worktreeError', {
+              error: err,
+              operation: 'remove',
+              instanceId: record?.instanceId,
+              owner: record?.owner,
+              repo: record?.repo,
+              index: record?.prIndex,
+            });
           }
           this._reply('worktreesList', { worktrees: this._worktreeManager.getWorktrees() });
         }
@@ -3287,6 +3302,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       filters: { JSON: ['json'] },
     });
     if (!uris || uris.length === 0) {
+      // The webview keeps a single in-flight slot for this request; a silent
+      // cancel would wedge it forever, so answer explicitly.
+      this._reply('importInstancesPreview', {
+        instances: [],
+        existingIds: [],
+        existingTokens: [],
+        settings: undefined,
+        cancelled: true,
+      });
       return;
     }
     try {
@@ -3451,7 +3475,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const { instanceId, owner, repo, index } = message;
     const instance = this._findInstance(instanceId);
     if (!instance) {
-      this._reply('worktreeError', { error: vscode.l10n.t('Instance not found') });
+      this._reply('worktreeError', {
+        error: vscode.l10n.t('Instance not found'),
+        operation: 'open',
+        instanceId,
+        owner,
+        repo,
+        index,
+      });
       return;
     }
 
@@ -3487,7 +3518,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           this._reply('worktreeOpened', { worktree: existing, existed: true });
         } catch (error) {
           const err = error instanceof Error ? error.message : String(error);
-          this._reply('worktreeError', { error: err });
+          this._reply('worktreeError', { error: err, operation: 'open', instanceId, owner, repo, index });
         }
         return;
       }
@@ -3504,7 +3535,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const baseBranch = pr.base?.ref ?? 'main';
       const prTitle = pr.title ?? `PR #${index}`;
       if (!headBranch || !headSha) {
-        this._reply('worktreeError', { error: vscode.l10n.t('Could not determine PR head branch or sha') });
+        this._reply('worktreeError', {
+          error: vscode.l10n.t('Could not determine PR head branch or sha'),
+          operation: 'open',
+          instanceId,
+          owner,
+          repo,
+          index,
+        });
         return;
       }
 
@@ -3565,7 +3603,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           }
           sourceRepoPath = selected[0].fsPath;
           if (!(await isGitRepository(sourceRepoPath))) {
-            this._reply('worktreeError', { error: vscode.l10n.t('Selected folder is not a git repository') });
+            this._reply('worktreeError', {
+              error: vscode.l10n.t('Selected folder is not a git repository'),
+              operation: 'open',
+              instanceId,
+              owner,
+              repo,
+              index,
+            });
             return;
           }
           const remote = await getRemoteUrl(sourceRepoPath);
@@ -3577,6 +3622,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           if (!remote || !expectedUrls.some((url) => normalizeGitUrl(remote) === normalizeGitUrl(url))) {
             this._reply('worktreeError', {
               error: vscode.l10n.t('Selected repository does not match the PR base repository'),
+              operation: 'open',
+              instanceId,
+              owner,
+              repo,
+              index,
             });
             return;
           }
@@ -3638,7 +3688,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);
       logger.error(`openPrWorktree failed for ${owner}/${repo}#${index}: ${err}`);
-      this._reply('worktreeError', { error: err });
+      this._reply('worktreeError', { error: err, operation: 'open', instanceId, owner, repo, index });
     }
   }
 

@@ -67,7 +67,9 @@ export class WorktreeManager {
    * + manual delete inside removeWorktreeAndPrune) so the source repository's
    * .git/worktrees metadata and the branch's checked-out state are cleaned up,
    * then drop the record. On failure the record is kept so the UI retains an
-   * entry point for retry, and the error is surfaced to the user.
+   * entry point for retry, and the error is thrown for the caller to surface
+   * (the view provider forwards it to the webview as `worktreeError`) — this
+   * method must not also toast, or the user would see the error twice.
    */
   async removeWorktree(id: string): Promise<void> {
     const worktrees = this.getWorktrees();
@@ -75,13 +77,7 @@ export class WorktreeManager {
     if (!target) {
       return;
     }
-    try {
-      await removeWorktreeAndPrune(target.sourceRepoPath, target.worktreePath);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      void vscode.window.showErrorMessage(vscode.l10n.t('Failed to remove worktree: {0}', message));
-      throw error;
-    }
+    await removeWorktreeAndPrune(target.sourceRepoPath, target.worktreePath);
     await this.context.globalState.update(
       WORKTREES_KEY,
       worktrees.filter((w) => w.id !== id),

@@ -242,19 +242,19 @@ export class OnboardingWebviewPanel {
             if (!instance) {
               return;
             }
-            const { text, key } = message;
-            if (typeof text !== 'string' || typeof key !== 'string') {
+            const { text, _requestId } = message;
+            if (typeof text !== 'string' || typeof _requestId !== 'string') {
               return;
             }
             try {
               const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
               const html = await client.renderMarkdown(text, message.context);
               const htmlWithResolvedImages = await this._resolveImageUrls(html, instance);
-              this._reply('renderedMarkdown', { key, html: htmlWithResolvedImages });
+              this._reply('renderedMarkdown', { _requestId, html: htmlWithResolvedImages });
             } catch (error) {
               const err = error instanceof Error ? error.message : String(error);
               logger.error(`onboarding renderMarkdown failed for ${instance.name}: ${err}`);
-              this._reply('renderedMarkdown', { key, error: err });
+              this._reply('renderedMarkdown', { _requestId, error: err });
             }
             return;
           }
@@ -290,6 +290,15 @@ export class OnboardingWebviewPanel {
       filters: { JSON: ['json'] },
     });
     if (!uris || uris.length === 0) {
+      // The webview keeps a single in-flight slot for this request; a silent
+      // cancel would wedge it forever, so answer explicitly.
+      this._reply('importInstancesPreview', {
+        instances: [],
+        existingIds: [],
+        existingTokens: [],
+        settings: undefined,
+        cancelled: true,
+      });
       return;
     }
     try {

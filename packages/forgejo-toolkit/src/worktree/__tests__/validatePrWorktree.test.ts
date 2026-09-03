@@ -33,25 +33,25 @@ import { validatePrWorktree } from '../gitOperations';
 
 type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
+let currentHeadSha: string | undefined;
+
 function mockHeadSha(sha: string | undefined) {
-  mocks.exec.mockImplementation((_command: string, _options: unknown, callback: ExecCallback) => {
-    if (sha === undefined) {
-      callback(new Error('fatal: not a git repository'), '', '');
-    } else {
-      callback(null, `${sha}\n`, '');
-    }
-  });
+  currentHeadSha = sha;
 }
 
-function mockGitSuccess() {
-  mocks.execFile.mockImplementation((_file: string, _args: string[], _options: unknown, callback: ExecCallback) => {
-    callback(null, '', '');
-  });
-}
-
-function mockGitRemoveFails() {
+// getCurrentCommitSha now runs `git rev-parse HEAD` through execFile too, so
+// every helper layers its behavior onto a single execFile implementation.
+function baseGitImplementation(removeFails: boolean) {
   mocks.execFile.mockImplementation((_file: string, args: string[], _options: unknown, callback: ExecCallback) => {
-    if (args[1] === 'remove') {
+    if (args[0] === 'rev-parse') {
+      if (currentHeadSha === undefined) {
+        callback(new Error('fatal: not a git repository'), '', '');
+      } else {
+        callback(null, `${currentHeadSha}\n`, '');
+      }
+      return;
+    }
+    if (removeFails && args[0] === 'worktree' && args[1] === 'remove') {
       const error = new Error('Command failed') as Error & { stderr: string };
       error.stderr = 'fatal: removal failed';
       callback(error, '', error.stderr);
@@ -61,11 +61,20 @@ function mockGitRemoveFails() {
   });
 }
 
+function mockGitSuccess() {
+  baseGitImplementation(false);
+}
+
+function mockGitRemoveFails() {
+  baseGitImplementation(true);
+}
+
 describe('validatePrWorktree', () => {
   let tempRoot: string;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    currentHeadSha = undefined;
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-toolkit-wt-test-'));
   });
 
@@ -89,7 +98,9 @@ describe('validatePrWorktree', () => {
     mockGitSuccess();
 
     await expect(validatePrWorktree('/repo', worktreePath, 'abc1234')).resolves.toBe('current');
-    expect(mocks.execFile).not.toHaveBeenCalled();
+    // Only the HEAD lookup ran — no worktree removal.
+    expect(mocks.execFile).toHaveBeenCalledTimes(1);
+    expect(mocks.execFile).toHaveBeenCalledWith('git', ['rev-parse', 'HEAD'], expect.anything(), expect.any(Function));
   });
 
   it('returns "stale" and removes the worktree via git when HEAD differs', async () => {

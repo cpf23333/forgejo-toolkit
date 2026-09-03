@@ -909,8 +909,8 @@ describe('useAppState', () => {
         expect.objectContaining({ command: 'renderMarkdown', instanceId: 'inst-1', text: '**bold**' }),
       );
       const calls = vscodePostMessage().mock.calls;
-      const key = (calls[calls.length - 1][0] as { key: string }).key;
-      dispatchMessage({ command: 'renderedMarkdown', key, html: '<p><strong>bold</strong></p>' });
+      const _requestId = (calls[calls.length - 1][0] as { _requestId: string })._requestId;
+      dispatchMessage({ command: 'renderedMarkdown', _requestId, html: '<p><strong>bold</strong></p>' });
       await expect(promise).resolves.toBe('<p><strong>bold</strong></p>');
       vscodePostMessage().mockClear();
 
@@ -925,8 +925,8 @@ describe('useAppState', () => {
       vscodePostMessage().mockClear();
       const promise = state.renderMarkdown('inst-1', '**bold**', 'owner/repo');
       const calls = vscodePostMessage().mock.calls;
-      const key = (calls[calls.length - 1][0] as { key: string }).key;
-      dispatchMessage({ command: 'renderedMarkdown', key, html: '<p><strong>bold</strong></p>' });
+      const _requestId = (calls[calls.length - 1][0] as { _requestId: string })._requestId;
+      dispatchMessage({ command: 'renderedMarkdown', _requestId, html: '<p><strong>bold</strong></p>' });
       await promise;
       vscodePostMessage().mockClear();
 
@@ -1569,5 +1569,120 @@ describe('pending request timeout and host fallback', () => {
     // No pending promise exists; nothing rejects, nothing throws.
     await nextTick();
     expect(state.errors.size).toBe(0);
+  });
+});
+
+describe('single-slot request/response pairs', () => {
+  it('testConnection forwards the editing instance id so the host can fall back to the stored token', async () => {
+    const { state } = await createState();
+    vscodePostMessage().mockClear();
+
+    state.testConnection('https://forgejo.example.com', '', 'inst-1');
+
+    expect(vscodePostMessage()).toHaveBeenCalledWith({
+      command: 'testConnection',
+      url: 'https://forgejo.example.com',
+      token: '',
+      instanceId: 'inst-1',
+    });
+  });
+
+  it('frees the testConnection slot with a timeout error when the host never answers', async () => {
+    const { state } = await createState();
+    vscodePostMessage().mockClear();
+    vi.useFakeTimers();
+    try {
+      state.testConnection('https://forgejo.example.com', 'tok');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(state.testConnectionResult.value?.success).toBe(false);
+      expect(state.testConnectionResult.value?.error).toBeTruthy();
+
+      // The slot is free again: the next attempt is sent, not dropped.
+      state.testConnection('https://forgejo.example.com', 'tok2');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('frees the saveInstance slot with a timeout error when the host never answers', async () => {
+    const { state } = await createState();
+    vscodePostMessage().mockClear();
+    vi.useFakeTimers();
+    try {
+      state.saveInstance('https://forgejo.example.com', 'tok');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(state.saveInstanceResult.value?.success).toBe(false);
+      expect(state.saveInstanceResult.value?.error).toBeTruthy();
+
+      state.saveInstance('https://forgejo.example.com', 'tok2');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a normal testConnection response clears the pending timeout', async () => {
+    const { state } = await createState();
+    vscodePostMessage().mockClear();
+    vi.useFakeTimers();
+    try {
+      state.testConnection('https://forgejo.example.com', 'tok');
+      dispatchMessage({ command: 'testConnectionResult', success: true, username: 'user' });
+      expect(state.testConnectionResult.value).toMatchObject({ success: true, username: 'user' });
+      // The timer must have been cleared: advancing past the timeout must not
+      // overwrite the real result.
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(state.testConnectionResult.value).toMatchObject({ success: true, username: 'user' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a cancelled import preview frees the slot without navigating to the preview', async () => {
+    const { state } = await createState();
+    vscodePostMessage().mockClear();
+
+    state.previewImportInstances();
+    expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+
+    dispatchMessage({ command: 'importInstancesPreview', instances: [], existingIds: [], cancelled: true });
+    await nextTick();
+    expect(state.importPreview.value).toBeUndefined();
+
+    // The slot is free again: the next import attempt is sent, not dropped.
+    vscodePostMessage().mockClear();
+    state.previewImportInstances();
+    expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('worktreeError message', () => {
+  it('records the error and operation for views to display', async () => {
+    const { state } = await createState();
+
+    dispatchMessage({
+      command: 'worktreeError',
+      error: 'fatal: removal failed',
+      operation: 'remove',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+    });
+    await nextTick();
+
+    expect(state.lastWorktreeError.value).toMatchObject({
+      error: 'fatal: removal failed',
+      operation: 'remove',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+    });
   });
 });

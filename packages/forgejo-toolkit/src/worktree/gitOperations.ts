@@ -7,7 +7,6 @@ import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolki
 import { normalizeGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import { logger } from '../logger';
 
-const exec = promisify(cp.exec);
 const execFile = promisify(cp.execFile);
 
 /**
@@ -43,7 +42,7 @@ export async function isGitRepository(dirPath: string): Promise<boolean> {
 
 export async function getRemoteUrl(dirPath: string, remote = 'origin'): Promise<string | undefined> {
   try {
-    const { stdout } = await exec(`git remote get-url ${remote}`, { cwd: dirPath });
+    const { stdout } = await runGit(['remote', 'get-url', remote], dirPath);
     return stdout.trim();
   } catch {
     return undefined;
@@ -73,7 +72,7 @@ export async function findLocalRepo(instanceUrl: string, owner: string, repo: st
 }
 
 export async function addRemote(dirPath: string, remote: string, url: string): Promise<void> {
-  const { stderr } = await exec(`git remote add ${remote} "${url}"`, { cwd: dirPath });
+  const { stderr } = await runGit(['remote', 'add', remote, url], dirPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -81,7 +80,7 @@ export async function addRemote(dirPath: string, remote: string, url: string): P
 
 export async function getCurrentBranch(dirPath: string): Promise<string | undefined> {
   try {
-    const { stdout } = await exec('git rev-parse --abbrev-ref HEAD', { cwd: dirPath });
+    const { stdout } = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], dirPath);
     const branch = stdout.trim();
     // A detached HEAD makes git print "HEAD" instead of a branch name.
     return branch && branch !== 'HEAD' ? branch : undefined;
@@ -92,7 +91,7 @@ export async function getCurrentBranch(dirPath: string): Promise<string | undefi
 
 export async function getUpstreamBranch(dirPath: string): Promise<string | undefined> {
   try {
-    const { stdout } = await exec('git rev-parse --abbrev-ref @{upstream}', { cwd: dirPath });
+    const { stdout } = await runGit(['rev-parse', '--abbrev-ref', '@{upstream}'], dirPath);
     return stdout.trim() || undefined;
   } catch {
     return undefined;
@@ -191,9 +190,7 @@ export async function createWorktreeFromBranch(
   localBranch: string,
 ): Promise<void> {
   await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
-  const { stderr } = await exec(`git worktree add -B ${localBranch} "${worktreePath}" ${localBranch}`, {
-    cwd: repoPath,
-  });
+  const { stderr } = await runGit(['worktree', 'add', '-B', localBranch, worktreePath, localBranch], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -201,7 +198,7 @@ export async function createWorktreeFromBranch(
 
 export async function createWorktree(repoPath: string, worktreePath: string, branch: string): Promise<void> {
   await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
-  const { stderr } = await exec(`git worktree add "${worktreePath}" ${branch}`, { cwd: repoPath });
+  const { stderr } = await runGit(['worktree', 'add', worktreePath, branch], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -294,7 +291,7 @@ export function sanitizeForPath(title: string): string {
 
 export async function getCurrentCommitSha(repoPath: string): Promise<string | undefined> {
   try {
-    const { stdout } = await exec('git rev-parse HEAD', { cwd: repoPath });
+    const { stdout } = await runGit(['rev-parse', 'HEAD'], repoPath);
     const sha = stdout.trim();
     return sha || undefined;
   } catch {
@@ -303,11 +300,11 @@ export async function getCurrentCommitSha(repoPath: string): Promise<string | un
 }
 
 export async function revertMergeCommit(repoPath: string, mergeCommitSha: string): Promise<void> {
-  const revertResult = await exec(`git revert -m 1 --no-edit ${mergeCommitSha}`, { cwd: repoPath });
+  const revertResult = await runGit(['revert', '-m', '1', '--no-edit', mergeCommitSha], repoPath);
   if (revertResult.stderr && revertResult.stderr.toLowerCase().includes('error')) {
     throw new Error(revertResult.stderr);
   }
-  const pushResult = await exec('git push', { cwd: repoPath });
+  const pushResult = await runGit(['push'], repoPath);
   if (pushResult.stderr && pushResult.stderr.toLowerCase().includes('error')) {
     throw new Error(pushResult.stderr);
   }

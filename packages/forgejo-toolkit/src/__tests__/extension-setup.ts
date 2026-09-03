@@ -5,6 +5,8 @@ vi.mock('vscode', () => ({
     showErrorMessage: vi.fn(),
     showInformationMessage: vi.fn(),
     showWarningMessage: vi.fn(),
+    showOpenDialog: vi.fn(),
+    showQuickPick: vi.fn(),
     createWebviewPanel: vi.fn(),
     activeTextEditor: undefined,
     createStatusBarItem: vi.fn(() => ({

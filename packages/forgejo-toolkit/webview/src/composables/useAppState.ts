@@ -221,7 +221,7 @@ function createAppState() {
   // superseded, and the latest intent is sent instead.
   let testConnectionToken = 0;
   let testConnectionInFlightToken = 0;
-  let testConnectionLatestArgs: { url: string; token: string } | undefined;
+  let testConnectionLatestArgs: { url: string; token: string; instanceId?: string } | undefined;
   let saveInstanceToken = 0;
   let saveInstanceInFlightToken = 0;
   type SaveInstanceMessage =
@@ -242,6 +242,17 @@ function createAppState() {
   const lastWorktreeCancelled = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(
     undefined,
   );
+  const lastWorktreeError = ref<
+    | {
+        error: string;
+        operation?: 'open' | 'remove';
+        instanceId?: string;
+        owner?: string;
+        repo?: string;
+        index?: number;
+      }
+    | undefined
+  >(undefined);
   let renderMarkdownRequestId = 0;
   const pendingRenderMarkdownRequests = new Map<
     string,
@@ -345,6 +356,7 @@ function createAppState() {
       pendingMentionSearchRequests,
       pendingUserPreviewRequests,
       pendingIssuePreviewRequests,
+      pendingRenderMarkdownRequests,
     ];
     for (const map of errorMaps) {
       const pending = map.get(requestId);
@@ -1015,7 +1027,7 @@ function createAppState() {
         );
         break;
       case 'renderedMarkdown':
-        handleRenderedMarkdown(message as { key: string; html?: string; error?: string });
+        handleRenderedMarkdown(message as { _requestId: string; html?: string; error?: string });
         break;
       case 'repoContents':
         handleRepoContents(
@@ -1213,6 +1225,16 @@ function createAppState() {
           index: message.index,
         };
         break;
+      case 'worktreeError':
+        lastWorktreeError.value = {
+          error: message.error,
+          operation: message.operation,
+          instanceId: message.instanceId,
+          owner: message.owner,
+          repo: message.repo,
+          index: message.index,
+        };
+        break;
       case 'worktreeOpenMode':
         if (message.mode === 'ask' || message.mode === 'currentWindow' || message.mode === 'newWindow') {
           worktreeOpenMode.value = message.mode;
@@ -1222,28 +1244,12 @@ function createAppState() {
         worktreeCacheDirectory.value = message.directory;
         worktreeCacheDirectoryDefault.value = message.defaultDirectory;
         break;
-      case 'testConnectionResult': {
-        if (testConnectionInFlightToken !== testConnectionToken && testConnectionLatestArgs) {
-          // This response answers a superseded request; drop it and send the
-          // latest intent instead (the host does not echo request ids).
-          testConnectionInFlightToken = testConnectionToken;
-          postMessage({ command: 'testConnection', ...testConnectionLatestArgs });
-          break;
-        }
-        testConnectionInFlightToken = 0;
-        testConnectionResult.value = message;
+      case 'testConnectionResult':
+        handleTestConnectionResult(message);
         break;
-      }
-      case 'saveInstanceResult': {
-        if (saveInstanceInFlightToken !== saveInstanceToken && saveInstanceLatestArgs) {
-          saveInstanceInFlightToken = saveInstanceToken;
-          postMessage(saveInstanceLatestArgs);
-          break;
-        }
-        saveInstanceInFlightToken = 0;
-        saveInstanceResult.value = message;
+      case 'saveInstanceResult':
+        handleSaveInstanceResult(message);
         break;
-      }
       case 'instancesExported':
         exportInstancesResult.value = message;
         break;
@@ -1257,6 +1263,10 @@ function createAppState() {
           break;
         }
         importPreviewInFlightToken = 0;
+        if ((message as { cancelled?: boolean }).cancelled) {
+          // The user dismissed the file picker; free the slot without navigating.
+          break;
+        }
         importPreview.value = {
           instances: (message as { instances?: ExportedForgejoInstance[] }).instances ?? [],
           existingIds: (message as { existingIds?: string[] }).existingIds ?? [],
@@ -2602,12 +2612,12 @@ function createAppState() {
     }
   }
 
-  function handleRenderedMarkdown(data: { key: string; html?: string; error?: string }) {
-    const pending = pendingRenderMarkdownRequests.get(data.key);
+  function handleRenderedMarkdown(data: { _requestId: string; html?: string; error?: string }) {
+    const pending = pendingRenderMarkdownRequests.get(data._requestId);
     if (!pending) {
       return;
     }
-    pendingRenderMarkdownRequests.delete(data.key);
+    pendingRenderMarkdownRequests.delete(data._requestId);
     if (data.error) {
       pending.reject(new Error(data.error));
     } else {
@@ -2638,14 +2648,73 @@ function createAppState() {
     postMessage({ command: 'previewReadme', owner, repo, content });
   }
 
-  function testConnection(url: string, token: string) {
+  // The single-slot request/response pairs (testConnection, saveInstance)
+  // carry no request id, so the host's dispatch fallback cannot answer them
+  // when a handler bails out early or throws. Arm a timeout per send: if no
+  // response lands in time, a synthetic timeout response runs through the
+  // same handler, freeing the slot (and replaying a superseded intent).
+  let testConnectionTimeout: ReturnType<typeof setTimeout> | undefined;
+  let saveInstanceTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  function handleTestConnectionResult(message: { success: boolean; username?: string; error?: string }) {
+    if (testConnectionTimeout !== undefined) {
+      clearTimeout(testConnectionTimeout);
+      testConnectionTimeout = undefined;
+    }
+    if (testConnectionInFlightToken !== testConnectionToken && testConnectionLatestArgs) {
+      // This response answers a superseded request; drop it and send the
+      // latest intent instead (the host does not echo request ids).
+      testConnectionInFlightToken = testConnectionToken;
+      postMessage({ command: 'testConnection', ...testConnectionLatestArgs });
+      armTestConnectionTimeout();
+      return;
+    }
+    testConnectionInFlightToken = 0;
+    testConnectionResult.value = message;
+  }
+
+  function armTestConnectionTimeout() {
+    if (testConnectionTimeout !== undefined) {
+      clearTimeout(testConnectionTimeout);
+    }
+    testConnectionTimeout = setTimeout(() => {
+      handleTestConnectionResult({ success: false, error: t('common.requestTimeout') });
+    }, REQUEST_TIMEOUT_MS);
+  }
+
+  function handleSaveInstanceResult(message: { success: boolean; error?: string }) {
+    if (saveInstanceTimeout !== undefined) {
+      clearTimeout(saveInstanceTimeout);
+      saveInstanceTimeout = undefined;
+    }
+    if (saveInstanceInFlightToken !== saveInstanceToken && saveInstanceLatestArgs) {
+      saveInstanceInFlightToken = saveInstanceToken;
+      postMessage(saveInstanceLatestArgs);
+      armSaveInstanceTimeout();
+      return;
+    }
+    saveInstanceInFlightToken = 0;
+    saveInstanceResult.value = message;
+  }
+
+  function armSaveInstanceTimeout() {
+    if (saveInstanceTimeout !== undefined) {
+      clearTimeout(saveInstanceTimeout);
+    }
+    saveInstanceTimeout = setTimeout(() => {
+      handleSaveInstanceResult({ success: false, error: t('common.requestTimeout') });
+    }, REQUEST_TIMEOUT_MS);
+  }
+
+  function testConnection(url: string, token: string, instanceId?: string) {
     testConnectionToken += 1;
-    testConnectionLatestArgs = { url, token };
+    testConnectionLatestArgs = { url, token, instanceId };
     if (testConnectionInFlightToken !== 0) {
       return;
     }
     testConnectionInFlightToken = testConnectionToken;
-    postMessage({ command: 'testConnection', url, token });
+    postMessage({ command: 'testConnection', url, token, instanceId });
+    armTestConnectionTimeout();
   }
 
   function saveInstance(url: string, token: string, syncApiUrlsToInstanceUrl?: boolean) {
@@ -2664,6 +2733,7 @@ function createAppState() {
     }
     saveInstanceInFlightToken = saveInstanceToken;
     postMessage(message);
+    armSaveInstanceTimeout();
   }
 
   function removeInstance(id: string) {
@@ -3816,10 +3886,10 @@ function createAppState() {
     if (cached !== undefined) {
       return Promise.resolve(cached);
     }
-    const key = `render-${++renderMarkdownRequestId}`;
+    const _requestId = `render-${++renderMarkdownRequestId}`;
     return new Promise((resolve, reject) => {
-      registerPending(pendingRenderMarkdownRequests, key, { resolve, reject }, { extra: { cacheKey } });
-      postMessage({ command: 'renderMarkdown', instanceId, text, context, key });
+      registerPending(pendingRenderMarkdownRequests, _requestId, { resolve, reject }, { extra: { cacheKey } });
+      postMessage({ command: 'renderMarkdown', instanceId, text, context, _requestId });
     });
   }
 
@@ -4017,6 +4087,7 @@ function createAppState() {
     lastSavedIssue,
     lastSavedPullRequest,
     lastWorktreeCancelled,
+    lastWorktreeError,
     openExternal,
     openWorktreePath,
     copyToClipboard,

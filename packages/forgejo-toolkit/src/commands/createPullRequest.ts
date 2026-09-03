@@ -50,9 +50,17 @@ export async function createPrFromCurrentBranch(
 
   // The status bar hides this command on the default branch, but the command
   // palette does not — block creating a PR from the default branch here too.
+  // When the lookup fails (offline, API error), degrade gracefully and skip
+  // the guard instead of crashing the command with a raw error.
   const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-  const detail = await client.getRepoDetail(linked.owner, linked.repo);
-  const defaultBranch = detail.repository.default_branch;
+  let defaultBranch: string | undefined;
+  try {
+    const detail = await client.getRepoDetail(linked.owner, linked.repo);
+    defaultBranch = detail.repository.default_branch;
+  } catch (error) {
+    const err = error instanceof Error ? error.message : String(error);
+    logger.error(`[createPrFromCurrentBranch] failed to resolve the default branch, skipping the guard: ${err}`);
+  }
   if (defaultBranch && branch === defaultBranch) {
     vscode.window.showInformationMessage(
       vscode.l10n.t('Branch "{0}" is the default branch. Switch to another branch to create a pull request.', branch),

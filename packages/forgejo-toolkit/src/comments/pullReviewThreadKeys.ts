@@ -4,6 +4,12 @@ export interface PullReviewThreadScope {
   repo: string;
   index: number;
   path: string;
+  /**
+   * Which side of the diff the rendered document shows. Cleanup must not
+   * dispose the other side's threads when one side re-renders, so the side
+   * is part of both the key and the cleanup scope.
+   */
+  isBase: boolean;
 }
 
 /**
@@ -11,13 +17,22 @@ export interface PullReviewThreadScope {
  * unambiguous even when a path contains characters such as `:`.
  */
 export function pullReviewThreadKey(scope: PullReviewThreadScope, reviewId: number, commentId: number): string {
-  return JSON.stringify([scope.instanceId, scope.owner, scope.repo, scope.index, scope.path, reviewId, commentId]);
+  return JSON.stringify([
+    scope.instanceId,
+    scope.owner,
+    scope.repo,
+    scope.index,
+    scope.path,
+    scope.isBase,
+    reviewId,
+    commentId,
+  ]);
 }
 
 /**
  * Check whether a thread key belongs to the given document scope
- * (instance + repo + PR + file path), so cleanup only disposes threads of
- * the document being re-rendered instead of every open thread.
+ * (instance + repo + PR + file path + diff side), so cleanup only disposes
+ * threads of the document being re-rendered instead of every open thread.
  */
 export function pullReviewThreadMatchesScope(key: string, scope: PullReviewThreadScope): boolean {
   let parts: unknown;
@@ -34,6 +49,7 @@ export function pullReviewThreadMatchesScope(key: string, scope: PullReviewThrea
     parts[1] === scope.owner &&
     parts[2] === scope.repo &&
     parts[3] === scope.index &&
-    parts[4] === scope.path
+    parts[4] === scope.path &&
+    parts[5] === scope.isBase
   );
 }

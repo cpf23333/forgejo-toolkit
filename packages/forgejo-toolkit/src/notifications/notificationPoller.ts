@@ -139,16 +139,22 @@ export class NotificationPoller implements vscode.Disposable {
     // Queue the write so concurrent polls merge onto the latest persisted
     // state instead of racing a read-modify-write cycle. Serialize as plain
     // arrays: globalState JSON-persists values and a Set would degrade to {}.
-    this._seenIdsWriteQueue = this._seenIdsWriteQueue.then(async () => {
-      const allSeen = this._getAllSeenIds();
-      allSeen.set(instanceId, new Set(ids));
-      try {
-        const serialized = Object.fromEntries([...allSeen].map(([key, value]) => [key, [...value]]));
-        await this._context.globalState.update(SEEN_NOTIFICATION_IDS_KEY, serialized);
-      } catch {
-        // ignore persistence errors
-      }
-    });
+    // A failed write must not poison the queue: without the catch, one
+    // rejection would skip every subsequent queued write forever.
+    this._seenIdsWriteQueue = this._seenIdsWriteQueue
+      .catch(() => {
+        // keep the queue alive after a failed write
+      })
+      .then(async () => {
+        const allSeen = this._getAllSeenIds();
+        allSeen.set(instanceId, new Set(ids));
+        try {
+          const serialized = Object.fromEntries([...allSeen].map(([key, value]) => [key, [...value]]));
+          await this._context.globalState.update(SEEN_NOTIFICATION_IDS_KEY, serialized);
+        } catch {
+          // ignore persistence errors
+        }
+      });
     return this._seenIdsWriteQueue;
   }
 
@@ -160,7 +166,9 @@ export class NotificationPoller implements vscode.Disposable {
     const raw = this._context.globalState.get<Record<string, number[]>>(SEEN_NOTIFICATION_IDS_KEY, {});
     const result = new Map<string, Set<number>>();
     for (const [key, ids] of Object.entries(raw)) {
-      result.set(key, new Set(ids));
+      // Tolerate legacy dirty payloads: an older version persisted a Set,
+      // which JSON-serializes to {} and would make `new Set(ids)` throw.
+      result.set(key, new Set(Array.isArray(ids) ? ids : []));
     }
     return result;
   }

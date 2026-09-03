@@ -96,7 +96,9 @@ function handleTest() {
   }
   testing.value = true;
   setStatus(t('settings.status.testing'));
-  state.testConnection(url.value.trim(), token.value.trim());
+  // In edit mode the token field may be empty (keep the stored token); the
+  // host falls back to the stored token for the given instance id.
+  state.testConnection(url.value.trim(), token.value.trim(), editingInstance.value?.id);
 }
 
 function handleSave() {
@@ -243,6 +245,18 @@ async function deleteWorktree(id: string) {
   }
   state.removeWorktree(id);
 }
+
+// Failed removals surface through the host's worktreeError reply (the record
+// is kept so the user can retry).
+const worktreeError = ref('');
+watch(
+  () => state.lastWorktreeError.value,
+  (result) => {
+    if (result?.operation === 'remove') {
+      worktreeError.value = result.error;
+    }
+  },
+);
 
 watch(
   () => state.testConnectionResult.value,
@@ -419,6 +433,7 @@ defineExpose({
         </ul>
       </div>
       <div v-else class="empty-list">{{ t('settings.worktree.noWorktrees') }}</div>
+      <div v-if="worktreeError" class="status error">{{ worktreeError }}</div>
     </section>
 
     <section class="setting-section">

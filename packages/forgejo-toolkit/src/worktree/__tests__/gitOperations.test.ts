@@ -10,7 +10,25 @@ vi.mock('child_process', () => ({
   execFile: mocks.execFile,
 }));
 
-import { cloneRepository, fetchPullRequestHead, pushBranch } from '../gitOperations';
+vi.mock('fs', () => ({
+  promises: {
+    mkdir: vi.fn(async () => undefined),
+    access: vi.fn(async () => undefined),
+    stat: vi.fn(),
+    readFile: vi.fn(),
+    rm: vi.fn(),
+  },
+}));
+
+import {
+  addRemote,
+  cloneRepository,
+  createWorktreeFromBranch,
+  fetchPullRequestHead,
+  getRemoteUrl,
+  pushBranch,
+  revertMergeCommit,
+} from '../gitOperations';
 
 type ExecFileCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
@@ -105,5 +123,52 @@ describe('gitOperations argument passing', () => {
       expect.anything(),
       expect.any(Function),
     );
+  });
+
+  it('getRemoteUrl passes the remote name as a single argv entry', async () => {
+    const remote = 'up;stream$(touch pwned)';
+    await getRemoteUrl('/repo', remote);
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['remote', 'get-url', remote],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('addRemote passes remote and url as single argv entries', async () => {
+    const remote = 'fork$(touch pwned)';
+    const url = 'https://forgejo.example.com/a/b.git" && evil';
+    await addRemote('/repo', remote, url);
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['remote', 'add', remote, url],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('createWorktreeFromBranch passes branch and path as single argv entries', async () => {
+    const branch = 'pr-1$(touch pwned)';
+    const worktreePath = '/cache/worktrees/evil" && pwned';
+    await createWorktreeFromBranch('/repo', worktreePath, branch);
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['worktree', 'add', '-B', branch, worktreePath, branch],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('revertMergeCommit passes the merge sha as a single argv entry', async () => {
+    const sha = 'abc123$(touch pwned)';
+    await revertMergeCommit('/repo', sha);
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['revert', '-m', '1', '--no-edit', sha],
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).toHaveBeenCalledWith('git', ['push'], expect.anything(), expect.any(Function));
   });
 });

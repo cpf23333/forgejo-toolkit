@@ -14,7 +14,6 @@
   "Could not determine PR head branch or sha": "无法确定 PR head 分支或 sha",
   "This will replace the current workspace with the worktree. Continue?": "此操作将用 worktree 替换当前工作区。是否继续？",
   "Select Cache Directory": "选择缓存目录",
-  "Failed to remove worktree: {0}": "删除 worktree 失败：{0}",
   "Cannot use \"{0}\" as the worktree cache directory: {1}": "无法将 \"{0}\" 用作 worktree 缓存目录：{1}",
   "Export": "导出",
   "Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.": "请选择导出方式。除非加密，否则 access token 将以明文形式包含在导出文件中。",

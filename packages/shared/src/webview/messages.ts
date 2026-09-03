@@ -382,7 +382,7 @@ export type HostToWebviewMessage =
       milestones?: unknown[];
       error?: string;
     }
-  | { command: 'renderedMarkdown'; key: string; html?: string; error?: string }
+  | { command: 'renderedMarkdown'; _requestId: string; html?: string; error?: string }
   | {
       command: 'repoContents';
       instanceId: string;
@@ -507,7 +507,16 @@ export type HostToWebviewMessage =
   | { command: 'worktreeOpened'; worktree: unknown; existed?: boolean }
   | { command: 'worktreeCancelled'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'worktreeRemoved'; id: string }
-  | { command: 'worktreeError'; error: string }
+  | {
+      command: 'worktreeError';
+      error: string;
+      /** Which operation failed, so the webview can route the error to the right view. */
+      operation?: 'open' | 'remove';
+      instanceId?: string;
+      owner?: string;
+      repo?: string;
+      index?: number;
+    }
   | {
       command: 'issueAttachmentDeleted';
       instanceId: string;
@@ -570,6 +579,8 @@ export type HostToWebviewMessage =
       existingTokens?: string[];
       settings?: ExportSettings;
       error?: string;
+      /** True when the user dismissed the file picker; the webview frees its pending slot without navigating. */
+      cancelled?: boolean;
     }
   | {
       command: 'issueSubscriptionChecked';
@@ -757,7 +768,7 @@ export type HostToWebviewMessage =
 export type WebviewToHostMessage =
   | { command: 'getInitialState' }
   | { command: 'getLinkedRepository' }
-  | { command: 'testConnection'; url: string; token: string }
+  | { command: 'testConnection'; url: string; token: string; instanceId?: string }
   | { command: 'saveInstance'; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean }
   | { command: 'editInstance'; id: string; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean }
   | { command: 'removeInstance'; id: string }
@@ -1014,7 +1025,7 @@ export type WebviewToHostMessage =
   | { command: 'getRepoLabels'; instanceId: string; owner: string; repo: string }
   | { command: 'getRepoAssignees'; instanceId: string; owner: string; repo: string }
   | { command: 'getRepoMilestones'; instanceId: string; owner: string; repo: string }
-  | { command: 'renderMarkdown'; instanceId: string; text: string; context?: string; key: string }
+  | { command: 'renderMarkdown'; instanceId: string; text: string; context?: string; _requestId: string }
   | { command: 'getRepoContents'; instanceId: string; owner: string; repo: string; path: string; ref: string }
   | { command: 'openRepoFile'; instanceId: string; owner: string; repo: string; path: string; ref: string }
   | {

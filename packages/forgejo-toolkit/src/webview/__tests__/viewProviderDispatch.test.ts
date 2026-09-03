@@ -2,12 +2,33 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
 
 vi.mock('../../api/client', () => ({
-  ForgejoClient: vi.fn().mockImplementation(() => ({
-    searchMentions: vi.fn().mockRejectedValue(new Error('network down')),
-  })),
+  ForgejoClient: vi.fn().mockImplementation(function () {
+    return {
+      searchMentions: vi.fn().mockRejectedValue(new Error('network down')),
+      getCurrentUser: vi.fn().mockResolvedValue({ login: 'user' }),
+    };
+  }),
+}));
+
+vi.mock('../../worktree/gitOperations', () => ({
+  cloneRepository: vi.fn(),
+  createWorktreeFromBranch: vi.fn(),
+  detectLinkedRepository: vi.fn(),
+  fetchPullRequestHead: vi.fn(),
+  findLocalRepo: vi.fn(),
+  getRemoteUrl: vi.fn(),
+  isCurrentWorkspaceBaseRepo: vi.fn(),
+  isGitRepository: vi.fn(),
+  openWorktree: vi.fn(),
+  revertMergeCommit: vi.fn(),
+  sanitizeForPath: vi.fn((value: string) => value),
+  validatePrWorktree: vi.fn(),
+  removeWorktreeAndPrune: vi.fn(),
 }));
 
 import { ForgejoToolkitViewProvider } from '../viewProvider';
+import { ForgejoClient } from '../../api/client';
+import { removeWorktreeAndPrune } from '../../worktree/gitOperations';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -238,5 +259,75 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     fake.send({ command: 'openWorktreePath', path: '/etc' });
     await flushDispatches();
     expect(openExternal).toHaveBeenCalledTimes(1);
+  });
+
+  it('testConnection falls back to the stored token when the edit form sends an empty token', async () => {
+    const client = vi.mocked(ForgejoClient);
+    client.mockClear();
+
+    fake.send({ command: 'testConnection', url: testInstance.url, token: '', instanceId: testInstance.id });
+    await flushDispatches();
+
+    expect(client).toHaveBeenCalledWith(testInstance.url, 'secret-token', expect.anything());
+    const result = postedMessages(fake.posted).find((m) => m.command === 'testConnectionResult');
+    expect(result).toMatchObject({ success: true, username: 'user' });
+  });
+
+  it('testConnection uses the given token as-is when one is provided', async () => {
+    const client = vi.mocked(ForgejoClient);
+    client.mockClear();
+
+    fake.send({ command: 'testConnection', url: testInstance.url, token: 'fresh-token', instanceId: testInstance.id });
+    await flushDispatches();
+
+    expect(client).toHaveBeenCalledWith(testInstance.url, 'fresh-token', expect.anything());
+  });
+
+  it('answers previewImportInstances with cancelled when the file picker is dismissed', async () => {
+    vi.mocked(vscode.window.showOpenDialog).mockResolvedValue(undefined as never);
+
+    fake.send({ command: 'previewImportInstances' });
+    await flushDispatches();
+
+    const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+    expect(preview).toMatchObject({ cancelled: true, instances: [] });
+  });
+
+  it('replies worktreeError with the PR identity when removal fails, keeping the record', async () => {
+    const worktree = {
+      id: 'w1',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      prIndex: 1,
+      prTitle: 'title',
+      headBranch: 'feature',
+      headSha: 'abc',
+      baseBranch: 'main',
+      sourceRepoPath: '/src/repo',
+      worktreePath: '/cache/worktrees/w1',
+      createdAt: 0,
+    };
+    await context.globalState.update('forgejoToolkit.worktrees', [worktree]);
+    vi.mocked(removeWorktreeAndPrune).mockRejectedValue(new Error('fatal: removal failed'));
+
+    fake.send({ command: 'removeWorktree', id: 'w1' });
+    await flushDispatches();
+
+    const messages = postedMessages(fake.posted);
+    const error = messages.find((m) => m.command === 'worktreeError');
+    expect(error).toMatchObject({
+      error: 'fatal: removal failed',
+      operation: 'remove',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      index: 1,
+    });
+    // No toast from the manager and no removal confirmation: the record stays.
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    expect(messages.some((m) => m.command === 'worktreeRemoved')).toBe(false);
+    const list = messages.find((m) => m.command === 'worktreesList');
+    expect((list?.worktrees as unknown[]).length).toBe(1);
   });
 });

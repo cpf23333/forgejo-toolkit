@@ -166,4 +166,29 @@ describe('NotificationPoller', () => {
     expect(seen.b).toEqual([7]);
     poller.dispose();
   });
+
+  it('recovers from a legacy non-array seen-id payload without poisoning the write queue', async () => {
+    mockGetNotifications.mockResolvedValue([notification(1)]);
+    const config = createFakeConfig([instanceA]);
+    const context = createFakeContext();
+    // Legacy dirty data: an older version persisted a Set, which
+    // JSON-serializes to {}.
+    context.store.set('forgejoToolkit.seenNotificationIds', { a: {} });
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The poll completes and rewrites the entry as a plain array.
+    let seen = context.store.get('forgejoToolkit.seenNotificationIds') as Record<string, number[]>;
+    expect(seen.a).toEqual([1]);
+    expect(sender.pushNotifications).toHaveBeenCalledWith('a', [notification(1)]);
+
+    // The write queue survived: the next poll persists its update too.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    await vi.advanceTimersByTimeAsync(300_000);
+    seen = context.store.get('forgejoToolkit.seenNotificationIds') as Record<string, number[]>;
+    expect(seen.a).toEqual([1, 2]);
+    poller.dispose();
+  });
 });

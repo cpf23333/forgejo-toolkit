@@ -14,7 +14,6 @@
   "Could not determine PR head branch or sha": "Could not determine PR head branch or sha",
   "This will replace the current workspace with the worktree. Continue?": "This will replace the current workspace with the worktree. Continue?",
   "Select Cache Directory": "Select Cache Directory",
-  "Failed to remove worktree: {0}": "Failed to remove worktree: {0}",
   "Cannot use \"{0}\" as the worktree cache directory: {1}": "Cannot use \"{0}\" as the worktree cache directory: {1}",
   "Export": "Export",
   "Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.": "Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.",

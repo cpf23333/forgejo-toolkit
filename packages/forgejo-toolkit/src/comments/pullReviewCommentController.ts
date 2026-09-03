@@ -101,6 +101,7 @@ export class PullReviewCommentController implements vscode.Disposable {
       repo: params.repo,
       index: params.index,
       path: params.path,
+      isBase: params.isBase,
     };
   }
 
@@ -264,8 +265,9 @@ export class PullReviewCommentController implements vscode.Disposable {
       }
     }
 
-    // Dispose only threads of the document being re-rendered; threads of
-    // other files or pull requests stay untouched.
+    // Dispose only threads of the document being re-rendered (including its
+    // diff side); threads of other files, pull requests, or the other side
+    // of the same file stay untouched.
     for (const [key, thread] of this._threads.entries()) {
       if (pullReviewThreadMatchesScope(key, scope) && !threadsToKeep.has(key)) {
         thread.dispose();
