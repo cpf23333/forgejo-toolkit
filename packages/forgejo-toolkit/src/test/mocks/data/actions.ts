@@ -2,13 +2,12 @@ import type { ActionRun, ActionRunJob, ActionArtifact, DispatchWorkflowRun } fro
 
 export const mockActionRun = {
   id: 42,
-  name: 'CI',
+  title: 'CI',
   head_branch: 'main',
-  run_number: 1,
+  index_in_repo: 1,
   event: 'push',
-  status: 'completed',
-  conclusion: 'success',
-  workflow_id: 1,
+  status: 'success',
+  workflow_id: 'ci.yaml',
   url: 'https://forgejo.example.com/demo-user/demo-repo/actions/runs/42',
   html_url: 'https://forgejo.example.com/demo-user/demo-repo/actions/runs/42',
   created_at: '2026-08-17T09:00:00Z',
@@ -18,12 +17,8 @@ export const mockActionRun = {
 export const mockActionRunJob = {
   id: 101,
   run_id: 42,
-  head_sha: 'abc123',
   name: 'build',
-  status: 'completed',
-  conclusion: 'success',
-  started_at: '2026-08-17T09:00:00Z',
-  completed_at: '2026-08-17T09:05:00Z',
+  status: 'success',
 } as unknown as ActionRunJob;
 
 export const mockActionArtifact = {
@@ -36,6 +31,6 @@ export const mockActionArtifact = {
 
 export const mockDispatchWorkflowRun = {
   id: 99,
-  name: 'CI',
-  html_url: 'https://forgejo.example.com/demo-user/demo-repo/actions/runs/99',
+  run_number: 2,
+  jobs: [],
 } as unknown as DispatchWorkflowRun;

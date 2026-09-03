@@ -686,7 +686,22 @@ export class ForgejoClient {
           }).catch(() => undefined)
         : undefined,
     ]);
-    const mergeBlockers = this._buildMergeBlockers(prDetail, permissions, protection, combinedStatus);
+    // When the base branch requires approving reviews, count how many the PR
+    // already has so the blocker clears once enough approvals are in.
+    // Approximation: counts every official, non-stale, non-dismissed APPROVED
+    // review without deduplicating reviewers.
+    let approvedCount: number | undefined;
+    if (
+      protection?.required_approvals &&
+      protection.required_approvals > 0 &&
+      !(permissions?.admin === true && protection.apply_to_admins !== true)
+    ) {
+      const reviews = await this.listPullReviews(owner, repo, index).catch(() => undefined);
+      approvedCount = (reviews ?? []).filter(
+        (review) => review.state === 'APPROVED' && review.official === true && !review.stale && !review.dismissed,
+      ).length;
+    }
+    const mergeBlockers = this._buildMergeBlockers(prDetail, permissions, protection, combinedStatus, approvedCount);
     const statusChecks = combinedStatus
       ? {
           state: combinedStatus.state,
@@ -720,6 +735,7 @@ export class ForgejoClient {
       status_check_contexts?: string[];
     },
     combinedStatus?: { state?: string },
+    approvedCount?: number,
   ): MergeBlocker[] {
     const blockers: MergeBlocker[] = [];
 
@@ -736,7 +752,7 @@ export class ForgejoClient {
     const canBypassProtection = permissions?.admin === true && protection?.apply_to_admins !== true;
     if (protection && !canBypassProtection) {
       const requiredApprovals = protection.required_approvals;
-      if (requiredApprovals && requiredApprovals > 0) {
+      if (requiredApprovals && requiredApprovals > 0 && (approvedCount ?? 0) < requiredApprovals) {
         blockers.push({ type: 'required_approvals', requiredApprovals });
       }
       if (protection.enable_status_check && (protection.status_check_contexts?.length ?? 0) > 0) {

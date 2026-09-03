@@ -17,6 +17,7 @@ export const mockRepository: ForgejoRepository = {
   has_issues: true,
   has_pull_requests: true,
   mirror: false,
+  permissions: { admin: true, push: true, pull: true },
 };
 
 export const mockRepository2: ForgejoRepository = {

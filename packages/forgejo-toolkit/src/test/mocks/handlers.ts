@@ -11,6 +11,7 @@ import {
   mockRootContents,
   mockSrcContents,
   mockReadmeContent,
+  mockIndexTsContent,
   mockActionRun,
   mockActionRunJob,
   mockActionArtifact,
@@ -39,6 +40,14 @@ import {
 function json(data: unknown, status = 200) {
   return HttpResponse.json(data as Parameters<typeof HttpResponse.json>[0], { status });
 }
+
+// Tracks a pending pull review created via POST pulls/:index/reviews so that
+// review chaining (create pending → add comments → submit/delete) behaves
+// like a real server across requests.
+let pendingReview: Record<string, unknown> | undefined;
+// Reviews submitted in this session stay visible to subsequent list calls, so
+// merge-blocker checks can observe approvals after a submit.
+let submittedReviews: Record<string, unknown>[] = [];
 
 export const handlers = [
   http.get('https://*/api/v1/user', () => json(mockUser)),
@@ -265,7 +274,9 @@ export const handlers = [
 
   http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/merge', () => new HttpResponse(null, { status: 200 })),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', () => json([mockPullReview])),
+  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', () =>
+    json([mockPullReview, ...submittedReviews, ...(pendingReview ? [pendingReview] : [])]),
+  ),
 
   http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', () =>
     json([mockPullReviewComment]),
@@ -273,12 +284,21 @@ export const handlers = [
 
   http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', async ({ request }) => {
     const body = (await request.json()) as { event?: string; body?: string; comments?: unknown[] };
-    return json({
+    const review = {
       ...mockPullReview,
       state: body.event ?? mockPullReview.state,
       body: body.body ?? mockPullReview.body,
       comments: body.comments ?? [mockPullReviewComment],
-    });
+    };
+    // Keep the created pending review visible to subsequent list calls so the
+    // "start review → add more comments → submit" flow can chain. Reviews
+    // created directly with a final event are recorded as submitted.
+    if (review.state === 'PENDING') {
+      pendingReview = review;
+    } else if (body.event) {
+      submittedReviews.push({ ...review, official: true });
+    }
+    return json(review);
   }),
 
   http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', async ({ request }) => {
@@ -288,17 +308,21 @@ export const handlers = [
 
   http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id', async ({ request }) => {
     const body = (await request.json()) as { event?: string; body?: string };
-    return json({
+    pendingReview = undefined;
+    const submitted = {
       ...mockPullReview,
       state: body.event ?? mockPullReview.state,
       body: body.body ?? mockPullReview.body,
-    });
+      official: true,
+    };
+    submittedReviews.push(submitted);
+    return json(submitted);
   }),
 
-  http.delete(
-    'https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id',
-    () => new HttpResponse(null, { status: 204 }),
-  ),
+  http.delete('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id', () => {
+    pendingReview = undefined;
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   http.delete(
     'https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments/:comment',
@@ -310,6 +334,8 @@ export const handlers = [
   http.get('https://*/api/v1/repos/:owner/:repo/contents/src', () => json(mockSrcContents)),
 
   http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', () => json(mockReadmeContent)),
+
+  http.get('https://*/api/v1/repos/:owner/:repo/contents/src/index.ts', () => json(mockIndexTsContent)),
 
   http.get('https://*/api/v1/repos/:owner/:repo/contents/:filepath', () => json({ message: 'Not Found' }, 404)),
 
@@ -334,7 +360,7 @@ export const handlers = [
       required_approvals: 1,
       enable_status_check: true,
       status_check_contexts: ['ci/build'],
-      apply_to_admins: false,
+      apply_to_admins: true,
     }),
   ),
 
@@ -439,7 +465,9 @@ export const handlers = [
     });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs', () => json({ total_count: 0, workflow_runs: [] })),
+  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs', () =>
+    json({ total_count: 1, workflow_runs: [mockActionRun] }),
+  ),
 
   http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id', () => json(mockActionRun)),
 

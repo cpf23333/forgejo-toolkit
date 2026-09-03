@@ -22,6 +22,7 @@ export interface ForgejoRepository {
   has_issues?: boolean;
   has_pull_requests?: boolean;
   mirror?: boolean;
+  permissions?: { admin?: boolean; push?: boolean; pull?: boolean };
 }
 
 export interface ForgejoIssue {

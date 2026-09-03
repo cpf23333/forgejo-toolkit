@@ -310,11 +310,29 @@ describe('ForgejoClient with MSW', () => {
     expect(pr.mergeable).toBe(true);
   });
 
+  it('clears the required-approvals merge blocker once an official approval exists', async () => {
+    const client = createClient();
+    // Default mocks: only a COMMENTED review, so the approval requirement is unmet.
+    let pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'no_permission')).toBe(false);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_approvals')).toBe(true);
+
+    // With an official APPROVED review the requirement is satisfied.
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', () =>
+        HttpResponse.json([{ ...mockPullReview, state: 'APPROVED', official: true }]),
+      ),
+    );
+    pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_approvals')).toBe(false);
+  });
+
   it('fetches action runs', async () => {
     const client = createClient();
     const runs = await client.listActionRuns('demo-user', 'demo-repo');
-    expect(runs.workflow_runs).toEqual([]);
-    expect(runs.total_count).toBe(0);
+    expect(runs.workflow_runs).toHaveLength(1);
+    expect(runs.workflow_runs?.[0]?.id).toBe(mockActionRun.id);
+    expect(runs.total_count).toBe(1);
   });
 
   it('renders markdown', async () => {

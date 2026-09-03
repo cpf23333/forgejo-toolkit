@@ -48,3 +48,13 @@ export const mockReadmeContent: ForgejoContentEntry = {
   content: btoa('# Demo Repository\n\nThis is a mock repository for offline development.'),
   encoding: 'base64',
 };
+
+export const mockIndexTsContent: ForgejoContentEntry = {
+  name: 'index.ts',
+  path: 'src/index.ts',
+  type: 'file',
+  sha: 'index-sha',
+  size: 200,
+  content: btoa('export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n'),
+  encoding: 'base64',
+};
