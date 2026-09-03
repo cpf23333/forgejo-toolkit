@@ -245,7 +245,7 @@
       "editor/lineNumber/context": [
         {
           "command": "forgejoToolkit.addPullReviewComment",
-          "when": "resourceScheme == forgejo-pr",
+          "when": "forgejoToolkit.inPullRequestDiff",
           "group": "comments@0"
         }
       ],

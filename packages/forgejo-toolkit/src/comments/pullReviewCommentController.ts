@@ -39,6 +39,11 @@ const CONTROLLER_LABEL = 'Forgejo Pull Request Reviews';
 export const COMMAND_ADD_COMMENT = 'forgejoToolkit.addPullReviewComment';
 export const COMMAND_DELETE_COMMENT = 'forgejoToolkit.deletePullReviewComment';
 
+// Gates the "Add Pull Review Comment" line-number menu entry. The stock
+// `resourceScheme` context key is not reliable inside diff editors, so the
+// controller maintains its own key instead.
+const CONTEXT_IN_PR_DIFF = 'forgejoToolkit.inPullRequestDiff';
+
 export class PullReviewCommentController implements vscode.Disposable {
   private readonly _controller: vscode.CommentController;
   private readonly _threads = new Map<string, vscode.CommentThread>();
@@ -56,10 +61,20 @@ export class PullReviewCommentController implements vscode.Disposable {
       this._controller,
       vscode.workspace.onDidOpenTextDocument((document) => this._onOpenDocument(document)),
       vscode.window.onDidChangeActiveTextEditor((editor) => {
+        this._updateActiveEditorContext(editor);
         if (editor?.document) {
           this._onOpenDocument(editor.document);
         }
       }),
+    );
+    this._updateActiveEditorContext(vscode.window.activeTextEditor);
+  }
+
+  private _updateActiveEditorContext(editor: vscode.TextEditor | undefined): void {
+    void vscode.commands.executeCommand(
+      'setContext',
+      CONTEXT_IN_PR_DIFF,
+      editor?.document.uri.scheme === FORGEJO_PR_SCHEME,
     );
   }
 

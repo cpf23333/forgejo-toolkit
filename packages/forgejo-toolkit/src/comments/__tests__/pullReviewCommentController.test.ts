@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const state = vi.hoisted(() => ({
   createdThreads: [] as Array<{ uriString: string; dispose: ReturnType<typeof vi.fn> }>,
   openHandlers: [] as Array<(doc: unknown) => unknown>,
+  editorHandlers: [] as Array<(editor: unknown) => unknown>,
 }));
 
 vi.mock('vscode', () => {
@@ -40,11 +41,17 @@ vi.mock('vscode', () => {
       onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
     },
     window: {
-      onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidChangeActiveTextEditor: vi.fn((cb: (editor: unknown) => unknown) => {
+        state.editorHandlers.push(cb);
+        return { dispose: vi.fn() };
+      }),
       showErrorMessage: vi.fn(),
       showWarningMessage: vi.fn(),
       showInformationMessage: vi.fn(),
       createOutputChannel: vi.fn(() => ({ appendLine: vi.fn(), show: vi.fn(), dispose: vi.fn() })),
+    },
+    commands: {
+      executeCommand: vi.fn(),
     },
     Range: class {
       constructor(
@@ -100,6 +107,7 @@ vi.mock('../../api/client', () => ({
 import { PullReviewCommentController } from '../pullReviewCommentController';
 import { FORGEJO_PR_SCHEME } from '../../prFileSystemProvider';
 import type { ConfigManager } from '../../config';
+import * as vscode from 'vscode';
 
 const INSTANCE_ID = 'inst-1';
 
@@ -166,6 +174,32 @@ describe('PullReviewCommentController thread cleanup', () => {
     await openDocument(makeDocument(false));
     expect(threadCount(controller)).toBe(2);
     expect(baseThread.dispose).not.toHaveBeenCalled();
+
+    controller.dispose();
+  });
+});
+
+describe('PullReviewCommentController context key', () => {
+  beforeEach(() => {
+    state.editorHandlers.length = 0;
+    vi.mocked(vscode.commands.executeCommand).mockClear();
+  });
+
+  it('sets forgejoToolkit.inPullRequestDiff from the active editor scheme', () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const executeCommand = vi.mocked(vscode.commands.executeCommand);
+
+    // No active editor in the mock -> key cleared.
+    expect(executeCommand).toHaveBeenCalledWith('setContext', 'forgejoToolkit.inPullRequestDiff', false);
+
+    const onEditorChange = state.editorHandlers[0];
+    executeCommand.mockClear();
+    onEditorChange({ document: makeDocument(false) });
+    expect(executeCommand).toHaveBeenCalledWith('setContext', 'forgejoToolkit.inPullRequestDiff', true);
+
+    executeCommand.mockClear();
+    onEditorChange({ document: { uri: { scheme: 'file' } } });
+    expect(executeCommand).toHaveBeenCalledWith('setContext', 'forgejoToolkit.inPullRequestDiff', false);
 
     controller.dispose();
   });
