@@ -789,6 +789,16 @@ function createAppState() {
           },
         );
         break;
+      case 'pullRequestReviewSubmitted':
+        handlePullRequestReviewSubmitted(
+          message as {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+          },
+        );
+        break;
       case 'pullRequestMerged':
         handlePullRequestMerged(
           message as {
@@ -2043,6 +2053,17 @@ function createAppState() {
         break;
       }
     }
+  }
+
+  function handlePullRequestReviewSubmitted(data: { instanceId: string; owner: string; repo: string; index: number }) {
+    const detailKey = pullRequestDetailKey(data.instanceId, data.owner, data.repo, data.index);
+    // Only reload when the detail is currently loaded (i.e. someone is viewing
+    // it); otherwise the forced refetch would be wasted traffic.
+    if (!pullRequestDetails.value.has(detailKey)) {
+      return;
+    }
+    loadPullRequestDetail(data.instanceId, data.owner, data.repo, data.index, true);
+    loadPullRequestComments(data.instanceId, data.owner, data.repo, data.index, true);
   }
 
   function handlePullRequestMerged(data: {

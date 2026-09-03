@@ -62,6 +62,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const pullReviewCommentController = new PullReviewCommentController(config, context.extensionUri, logger);
   context.subscriptions.push(pullReviewCommentController);
+  // Review submissions happen in a separate panel; let the dashboard reload
+  // the affected PR so merge blockers and the timeline stay current.
+  pullReviewCommentController.onReviewSubmitted = (params) => viewProvider.notifyPullRequestReviewSubmitted(params);
 
   const createPrStatusBar = new CreatePrStatusBarController(config);
   context.subscriptions.push(createPrStatusBar);

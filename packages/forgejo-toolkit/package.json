@@ -240,6 +240,11 @@
           "command": "forgejoToolkit.copyPermalink",
           "when": "resourceScheme == forgejo-pr || (resourceScheme == file && forgejoToolkit.hasLinkedRepo)",
           "group": "9_cutcopypaste@5"
+        },
+        {
+          "command": "forgejoToolkit.addPullReviewComment",
+          "when": "forgejoToolkit.inPullRequestDiff",
+          "group": "1_comments@0"
         }
       ],
       "editor/lineNumber/context": [

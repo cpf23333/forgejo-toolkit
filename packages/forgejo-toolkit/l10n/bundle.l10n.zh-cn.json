@@ -82,5 +82,11 @@
   "Create a pull request from branch \"{0}\"": "从分支 \"{0}\" 创建 PR",
   "Open pull request #{0} for branch \"{1}\"": "打开分支 \"{1}\" 的 PR #{0}",
   "Open Pull Request": "打开 PR",
-  "The request could not be completed": "无法完成该请求"
+  "The request could not be completed": "无法完成该请求",
+  "Review started. Add more comments via the line context menu, then submit the review.": "评审已开始。可通过行号右键菜单继续添加评论，然后提交评审。",
+  "Comment added to the pending review.": "评论已添加到待提交的评审。",
+  "Review comment added.": "评审评论已添加。",
+  "Review submitted.": "评审已提交。",
+  "Review submitted: approved.": "评审已提交：批准。",
+  "Review submitted: changes requested.": "评审已提交：要求修改。"
 }

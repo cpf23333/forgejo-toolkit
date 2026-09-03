@@ -180,6 +180,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     }
 
     const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+    const startsNewReview = data.mode === 'review' && typeof data.pendingReviewId !== 'number';
     try {
       if (data.mode === 'review') {
         if (typeof data.pendingReviewId === 'number') {
@@ -205,6 +206,17 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       this._reply('pullReviewCommentSubmitted', { ...this._repoParams() });
       this._callbacks?.onSubmitted?.(this._context);
       this._panel.dispose();
+      // The panel closes on success, which is indistinguishable from a failed
+      // or cancelled submit without explicit feedback.
+      if (startsNewReview) {
+        vscode.window.showInformationMessage(
+          vscode.l10n.t('Review started. Add more comments via the line context menu, then submit the review.'),
+        );
+      } else if (data.mode === 'review') {
+        vscode.window.showInformationMessage(vscode.l10n.t('Comment added to the pending review.'));
+      } else {
+        vscode.window.showInformationMessage(vscode.l10n.t('Review comment added.'));
+      }
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);
       logger.error(`Failed to submit pull review comment: ${err}`);
@@ -244,6 +256,13 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       this._reply('pullReviewSubmitted', { ...this._repoParams() });
       this._callbacks?.onSubmitted?.(this._context);
       this._panel.dispose();
+      if (event === 'APPROVED') {
+        vscode.window.showInformationMessage(vscode.l10n.t('Review submitted: approved.'));
+      } else if (event === 'REQUEST_CHANGES') {
+        vscode.window.showInformationMessage(vscode.l10n.t('Review submitted: changes requested.'));
+      } else {
+        vscode.window.showInformationMessage(vscode.l10n.t('Review submitted.'));
+      }
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);
       logger.error(`Failed to submit pull review ${reviewId}: ${err}`);

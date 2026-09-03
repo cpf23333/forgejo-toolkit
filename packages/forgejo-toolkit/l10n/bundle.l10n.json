@@ -82,5 +82,11 @@
   "Create a pull request from branch \"{0}\"": "Create a pull request from branch \"{0}\"",
   "Open pull request #{0} for branch \"{1}\"": "Open pull request #{0} for branch \"{1}\"",
   "Open Pull Request": "Open Pull Request",
-  "The request could not be completed": "The request could not be completed"
+  "The request could not be completed": "The request could not be completed",
+  "Review started. Add more comments via the line context menu, then submit the review.": "Review started. Add more comments via the line context menu, then submit the review.",
+  "Comment added to the pending review.": "Comment added to the pending review.",
+  "Review comment added.": "Review comment added.",
+  "Review submitted.": "Review submitted.",
+  "Review submitted: approved.": "Review submitted: approved.",
+  "Review submitted: changes requested.": "Review submitted: changes requested."
 }

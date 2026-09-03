@@ -320,6 +320,52 @@ describe('useAppState', () => {
       expect(state.pullRequestDetails.value.get(key)).toEqual(fakePullRequestDetail);
     });
 
+    it('pullRequestReviewSubmitted force-reloads the detail when it is loaded', async () => {
+      const { state } = await createState();
+      dispatchMessage({
+        command: 'pullRequestDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+        detail: fakePullRequestDetail,
+      });
+      await nextTick();
+      vscodePostMessage().mockClear();
+
+      dispatchMessage({
+        command: 'pullRequestReviewSubmitted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+      });
+
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getPullRequestDetail', instanceId: 'inst-1', index: 2 }),
+      );
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getPullRequestCommentsAndTimeline', instanceId: 'inst-1', index: 2 }),
+      );
+    });
+
+    it('pullRequestReviewSubmitted is ignored when the detail was never loaded', async () => {
+      await createState();
+      vscodePostMessage().mockClear();
+
+      dispatchMessage({
+        command: 'pullRequestReviewSubmitted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+      });
+
+      expect(vscodePostMessage()).not.toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getPullRequestDetail' }),
+      );
+    });
+
     it('repoContents updates repoContents Map', async () => {
       const { state, mod } = await createState();
       dispatchMessage({

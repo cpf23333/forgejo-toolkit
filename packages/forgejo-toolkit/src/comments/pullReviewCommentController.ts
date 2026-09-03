@@ -50,6 +50,11 @@ export class PullReviewCommentController implements vscode.Disposable {
   private readonly _commentContextMap = new Map<string, CommentContext>();
   private readonly _disposables: vscode.Disposable[] = [];
 
+  /** Invoked after a review comment or a whole review is submitted; used to refresh the dashboard. */
+  public onReviewSubmitted:
+    | ((params: { instanceId: string; owner: string; repo: string; index: number }) => void)
+    | undefined;
+
   constructor(
     private readonly _config: ConfigManager,
     private readonly _extensionUri: vscode.Uri,
@@ -413,6 +418,12 @@ export class PullReviewCommentController implements vscode.Disposable {
 
     PullReviewCommentPanel.createOrShow(this._extensionUri, this._config, context, {
       onSubmitted: () => {
+        this.onReviewSubmitted?.({
+          instanceId: params.instanceId,
+          owner: params.owner,
+          repo: params.repo,
+          index: params.index,
+        });
         this._refreshOpenPrDocuments(params).catch((error: unknown) => {
           const err = error instanceof Error ? error.message : String(error);
           this._logger?.error(`Failed to refresh PR documents after review comment: ${err}`);

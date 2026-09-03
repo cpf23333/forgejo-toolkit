@@ -177,6 +177,13 @@ export type HostToWebviewMessage =
       _requestId: string;
     }
   | {
+      command: 'pullRequestReviewSubmitted';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+    }
+  | {
       command: 'pullRequestMerged';
       instanceId: string;
       owner: string;

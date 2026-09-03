@@ -3090,6 +3090,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._postOrQueue({ command: 'openPullRequestDetail', ...payload });
   }
 
+  /** Lets the dashboard reload a PR detail after a review was submitted from the comment panel. */
+  public notifyPullRequestReviewSubmitted(payload: { instanceId: string; owner: string; repo: string; index: number }) {
+    this._postOrQueue({ command: 'pullRequestReviewSubmitted', ...payload });
+  }
+
   private _postOrQueue(message: HostToWebviewMessage) {
     // When the sidebar has never been shown the webview does not exist yet;
     // queue the message and flush it once the webview mounts and asks for its
