@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   createdThreads: [] as Array<{ uriString: string; dispose: ReturnType<typeof vi.fn> }>,
   openHandlers: [] as Array<(doc: unknown) => unknown>,
   editorHandlers: [] as Array<(editor: unknown) => unknown>,
+  diffFetches: 0,
 }));
 
 vi.mock('vscode', () => {
@@ -97,7 +98,10 @@ const COMMENTS = [
 vi.mock('../../api/client', () => ({
   ForgejoClient: vi.fn().mockImplementation(function () {
     return {
-      getPullRequestDiff: vi.fn(async () => DIFF),
+      getPullRequestDiff: vi.fn(async () => {
+        state.diffFetches += 1;
+        return DIFF;
+      }),
       listPullReviews: vi.fn(async () => [{ id: 10, state: 'COMMENTED', user: { login: 'reviewer' } }]),
       getPullReviewComments: vi.fn(async () => COMMENTS),
     };
@@ -175,6 +179,76 @@ describe('PullReviewCommentController thread cleanup', () => {
     expect(threadCount(controller)).toBe(2);
     expect(baseThread.dispose).not.toHaveBeenCalled();
 
+    controller.dispose();
+  });
+});
+
+describe('PullReviewCommentController load coalescing', () => {
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.diffFetches = 0;
+  });
+
+  it('serializes concurrent opens of the same document into one fetch and one thread set', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    // onDidOpenTextDocument and onDidChangeActiveTextEditor fire together.
+    await Promise.all([openDocument(makeDocument(false)), openDocument(makeDocument(false))]);
+
+    expect(state.diffFetches).toBe(1);
+    expect(threadCount(controller)).toBe(1);
+    controller.dispose();
+  });
+
+  it('reuses the cached review data across documents of the same pull request', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+    await openDocument(makeDocument(true));
+
+    expect(state.diffFetches).toBe(1);
+    expect(threadCount(controller)).toBe(2);
+    controller.dispose();
+  });
+
+  it('reloads after the TTL expires', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
+
+      await openDocument(makeDocument(false));
+      expect(state.diffFetches).toBe(1);
+
+      vi.setSystemTime(Date.now() + 60_000);
+      await openDocument(makeDocument(false));
+      expect(state.diffFetches).toBe(2);
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('invalidates the cache when refreshing after a mutation', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+    expect(state.diffFetches).toBe(1);
+
+    const internals = controller as unknown as {
+      _refreshOpenPrDocuments(params: {
+        instanceId: string;
+        owner: string;
+        repo: string;
+        index: number;
+      }): Promise<void>;
+    };
+    await internals._refreshOpenPrDocuments({ instanceId: INSTANCE_ID, owner: 'owner', repo: 'repo', index: 2 });
+    expect(state.diffFetches).toBe(2);
     controller.dispose();
   });
 });

@@ -770,6 +770,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       index: number;
+      /** True when the user declined the confirmation dialog; the review still exists. */
+      cancelled?: boolean;
       error?: string;
     };
 

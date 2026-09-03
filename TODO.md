@@ -25,7 +25,7 @@
 - [ ] 10+ 处 `.catch(() => undefined)` 静默吞错，部分用户操作（如同步）失败时无任何反馈；至少加日志，关键路径提示用户
 - [ ] 多根 workspace 下关联检测只取第一个匹配的仓库，状态栏与命令上下文可能张冠李戴
 - [ ] 通知轮询默认间隔 300s 延迟偏大，新通知弹窗也无聚合（一次弹多个）；考虑缩短默认值、聚合提示、动作失败时回滚已读标记
-- [ ] Review 评论面板是单例（`PullReviewCommentPanel.currentPanel`），一行写到一半切到另一行时面板上下文被替换；需实测确认未提交内容是否丢失，丢失则加确认或缓存草稿
+- [ ] Review 评论面板是单例（`PullReviewCommentPanel.currentPanel`）：切行/切 PR 时编辑器组件按 key 重建，写到一半的草稿直接丢弃（已坐实并修正原假设——草稿不是跟随，是丢失）；需加丢弃确认或缓存草稿
 - [ ] `package.json` 的 `publisher` 仍是占位符 `your-publisher-name`，发布前必须改
 
 #### 第二轮走查（同日补充，均有代码证据）
@@ -104,14 +104,14 @@
 
 **中**
 
-- [ ] 评审评论面板复用切行：草稿不丢失而是静默跟随到新行（`PullReviewCommentPanel.vue:10` 无 `:key`，`_setContext` 只 postMessage），且 `pendingReviewId`/`mode` 是 setup 一次性初始化、context 更换后不更新——跨 PR 复用会用旧 reviewId 提交到新 PR。加 `:key` 或 watch context 重置；坐实并修正了 TODO 第二轮「面板单例」条的假设（草稿不丢，是跟随）
+- [x] 评审评论面板复用切行——已修：`PullReviewCommentPanel.vue` 给编辑器加 `:key`（含 instanceId/owner/repo/index/path/lineNumber/isBase/mode/pendingReviewId），context 更换即重建组件，draft/pendingReviewId/mode 不再泄漏到其他行或 PR；草稿丢失行为保持现状（见第二轮「面板单例」条）
 - [x] 11 个评审链路 `l10n.t()` key 未写入 bundle——已补 10 个（删除评论确认/成功/失败、提交/取消评审失败、取消评审确认等，`commands/index.ts` 复用已有 key 无需新增），双语同步
 - [ ] `_fetchAllPages` 终止条件 `items.length < 50`：服务端 `MAX_RESPONSE_ITEMS` 调低（如 30）时第一页即满足条件停止，后续数据静默消失（`client.ts:226-236`）；改「返回 0 条」终止或读 `X-Total-Count`
 - [ ] 重命名文件 diff 渲染成「整文件新增」：compare 路径丢弃 `previous_filename`（`client.ts:1077-1086`），base 侧按新路径在 baseSha 取内容 404 被吞成空文件（`viewProvider.ts:1872-1873`、`prFileSystemProvider.ts:71-73`）；类型已有 `previous_filename`（`api/types.ts:168`）但宿主端从未使用；base 侧评论位置语义也随之全错
 - [ ] 通知单槽位三方混用：轮询推送（无类型过滤）会覆盖用户的筛选视图；切「已读」后 Dashboard 未读徽标掉到 0（`notificationPoller.ts:113` → `useAppState.ts:2545-2564,4035-4042`）；轮询应写独立槽位或携带当前筛选
 - [ ] 仓库 Issue/PR 列表一经加载永不过期：无 TTL、无 force、无刷新按钮（`useAppState.ts:3502-3512,3735-3752`），同会话内他人在服务端的变更永不出现；与已记的「无分页」是不同缺陷
-- [ ] 评论渲染并发竞态：`onDidOpenTextDocument` 与 `onDidChangeActiveTextEditor` 几乎同时触发同一文档的两次 `_onOpenDocument`，无 in-flight 去重，`_renderThreads` 的 get/set 之间隔着网络 await，可渲染出重复 thread 且被覆盖的旧 thread 泄漏（`pullReviewCommentController.ts:67-73,275-281`）
-- [ ] 评审数据零缓存按文档放大请求：`_loadReviewData` 每次 = 1 diff + 1 reviews + N comments 请求；`_refreshOpenPrDocuments` 对 PR 每个打开文档各跑一遍，30 文件 multi-diff 提交一条评论触发 60 倍全量拉取（`pullReviewCommentController.ts:155-200,441-459`）
+- [x] 评论渲染并发竞态——已修：所有 load+render 串行到 `_renderChain` promise 链，同一文档的双触发（onDidOpenTextDocument + onDidChangeActiveTextEditor）顺序执行且后者命中 TTL 缓存，不再交错创建重复 thread
+- [x] 评审数据零缓存按文档放大请求——已修：按 `(instanceId, owner, repo, index)` 加 15s TTL 缓存（新 `src/utils/timedCache.ts`）+ InFlightTasks 合并并发加载；`_refreshOpenPrDocuments` 先失效缓存再拉一次数据渲染所有文档
 - [x] onboarding 与设置页实例 id 生成不一致——已统一为 `host`（onboardingPanel 改从 `new URL().host` 取，与 viewProvider 一致；旧实例不迁移，仅影响新添加）
 - [x] `forgejoToolkit.hasLinkedRepo` 只在侧栏可见时更新——`setContext` 已移到可见性早退之前，`_reply('linkedRepository')` 保持 gated
 - [ ] 多窗口 token 内存表不刷新：`_tokens` 只在 `init()` 读一次 SecretStorage，未监听 `secrets.onDidChange`（`config.ts:16,22-43`）；窗口 A 改 token 后窗口 B 全部 API 匿名化失败直到重启（TODO 已记实例列表覆盖，这是另一半机制）
@@ -125,7 +125,7 @@
 
 **轻**
 
-- [ ] 评审编辑器提交防重复形同虚设：`submitting` 在 fire-and-forget 的 postMessage 后立即复位（`PullReviewCommentEditor.vue:46-63`），双击发两条；`submitReview`/`cancelReview` 无 loading 守卫；`pullReviewCommentSubmitted` 等回包消息现已无人消费，可用它们 resolve 后再复位
+- [x] 评审编辑器提交防重复形同虚设——已修：编辑器消费 host 的 `pullReviewCommentSubmitted`/`pullReviewSubmitted`/`pullReviewDeleted` 回包，`submitting` 等到回包才复位；`submitReview`/`cancelReview` 加同样守卫并禁用按钮；host 补齐未配对路径的回包（空 body、取消评审的确认框被拒绝时回 `cancelled: true`）
 - [ ] Trigger workflow 成功无反馈、轮询 60s 静默超时（`RepoActions.vue:57-71,190-206`）
 - [ ] 删除已记录工时/移除依赖无确认（`IssueDetail.vue:898,920`、`PullRequestDetail.vue:1344`），与其它删除路径均有确认不一致
 - [ ] i18n 补充点位：`Notifications.vue:203` 渲染 `subject.type` 原文；`viewProvider.ts:2524,2625,2990`/`onboardingPanel.ts:229` 的 `Unable to open ...`、`Copied to clipboard` 硬编码；`PullReviewCommentPanel.vue:27` `Loading...` 硬编码
@@ -159,6 +159,8 @@
 ## 已完成
 
 ### 最近完成
+
+- [x] 评论子系统专题（第四轮走查的四条评论链路缺陷）：面板复用切行状态泄漏——编辑器按完整 context `:key` 重建（draft/pendingReviewId/mode 不再跨行/跨 PR 残留，草稿丢弃行为保持现状）；`_onOpenDocument` 并发竞态——load+render 全部串行到 `_renderChain`，同文档双触发不再交错建重复 thread；评审数据零缓存——按 PR 加 15s TTL 缓存 + InFlightTasks 合并并发加载，`_refreshOpenPrDocuments` 失效后一次拉取渲染全部文档（30 文件 multi-diff 提交评论从 60 倍请求降为 1 次）；编辑器提交防重复——webview 消费 host 完成回包后才复位 `submitting`，`submitReview`/`cancelReview` 同步加守卫，host 补齐空 body 与确认取消两条未配对回包（协议加 `cancelled` 字段）；补 controller 4 个、panel host 1 个、webview 组件 6 个测试
 
 - [x] 快修批（第四轮复查小项）：onboarding 实例 id 统一为 `host`（含端口，与设置页一致；旧实例不迁移）；`hasLinkedRepo` 的 `setContext` 移到侧栏可见性早退之前（Copy Permalink 对不开侧栏的用户可用）；补齐评审链路 10 个 l10n key 双语（删除/提交/取消评审的错误与确认文案）；`getPullRequestFiles` 出口归一化 `deleted`→`removed`；`dispatchWorkflow` 204 显式返回 undefined；debug 日志 URL 改用 shared 的 `buildUrl`（与实际请求同一序列化）；导入解密 `iterations` 钳制上限 1e6（超限抛 RangeError）；补 client 2 个、instanceImport 5 个测试
 

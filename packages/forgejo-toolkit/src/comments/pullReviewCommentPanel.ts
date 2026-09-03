@@ -158,6 +158,9 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     };
     const body = data.body?.trim();
     if (!body) {
+      // Keep the request/response pair intact so the webview can reset its
+      // submitting state even on this (normally unreachable) path.
+      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(), error: 'Empty comment body' });
       return;
     }
 
@@ -285,6 +288,8 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       vscode.l10n.t('Cancel Review'),
     );
     if (confirm !== vscode.l10n.t('Cancel Review')) {
+      // Answer the request so the webview leaves its loading state.
+      this._reply('pullReviewDeleted', { ...this._repoParams(), cancelled: true });
       return;
     }
 

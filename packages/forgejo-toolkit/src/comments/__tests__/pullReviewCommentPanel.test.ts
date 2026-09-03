@@ -13,7 +13,7 @@ function createFakePanel() {
     webview: {
       html: '',
       postMessage: vi.fn(),
-      onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidReceiveMessage: vi.fn((..._args: unknown[]) => ({ dispose: vi.fn() })),
     },
     onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
     reveal: vi.fn(),
@@ -115,5 +115,26 @@ describe('PullReviewCommentPanel.createOrShow', () => {
     PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, createConfig(), createContext());
 
     expect(panelInternals(panel)._callbacks).toBeUndefined();
+  });
+
+  it('answers deletePullReview with cancelled when the user declines the confirmation', async () => {
+    const fakePanel = createFakePanel();
+    let messageHandler: ((message: unknown) => Promise<void>) | undefined;
+    fakePanel.webview.onDidReceiveMessage = vi.fn((...args: unknown[]) => {
+      messageHandler = args[0] as (message: unknown) => Promise<void>;
+      return { dispose: vi.fn() };
+    });
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+    // Declining the modal confirm resolves with undefined.
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue(undefined as never);
+
+    PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, createConfig(), createContext());
+    await messageHandler?.({ command: 'deletePullReview', reviewId: 5 });
+
+    // The webview waits for this reply to reset its loading state; without it
+    // a declined confirm would wedge the cancel button forever.
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'pullReviewDeleted', cancelled: true }),
+    );
   });
 });

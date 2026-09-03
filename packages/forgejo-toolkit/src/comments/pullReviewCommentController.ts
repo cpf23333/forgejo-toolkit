@@ -10,6 +10,8 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 import type { Logger } from '../logger';
 import { PullReviewCommentPanel, type PullReviewCommentContext } from './pullReviewCommentPanel';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
+import { InFlightTasks } from '../worktree/inFlightTasks';
+import { createTimedCache } from '../utils/timedCache';
 
 interface PullReviewData {
   review: PullReview;
@@ -39,6 +41,11 @@ const CONTROLLER_LABEL = 'Forgejo Pull Request Reviews';
 export const COMMAND_ADD_COMMENT = 'forgejoToolkit.addPullReviewComment';
 export const COMMAND_DELETE_COMMENT = 'forgejoToolkit.deletePullReviewComment';
 
+// Short TTL that only coalesces bursts (opening a multi-file diff fires one
+// load per document; a refresh after submitting reloads every open document).
+// Mutations invalidate explicitly, so staleness is bounded by the TTL.
+const REVIEW_DATA_CACHE_TTL_MS = 15_000;
+
 // Gates the "Add Pull Review Comment" line-number menu entry. The stock
 // `resourceScheme` context key is not reliable inside diff editors, so the
 // controller maintains its own key instead.
@@ -49,6 +56,13 @@ export class PullReviewCommentController implements vscode.Disposable {
   private readonly _threads = new Map<string, vscode.CommentThread>();
   private readonly _commentContextMap = new Map<string, CommentContext>();
   private readonly _disposables: vscode.Disposable[] = [];
+  private readonly _reviewDataCache = createTimedCache<PullRequestReviewCache>(REVIEW_DATA_CACHE_TTL_MS);
+  private readonly _reviewDataInFlight = new InFlightTasks();
+  // All thread mutations are chained through this promise: two interleaved
+  // renders of the same document could both miss `this._threads.get(key)`
+  // before either awaits, creating a duplicate thread whose Map entry is then
+  // overwritten (the first one leaks and stays visible).
+  private _renderChain: Promise<void> = Promise.resolve();
 
   /** Invoked after a review comment or a whole review is submitted; used to refresh the dashboard. */
   public onReviewSubmitted:
@@ -152,13 +166,28 @@ export class PullReviewCommentController implements vscode.Disposable {
     }
   }
 
-  private async _loadReviewData(params: {
+  private _reviewDataCacheKey(params: { instanceId: string; owner: string; repo: string; index: number }): string {
+    return `${params.instanceId}:${params.owner}/${params.repo}#${params.index}`;
+  }
+
+  private _loadReviewData(params: {
     instanceId: string;
     owner: string;
     repo: string;
     index: number;
   }): Promise<PullRequestReviewCache> {
-    return this._fetchReviewData(params);
+    const key = this._reviewDataCacheKey(params);
+    const cached = this._reviewDataCache.get(key);
+    if (cached) {
+      return Promise.resolve(cached);
+    }
+    // Coalesce concurrent loads of the same pull request (one per open
+    // document when a multi-file diff opens) into a single fetch.
+    return this._reviewDataInFlight.run(key, async () => {
+      const data = await this._fetchReviewData(params);
+      this._reviewDataCache.set(key, data);
+      return data;
+    });
   }
 
   private async _fetchReviewData(params: {
@@ -203,15 +232,30 @@ export class PullReviewCommentController implements vscode.Disposable {
     return this._config.getInstances().find((i) => i.id === instanceId);
   }
 
-  private async _onOpenDocument(document: vscode.TextDocument): Promise<void> {
+  private _enqueueRender(task: () => Promise<void>): Promise<void> {
+    const run = this._renderChain.then(task).catch((error: unknown) => {
+      const err = error instanceof Error ? error.message : String(error);
+      this._logger?.error(`Failed to render pull request review threads: ${err}`);
+    });
+    this._renderChain = run;
+    return run;
+  }
+
+  private _onOpenDocument(document: vscode.TextDocument): Promise<void> {
     if (document.uri.scheme !== FORGEJO_PR_SCHEME) {
-      return;
+      return Promise.resolve();
     }
     const params = this._parseUri(document.uri);
     if (!params) {
-      return;
+      return Promise.resolve();
     }
+    // onDidOpenTextDocument and onDidChangeActiveTextEditor fire together for
+    // the same diff document; serialize the load+render so the second trigger
+    // reuses the cached data instead of racing the first render.
+    return this._enqueueRender(() => this._loadAndRender(document, params));
+  }
 
+  private async _loadAndRender(document: vscode.TextDocument, params: ForgejoPrUriParams): Promise<void> {
     try {
       const data = await this._loadReviewData(params);
       await this._renderThreads(document, params, data);
@@ -444,6 +488,22 @@ export class PullReviewCommentController implements vscode.Disposable {
     repo: string;
     index: number;
   }): Promise<void> {
+    // Every caller gets here after a mutation (submit/delete), so drop the
+    // cached data first to make the new state visible immediately.
+    this._reviewDataCache.delete(this._reviewDataCacheKey(params));
+    let data: PullRequestReviewCache;
+    try {
+      data = await this._loadReviewData(params);
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      this._logger?.error(
+        `Failed to reload pull request reviews for ${params.owner}/${params.repo}#${params.index}: ${err}`,
+      );
+      return;
+    }
+    // Load once, then re-render every open document of the pull request with
+    // the same data (previously each document triggered its own full load).
+    const renders: Promise<void>[] = [];
     for (const document of vscode.workspace.textDocuments) {
       const docParams = this._parseUri(document.uri);
       if (
@@ -453,9 +513,10 @@ export class PullReviewCommentController implements vscode.Disposable {
         docParams.repo === params.repo &&
         docParams.index === params.index
       ) {
-        await this._onOpenDocument(document);
+        renders.push(this._enqueueRender(() => this._renderThreads(document, docParams, data)));
       }
     }
+    await Promise.all(renders);
   }
 
   async deleteComment(context: CommentContext): Promise<void> {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import type { PullReviewCommentContext } from '../types/config';
@@ -15,6 +15,9 @@ const { t } = useI18n();
 const state = useAppState();
 
 const body = ref('');
+// Stays true from the moment a request is posted until the host answers with
+// the matching completion message (success, failure, or a declined confirm);
+// postMessage is fire-and-forget, so resetting earlier would allow duplicates.
 const submitting = ref(false);
 const pendingReviewId = ref<number | undefined>(props.context.pendingReviewId);
 const reviewEvent = ref<PullReviewSubmitEvent>('COMMENT');
@@ -23,6 +26,25 @@ const mode = ref<'single' | 'review'>(props.context.mode);
 
 const isReviewMode = computed(() => mode.value === 'review');
 const hasPendingReview = computed(() => typeof pendingReviewId.value === 'number');
+
+function handleMessage(event: MessageEvent) {
+  const command = event.data?.command;
+  if (
+    command === 'pullReviewCommentSubmitted' ||
+    command === 'pullReviewSubmitted' ||
+    command === 'pullReviewDeleted'
+  ) {
+    submitting.value = false;
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('message', handleMessage);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleMessage);
+});
 
 const title = computed(() => {
   if (isReviewMode.value && hasPendingReview.value) {
@@ -38,29 +60,25 @@ function closePanel() {
   postMessage({ command: 'closePullReviewCommentPanel' });
 }
 
-async function submit(modeToUse: 'single' | 'review') {
+function submit(modeToUse: 'single' | 'review') {
   const text = body.value.trim();
-  if (!text) {
+  if (!text || submitting.value) {
     return;
   }
   submitting.value = true;
-  try {
-    postMessage({
-      command: 'submitPullReviewComment',
-      instanceId: props.context.instanceId,
-      owner: props.context.owner,
-      repo: props.context.repo,
-      index: props.context.index,
-      path: props.context.path,
-      position: props.context.position,
-      isBase: props.context.isBase,
-      body: text,
-      mode: modeToUse,
-      pendingReviewId: pendingReviewId.value,
-    });
-  } finally {
-    submitting.value = false;
-  }
+  postMessage({
+    command: 'submitPullReviewComment',
+    instanceId: props.context.instanceId,
+    owner: props.context.owner,
+    repo: props.context.repo,
+    index: props.context.index,
+    path: props.context.path,
+    position: props.context.position,
+    isBase: props.context.isBase,
+    body: text,
+    mode: modeToUse,
+    pendingReviewId: pendingReviewId.value,
+  });
 }
 
 function submitSingle() {
@@ -72,9 +90,10 @@ function startOrAddToReview() {
 }
 
 function submitReview() {
-  if (typeof pendingReviewId.value !== 'number') {
+  if (submitting.value || typeof pendingReviewId.value !== 'number') {
     return;
   }
+  submitting.value = true;
   postMessage({
     command: 'submitPullReview',
     instanceId: props.context.instanceId,
@@ -88,9 +107,10 @@ function submitReview() {
 }
 
 function cancelReview() {
-  if (typeof pendingReviewId.value !== 'number') {
+  if (submitting.value || typeof pendingReviewId.value !== 'number') {
     return;
   }
+  submitting.value = true;
   postMessage({
     command: 'deletePullReview',
     instanceId: props.context.instanceId,
@@ -168,10 +188,10 @@ function uploadImage(file: File, onSuccess: (url: string) => void, onError: (err
       >
         {{ t('pullReviewCommentEditor.addToReview') }}
       </vscode-button>
-      <vscode-button v-if="isReviewMode && hasPendingReview" @click="submitReview">
+      <vscode-button v-if="isReviewMode && hasPendingReview" :disabled="submitting" @click="submitReview">
         {{ t('pullReviewCommentEditor.submitReview') }}
       </vscode-button>
-      <vscode-button v-if="isReviewMode && hasPendingReview" secondary @click="cancelReview">
+      <vscode-button v-if="isReviewMode && hasPendingReview" :disabled="submitting" secondary @click="cancelReview">
         {{ t('pullReviewCommentEditor.cancelReview') }}
       </vscode-button>
       <vscode-button secondary @click="closePanel">
