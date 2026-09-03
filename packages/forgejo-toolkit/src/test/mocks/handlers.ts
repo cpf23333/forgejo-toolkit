@@ -48,6 +48,9 @@ let pendingReview: Record<string, unknown> | undefined;
 // Reviews submitted in this session stay visible to subsequent list calls, so
 // merge-blocker checks can observe approvals after a submit.
 let submittedReviews: Record<string, unknown>[] = [];
+// Flipped by POST pulls/:index/merge so the detail and list endpoints reflect
+// the merged state, like a real server.
+let prMerged = false;
 
 export const handlers = [
   http.get('https://*/api/v1/user', () => json(mockUser)),
@@ -223,7 +226,10 @@ export const handlers = [
   http.get('https://*/api/v1/repos/:owner/:repo/pulls', ({ request }) => {
     const url = new URL(request.url);
     const state = url.searchParams.get('state') ?? 'open';
-    const data = mockPullRequests.filter((pr) => state === 'all' || pr.state === state);
+    const list = prMerged
+      ? mockPullRequests.map((pr) => (pr.number === mockPullRequestDetail.number ? { ...pr, state: 'closed' } : pr))
+      : mockPullRequests;
+    const data = list.filter((pr) => state === 'all' || pr.state === state);
     return json(data);
   }),
 
@@ -232,7 +238,13 @@ export const handlers = [
     () => new HttpResponse(mockPullRequestDiff, { status: 200, headers: { 'Content-Type': 'text/plain' } }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index', () => json(mockPullRequestDetail)),
+  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index', () =>
+    json(
+      prMerged
+        ? { ...mockPullRequestDetail, state: 'closed', merged: true, merged_at: '2026-09-03T15:00:00Z' }
+        : mockPullRequestDetail,
+    ),
+  ),
 
   http.post('https://*/api/v1/repos/:owner/:repo/pulls', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
@@ -272,7 +284,10 @@ export const handlers = [
 
   http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/commits', () => json([mockPullRequestCommit])),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/merge', () => new HttpResponse(null, { status: 200 })),
+  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/merge', () => {
+    prMerged = true;
+    return new HttpResponse(null, { status: 200 });
+  }),
 
   http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', () =>
     json([mockPullReview, ...submittedReviews, ...(pendingReview ? [pendingReview] : [])]),

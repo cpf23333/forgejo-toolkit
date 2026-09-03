@@ -8,6 +8,7 @@
 //   node src/ui.ts hover <x> <y> [name]          (moves the mouse without clicking)
 //   node src/ui.ts type <text> [name]          (types into the focused element)
 //   node src/ui.ts key <key> [name]            (e.g. Escape, Enter, Tab)
+//   node src/ui.ts eval <js>                   (evaluates in the workbench page, prints the result)
 //
 // Coordinates are relative to the last CDP screenshot (viewport size, e.g.
 // 1440x900). Every command ends with a screenshot saved under shots/.
@@ -77,6 +78,14 @@ switch (cmd) {
     const [key, n] = args;
     await page.keyboard.press(key);
     await page.waitForTimeout(1200);
+    name = n || name;
+    break;
+  }
+  case 'eval': {
+    const [script, n] = args;
+    // eslint-disable-next-line no-eval
+    const result = await page.evaluate(script);
+    console.log(JSON.stringify(result, null, 2));
     name = n || name;
     break;
   }

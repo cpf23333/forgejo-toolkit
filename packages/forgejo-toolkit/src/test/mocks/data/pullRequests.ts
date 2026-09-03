@@ -18,9 +18,10 @@ export const mockPullRequestDetail: ForgejoPullRequestDetail = {
   base: { ref: 'main', sha: 'abc123', repo: { full_name: 'demo-user/demo-repo' } },
   head: { ref: 'feature/dark-mode', sha: 'def456', repo: { full_name: 'demo-user/demo-repo' } },
   merge_base: 'abc123',
-  additions: 120,
-  deletions: 30,
-  changed_files: 5,
+  // Aligned with the mocked files endpoint (single file, +10/-2).
+  additions: 10,
+  deletions: 2,
+  changed_files: 1,
   merged: false,
   mergeable: true,
   draft: false,
