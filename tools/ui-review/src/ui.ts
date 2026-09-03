@@ -2,8 +2,10 @@
 //
 //   node src/ui.ts shot <name>
 //   node src/ui.ts click <x> <y> [name] [waitMs]
+//   node src/ui.ts rclick <x> <y> [name]         (right click)
 //   node src/ui.ts scroll <x> <y> <deltaY> [name]
 //   node src/ui.ts drag <x1> <y1> <x2> <y2> [name]
+//   node src/ui.ts hover <x> <y> [name]          (moves the mouse without clicking)
 //   node src/ui.ts type <text> [name]          (types into the focused element)
 //   node src/ui.ts key <key> [name]            (e.g. Escape, Enter, Tab)
 //
@@ -13,7 +15,7 @@ import { connect, shot, waitWorkbench } from './driver';
 
 const [cmd, ...args] = process.argv.slice(2);
 if (!cmd) {
-  console.error('usage: ui.ts <shot|click|scroll|drag|type|key> ...');
+  console.error('usage: ui.ts <shot|click|scroll|drag|hover|type|key> ...');
   process.exit(1);
 }
 
@@ -32,6 +34,13 @@ switch (cmd) {
     name = n || name;
     break;
   }
+  case 'rclick': {
+    const [x, y, n] = args;
+    await page.mouse.click(Number(x), Number(y), { button: 'right' });
+    await page.waitForTimeout(1200);
+    name = n || name;
+    break;
+  }
   case 'scroll': {
     const [x, y, dy, n] = args;
     await page.mouse.move(Number(x), Number(y));
@@ -47,6 +56,13 @@ switch (cmd) {
     await page.mouse.move(Number(x2), Number(y2), { steps: 12 });
     await page.mouse.up();
     await page.waitForTimeout(1500);
+    name = n || name;
+    break;
+  }
+  case 'hover': {
+    const [x, y, n] = args;
+    await page.mouse.move(Number(x), Number(y));
+    await page.waitForTimeout(800);
     name = n || name;
     break;
   }
