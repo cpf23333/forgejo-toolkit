@@ -111,6 +111,8 @@ To keep the project welcome on Codeberg:
   - `showInputBox()` for text input.
   - `showConfirm()` for yes/no confirmation.
 - The `webview/src/types/webview-window.d.ts` file marks these APIs as `@deprecated` as a reminder.
+- `showConfirm()` renders as a native OS dialog (VS Code modal message), on purpose: it matches VS Code's own destructive-action confirmations and blocks the whole window. Do **not** reimplement confirmations inside the webview unless native dialogs become too limited (e.g. multi-choice with details).
+- Native dialogs are invisible to CDP screenshots during UI testing; use a system-level screenshot plus simulated keystrokes to inspect and dismiss them. The `tools/ui-review/` harness packages all of this (isolated dev host, CDP driver, native-dialog helpers) — see its README.
 
 ## Project tracking documents
 

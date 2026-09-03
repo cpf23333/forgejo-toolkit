@@ -64,7 +64,7 @@
 - [ ] mock 数据缺口阻碍走查：`contents/:filepath` 按 ref（sha）取文件未 mock，diff 评审编辑器只能显示「No Changed Files」，评论/评审提交界面无法实测；Actions 无运行数据，rerun/产物/日志界面无法实测；建议补 mock（注：「No Changed Files」在拉取失败与真空列表两种情况下无法区分）
 - [ ] 仓库详情的 issue/PR 计数是进入对应列表的唯一入口，渲染得像静态统计文本（有 tooltip 无链接样式），可发现性弱；scm/title 也缺入口（第二轮已记）
 - [ ] tab 栏激活态歧义（存疑）：激活 tab 用下划线，但非激活 tab 偶发带深色背景，看起来像两个激活 tab；需复现确认是 hover 残留还是 focus 样式
-- [ ] UI 走查基建：`tmp-ui-review/` harness（隔离 profile + CDP 截图/坐标点击 + 系统截屏 + 原生对话框按键）可沉淀为正式工具；VS Code modal 确认框是原生窗口，CDP 截图看不到，需系统截屏配合
+- [x] UI 走查基建：`tmp-ui-review/` harness 已沉淀为正式工具 `tools/ui-review`（隔离 profile + CDP 截图/坐标点击 + 系统截屏 + 原生对话框按键）；VS Code modal 确认框是原生窗口，CDP 截图看不到，需系统截屏配合
 
 ### 代码审查发现的问题（2026-08-24）
 
