@@ -12,6 +12,7 @@ import type {
   EditReleaseOption,
 } from '@cpf23333-forgejo-toolkit/api';
 import { ForgejoClient } from '../client';
+import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
 import {
   mockUser,
@@ -39,6 +40,7 @@ import {
   mockTimelineComment,
   mockHistoryCommit,
   mockCommentAttachment,
+  mockIssueAttachment,
 } from '../../test/mocks/data';
 
 describe('ForgejoClient with MSW', () => {
@@ -871,6 +873,203 @@ describe('ForgejoClient with MSW', () => {
         'log.txt',
       );
       expect(attachment.uuid).toBeDefined();
+    });
+
+    it('uploads only the view bytes when the file is a Uint8Array subarray', async () => {
+      const client = createClient();
+      let uploadedSize = -1;
+      mockServer.use(
+        http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/assets', async ({ request }) => {
+          const form = await request.formData();
+          uploadedSize = (form.get('attachment') as File).size;
+          return HttpResponse.json(mockIssueAttachment);
+        }),
+      );
+      const backing = new Uint8Array([9, 9, 1, 2, 3, 9, 9]);
+      const view = backing.subarray(2, 5);
+      await client.createIssueAttachment('demo-user', 'demo-repo', 1, view, 'screenshot.png');
+      expect(uploadedSize).toBe(3);
+    });
+  });
+
+  describe('Pagination', () => {
+    it('fetches all branch pages until a short page is returned', async () => {
+      const client = createClient();
+      const requestedPages: number[] = [];
+      const requestedLimits: number[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/branches', ({ request }) => {
+          const url = new URL(request.url);
+          const page = Number(url.searchParams.get('page') ?? '1');
+          requestedPages.push(page);
+          requestedLimits.push(Number(url.searchParams.get('limit') ?? '0'));
+          const offset = (page - 1) * 50;
+          const count = page === 1 ? 50 : 20;
+          return HttpResponse.json(Array.from({ length: count }, (_, i) => ({ name: `branch-${offset + i}` })));
+        }),
+      );
+      const branches = await client.getRepoBranches('demo-user', 'demo-repo');
+      expect(branches).toHaveLength(70);
+      expect(branches[69].name).toBe('branch-69');
+      expect(requestedPages).toEqual([1, 2]);
+      // Page size stays within Forgejo's default MAX_RESPONSE_ITEMS (50).
+      expect(requestedLimits).toEqual([50, 50]);
+    });
+
+    it('fetches all pages of pull request commits', async () => {
+      const client = createClient();
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/commits', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          const count = page === 1 ? 50 : 1;
+          const offset = (page - 1) * 50;
+          return HttpResponse.json(Array.from({ length: count }, (_, i) => ({ sha: `sha-${offset + i}` })));
+        }),
+      );
+      const commits = await client.getPullRequestCommits('demo-user', 'demo-repo', 2);
+      expect(commits).toHaveLength(51);
+    });
+  });
+
+  describe('Path parameter encoding', () => {
+    it('encodes slashes and hashes in branch names', async () => {
+      const client = createClient();
+      let requestedUrl = '';
+      mockServer.use(
+        http.delete('https://*/api/v1/repos/:owner/:repo/branches/:branch', ({ request }) => {
+          requestedUrl = request.url;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      await client.deleteBranch('demo-user', 'demo-repo', 'feature/x#1');
+      expect(requestedUrl).toContain('branches/feature%2Fx%231');
+    });
+
+    it('encodes slashes in tag names', async () => {
+      const client = createClient();
+      let requestedUrl = '';
+      mockServer.use(
+        http.delete('https://*/api/v1/repos/:owner/:repo/tags/:tag', ({ request }) => {
+          requestedUrl = request.url;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      await client.deleteTag('demo-user', 'demo-repo', 'release/1.0');
+      expect(requestedUrl).toContain('tags/release%2F1.0');
+    });
+
+    it('encodes file paths segment by segment, keeping separators', async () => {
+      const client = createClient();
+      let requestedUrl = '';
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/*', ({ request }) => {
+          requestedUrl = request.url;
+          return HttpResponse.json({ content: 'aGVsbG8=' });
+        }),
+      );
+      const content = await client.getFileContent('demo-user', 'demo-repo', 'dir/a#b?.txt', 'main');
+      expect(content).toBe('hello');
+      expect(requestedUrl).toContain('contents/dir/a%23b%3F.txt');
+    });
+  });
+
+  describe('Raw payload limits', () => {
+    it('truncates action job logs larger than 10 MB', async () => {
+      const client = createClient();
+      const bigLog = 'x'.repeat(10 * 1024 * 1024 + 100);
+      mockServer.use(
+        http.get(
+          'https://*/api/v1/repos/:owner/:repo/actions/jobs/:job_id/logs',
+          () => new HttpResponse(bigLog, { status: 200, headers: { 'Content-Type': 'text/plain' } }),
+        ),
+      );
+      const log = await client.getActionJobLog('demo-user', 'demo-repo', 1);
+      expect(log.length).toBeLessThan(bigLog.length);
+      expect(log).toContain('(truncated: log exceeds the 10 MB limit)');
+    });
+
+    it('rejects artifacts larger than 50 MB', async () => {
+      const client = createClient();
+      const big = new Uint8Array(50 * 1024 * 1024 + 1);
+      mockServer.use(
+        http.get(
+          'https://*/api/v1/repos/:owner/:repo/actions/artifacts/:artifact_id/zip',
+          () => new HttpResponse(big.buffer as ArrayBuffer, { status: 200 }),
+        ),
+      );
+      await expect(client.downloadActionArtifact('demo-user', 'demo-repo', 1)).rejects.toThrow(
+        /exceeds the 50 MB size limit/,
+      );
+    });
+  });
+
+  describe('Git tree pagination guard', () => {
+    it('stops when the server keeps returning the same truncated page', async () => {
+      const client = createClient();
+      let requests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', () => {
+          requests += 1;
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [{ path: 'a.ts', type: 'blob', sha: 'same-sha' }],
+            truncated: true,
+          });
+        }),
+      );
+      const files = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'a.ts');
+      expect(files).toHaveLength(1);
+      expect(requests).toBe(2);
+    });
+
+    it('follows pagination until the tree is no longer truncated', async () => {
+      const client = createClient();
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          if (page === 1) {
+            return HttpResponse.json({
+              sha: 'tree-sha',
+              tree: [{ path: 'first.ts', type: 'blob', sha: 'sha-1' }],
+              truncated: true,
+            });
+          }
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [{ path: 'second.ts', type: 'blob', sha: 'sha-2' }],
+            truncated: false,
+          });
+        }),
+      );
+      const files = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', '.ts');
+      expect(files.map((f) => f.path).sort()).toEqual(['first.ts', 'second.ts']);
+    });
+  });
+
+  describe('Debug logging', () => {
+    function createDebugClient(messages: string[]): ForgejoClient {
+      const logger = {
+        isDebugEnabled: () => true,
+        debug: (message: string) => messages.push(message),
+        info: () => undefined,
+        error: () => undefined,
+      } as unknown as Logger;
+      return new ForgejoClient('https://forgejo.example.com', 'mock-token', logger);
+    }
+
+    it('does not log raw bodies of text responses', async () => {
+      const messages: string[] = [];
+      const client = createDebugClient(messages);
+      await client.getActionJobLog('demo-user', 'demo-repo', 1);
+      expect(messages.some((m) => m.includes('build log output'))).toBe(false);
+      expect(messages.some((m) => m.includes('<text> (not logged)'))).toBe(true);
+    });
+
+    it('still logs JSON response bodies', async () => {
+      const messages: string[] = [];
+      const client = createDebugClient(messages);
+      await client.getCurrentUser();
+      expect(messages.some((m) => m.startsWith('Response body:') && m.includes(mockUser.login))).toBe(true);
     });
   });
 });

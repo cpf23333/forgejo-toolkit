@@ -69,8 +69,6 @@
 
 - [ ] 多窗口实例配置互相覆盖：globalState 读-改-写无跨窗口监听，窗口 B 用陈旧列表回写丢掉窗口 A 新增的实例（`config.ts` `addInstance`/`removeInstance`）
 - [ ] token 全量推送到 webview（`_sendInstances`/`initialState` 含明文 token），CSP 允许 `connect-src http: https:`，一旦有注入点所有实例 token 可外带；默认剥离 token，仅导出流程按需单独取
-- [ ] 10 处列表请求 `limit: 100` 超服务端默认上限 50 且无翻页（用户仓库/分支/tag/release/label/milestone/PR files/时间线/PR commits/reviews），大仓库数据静默缺失；加分页循环或处理 `X-Total-Count`
-- [ ] 生成客户端路径参数全程未 encodeURIComponent：分支名含 `#`、tag 含 `/`（如 `release/1.0`）、文件路径含 `?` 时对应 API 直接坏（`packages/forgejo-api/src/generated/client/` 统一模板）
 - [ ] mention 补全 range 回扫吞字：`foo@` 触发补全选中后 `foo` 被整体替换删除（`issueMentionProvider.ts:90-103`）；`@` 文档链接误匹配邮箱 `foo@bar.com`；`forgejo-pr` scheme 分支是死代码（只注册了 `file` scheme）
 - [ ] permalink 不做 URL 编码：文件名含 `#`/`?`/`%` 生成坏链接（`permalink.ts:69,92`）；新增文件的 base 侧生成 404 链接
 - [ ] worktree 子系统：删除用 `fs.delete` 而非 `git worktree remove`（`.git/worktrees` 元数据残留、分支仍标记 checked out，且先删记录后删目录，Windows 文件锁失败时无入口自愈）；创建无并发锁（双击并发 fetch/worktree add 同路径）；残留目录只查存在性不校验合法性/新旧；裸缓存仓库永不清理无磁盘策略
@@ -79,8 +77,7 @@
 
 - [ ] 发布功能：422 被合并误判为「名称冲突」且无客户端仓库名校验；空仓库（无 commit）发布提示「No branch is checked out」偏离真实原因且已创建半成品远程仓库；发布成功后无任何列表刷新；同主机多账号 `findInstanceForRemote` 只取第一个命中，可能用错 token push
 - [ ] 实例导入：`importInstances` 对 webview 回传数据无逐项校验；文件导入漏拷 `syncApiUrlsToInstanceUrl` 字段（导出有、导入丢）
-- [ ] `_getRepoTree` 对不支持分页参数的老服务器有死循环风险（仅以 truncated 为退出条件）
-- [ ] 错误体/Action 日志/artifact 下载无大小限制（整段塞进 Error.message 或内存）；debug 日志把响应体写进输出通道（CI 日志可能含密钥明文）
+- [ ] Action artifact 下载改流式写盘：现在 `arrayBuffer()` 全量读进扩展宿主内存（为此加了 50MB 上限），改流式下载直接写盘后可去掉上限，支持大产物
 - [ ] NotificationPoller：dispose 后仍可 start；并发 poll 的 `_updateSeenIds` 读-改-写丢 seen ids 导致重复 toast；全新安装首 poll 把所有未读当新通知弹一遍；实例删除后在途 poll 仍推送
 - [ ] 配置激活链路：`config.init()` 的 secrets 迁移失败会导致整个扩展激活失败（无 keyring 环境），应 try/catch 降级；同 id 空 token 重新添加时旧 token 残留
 - [ ] `openExternal` 不校验 scheme（webview 可传 `file://`）且未 await；viewProvider 多个 handler 无 try/catch 兜底（globalState.update 抛错 → unhandled rejection）
@@ -96,6 +93,7 @@
 
 ### 最近完成
 
+- [x] 审查修复阶段 5（API 层分页、路径编码、响应大小限制）：10 处 `limit: 100` 列表请求改用 `fetchAllPages` 按页拉取（页大小 50 不超服务端默认上限、最多 10 页，返回数不足即停）；路径参数在调用层统一编码（分支/tag/ref 用 encodeURIComponent，文件路径逐段编码保留 `/`，generated 目录未改动）；错误体截断到 500 字符并标注 (truncated)；Action 日志超 10 MB 截断标记、artifact 超 50 MB 拒绝下载；debug 日志对 text/arraybuffer 响应只记元信息不写 body；`_getRepoTree` 加页数上限与重复首项 sha 检测防死循环；`buildUrl` 的 null 参数与 undefined 一样跳过；附件上传复制 Uint8Array 视图避免带出整个底层 buffer；补 shared 6 个、extension 12 个测试
 - [x] 审查修复阶段 4（webview 状态层竞态与 keep-alive 轮询）：轮询改 onActivated/onDeactivated 启停，六个路由视图的 immediate watch 加 isActive 守卫；Dashboard 在 onActivated 时自愈重载（列表 clear 后不再空列表）；删除 Action Run 连带清理 job 日志；testConnection/saveInstance/importPreview 单槽 ref 加「单在途 + 最新意图」守卫；renderBody 加序号守卫；通知筛选在途丢请求改「记录意图、落地后补发」；globalSearchResults/repoFileSearchResults/loading/errors Map 加 LRU 上限；latestRunIndex 按当前仓库过滤；PR worktree watch 按条目对象引用匹配；loadMyIssues 的 state 进缓存 key；删除 useVsCodeMessages 死代码与遗留 console.log；loader 统一走 beginLoading 清 stale errors（58 处收敛）；补 17 个测试
 - [x] 审查修复阶段 3（创建 PR 与状态栏判定）：有 upstream 但 ahead>0 时也会提示推送（`getAheadCount`）；预填 head 用 upstream 远端分支名（本地/远端名不同不再创建失败）；状态栏开放 PR 匹配校验 head 仓库 owner（fork 同名分支不再误判）；merge/close PR 成功后通知状态栏失效缓存（`notifyPullRequestsChanged`）；命令面板入口拦截默认分支；查询失败保留上一次显示状态而非直接隐藏；HEAD watcher 改监听解析后的实际 gitdir（覆盖仓库根在 folder 之上与 worktree 场景）；补 createPrFromCurrentBranch 7 个用例 + 状态栏测试更新至 15 个
 - [x] 审查修复阶段 2（评论系统位置语义重写）：渲染/提交两侧废弃 GitHub 式 diff-position 映射，直接用 Forgejo 的文件行号语义（`position`/`original_position`，新增 `resolveReviewCommentLine` 纯函数，左侧评论 position=0 现在能渲染）；`_renderThreads` 清理范围限定到当前文档 scope，thread key 改 JSON 序列化并含 instanceId（不再跨文件/跨 PR/跨实例误删）；评论面板复用时同步更新 callbacks（提交后刷新正确的 PR）；放开 context 行评论限制；parseDiff 缩减为「行是否属于本 PR diff」校验；补 parseDiff/位置解析/thread key/panel 复用共 20 个单测，修正 mock 的 position 语义

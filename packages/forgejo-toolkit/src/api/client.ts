@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { client as baseClient } from '@cpf23333-forgejo-toolkit/shared/request';
+import { client as baseClient, encodePathSegment } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
   createCurrentUserRepo,
@@ -159,6 +159,18 @@ const ATTACHMENT_REFERENCE_REGEX = /\/attachments\/[0-9a-fA-F-]{36}/;
 
 const TREE_CACHE_TTL_MS = 60_000;
 
+// Forgejo's default MAX_RESPONSE_ITEMS is 50 and larger limits are silently
+// clamped server-side, so paginate with a page size the server accepts.
+const PAGE_SIZE = 50;
+// Safety bound so a misbehaving server cannot keep us fetching forever.
+const MAX_PAGES = 10;
+// Raw payload caps: CI logs and artifacts are loaded fully into memory.
+const MAX_JOB_LOG_LENGTH = 10 * 1024 * 1024;
+const MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
+// Guard for the recursive git tree loop against servers that ignore the
+// pagination params and keep returning the same page with truncated=true.
+const MAX_TREE_PAGES = 50;
+
 interface TreeCacheEntry {
   value: GitEntry[];
   expiresAt: number;
@@ -206,12 +218,32 @@ export class ForgejoClient {
     return userGetCurrent({ client: this._client() }) as Promise<ForgejoUser>;
   }
 
+  /**
+   * Fetches every page of a list endpoint. Stops when a page returns fewer
+   * items than requested (X-Total-Count is not available on all endpoints)
+   * or when MAX_PAGES is reached as a safety bound.
+   */
+  private async _fetchAllPages<T>(fetchPage: (page: number) => Promise<T[] | null | undefined>): Promise<T[]> {
+    const all: T[] = [];
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const items = (await fetchPage(page)) ?? [];
+      all.push(...items);
+      if (items.length < PAGE_SIZE) {
+        break;
+      }
+    }
+    return all;
+  }
+
   getUserStopWatches(): Promise<StopWatch[]> {
     return userGetStopWatches(undefined, { client: this._client() }) as Promise<StopWatch[]>;
   }
 
-  getUserRepositories(): Promise<ForgejoRepository[]> {
-    return userCurrentListRepos({ limit: 100 }, { client: this._client() }) as Promise<ForgejoRepository[]>;
+  async getUserRepositories(): Promise<ForgejoRepository[]> {
+    const repos = await this._fetchAllPages((page) =>
+      userCurrentListRepos({ page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return repos as ForgejoRepository[];
   }
 
   createUserRepo(data: CreateRepoOption): Promise<Repository> {
@@ -279,7 +311,12 @@ export class ForgejoClient {
       client: this._client(),
       responseType: 'text',
     });
-    return (response as unknown as string) ?? '';
+    const text = (response as unknown as string) ?? '';
+    // CI logs can be arbitrarily large; cap what is kept in memory and shown.
+    if (text.length > MAX_JOB_LOG_LENGTH) {
+      return `${text.slice(0, MAX_JOB_LOG_LENGTH)}\n... (truncated: log exceeds the 10 MB limit)`;
+    }
+    return text;
   }
 
   async dispatchWorkflow(
@@ -292,7 +329,7 @@ export class ForgejoClient {
     const result = await dispatchWorkflow(
       owner,
       repo,
-      workflowfilename,
+      encodePathSegment(workflowfilename),
       { ref, inputs, return_run_info: true },
       {
         client: this._client(),
@@ -310,7 +347,12 @@ export class ForgejoClient {
       client: this._client(),
       responseType: 'arraybuffer',
     });
-    return new Uint8Array(response as unknown as ArrayBuffer);
+    const bytes = new Uint8Array(response as unknown as ArrayBuffer);
+    // Artifacts are loaded fully into memory; refuse unreasonably large ones.
+    if (bytes.byteLength > MAX_ARTIFACT_BYTES) {
+      throw new Error(`Forgejo artifact ${artifactId} exceeds the 50 MB size limit and was not downloaded.`);
+    }
+    return bytes;
   }
 
   async deleteActionRun(owner: string, repo: string, runId: number): Promise<void> {
@@ -445,7 +487,7 @@ export class ForgejoClient {
       const entries = await repoGetContentsList(owner, repo, params, { client: this._client() });
       return (entries ?? []) as ForgejoContentEntry[];
     }
-    const result = await repoGetContents(owner, repo, path, params, { client: this._client() });
+    const result = await repoGetContents(owner, repo, encodeFilePath(path), params, { client: this._client() });
     const entries = Array.isArray(result) ? result : [result];
     return entries as ForgejoContentEntry[];
   }
@@ -489,26 +531,32 @@ export class ForgejoClient {
     this._treeCache.delete(key);
 
     const allFiles: GitEntry[] = [];
-    let page = 1;
     let truncated = false;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
+    let previousFirstSha: string | undefined;
+    for (let page = 1; page <= MAX_TREE_PAGES; page++) {
       const response = await getTree(
         owner,
         repo,
-        ref,
+        encodePathSegment(ref),
         { recursive: true, page, per_page: 100 },
         { client: this._client() },
       );
-      const files = (response?.tree ?? []).filter(
+      const entries = response?.tree ?? [];
+      truncated = response?.truncated ?? false;
+      // Guard against servers that ignore the pagination params and keep
+      // returning the same page with truncated=true forever.
+      const firstSha = entries[0]?.sha;
+      if (entries.length === 0 || (firstSha !== undefined && firstSha === previousFirstSha)) {
+        break;
+      }
+      previousFirstSha = firstSha;
+      const files = entries.filter(
         (entry): entry is GitEntry => entry.type === 'blob' && typeof entry.path === 'string',
       );
       allFiles.push(...files);
-      truncated = response?.truncated ?? false;
       if (!truncated) {
         break;
       }
-      page += 1;
     }
 
     // A truncated tree may be incomplete, so it is not cached; whatever was
@@ -521,18 +569,24 @@ export class ForgejoClient {
   }
 
   async getRepoBranches(owner: string, repo: string): Promise<ForgejoBranch[]> {
-    const branches = await repoListBranches(owner, repo, { limit: 100 }, { client: this._client() });
-    return (branches ?? []) as ForgejoBranch[];
+    const branches = await this._fetchAllPages((page) =>
+      repoListBranches(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return branches as ForgejoBranch[];
   }
 
   async getRepoTags(owner: string, repo: string): Promise<ForgejoTag[]> {
-    const tags = await repoListTags(owner, repo, { limit: 100 }, { client: this._client() });
-    return (tags ?? []) as ForgejoTag[];
+    const tags = await this._fetchAllPages((page) =>
+      repoListTags(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return tags as ForgejoTag[];
   }
 
   async getRepoReleases(owner: string, repo: string): Promise<ForgejoRelease[]> {
-    const releases = await repoListReleases(owner, repo, { limit: 100 }, { client: this._client() });
-    return (releases ?? []) as ForgejoRelease[];
+    const releases = await this._fetchAllPages((page) =>
+      repoListReleases(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return releases as ForgejoRelease[];
   }
 
   createBranch(owner: string, repo: string, data: CreateBranchRepoOption): Promise<ForgejoBranch> {
@@ -540,7 +594,7 @@ export class ForgejoClient {
   }
 
   deleteBranch(owner: string, repo: string, branch: string): Promise<void> {
-    return repoDeleteBranch(owner, repo, branch, { client: this._client() }) as Promise<void>;
+    return repoDeleteBranch(owner, repo, encodePathSegment(branch), { client: this._client() }) as Promise<void>;
   }
 
   createTag(owner: string, repo: string, data: CreateTagOption): Promise<ForgejoTag> {
@@ -548,7 +602,7 @@ export class ForgejoClient {
   }
 
   deleteTag(owner: string, repo: string, tag: string): Promise<void> {
-    return repoDeleteTag(owner, repo, tag, { client: this._client() }) as Promise<void>;
+    return repoDeleteTag(owner, repo, encodePathSegment(tag), { client: this._client() }) as Promise<void>;
   }
 
   createRelease(owner: string, repo: string, data: CreateReleaseOption): Promise<ForgejoRelease> {
@@ -566,7 +620,9 @@ export class ForgejoClient {
     file: Uint8Array,
     filename: string,
   ): Promise<Attachment> {
-    const attachment = new File([file.buffer as ArrayBuffer], filename);
+    // Copy the bytes first: `file` may be a Uint8Array view over a larger
+    // buffer, and `file.buffer` would upload the whole underlying buffer.
+    const attachment = new File([file.slice().buffer as ArrayBuffer], filename);
     return repoCreateReleaseAttachment(
       owner,
       repo,
@@ -620,10 +676,14 @@ export class ForgejoClient {
     const headSha = prDetail.head?.sha;
     const [protection, combinedStatus] = await Promise.all([
       baseRef
-        ? repoGetBranchProtection(owner, repo, baseRef, { client: this._client() }).catch(() => undefined)
+        ? repoGetBranchProtection(owner, repo, encodePathSegment(baseRef), { client: this._client() }).catch(
+            () => undefined,
+          )
         : undefined,
       headSha
-        ? repoGetCombinedStatusByRef(owner, repo, headSha, undefined, { client: this._client() }).catch(() => undefined)
+        ? repoGetCombinedStatusByRef(owner, repo, encodePathSegment(headSha), undefined, {
+            client: this._client(),
+          }).catch(() => undefined)
         : undefined,
     ]);
     const mergeBlockers = this._buildMergeBlockers(prDetail, permissions, protection, combinedStatus);
@@ -705,8 +765,10 @@ export class ForgejoClient {
   }
 
   async getRepoLabels(owner: string, repo: string): Promise<Label[]> {
-    const labels = await issueListLabels(owner, repo, { limit: 100 }, { client: this._client() });
-    return (labels ?? []) as Label[];
+    const labels = await this._fetchAllPages((page) =>
+      issueListLabels(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return labels as Label[];
   }
 
   async getRepoAssignees(owner: string, repo: string): Promise<string[]> {
@@ -715,13 +777,10 @@ export class ForgejoClient {
   }
 
   async getRepoMilestones(owner: string, repo: string): Promise<Milestone[]> {
-    const milestones = await issueGetMilestonesList(
-      owner,
-      repo,
-      { state: 'open', limit: 100 },
-      { client: this._client() },
+    const milestones = await this._fetchAllPages((page) =>
+      issueGetMilestonesList(owner, repo, { state: 'open', page, limit: PAGE_SIZE }, { client: this._client() }),
     );
-    return (milestones ?? []) as Milestone[];
+    return milestones as Milestone[];
   }
 
   async searchMentions(
@@ -911,7 +970,9 @@ export class ForgejoClient {
     file: Uint8Array,
     filename: string,
   ): Promise<ForgejoIssueAttachment> {
-    const attachment = new File([file.buffer as ArrayBuffer], filename);
+    // Copy the bytes first: `file` may be a Uint8Array view over a larger
+    // buffer, and `file.buffer` would upload the whole underlying buffer.
+    const attachment = new File([file.slice().buffer as ArrayBuffer], filename);
     return issueCreateIssueAttachment(
       owner,
       repo,
@@ -953,7 +1014,7 @@ export class ForgejoClient {
   }
 
   async getFileContent(owner: string, repo: string, filepath: string, ref: string): Promise<string> {
-    const response = await repoGetContents(owner, repo, filepath, { ref }, { client: this._client() });
+    const response = await repoGetContents(owner, repo, encodeFilePath(filepath), { ref }, { client: this._client() });
     const content = (response as { content?: string }).content;
     if (!content) {
       return '';
@@ -961,16 +1022,11 @@ export class ForgejoClient {
     return decodeBase64(content);
   }
 
-  getPullRequestFiles(owner: string, repo: string, index: number): Promise<ForgejoChangedFile[]> {
-    return repoGetPullRequestFiles(
-      owner,
-      repo,
-      index,
-      { limit: 100 },
-      {
-        client: this._client(),
-      },
-    ) as Promise<ForgejoChangedFile[]>;
+  async getPullRequestFiles(owner: string, repo: string, index: number): Promise<ForgejoChangedFile[]> {
+    const files = await this._fetchAllPages((page) =>
+      repoGetPullRequestFiles(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return files as ForgejoChangedFile[];
   }
 
   async getPullRequestFilesFromCompare(
@@ -1015,14 +1071,16 @@ export class ForgejoClient {
   }
 
   async getPullRequestCommentsAndTimeline(owner: string, repo: string, index: number): Promise<TimelineComment[]> {
-    const response = (await issueGetCommentsAndTimeline(
-      owner,
-      repo,
-      index,
-      { limit: 100 },
-      { client: this._client() },
-    )) as TimelineComment[] | null | undefined;
-    const comments = response ?? [];
+    const comments = await this._fetchAllPages<TimelineComment>(
+      (page) =>
+        issueGetCommentsAndTimeline(
+          owner,
+          repo,
+          index,
+          { page, limit: PAGE_SIZE },
+          { client: this._client() },
+        ) as Promise<TimelineComment[] | null | undefined>,
+    );
     // Body-reference heuristic: only comments whose body links an attachment
     // (see ATTACHMENT_REFERENCE_REGEX) get an attachment-list request, instead
     // of one API call per comment. Note the behavior change: attachments that
@@ -1091,7 +1149,9 @@ export class ForgejoClient {
     file: Uint8Array,
     filename: string,
   ): Promise<ForgejoIssueAttachment> {
-    const attachment = new File([file.buffer as ArrayBuffer], filename);
+    // Copy the bytes first: `file` may be a Uint8Array view over a larger
+    // buffer, and `file.buffer` would upload the whole underlying buffer.
+    const attachment = new File([file.slice().buffer as ArrayBuffer], filename);
     return issueCreateIssueCommentAttachment(
       owner,
       repo,
@@ -1117,14 +1177,17 @@ export class ForgejoClient {
     });
   }
 
-  getPullRequestCommits(owner: string, repo: string, index: number): Promise<Commit[]> {
-    return repoGetPullRequestCommits(
-      owner,
-      repo,
-      index,
-      { files: true, limit: 100 },
-      { client: this._client() },
-    ) as Promise<Commit[]>;
+  async getPullRequestCommits(owner: string, repo: string, index: number): Promise<Commit[]> {
+    const commits = await this._fetchAllPages((page) =>
+      repoGetPullRequestCommits(
+        owner,
+        repo,
+        index,
+        { files: true, page, limit: PAGE_SIZE },
+        { client: this._client() },
+      ),
+    );
+    return commits as Commit[];
   }
 
   mergePullRequest(owner: string, repo: string, index: number, strategy: 'merge' | 'rebase' | 'squash'): Promise<void> {
@@ -1140,8 +1203,10 @@ export class ForgejoClient {
   }
 
   async listPullReviews(owner: string, repo: string, index: number): Promise<PullReview[]> {
-    const result = await repoListPullReviews(owner, repo, index, { limit: 100 }, { client: this._client() });
-    return (result ?? []) as PullReview[];
+    const result = await this._fetchAllPages((page) =>
+      repoListPullReviews(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return result as PullReview[];
   }
 
   async getPullReviewComments(
@@ -1357,7 +1422,13 @@ export class ForgejoClient {
         if (debugEnabled) {
           const duration = Date.now() - start;
           this.logger?.debug(`Response: ${response.status} ${response.statusText} (${duration}ms)`);
-          this.logger?.debug(`Response body: ${JSON.stringify(response.data).slice(0, 2000)}`);
+          if (config.responseType === 'text' || config.responseType === 'arraybuffer') {
+            // Raw payloads (CI logs, diffs, artifacts) can be huge and may
+            // contain secrets in plain text; log metadata only.
+            this.logger?.debug(`Response body: <${config.responseType}> (not logged)`);
+          } else {
+            this.logger?.debug(`Response body: ${JSON.stringify(response.data).slice(0, 2000)}`);
+          }
         }
 
         return {
@@ -1426,6 +1497,27 @@ function decodeBase64(content: string): string {
     return Buffer.from(content, 'base64').toString('utf-8');
   }
   return atob(content);
+}
+
+// The generated API clients interpolate path parameters into the URL without
+// any encoding (they build the path via plain template literals), so values
+// coming from repository data — branch names, tags, refs, file paths — would
+// corrupt the request path when they contain `/`, `#` or `?`. Encoding at the
+// call layer is safe from double encoding because the generated code never
+// encodes itself.
+//
+// Single-segment params (branch/tag/ref) use encodePathSegment, i.e. full
+// encodeURIComponent. Forgejo's router decodes %2F before matching and the
+// branch/tag endpoints use wildcard routes, so `release/1.0` works there.
+// Endpoints with non-wildcard routes (e.g. git/trees/{sha}) may still 404
+// for refs containing `/` — a server-side routing limitation that raw
+// interpolation did not handle either.
+//
+// File paths keep their `/` separators because the contents API route
+// wildcard-matches the remainder of the path, so each segment is encoded
+// separately.
+function encodeFilePath(path: string): string {
+  return path.split('/').map(encodePathSegment).join('/');
 }
 
 function fileSearchScore(name: string, path: string, query: string): number {

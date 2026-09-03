@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { mockServer } from './setup';
-import { buildUrl, mergeHeaders, client } from '../index';
+import { buildUrl, encodePathSegment, mergeHeaders, client } from '../index';
 import type { RequestConfig, ResponseConfig } from '../index';
 
 describe('buildUrl', () => {
@@ -24,13 +24,13 @@ describe('buildUrl', () => {
     expect(buildUrl(config)).toBe('http://example.com/api/repos?page=1&limit=10');
   });
 
-  it('serializes null as "null"', () => {
+  it('skips null params', () => {
     const config: RequestConfig = {
       baseURL: 'http://example.com',
       url: '/api/repos',
-      params: { state: null },
+      params: { state: null, page: 1 },
     };
-    expect(buildUrl(config)).toBe('http://example.com/api/repos?state=null');
+    expect(buildUrl(config)).toBe('http://example.com/api/repos?page=1');
   });
 
   it('ignores undefined params', () => {
@@ -51,13 +51,13 @@ describe('buildUrl', () => {
     expect(buildUrl(config)).toBe('http://example.com/api/notifications?status-types=unread&status-types=pinned');
   });
 
-  it('skips undefined entries inside arrays and serializes null as "null"', () => {
+  it('skips undefined and null entries inside arrays', () => {
     const config: RequestConfig = {
       baseURL: 'http://example.com',
       url: '/api/repos',
       params: { label: ['bug', undefined, null] },
     };
-    expect(buildUrl(config)).toBe('http://example.com/api/repos?label=bug&label=null');
+    expect(buildUrl(config)).toBe('http://example.com/api/repos?label=bug');
   });
 
   it('omits empty arrays entirely', () => {
@@ -67,6 +67,24 @@ describe('buildUrl', () => {
       params: { label: [], page: 1 },
     };
     expect(buildUrl(config)).toBe('http://example.com/api/repos?page=1');
+  });
+});
+
+describe('encodePathSegment', () => {
+  it('leaves simple segments untouched', () => {
+    expect(encodePathSegment('main')).toBe('main');
+  });
+
+  it('encodes slashes in branch or tag names', () => {
+    expect(encodePathSegment('release/1.0')).toBe('release%2F1.0');
+  });
+
+  it('encodes reserved characters', () => {
+    expect(encodePathSegment('a#b?c')).toBe('a%23b%3Fc');
+  });
+
+  it('accepts numbers', () => {
+    expect(encodePathSegment(42)).toBe('42');
   });
 });
 
@@ -144,6 +162,39 @@ describe('client', () => {
         url: '/api/repos',
       }),
     ).rejects.toThrow('Forgejo API error 404: Not found');
+  });
+
+  it('truncates oversized error bodies', async () => {
+    const htmlBody = `<html><body>${'x'.repeat(2000)}</body></html>`;
+    mockServer.use(http.get('http://example.com/api/repos', () => HttpResponse.html(htmlBody, { status: 502 })));
+
+    let error: Error | undefined;
+    try {
+      await client({
+        baseURL: 'http://example.com',
+        url: '/api/repos',
+      });
+    } catch (e) {
+      error = e as Error;
+    }
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error!.message).toContain('Forgejo API error 502:');
+    expect(error!.message).toContain('(truncated)');
+    // 500 body chars + prefix + suffix, well below the original body size.
+    expect(error!.message.length).toBeLessThan(600);
+  });
+
+  it('returns an empty object for 204 responses', async () => {
+    mockServer.use(http.get('http://example.com/api/repos', () => new HttpResponse(null, { status: 204 })));
+
+    const result = await client({
+      baseURL: 'http://example.com',
+      url: '/api/repos',
+    });
+
+    expect(result.status).toBe(204);
+    expect(result.data).toEqual({});
   });
 
   it('serializes JSON body and sets content-type', async () => {

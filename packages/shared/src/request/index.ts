@@ -25,6 +25,17 @@ export type ResponseConfig<TData = unknown> = {
 
 export type ResponseErrorConfig<TError = unknown> = TError;
 
+/**
+ * Encodes a single URL path segment so values containing `/`, `#`, `?` or
+ * other reserved characters (e.g. branch names like `release/1.0`) do not
+ * corrupt the request path.
+ */
+export function encodePathSegment(value: string | number): string {
+  return encodeURIComponent(String(value));
+}
+
+const MAX_ERROR_BODY_LENGTH = 500;
+
 export type Client = <TResponseData, _TError = unknown, TRequestData = unknown>(
   config: RequestConfig<TRequestData>,
 ) => Promise<ResponseConfig<TResponseData>>;
@@ -32,19 +43,19 @@ export type Client = <TResponseData, _TError = unknown, TRequestData = unknown>(
 export function buildUrl(config: RequestConfig): string {
   const normalizedParams = new URLSearchParams();
   Object.entries(config.params || {}).forEach(([key, value]) => {
-    if (value === undefined) {
+    if (value === undefined || value === null) {
       return;
     }
     if (Array.isArray(value)) {
       // Forgejo API expects collectionFormat: multi — repeat the key per element.
       value.forEach((item) => {
-        if (item !== undefined) {
-          normalizedParams.append(key, item === null ? 'null' : String(item));
+        if (item !== undefined && item !== null) {
+          normalizedParams.append(key, String(item));
         }
       });
       return;
     }
-    normalizedParams.append(key, value === null ? 'null' : String(value));
+    normalizedParams.append(key, String(value));
   });
 
   const baseURL = (config.baseURL ?? '').replace(/\/$/, '');
@@ -102,7 +113,11 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
-    throw new Error(`Forgejo API error ${response.status}: ${text || response.statusText}`);
+    // Error responses can be huge (e.g. an HTML page from a reverse proxy),
+    // so the body embedded in the error message is capped.
+    const truncated =
+      text.length > MAX_ERROR_BODY_LENGTH ? `${text.slice(0, MAX_ERROR_BODY_LENGTH)} (truncated)` : text;
+    throw new Error(`Forgejo API error ${response.status}: ${truncated || response.statusText}`);
   }
 
   let data: TResponseData;
