@@ -97,6 +97,14 @@ API 中唯一与项目相关的字段只有：
 
 这是 Forgejo API 本身的限制。要实现项目看板支持，需要 Forgejo 在 v1 REST API 中增加专门的项目端点。
 
+## inline diff 视图可能把行号渲染成 `undefinedundefined`
+
+我们观察到过一次：当 PR 文件 diff 编辑器宽度不足、自动切换为 inline（合并）模式时，评论 zone widget 旁边的行号栏显示了字面文本 `undefinedundefined` 而不是行号。并排（side-by-side）模式不受影响，且切换视图模式或重新加载窗口后该现象未再出现。
+
+这疑似是 VS Code 在 inline diff 编辑器中渲染评论 zone widget 时的偶发竞态，并非扩展绘制的：扩展没有使用任何 decoration 或行号 API，同一文件的原生 Git diff 在 inline 模式下行号显示正常，因为它没有挂评论 widget。
+
+如果再次出现，规避方法：切换视图模式（**Compare: Toggle Inline View**）或重新加载窗口。
+
 ---
 
 _各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_

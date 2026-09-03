@@ -97,6 +97,14 @@ There is no API to list, create, update, or delete projects, and no API to assig
 
 This is a Forgejo API limitation. Project board support would require Forgejo to expose dedicated project endpoints in the v1 REST API.
 
+## Inline diff view may render `undefinedundefined` instead of line numbers
+
+We observed once that when a PR file diff editor was narrow enough to switch to inline (unified) mode, the line-number gutter next to a comment zone widget rendered the literal text `undefinedundefined` instead of a line number. Side-by-side mode was unaffected, and the glitch did not reappear after toggling the view mode or reloading.
+
+This appears to be a transient VS Code rendering race involving comment zone widgets inside an inline diff editor, not something the extension draws: the extension does not use any decoration or line-number API, and a native Git diff of the same file renders correctly in inline mode because it has no comment widgets attached.
+
+Workaround if it happens: toggle the view mode (**Compare: Toggle Inline View**) or reload the window.
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._
