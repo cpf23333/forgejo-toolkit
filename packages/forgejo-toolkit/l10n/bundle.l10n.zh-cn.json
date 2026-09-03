@@ -89,5 +89,16 @@
   "Review comment added.": "评审评论已添加。",
   "Review submitted.": "评审已提交。",
   "Review submitted: approved.": "评审已提交：批准。",
-  "Review submitted: changes requested.": "评审已提交：要求修改。"
+  "Review submitted: changes requested.": "评审已提交：要求修改。",
+  "Unknown": "未知",
+  "Delete": "删除",
+  "Delete this review comment?": "删除这条评审评论？",
+  "Review comment deleted": "评审评论已删除",
+  "Failed to add review comment: {0}": "添加评审评论失败：{0}",
+  "Failed to delete review comment: {0}": "删除评审评论失败：{0}",
+  "Failed to submit review: {0}": "提交评审失败：{0}",
+  "Cancel this pending review? All draft comments will be discarded.": "取消这个待提交的评审？所有草稿评论都将被丢弃。",
+  "Cancel Review": "取消评审",
+  "Failed to cancel review: {0}": "取消评审失败：{0}",
+  "The export file uses an unsupported key-derivation iteration count": "导出文件使用了不受支持的密钥派生迭代次数"
 }

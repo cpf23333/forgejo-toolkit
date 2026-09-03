@@ -381,6 +381,18 @@ describe('ForgejoClient with MSW', () => {
       expect(result?.id).toBeDefined();
     });
 
+    it('returns undefined when dispatch is answered 204 (no return_run_info support)', async () => {
+      const client = createClient();
+      mockServer.use(
+        http.post(
+          'https://*/api/v1/repos/:owner/:repo/actions/workflows/:workflowfilename/dispatches',
+          () => new HttpResponse(null, { status: 204 }),
+        ),
+      );
+      const result = await client.dispatchWorkflow('demo-user', 'demo-repo', 'ci.yml', 'main');
+      expect(result).toBeUndefined();
+    });
+
     it('cancels an action run', async () => {
       const client = createClient();
       await expect(client.cancelActionRun('demo-user', 'demo-repo', 42)).resolves.toBeUndefined();
@@ -726,6 +738,20 @@ describe('ForgejoClient with MSW', () => {
       const files = await client.getPullRequestFiles('demo-user', 'demo-repo', 2);
       expect(files.length).toBeGreaterThan(0);
       expect(files[0].filename).toBeDefined();
+    });
+
+    it('normalizes the deleted file status to removed', async () => {
+      const client = createClient();
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/files', () =>
+          HttpResponse.json([
+            { filename: 'gone.ts', status: 'deleted' },
+            { filename: 'kept.ts', status: 'modified' },
+          ]),
+        ),
+      );
+      const files = await client.getPullRequestFiles('demo-user', 'demo-repo', 2);
+      expect(files.map((file) => file.status)).toEqual(['removed', 'modified']);
     });
 
     it('fetches pull request files from compare', async () => {

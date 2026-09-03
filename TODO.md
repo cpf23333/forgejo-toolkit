@@ -105,15 +105,15 @@
 **中**
 
 - [ ] 评审评论面板复用切行：草稿不丢失而是静默跟随到新行（`PullReviewCommentPanel.vue:10` 无 `:key`，`_setContext` 只 postMessage），且 `pendingReviewId`/`mode` 是 setup 一次性初始化、context 更换后不更新——跨 PR 复用会用旧 reviewId 提交到新 PR。加 `:key` 或 watch context 重置；坐实并修正了 TODO 第二轮「面板单例」条的假设（草稿不丢，是跟随）
-- [ ] 11 个评审链路 `l10n.t()` key 未写入 `l10n/bundle.l10n.json`/zh-cn（脚本比对实锤）：删除评论确认/成功/失败、提交评审失败、取消评审确认等，zh 用户看到英文原文；本轮补的 6 条成功 toast 已配，同批错误/确认文案漏配
+- [x] 11 个评审链路 `l10n.t()` key 未写入 bundle——已补 10 个（删除评论确认/成功/失败、提交/取消评审失败、取消评审确认等，`commands/index.ts` 复用已有 key 无需新增），双语同步
 - [ ] `_fetchAllPages` 终止条件 `items.length < 50`：服务端 `MAX_RESPONSE_ITEMS` 调低（如 30）时第一页即满足条件停止，后续数据静默消失（`client.ts:226-236`）；改「返回 0 条」终止或读 `X-Total-Count`
 - [ ] 重命名文件 diff 渲染成「整文件新增」：compare 路径丢弃 `previous_filename`（`client.ts:1077-1086`），base 侧按新路径在 baseSha 取内容 404 被吞成空文件（`viewProvider.ts:1872-1873`、`prFileSystemProvider.ts:71-73`）；类型已有 `previous_filename`（`api/types.ts:168`）但宿主端从未使用；base 侧评论位置语义也随之全错
 - [ ] 通知单槽位三方混用：轮询推送（无类型过滤）会覆盖用户的筛选视图；切「已读」后 Dashboard 未读徽标掉到 0（`notificationPoller.ts:113` → `useAppState.ts:2545-2564,4035-4042`）；轮询应写独立槽位或携带当前筛选
 - [ ] 仓库 Issue/PR 列表一经加载永不过期：无 TTL、无 force、无刷新按钮（`useAppState.ts:3502-3512,3735-3752`），同会话内他人在服务端的变更永不出现；与已记的「无分页」是不同缺陷
 - [ ] 评论渲染并发竞态：`onDidOpenTextDocument` 与 `onDidChangeActiveTextEditor` 几乎同时触发同一文档的两次 `_onOpenDocument`，无 in-flight 去重，`_renderThreads` 的 get/set 之间隔着网络 await，可渲染出重复 thread 且被覆盖的旧 thread 泄漏（`pullReviewCommentController.ts:67-73,275-281`）
 - [ ] 评审数据零缓存按文档放大请求：`_loadReviewData` 每次 = 1 diff + 1 reviews + N comments 请求；`_refreshOpenPrDocuments` 对 PR 每个打开文档各跑一遍，30 文件 multi-diff 提交一条评论触发 60 倍全量拉取（`pullReviewCommentController.ts:155-200,441-459`）
-- [ ] onboarding 与设置页实例 id 生成不一致：`onboardingPanel.ts:124` 用 `hostname`（不含端口）、`viewProvider.ts:218-220` 用 `.host`（含端口），非默认端口实例从两入口各添加一次得到两个 id（重复实例、token 分槽、身份歧义）；统一为 `host`
-- [ ] `forgejoToolkit.hasLinkedRepo` 只在侧栏可见时更新（`viewProvider.ts:3440-3442` 可见性早退在 `setContext` 之前）；从不打开侧栏时 Copy Permalink 菜单永不出现；`setContext` 移到可见性判断之前
+- [x] onboarding 与设置页实例 id 生成不一致——已统一为 `host`（onboardingPanel 改从 `new URL().host` 取，与 viewProvider 一致；旧实例不迁移，仅影响新添加）
+- [x] `forgejoToolkit.hasLinkedRepo` 只在侧栏可见时更新——`setContext` 已移到可见性早退之前，`_reply('linkedRepository')` 保持 gated
 - [ ] 多窗口 token 内存表不刷新：`_tokens` 只在 `init()` 读一次 SecretStorage，未监听 `secrets.onDidChange`（`config.ts:16,22-43`）；窗口 A 改 token 后窗口 B 全部 API 匿名化失败直到重启（TODO 已记实例列表覆盖，这是另一半机制）
 - [ ] worktree「替换当前窗口」确认框取消后仍回 `worktreeOpened`（`gitOperations.ts:322-330` + 三个调用方 `viewProvider.ts:3521,3665,3690`），webview 把取消当已打开，且取消前记录已写入；应返回 boolean/改回 `worktreeCancelled`，记录写入移到确认后
 - [ ] GlobalSearch 结果行操作图标会同时触发整行导航：`@click.capture` 父级先触发且 open 函数无守卫（`GlobalSearch.vue:299` 等 6 处）；对比 `DashboardInstanceItem.vue:165-170` 有 `isActionClick` 守卫；点「复制 clone 地址」会被带进仓库详情
@@ -132,13 +132,13 @@
 - [ ] `revertMergeCommit` 不校验当前分支（revert 提交可能落到错误分支并推上去），且此 push 不带 token 与其它路径不一致（`gitOperations.ts:302-311`）
 - [ ] 只增不减的 Map：`pullReviewCommentController.ts:50,342` `_commentContextMap` 从不清理；`resolveAttachmentImages.ts:8` session 级图片 dataURL 缓存无 LRU 上限
 - [ ] mention 文档链接每次调用都重跑仓库探测（`issueMentionProvider.ts:70-85,138`，无缓存）
-- [ ] 导入解密不校验 `iterations`，恶意文件可同步阻塞扩展宿主（`instanceImport.ts:10,15`，钳制上限如 ≤1e6）
-- [ ] JSON 兜底路径 `status: 'deleted'` 未归一化为 `'removed'`（`client.ts:1041-1046`），多文件 diff 徽标/提示不对；单文件靠 404 兜底碰巧正确
+- [x] 导入解密不校验 `iterations`——已加 `MAX_IMPORT_PBKDF2_ITERATIONS = 1_000_000`，非整数/<1/超上限抛 RangeError（不静默按上限算，避免报"密码错误"误导），补 5 个测试
+- [x] JSON 兜底路径 `status: 'deleted'` 未归一化——`getPullRequestFiles` 出口已统一映射为 `'removed'`，补 client 测试
 - [ ] 通知筛选在途切换时旧响应先落库再补发，中间窗口短暂显示错误类型（`useAppState.ts:2545-2564`）
 - [ ] `renderedMarkdownCache` 无条数上限（key 含完整正文，只有 30s TTL；`useAppState.ts:183,3904-3915`）；`createTimedCache` 可加 maxEntries
 - [ ] `client.renderMarkdown` 绕过 `_client()` 管道（`client.ts:1323-1339`）：无错误体截断、不走 `syncApiUrlsToInstanceUrl` URL 改写、无 debug 日志
-- [ ] debug 日志 URL 与实际请求不符：数组参数拼成逗号单值（`client.ts:1482-1493`），排查通知过滤问题时误导
-- [ ] `dispatchWorkflow` 的 204 归一化无效：baseClient 把 204 变 `{}`，`?? undefined` 不生效，返回值签名说谎（下游 `.id` 守卫碰巧兜住）
+- [x] debug 日志 URL 与实际请求不符——删 `_buildDebugUrl`，改用 shared/request 已导出的 `buildUrl`，与实际请求同一序列化（数组参数重复键）
+- [x] `dispatchWorkflow` 的 204 归一化无效——显式判空对象返回 undefined（baseClient 把 204 变 `{}`，`??` 兜不住），补测试
 - [ ] Dashboard「我的 Issue/PR」未传 limit，受服务端默认页大小截断（`client.ts:253-265`）
 - [ ] mock 数据把宿主计算字段（`mergeBlockers`/`statusChecks`/`repoPermissions`/`is_pull`）烘进「API 响应」，误导后续开发；`resetMockServer()` 清不掉模块级可变状态（`prMerged`/`submittedReviews`），测试靠执行顺序硬撑
 - [ ] package.json 的 7 个设置项 description 硬编码英文，未走 package.nls（命令标题已全部走占位）
@@ -159,6 +159,8 @@
 ## 已完成
 
 ### 最近完成
+
+- [x] 快修批（第四轮复查小项）：onboarding 实例 id 统一为 `host`（含端口，与设置页一致；旧实例不迁移）；`hasLinkedRepo` 的 `setContext` 移到侧栏可见性早退之前（Copy Permalink 对不开侧栏的用户可用）；补齐评审链路 10 个 l10n key 双语（删除/提交/取消评审的错误与确认文案）；`getPullRequestFiles` 出口归一化 `deleted`→`removed`；`dispatchWorkflow` 204 显式返回 undefined；debug 日志 URL 改用 shared 的 `buildUrl`（与实际请求同一序列化）；导入解密 `iterations` 钳制上限 1e6（超限抛 RangeError）；补 client 2 个、instanceImport 5 个测试
 
 - [x] 安全修复批（第四轮复查的两个严重项）：push 前校验 upstream 远端归属——确认框前用 `findInstanceForRemote` 给用户友好报错，`pushBranch` 内部（新增 `tokenInstanceUrl` 参数 + `remoteMatchesInstance` helper）在 push 执行前再校验一次闭合 TOCTOU 间隙，不匹配实例则中止、URL 取不到降级为无 token push，杜绝 token 随 `http.extraHeader` 外泄到第三方主机；导入实例预览的 token 冲突比较挪到 host 侧（新增 `computeTokenConflicts`，协议字段 `existingTokens` → `tokenConflicts: boolean[]`），webview 不再接触存量 token，恢复「token 不出扩展宿主」不变式；补 createPullRequest 3 个 + instanceImport 5 个 + gitOperations 6 个测试
 

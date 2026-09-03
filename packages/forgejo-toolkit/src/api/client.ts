@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { client as baseClient, encodePathSegment } from '@cpf23333-forgejo-toolkit/shared/request';
+import { buildUrl, client as baseClient, encodePathSegment } from '@cpf23333-forgejo-toolkit/shared/request';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
   createCurrentUserRepo,
@@ -335,7 +335,12 @@ export class ForgejoClient {
         client: this._client(),
       },
     );
-    return (result as DispatchWorkflowRun | undefined) ?? undefined;
+    // Servers without return_run_info support answer 204 No Content, which
+    // the base client surfaces as an empty object rather than undefined.
+    if (!result || typeof result !== 'object' || Object.keys(result).length === 0) {
+      return undefined;
+    }
+    return result as DispatchWorkflowRun;
   }
 
   async cancelActionRun(owner: string, repo: string, runId: number): Promise<void> {
@@ -1042,7 +1047,11 @@ export class ForgejoClient {
     const files = await this._fetchAllPages((page) =>
       repoGetPullRequestFiles(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
     );
-    return files as ForgejoChangedFile[];
+    // The API spells a deleted file's status 'deleted' (the compare endpoint
+    // uses 'removed'); consumers only recognize 'removed', so normalize here.
+    return (files as ForgejoChangedFile[]).map((file) =>
+      file.status === 'deleted' ? { ...file, status: 'removed' } : file,
+    );
   }
 
   async getPullRequestFilesFromCompare(
@@ -1423,7 +1432,9 @@ export class ForgejoClient {
       config: RequestConfig<TRequestData>,
     ): Promise<ResponseConfig<TResponseData>> => {
       const method = config.method ?? 'GET';
-      const targetUrl = this._buildDebugUrl(baseURL, config);
+      // Serialize via the same helper the base client uses, so the logged URL
+      // matches the actual request (array params repeat the key).
+      const targetUrl = buildUrl({ ...config, baseURL });
       const debugEnabled = this.logger?.isDebugEnabled() ?? false;
       const start = debugEnabled ? Date.now() : 0;
       this.logger?.debug(`Request: ${method} ${targetUrl}`);
@@ -1477,19 +1488,6 @@ export class ForgejoClient {
     if (/required scope|token does not have/i.test(text)) {
       vscode.window.showErrorMessage(`Forgejo permission error: ${text}`);
     }
-  }
-
-  private _buildDebugUrl(baseURL: string, config: RequestConfig): string {
-    const params = config.params ? new URLSearchParams() : undefined;
-    if (params) {
-      for (const [key, value] of Object.entries(config.params!)) {
-        if (value !== undefined && value !== null) {
-          params.append(key, String(value));
-        }
-      }
-    }
-    const query = params?.toString();
-    return `${baseURL}${config.url ?? ''}${query ? `?${query}` : ''}`;
   }
 }
 

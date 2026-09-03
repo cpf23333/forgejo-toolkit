@@ -120,11 +120,15 @@ export class OnboardingWebviewPanel {
               const user = await client.getCurrentUser();
 
               const normalizedUrl = url.replace(/\/$/, '');
+              // Match viewProvider's saveInstance: the id is keyed by host
+              // (including the port), so both entry points produce the same
+              // instance identity.
+              const instanceHost = new URL(normalizedUrl).host;
               const instance: ForgejoInstance = {
-                id: `${new URL(normalizedUrl).hostname}-${user.login}`,
+                id: `${instanceHost}-${user.login}`,
                 url: normalizedUrl,
                 token,
-                name: `${user.login}@${new URL(normalizedUrl).hostname}`,
+                name: `${user.login}@${instanceHost}`,
                 username: user.login,
                 syncApiUrlsToInstanceUrl,
               };

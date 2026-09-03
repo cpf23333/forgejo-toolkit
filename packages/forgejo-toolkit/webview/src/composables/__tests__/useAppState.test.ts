@@ -321,7 +321,7 @@ describe('useAppState', () => {
     });
 
     it('pullRequestReviewSubmitted force-reloads the detail when it is loaded', async () => {
-      const { state } = await createState();
+      await createState();
       dispatchMessage({
         command: 'pullRequestDetail',
         instanceId: 'inst-1',

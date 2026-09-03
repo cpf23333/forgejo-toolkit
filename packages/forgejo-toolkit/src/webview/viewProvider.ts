@@ -3440,13 +3440,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _detectAndSendLinkedRepository() {
+    const linked = await detectLinkedRepository(this._config.getInstances());
+    // Gate the editor context menu (Copy Permalink) on whether the workspace
+    // is linked to a Forgejo repository. This must run even when the view is
+    // hidden, otherwise the key stays false until the sidebar is opened.
+    void vscode.commands.executeCommand('setContext', 'forgejoToolkit.hasLinkedRepo', Boolean(linked));
     if (!this._view?.visible) {
       return;
     }
-    const linked = await detectLinkedRepository(this._config.getInstances());
-    // Gate the editor context menu (Copy Permalink) on whether the workspace
-    // is linked to a Forgejo repository.
-    void vscode.commands.executeCommand('setContext', 'forgejoToolkit.hasLinkedRepo', Boolean(linked));
     this._reply('linkedRepository', { linked });
   }
 

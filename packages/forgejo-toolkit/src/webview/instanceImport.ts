@@ -3,11 +3,19 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
+export const MAX_IMPORT_PBKDF2_ITERATIONS = 1_000_000;
+
 export function decryptExportData(
   payload: { salt: string; iv: string; authTag: string; data: string; iterations?: number },
   password: string,
 ): unknown {
   const iterations = payload.iterations ?? 100_000;
+  // The count comes from the import file; reject hostile or corrupt values
+  // instead of feeding them to pbkdf2Sync (a huge count would hang the host).
+  // RangeError lets readExportDataFromUri tell this apart from a wrong password.
+  if (!Number.isInteger(iterations) || iterations < 1 || iterations > MAX_IMPORT_PBKDF2_ITERATIONS) {
+    throw new RangeError(vscode.l10n.t('The export file uses an unsupported key-derivation iteration count'));
+  }
   const salt = Buffer.from(payload.salt, 'base64');
   const iv = Buffer.from(payload.iv, 'base64');
   const authTag = Buffer.from(payload.authTag, 'base64');
@@ -63,7 +71,11 @@ export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData
         parsed as { salt: string; iv: string; authTag: string; data: string; iterations?: number },
         password,
       );
-    } catch {
+    } catch (error) {
+      // An invalid iteration count is a file problem, not a wrong password.
+      if (error instanceof RangeError) {
+        throw error;
+      }
       throw new Error(vscode.l10n.t('Incorrect password or corrupted file'));
     }
   } else {
