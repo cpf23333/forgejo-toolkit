@@ -33,7 +33,7 @@
 **严重**
 
 - [ ] 首次安装零引导：无 walkthrough / viewsWelcome / 首次激活逻辑，`openDashboard`/`openOnboarding` 等核心命令还被 `when: "false"` 从命令面板隐藏；应加 walkthrough、首启自动打开引导、解禁核心命令
-- [ ] 请求无超时：client 无 `AbortSignal`/timeout，webview pending 请求无超时，host 侧大量 `if (!instance) return` 早退不回包（如 mergePullRequest），提交按钮可永久卡 loading；应统一加超时 reject，host 每个 case 保证必然 `_reply`
+- [ ] client 层 fetch 无 `AbortSignal`/timeout（webview pending 60s 超时与 host 早退回包已在阶段 7 修复；实例能连接但不响应时 host 侧请求仍会悬挂，需给 client 加请求超时）
 - [ ] 网络错误与 HTTP 状态码无归类：断网/实例宕机显示 `fetch failed` 英文原文；401/404/409/422 一律 `Failed to X: {raw}`（PR 合并冲突 409 只显示原始报错）；应在 client 层抛结构化错误，按状态码映射 i18n 文案
 
 **中等**
@@ -68,7 +68,6 @@
 **高（功能正确性）**
 
 - [ ] 多窗口实例配置互相覆盖：globalState 读-改-写无跨窗口监听，窗口 B 用陈旧列表回写丢掉窗口 A 新增的实例（`config.ts` `addInstance`/`removeInstance`）
-- [ ] token 全量推送到 webview（`_sendInstances`/`initialState` 含明文 token），CSP 允许 `connect-src http: https:`，一旦有注入点所有实例 token 可外带；默认剥离 token，仅导出流程按需单独取
 - [ ] mention 补全 range 回扫吞字：`foo@` 触发补全选中后 `foo` 被整体替换删除（`issueMentionProvider.ts:90-103`）；`@` 文档链接误匹配邮箱 `foo@bar.com`；`forgejo-pr` scheme 分支是死代码（只注册了 `file` scheme）
 - [ ] permalink 不做 URL 编码：文件名含 `#`/`?`/`%` 生成坏链接（`permalink.ts:69,92`）；新增文件的 base 侧生成 404 链接
 - [ ] worktree 裸缓存仓库（`cacheDir/repos/*.git`）永不删除，无磁盘清理策略（阶段 6 明确排除，独立功能）
@@ -78,12 +77,9 @@
 - [ ] 发布功能：422 被合并误判为「名称冲突」且无客户端仓库名校验；空仓库（无 commit）发布提示「No branch is checked out」偏离真实原因且已创建半成品远程仓库；发布成功后无任何列表刷新；同主机多账号 `findInstanceForRemote` 只取第一个命中，可能用错 token push
 - [ ] 实例导入：`importInstances` 对 webview 回传数据无逐项校验；文件导入漏拷 `syncApiUrlsToInstanceUrl` 字段（导出有、导入丢）
 - [ ] Action artifact 下载改流式写盘：现在 `arrayBuffer()` 全量读进扩展宿主内存（为此加了 50MB 上限），改流式下载直接写盘后可去掉上限，支持大产物
-- [ ] NotificationPoller：dispose 后仍可 start；并发 poll 的 `_updateSeenIds` 读-改-写丢 seen ids 导致重复 toast；全新安装首 poll 把所有未读当新通知弹一遍；实例删除后在途 poll 仍推送
-- [ ] 配置激活链路：`config.init()` 的 secrets 迁移失败会导致整个扩展激活失败（无 keyring 环境），应 try/catch 降级；同 id 空 token 重新添加时旧 token 残留
-- [ ] `openExternal` 不校验 scheme（webview 可传 `file://`）且未 await；viewProvider 多个 handler 无 try/catch 兜底（globalState.update 抛错 → unhandled rejection）
 - [ ] 无版本探测/降级：Actions、`return_run_info`、PR files 等较新端点对老 Gitea/Forgejo 实例直接 404；建议首次连接调 `/api/v1/version` 特性门控，或文档声明最低版本
-- [ ] 杂项：`_pendingMessage` 单槽位连续两条 open\* 消息第一条被覆盖；`readmeProvider` 模块级 Map 只增不减；`extension.ts` 残留 `console.log`
-- [ ] 测试覆盖偏科：`config.ts`、viewProvider 消息协议、`permalink`、`issueMentionProvider`、`worktreeManager`、`publish.ts` 等仍缺测试；优先补纯函数（permalink URL 构造、getMentionRange 边界）与 findInstanceForRemote/push 错误路径用例（parseDiff、gitOperations、createPullRequest、通知 mock 已在阶段 1-4 补齐）
+- [ ] onboardingPanel 的消息入口未加 tracker 兜底（viewProvider 已有，其 handler 均自带 try/catch，可后续套用同一模式）
+- [ ] 测试覆盖偏科：`permalink`、`issueMentionProvider`、`publish.ts` 等仍缺测试；优先补纯函数（permalink URL 构造、getMentionRange 边界）与 findInstanceForRemote/push 错误路径用例（config、viewProvider 消息协议、parseDiff、gitOperations、createPullRequest、worktree 等已在阶段 1-7 补齐）
 
 ## 进行中
 
@@ -93,6 +89,7 @@
 
 ### 最近完成
 
+- [x] 审查修复阶段 7（宿主协议兜底与生命周期）：viewProvider 消息入口加兜底分发（`_unansweredRequests` tracker，handler 早退/抛异常统一回 `requestError`，70+ handler 零改动）；webview pending 请求统一 60s 超时 reject 并清 loading；openExternal 加 http/https 白名单，worktree 路径改走专用 `openWorktreePath` 消息并校验已登记；**发 webview 的实例载荷剥离 token**（`toPublicInstance`，导出/导入预览按需单独取，webview 类型删 token 字段）；`config.init()` 迁移失败降级继续激活；空 token 语义统一为「不修改保留旧值」；NotificationPoller 加 disposed 标志、实例删除丢弃在途结果、seenIds 串行化合并写入（原 Set 经 JSON 持久化退化成 `{}` 的 bug 一并修复）、首 poll 只建基线不弹 toast；`_pendingMessage` 改队列；readmeProvider Map 加 LRU 上限；补 23 个测试（dispatch 兜底/poller 生命周期/config/webview 超时）
 - [x] 审查修复阶段 6（worktree 子系统）：删除改走 `git worktree remove --force`（失败回退 prune + 手动删，成功后才清记录，失败保留记录并报错）；openWorktree 按 PR 加 in-flight 并发锁（`InFlightTasks`）；复用前校验残留目录合法性（`validatePrWorktree`：rev-parse 比对 PR head sha，过期则重建；记录的路径不在磁盘则清记录重建）；缓存目录设置统一走校验（不存在则创建、不可写则拒绝，viewProvider 与 onboardingPanel 四处入口收敛）；openWorktree 确认弹窗与目录选择 openLabel 改 l10n 双语；补 13 个测试（worktreeManager/InFlightTasks/validatePrWorktree）
 - [x] 审查修复阶段 5（API 层分页、路径编码、响应大小限制）：10 处 `limit: 100` 列表请求改用 `fetchAllPages` 按页拉取（页大小 50 不超服务端默认上限、最多 10 页，返回数不足即停）；路径参数在调用层统一编码（分支/tag/ref 用 encodeURIComponent，文件路径逐段编码保留 `/`，generated 目录未改动）；错误体截断到 500 字符并标注 (truncated)；Action 日志超 10 MB 截断标记、artifact 超 50 MB 拒绝下载；debug 日志对 text/arraybuffer 响应只记元信息不写 body；`_getRepoTree` 加页数上限与重复首项 sha 检测防死循环；`buildUrl` 的 null 参数与 undefined 一样跳过；附件上传复制 Uint8Array 视图避免带出整个底层 buffer；补 shared 6 个、extension 12 个测试
 - [x] 审查修复阶段 4（webview 状态层竞态与 keep-alive 轮询）：轮询改 onActivated/onDeactivated 启停，六个路由视图的 immediate watch 加 isActive 守卫；Dashboard 在 onActivated 时自愈重载（列表 clear 后不再空列表）；删除 Action Run 连带清理 job 日志；testConnection/saveInstance/importPreview 单槽 ref 加「单在途 + 最新意图」守卫；renderBody 加序号守卫；通知筛选在途丢请求改「记录意图、落地后补发」；globalSearchResults/repoFileSearchResults/loading/errors Map 加 LRU 上限；latestRunIndex 按当前仓库过滤；PR worktree watch 按条目对象引用匹配；loadMyIssues 的 state 进缓存 key；删除 useVsCodeMessages 死代码与遗留 console.log；loader 统一走 beginLoading 清 stale errors（58 处收敛）；补 17 个测试

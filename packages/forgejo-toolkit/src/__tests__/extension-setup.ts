@@ -46,22 +46,36 @@ vi.mock('vscode', () => ({
     return { base, pattern };
   }),
   Uri: {
-    file: vi.fn((path: string) => ({ fsPath: path })),
+    file: vi.fn((path: string) => ({ fsPath: path, scheme: 'file' })),
     joinPath: vi.fn((...args: unknown[]) => ({ fsPath: args.join('/') })),
-    parse: vi.fn((url: string) => ({ fsPath: url })),
+    parse: vi.fn((url: string) => {
+      const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(url);
+      return { fsPath: url, scheme: match?.[1] ?? '' };
+    }),
+    from: vi.fn((components: { scheme: string; path: string }) => ({
+      scheme: components.scheme,
+      path: components.path,
+      fsPath: components.path,
+      toString: () => `${components.scheme}://${components.path}`,
+    })),
   },
   env: {
     language: 'en',
+    openExternal: vi.fn(async () => true),
+    clipboard: { writeText: vi.fn(async () => undefined) },
   },
   l10n: {
     t: vi.fn((message: string, ...args: unknown[]) => {
       return args.length > 0 ? `${message} ${args.join(' ')}` : message;
     }),
   },
-  EventEmitter: vi.fn().mockImplementation(() => ({
-    event: vi.fn(),
-    fire: vi.fn(),
-  })),
+  EventEmitter: vi.fn().mockImplementation(function () {
+    return {
+      event: vi.fn(),
+      fire: vi.fn(),
+      dispose: vi.fn(),
+    };
+  }),
   Disposable: {
     from: vi.fn(),
   },

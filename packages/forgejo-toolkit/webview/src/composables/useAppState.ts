@@ -13,6 +13,10 @@ const errors = reactive(new Map<string, string>());
 const MAX_TRACKING_ENTRIES = 500;
 const MAX_SEARCH_ENTRIES = 50;
 
+// How long a request/response round-trip to the extension host may take
+// before the pending promise is rejected as timed out.
+const REQUEST_TIMEOUT_MS = 60_000;
+
 function evictOldestKey<V>(map: Map<string, V>, skip?: (value: V) => boolean) {
   for (const [key, value] of map) {
     if (skip?.(value)) {
@@ -88,6 +92,8 @@ import type {
   ExportSettings,
   HostToWebviewMessage,
   LinkedRepository,
+  // Import/export payloads carry the token; the regular instance list never does.
+  ForgejoInstance as ExportedForgejoInstance,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { createTimedCache } from '../utils/createTimedCache';
 
@@ -200,7 +206,7 @@ function createAppState() {
   const importInstancesResult = ref<{ success: boolean; count?: number; error?: string } | undefined>(undefined);
   const importPreview = ref<
     | {
-        instances: ForgejoInstance[];
+        instances: ExportedForgejoInstance[];
         existingIds: string[];
         existingTokens?: string[];
         settings?: ExportSettings;
@@ -284,6 +290,91 @@ function createAppState() {
     { resolve: (issue: ForgejoIssue | undefined) => void; reject: (error: Error) => void }
   >();
 
+  interface PendingHandlers<T, E> {
+    resolve: (value: T) => void;
+    reject: (error: E) => void;
+  }
+
+  // Registers a pending host request with a timeout. If the host never
+  // replies (e.g. the handler bailed out early without answering), the
+  // promise rejects and the associated loading state is cleared instead of
+  // spinning forever. The stored resolve/reject clear the timer, so normal
+  // responses never trigger the timeout path.
+  function registerPending<T, E>(
+    map: Map<string, PendingHandlers<T, E> & { loadingKey?: string }>,
+    id: string,
+    handlers: PendingHandlers<T, E>,
+    options?: { loadingKey?: string; makeTimeoutError?: () => E; extra?: Record<string, unknown> },
+  ): void {
+    const { loadingKey } = options ?? {};
+    const makeTimeoutError = options?.makeTimeoutError ?? (() => new Error(t('common.requestTimeout')) as E);
+    const timer = setTimeout(() => {
+      if (!map.delete(id)) {
+        return;
+      }
+      if (loadingKey) {
+        loading.set(loadingKey, false);
+        setError(loadingKey, t('common.requestTimeout'));
+      }
+      handlers.reject(makeTimeoutError());
+    }, REQUEST_TIMEOUT_MS);
+    map.set(id, {
+      ...options?.extra,
+      resolve: (value: T) => {
+        clearTimeout(timer);
+        handlers.resolve(value);
+      },
+      reject: (error: E) => {
+        clearTimeout(timer);
+        handlers.reject(error);
+      },
+      ...(loadingKey ? { loadingKey } : {}),
+    });
+  }
+
+  // Rejects a pending request when the host sends a generic `requestError`
+  // fallback reply (the handler finished or threw without answering).
+  function rejectPendingRequest(requestId: string, error: string): boolean {
+    const errorMaps: Array<Map<string, { reject: (error: Error) => void; loadingKey?: string }>> = [
+      pendingIssueCreations,
+      pendingIssueCommentCreations,
+      pendingPullRequestCreations,
+      pendingReleaseCreations,
+      pendingAttachmentUploads,
+      pendingAttachmentDeletes,
+      pendingMentionSearchRequests,
+      pendingUserPreviewRequests,
+      pendingIssuePreviewRequests,
+    ];
+    for (const map of errorMaps) {
+      const pending = map.get(requestId);
+      if (!pending) {
+        continue;
+      }
+      map.delete(requestId);
+      if (pending.loadingKey) {
+        loading.set(pending.loadingKey, false);
+        setError(pending.loadingKey, error);
+      }
+      pending.reject(new Error(error));
+      return true;
+    }
+    const stringMaps: Array<Map<string, { reject: (error: string) => void; loadingKey?: string }>> = [
+      releaseAttachmentPromises,
+      releaseAttachmentDeletePromises,
+    ];
+    for (const map of stringMaps) {
+      const pending = map.get(requestId);
+      if (!pending) {
+        continue;
+      }
+      map.delete(requestId);
+      pending.reject(error);
+      return true;
+    }
+    return false;
+  }
+
   function handleMessage(event: MessageEvent<HostToWebviewMessage>) {
     const message = event.data;
     switch (message.command) {
@@ -303,6 +394,13 @@ function createAppState() {
       case 'instances':
         instances.value = message.data ?? [];
         break;
+      case 'requestError': {
+        const { _requestId, error } = message as { _requestId?: unknown; error?: unknown };
+        if (typeof _requestId === 'string') {
+          rejectPendingRequest(_requestId, typeof error === 'string' ? error : t('common.requestFailed'));
+        }
+        break;
+      }
       case 'openSettings':
         router.push({ name: 'settings' });
         break;
@@ -1160,7 +1258,7 @@ function createAppState() {
         }
         importPreviewInFlightToken = 0;
         importPreview.value = {
-          instances: (message as { instances?: ForgejoInstance[] }).instances ?? [],
+          instances: (message as { instances?: ExportedForgejoInstance[] }).instances ?? [],
           existingIds: (message as { existingIds?: string[] }).existingIds ?? [],
           existingTokens: (message as { existingTokens?: string[] }).existingTokens ?? [],
           settings: (message as { settings?: ExportSettings }).settings,
@@ -2528,6 +2626,10 @@ function createAppState() {
     postMessage({ command: 'openExternal', url });
   }
 
+  function openWorktreePath(path: string) {
+    postMessage({ command: 'openWorktreePath', path });
+  }
+
   function copyToClipboard(text: string) {
     postMessage({ command: 'copyToClipboard', text });
   }
@@ -2585,7 +2687,7 @@ function createAppState() {
     postMessage({ command: 'previewImportInstances' });
   }
 
-  function confirmImportInstances(instances: ForgejoInstance[], settings?: ExportSettings) {
+  function confirmImportInstances(instances: ExportedForgejoInstance[], settings?: ExportSettings) {
     postMessage({
       command: 'importInstances',
       instances: instances.map((instance) => ({ ...instance })),
@@ -2734,7 +2836,7 @@ function createAppState() {
     beginLoading(key);
     const _requestId = `release-create-${++releaseCreationRequestId}`;
     return new Promise((resolve, reject) => {
-      pendingReleaseCreations.set(_requestId, { resolve, reject });
+      registerPending(pendingReleaseCreations, _requestId, { resolve, reject }, { loadingKey: key });
       postMessage({
         command: 'createRepoRelease',
         instanceId,
@@ -2784,7 +2886,14 @@ function createAppState() {
   ): Promise<ForgejoReleaseAttachment> {
     const _requestId = `release-attachment-${++inputRequestId}`;
     return new Promise((resolve, reject) => {
-      releaseAttachmentPromises.set(_requestId, { resolve, reject });
+      registerPending(
+        releaseAttachmentPromises,
+        _requestId,
+        { resolve, reject },
+        {
+          makeTimeoutError: () => t('common.requestTimeout'),
+        },
+      );
       postMessage({
         command: 'createReleaseAttachment',
         instanceId,
@@ -2807,7 +2916,14 @@ function createAppState() {
   ): Promise<void> {
     const _requestId = `release-attachment-delete-${++inputRequestId}`;
     return new Promise((resolve, reject) => {
-      releaseAttachmentDeletePromises.set(_requestId, { resolve, reject });
+      registerPending(
+        releaseAttachmentDeletePromises,
+        _requestId,
+        { resolve, reject },
+        {
+          makeTimeoutError: () => t('common.requestTimeout'),
+        },
+      );
       postMessage({
         command: 'deleteReleaseAttachment',
         instanceId,
@@ -2863,7 +2979,7 @@ function createAppState() {
     beginLoading(key);
     const _requestId = `issue-create-${++issueCreationRequestId}`;
     return new Promise((resolve, reject) => {
-      pendingIssueCreations.set(_requestId, { resolve, reject });
+      registerPending(pendingIssueCreations, _requestId, { resolve, reject }, { loadingKey: key });
       postMessage({
         command: 'createIssue',
         instanceId,
@@ -2943,7 +3059,7 @@ function createAppState() {
     beginLoading(key);
     const _requestId = `issue-comment-create-${++issueCommentCreationRequestId}`;
     return new Promise((resolve, reject) => {
-      pendingIssueCommentCreations.set(_requestId, { resolve, reject });
+      registerPending(pendingIssueCommentCreations, _requestId, { resolve, reject }, { loadingKey: key });
       postMessage({ command: 'createIssueComment', instanceId, owner, repo, index, body, _requestId });
     });
   }
@@ -2973,7 +3089,7 @@ function createAppState() {
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}:comment-${commentId}:attachment-delete:${++attachmentDeleteRequestId}`;
-      pendingAttachmentDeletes.set(id, { resolve, reject });
+      registerPending(pendingAttachmentDeletes, id, { resolve, reject });
       postMessage({
         command: 'deleteIssueCommentAttachment',
         instanceId,
@@ -3013,7 +3129,7 @@ function createAppState() {
   ): Promise<ForgejoIssueAttachment> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}#issue-${index}:attachment:${++attachmentUploadRequestId}`;
-      pendingAttachmentUploads.set(id, { resolve, reject });
+      registerPending(pendingAttachmentUploads, id, { resolve, reject });
       const reader = new FileReader();
       reader.onload = () => {
         const array = new Uint8Array(reader.result as ArrayBuffer);
@@ -3043,7 +3159,7 @@ function createAppState() {
   ): Promise<ForgejoIssueAttachment> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}#issue-${index}:comment-${commentId}:attachment:${++attachmentUploadRequestId}`;
-      pendingAttachmentUploads.set(id, { resolve, reject });
+      registerPending(pendingAttachmentUploads, id, { resolve, reject });
       const reader = new FileReader();
       reader.onload = () => {
         const array = new Uint8Array(reader.result as ArrayBuffer);
@@ -3073,7 +3189,7 @@ function createAppState() {
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}#issue-${index}:attachment-delete:${++attachmentDeleteRequestId}`;
-      pendingAttachmentDeletes.set(id, { resolve, reject });
+      registerPending(pendingAttachmentDeletes, id, { resolve, reject });
       postMessage({
         command: 'deleteIssueAttachment',
         instanceId,
@@ -3105,7 +3221,7 @@ function createAppState() {
     beginLoading(key);
     const _requestId = `pull-request-create-${++pullRequestCreationRequestId}`;
     return new Promise((resolve, reject) => {
-      pendingPullRequestCreations.set(_requestId, { resolve, reject });
+      registerPending(pendingPullRequestCreations, _requestId, { resolve, reject }, { loadingKey: key });
       postMessage({
         command: 'createPullRequest',
         instanceId,
@@ -3702,7 +3818,7 @@ function createAppState() {
     }
     const key = `render-${++renderMarkdownRequestId}`;
     return new Promise((resolve, reject) => {
-      pendingRenderMarkdownRequests.set(key, { resolve, reject, cacheKey });
+      registerPending(pendingRenderMarkdownRequests, key, { resolve, reject }, { extra: { cacheKey } });
       postMessage({ command: 'renderMarkdown', instanceId, text, context, key });
     });
   }
@@ -3716,7 +3832,7 @@ function createAppState() {
   ): Promise<{ users: MentionUser[]; issues: MentionIssue[] }> {
     const _requestId = `mention-${++mentionSearchRequestId}`;
     return new Promise((resolve, reject) => {
-      pendingMentionSearchRequests.set(_requestId, { resolve, reject });
+      registerPending(pendingMentionSearchRequests, _requestId, { resolve, reject });
       postMessage({ command: 'searchMentions', instanceId, owner, repo, query, type, _requestId });
     });
   }
@@ -3724,7 +3840,7 @@ function createAppState() {
   function getUserPreview(instanceId: string, username: string): Promise<ForgejoUser | undefined> {
     const _requestId = `user-preview-${++userPreviewRequestId}`;
     return new Promise((resolve, reject) => {
-      pendingUserPreviewRequests.set(_requestId, { resolve, reject });
+      registerPending(pendingUserPreviewRequests, _requestId, { resolve, reject });
       postMessage({ command: 'getUserPreview', instanceId, username, _requestId });
     });
   }
@@ -3737,7 +3853,7 @@ function createAppState() {
   ): Promise<ForgejoIssue | undefined> {
     const _requestId = `issue-preview-${++issuePreviewRequestId}`;
     return new Promise((resolve, reject) => {
-      pendingIssuePreviewRequests.set(_requestId, { resolve, reject });
+      registerPending(pendingIssuePreviewRequests, _requestId, { resolve, reject });
       postMessage({ command: 'getIssuePreview', instanceId, owner, repo, index, _requestId });
     });
   }
@@ -3902,6 +4018,7 @@ function createAppState() {
     lastSavedPullRequest,
     lastWorktreeCancelled,
     openExternal,
+    openWorktreePath,
     copyToClipboard,
     previewReadme,
     testConnection,

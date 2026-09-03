@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 
 const README_SCHEME = 'cpf23333-forgejo-toolkit-readme';
+// Bound the in-memory cache: evict the oldest entry (Maps iterate in
+// insertion order) once the limit is reached.
+const MAX_README_ENTRIES = 20;
 
 export class ReadmeContentProvider implements vscode.TextDocumentContentProvider {
   private _contents = new Map<string, string>();
@@ -10,7 +13,14 @@ export class ReadmeContentProvider implements vscode.TextDocumentContentProvider
   public setReadme(owner: string, repo: string, content: string): vscode.Uri {
     const path = `${owner}/${repo}/README.md`;
     const uri = vscode.Uri.from({ scheme: README_SCHEME, path });
-    this._contents.set(uri.toString(), content);
+    const key = uri.toString();
+    if (!this._contents.has(key) && this._contents.size >= MAX_README_ENTRIES) {
+      const oldest = this._contents.keys().next().value;
+      if (oldest !== undefined) {
+        this._contents.delete(oldest);
+      }
+    }
+    this._contents.set(key, content);
     this._onDidChange.fire(uri);
     return uri;
   }

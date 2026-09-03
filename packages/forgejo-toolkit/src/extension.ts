@@ -17,7 +17,16 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push({ dispose: () => logger.dispose() });
 
   const config = new ConfigManager(context);
-  await config.init();
+  try {
+    await config.init();
+  } catch (error) {
+    // Token migration touches SecretStorage, which may be unavailable on
+    // systems without a keyring. Degrade gracefully: instances remain
+    // readable from globalState and token-dependent operations surface
+    // their own errors later.
+    const err = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to initialize stored instance tokens: ${err}`);
+  }
 
   if (config.isMockApiEnabled()) {
     import('./test/mocks/server')
@@ -66,7 +75,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerCompletionItemProvider({ scheme: 'file' }, mentionProvider, '#', '@'),
   );
 
-  console.log('Forgejo Toolkit extension activated');
+  logger.info('Forgejo Toolkit extension activated');
 }
 
 export function deactivate() {

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState, notificationsKey } from '../composables/useAppState';
 import type { ForgejoNotification } from '../types/api';
-import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ForgejoInstance } from '../types/instance';
 
 const { t } = useI18n();
 const state = useAppState();

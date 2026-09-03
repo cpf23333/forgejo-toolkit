@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState, globalSearchKey } from '../composables/useAppState';
 import type { ForgejoIssue, ForgejoPullRequest, ForgejoRepository, GlobalSearchResult } from '../types/api';
-import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ForgejoInstance } from '../types/instance';
 import ViewTabs from '../components/ViewTabs.vue';
 
 const { t } = useI18n();

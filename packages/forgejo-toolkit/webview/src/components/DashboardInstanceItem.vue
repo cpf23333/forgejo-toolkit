@@ -2,7 +2,7 @@
 import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState } from '../composables/useAppState';
-import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ForgejoInstance } from '../types/instance';
 import type { ForgejoRepository, ForgejoIssue, ForgejoPullRequest } from '../types/api';
 
 const props = defineProps<{

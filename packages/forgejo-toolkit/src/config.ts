@@ -50,6 +50,11 @@ export class ConfigManager {
   }
 
   async addInstance(instance: ForgejoInstance): Promise<void> {
+    // Token semantics (shared with updateInstance): a non-empty token is
+    // stored in SecretStorage; an empty token means "keep the existing
+    // credential". Re-adding an instance id without re-entering its token
+    // (e.g. re-import) therefore preserves the stored secret instead of
+    // wiping it.
     if (instance.token) {
       await this.context.secrets.store(this._tokenSecretKey(instance.id), instance.token);
       this._tokens.set(instance.id, instance.token);

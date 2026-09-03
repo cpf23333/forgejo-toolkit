@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
 import ModalDialog from '../components/ModalDialog.vue';
-import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ForgejoInstance } from '../types/instance';
 import type { Locale } from '../i18n';
 
 const { t } = useI18n();
@@ -78,7 +78,12 @@ watch(
   },
 );
 
-const canSubmit = computed(() => url.value.trim() && token.value.trim());
+// When editing an instance, an empty token field means "keep the stored
+// token" (tokens are never sent back to the webview), so only the URL is
+// required in that case.
+const canSubmit = computed(
+  () => Boolean(url.value.trim()) && (editingInstance.value !== null || Boolean(token.value.trim())),
+);
 
 function setStatus(message: string, type: 'idle' | 'success' | 'error' = 'idle') {
   status.value = message;
@@ -115,7 +120,9 @@ function handleUpdate() {
 function startEdit(instance: ForgejoInstance) {
   editingInstance.value = instance;
   url.value = instance.url;
-  token.value = instance.token;
+  // Tokens never reach the webview; leaving the field empty keeps the
+  // stored token (see the editInstance host handler).
+  token.value = '';
   syncApiUrlsToInstanceUrl.value = instance.syncApiUrlsToInstanceUrl ?? true;
   setStatus('');
 }
@@ -226,7 +233,7 @@ function restoreDefaultCacheDirectory() {
 }
 
 function openWorktree(path: string) {
-  state.openExternal(`file://${path}`);
+  state.openWorktreePath(path);
 }
 
 async function deleteWorktree(id: string) {
@@ -433,7 +440,9 @@ defineExpose({
         <vscode-textfield
           id="forgejo-token"
           :value="token"
-          :placeholder="t('settings.accessTokenPlaceholder')"
+          :placeholder="
+            editingInstance ? t('settings.accessTokenKeepPlaceholder') : t('settings.accessTokenPlaceholder')
+          "
           type="password"
           @input="token = ($event.target as HTMLInputElement).value"
         />

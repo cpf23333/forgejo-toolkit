@@ -7,6 +7,25 @@ export interface ForgejoInstance {
   syncApiUrlsToInstanceUrl?: boolean;
 }
 
+/**
+ * Instance data as exposed to webviews. The access token never leaves the
+ * extension host: every API call is proxied through host message handlers,
+ * so webviews only receive the non-sensitive fields.
+ */
+export type PublicForgejoInstance = Omit<ForgejoInstance, 'token'>;
+
+export function toPublicInstance(instance: ForgejoInstance): PublicForgejoInstance {
+  return {
+    id: instance.id,
+    url: instance.url,
+    name: instance.name,
+    username: instance.username,
+    ...(instance.syncApiUrlsToInstanceUrl !== undefined
+      ? { syncApiUrlsToInstanceUrl: instance.syncApiUrlsToInstanceUrl }
+      : {}),
+  };
+}
+
 export interface ExportSettings {
   locale?: string;
   debug?: boolean;
@@ -26,10 +45,10 @@ export interface LinkedRepository {
 export type PullReviewSubmitEvent = 'COMMENT' | 'APPROVED' | 'REQUEST_CHANGES';
 
 export type HostToWebviewMessage =
-  | { command: 'instances'; data: ForgejoInstance[] }
+  | { command: 'instances'; data: PublicForgejoInstance[] }
   | {
       command: 'initialState';
-      instances: ForgejoInstance[];
+      instances: PublicForgejoInstance[];
       locale: 'en' | 'zh';
       debug: boolean;
       worktrees: unknown[];
@@ -40,6 +59,9 @@ export type HostToWebviewMessage =
   | { command: 'openSettings' }
   | { command: 'openDashboard' }
   | { command: 'openNotifications' }
+  // Fallback reply for any request/response message whose handler finished
+  // (or threw) without sending its specific reply.
+  | { command: 'requestError'; _requestId: string; error: string }
   | { command: 'openCreatePullRequest'; instanceId: string; owner: string; repo: string; head: string }
   | { command: 'openPullRequestDetail'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'setLocale'; locale: 'en' | 'zh' }
@@ -1094,6 +1116,9 @@ export type WebviewToHostMessage =
   | { command: 'showConfirm'; id: string; message: string; confirmLabel: string }
   | { command: 'copyToClipboard'; text: string }
   | { command: 'openExternal'; url: string }
+  // Opens a recorded worktree path in the OS file manager. The host validates
+  // the path against the known worktree list instead of trusting a URI.
+  | { command: 'openWorktreePath'; path: string }
   | { command: 'previewReadme'; owner: string; repo: string; content: string }
   | { command: 'openPrWorktree'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'removeWorktree'; id: string }

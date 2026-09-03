@@ -8,7 +8,9 @@
   "common": {
     "confirm": "Confirm",
     "cancel": "Cancel",
-    "discardChangesConfirm": "You have unsaved changes. Discard them?"
+    "discardChangesConfirm": "You have unsaved changes. Discard them?",
+    "requestTimeout": "Request timed out. Please try again.",
+    "requestFailed": "The request failed. Please try again."
   },
   "editor": {
     "toolbar": {
@@ -472,6 +474,7 @@
     "accessToken": "Access Token",
     "accessTokenDescription": "The token needs at least read:repository, read:issue, and read:pull scopes. To edit/create issues and pull requests or upload attachments, also grant write:issue, write:pull, and write:repository.",
     "accessTokenPlaceholder": "Enter your Forgejo access token",
+    "accessTokenKeepPlaceholder": "Leave empty to keep the current token",
     "syncApiUrlsToInstanceUrl": {
       "label": "Sync API URLs to instance URL",
       "description": "Rewrite URLs returned by Forgejo (html_url, avatar_url, download_url, etc.) to use the configured instance URL. Turn off if you want to keep the server-declared addresses."

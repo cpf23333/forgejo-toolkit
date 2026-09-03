@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ForgejoInstance as CurrentForgejoInstance } from '../types/instance';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -31,14 +32,25 @@ const duplicatedImportedTokens = computed(() => {
 const settings = computed(() => preview.value?.settings);
 
 const currentInstancesById = computed(() => {
-  const map = new Map<string, ForgejoInstance>();
+  const map = new Map<string, CurrentForgejoInstance>();
   for (const instance of state.instances.value) {
     map.set(instance.id, instance);
   }
   return map;
 });
 
-function getCurrentInstance(instance: ForgejoInstance): ForgejoInstance | undefined {
+// The host sends existingIds/existingTokens as parallel arrays (tokens are
+// only shared for this on-demand preview); rebuild the id → token mapping
+// so conflict detection does not need tokens in the regular instance list.
+const existingTokenById = computed(() => {
+  const map = new Map<string, string>();
+  const ids = preview.value?.existingIds ?? [];
+  const tokens = preview.value?.existingTokens ?? [];
+  ids.forEach((id, index) => map.set(id, tokens[index] ?? ''));
+  return map;
+});
+
+function getCurrentInstance(instance: ForgejoInstance): CurrentForgejoInstance | undefined {
   return currentInstancesById.value.get(instance.id);
 }
 
@@ -49,11 +61,9 @@ function hasTokenConflict(instance: ForgejoInstance): boolean {
   if (!existingTokens.value.has(instance.token)) {
     return false;
   }
-  const current = getCurrentInstance(instance);
-  if (current && current.id === instance.id && current.token === instance.token) {
-    return false;
-  }
-  return true;
+  // Re-importing the unchanged token over the instance it belongs to is not
+  // a conflict.
+  return existingTokenById.value.get(instance.id) !== instance.token;
 }
 
 const allSelected = computed(

@@ -7,6 +7,7 @@ import { getWebviewContent } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
 import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { readExportDataFromUri } from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
 import { validateCacheDirectory } from '../worktree/worktreeManager';
@@ -80,7 +81,7 @@ export class OnboardingWebviewPanel {
             const directory = this._config.getWorktreeCacheDirectory() ?? '';
             const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
             this._reply('initialState', {
-              instances: this._config.getInstances(),
+              instances: this._config.getInstances().map(toPublicInstance),
               locale,
               debug,
               worktrees: [],
@@ -129,7 +130,7 @@ export class OnboardingWebviewPanel {
               };
 
               await this._config.addInstance(instance);
-              this._reply('instances', { data: this._config.getInstances() });
+              this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
               this._reply('saveInstanceResult', { success: true });
               vscode.window.showInformationMessage(`Connected to Forgejo as ${user.login}`);
             } catch (error) {
@@ -143,7 +144,7 @@ export class OnboardingWebviewPanel {
             const { id } = message;
             if (typeof id === 'string') {
               await this._config.removeInstance(id);
-              this._reply('instances', { data: this._config.getInstances() });
+              this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
             }
             return;
           }
@@ -202,11 +203,25 @@ export class OnboardingWebviewPanel {
             }
             return;
           }
-          case 'openExternal':
-            if (typeof message.url === 'string') {
-              vscode.env.openExternal(vscode.Uri.parse(message.url));
+          case 'openExternal': {
+            const url = message.url;
+            if (typeof url !== 'string') {
+              return;
+            }
+            const uri = vscode.Uri.parse(url);
+            // Only web URLs may be opened from the (untrusted) webview.
+            if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+              logger.error(`Blocked onboarding openExternal with disallowed scheme "${uri.scheme}": ${url}`);
+              return;
+            }
+            try {
+              await vscode.env.openExternal(uri);
+            } catch (error) {
+              const err = error instanceof Error ? error.message : String(error);
+              logger.error(`onboarding openExternal failed for ${url}: ${err}`);
             }
             return;
+          }
           case 'copyToClipboard': {
             const text = message.text;
             if (typeof text === 'string') {
@@ -329,7 +344,7 @@ export class OnboardingWebviewPanel {
         await this._config.addInstance(instance);
       }
       await this._applyImportSettings(settings);
-      this._reply('instances', { data: this._config.getInstances() });
+      this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
       this._reply('instancesImported', { success: true, count: instances.length });
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);
@@ -391,7 +406,7 @@ export class OnboardingWebviewPanel {
   }
 
   private _sendInstances() {
-    this._reply('instances', { data: this._config.getInstances() });
+    this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
   }
 
   private _findInstance(id: unknown): ForgejoInstance | undefined {

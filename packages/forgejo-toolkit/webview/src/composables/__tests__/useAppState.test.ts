@@ -1496,3 +1496,78 @@ describe('useAppState', () => {
     });
   });
 });
+
+describe('pending request timeout and host fallback', () => {
+  function lastCreateIssueRequestId(): string {
+    const call = vscodePostMessage()
+      .mock.calls.map(([message]) => message as { command: string; _requestId?: string })
+      .filter((message) => message.command === 'createIssue')
+      .pop();
+    expect(call?._requestId).toBeTruthy();
+    return call?._requestId as string;
+  }
+
+  it('rejects a pending creation after the request timeout and clears its loading state', async () => {
+    const { state, mod } = await createState();
+    vi.useFakeTimers();
+    try {
+      const key = mod.issueFormKey('inst-1', 'owner', 'repo', 0);
+      const promise = state.createIssue('inst-1', 'owner', 'repo', { title: 'hello', body: '' });
+      expect(state.loading.get(key)).toBe(true);
+
+      const assertion = expect(promise).rejects.toThrow(/timed out|超时/);
+      await vi.advanceTimersByTimeAsync(60_000);
+      await assertion;
+
+      expect(state.loading.get(key)).toBe(false);
+      expect(state.errors.get(key)).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not reject after a normal response even when the timeout elapses later', async () => {
+    const { state } = await createState();
+    vi.useFakeTimers();
+    try {
+      const promise = state.createIssue('inst-1', 'owner', 'repo', { title: 'hello', body: '' });
+      const requestId = lastCreateIssueRequestId();
+      dispatchMessage({
+        command: 'issueCreated',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 1,
+        item: fakeIssue,
+        _requestId: requestId,
+      });
+      await expect(promise).resolves.toEqual(fakeIssue);
+      // The timer must have been cleared: advancing past the timeout is a no-op.
+      await vi.advanceTimersByTimeAsync(120_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects the pending promise when the host sends a requestError fallback', async () => {
+    const { state, mod } = await createState();
+    const key = mod.issueFormKey('inst-1', 'owner', 'repo', 0);
+    const promise = state.createIssue('inst-1', 'owner', 'repo', { title: 'hello', body: '' });
+    expect(state.loading.get(key)).toBe(true);
+
+    const requestId = lastCreateIssueRequestId();
+    dispatchMessage({ command: 'requestError', _requestId: requestId, error: 'handler bailed out' });
+
+    await expect(promise).rejects.toThrow('handler bailed out');
+    expect(state.loading.get(key)).toBe(false);
+    expect(state.errors.get(key)).toBe('handler bailed out');
+  });
+
+  it('ignores requestError messages for unknown request ids', async () => {
+    const { state } = await createState();
+    dispatchMessage({ command: 'requestError', _requestId: 'no-such-request', error: 'boom' });
+    // No pending promise exists; nothing rejects, nothing throws.
+    await nextTick();
+    expect(state.errors.size).toBe(0);
+  });
+});

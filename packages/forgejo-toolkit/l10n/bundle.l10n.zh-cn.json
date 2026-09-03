@@ -82,5 +82,6 @@
   "Create PR": "创建 PR",
   "Create a pull request from branch \"{0}\"": "从分支 \"{0}\" 创建 PR",
   "Open pull request #{0} for branch \"{1}\"": "打开分支 \"{1}\" 的 PR #{0}",
-  "Open Pull Request": "打开 PR"
+  "Open Pull Request": "打开 PR",
+  "The request could not be completed": "无法完成该请求"
 }

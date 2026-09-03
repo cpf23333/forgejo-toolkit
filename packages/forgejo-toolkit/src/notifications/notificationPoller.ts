@@ -16,6 +16,10 @@ export class NotificationPoller implements vscode.Disposable {
   private readonly _timers = new Map<string, NodeJS.Timeout>();
   private readonly _disposables: vscode.Disposable[] = [];
   private _started = false;
+  private _disposed = false;
+  // Serializes read-modify-write updates of the persisted seen-id map so
+  // concurrent polls for different instances cannot overwrite each other.
+  private _seenIdsWriteQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly _config: ConfigManager,
@@ -37,7 +41,7 @@ export class NotificationPoller implements vscode.Disposable {
   }
 
   start(): void {
-    if (this._started) {
+    if (this._disposed || this._started) {
       return;
     }
     this._started = true;
@@ -62,6 +66,7 @@ export class NotificationPoller implements vscode.Disposable {
   }
 
   dispose(): void {
+    this._disposed = true;
     this.stop();
     for (const disposable of this._disposables) {
       disposable.dispose();
@@ -91,18 +96,32 @@ export class NotificationPoller implements vscode.Disposable {
   }
 
   private async _pollInstance(instance: ForgejoInstance): Promise<void> {
+    if (this._disposed) {
+      return;
+    }
     this._logger?.debug(`Polling notifications for ${instance.name}`);
     const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
     const notifications = await client.getNotifications(['unread', 'pinned']);
 
+    // The instance may have been removed (or the poller disposed) while the
+    // request was in flight; drop the stale result instead of pushing it to
+    // the webview or showing a toast.
+    if (this._disposed || !this._config.getInstances().some((i) => i.id === instance.id)) {
+      return;
+    }
+
     this._sender.pushNotifications(instance.id, notifications);
 
-    const newNotifications = this._filterNewNotifications(instance.id, notifications);
+    // Without a persisted baseline (fresh install) every unread notification
+    // would be reported as "new" on the first poll; the first poll only
+    // establishes the baseline.
+    const hadBaseline = this._getAllSeenIds().has(instance.id);
+    const newNotifications = hadBaseline ? this._filterNewNotifications(instance.id, notifications) : [];
     if (newNotifications.length > 0) {
       this._showNotification(instance, newNotifications);
     }
 
-    this._updateSeenIds(instance.id, notifications);
+    await this._updateSeenIds(instance.id, notifications);
   }
 
   private _filterNewNotifications(instanceId: string, notifications: ForgejoNotification[]): ForgejoNotification[] {
@@ -113,17 +132,24 @@ export class NotificationPoller implements vscode.Disposable {
     });
   }
 
-  private async _updateSeenIds(instanceId: string, notifications: ForgejoNotification[]): Promise<void> {
+  private _updateSeenIds(instanceId: string, notifications: ForgejoNotification[]): Promise<void> {
     const ids = notifications
       .map((notification) => notification.id)
       .filter((id): id is number => typeof id === 'number');
-    const allSeen = this._getAllSeenIds();
-    allSeen.set(instanceId, new Set(ids));
-    try {
-      await this._context.globalState.update(SEEN_NOTIFICATION_IDS_KEY, Object.fromEntries(allSeen));
-    } catch {
-      // ignore persistence errors
-    }
+    // Queue the write so concurrent polls merge onto the latest persisted
+    // state instead of racing a read-modify-write cycle. Serialize as plain
+    // arrays: globalState JSON-persists values and a Set would degrade to {}.
+    this._seenIdsWriteQueue = this._seenIdsWriteQueue.then(async () => {
+      const allSeen = this._getAllSeenIds();
+      allSeen.set(instanceId, new Set(ids));
+      try {
+        const serialized = Object.fromEntries([...allSeen].map(([key, value]) => [key, [...value]]));
+        await this._context.globalState.update(SEEN_NOTIFICATION_IDS_KEY, serialized);
+      } catch {
+        // ignore persistence errors
+      }
+    });
+    return this._seenIdsWriteQueue;
   }
 
   private _getSeenIds(instanceId: string): Set<number> {
