@@ -12,7 +12,8 @@ import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
 import { createRequire } from 'module';
 import { buildRepoFileUri } from '../repoFileProvider';
-import { WorktreeManager, WorktreeInfo } from '../worktree/worktreeManager';
+import { WorktreeManager, WorktreeInfo, validateCacheDirectory } from '../worktree/worktreeManager';
+import { InFlightTasks } from '../worktree/inFlightTasks';
 import {
   cloneRepository,
   createWorktreeFromBranch,
@@ -25,6 +26,7 @@ import {
   openWorktree,
   revertMergeCommit,
   sanitizeForPath,
+  validatePrWorktree,
 } from '../worktree/gitOperations';
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -41,6 +43,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _pendingMessage?: HostToWebviewMessage;
   private readonly _worktreeManager: WorktreeManager;
+  /** Guards against concurrent openPrWorktree runs for the same PR (double-click). */
+  private readonly _worktreeInFlight = new InFlightTasks();
 
   constructor(
     private readonly _context: vscode.ExtensionContext,
@@ -2920,8 +2924,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           case 'removeWorktree': {
             const { id } = message;
             if (typeof id === 'string') {
-              await this._worktreeManager.removeWorktree(id);
-              this._reply('worktreeRemoved', { id });
+              try {
+                await this._worktreeManager.removeWorktree(id);
+                this._reply('worktreeRemoved', { id });
+              } catch (error) {
+                // removeWorktree keeps the record on failure and has already
+                // surfaced the error; notify the webview so it can react.
+                const err = error instanceof Error ? error.message : String(error);
+                this._reply('worktreeError', { error: err });
+              }
               this._reply('worktreesList', { worktrees: this._worktreeManager.getWorktrees() });
             }
             return;
@@ -2937,7 +2948,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           case 'setWorktreeCacheDirectory': {
             const directory = message.directory;
             if (typeof directory === 'string') {
-              await this._config.setWorktreeCacheDirectory(directory);
+              if (!(await this._setWorktreeCacheDirectory(directory))) {
+                return;
+              }
               this._reply('worktreeCacheDirectory', {
                 directory: this._config.getWorktreeCacheDirectory() ?? '',
                 defaultDirectory: this._config.getDefaultWorktreeCacheDirectory(),
@@ -2950,11 +2963,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               canSelectFiles: false,
               canSelectFolders: true,
               canSelectMany: false,
-              openLabel: 'Select Cache Directory',
+              openLabel: vscode.l10n.t('Select Cache Directory'),
             });
             if (result && result.length > 0) {
               const directory = result[0].fsPath;
-              await this._config.setWorktreeCacheDirectory(directory);
+              if (!(await this._setWorktreeCacheDirectory(directory))) {
+                return;
+              }
               this._reply('worktreeCacheDirectory', {
                 directory: this._config.getWorktreeCacheDirectory() ?? '',
                 defaultDirectory: this._config.getDefaultWorktreeCacheDirectory(),
@@ -3274,6 +3289,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  /**
+   * Persist a custom worktree cache directory after validating that it exists
+   * (creating it when needed) and is writable. Returns false and surfaces an
+   * error when the directory cannot be used; an empty value resets to the
+   * default directory and is always accepted.
+   */
+  private async _setWorktreeCacheDirectory(directory: string): Promise<boolean> {
+    const trimmed = directory.trim();
+    if (trimmed) {
+      try {
+        await validateCacheDirectory(trimmed);
+      } catch (error) {
+        const err = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(
+          vscode.l10n.t('Cannot use "{0}" as the worktree cache directory: {1}', trimmed, err),
+        );
+        return false;
+      }
+    }
+    await this._config.setWorktreeCacheDirectory(trimmed);
+    return true;
+  }
+
   private async _applyImportSettings(settings: ExportSettings | undefined) {
     if (!settings) {
       return;
@@ -3297,10 +3335,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       this._reply('worktreeOpenMode', { mode: settings.worktreeOpenMode });
     }
     if (typeof settings.worktreeCacheDirectory === 'string') {
-      await this._config.setWorktreeCacheDirectory(settings.worktreeCacheDirectory);
-      const directory = this._config.getWorktreeCacheDirectory() ?? '';
-      const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
-      this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
+      if (await this._setWorktreeCacheDirectory(settings.worktreeCacheDirectory)) {
+        const directory = this._config.getWorktreeCacheDirectory() ?? '';
+        const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
+        this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
+      }
     }
   }
 
@@ -3331,6 +3370,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _handleOpenPrWorktree(message: { instanceId: string; owner: string; repo: string; index: number }) {
+    // A rapid second invocation for the same PR reuses the in-flight run
+    // instead of fetching the same branch or adding the same path twice.
+    const key = `${message.instanceId}:${message.owner}/${message.repo}#${message.index}`;
+    await this._worktreeInFlight.run(key, () => this._doOpenPrWorktree(message));
+  }
+
+  private async _doOpenPrWorktree(message: { instanceId: string; owner: string; repo: string; index: number }) {
     const { instanceId, owner, repo, index } = message;
     const instance = this._findInstance(instanceId);
     if (!instance) {
@@ -3360,14 +3406,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
     const existing = this._worktreeManager.findWorktree(instanceId, owner, repo, index);
     if (existing) {
-      try {
-        await openWorktree(existing.worktreePath, openInNewWindow);
-        this._reply('worktreeOpened', { worktree: existing, existed: true });
-      } catch (error) {
-        const err = error instanceof Error ? error.message : String(error);
-        this._reply('worktreeError', { error: err });
+      const existsOnDisk = await fs.promises.access(existing.worktreePath).then(
+        () => true,
+        () => false,
+      );
+      if (existsOnDisk) {
+        try {
+          await openWorktree(existing.worktreePath, openInNewWindow);
+          this._reply('worktreeOpened', { worktree: existing, existed: true });
+        } catch (error) {
+          const err = error instanceof Error ? error.message : String(error);
+          this._reply('worktreeError', { error: err });
+        }
+        return;
       }
-      return;
+      // The recorded worktree directory is gone from disk; drop the stale
+      // record and fall through to recreate it.
+      await this._worktreeManager.forgetWorktree(existing.id);
     }
 
     try {
@@ -3461,12 +3516,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const titleSuffix = sanitizedTitle ? `-${sanitizedTitle}` : '';
       const worktreePath = path.join(cacheDir, 'worktrees', `${owner}-${repo}-pr-${index}${titleSuffix}`);
 
-      const worktreeExisted = await fs.promises
-        .access(worktreePath)
-        .then(() => true)
-        .catch(() => false);
+      // A leftover directory is only reused when it is actually checked out at
+      // the current PR head sha; a stale one (PR was updated, or the directory
+      // is not a valid worktree) is removed and recreated below.
+      const worktreeState = await validatePrWorktree(sourceRepoPath, worktreePath, headSha);
 
-      if (worktreeExisted) {
+      if (worktreeState === 'current') {
         const worktree: WorktreeInfo = {
           id: `${instanceId}:${owner}/${repo}#pr-${index}`,
           instanceId,

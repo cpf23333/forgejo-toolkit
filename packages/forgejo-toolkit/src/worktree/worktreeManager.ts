@@ -1,4 +1,7 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
+import { removeWorktreeAndPrune } from './gitOperations';
 
 export interface WorktreeInfo {
   id: string;
@@ -16,6 +19,21 @@ export interface WorktreeInfo {
 }
 
 const WORKTREES_KEY = 'forgejoToolkit.worktrees';
+
+/**
+ * Verify that a directory can serve as the worktree cache: create it when it
+ * does not exist yet, then probe writability with a temporary file. Throws
+ * when the directory cannot be created or written to.
+ */
+export async function validateCacheDirectory(directory: string): Promise<void> {
+  await fs.promises.mkdir(directory, { recursive: true });
+  const probe = path.join(directory, `.write-test-${process.pid}-${Date.now()}`);
+  try {
+    await fs.promises.writeFile(probe, '');
+  } finally {
+    await fs.promises.rm(probe, { force: true });
+  }
+}
 
 export class WorktreeManager {
   constructor(
@@ -44,21 +62,38 @@ export class WorktreeManager {
     await this.context.globalState.update(WORKTREES_KEY, worktrees);
   }
 
+  /**
+   * Remove a worktree: run `git worktree remove` first (falling back to prune
+   * + manual delete inside removeWorktreeAndPrune) so the source repository's
+   * .git/worktrees metadata and the branch's checked-out state are cleaned up,
+   * then drop the record. On failure the record is kept so the UI retains an
+   * entry point for retry, and the error is surfaced to the user.
+   */
   async removeWorktree(id: string): Promise<void> {
     const worktrees = this.getWorktrees();
     const target = worktrees.find((w) => w.id === id);
     if (!target) {
       return;
     }
+    try {
+      await removeWorktreeAndPrune(target.sourceRepoPath, target.worktreePath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      void vscode.window.showErrorMessage(vscode.l10n.t('Failed to remove worktree: {0}', message));
+      throw error;
+    }
     await this.context.globalState.update(
       WORKTREES_KEY,
       worktrees.filter((w) => w.id !== id),
     );
-    try {
-      await vscode.workspace.fs.delete(vscode.Uri.file(target.worktreePath), { recursive: true, useTrash: false });
-    } catch {
-      // Ignore cleanup errors; directory may already be gone or in use.
-    }
+  }
+
+  /** Drop the record without touching the disk (used when the directory is already gone). */
+  async forgetWorktree(id: string): Promise<void> {
+    await this.context.globalState.update(
+      WORKTREES_KEY,
+      this.getWorktrees().filter((w) => w.id !== id),
+    );
   }
 
   getCacheDirectory(): string {

@@ -207,6 +207,57 @@ export async function createWorktree(repoPath: string, worktreePath: string, bra
   }
 }
 
+/**
+ * Remove a linked worktree. Runs `git worktree remove --force` in the source
+ * repository so the .git/worktrees metadata and the branch's checked-out state
+ * are cleaned up. If that fails (e.g. the directory was already deleted or git
+ * refuses to remove it), falls back to `git worktree prune` plus a manual
+ * directory delete. The original removal error is rethrown when the fallback
+ * also fails.
+ */
+export async function removeWorktreeAndPrune(repoPath: string, worktreePath: string): Promise<void> {
+  try {
+    await runGit(['worktree', 'remove', '--force', worktreePath], repoPath);
+    return;
+  } catch (removeError) {
+    try {
+      await runGit(['worktree', 'prune'], repoPath);
+      await fs.promises.rm(worktreePath, { recursive: true, force: true });
+      return;
+    } catch {
+      throw removeError;
+    }
+  }
+}
+
+export type PrWorktreeState = 'current' | 'stale' | 'missing';
+
+/**
+ * Validate a leftover worktree directory against the expected PR head sha.
+ * 'current' means the directory is checked out at expectedSha and can be
+ * reused; 'stale' means it did not match and has been removed so the caller
+ * can recreate it from scratch; 'missing' means there is nothing on disk.
+ */
+export async function validatePrWorktree(
+  repoPath: string,
+  worktreePath: string,
+  expectedSha: string,
+): Promise<PrWorktreeState> {
+  const exists = await fs.promises.access(worktreePath).then(
+    () => true,
+    () => false,
+  );
+  if (!exists) {
+    return 'missing';
+  }
+  const sha = await getCurrentCommitSha(worktreePath);
+  if (sha && sha === expectedSha) {
+    return 'current';
+  }
+  await removeWorktreeAndPrune(repoPath, worktreePath);
+  return 'stale';
+}
+
 export async function isCurrentWorkspaceBaseRepo(
   instanceUrl: string,
   owner: string,
@@ -271,12 +322,13 @@ export async function openWorktree(worktreePath: string, openInNewWindow: boolea
     if (currentFolder && currentFolder.fsPath === worktreePath) {
       return;
     }
+    const openLabel = vscode.l10n.t('Open');
     const choice = await vscode.window.showWarningMessage(
-      'This will replace the current workspace with the worktree. Continue?',
+      vscode.l10n.t('This will replace the current workspace with the worktree. Continue?'),
       { modal: true },
-      'Open',
+      openLabel,
     );
-    if (choice !== 'Open') {
+    if (choice !== openLabel) {
       return;
     }
     await vscode.commands.executeCommand('vscode.openFolder', uri, false);

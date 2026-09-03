@@ -9,6 +9,7 @@ import { openReadmePreview } from '../readmeProvider';
 import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { readExportDataFromUri } from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
+import { validateCacheDirectory } from '../worktree/worktreeManager';
 
 export class OnboardingWebviewPanel {
   public static readonly viewType = 'forgejoToolkitOnboarding';
@@ -172,7 +173,9 @@ export class OnboardingWebviewPanel {
           case 'setWorktreeCacheDirectory': {
             const directory = message.directory;
             if (typeof directory === 'string') {
-              await this._config.setWorktreeCacheDirectory(directory);
+              if (!(await this._setWorktreeCacheDirectory(directory))) {
+                return;
+              }
               this._reply('worktreeCacheDirectory', {
                 directory: this._config.getWorktreeCacheDirectory() ?? '',
                 defaultDirectory: this._config.getDefaultWorktreeCacheDirectory(),
@@ -185,11 +188,13 @@ export class OnboardingWebviewPanel {
               canSelectFiles: false,
               canSelectFolders: true,
               canSelectMany: false,
-              openLabel: 'Select Cache Directory',
+              openLabel: vscode.l10n.t('Select Cache Directory'),
             });
             if (result && result.length > 0) {
               const directory = result[0].fsPath;
-              await this._config.setWorktreeCacheDirectory(directory);
+              if (!(await this._setWorktreeCacheDirectory(directory))) {
+                return;
+              }
               this._reply('worktreeCacheDirectory', {
                 directory: this._config.getWorktreeCacheDirectory() ?? '',
                 defaultDirectory: this._config.getDefaultWorktreeCacheDirectory(),
@@ -355,11 +360,34 @@ export class OnboardingWebviewPanel {
       this._reply('worktreeOpenMode', { mode: settings.worktreeOpenMode });
     }
     if (typeof settings.worktreeCacheDirectory === 'string') {
-      await this._config.setWorktreeCacheDirectory(settings.worktreeCacheDirectory);
-      const directory = this._config.getWorktreeCacheDirectory() ?? '';
-      const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
-      this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
+      if (await this._setWorktreeCacheDirectory(settings.worktreeCacheDirectory)) {
+        const directory = this._config.getWorktreeCacheDirectory() ?? '';
+        const defaultDirectory = this._config.getDefaultWorktreeCacheDirectory();
+        this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
+      }
     }
+  }
+
+  /**
+   * Same validation as the settings view: create the directory when missing
+   * and probe writability before persisting it. An empty value resets to the
+   * default directory and is always accepted.
+   */
+  private async _setWorktreeCacheDirectory(directory: string): Promise<boolean> {
+    const trimmed = directory.trim();
+    if (trimmed) {
+      try {
+        await validateCacheDirectory(trimmed);
+      } catch (error) {
+        const err = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(
+          vscode.l10n.t('Cannot use "{0}" as the worktree cache directory: {1}', trimmed, err),
+        );
+        return false;
+      }
+    }
+    await this._config.setWorktreeCacheDirectory(trimmed);
+    return true;
   }
 
   private _sendInstances() {
