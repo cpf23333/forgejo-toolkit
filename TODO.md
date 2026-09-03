@@ -57,6 +57,15 @@
 - [ ] Onboarding 缺「去实例上创建 token」链接；`scm/title` 缺 Publish/Create PR 图形入口；「刷新实例」按钮可能只刷新实例列表不刷新数据（需实测）
 - [ ] `InstanceList.vue` 整段英文硬编码且已无人引用（死代码，可删）
 
+#### 第三轮走查（2026-09-03，CDP 截图 + 坐标点击实测 mock 环境）
+
+- [ ] 窄侧栏（默认宽度）多处截断：Dashboard tab 栏（Issues 挤成 "Iss…"）、Notifications 工具栏（「重试」按钮挤成残片）、仓库详情「Preview README」按钮文字被切；需响应式处理（换行 / 窄宽图标化 / 最小宽度）
+- [ ] ModalDialog 关闭口径不一致：× 和 Esc 在脏表单下弹放弃确认，但表单内「Cancel」按钮直接关闭不弹确认；要么 Cancel 也走确认，要么明确设计为「显式取消免确认」
+- [ ] mock 数据缺口阻碍走查：`contents/:filepath` 按 ref（sha）取文件未 mock，diff 评审编辑器只能显示「No Changed Files」，评论/评审提交界面无法实测；Actions 无运行数据，rerun/产物/日志界面无法实测；建议补 mock（注：「No Changed Files」在拉取失败与真空列表两种情况下无法区分）
+- [ ] 仓库详情的 issue/PR 计数是进入对应列表的唯一入口，渲染得像静态统计文本（有 tooltip 无链接样式），可发现性弱；scm/title 也缺入口（第二轮已记）
+- [ ] tab 栏激活态歧义（存疑）：激活 tab 用下划线，但非激活 tab 偶发带深色背景，看起来像两个激活 tab；需复现确认是 hover 残留还是 focus 样式
+- [ ] UI 走查基建：`tmp-ui-review/` harness（隔离 profile + CDP 截图/坐标点击 + 系统截屏 + 原生对话框按键）可沉淀为正式工具；VS Code modal 确认框是原生窗口，CDP 截图看不到，需系统截屏配合
+
 ### 代码审查发现的问题（2026-08-24）
 
 六个方向（发布功能、状态栏创建 PR、宿主核心、评论/worktree 等子系统、API 层、webview 状态层）的深度审查结论。修复优先级建议：安全与数据正确性先行，一行级 bug 随手修。

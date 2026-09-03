@@ -532,7 +532,7 @@
       "tokenConflict": "Token 已存在"
     },
     "worktree": {
-      "title": "Pull Request Worktree",
+      "title": "PR Worktree",
       "description": "配置在本地打开 PR 的方式，并管理已创建的 worktree。",
       "openMode": "打开方式",
       "ask": "每次询问",
