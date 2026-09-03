@@ -64,6 +64,11 @@
 - [ ] mock 数据缺口阻碍走查：`contents/:filepath` 按 ref（sha）取文件未 mock，diff 评审编辑器只能显示「No Changed Files」，评论/评审提交界面无法实测；Actions 无运行数据，rerun/产物/日志界面无法实测；建议补 mock（注：「No Changed Files」在拉取失败与真空列表两种情况下无法区分）
 - [ ] 仓库详情的 issue/PR 计数是进入对应列表的唯一入口，渲染得像静态统计文本（有 tooltip 无链接样式），可发现性弱；scm/title 也缺入口（第二轮已记）
 - [ ] tab 栏激活态歧义（存疑）：激活 tab 用下划线，但非激活 tab 偶发带深色背景，看起来像两个激活 tab；需复现确认是 hover 残留还是 focus 样式
+- [ ] 评审操作零反馈：开始评审/添加评论/提交评审成功后没有任何成功提示；且提交评审后 PR 详情的合并区不自动刷新（`pullReviewCommentPanel` 的 `onSubmitted` 只刷新 diff 文档里的评论 thread，未通知 Dashboard），需手动返回重进才能看到 blocker 消失、按钮亮起
+- [ ] 评审入口发现性差：只能从 diff 编辑器行号右键菜单进入评审评论；且 gutter 区域单击会误设断点（走查中实测误触），与评审入口相邻易混淆
+- [ ] mock 数据不一致：PR 详情 `changed_files` 写死 5，实际 mock diff 只有 1 个文件，「5 个文件变更」统计与文件树对不上
+- [ ] Release 相关文案中英混排（「新建 Release」「没有 Release。」），需确认是刻意保留术语还是遗漏
+- [ ] 合并成功的后续行为未完整验证：mock 的 PR 详情恒为 open，合并后详情不会变为已合并态，真实服务器下的刷新行为待实测
 - [x] UI 走查基建：`tmp-ui-review/` harness 已沉淀为正式工具 `tools/ui-review`（隔离 profile + CDP 截图/坐标点击 + 系统截屏 + 原生对话框按键）；VS Code modal 确认框是原生窗口，CDP 截图看不到，需系统截屏配合
 
 ### 代码审查发现的问题（2026-08-24）
@@ -98,6 +103,10 @@
 
 ### 最近完成
 
+- [x] 合并 blocker 判定修复：`required_approvals` 不再无条件显示——拉取评审列表统计 official 且非 stale/dismissed 的 APPROVED 数量，达标即核销（否则已批准的 PR 永远显示「需要 N 个审查通过」、合并按钮恒灰）；mock 补仓库 `permissions` 字段（修复走查时误报「没有合并权限」）、分支保护改 `apply_to_admins: true` 使核销路径可达、已提交评审持久化到列表；走查实测「提交 APPROVED → 可以合并 → 原生确认弹窗 → 合并」全链路
+- [x] 文件树回归修复：`FileTreeItem` 恢复 `data-file-path`/`data-type`/`data-size` 属性（3d28835 误删导致目录展开不加载子级），`global.d.ts` 的 `DefineCustomElement` 支持声明额外属性
+- [x] diff 编辑器行号右键菜单失效修复：when 子句改用自定义 context key `forgejoToolkit.inPullRequestDiff`（`resourceScheme` 在 diff 编辑器中不可靠，实测原写法菜单不出现），「Add Pull Review Comment」恢复可用
+- [x] `tools/ui-review` harness 增强：新增 `hover`/`rclick` 命令
 - [x] 独立复核修复轮（对阶段 1-7 的 diff 复核后修复）：评论 thread 清理 scope 补 `isBase`（diff 两侧不再互相误删，737686b 的遗留洞）；notificationPoller 读侧容忍旧版 `{}` 脏数据且写队列防毒化（否则老用户升级后通知 toast 永久失效）；编辑实例测试连接时 host 端回填存储 token；webview 补 `worktreeError` 消费（打开/删除 worktree 失败不再永远转圈）；testConnection/saveInstance 加 60s 超时释放槽位、importPreview 改 host 主动回 cancelled；renderMarkdown 统一改 `_requestId` 配对；removeWorktree 双重报错收敛为 webview 单条；gitOperations 剩余 shell 插值（remote add/worktree add/revert）全部 execFile 化；`createPrFromCurrentBranch` 的 getRepoDetail 加 try/catch 降级；补约 20 个测试
 - [x] 审查修复阶段 7（宿主协议兜底与生命周期）：viewProvider 消息入口加兜底分发（`_unansweredRequests` tracker，handler 早退/抛异常统一回 `requestError`，70+ handler 零改动）；webview pending 请求统一 60s 超时 reject 并清 loading；openExternal 加 http/https 白名单，worktree 路径改走专用 `openWorktreePath` 消息并校验已登记；**发 webview 的实例载荷剥离 token**（`toPublicInstance`，导出/导入预览按需单独取，webview 类型删 token 字段）；`config.init()` 迁移失败降级继续激活；空 token 语义统一为「不修改保留旧值」；NotificationPoller 加 disposed 标志、实例删除丢弃在途结果、seenIds 串行化合并写入（原 Set 经 JSON 持久化退化成 `{}` 的 bug 一并修复）、首 poll 只建基线不弹 toast；`_pendingMessage` 改队列；readmeProvider Map 加 LRU 上限；补 23 个测试（dispatch 兜底/poller 生命周期/config/webview 超时）
 - [x] 审查修复阶段 6（worktree 子系统）：删除改走 `git worktree remove --force`（失败回退 prune + 手动删，成功后才清记录，失败保留记录并报错）；openWorktree 按 PR 加 in-flight 并发锁（`InFlightTasks`）；复用前校验残留目录合法性（`validatePrWorktree`：rev-parse 比对 PR head sha，过期则重建；记录的路径不在磁盘则清记录重建）；缓存目录设置统一走校验（不存在则创建、不可写则拒绝，viewProvider 与 onboardingPanel 四处入口收敛）；openWorktree 确认弹窗与目录选择 openLabel 改 l10n 双语；补 13 个测试（worktreeManager/InFlightTasks/validatePrWorktree）
