@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { CollapsibleSection } from '../vscode-controls';
@@ -114,20 +114,43 @@ const issueReference = computed(() => {
   return `${fullName}#${detail.value?.number ?? index.value}`;
 });
 
+// Under keep-alive this view is deactivated (not unmounted) when navigating
+// away; `route.params` then tracks the global route, not this view's own
+// route. Guard all route-driven loading on isActive.
+const isActive = ref(true);
+
+function loadIssueData() {
+  state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value);
+  state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value);
+  state.loadRepoLabels(instanceId.value, owner.value, repo.value);
+  state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
+  state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
+  state.loadRepoIssues(instanceId.value, owner.value, repo.value, 'open');
+  state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
+  state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
+  state.loadUserStopwatches(instanceId.value);
+  state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value);
+  state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value);
+}
+
+onActivated(() => {
+  isActive.value = true;
+  // Params may have changed back before this hook ran; make sure data for the
+  // current route is loaded (loaders dedup via their caches).
+  loadIssueData();
+  renderBody();
+});
+onDeactivated(() => {
+  isActive.value = false;
+});
+
 watch(
   [instanceId, owner, repo, index],
   () => {
-    state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value);
-    state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value);
-    state.loadRepoLabels(instanceId.value, owner.value, repo.value);
-    state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
-    state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
-    state.loadRepoIssues(instanceId.value, owner.value, repo.value, 'open');
-    state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
-    state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
-    state.loadUserStopwatches(instanceId.value);
-    state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value);
-    state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value);
+    if (!isActive.value) {
+      return;
+    }
+    loadIssueData();
   },
   { immediate: true },
 );
@@ -136,7 +159,12 @@ const renderedBody = ref('');
 const bodyLoading = ref(false);
 const bodyError = ref('');
 
+// Last-request-wins guard: consecutive body changes trigger concurrent
+// renderMarkdown calls; only the latest request may write back.
+let renderBodyToken = 0;
+
 async function renderBody() {
+  const token = ++renderBodyToken;
   renderedBody.value = '';
   bodyError.value = '';
   if (!detail.value?.body) {
@@ -145,17 +173,27 @@ async function renderBody() {
   bodyLoading.value = true;
   try {
     const context = `${owner.value}/${repo.value}`;
-    renderedBody.value = await state.renderMarkdown(instanceId.value, detail.value.body, context);
+    const html = await state.renderMarkdown(instanceId.value, detail.value.body, context);
+    if (token === renderBodyToken) {
+      renderedBody.value = html;
+    }
   } catch (error) {
-    bodyError.value = error instanceof Error ? error.message : String(error);
+    if (token === renderBodyToken) {
+      bodyError.value = error instanceof Error ? error.message : String(error);
+    }
   } finally {
-    bodyLoading.value = false;
+    if (token === renderBodyToken) {
+      bodyLoading.value = false;
+    }
   }
 }
 
 watch(
   () => detail.value?.body,
   () => {
+    if (!isActive.value) {
+      return;
+    }
     renderBody();
   },
   { immediate: true },

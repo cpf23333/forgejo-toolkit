@@ -5,6 +5,47 @@ import type { ForgejoInstance } from '../types/instance';
 
 const loading = reactive(new Map<string, boolean>());
 const errors = reactive(new Map<string, string>());
+
+// The tracking maps above and some payload maps only ever grow. Cap them:
+// once the limit is hit, the oldest entry (Maps iterate in insertion order)
+// is evicted. Evicted loading/error entries are harmless — reads default to
+// `?? false` / `undefined`.
+const MAX_TRACKING_ENTRIES = 500;
+const MAX_SEARCH_ENTRIES = 50;
+
+function evictOldestKey<V>(map: Map<string, V>, skip?: (value: V) => boolean) {
+  for (const [key, value] of map) {
+    if (skip?.(value)) {
+      continue;
+    }
+    map.delete(key);
+    return;
+  }
+}
+
+// Starts a load for `key`: clears any stale error for that key and bounds the
+// loading map. Never evicts an in-flight (`true`) entry.
+function beginLoading(key: string) {
+  errors.delete(key);
+  if (!loading.has(key) && loading.size >= MAX_TRACKING_ENTRIES) {
+    evictOldestKey(loading, (inFlight) => inFlight);
+  }
+  loading.set(key, true);
+}
+
+function setError(key: string, message: string) {
+  if (!errors.has(key) && errors.size >= MAX_TRACKING_ENTRIES) {
+    evictOldestKey(errors);
+  }
+  errors.set(key, message);
+}
+
+function setBoundedEntry<V>(map: Map<string, V>, key: string, value: V, maxEntries: number) {
+  if (!map.has(key) && map.size >= maxEntries) {
+    evictOldestKey(map);
+  }
+  map.set(key, value);
+}
 import '../types/config';
 import { postMessage } from './vscode';
 
@@ -112,6 +153,11 @@ function createAppState() {
   const repositoriesCache = createTimedCache<ForgejoRepository[]>(30_000);
   const myIssuesCache = createTimedCache<ForgejoIssue[]>(30_000);
   const myPullRequestsCache = createTimedCache<ForgejoPullRequest[]>(30_000);
+  // The myIssues/myPullRequests responses carry no `state` field, so the
+  // requested state is remembered here to resolve the loading/cache key when
+  // the response lands.
+  const myIssuesRequestStates = new Map<string, string>();
+  const myPullRequestsRequestStates = new Map<string, string>();
 
   const repoContentsCache = createTimedCache<ForgejoContentEntry[]>(30_000);
   const repoRefsCache = createTimedCache<{ branches: ForgejoBranch[]; tags: ForgejoTag[]; releases: ForgejoRelease[] }>(
@@ -161,6 +207,28 @@ function createAppState() {
       }
     | undefined
   >(undefined);
+  // The host does not echo request ids for these single-slot request/response
+  // pairs. To keep rapid consecutive operations from landing out of order,
+  // only one request per slot is in flight at a time: while one is pending,
+  // a new call only records the latest intent (bumping the token); when the
+  // response lands it is compared against the latest token, dropped if
+  // superseded, and the latest intent is sent instead.
+  let testConnectionToken = 0;
+  let testConnectionInFlightToken = 0;
+  let testConnectionLatestArgs: { url: string; token: string } | undefined;
+  let saveInstanceToken = 0;
+  let saveInstanceInFlightToken = 0;
+  type SaveInstanceMessage =
+    | { command: 'saveInstance'; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean }
+    | { command: 'editInstance'; id: string; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean };
+  let saveInstanceLatestArgs: SaveInstanceMessage | undefined;
+  let importPreviewToken = 0;
+  let importPreviewInFlightToken = 0;
+  // Latest loadNotifications intent recorded while a request is in flight;
+  // replayed once the in-flight response lands (subjectType is a server-side
+  // filter, so the in-flight response may not match the current filters).
+  const pendingNotificationIntents = new Map<string, { statusTypes: string[]; subjectType?: string[] }>();
+  const inFlightNotificationArgs = new Map<string, string>();
   const lastSavedIssue = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(undefined);
   const lastSavedPullRequest = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(
     undefined,
@@ -940,7 +1008,7 @@ function createAppState() {
         };
         const key = repoRefsKey(instanceId, owner, repo);
         if (error) {
-          errors.set(key, error);
+          setError(key, error);
         } else {
           errors.delete(key);
           loadRepoRefs(instanceId, owner, repo, true);
@@ -968,7 +1036,7 @@ function createAppState() {
         const key = repoRefsKey(instanceId, owner, repo);
         loading.set(key, false);
         if (error) {
-          errors.set(key, error);
+          setError(key, error);
         } else {
           errors.delete(key);
           loadRepoRefs(instanceId, owner, repo, true);
@@ -1056,19 +1124,41 @@ function createAppState() {
         worktreeCacheDirectory.value = message.directory;
         worktreeCacheDirectoryDefault.value = message.defaultDirectory;
         break;
-      case 'testConnectionResult':
+      case 'testConnectionResult': {
+        if (testConnectionInFlightToken !== testConnectionToken && testConnectionLatestArgs) {
+          // This response answers a superseded request; drop it and send the
+          // latest intent instead (the host does not echo request ids).
+          testConnectionInFlightToken = testConnectionToken;
+          postMessage({ command: 'testConnection', ...testConnectionLatestArgs });
+          break;
+        }
+        testConnectionInFlightToken = 0;
         testConnectionResult.value = message;
         break;
-      case 'saveInstanceResult':
+      }
+      case 'saveInstanceResult': {
+        if (saveInstanceInFlightToken !== saveInstanceToken && saveInstanceLatestArgs) {
+          saveInstanceInFlightToken = saveInstanceToken;
+          postMessage(saveInstanceLatestArgs);
+          break;
+        }
+        saveInstanceInFlightToken = 0;
         saveInstanceResult.value = message;
         break;
+      }
       case 'instancesExported':
         exportInstancesResult.value = message;
         break;
       case 'instancesImported':
         importInstancesResult.value = message;
         break;
-      case 'importInstancesPreview':
+      case 'importInstancesPreview': {
+        if (importPreviewInFlightToken !== importPreviewToken) {
+          importPreviewInFlightToken = importPreviewToken;
+          postMessage({ command: 'previewImportInstances' });
+          break;
+        }
+        importPreviewInFlightToken = 0;
         importPreview.value = {
           instances: (message as { instances?: ForgejoInstance[] }).instances ?? [],
           existingIds: (message as { existingIds?: string[] }).existingIds ?? [],
@@ -1076,6 +1166,7 @@ function createAppState() {
           settings: (message as { settings?: ExportSettings }).settings,
         };
         break;
+      }
     }
   }
 
@@ -1083,7 +1174,7 @@ function createAppState() {
     const key = `repos-${data.instanceId}`;
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.repositories ?? [];
@@ -1093,28 +1184,32 @@ function createAppState() {
   }
 
   function handleMyIssues(data: { instanceId: string; issues?: ForgejoIssue[]; error?: string }) {
-    const key = `issues-${data.instanceId}`;
+    const state = myIssuesRequestStates.get(data.instanceId) ?? 'open';
+    myIssuesRequestStates.delete(data.instanceId);
+    const key = `issues-${data.instanceId}-${state}`;
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.issues ?? [];
       myIssues.value.set(data.instanceId, list);
-      myIssuesCache.set(data.instanceId, list);
+      myIssuesCache.set(`${data.instanceId}:${state}`, list);
     }
   }
 
   function handleMyPullRequests(data: { instanceId: string; pullRequests?: ForgejoPullRequest[]; error?: string }) {
-    const key = `pulls-${data.instanceId}`;
+    const state = myPullRequestsRequestStates.get(data.instanceId) ?? 'open';
+    myPullRequestsRequestStates.delete(data.instanceId);
+    const key = `pulls-${data.instanceId}-${state}`;
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.pullRequests ?? [];
       myPullRequests.value.set(data.instanceId, list);
-      myPullRequestsCache.set(data.instanceId, list);
+      myPullRequestsCache.set(`${data.instanceId}:${state}`, list);
     }
   }
 
@@ -1128,7 +1223,7 @@ function createAppState() {
     const key = repoDetailKey(data.instanceId, data.owner, data.repo);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else if (data.detail) {
       errors.delete(key);
       repoDetails.value.set(key, data.detail);
@@ -1147,7 +1242,7 @@ function createAppState() {
     const key = repoBranchCommitsKey(data.instanceId, data.owner, data.repo, data.branch);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.commits ?? [];
@@ -1167,7 +1262,7 @@ function createAppState() {
     const key = issueDetailKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else if (data.detail) {
       errors.delete(key);
       issueDetails.value.set(key, data.detail);
@@ -1185,7 +1280,7 @@ function createAppState() {
     const key = repoLabelsKey(data.instanceId, data.owner, data.repo);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.labels ?? [];
@@ -1204,7 +1299,7 @@ function createAppState() {
     const key = repoAssigneesKey(data.instanceId, data.owner, data.repo);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.assignees ?? [];
@@ -1223,7 +1318,7 @@ function createAppState() {
     const key = repoMilestonesKey(data.instanceId, data.owner, data.repo);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.milestones ?? [];
@@ -1243,7 +1338,7 @@ function createAppState() {
     const key = issueSubscriptionKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       issueSubscriptions.value.set(key, { subscribed: data.subscribed });
@@ -1261,7 +1356,7 @@ function createAppState() {
     const key = issueSubscriptionKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       issueSubscriptions.value.set(key, { subscribed: data.subscribed });
@@ -1280,7 +1375,7 @@ function createAppState() {
     const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       loadIssueTrackedTimes(data.instanceId, data.owner, data.repo, data.index, true);
@@ -1292,7 +1387,7 @@ function createAppState() {
     const key = userStopwatchesKey(data.instanceId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       userStopwatches.value.set(key, data.stopwatches ?? []);
@@ -1310,7 +1405,7 @@ function createAppState() {
     const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       issueTrackedTimes.value.set(key, data.times ?? []);
@@ -1328,7 +1423,7 @@ function createAppState() {
     const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       loadIssueTrackedTimes(data.instanceId, data.owner, data.repo, data.index, true);
@@ -1345,7 +1440,7 @@ function createAppState() {
     const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       issueTrackedTimes.value.set(key, []);
@@ -1363,7 +1458,7 @@ function createAppState() {
     const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = issueTrackedTimes.value.get(key) ?? [];
@@ -1385,7 +1480,7 @@ function createAppState() {
     const key = issueDependenciesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       issueDependencies.value.set(key, data.dependencies ?? []);
@@ -1404,7 +1499,7 @@ function createAppState() {
     const key = issueDependenciesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       loadIssueDependencies(data.instanceId, data.owner, data.repo, data.index, true);
@@ -1422,7 +1517,7 @@ function createAppState() {
     const key = issueReactionsKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       issueReactions.value.set(key, data.reactions ?? []);
@@ -1441,7 +1536,7 @@ function createAppState() {
     const key = issueReactionsKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       loadIssueReactions(data.instanceId, data.owner, data.repo, data.index, true);
@@ -1459,7 +1554,7 @@ function createAppState() {
     const key = commentReactionsKey(data.instanceId, data.owner, data.repo, data.commentId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       commentReactions.value.set(key, data.reactions ?? []);
@@ -1478,7 +1573,7 @@ function createAppState() {
     const key = commentReactionsKey(data.instanceId, data.owner, data.repo, data.commentId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       loadCommentReactions(data.instanceId, data.owner, data.repo, data.commentId, true);
@@ -1543,7 +1638,7 @@ function createAppState() {
     const key = pullRequestDetailKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else if (data.detail) {
       errors.delete(key);
       pullRequestDetails.value.set(key, data.detail);
@@ -1631,7 +1726,7 @@ function createAppState() {
       }
     }
     if (data.error) {
-      errors.set(formKey, data.error);
+      setError(formKey, data.error);
       return;
     }
     errors.delete(formKey);
@@ -1653,7 +1748,7 @@ function createAppState() {
     const key = issueDetailKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
       return;
     }
     errors.delete(key);
@@ -1698,7 +1793,7 @@ function createAppState() {
       }
     }
     if (data.error) {
-      errors.set(formKey, data.error);
+      setError(formKey, data.error);
       return;
     }
     errors.delete(formKey);
@@ -1721,7 +1816,7 @@ function createAppState() {
     const formKey = issueCommentEditFormKey(data.instanceId, data.owner, data.repo, data.commentId);
     loading.set(formKey, false);
     if (data.error) {
-      errors.set(formKey, data.error);
+      setError(formKey, data.error);
       return;
     }
     errors.delete(formKey);
@@ -1828,7 +1923,7 @@ function createAppState() {
     const formKey = issueCommentDeleteFormKey(data.instanceId, data.owner, data.repo, data.commentId);
     loading.set(formKey, false);
     if (data.error) {
-      errors.set(formKey, data.error);
+      setError(formKey, data.error);
       return;
     }
     errors.delete(formKey);
@@ -1852,7 +1947,7 @@ function createAppState() {
     const formKey = pullRequestMergeFormKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(formKey, false);
     if (data.error) {
-      errors.set(formKey, data.error);
+      setError(formKey, data.error);
       return;
     }
     errors.delete(formKey);
@@ -1878,7 +1973,7 @@ function createAppState() {
     const key = `revert-merge:${data.instanceId}:${data.owner}/${data.repo}#${data.index}`;
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
       return;
     }
     errors.delete(key);
@@ -1921,7 +2016,7 @@ function createAppState() {
       }
     }
     if (data.error) {
-      errors.set(formKey, data.error);
+      setError(formKey, data.error);
       return;
     }
     errors.delete(formKey);
@@ -1953,7 +2048,7 @@ function createAppState() {
     const key = pullRequestFilesKey(data.instanceId, data.owner, data.repo, data.index, data.baseSha, data.headSha);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.files ?? [];
@@ -1973,7 +2068,7 @@ function createAppState() {
     const key = pullRequestCommentsKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.comments ?? [];
@@ -1993,7 +2088,7 @@ function createAppState() {
     const key = pullRequestCommitsKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.commits ?? [];
@@ -2014,7 +2109,7 @@ function createAppState() {
     const key = repoIssuesKey(data.instanceId, data.owner, data.repo, data.state, data.query);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       repoIssues.value.set(key, data.issues ?? []);
@@ -2033,7 +2128,7 @@ function createAppState() {
     const key = repoPullRequestsKey(data.instanceId, data.owner, data.repo, data.state, data.query);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       repoPullRequests.value.set(key, data.pullRequests ?? []);
@@ -2052,7 +2147,7 @@ function createAppState() {
     const key = actionRunsKey(data.instanceId, data.owner, data.repo, data.page);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       actionRuns.value.set(key, data.actionRuns ?? []);
@@ -2074,7 +2169,7 @@ function createAppState() {
     const key = actionRunKey(data.instanceId, data.owner, data.repo, data.runId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else if (data.run) {
       errors.delete(key);
       actionRunDetails.value.set(key, data.run);
@@ -2092,7 +2187,7 @@ function createAppState() {
     const key = actionRunJobsKey(data.instanceId, data.owner, data.repo, data.runId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       actionRunJobs.value.set(key, data.jobs ?? []);
@@ -2110,7 +2205,7 @@ function createAppState() {
     const key = actionRunArtifactsKey(data.instanceId, data.owner, data.repo, data.runId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       actionRunArtifacts.value.set(key, data.artifacts ?? []);
@@ -2128,7 +2223,7 @@ function createAppState() {
     const key = actionJobLogKey(data.instanceId, data.owner, data.repo, data.jobId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       actionJobLogs.value.set(key, data.log ?? '');
@@ -2147,7 +2242,7 @@ function createAppState() {
     const key = dispatchWorkflowKey(data.instanceId, data.owner, data.repo, data.workflowfilename);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       if (data.run && typeof data.run === 'object' && (data.run as { id?: number }).id) {
@@ -2170,7 +2265,7 @@ function createAppState() {
     const key = actionRunCancelKey(data.instanceId, data.owner, data.repo, data.runId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       loadActionRun(data.instanceId, data.owner, data.repo, data.runId, true);
@@ -2190,12 +2285,21 @@ function createAppState() {
     const key = actionRunDeleteKey(data.instanceId, data.owner, data.repo, data.runId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
+      // Collect the run's job ids before dropping the jobs entry so their
+      // (potentially large) log strings can be evicted too.
+      const jobsKey = actionRunJobsKey(data.instanceId, data.owner, data.repo, data.runId);
+      const runJobs = actionRunJobs.value.get(jobsKey) ?? [];
       actionRunDetails.value.delete(actionRunKey(data.instanceId, data.owner, data.repo, data.runId));
-      actionRunJobs.value.delete(actionRunJobsKey(data.instanceId, data.owner, data.repo, data.runId));
+      actionRunJobs.value.delete(jobsKey);
       actionRunArtifacts.value.delete(actionRunArtifactsKey(data.instanceId, data.owner, data.repo, data.runId));
+      for (const job of runJobs) {
+        if (job.id !== undefined) {
+          actionJobLogs.value.delete(actionJobLogKey(data.instanceId, data.owner, data.repo, job.id));
+        }
+      }
       actionRuns.value.clear();
       actionRunTotalCount.value.delete(`${data.instanceId}:${data.owner}/${data.repo}`);
       // There is no standalone "actions" route (actions live inside RepoDetail),
@@ -2229,7 +2333,7 @@ function createAppState() {
     const key = actionArtifactDownloadKey(data.instanceId, data.owner, data.repo, data.artifactId);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
     }
@@ -2247,7 +2351,7 @@ function createAppState() {
     const key = repoContentsKey(data.instanceId, data.owner, data.repo, data.ref, data.path);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const list = data.entries ?? [];
@@ -2268,10 +2372,10 @@ function createAppState() {
     const key = repoFileSearchKey(data.instanceId, data.owner, data.repo, data.ref, data.query);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
-      repoFileSearchResults.value.set(key, data.files ?? []);
+      setBoundedEntry(repoFileSearchResults.value, key, data.files ?? [], MAX_SEARCH_ENTRIES);
     }
   }
 
@@ -2288,7 +2392,7 @@ function createAppState() {
     const key = globalSearchKey(data.instanceId, data.scope, data.query, data.state);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
       return;
     }
     errors.delete(key);
@@ -2297,18 +2401,33 @@ function createAppState() {
       issues: [],
       pullRequests: [],
     };
-    globalSearchResults.value.set(key, {
-      repositories: data.repositories ?? existing.repositories,
-      issues: data.issues ?? existing.issues,
-      pullRequests: data.pullRequests ?? existing.pullRequests,
-    });
+    setBoundedEntry(
+      globalSearchResults.value,
+      key,
+      {
+        repositories: data.repositories ?? existing.repositories,
+        issues: data.issues ?? existing.issues,
+        pullRequests: data.pullRequests ?? existing.pullRequests,
+      },
+      MAX_SEARCH_ENTRIES,
+    );
   }
 
   function handleNotifications(data: { instanceId: string; notifications?: ForgejoNotification[]; error?: string }) {
     const key = notificationsKey(data.instanceId);
     loading.set(key, false);
+    // Replay the latest intent if filters changed while this request was in
+    // flight (subjectType is filtered server-side, so the response that just
+    // landed may not match the current filters).
+    const pending = pendingNotificationIntents.get(data.instanceId);
+    pendingNotificationIntents.delete(data.instanceId);
+    const inFlightArgs = inFlightNotificationArgs.get(data.instanceId);
+    inFlightNotificationArgs.delete(data.instanceId);
+    if (pending && JSON.stringify(pending) !== inFlightArgs) {
+      loadNotifications(data.instanceId, pending.statusTypes, pending.subjectType);
+    }
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
       return;
     }
     errors.delete(key);
@@ -2318,7 +2437,7 @@ function createAppState() {
   function handleNotificationMarkedRead(data: { instanceId: string; id: number; error?: string }) {
     const key = notificationsKey(data.instanceId);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
       return;
     }
     const list = notifications.value.get(key) ?? [];
@@ -2331,7 +2450,7 @@ function createAppState() {
   function handleAllNotificationsMarkedRead(data: { instanceId: string; error?: string }) {
     const key = notificationsKey(data.instanceId);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
       return;
     }
     const list = notifications.value.get(key) ?? [];
@@ -2353,7 +2472,7 @@ function createAppState() {
     const key = fileHistoryKey(data.instanceId, data.owner, data.repo, data.path, data.ref);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       fileHistories.value.set(key, data.commits ?? []);
@@ -2372,7 +2491,7 @@ function createAppState() {
     const key = repoRefsKey(data.instanceId, data.owner, data.repo);
     loading.set(key, false);
     if (data.error) {
-      errors.set(key, data.error);
+      setError(key, data.error);
     } else {
       errors.delete(key);
       const value = {
@@ -2418,15 +2537,31 @@ function createAppState() {
   }
 
   function testConnection(url: string, token: string) {
+    testConnectionToken += 1;
+    testConnectionLatestArgs = { url, token };
+    if (testConnectionInFlightToken !== 0) {
+      return;
+    }
+    testConnectionInFlightToken = testConnectionToken;
     postMessage({ command: 'testConnection', url, token });
   }
 
   function saveInstance(url: string, token: string, syncApiUrlsToInstanceUrl?: boolean) {
-    postMessage({ command: 'saveInstance', url, token, syncApiUrlsToInstanceUrl });
+    sendSaveInstance({ command: 'saveInstance', url, token, syncApiUrlsToInstanceUrl });
   }
 
   function editInstance(id: string, url: string, token: string, syncApiUrlsToInstanceUrl?: boolean) {
-    postMessage({ command: 'editInstance', id, url, token, syncApiUrlsToInstanceUrl });
+    sendSaveInstance({ command: 'editInstance', id, url, token, syncApiUrlsToInstanceUrl });
+  }
+
+  function sendSaveInstance(message: SaveInstanceMessage) {
+    saveInstanceToken += 1;
+    saveInstanceLatestArgs = message;
+    if (saveInstanceInFlightToken !== 0) {
+      return;
+    }
+    saveInstanceInFlightToken = saveInstanceToken;
+    postMessage(message);
   }
 
   function removeInstance(id: string) {
@@ -2442,6 +2577,11 @@ function createAppState() {
   }
 
   function previewImportInstances() {
+    importPreviewToken += 1;
+    if (importPreviewInFlightToken !== 0) {
+      return;
+    }
+    importPreviewInFlightToken = importPreviewToken;
     postMessage({ command: 'previewImportInstances' });
   }
 
@@ -2476,7 +2616,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getRepoDetail', instanceId, owner, repo });
   }
 
@@ -2488,7 +2628,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getRepoBranchCommits', instanceId, owner, repo, branch });
   }
 
@@ -2515,8 +2655,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getRepoContents', instanceId, owner, repo, path, ref });
   }
 
@@ -2525,8 +2664,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'searchRepoFiles', instanceId, owner, repo, ref, query });
   }
 
@@ -2535,8 +2673,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getFileHistory', instanceId, owner, repo, path, ref });
   }
 
@@ -2548,8 +2685,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getRepoRefs', instanceId, owner, repo });
   }
 
@@ -2595,8 +2731,7 @@ function createAppState() {
     hideArchiveLinks?: boolean,
   ): Promise<ForgejoRelease> {
     const key = repoRefsKey(instanceId, owner, repo);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     const _requestId = `release-create-${++releaseCreationRequestId}`;
     return new Promise((resolve, reject) => {
       pendingReleaseCreations.set(_requestId, { resolve, reject });
@@ -2725,8 +2860,7 @@ function createAppState() {
     },
   ): Promise<ForgejoIssue> {
     const key = issueFormKey(instanceId, owner, repo, 0);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     const _requestId = `issue-create-${++issueCreationRequestId}`;
     return new Promise((resolve, reject) => {
       pendingIssueCreations.set(_requestId, { resolve, reject });
@@ -2766,8 +2900,7 @@ function createAppState() {
     },
   ) {
     const key = issueFormKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({
       command: 'editIssue',
       instanceId,
@@ -2789,8 +2922,7 @@ function createAppState() {
 
   function deleteIssue(instanceId: string, owner: string, repo: string, index: number) {
     const key = issueDetailKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({
       command: 'deleteIssue',
       instanceId,
@@ -2808,8 +2940,7 @@ function createAppState() {
     body: string,
   ): Promise<ForgejoTimelineComment> {
     const key = issueCommentFormKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     const _requestId = `issue-comment-create-${++issueCommentCreationRequestId}`;
     return new Promise((resolve, reject) => {
       pendingIssueCommentCreations.set(_requestId, { resolve, reject });
@@ -2819,8 +2950,7 @@ function createAppState() {
 
   function editIssueComment(instanceId: string, owner: string, repo: string, commentId: number, body: string) {
     const key = issueCommentEditFormKey(instanceId, owner, repo, commentId);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'editIssueComment', instanceId, owner, repo, commentId, body });
   }
 
@@ -2830,8 +2960,7 @@ function createAppState() {
       return;
     }
     const key = issueCommentDeleteFormKey(instanceId, owner, repo, commentId);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'deleteIssueComment', instanceId, owner, repo, commentId });
   }
 
@@ -2865,15 +2994,13 @@ function createAppState() {
     strategy: 'merge' | 'rebase' | 'squash',
   ) {
     const key = pullRequestMergeFormKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'mergePullRequest', instanceId, owner, repo, index, strategy });
   }
 
   function revertMergeCommit(instanceId: string, owner: string, repo: string, index: number) {
     const key = `revert-merge:${instanceId}:${owner}/${repo}#${index}`;
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'revertMergeCommit', instanceId, owner, repo, index });
   }
 
@@ -2975,8 +3102,7 @@ function createAppState() {
     },
   ): Promise<ForgejoPullRequest> {
     const key = pullRequestFormKey(instanceId, owner, repo, 0);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     const _requestId = `pull-request-create-${++pullRequestCreationRequestId}`;
     return new Promise((resolve, reject) => {
       pendingPullRequestCreations.set(_requestId, { resolve, reject });
@@ -3018,8 +3144,7 @@ function createAppState() {
     },
   ) {
     const key = pullRequestFormKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({
       command: 'editPullRequest',
       instanceId,
@@ -3053,7 +3178,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getIssueDetail', instanceId, owner, repo, index });
   }
 
@@ -3070,7 +3195,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getPullRequestDetail', instanceId, owner, repo, index });
   }
 
@@ -3090,7 +3215,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getPullRequestFiles', instanceId, owner, repo, index, baseSha, headSha });
   }
 
@@ -3102,7 +3227,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getPullRequestCommentsAndTimeline', instanceId, owner, repo, index });
   }
 
@@ -3114,7 +3239,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getPullRequestCommits', instanceId, owner, repo, index });
   }
 
@@ -3175,7 +3300,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getRepoIssues', instanceId, owner, repo, state, query: query?.trim() || undefined });
   }
 
@@ -3187,7 +3312,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getRepoLabels', instanceId, owner, repo });
   }
 
@@ -3199,7 +3324,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getRepoAssignees', instanceId, owner, repo });
   }
 
@@ -3211,7 +3336,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getRepoMilestones', instanceId, owner, repo });
   }
 
@@ -3223,8 +3348,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'checkIssueSubscription', instanceId, owner, repo, index });
   }
 
@@ -3237,8 +3361,7 @@ function createAppState() {
     subscribe: boolean,
   ) {
     const key = issueSubscriptionKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'changeIssueSubscription', instanceId, owner, repo, index, user, subscribe });
   }
 
@@ -3250,8 +3373,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getUserStopwatches', instanceId });
   }
 
@@ -3263,50 +3385,43 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getIssueTrackedTimes', instanceId, owner, repo, index });
   }
 
   function startIssueStopwatch(instanceId: string, owner: string, repo: string, index: number) {
     const key = issueTrackedTimesKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'startIssueStopwatch', instanceId, owner, repo, index });
   }
 
   function stopIssueStopwatch(instanceId: string, owner: string, repo: string, index: number) {
     const key = issueTrackedTimesKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'stopIssueStopwatch', instanceId, owner, repo, index });
   }
 
   function deleteIssueStopwatch(instanceId: string, owner: string, repo: string, index: number) {
     const key = issueTrackedTimesKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'deleteIssueStopwatch', instanceId, owner, repo, index });
   }
 
   function addIssueTime(instanceId: string, owner: string, repo: string, index: number, time: number) {
     const key = issueTrackedTimesKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'addIssueTime', instanceId, owner, repo, index, time });
   }
 
   function resetIssueTime(instanceId: string, owner: string, repo: string, index: number) {
     const key = issueTrackedTimesKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'resetIssueTime', instanceId, owner, repo, index });
   }
 
   function deleteIssueTime(instanceId: string, owner: string, repo: string, index: number, id: number) {
     const key = issueTrackedTimesKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'deleteIssueTime', instanceId, owner, repo, index, id });
   }
 
@@ -3318,8 +3433,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getIssueDependencies', instanceId, owner, repo, index });
   }
 
@@ -3331,8 +3445,7 @@ function createAppState() {
     dependencyIndex: number,
   ) {
     const key = issueDependenciesKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'createIssueDependency', instanceId, owner, repo, index, dependencyIndex });
   }
 
@@ -3344,8 +3457,7 @@ function createAppState() {
     dependencyIndex: number,
   ) {
     const key = issueDependenciesKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'removeIssueDependency', instanceId, owner, repo, index, dependencyIndex });
   }
 
@@ -3357,8 +3469,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getIssueReactions', instanceId, owner, repo, index });
   }
 
@@ -3371,8 +3482,7 @@ function createAppState() {
     add: boolean,
   ) {
     const key = issueReactionsKey(instanceId, owner, repo, index);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'changeIssueReaction', instanceId, owner, repo, index, content, add });
   }
 
@@ -3384,8 +3494,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getCommentReactions', instanceId, owner, repo, commentId });
   }
 
@@ -3398,8 +3507,7 @@ function createAppState() {
     add: boolean,
   ) {
     const key = commentReactionsKey(instanceId, owner, repo, commentId);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'changeCommentReaction', instanceId, owner, repo, commentId, content, add });
   }
 
@@ -3425,7 +3533,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({
       command: 'getRepoPullRequests',
       instanceId,
@@ -3441,8 +3549,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getActionRuns', instanceId, owner, repo, page, limit: 30 });
   }
 
@@ -3458,8 +3565,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getActionRun', instanceId, owner, repo, runId });
   }
 
@@ -3468,8 +3574,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getActionRunJobs', instanceId, owner, repo, runId });
   }
 
@@ -3478,8 +3583,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getActionRunArtifacts', instanceId, owner, repo, runId });
   }
 
@@ -3491,8 +3595,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'getActionJobLog', instanceId, owner, repo, jobId });
   }
 
@@ -3505,29 +3608,25 @@ function createAppState() {
     inputs?: Record<string, string>,
   ) {
     const key = dispatchWorkflowKey(instanceId, owner, repo, workflowfilename);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'dispatchWorkflow', instanceId, owner, repo, workflowfilename, ref, inputs });
   }
 
   function cancelActionRun(instanceId: string, owner: string, repo: string, runId: number) {
     const key = actionRunCancelKey(instanceId, owner, repo, runId);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'cancelActionRun', instanceId, owner, repo, runId });
   }
 
   function deleteActionRun(instanceId: string, owner: string, repo: string, runId: number) {
     const key = actionRunDeleteKey(instanceId, owner, repo, runId);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'deleteActionRun', instanceId, owner, repo, runId });
   }
 
   function downloadActionArtifact(instanceId: string, owner: string, repo: string, artifactId: number, name: string) {
     const key = actionArtifactDownloadKey(instanceId, owner, repo, artifactId);
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'downloadActionArtifact', instanceId, owner, repo, artifactId, name });
   }
 
@@ -3651,31 +3750,33 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
     postMessage({ command: 'getRepositories', instanceId });
   }
 
   function loadMyIssues(instanceId: string, state = 'open', force = false) {
-    const key = `issues-${instanceId}`;
-    if (!force && myIssuesCache.has(instanceId)) {
+    const key = `issues-${instanceId}-${state}`;
+    if (!force && myIssuesCache.has(`${instanceId}:${state}`)) {
       return;
     }
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
+    myIssuesRequestStates.set(instanceId, state);
     postMessage({ command: 'getMyIssues', instanceId, state });
   }
 
   function loadMyPullRequests(instanceId: string, state = 'open', force = false) {
-    const key = `pulls-${instanceId}`;
-    if (!force && myPullRequestsCache.has(instanceId)) {
+    const key = `pulls-${instanceId}-${state}`;
+    if (!force && myPullRequestsCache.has(`${instanceId}:${state}`)) {
       return;
     }
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
+    beginLoading(key);
+    myPullRequestsRequestStates.set(instanceId, state);
     postMessage({ command: 'getMyPullRequests', instanceId, state });
   }
 
@@ -3693,8 +3794,7 @@ function createAppState() {
     if (loading.get(key)) {
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
     postMessage({ command: 'globalSearch', instanceId, scope, query: trimmed, state, limit: 20 });
   }
 
@@ -3709,10 +3809,11 @@ function createAppState() {
   function loadNotifications(instanceId: string, statusTypes: string[] = ['unread', 'pinned'], subjectType?: string[]) {
     const key = notificationsKey(instanceId);
     if (loading.get(key)) {
+      pendingNotificationIntents.set(instanceId, { statusTypes, subjectType });
       return;
     }
-    loading.set(key, true);
-    errors.delete(key);
+    beginLoading(key);
+    inFlightNotificationArgs.set(instanceId, JSON.stringify({ statusTypes, subjectType }));
     postMessage({ command: 'getNotifications', instanceId, statusTypes, subjectType, limit: 50 });
   }
 

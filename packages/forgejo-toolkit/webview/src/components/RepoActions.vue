@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState, actionRunsKey, dispatchWorkflowKey } from '../composables/useAppState';
 
@@ -37,9 +37,17 @@ const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
 const totalCount = computed(() => state.actionRunTotalCount.value.get(totalKey.value) ?? 0);
 
+// RepoActions lives inside RepoDetail, which is kept alive: while deactivated
+// the parent's props track the global route, not this repo. Guard route-driven
+// loading on isActive and stop polling while deactivated.
+const isActive = ref(true);
+
 watch(
   [() => props.instanceId, () => props.owner, () => props.repo],
   () => {
+    if (!isActive.value) {
+      return;
+    }
     page.value = 1;
     state.loadActionRuns(props.instanceId, props.owner, props.repo, page.value);
   },
@@ -49,7 +57,13 @@ watch(
 watch(
   () => dispatchLoading.value,
   (loading, previousLoading) => {
-    if (previousLoading && !loading && !dispatchError.value && pollingAfterIndex.value !== undefined) {
+    if (
+      previousLoading &&
+      !loading &&
+      !dispatchError.value &&
+      pollingAfterIndex.value !== undefined &&
+      isActive.value
+    ) {
       startListPolling(pollingAfterIndex.value);
       pollingAfterIndex.value = undefined;
     }
@@ -152,8 +166,17 @@ function onRefChange(event: Event) {
 }
 
 function latestRunIndex(): number {
-  const allRuns = Array.from(state.actionRuns.value.values()).flat();
-  return Math.max(0, ...allRuns.map((run) => run.index_in_repo ?? 0));
+  const prefix = `${props.instanceId}:${props.owner}/${props.repo}:`;
+  let max = 0;
+  for (const [runKey, list] of state.actionRuns.value) {
+    if (!runKey.startsWith(prefix)) {
+      continue;
+    }
+    for (const run of list) {
+      max = Math.max(max, run.index_in_repo ?? 0);
+    }
+  }
+  return max;
 }
 
 function stopListPolling() {
@@ -221,6 +244,18 @@ function resetTrigger() {
   triggerInputs.value = [];
   showTrigger.value = false;
 }
+
+onActivated(() => {
+  isActive.value = true;
+  // Props may have changed back before this hook ran; make sure the list for
+  // the current repo is loaded (the loader dedups in-flight requests).
+  state.loadActionRuns(props.instanceId, props.owner, props.repo, page.value);
+});
+
+onDeactivated(() => {
+  isActive.value = false;
+  stopListPolling();
+});
 
 onUnmounted(() => {
   stopListPolling();

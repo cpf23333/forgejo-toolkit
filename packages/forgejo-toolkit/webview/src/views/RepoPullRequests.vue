@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import ModalDialog from '../components/ModalDialog.vue';
@@ -66,13 +66,35 @@ const assignees = computed(() => state.repoAssignees.value.get(assigneesKey.valu
 const milestonesKey = computed(() => repoMilestonesKey(instanceId.value, owner.value, repo.value));
 const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.value) ?? []);
 
+// Under keep-alive this view is deactivated (not unmounted) when navigating
+// away; `route.params` then tracks the global route, not this view's own
+// route. Guard route-driven loading on isActive.
+const isActive = ref(true);
+
+function loadListData() {
+  state.loadRepoDetail(instanceId.value, owner.value, repo.value);
+  if (hasPullRequests.value) {
+    state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value);
+  }
+}
+
+onActivated(() => {
+  isActive.value = true;
+  // Params may have changed back before this hook ran; make sure data for the
+  // current route is loaded (loaders dedup via their caches).
+  loadListData();
+});
+onDeactivated(() => {
+  isActive.value = false;
+});
+
 watch(
   [instanceId, owner, repo, stateParam],
   () => {
-    state.loadRepoDetail(instanceId.value, owner.value, repo.value);
-    if (hasPullRequests.value) {
-      state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value);
+    if (!isActive.value) {
+      return;
     }
+    loadListData();
   },
   { immediate: true },
 );
@@ -145,10 +167,14 @@ function openCreatePullRequest(head = '') {
 
 // Open the create dialog prefilled from the current branch when the host asked
 // us to (status bar / command palette), both on mount and while this view is
-// already active.
+// already active. A deactivated instance must not consume the pending intent
+// meant for the currently active view.
 watch(
   [instanceId, owner, repo, () => state.pendingCreatePr.value],
   () => {
+    if (!isActive.value) {
+      return;
+    }
     const pending = state.consumePendingCreatePr(instanceId.value, owner.value, repo.value);
     if (pending) {
       openCreatePullRequest(pending.head);

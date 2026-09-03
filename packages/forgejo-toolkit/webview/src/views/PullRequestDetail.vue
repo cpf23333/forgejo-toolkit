@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import MarkdownBody from '../components/MarkdownBody.vue';
@@ -139,19 +139,58 @@ const prReference = computed(() => {
   return `${fullName}#${detail.value?.number ?? index.value}`;
 });
 
+// Under keep-alive this view is deactivated (not unmounted) when navigating
+// away; `route.params` then tracks the global route, not this view's own
+// route. Guard all route-driven loading on isActive.
+const isActive = ref(true);
+
+function loadPullRequestData() {
+  state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
+  state.loadRepoLabels(instanceId.value, owner.value, repo.value);
+  state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
+  state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
+  state.loadRepoIssues(instanceId.value, owner.value, repo.value, 'open');
+  state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
+  state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
+  state.loadUserStopwatches(instanceId.value);
+  state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value);
+  state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value);
+}
+
+function loadDetailDependentData() {
+  if (detail.value) {
+    state.loadPullRequestFiles(
+      instanceId.value,
+      owner.value,
+      repo.value,
+      index.value,
+      detail.value.merge_base ?? detail.value.base?.sha,
+      detail.value.head?.sha,
+    );
+    state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value);
+    state.loadPullRequestCommits(instanceId.value, owner.value, repo.value, index.value);
+  }
+}
+
+onActivated(() => {
+  isActive.value = true;
+  // Params may have changed back before this hook ran; make sure data for the
+  // current route is loaded (loaders dedup via their caches).
+  loadPullRequestData();
+  loadDetailDependentData();
+  renderBody();
+});
+onDeactivated(() => {
+  isActive.value = false;
+});
+
 watch(
   [instanceId, owner, repo, index],
   () => {
-    state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
-    state.loadRepoLabels(instanceId.value, owner.value, repo.value);
-    state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
-    state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
-    state.loadRepoIssues(instanceId.value, owner.value, repo.value, 'open');
-    state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
-    state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
-    state.loadUserStopwatches(instanceId.value);
-    state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value);
-    state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value);
+    if (!isActive.value) {
+      return;
+    }
+    loadPullRequestData();
   },
   { immediate: true },
 );
@@ -159,18 +198,10 @@ watch(
 watch(
   () => detail.value,
   () => {
-    if (detail.value) {
-      state.loadPullRequestFiles(
-        instanceId.value,
-        owner.value,
-        repo.value,
-        index.value,
-        detail.value.merge_base ?? detail.value.base?.sha,
-        detail.value.head?.sha,
-      );
-      state.loadPullRequestComments(instanceId.value, owner.value, repo.value, index.value);
-      state.loadPullRequestCommits(instanceId.value, owner.value, repo.value, index.value);
+    if (!isActive.value) {
+      return;
     }
+    loadDetailDependentData();
   },
   { immediate: true },
 );
@@ -601,7 +632,12 @@ const renderedBody = ref('');
 const bodyLoading = ref(false);
 const bodyError = ref('');
 
+// Last-request-wins guard: consecutive body changes trigger concurrent
+// renderMarkdown calls; only the latest request may write back.
+let renderBodyToken = 0;
+
 async function renderBody() {
+  const token = ++renderBodyToken;
   renderedBody.value = '';
   bodyError.value = '';
   if (!detail.value?.body) {
@@ -610,17 +646,27 @@ async function renderBody() {
   bodyLoading.value = true;
   try {
     const context = `${owner.value}/${repo.value}`;
-    renderedBody.value = await state.renderMarkdown(instanceId.value, detail.value.body, context);
+    const html = await state.renderMarkdown(instanceId.value, detail.value.body, context);
+    if (token === renderBodyToken) {
+      renderedBody.value = html;
+    }
   } catch (error) {
-    bodyError.value = error instanceof Error ? error.message : String(error);
+    if (token === renderBodyToken) {
+      bodyError.value = error instanceof Error ? error.message : String(error);
+    }
   } finally {
-    bodyLoading.value = false;
+    if (token === renderBodyToken) {
+      bodyLoading.value = false;
+    }
   }
 }
 
 watch(
   () => detail.value?.body,
   () => {
+    if (!isActive.value) {
+      return;
+    }
     renderBody();
   },
   { immediate: true },
@@ -737,15 +783,24 @@ function openInWorktree() {
   state.openPrWorktree(instanceId.value, owner.value, repo.value, index.value);
 }
 
+// Watch this PR's worktree entry by reference: the state handler replaces the
+// entry object when this PR's worktreeOpened arrives, while unrelated
+// worktree list mutations keep the same reference and must not fire.
 watch(
-  () => state.worktrees.value,
-  () => {
-    if (worktreeLoading.value) {
+  () =>
+    state.worktrees.value.find(
+      (w) =>
+        w.instanceId === instanceId.value &&
+        w.owner === owner.value &&
+        w.repo === repo.value &&
+        w.prIndex === index.value,
+    ),
+  (worktree, previous) => {
+    if (worktree && worktree !== previous && worktreeLoading.value) {
       worktreeLoading.value = false;
       setWorktreeStatus(t('dashboard.worktree.opened'), 'success');
     }
   },
-  { deep: true },
 );
 
 watch(
@@ -762,14 +817,6 @@ watch(
       worktreeStatusType.value = 'idle';
     }
   },
-);
-
-watch(
-  () => state.errors,
-  () => {
-    // No global error hook for worktree errors yet; status is updated via separate mechanism if needed.
-  },
-  { deep: true },
 );
 
 function reloadPullRequest() {

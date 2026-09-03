@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAppState, repoBranchCommitsKey, repoDetailKey } from '../composables/useAppState';
@@ -23,9 +23,26 @@ const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
 const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
 
+// Under keep-alive this view is deactivated (not unmounted) when navigating
+// away; `route.params` then tracks the global route, not this view's own
+// route. Guard route-driven loading on isActive.
+const isActive = ref(true);
+onActivated(() => {
+  isActive.value = true;
+  // Params may have changed back before this hook ran; make sure data for the
+  // current route is loaded (the loader dedups via its cache).
+  state.loadRepoDetail(instanceId.value, owner.value, repo.value);
+});
+onDeactivated(() => {
+  isActive.value = false;
+});
+
 watch(
   [instanceId, owner, repo],
   () => {
+    if (!isActive.value) {
+      return;
+    }
     state.loadRepoDetail(instanceId.value, owner.value, repo.value);
   },
   { immediate: true },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {
@@ -45,15 +45,27 @@ const deleteError = computed(() => state.errors.get(deleteKey.value));
 const jobLogElements = ref<Map<number, HTMLPreElement>>(new Map());
 const jobLogScrollStates = ref<Map<number, { wasAtBottom: boolean }>>(new Map());
 
+// Under keep-alive this view is deactivated (not unmounted) when navigating
+// away; `route.params` then tracks the global route, not this view's own
+// route. Guard all route-driven loading on isActive.
+const isActive = ref(true);
+
+function loadRunData() {
+  if (!instanceId.value || !owner.value || !repo.value || Number.isNaN(runId.value)) {
+    return;
+  }
+  state.loadActionRun(instanceId.value, owner.value, repo.value, runId.value);
+  state.loadActionRunJobs(instanceId.value, owner.value, repo.value, runId.value);
+  state.loadActionRunArtifacts(instanceId.value, owner.value, repo.value, runId.value);
+}
+
 watch(
   [instanceId, owner, repo, runId],
   () => {
-    if (!instanceId.value || !owner.value || !repo.value || Number.isNaN(runId.value)) {
+    if (!isActive.value) {
       return;
     }
-    state.loadActionRun(instanceId.value, owner.value, repo.value, runId.value);
-    state.loadActionRunJobs(instanceId.value, owner.value, repo.value, runId.value);
-    state.loadActionRunArtifacts(instanceId.value, owner.value, repo.value, runId.value);
+    loadRunData();
   },
   { immediate: true },
 );
@@ -106,11 +118,26 @@ watch(
   (status) => {
     if (isFinalStatus(status)) {
       stopPolling();
-    } else {
+    } else if (isActive.value) {
       startPolling();
     }
   },
 );
+
+onActivated(() => {
+  isActive.value = true;
+  // Params may have changed back before this hook ran; make sure data for the
+  // current route is loaded (loaders dedup via their caches).
+  loadRunData();
+  if (!isFinalStatus(run.value?.status)) {
+    startPolling();
+  }
+});
+
+onDeactivated(() => {
+  isActive.value = false;
+  stopPolling();
+});
 
 watch(
   () => state.actionJobLogs.value,
@@ -151,6 +178,9 @@ function loadAllJobLogs(force = false) {
 watch(
   () => jobs.value.map((job) => job.id).join(','),
   () => {
+    if (!isActive.value) {
+      return;
+    }
     loadAllJobLogs(false);
   },
 );

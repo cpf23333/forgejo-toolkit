@@ -1160,4 +1160,339 @@ describe('useAppState', () => {
       await expect(promise).resolves.toBe(true);
     });
   });
+
+  describe('actionRunDeleted cleanup', () => {
+    it('evicts the run job logs together with details, jobs and artifacts', async () => {
+      const { state, mod } = await createState();
+      dispatchMessage({
+        command: 'actionRunJobs',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        runId: 7,
+        jobs: [
+          { id: 101, name: 'build', status: 'success' },
+          { id: 102, name: 'test', status: 'failure' },
+        ],
+      });
+      dispatchMessage({
+        command: 'actionJobLog',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        jobId: 101,
+        log: 'build log',
+      });
+      dispatchMessage({
+        command: 'actionJobLog',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        jobId: 102,
+        log: 'test log',
+      });
+      // A log for another run's job in the same repo must survive.
+      dispatchMessage({
+        command: 'actionJobLog',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        jobId: 999,
+        log: 'other log',
+      });
+      await nextTick();
+
+      dispatchMessage({ command: 'actionRunDeleted', instanceId: 'inst-1', owner: 'owner', repo: 'repo', runId: 7 });
+      await nextTick();
+
+      expect(state.actionJobLogs.value.get(mod.actionJobLogKey('inst-1', 'owner', 'repo', 101))).toBeUndefined();
+      expect(state.actionJobLogs.value.get(mod.actionJobLogKey('inst-1', 'owner', 'repo', 102))).toBeUndefined();
+      expect(state.actionJobLogs.value.get(mod.actionJobLogKey('inst-1', 'owner', 'repo', 999))).toBe('other log');
+      expect(state.actionRunJobs.value.get(mod.actionRunJobsKey('inst-1', 'owner', 'repo', 7))).toBeUndefined();
+    });
+  });
+
+  describe('single-slot request guards', () => {
+    it('testConnection drops a superseded response and resends the latest intent', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.testConnection('https://a.example.com', 'token-a');
+      state.testConnection('https://b.example.com', 'token-b');
+
+      // Only the first request is in flight; the second is recorded as intent.
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'testConnection', url: 'https://a.example.com' }),
+      );
+
+      // The response to the superseded first request is dropped, and the
+      // latest intent is sent instead.
+      dispatchMessage({ command: 'testConnectionResult', success: true, username: 'user-a' });
+      await nextTick();
+
+      expect(state.testConnectionResult.value).toBeUndefined();
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(2);
+      expect(vscodePostMessage()).toHaveBeenLastCalledWith(
+        expect.objectContaining({ command: 'testConnection', url: 'https://b.example.com', token: 'token-b' }),
+      );
+
+      // The response to the latest request lands normally.
+      dispatchMessage({ command: 'testConnectionResult', success: true, username: 'user-b' });
+      await nextTick();
+
+      expect(state.testConnectionResult.value).toMatchObject({ success: true, username: 'user-b' });
+    });
+
+    it('testConnection applies the response when no newer request was issued', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.testConnection('https://a.example.com', 'token-a');
+      dispatchMessage({ command: 'testConnectionResult', success: false, error: 'boom' });
+      await nextTick();
+
+      expect(state.testConnectionResult.value).toMatchObject({ success: false, error: 'boom' });
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+    });
+
+    it('saveInstance/editInstance share one guarded slot', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.saveInstance('https://a.example.com', 'token-a');
+      state.editInstance('inst-1', 'https://b.example.com', 'token-b');
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'saveInstance', url: 'https://a.example.com' }),
+      );
+
+      dispatchMessage({ command: 'saveInstanceResult', success: true });
+      await nextTick();
+
+      expect(state.saveInstanceResult.value).toBeUndefined();
+      expect(vscodePostMessage()).toHaveBeenLastCalledWith(
+        expect.objectContaining({ command: 'editInstance', id: 'inst-1', url: 'https://b.example.com' }),
+      );
+
+      dispatchMessage({ command: 'saveInstanceResult', success: true });
+      await nextTick();
+
+      expect(state.saveInstanceResult.value).toMatchObject({ success: true });
+    });
+
+    it('previewImportInstances replays the latest intent after a superseded response', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.previewImportInstances();
+      state.previewImportInstances();
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+
+      dispatchMessage({ command: 'importInstancesPreview', instances: [], existingIds: [] });
+      await nextTick();
+
+      expect(state.importPreview.value).toBeUndefined();
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(2);
+      expect(vscodePostMessage()).toHaveBeenLastCalledWith(
+        expect.objectContaining({ command: 'previewImportInstances' }),
+      );
+
+      dispatchMessage({
+        command: 'importInstancesPreview',
+        instances: [{ id: 'inst-2', url: 'https://forgejo.example.com', token: 't' }],
+        existingIds: [],
+      });
+      await nextTick();
+
+      expect(state.importPreview.value?.instances).toHaveLength(1);
+    });
+  });
+
+  describe('loadNotifications intent replay', () => {
+    it('re-issues the request with the latest filters after an in-flight response lands', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.loadNotifications('inst-1', ['unread', 'pinned']);
+      state.loadNotifications('inst-1', ['unread', 'pinned'], ['issue']);
+
+      // The second call while in flight only records the intent.
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+      await nextTick();
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(2);
+      expect(vscodePostMessage()).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          command: 'getNotifications',
+          instanceId: 'inst-1',
+          statusTypes: ['unread', 'pinned'],
+          subjectType: ['issue'],
+        }),
+      );
+    });
+
+    it('does not re-issue when the filters did not change while in flight', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.loadNotifications('inst-1', ['unread', 'pinned'], ['issue']);
+      state.loadNotifications('inst-1', ['unread', 'pinned'], ['issue']);
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: [] });
+      await nextTick();
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('bounded state maps', () => {
+    it('globalSearchResults evicts the oldest entry beyond 50 entries', async () => {
+      const { state, mod } = await createState();
+
+      for (let i = 0; i < 55; i += 1) {
+        dispatchMessage({
+          command: 'globalSearchResult',
+          instanceId: 'inst-1',
+          scope: 'repositories',
+          query: `query-${i}`,
+          state: 'all',
+          repositories: [],
+        });
+      }
+      await nextTick();
+
+      expect(state.globalSearchResults.value.size).toBe(50);
+      expect(state.globalSearchResults.value.has(mod.globalSearchKey('inst-1', 'repositories', 'query-0', 'all'))).toBe(
+        false,
+      );
+      expect(
+        state.globalSearchResults.value.has(mod.globalSearchKey('inst-1', 'repositories', 'query-54', 'all')),
+      ).toBe(true);
+    });
+
+    it('repoFileSearchResults evicts the oldest entry beyond 50 entries', async () => {
+      const { state, mod } = await createState();
+
+      for (let i = 0; i < 52; i += 1) {
+        dispatchMessage({
+          command: 'repoFilesSearchResult',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo: 'repo',
+          ref: 'main',
+          query: `q-${i}`,
+          files: [],
+        });
+      }
+      await nextTick();
+
+      expect(state.repoFileSearchResults.value.size).toBe(50);
+      expect(
+        state.repoFileSearchResults.value.has(mod.repoFileSearchKey('inst-1', 'owner', 'repo', 'main', 'q-0')),
+      ).toBe(false);
+    });
+
+    it('errors evicts the oldest entry beyond 500 entries', async () => {
+      const { state, mod } = await createState();
+
+      for (let i = 0; i < 505; i += 1) {
+        dispatchMessage({
+          command: 'repoDetail',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo: `repo-${i}`,
+          error: `error-${i}`,
+        });
+      }
+      await nextTick();
+
+      expect(state.errors.size).toBe(500);
+      expect(state.errors.has(mod.repoDetailKey('inst-1', 'owner', 'repo-0'))).toBe(false);
+      expect(state.errors.get(mod.repoDetailKey('inst-1', 'owner', 'repo-504'))).toBe('error-504');
+    });
+  });
+
+  describe('loader error clearing', () => {
+    it('starting a load clears a stale error for the same key', async () => {
+      const { state, mod } = await createState();
+      dispatchMessage({
+        command: 'repoDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        error: 'Not found',
+      });
+      await nextTick();
+
+      const key = mod.repoDetailKey('inst-1', 'owner', 'repo');
+      expect(state.errors.get(key)).toBe('Not found');
+
+      state.loadRepoDetail('inst-1', 'owner', 'repo', true);
+      expect(state.errors.get(key)).toBeUndefined();
+      expect(state.loading.get(key)).toBe(true);
+    });
+
+    it('loadIssueDetail clears a stale error on reload', async () => {
+      const { state, mod } = await createState();
+      dispatchMessage({
+        command: 'issueDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 1,
+        error: 'boom',
+      });
+      await nextTick();
+
+      const key = mod.issueDetailKey('inst-1', 'owner', 'repo', 1);
+      expect(state.errors.get(key)).toBe('boom');
+
+      state.loadIssueDetail('inst-1', 'owner', 'repo', 1, true);
+      expect(state.errors.get(key)).toBeUndefined();
+    });
+  });
+
+  describe('my issues/pull requests state-scoped keys', () => {
+    it('loadMyIssues keys loading and cache by state', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.loadMyIssues('inst-1', 'closed');
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getMyIssues', instanceId: 'inst-1', state: 'closed' }),
+      );
+      expect(state.loading.get('issues-inst-1-closed')).toBe(true);
+
+      dispatchMessage({ command: 'myIssues', instanceId: 'inst-1', issues: [fakeIssue] });
+      await nextTick();
+
+      expect(state.loading.get('issues-inst-1-closed')).toBe(false);
+      expect(state.myIssuesCache.has('inst-1:closed')).toBe(true);
+      expect(state.myIssues.value.get('inst-1')).toEqual([fakeIssue]);
+
+      // Cached state does not refetch.
+      vscodePostMessage().mockClear();
+      state.loadMyIssues('inst-1', 'closed');
+      expect(vscodePostMessage()).not.toHaveBeenCalled();
+    });
+
+    it('loadMyPullRequests keys loading and cache by state', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.loadMyPullRequests('inst-1', 'open');
+      expect(state.loading.get('pulls-inst-1-open')).toBe(true);
+
+      dispatchMessage({ command: 'myPullRequests', instanceId: 'inst-1', pullRequests: [fakePullRequest] });
+      await nextTick();
+
+      expect(state.loading.get('pulls-inst-1-open')).toBe(false);
+      expect(state.myPullRequestsCache.has('inst-1:open')).toBe(true);
+    });
+  });
 });

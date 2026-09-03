@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState } from '../composables/useAppState';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -42,7 +42,6 @@ function handleOpenChange() {
   if (!el) {
     return;
   }
-  console.log('[DashboardInstanceItem] open attribute changed', instanceId.value, isOpen(el));
   if (isOpen(el)) {
     loadForTab();
     nextTick(() => autoExpandFirstOwner());
@@ -62,13 +61,21 @@ onMounted(() => {
     }
   });
   openObserver.observe(el, { attributes: true, attributeFilter: ['open'] });
-  console.log('[DashboardInstanceItem] observer mounted', instanceId.value, isOpen(el), props.autoExpand);
   if (props.autoExpand && !isOpen(el)) {
     setOpen(el, true);
   } else if (isOpen(el)) {
     handleOpenChange();
   }
   loadForTab();
+});
+
+// Under keep-alive the dashboard is deactivated rather than unmounted when
+// navigating away. List caches may have been cleared meanwhile (e.g. after an
+// issue/PR was saved or deleted), so re-check and reload on return.
+onActivated(() => {
+  if (isOpen(treeItemRef.value)) {
+    loadForTab();
+  }
 });
 
 onUnmounted(() => {
@@ -120,13 +127,12 @@ function dataLoaded(): boolean {
     return state.repositoriesCache.has(instanceId.value);
   }
   if (props.activeTab === 'issues') {
-    return state.myIssuesCache.has(instanceId.value);
+    return state.myIssuesCache.has(`${instanceId.value}:open`);
   }
-  return state.myPullRequestsCache.has(instanceId.value);
+  return state.myPullRequestsCache.has(`${instanceId.value}:open`);
 }
 
 function loadForTab(force = false) {
-  console.log('[DashboardInstanceItem] loadForTab', instanceId.value, props.activeTab);
   if (!force && dataLoaded()) {
     return;
   }
@@ -221,9 +227,9 @@ function loadingKey(): string {
     return `repos-${instanceId.value}`;
   }
   if (props.activeTab === 'issues') {
-    return `issues-${instanceId.value}`;
+    return `issues-${instanceId.value}-open`;
   }
-  return `pulls-${instanceId.value}`;
+  return `pulls-${instanceId.value}-open`;
 }
 </script>
 
