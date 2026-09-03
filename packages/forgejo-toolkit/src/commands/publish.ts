@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { normalizeGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { ConfigManager } from '../config';
 import { ForgejoClient } from '../api/client';
 import { logger } from '../logger';
@@ -12,26 +11,11 @@ import {
   getUpstreamBranch,
   isGitRepository,
   pushBranch,
+  remoteMatchesInstance,
 } from '../worktree/gitOperations';
 
-function findInstanceForRemote(remoteUrl: string, instances: ForgejoInstance[]): ForgejoInstance | undefined {
-  const remoteInfo = normalizeGitRemote(remoteUrl);
-  if (!remoteInfo) {
-    return undefined;
-  }
-  for (const instance of instances) {
-    let instanceHostPath: string;
-    try {
-      const parsed = new URL(instance.url);
-      instanceHostPath = normalizeGitUrl(`${parsed.host}${parsed.pathname}`);
-    } catch {
-      continue;
-    }
-    if (remoteInfo.normalized === instanceHostPath || remoteInfo.normalized.startsWith(`${instanceHostPath}/`)) {
-      return instance;
-    }
-  }
-  return undefined;
+export function findInstanceForRemote(remoteUrl: string, instances: ForgejoInstance[]): ForgejoInstance | undefined {
+  return instances.find((instance) => remoteMatchesInstance(remoteUrl, instance.url));
 }
 
 async function pickTargetFolder(): Promise<string | undefined> {
@@ -151,7 +135,7 @@ async function publishNewRepository(config: ConfigManager, folder: string): Prom
     );
     return;
   }
-  await pushBranch(folder, 'origin', branch, instance.token, true);
+  await pushBranch(folder, 'origin', branch, instance.token, true, instance.url);
 
   const openInBrowser = vscode.l10n.t('Open in Browser');
   const choice = await vscode.window.showInformationMessage(
@@ -179,7 +163,7 @@ async function pushToExistingRemote(config: ConfigManager, folder: string, remot
   }
 
   const upstream = await getUpstreamBranch(folder);
-  await pushBranch(folder, 'origin', branch, instance.token, !upstream);
+  await pushBranch(folder, 'origin', branch, instance.token, !upstream, instance.url);
   if (upstream) {
     vscode.window.showInformationMessage(vscode.l10n.t('Pushed {0} to origin', branch));
   } else {

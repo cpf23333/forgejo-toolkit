@@ -8,7 +8,7 @@ import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
 import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { readExportDataFromUri } from './instanceImport';
+import { computeTokenConflicts, readExportDataFromUri } from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
 import { validateCacheDirectory } from '../worktree/worktreeManager';
 
@@ -295,7 +295,7 @@ export class OnboardingWebviewPanel {
       this._reply('importInstancesPreview', {
         instances: [],
         existingIds: [],
-        existingTokens: [],
+        tokenConflicts: [],
         settings: undefined,
         cancelled: true,
       });
@@ -305,15 +305,17 @@ export class OnboardingWebviewPanel {
       const { instances, settings } = await readExportDataFromUri(uris[0]);
       const existingInstances = this._config.getInstances();
       const existingIds = existingInstances.map((instance) => instance.id);
-      const existingTokens = existingInstances.map((instance) => instance.token);
-      this._reply('importInstancesPreview', { instances, existingIds, existingTokens, settings });
+      // Conflict flags are computed host-side (parallel to `instances`) so
+      // stored tokens are never sent to the webview.
+      const tokenConflicts = computeTokenConflicts(instances, existingInstances);
+      this._reply('importInstancesPreview', { instances, existingIds, tokenConflicts, settings });
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);
       logger.error(`onboarding previewImportInstances failed: ${err}`);
       this._reply('importInstancesPreview', {
         instances: [],
         existingIds: [],
-        existingTokens: [],
+        tokenConflicts: [],
         settings: undefined,
         error: err,
       });

@@ -15,7 +15,9 @@ const selectedIds = ref<Set<string>>(new Set());
 
 const instances = computed(() => preview.value?.instances ?? []);
 const existingIds = computed(() => new Set(preview.value?.existingIds ?? []));
-const existingTokens = computed(() => new Set(preview.value?.existingTokens ?? []));
+// Conflict flags against stored instances are computed host-side (parallel
+// to `instances`), so stored tokens never reach the webview.
+const tokenConflicts = computed(() => preview.value?.tokenConflicts ?? []);
 const duplicatedImportedTokens = computed(() => {
   const counts = new Map<string, number>();
   for (const instance of instances.value) {
@@ -39,31 +41,15 @@ const currentInstancesById = computed(() => {
   return map;
 });
 
-// The host sends existingIds/existingTokens as parallel arrays (tokens are
-// only shared for this on-demand preview); rebuild the id → token mapping
-// so conflict detection does not need tokens in the regular instance list.
-const existingTokenById = computed(() => {
-  const map = new Map<string, string>();
-  const ids = preview.value?.existingIds ?? [];
-  const tokens = preview.value?.existingTokens ?? [];
-  ids.forEach((id, index) => map.set(id, tokens[index] ?? ''));
-  return map;
-});
-
 function getCurrentInstance(instance: ForgejoInstance): CurrentForgejoInstance | undefined {
   return currentInstancesById.value.get(instance.id);
 }
 
-function hasTokenConflict(instance: ForgejoInstance): boolean {
+function hasTokenConflict(instance: ForgejoInstance, index: number): boolean {
   if (duplicatedImportedTokens.value.has(instance.token)) {
     return true;
   }
-  if (!existingTokens.value.has(instance.token)) {
-    return false;
-  }
-  // Re-importing the unchanged token over the instance it belongs to is not
-  // a conflict.
-  return existingTokenById.value.get(instance.id) !== instance.token;
+  return tokenConflicts.value[index] === true;
 }
 
 const allSelected = computed(
@@ -157,7 +143,7 @@ watch(
       </div>
 
       <div class="instance-list">
-        <div v-for="instance in instances" :key="instance.id" class="instance-item">
+        <div v-for="(instance, index) in instances" :key="instance.id" class="instance-item">
           <vscode-checkbox :checked="selectedIds.has(instance.id)" @change="toggle(instance, $event)">
             <div class="instance-info">
               <div class="instance-header">
@@ -176,7 +162,7 @@ watch(
                   <div v-if="current && current.username !== instance.username" class="diff-line">
                     {{ t('instance.username') }}: {{ current.username }} → {{ instance.username }}
                   </div>
-                  <div v-if="hasTokenConflict(instance)" class="diff-line conflict-line">
+                  <div v-if="hasTokenConflict(instance, index)" class="diff-line conflict-line">
                     {{ t('settings.importPreview.tokenConflict') }}
                   </div>
                   <div v-else class="diff-line">{{ t('settings.importPreview.tokenUpdated') }}</div>

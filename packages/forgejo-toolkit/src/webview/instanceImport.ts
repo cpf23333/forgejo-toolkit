@@ -24,6 +24,22 @@ export interface ExportData {
   settings?: ExportSettings;
 }
 
+/**
+ * Per imported instance, true when its token matches a stored instance with a
+ * different id. Computed host-side so stored tokens are never sent to the
+ * webview. Mirrors the previous webview-side check exactly: re-importing the
+ * unchanged token over the instance it belongs to is not a conflict, and
+ * empty tokens count as equal like any other string.
+ */
+export function computeTokenConflicts(imported: ForgejoInstance[], existing: ForgejoInstance[]): boolean[] {
+  return imported.map((instance) => {
+    if (!existing.some((stored) => stored.token === instance.token)) {
+      return false;
+    }
+    return existing.find((stored) => stored.id === instance.id)?.token !== instance.token;
+  });
+}
+
 export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData> {
   const content = await fs.promises.readFile(uri.fsPath, 'utf8');
   const parsed = JSON.parse(content) as {

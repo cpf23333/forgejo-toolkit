@@ -7,9 +7,11 @@ import {
   detectLinkedRepository,
   getAheadCount,
   getCurrentBranch,
+  getRemoteUrl,
   getUpstreamBranch,
   pushBranch,
 } from '../worktree/gitOperations';
+import { findInstanceForRemote } from './publish';
 
 export interface CreatePrFromCurrentBranchArgs {
   /** When set, the command opens the existing pull request instead of starting the create flow. */
@@ -91,6 +93,27 @@ export async function createPrFromCurrentBranch(
   }
 
   if (needsPush) {
+    // The push authenticates with the instance token via an Authorization
+    // header, so it must only go to a remote owned by the linked instance.
+    // An upstream pointing at another host (e.g. a mirror) would leak it.
+    const remoteUrl = await getRemoteUrl(linked.localPath, pushRemote);
+    let pushToken: string | undefined = instance.token;
+    if (remoteUrl === undefined) {
+      // The URL cannot be resolved, so ownership cannot be verified — push
+      // without the token and let git fail naturally if auth is required.
+      pushToken = undefined;
+    } else if (!findInstanceForRemote(remoteUrl, [instance])) {
+      logger.error(
+        `[createPrFromCurrentBranch] upstream remote "${pushRemote}" does not belong to instance ${instance.url}; push aborted to avoid leaking the access token`,
+      );
+      vscode.window.showErrorMessage(
+        vscode.l10n.t(
+          'The upstream remote "{0}" does not belong to the linked Forgejo instance. Push aborted to avoid sending your access token to another host.',
+          pushRemote,
+        ),
+      );
+      return;
+    }
     const push = vscode.l10n.t('Push');
     const choice = await vscode.window.showWarningMessage(
       upstream
@@ -103,7 +126,7 @@ export async function createPrFromCurrentBranch(
       return;
     }
     try {
-      await pushBranch(linked.localPath, pushRemote, pushRefspec, instance.token, setUpstream);
+      await pushBranch(linked.localPath, pushRemote, pushRefspec, pushToken, setUpstream, instance.url);
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);
       logger.error(`[createPrFromCurrentBranch] failed to push branch: ${err}`);

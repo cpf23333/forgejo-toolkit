@@ -5,13 +5,20 @@ import type { ConfigManager } from '../../config';
 import type { ForgejoToolkitViewProvider } from '../../webview/viewProvider';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
-vi.mock('../../worktree/gitOperations', () => ({
-  detectLinkedRepository: vi.fn(),
-  getCurrentBranch: vi.fn(),
-  getUpstreamBranch: vi.fn(),
-  getAheadCount: vi.fn(),
-  pushBranch: vi.fn(),
-}));
+vi.mock('../../worktree/gitOperations', async (importOriginal) => {
+  // publish.ts's findInstanceForRemote (used by createPullRequest.ts) calls
+  // the real remoteMatchesInstance, so keep it unmocked.
+  const original = await importOriginal<typeof import('../../worktree/gitOperations')>();
+  return {
+    detectLinkedRepository: vi.fn(),
+    getCurrentBranch: vi.fn(),
+    getRemoteUrl: vi.fn(),
+    getUpstreamBranch: vi.fn(),
+    getAheadCount: vi.fn(),
+    pushBranch: vi.fn(),
+    remoteMatchesInstance: original.remoteMatchesInstance,
+  };
+});
 
 const { getRepoDetail } = vi.hoisted(() => ({
   getRepoDetail: vi.fn(),
@@ -26,6 +33,7 @@ import {
   detectLinkedRepository,
   getAheadCount,
   getCurrentBranch,
+  getRemoteUrl,
   getUpstreamBranch,
   pushBranch,
 } from '../../worktree/gitOperations';
@@ -69,6 +77,9 @@ describe('createPrFromCurrentBranch', () => {
     vi.mocked(getCurrentBranch).mockResolvedValue('feature');
     vi.mocked(getUpstreamBranch).mockResolvedValue(undefined);
     vi.mocked(getAheadCount).mockResolvedValue(undefined);
+    // Default: the push remote belongs to the linked instance, so pushes
+    // keep authenticating with the instance token.
+    vi.mocked(getRemoteUrl).mockResolvedValue('https://forgejo.example.com/owner/repo.git');
     vi.mocked(pushBranch).mockResolvedValue(undefined);
     getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
   });
@@ -78,7 +89,7 @@ describe('createPrFromCurrentBranch', () => {
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);
     expect(vscode.window.showWarningMessage).toHaveBeenCalled();
-    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', true);
+    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', true, instance.url);
     expect(viewProvider.openCreatePullRequest).toHaveBeenCalledWith({
       instanceId: 'inst1',
       owner: 'owner',
@@ -102,7 +113,7 @@ describe('createPrFromCurrentBranch', () => {
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);
     expect(vscode.window.showWarningMessage).toHaveBeenCalled();
-    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', false);
+    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', false, instance.url);
     expect(viewProvider.openCreatePullRequest).toHaveBeenCalledWith({
       instanceId: 'inst1',
       owner: 'owner',
@@ -118,7 +129,7 @@ describe('createPrFromCurrentBranch', () => {
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);
     // Pushing recreates the deleted remote branch, so the prefilled head exists.
-    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature:gone', 'token', false);
+    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature:gone', 'token', false, instance.url);
     expect(viewProvider.openCreatePullRequest).toHaveBeenCalledWith({
       instanceId: 'inst1',
       owner: 'owner',
@@ -140,6 +151,41 @@ describe('createPrFromCurrentBranch', () => {
       repo: 'repo',
       head: 'renamed-feature',
     });
+  });
+
+  it('pushes with the instance token when the upstream remote belongs to the linked instance', async () => {
+    vi.mocked(getUpstreamBranch).mockResolvedValue('origin/feature');
+    vi.mocked(getAheadCount).mockResolvedValue(1);
+    vi.mocked(getRemoteUrl).mockResolvedValue('git@forgejo.example.com:owner/repo.git');
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
+    const viewProvider = createViewProvider();
+    await createPrFromCurrentBranch(createConfig(), viewProvider);
+    expect(getRemoteUrl).toHaveBeenCalledWith('/workspace/repo', 'origin');
+    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', false, instance.url);
+    expect(viewProvider.openCreatePullRequest).toHaveBeenCalled();
+  });
+
+  it('aborts without pushing when the upstream remote belongs to another host', async () => {
+    vi.mocked(getUpstreamBranch).mockResolvedValue('mirror/feature');
+    vi.mocked(getAheadCount).mockResolvedValue(1);
+    vi.mocked(getRemoteUrl).mockResolvedValue('https://github.example.com/owner/repo.git');
+    const viewProvider = createViewProvider();
+    await createPrFromCurrentBranch(createConfig(), viewProvider);
+    expect(vscode.window.showErrorMessage).toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    expect(pushBranch).not.toHaveBeenCalled();
+    expect(viewProvider.openCreatePullRequest).not.toHaveBeenCalled();
+  });
+
+  it('pushes without the token when the upstream remote URL cannot be resolved', async () => {
+    vi.mocked(getUpstreamBranch).mockResolvedValue('origin/feature');
+    vi.mocked(getAheadCount).mockResolvedValue(1);
+    vi.mocked(getRemoteUrl).mockResolvedValue(undefined);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
+    const viewProvider = createViewProvider();
+    await createPrFromCurrentBranch(createConfig(), viewProvider);
+    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', undefined, false, instance.url);
+    expect(viewProvider.openCreatePullRequest).toHaveBeenCalled();
   });
 
   it('blocks the command on the default branch', async () => {

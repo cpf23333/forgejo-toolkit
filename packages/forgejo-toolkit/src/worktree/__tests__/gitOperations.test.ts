@@ -27,6 +27,7 @@ import {
   fetchPullRequestHead,
   getRemoteUrl,
   pushBranch,
+  remoteMatchesInstance,
   revertMergeCommit,
 } from '../gitOperations';
 
@@ -80,6 +81,106 @@ describe('gitOperations token leak prevention', () => {
     const failure = await pushBranch('/repo', 'origin', 'main', token).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).not.toContain(token);
+  });
+});
+
+describe('pushBranch remote ownership check (TOCTOU guard)', () => {
+  const token = 'secret-token-abc123';
+  const instanceUrl = 'https://forgejo.example.com';
+
+  function mockRemoteUrlThenPush(remoteUrl: string | undefined) {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'remote' && args[1] === 'get-url') {
+          if (remoteUrl === undefined) {
+            const error = new Error('Command failed: git remote get-url') as Error & { stderr: string };
+            error.stderr = 'fatal: No such remote';
+            callback(error, '', error.stderr);
+          } else {
+            // promisify(cp.execFile) on the mock resolves with only the first
+            // callback value, so hand runGit its { stdout, stderr } shape
+            // directly instead of separate string arguments.
+            callback(null, { stdout: `${remoteUrl}\n`, stderr: '' } as unknown as string, '');
+          }
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('pushes with the token when the remote URL matches the instance', async () => {
+    mockRemoteUrlThenPush('https://forgejo.example.com/owner/repo.git');
+    await pushBranch('/repo', 'origin', 'main', token, true, instanceUrl);
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['-c', `http.extraHeader=Authorization: token ${token}`, 'push', '-u', 'origin', 'main'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('aborts without pushing when the remote URL belongs to another host', async () => {
+    mockRemoteUrlThenPush('https://github.example.com/owner/repo.git');
+    const failure = await pushBranch('/repo', 'origin', 'main', token, true, instanceUrl).catch(
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain('does not belong to the expected Forgejo instance');
+    expect((failure as Error).message).not.toContain(token);
+    expect((failure as Error).message).not.toContain('github.example.com');
+    // The push itself must never run.
+    for (const call of mocks.execFile.mock.calls) {
+      expect(call[1]).not.toContain('push');
+    }
+  });
+
+  it('drops the token when the remote URL cannot be resolved', async () => {
+    mockRemoteUrlThenPush(undefined);
+    await pushBranch('/repo', 'origin', 'main', token, false, instanceUrl);
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['push', 'origin', 'main'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('skips the check when tokenInstanceUrl is not given', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(null, '', '');
+      },
+    );
+    await pushBranch('/repo', 'origin', 'main', token, false);
+    expect(mocks.execFile).toHaveBeenCalledTimes(1);
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['-c', `http.extraHeader=Authorization: token ${token}`, 'push', 'origin', 'main'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+});
+
+describe('remoteMatchesInstance', () => {
+  it('matches http and ssh remotes of the instance host', () => {
+    expect(remoteMatchesInstance('https://forgejo.example.com/owner/repo.git', 'https://forgejo.example.com')).toBe(
+      true,
+    );
+    expect(remoteMatchesInstance('git@forgejo.example.com:owner/repo.git', 'https://forgejo.example.com')).toBe(true);
+  });
+
+  it('rejects remotes of other hosts and unparseable URLs', () => {
+    expect(remoteMatchesInstance('https://github.example.com/owner/repo.git', 'https://forgejo.example.com')).toBe(
+      false,
+    );
+    expect(remoteMatchesInstance('not a url', 'https://forgejo.example.com')).toBe(false);
+    expect(remoteMatchesInstance('https://forgejo.example.com/owner/repo.git', 'not a url')).toBe(false);
   });
 });
 

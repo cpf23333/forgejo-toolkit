@@ -208,7 +208,7 @@ function createAppState() {
     | {
         instances: ExportedForgejoInstance[];
         existingIds: string[];
-        existingTokens?: string[];
+        tokenConflicts?: boolean[];
         settings?: ExportSettings;
       }
     | undefined
@@ -1280,7 +1280,7 @@ function createAppState() {
         importPreview.value = {
           instances: (message as { instances?: ExportedForgejoInstance[] }).instances ?? [],
           existingIds: (message as { existingIds?: string[] }).existingIds ?? [],
-          existingTokens: (message as { existingTokens?: string[] }).existingTokens ?? [],
+          tokenConflicts: (message as { tokenConflicts?: boolean[] }).tokenConflicts ?? [],
           settings: (message as { settings?: ExportSettings }).settings,
         };
         break;

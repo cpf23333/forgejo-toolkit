@@ -99,8 +99,8 @@
 
 **严重**
 
-- [ ] push 会把实例 token 发给未校验的 upstream 远端（token 外泄）：`createPullRequest.ts:79-106` 有 upstream 时直接用其远端名 push，`pushBranch` 经 `http.extraHeader` 携带 token，但不校验该远端 URL 是否属于当前 linked 实例（`publish.ts:167` 的 `findInstanceForRemote` 有 host 匹配，这条路径没有）；upstream 指向第三方主机时 Forgejo token 被外发。push 前应校验远端归属
-- [ ] `importInstancesPreview` 把所有已存实例的真实 token 明文下发给 webview（`viewProvider.ts:3325-3326`、`onboardingPanel.ts:308-309`），只为做 `Set.has()` 相等性比较（`ImportPreview.vue:57-67`）；打破「token 不出扩展宿主」的不变式，webview 一旦 XSS 全部 token 可被偷。比较应挪到 host 侧，回 `tokenMatchesExistingId` 布尔值
+- [x] push 会把实例 token 发给未校验的 upstream 远端——已修：push 确认框前用 `findInstanceForRemote` 校验远端归属，不匹配则报错中止，URL 取不到则无 token 降级
+- [x] `importInstancesPreview` 下发存量 token 明文——已修：冲突比较挪到 host 侧（`computeTokenConflicts`），webview 只收 `tokenConflicts: boolean[]`，语义与旧逻辑完全等价（含空 token）
 
 **中**
 
@@ -159,6 +159,8 @@
 ## 已完成
 
 ### 最近完成
+
+- [x] 安全修复批（第四轮复查的两个严重项）：push 前校验 upstream 远端归属——确认框前用 `findInstanceForRemote` 给用户友好报错，`pushBranch` 内部（新增 `tokenInstanceUrl` 参数 + `remoteMatchesInstance` helper）在 push 执行前再校验一次闭合 TOCTOU 间隙，不匹配实例则中止、URL 取不到降级为无 token push，杜绝 token 随 `http.extraHeader` 外泄到第三方主机；导入实例预览的 token 冲突比较挪到 host 侧（新增 `computeTokenConflicts`，协议字段 `existingTokens` → `tokenConflicts: boolean[]`），webview 不再接触存量 token，恢复「token 不出扩展宿主」不变式；补 createPullRequest 3 个 + instanceImport 5 个 + gitOperations 6 个测试
 
 - [x] 合并 blocker 判定修复：`required_approvals` 不再无条件显示——拉取评审列表统计 official 且非 stale/dismissed 的 APPROVED 数量，达标即核销（否则已批准的 PR 永远显示「需要 N 个审查通过」、合并按钮恒灰）；mock 补仓库 `permissions` 字段（修复走查时误报「没有合并权限」）、分支保护改 `apply_to_admins: true` 使核销路径可达、已提交评审持久化到列表；走查实测「提交 APPROVED → 可以合并 → 原生确认弹窗 → 合并」全链路
 - [x] 文件树回归修复：`FileTreeItem` 恢复 `data-file-path`/`data-type`/`data-size` 属性（3d28835 误删导致目录展开不加载子级），`global.d.ts` 的 `DefineCustomElement` 支持声明额外属性

@@ -1349,10 +1349,12 @@ describe('useAppState', () => {
         command: 'importInstancesPreview',
         instances: [{ id: 'inst-2', url: 'https://forgejo.example.com', token: 't' }],
         existingIds: [],
+        tokenConflicts: [true],
       });
       await nextTick();
 
       expect(state.importPreview.value?.instances).toHaveLength(1);
+      expect(state.importPreview.value?.tokenConflicts).toEqual([true]);
     });
   });
 

@@ -31,6 +31,25 @@ function authArgs(token?: string): string[] {
   return token ? ['-c', `http.extraHeader=Authorization: token ${token}`] : [];
 }
 
+/**
+ * True when remoteUrl points at the Forgejo instance identified by
+ * instanceUrl (host plus any sub-path the instance is deployed under).
+ */
+export function remoteMatchesInstance(remoteUrl: string, instanceUrl: string): boolean {
+  const remoteInfo = normalizeGitRemote(remoteUrl);
+  if (!remoteInfo) {
+    return false;
+  }
+  let instanceHostPath: string;
+  try {
+    const parsed = new URL(instanceUrl);
+    instanceHostPath = normalizeGitUrl(`${parsed.host}${parsed.pathname}`);
+  } catch {
+    return false;
+  }
+  return remoteInfo.normalized === instanceHostPath || remoteInfo.normalized.startsWith(`${instanceHostPath}/`);
+}
+
 export async function isGitRepository(dirPath: string): Promise<boolean> {
   try {
     await fs.promises.access(path.join(dirPath, '.git'));
@@ -102,6 +121,12 @@ export async function getUpstreamBranch(dirPath: string): Promise<string | undef
  * Push a branch to a remote. `refspec` is usually just the branch name, but a
  * `local:remote` refspec pushes the local branch to a differently-named remote
  * branch (used when the upstream branch was renamed on the remote).
+ *
+ * When both `token` and `tokenInstanceUrl` are given, the remote URL is
+ * re-resolved immediately before the push (it may have changed since the
+ * caller checked — TOCTOU) and must belong to that instance; a mismatch
+ * aborts the push so the token is never sent to another host, and an
+ * unresolvable URL degrades to a tokenless push.
  */
 export async function pushBranch(
   dirPath: string,
@@ -109,7 +134,17 @@ export async function pushBranch(
   refspec: string,
   token?: string,
   setUpstream = false,
+  tokenInstanceUrl?: string,
 ): Promise<void> {
+  if (token && tokenInstanceUrl) {
+    const remoteUrl = await getRemoteUrl(dirPath, remote);
+    if (remoteUrl === undefined) {
+      token = undefined;
+    } else if (!remoteMatchesInstance(remoteUrl, tokenInstanceUrl)) {
+      // Do not include the URL in the message: it may embed credentials.
+      throw new Error(`Push aborted: remote "${remote}" does not belong to the expected Forgejo instance`);
+    }
+  }
   const args = [...authArgs(token), 'push'];
   if (setUpstream) {
     args.push('-u');

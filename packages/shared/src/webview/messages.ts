@@ -583,7 +583,8 @@ export type HostToWebviewMessage =
       command: 'importInstancesPreview';
       instances: ForgejoInstance[];
       existingIds: string[];
-      existingTokens?: string[];
+      /** Parallel to `instances`: true when the token collides with a different existing instance. Computed host-side so stored tokens are never sent to the webview. */
+      tokenConflicts?: boolean[];
       settings?: ExportSettings;
       error?: string;
       /** True when the user dismissed the file picker; the webview frees its pending slot without navigating. */
