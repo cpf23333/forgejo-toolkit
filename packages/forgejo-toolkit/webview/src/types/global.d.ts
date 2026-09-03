@@ -31,9 +31,11 @@ type DefineCustomElement<
   ElementType extends HTMLElement,
   Events extends EventMap = {},
   SelectedAttributes extends keyof ElementType = keyof ElementType,
+  ExtraProps = {},
 > = new () => ElementType & {
   $props: HTMLAttributes &
     Partial<Pick<ElementType, SelectedAttributes>> &
+    ExtraProps &
     PublicProps & {
       slot?: string;
     };
@@ -123,6 +125,13 @@ type VscodeTreeItemProps = Pick<
   'active' | 'branch' | 'hasActiveItem' | 'hasSelectedItem' | 'open' | 'level' | 'selected'
 >;
 
+/** data-* attributes read back via `dataset` in the tree select handler (RepoFileBrowser.onTreeSelect). */
+type VscodeTreeItemDataProps = {
+  dataFilePath?: string;
+  dataType?: string;
+  dataSize?: number;
+};
+
 declare module 'vue' {
   interface GlobalComponents {
     'vscode-button': DefineCustomElement<VscodeButton, { click: MouseEvent }, keyof VscodeButtonProps>;
@@ -148,6 +157,6 @@ declare module 'vue' {
       keyof VscodeTextfieldProps
     >;
     'vscode-tree': DefineCustomElement<VscodeTree, { 'vsc-tree-select': VscTreeSelectEvent }, keyof VscodeTreeProps>;
-    'vscode-tree-item': DefineCustomElement<VscodeTreeItem, {}, keyof VscodeTreeItemProps>;
+    'vscode-tree-item': DefineCustomElement<VscodeTreeItem, {}, keyof VscodeTreeItemProps, VscodeTreeItemDataProps>;
   }
 }

@@ -118,4 +118,19 @@ describe('FileTreeItem', () => {
     expect(wrapper.emitted('showHistory')).toHaveLength(1);
     expect((wrapper.emitted('showHistory')![0] as ForgejoContentEntry[])[0].name).toBe('README.md');
   });
+
+  it('exposes entry metadata as data attributes for the tree select handler', async () => {
+    const entry: ForgejoContentEntry = {
+      name: 'src',
+      path: 'src',
+      type: 'dir',
+      sha: 'def',
+    };
+
+    const { wrapper } = await mountFileTreeItem({ entry });
+
+    // RepoFileBrowser.onTreeSelect relies on these to load children / open files.
+    expect(wrapper.attributes('data-file-path')).toBe('src');
+    expect(wrapper.attributes('data-type')).toBe('dir');
+  });
 });
