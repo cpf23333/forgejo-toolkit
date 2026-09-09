@@ -81,6 +81,29 @@ describe('ForgejoClient with MSW', () => {
     expect(repos[1].full_name).toBe(mockRepository2.full_name);
   });
 
+  it('paginates past a server that silently clamps the page size', async () => {
+    const client = createClient();
+    // Simulate MAX_RESPONSE_ITEMS=30: every page returns at most 30 items no
+    // matter what limit was requested. 70 repos must still all be fetched.
+    const total = 70;
+    mockServer.use(
+      http.get('https://*/api/v1/user/repos', ({ request }) => {
+        const url = new URL(request.url);
+        const page = Number(url.searchParams.get('page') ?? '1');
+        const start = (page - 1) * 30;
+        const items = Array.from({ length: Math.max(0, Math.min(30, total - start)) }, (_, i) => ({
+          ...mockRepository,
+          id: start + i + 1,
+          full_name: `demo-user/repo-${start + i + 1}`,
+        }));
+        return HttpResponse.json(items);
+      }),
+    );
+    const repos = await client.getUserRepositories();
+    expect(repos).toHaveLength(70);
+    expect(repos[69].full_name).toBe('demo-user/repo-70');
+  });
+
   it('creates a user repository', async () => {
     const client = createClient();
     let receivedBody: Record<string, unknown> | undefined;
@@ -300,6 +323,51 @@ describe('ForgejoClient with MSW', () => {
     const issue = await client.getIssueDetail('demo-user', 'demo-repo', 1);
     expect(issue.number).toBe(mockIssueDetail.number);
     expect(issue.title).toBe(mockIssueDetail.title);
+  });
+
+  describe('mock server fidelity', () => {
+    it('filters repository issues by the q query', async () => {
+      const client = createClient();
+      // 'login' appears in mockIssue's title and body.
+      const matches = await client.getRepoIssues('demo-user', 'demo-repo', 'all', 'login');
+      expect(matches).toHaveLength(1);
+      const misses = await client.getRepoIssues('demo-user', 'demo-repo', 'all', 'no-such-keyword');
+      expect(misses).toEqual([]);
+    });
+
+    it('returns pull requests from the issues endpoint when type=pulls', async () => {
+      const client = createClient();
+      // getRepoPullRequests with a query goes through the issues endpoint with type=pulls.
+      const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'all', 'dark mode');
+      expect(pulls).toHaveLength(1);
+      expect(pulls[0].title).toBe(mockPullRequests[0].title);
+    });
+
+    it('reflects issue edits in subsequent detail and list fetches', async () => {
+      const client = createClient();
+      await client.editIssue('demo-user', 'demo-repo', 1, { state: 'closed' } as unknown as EditIssueOption);
+      const detail = await client.getIssueDetail('demo-user', 'demo-repo', 1);
+      expect(detail.state).toBe('closed');
+      expect(await client.getRepoIssues('demo-user', 'demo-repo', 'open')).toHaveLength(0);
+      expect(await client.getRepoIssues('demo-user', 'demo-repo', 'closed')).toHaveLength(1);
+    });
+
+    it('reflects pull request edits in subsequent detail and list fetches', async () => {
+      const client = createClient();
+      await client.editPullRequest('demo-user', 'demo-repo', 2, {
+        title: 'Renamed PR',
+      } as unknown as EditPullRequestOption);
+      const detail = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+      expect(detail.title).toBe('Renamed PR');
+      const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'open');
+      expect(pulls[0].title).toBe('Renamed PR');
+    });
+
+    it('resolves the repository detail for the requested repo', async () => {
+      const client = createClient();
+      const detail = await client.getRepoDetail('demo-user', 'another-repo');
+      expect(detail.repository.full_name).toBe(mockRepository2.full_name);
+    });
   });
 
   it('fetches pull request detail', async () => {
@@ -542,7 +610,8 @@ describe('ForgejoClient with MSW', () => {
 
     it('searches mentions', async () => {
       const client = createClient();
-      const result = await client.searchMentions('demo-user', 'demo-repo', 'demo', 'all');
+      // 'login' matches mockIssue's title/body; the mock filters q like the real API.
+      const result = await client.searchMentions('demo-user', 'demo-repo', 'login', 'all');
       expect(result.users.length).toBeGreaterThan(0);
       expect(result.issues.length).toBeGreaterThan(0);
     });
@@ -743,12 +812,17 @@ describe('ForgejoClient with MSW', () => {
     it('normalizes the deleted file status to removed', async () => {
       const client = createClient();
       mockServer.use(
-        http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/files', () =>
-          HttpResponse.json([
-            { filename: 'gone.ts', status: 'deleted' },
-            { filename: 'kept.ts', status: 'modified' },
-          ]),
-        ),
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/files', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page')) || 1;
+          return HttpResponse.json(
+            page > 1
+              ? []
+              : [
+                  { filename: 'gone.ts', status: 'deleted' },
+                  { filename: 'kept.ts', status: 'modified' },
+                ],
+          );
+        }),
       );
       const files = await client.getPullRequestFiles('demo-user', 'demo-repo', 2);
       expect(files.map((file) => file.status)).toEqual(['removed', 'modified']);
@@ -758,6 +832,23 @@ describe('ForgejoClient with MSW', () => {
       const client = createClient();
       const files = await client.getPullRequestFilesFromCompare('demo-user', 'demo-repo', 'base', 'head');
       expect(files.length).toBeGreaterThan(0);
+    });
+
+    it('keeps previous_filename for renamed files from compare', async () => {
+      const client = createClient();
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/compare/:basehead', () =>
+          HttpResponse.json({
+            total_commits: 1,
+            commits: [mockPullRequestCommit],
+            files: [{ filename: 'src/new-name.ts', status: 'renamed', previous_filename: 'src/old-name.ts' }],
+          }),
+        ),
+      );
+      const files = await client.getPullRequestFilesFromCompare('demo-user', 'demo-repo', 'base', 'head');
+      expect(files).toHaveLength(1);
+      expect(files[0].status).toBe('renamed');
+      expect(files[0].previous_filename).toBe('src/old-name.ts');
     });
 
     it('fetches pull request comments and timeline', async () => {
@@ -787,14 +878,19 @@ describe('ForgejoClient with MSW', () => {
       const client = createClient();
       let assetRequests = 0;
       mockServer.use(
-        http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', () =>
-          HttpResponse.json([
-            {
-              ...mockTimelineComment,
-              body: 'See ![log](/attachments/123e4567-e89b-42d3-a456-426614174000)',
-            },
-          ]),
-        ),
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page')) || 1;
+          return HttpResponse.json(
+            page > 1
+              ? []
+              : [
+                  {
+                    ...mockTimelineComment,
+                    body: 'See ![log](/attachments/123e4567-e89b-42d3-a456-426614174000)',
+                  },
+                ],
+          );
+        }),
         http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => {
           assetRequests += 1;
           return HttpResponse.json([mockCommentAttachment]);
@@ -860,6 +956,10 @@ describe('ForgejoClient with MSW', () => {
 
     it('adds a pull review comment', async () => {
       const client = createClient();
+      await client.createPendingPullReview('demo-user', 'demo-repo', 2, {
+        path: 'src/index.ts',
+        body: 'Nitpick',
+      } as unknown as CreatePullReviewComment);
       const comment = await client.addPullReviewComment('demo-user', 'demo-repo', 2, 100, {
         path: 'src/index.ts',
         body: 'Nitpick',
@@ -867,10 +967,29 @@ describe('ForgejoClient with MSW', () => {
       expect(comment.body).toBe('Nitpick');
     });
 
+    it('rejects adding a comment to a non-pending review', async () => {
+      const client = createClient();
+      await expect(
+        client.addPullReviewComment('demo-user', 'demo-repo', 2, 100, {
+          path: 'src/index.ts',
+          body: 'Nitpick',
+        } as unknown as CreatePullReviewComment),
+      ).rejects.toThrow();
+    });
+
     it('submits a pull review', async () => {
       const client = createClient();
+      await client.createPendingPullReview('demo-user', 'demo-repo', 2, {
+        path: 'src/index.ts',
+        body: 'Nitpick',
+      } as unknown as CreatePullReviewComment);
       const review = await client.submitPullReview('demo-user', 'demo-repo', 2, 100, 'APPROVED');
       expect(review.id).toBe(mockPullReview.id);
+    });
+
+    it('rejects submitting a non-pending review', async () => {
+      const client = createClient();
+      await expect(client.submitPullReview('demo-user', 'demo-repo', 2, 100, 'APPROVED')).rejects.toThrow();
     });
 
     it('deletes a pull review', async () => {

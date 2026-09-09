@@ -330,4 +330,53 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     const list = messages.find((m) => m.command === 'worktreesList');
     expect((list?.worktrees as unknown[]).length).toBe(1);
   });
+
+  it('opens a renamed file diff with the old path on the base side', async () => {
+    fake.send({
+      command: 'openPullRequestDiff',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+      filename: 'src/new-name.ts',
+      status: 'renamed',
+      previousFilename: 'src/old-name.ts',
+      baseSha: 'base1',
+      headSha: 'head1',
+    });
+    await flushDispatches();
+
+    const diffCall = vi.mocked(vscode.commands.executeCommand).mock.calls.find((call) => call[0] === 'vscode.diff');
+    expect(diffCall).toBeDefined();
+    expect((diffCall?.[1] as { path: string }).path).toContain('src/old-name.ts');
+    expect((diffCall?.[2] as { path: string }).path).toContain('src/new-name.ts');
+  });
+
+  it('opens selected diffs with the old base path for renamed files', async () => {
+    fake.send({
+      command: 'openSelectedPullRequestDiffs',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+      files: [
+        { filename: 'src/new-name.ts', status: 'renamed', previous_filename: 'src/old-name.ts' },
+        { filename: 'src/touched.ts', status: 'modified' },
+      ],
+      baseSha: 'base1',
+      headSha: 'head1',
+    });
+    await flushDispatches();
+
+    const changesCall = vi
+      .mocked(vscode.commands.executeCommand)
+      .mock.calls.find((call) => call[0] === 'vscode.changes');
+    expect(changesCall).toBeDefined();
+    const resources = changesCall?.[2] as Array<Array<{ path: string } | undefined>>;
+    // Renamed: [headUri, baseUri, headUri] with base under the old path.
+    expect(resources[0][1]?.path).toContain('src/old-name.ts');
+    expect(resources[0][0]?.path).toContain('src/new-name.ts');
+    // Untouched files keep the same path on both sides.
+    expect(resources[1][1]?.path).toContain('src/touched.ts');
+  });
 });

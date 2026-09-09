@@ -12,7 +12,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   toggleExpand: [node: FileTreeNode];
   check: [node: FileTreeNode, checked: boolean];
-  openDiff: [filename: string, status: string];
+  openDiff: [filename: string, status: string, previousFilename?: string];
 }>();
 
 const isDir = props.node.type === 'dir';
@@ -30,7 +30,7 @@ function onToggleExpand() {
 
 function openDiff() {
   if (props.node.file?.filename) {
-    emit('openDiff', props.node.file.filename, props.node.file.status ?? 'modified');
+    emit('openDiff', props.node.file.filename, props.node.file.status ?? 'modified', props.node.file.previous_filename);
   }
 }
 
@@ -151,7 +151,7 @@ function nodeIcon(): string {
         :node="child"
         @toggle-expand="(childNode) => emit('toggleExpand', childNode)"
         @check="(childNode, checked) => emit('check', childNode, checked)"
-        @open-diff="(filename, status) => emit('openDiff', filename, status)"
+        @open-diff="(filename, status, previousFilename) => emit('openDiff', filename, status, previousFilename)"
       />
     </ul>
   </li>

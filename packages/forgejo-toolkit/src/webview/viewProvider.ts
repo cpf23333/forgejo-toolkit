@@ -1855,7 +1855,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'openPullRequestDiff': {
-        const { instanceId, owner, repo, index, filename, status, baseSha, headSha } = message;
+        const { instanceId, owner, repo, index, filename, status, previousFilename, baseSha, headSha } = message;
         if (
           typeof instanceId !== 'string' ||
           typeof owner !== 'string' ||
@@ -1869,7 +1869,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         try {
-          const baseUri = this._buildDiffUri(instanceId, owner, repo, index, baseSha, filename, true, status);
+          // A renamed file only exists under its old path at the base ref.
+          const basePath = status === 'renamed' && previousFilename ? previousFilename : filename;
+          const baseUri = this._buildDiffUri(instanceId, owner, repo, index, baseSha, basePath, true, status);
           const headUri = this._buildDiffUri(instanceId, owner, repo, index, headSha, filename, false, status);
           const title = `${filename} (#${index})`;
           await vscode.commands.executeCommand('vscode.diff', baseUri, headUri, title);
@@ -1906,7 +1908,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const resourceList = files.map((file) => {
             const filename = typeof file === 'string' ? file : file.filename;
             const status = typeof file === 'string' ? 'modified' : file.status;
-            const baseUri = this._buildDiffUri(instanceId, owner, repo, index, baseSha, filename, true, status);
+            // A renamed file only exists under its old path at the base ref.
+            const previousFilename = typeof file === 'string' ? undefined : file.previous_filename;
+            const basePath = status === 'renamed' && previousFilename ? previousFilename : filename;
+            const baseUri = this._buildDiffUri(instanceId, owner, repo, index, baseSha, basePath, true, status);
             const headUri = this._buildDiffUri(instanceId, owner, repo, index, headSha, filename, false, status);
             if (status === 'added') {
               return [headUri, undefined, headUri];
@@ -3465,7 +3470,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   public pushNotifications(instanceId: string, notifications: unknown[]): void {
-    this._reply('notifications', { instanceId, notifications });
+    // Poller results feed the unread badge/toast slot only; the filtered
+    // notifications view is written exclusively by getNotifications replies.
+    this._reply('polledNotifications', { instanceId, notifications });
   }
 
   public openNotifications(): void {

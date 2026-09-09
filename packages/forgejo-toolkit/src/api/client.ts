@@ -219,16 +219,22 @@ export class ForgejoClient {
   }
 
   /**
-   * Fetches every page of a list endpoint. Stops when a page returns fewer
-   * items than requested (X-Total-Count is not available on all endpoints)
-   * or when MAX_PAGES is reached as a safety bound.
+   * Fetches every page of a list endpoint. The server may silently clamp the
+   * requested limit (MAX_RESPONSE_ITEMS), so the first page's length — not
+   * PAGE_SIZE — defines the effective page size: only a shorter later page
+   * (or an empty one) means the list is exhausted. X-Total-Count is not
+   * available on all endpoints. MAX_PAGES remains the safety bound.
    */
   private async _fetchAllPages<T>(fetchPage: (page: number) => Promise<T[] | null | undefined>): Promise<T[]> {
     const all: T[] = [];
+    let effectivePageSize: number | undefined;
     for (let page = 1; page <= MAX_PAGES; page++) {
       const items = (await fetchPage(page)) ?? [];
       all.push(...items);
-      if (items.length < PAGE_SIZE) {
+      if (page === 1) {
+        effectivePageSize = items.length;
+      }
+      if (items.length === 0 || items.length < (effectivePageSize ?? PAGE_SIZE)) {
         break;
       }
     }
@@ -1062,10 +1068,22 @@ export class ForgejoClient {
   ): Promise<ForgejoChangedFile[]> {
     const compare = await repoCompareDiff(owner, repo, `${baseSha}..${headSha}`, { client: this._client() });
     const statusMap = new Map<string, string>();
-    for (const file of compare.files ?? []) {
+    const previousNameMap = new Map<string, string>();
+    // The generated CommitAffectedFiles type predates the field; the compare
+    // endpoint does return previous_filename for renamed files.
+    const compareFiles = (compare.files ?? []) as Array<{
+      filename?: string;
+      status?: string;
+      previous_filename?: string;
+    }>;
+    for (const file of compareFiles) {
       const filename = file.filename ?? '';
       if (!filename) {
         continue;
+      }
+      // Renamed files need their old path to fetch the base-side content.
+      if (file.previous_filename) {
+        previousNameMap.set(filename, file.previous_filename);
       }
       const existing = statusMap.get(filename);
       const status = file.status ?? 'changed';
@@ -1088,6 +1106,7 @@ export class ForgejoClient {
         ({
           filename,
           status,
+          previous_filename: previousNameMap.get(filename),
           additions: 0,
           deletions: 0,
           changes: 0,

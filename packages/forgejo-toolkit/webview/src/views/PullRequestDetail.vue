@@ -566,16 +566,26 @@ watch(
   },
 );
 
-function handleOpenDiff(filename: string, status: string) {
+function handleOpenDiff(filename: string, status: string, previousFilename?: string) {
   const baseSha = detail.value?.merge_base ?? detail.value?.base?.sha;
   const headSha = detail.value?.head?.sha;
   if (!baseSha || !headSha) {
     return;
   }
-  state.openPullRequestDiff(instanceId.value, owner.value, repo.value, index.value, filename, status, baseSha, headSha);
+  state.openPullRequestDiff(
+    instanceId.value,
+    owner.value,
+    repo.value,
+    index.value,
+    filename,
+    status,
+    baseSha,
+    headSha,
+    previousFilename,
+  );
 }
 
-function handleOpenSelectedDiffs(selectedFiles: { filename: string; status: string }[]) {
+function handleOpenSelectedDiffs(selectedFiles: { filename: string; status: string; previous_filename?: string }[]) {
   const baseSha = detail.value?.merge_base ?? detail.value?.base?.sha;
   const headSha = detail.value?.head?.sha;
   if (!baseSha || !headSha || selectedFiles.length === 0) {
@@ -592,7 +602,13 @@ function handleOpenSelectedDiffs(selectedFiles: { filename: string; status: stri
   );
 }
 
-function handleCommitOpenDiff(payload: { filename: string; status: string; baseSha: string; headSha: string }) {
+function handleCommitOpenDiff(payload: {
+  filename: string;
+  status: string;
+  previousFilename?: string;
+  baseSha: string;
+  headSha: string;
+}) {
   state.openPullRequestDiff(
     instanceId.value,
     owner.value,
@@ -602,11 +618,12 @@ function handleCommitOpenDiff(payload: { filename: string; status: string; baseS
     payload.status,
     payload.baseSha,
     payload.headSha,
+    payload.previousFilename,
   );
 }
 
 function handleCommitOpenSelectedDiffs(payload: {
-  files: { filename: string; status: string }[];
+  files: { filename: string; status: string; previous_filename?: string }[];
   baseSha: string;
   headSha: string;
 }) {

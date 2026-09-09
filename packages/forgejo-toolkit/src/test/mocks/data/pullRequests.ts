@@ -26,6 +26,8 @@ export const mockPullRequestDetail: ForgejoPullRequestDetail = {
   mergeable: true,
   draft: false,
   assets: [],
+  // repoPermissions / mergeBlockers / statusChecks are not real API fields;
+  // they are baked in for walkthroughs of the detail view's computed UI.
   repoPermissions: { admin: true, push: true, pull: true },
   mergeBlockers: [],
   statusChecks: {

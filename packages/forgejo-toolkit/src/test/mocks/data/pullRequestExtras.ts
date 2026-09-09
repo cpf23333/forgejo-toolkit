@@ -5,7 +5,7 @@ export const mockPullReview: PullReview = {
   id: 100,
   user: mockUser,
   body: 'Looks good',
-  state: 'COMMENTED',
+  state: 'COMMENT',
   submitted_at: '2026-08-17T09:00:00Z',
   commit_id: 'abc123',
 } as PullReview;

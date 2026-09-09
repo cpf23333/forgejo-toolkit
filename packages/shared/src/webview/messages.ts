@@ -557,6 +557,12 @@ export type HostToWebviewMessage =
       error?: string;
     }
   | {
+      /** Poller pushes land in a separate slot from the user's filtered view. */
+      command: 'polledNotifications';
+      instanceId: string;
+      notifications: unknown[];
+    }
+  | {
       command: 'notificationMarkedRead';
       instanceId: string;
       id: number;
@@ -981,6 +987,8 @@ export type WebviewToHostMessage =
       index: number;
       filename: string;
       status: string;
+      /** Old path of a renamed file; the base side must be fetched under it. */
+      previousFilename?: string;
       baseSha: string;
       headSha: string;
     }
@@ -990,7 +998,7 @@ export type WebviewToHostMessage =
       owner: string;
       repo: string;
       index: number;
-      files: { filename: string; status: string }[];
+      files: { filename: string; status: string; previous_filename?: string }[];
       baseSha: string;
       headSha: string;
     }

@@ -16,8 +16,8 @@ interface Props {
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  openDiff: [filename: string, status: string];
-  openSelectedDiffs: [files: { filename: string; status: string }[]];
+  openDiff: [filename: string, status: string, previousFilename?: string];
+  openSelectedDiffs: [files: { filename: string; status: string; previous_filename?: string }[]];
 }>();
 
 function buildFileTree(files: ForgejoChangedFile[]): FileTreeNodeType[] {
@@ -95,11 +95,15 @@ watch(
 const fileCount = computed(() => props.files.length);
 
 const selectedFiles = computed(() => {
-  const result: { filename: string; status: string }[] = [];
+  const result: { filename: string; status: string; previous_filename?: string }[] = [];
   function collect(nodes: FileTreeNodeType[]) {
     for (const node of nodes) {
       if (node.type === 'file' && node.checked && node.file?.filename) {
-        result.push({ filename: node.file.filename, status: node.file.status ?? 'modified' });
+        result.push({
+          filename: node.file.filename,
+          status: node.file.status ?? 'modified',
+          previous_filename: node.file.previous_filename,
+        });
       }
       if (node.type === 'dir') {
         collect(node.children);
@@ -179,8 +183,8 @@ function expandAll(expanded: boolean) {
   walk(tree.value);
 }
 
-function openDiff(filename: string, status: string) {
-  emit('openDiff', filename, status);
+function openDiff(filename: string, status: string, previousFilename?: string) {
+  emit('openDiff', filename, status, previousFilename);
 }
 
 function openSelectedDiffs() {

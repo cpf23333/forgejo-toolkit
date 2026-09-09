@@ -797,6 +797,68 @@ describe('useAppState', () => {
       );
     });
 
+    it('loadRepoIssues serves the cached list until the TTL expires, then refetches', async () => {
+      const { state } = await createState();
+      vi.useFakeTimers();
+      try {
+        state.loadRepoIssues('inst-1', 'owner', 'repo', 'open');
+        dispatchMessage({
+          command: 'repoIssues',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo: 'repo',
+          state: 'open',
+          issues: [fakeIssue],
+        });
+        await nextTick();
+
+        // Fresh cache: no refetch.
+        vscodePostMessage().mockClear();
+        state.loadRepoIssues('inst-1', 'owner', 'repo', 'open');
+        expect(vscodePostMessage()).not.toHaveBeenCalled();
+
+        // After the TTL the stale list stays visible but a refetch fires.
+        await vi.advanceTimersByTimeAsync(31_000);
+        state.loadRepoIssues('inst-1', 'owner', 'repo', 'open');
+        expect(vscodePostMessage()).toHaveBeenCalledWith(
+          expect.objectContaining({ command: 'getRepoIssues', instanceId: 'inst-1' }),
+        );
+        expect(state.repoIssues.value.get('inst-1:owner/repo:issues:open')).toEqual([fakeIssue]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('loadRepoPullRequests serves the cached list until the TTL expires, then refetches', async () => {
+      const { state } = await createState();
+      vi.useFakeTimers();
+      try {
+        state.loadRepoPullRequests('inst-1', 'owner', 'repo', 'open');
+        dispatchMessage({
+          command: 'repoPullRequests',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo: 'repo',
+          state: 'open',
+          pullRequests: [fakePullRequest],
+        });
+        await nextTick();
+
+        vscodePostMessage().mockClear();
+        state.loadRepoPullRequests('inst-1', 'owner', 'repo', 'open');
+        expect(vscodePostMessage()).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(31_000);
+        state.loadRepoPullRequests('inst-1', 'owner', 'repo', 'open');
+        expect(vscodePostMessage()).toHaveBeenCalledWith(
+          expect.objectContaining({ command: 'getRepoPullRequests', instanceId: 'inst-1' }),
+        );
+        expect(state.repoPullRequests.value.get('inst-1:owner/repo:pulls:open')).toEqual([fakePullRequest]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('loadActionRuns sends getActionRuns command', async () => {
       const { state } = await createState();
       vscodePostMessage().mockClear();
@@ -1398,6 +1460,66 @@ describe('useAppState', () => {
     });
   });
 
+  describe('notification slots', () => {
+    const instance = { id: 'inst-1', url: 'https://forgejo.example.com', token: 'token' };
+
+    async function createStateWithInstance() {
+      const { state, mod } = await createState();
+      dispatchMessage({ command: 'initialState', instances: [instance] });
+      await nextTick();
+      return { state, mod };
+    }
+
+    it('polled notifications feed the unread badge without touching the filtered view slot', async () => {
+      const { state, mod } = await createStateWithInstance();
+
+      dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+      await nextTick();
+
+      expect(state.unreadNotificationCount.value).toBe(1);
+      expect(state.notifications.value.get(mod.notificationsKey('inst-1'))).toBeUndefined();
+    });
+
+    it('a filtered view response does not move the unread badge', async () => {
+      const { state, mod } = await createStateWithInstance();
+
+      dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+      await nextTick();
+      // The user switches the view to read notifications: the view slot shows
+      // the filtered (empty) list, but the badge must not drop to zero.
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: [] });
+      await nextTick();
+
+      expect(state.notifications.value.get(mod.notificationsKey('inst-1'))).toEqual([]);
+      expect(state.unreadNotificationCount.value).toBe(1);
+    });
+
+    it('skips writing the stale response when replaying newer filters', async () => {
+      const { state, mod } = await createStateWithInstance();
+      vscodePostMessage().mockClear();
+
+      state.loadNotifications('inst-1', ['unread', 'pinned']);
+      state.loadNotifications('inst-1', ['unread', 'pinned'], ['issue']);
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+      await nextTick();
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(2);
+      expect(state.notifications.value.get(mod.notificationsKey('inst-1'))).toBeUndefined();
+    });
+
+    it('marking a notification read in the view lowers the badge immediately', async () => {
+      const { state } = await createStateWithInstance();
+
+      dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+      await nextTick();
+      expect(state.unreadNotificationCount.value).toBe(1);
+
+      dispatchMessage({ command: 'notificationMarkedRead', instanceId: 'inst-1', id: fakeNotification.id });
+      await nextTick();
+      expect(state.unreadNotificationCount.value).toBe(0);
+    });
+  });
+
   describe('bounded state maps', () => {
     it('globalSearchResults evicts the oldest entry beyond 50 entries', async () => {
       const { state, mod } = await createState();
@@ -1732,5 +1854,44 @@ describe('worktreeError message', () => {
       repo: 'repo',
       index: 2,
     });
+  });
+});
+
+describe('openPullRequestDiff', () => {
+  it('forwards previousFilename for renamed files to the host', async () => {
+    const { state } = await createState();
+    vscodePostMessage().mockClear();
+
+    state.openPullRequestDiff('inst-1', 'owner', 'repo', 2, 'src/new.ts', 'renamed', 'base1', 'head1', 'src/old.ts');
+
+    expect(vscodePostMessage()).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'openPullRequestDiff',
+        filename: 'src/new.ts',
+        previousFilename: 'src/old.ts',
+      }),
+    );
+  });
+
+  it('forwards previous_filename in selected diffs', async () => {
+    const { state } = await createState();
+    vscodePostMessage().mockClear();
+
+    state.openSelectedPullRequestDiffs(
+      'inst-1',
+      'owner',
+      'repo',
+      2,
+      [{ filename: 'src/new.ts', status: 'renamed', previous_filename: 'src/old.ts' }],
+      'base1',
+      'head1',
+    );
+
+    expect(vscodePostMessage()).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'openSelectedPullRequestDiffs',
+        files: [{ filename: 'src/new.ts', status: 'renamed', previous_filename: 'src/old.ts' }],
+      }),
+    );
   });
 });

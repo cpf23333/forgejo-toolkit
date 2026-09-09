@@ -14,6 +14,8 @@ export const mockIssue: ForgejoIssue = {
   updated_at: '2026-08-17T10:00:00Z',
   repository: mockRepository,
   pull_request: undefined,
+  // is_pull is not a real API field; it is baked in for walkthroughs of list
+  // items that distinguish issues from pull requests.
   is_pull: false,
 };
 
@@ -33,6 +35,7 @@ export const mockIssueDetail: ForgejoIssueDetail = {
   ],
   repository: { full_name: 'demo-user/demo-repo' },
   assets: [],
+  // Not a real API field; baked in for walkthroughs of permission-gated UI.
   repoPermissions: { admin: true, push: true, pull: true },
 };
 

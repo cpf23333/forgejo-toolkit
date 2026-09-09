@@ -146,6 +146,7 @@ function createAppState() {
   const globalSearchActiveScope = ref<'all' | 'repositories' | 'issues' | 'pullRequests'>('all');
   const globalSearchQuery = ref<string>('');
   const notifications = ref<Map<string, ForgejoNotification[]>>(new Map());
+  const polledNotifications = ref<Map<string, ForgejoNotification[]>>(new Map());
   const repoLabels = ref<Map<string, ForgejoLabel[]>>(new Map());
   const repoAssignees = ref<Map<string, string[]>>(new Map());
   const repoMilestones = ref<Map<string, ForgejoMilestone[]>>(new Map());
@@ -176,6 +177,11 @@ function createAppState() {
   const repoLabelsCache = createTimedCache<ForgejoLabel[]>(60_000);
   const repoAssigneesCache = createTimedCache<string[]>(60_000);
   const repoMilestonesCache = createTimedCache<ForgejoMilestone[]>(60_000);
+  // repoIssues/repoPullRequests store the lists themselves; these track when
+  // each list was last fetched so a cached list goes stale after the TTL and
+  // the next visit refetches instead of serving it forever.
+  const repoIssuesFetchedAt = createTimedCache<true>(30_000);
+  const repoPullRequestsFetchedAt = createTimedCache<true>(30_000);
 
   const issueDetailCache = createTimedCache<ForgejoIssueDetail>(5_000);
   const pullRequestDetailCache = createTimedCache<ForgejoPullRequestDetail>(5_000);
@@ -1082,6 +1088,13 @@ function createAppState() {
       case 'notifications':
         handleNotifications(message as { instanceId: string; notifications?: ForgejoNotification[]; error?: string });
         break;
+      case 'polledNotifications': {
+        // Poller pushes go to a dedicated slot so they never clobber the
+        // user's filtered view; the unread badge reads from this slot.
+        const data = message as { instanceId: string; notifications?: ForgejoNotification[] };
+        polledNotifications.value.set(data.instanceId, data.notifications ?? []);
+        break;
+      }
       case 'notificationMarkedRead':
         handleNotificationMarkedRead(message as { instanceId: string; id: number; error?: string });
         break;
@@ -2242,6 +2255,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       repoIssues.value.set(key, data.issues ?? []);
+      repoIssuesFetchedAt.set(key, true);
     }
   }
 
@@ -2261,6 +2275,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       repoPullRequests.value.set(key, data.pullRequests ?? []);
+      repoPullRequestsFetchedAt.set(key, true);
     }
   }
 
@@ -2547,13 +2562,15 @@ function createAppState() {
     loading.set(key, false);
     // Replay the latest intent if filters changed while this request was in
     // flight (subjectType is filtered server-side, so the response that just
-    // landed may not match the current filters).
+    // landed may not match the current filters). The stale response must not
+    // be written into the view slot — the replayed request will land shortly.
     const pending = pendingNotificationIntents.get(data.instanceId);
     pendingNotificationIntents.delete(data.instanceId);
     const inFlightArgs = inFlightNotificationArgs.get(data.instanceId);
     inFlightNotificationArgs.delete(data.instanceId);
     if (pending && JSON.stringify(pending) !== inFlightArgs) {
       loadNotifications(data.instanceId, pending.statusTypes, pending.subjectType);
+      return;
     }
     if (data.error) {
       setError(key, data.error);
@@ -2574,6 +2591,12 @@ function createAppState() {
       key,
       list.map((notification) => (notification.id === data.id ? { ...notification, unread: false } : notification)),
     );
+    // Keep the badge slot in sync so the count drops before the next poll.
+    const polled = polledNotifications.value.get(data.instanceId) ?? [];
+    polledNotifications.value.set(
+      data.instanceId,
+      polled.map((notification) => (notification.id === data.id ? { ...notification, unread: false } : notification)),
+    );
   }
 
   function handleAllNotificationsMarkedRead(data: { instanceId: string; error?: string }) {
@@ -2586,6 +2609,11 @@ function createAppState() {
     notifications.value.set(
       key,
       list.map((notification) => ({ ...notification, unread: false })),
+    );
+    const polled = polledNotifications.value.get(data.instanceId) ?? [];
+    polledNotifications.value.set(
+      data.instanceId,
+      polled.map((notification) => ({ ...notification, unread: false })),
     );
   }
 
@@ -3459,6 +3487,7 @@ function createAppState() {
     status: string,
     baseSha: string,
     headSha: string,
+    previousFilename?: string,
   ) {
     postMessage({
       command: 'openPullRequestDiff',
@@ -3468,6 +3497,7 @@ function createAppState() {
       index,
       filename,
       status,
+      previousFilename,
       baseSha,
       headSha,
     });
@@ -3478,7 +3508,7 @@ function createAppState() {
     owner: string,
     repo: string,
     index: number,
-    files: { filename: string; status: string }[],
+    files: { filename: string; status: string; previous_filename?: string }[],
     baseSha: string,
     headSha: string,
   ) {
@@ -3501,7 +3531,7 @@ function createAppState() {
 
   function loadRepoIssues(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
     const key = repoIssuesKey(instanceId, owner, repo, state, query);
-    if (repoIssues.value.has(key)) {
+    if (repoIssues.value.has(key) && repoIssuesFetchedAt.has(key)) {
       return;
     }
     if (loading.get(key)) {
@@ -3734,7 +3764,7 @@ function createAppState() {
 
   function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
     const key = repoPullRequestsKey(instanceId, owner, repo, state, query);
-    if (repoPullRequests.value.has(key)) {
+    if (repoPullRequests.value.has(key) && repoPullRequestsFetchedAt.has(key)) {
       return;
     }
     if (loading.get(key)) {
@@ -4035,7 +4065,7 @@ function createAppState() {
   const unreadNotificationCount = computed(() => {
     let count = 0;
     for (const instance of instances.value) {
-      const list = notifications.value.get(notificationsKey(instance.id)) ?? [];
+      const list = polledNotifications.value.get(instance.id) ?? [];
       count += list.filter((notification) => notification.unread).length;
     }
     return count;
@@ -4074,6 +4104,7 @@ function createAppState() {
     globalSearchActiveScope,
     globalSearchQuery,
     notifications,
+    polledNotifications,
     unreadNotificationCount,
     repoLabels,
     repoAssignees,

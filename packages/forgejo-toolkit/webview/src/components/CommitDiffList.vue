@@ -13,8 +13,16 @@ interface Props {
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  openDiff: [payload: { filename: string; status: string; baseSha: string; headSha: string }];
-  openSelectedDiffs: [payload: { files: { filename: string; status: string }[]; baseSha: string; headSha: string }];
+  openDiff: [
+    payload: { filename: string; status: string; previousFilename?: string; baseSha: string; headSha: string },
+  ];
+  openSelectedDiffs: [
+    payload: {
+      files: { filename: string; status: string; previous_filename?: string }[];
+      baseSha: string;
+      headSha: string;
+    },
+  ];
 }>();
 
 const expanded = ref<Set<string>>(new Set());
@@ -34,6 +42,7 @@ function commitFiles(commit: ForgejoPullRequestCommit): ForgejoChangedFile[] {
   return (commit.files ?? []).map((file) => ({
     filename: file.filename ?? '',
     status: file.status ?? 'modified',
+    previous_filename: file.previous_filename,
   }));
 }
 
@@ -79,13 +88,16 @@ function formatDate(date: string): string {
   }
 }
 
-function handleOpenDiff(commit: ForgejoPullRequestCommit, filename: string, status: string) {
+function handleOpenDiff(commit: ForgejoPullRequestCommit, filename: string, status: string, previousFilename?: string) {
   const baseSha = commit.parents?.[0]?.sha ?? '';
   const headSha = commit.sha ?? '';
-  emit('openDiff', { filename, status, baseSha, headSha });
+  emit('openDiff', { filename, status, previousFilename, baseSha, headSha });
 }
 
-function handleOpenSelectedDiffs(commit: ForgejoPullRequestCommit, files: { filename: string; status: string }[]) {
+function handleOpenSelectedDiffs(
+  commit: ForgejoPullRequestCommit,
+  files: { filename: string; status: string; previous_filename?: string }[],
+) {
   const baseSha = commit.parents?.[0]?.sha ?? '';
   const headSha = commit.sha ?? '';
   emit('openSelectedDiffs', { files, baseSha, headSha });
@@ -107,7 +119,9 @@ function handleOpenSelectedDiffs(commit: ForgejoPullRequestCommit, files: { file
         <DiffFileList
           :files="commitFiles(commit)"
           :supports-multi-diff="props.supportsMultiDiff"
-          @open-diff="(filename, status) => handleOpenDiff(commit, filename, status)"
+          @open-diff="
+            (filename, status, previousFilename) => handleOpenDiff(commit, filename, status, previousFilename)
+          "
           @open-selected-diffs="(files) => handleOpenSelectedDiffs(commit, files)"
         />
       </div>

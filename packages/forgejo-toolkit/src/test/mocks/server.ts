@@ -1,5 +1,5 @@
 import { setupServer } from 'msw/node';
-import { handlers } from './handlers';
+import { handlers, resetMockState } from './handlers';
 
 export const mockServer = setupServer(...handlers);
 
@@ -13,4 +13,5 @@ export function stopMockServer(): void {
 
 export function resetMockServer(): void {
   mockServer.resetHandlers(...handlers);
+  resetMockState();
 }

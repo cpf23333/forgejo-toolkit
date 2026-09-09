@@ -52,10 +52,37 @@ let submittedReviews: Record<string, unknown>[] = [];
 // the merged state, like a real server.
 let prMerged = false;
 
+// Title/body/state edits made through PATCH issues/:index and pulls/:index
+// persist for the rest of the session, so subsequent detail and list GETs
+// reflect them like a real server.
+let issueEdits: { title?: string; body?: string; state?: string } | undefined;
+let pullEdits: { title?: string; body?: string; state?: string } | undefined;
+
+// Restores every piece of mutable session state above. resetMockServer()
+// calls this so each test starts from a clean slate.
+export function resetMockState(): void {
+  pendingReview = undefined;
+  submittedReviews = [];
+  prMerged = false;
+  issueEdits = undefined;
+  pullEdits = undefined;
+}
+
+// Slices a list response the way the real API does: `page`/`limit` query
+// params select a window, and pages past the end return an empty array.
+// Without an explicit `limit` the whole list is treated as a single page.
+function paginate<T>(request: Request, items: T[]): T[] {
+  const url = new URL(request.url);
+  const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+  const limit = Number(url.searchParams.get('limit')) || items.length || 1;
+  const start = (page - 1) * limit;
+  return items.slice(start, start + limit);
+}
+
 export const handlers = [
   http.get('https://*/api/v1/user', () => json(mockUser)),
 
-  http.get('https://*/api/v1/user/repos', () => json([mockRepository, mockRepository2])),
+  http.get('https://*/api/v1/user/repos', ({ request }) => json(paginate(request, [mockRepository, mockRepository2]))),
 
   http.get('https://*/api/v1/user/stopwatches', () => json([])),
 
@@ -106,16 +133,36 @@ export const handlers = [
 
   http.get('https://*/api/v1/users/:username', () => json(mockUser)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo', () => json(mockRepository)),
+  http.get('https://*/api/v1/repos/:owner/:repo', ({ params }) =>
+    json(params.repo === mockRepository2.name ? mockRepository2 : mockRepository),
+  ),
 
   http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
     const url = new URL(request.url);
     const state = url.searchParams.get('state') ?? 'open';
-    const data = mockIssues.filter((issue) => state === 'all' || issue.state === state);
+    const type = url.searchParams.get('type');
+    const q = url.searchParams.get('q')?.toLowerCase();
+    // `type=pulls` lists pull requests instead of issues, like the real API.
+    let data: { title?: string; body?: string; state?: string; number?: number }[] =
+      type === 'pulls' ? [...mockPullRequests] : [...mockIssues];
+    data = data.map((item) =>
+      type === 'pulls'
+        ? item.number === mockPullRequestDetail.number
+          ? { ...item, ...pullEdits }
+          : item
+        : item.number === mockIssueDetail.number
+          ? { ...item, ...issueEdits }
+          : item,
+    );
+    data = data.filter((item) => state === 'all' || item.state === state);
+    if (q) {
+      // The real API matches the query against title and body, case-insensitively.
+      data = data.filter((item) => item.title?.toLowerCase().includes(q) || item.body?.toLowerCase().includes(q));
+    }
     return json(data);
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index', () => json(mockIssueDetail)),
+  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index', () => json({ ...mockIssueDetail, ...issueEdits })),
 
   http.post('https://*/api/v1/repos/:owner/:repo/issues', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
@@ -131,12 +178,12 @@ export const handlers = [
 
   http.patch('https://*/api/v1/repos/:owner/:repo/issues/:index', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
-    return json({
-      ...mockIssueDetail,
-      title: String(body.title ?? mockIssueDetail.title),
-      body: String(body.body ?? mockIssueDetail.body),
-      state: String(body.state ?? mockIssueDetail.state),
-    });
+    issueEdits = {
+      title: body.title !== undefined ? String(body.title) : (issueEdits?.title ?? mockIssueDetail.title),
+      body: body.body !== undefined ? String(body.body) : (issueEdits?.body ?? mockIssueDetail.body),
+      state: body.state !== undefined ? String(body.state) : (issueEdits?.state ?? mockIssueDetail.state),
+    };
+    return json({ ...mockIssueDetail, ...issueEdits });
   }),
 
   http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index', () => new HttpResponse(null, { status: 204 })),
@@ -226,9 +273,12 @@ export const handlers = [
   http.get('https://*/api/v1/repos/:owner/:repo/pulls', ({ request }) => {
     const url = new URL(request.url);
     const state = url.searchParams.get('state') ?? 'open';
-    const list = prMerged
-      ? mockPullRequests.map((pr) => (pr.number === mockPullRequestDetail.number ? { ...pr, state: 'closed' } : pr))
-      : mockPullRequests;
+    let list = mockPullRequests.map((pr) =>
+      pr.number === mockPullRequestDetail.number ? { ...pr, ...pullEdits } : pr,
+    );
+    if (prMerged) {
+      list = list.map((pr) => (pr.number === mockPullRequestDetail.number ? { ...pr, state: 'closed' } : pr));
+    }
     const data = list.filter((pr) => state === 'all' || pr.state === state);
     return json(data);
   }),
@@ -241,8 +291,8 @@ export const handlers = [
   http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index', () =>
     json(
       prMerged
-        ? { ...mockPullRequestDetail, state: 'closed', merged: true, merged_at: '2026-09-03T15:00:00Z' }
-        : mockPullRequestDetail,
+        ? { ...mockPullRequestDetail, ...pullEdits, state: 'closed', merged: true, merged_at: '2026-09-03T15:00:00Z' }
+        : { ...mockPullRequestDetail, ...pullEdits },
     ),
   ),
 
@@ -260,16 +310,18 @@ export const handlers = [
 
   http.patch('https://*/api/v1/repos/:owner/:repo/pulls/:index', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
-    return json({
-      ...mockPullRequestDetail,
-      title: String(body.title ?? mockPullRequestDetail.title),
-      body: String(body.body ?? mockPullRequestDetail.body),
-      state: String(body.state ?? mockPullRequestDetail.state),
-    });
+    pullEdits = {
+      title: body.title !== undefined ? String(body.title) : (pullEdits?.title ?? mockPullRequestDetail.title),
+      body: body.body !== undefined ? String(body.body) : (pullEdits?.body ?? mockPullRequestDetail.body),
+      state: body.state !== undefined ? String(body.state) : (pullEdits?.state ?? mockPullRequestDetail.state),
+    };
+    return json({ ...mockPullRequestDetail, ...pullEdits });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/files', () =>
-    json([{ filename: 'src/index.ts', status: 'modified', additions: 10, deletions: 2, changes: 12 }]),
+  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/files', ({ request }) =>
+    json(
+      paginate(request, [{ filename: 'src/index.ts', status: 'modified', additions: 10, deletions: 2, changes: 12 }]),
+    ),
   ),
 
   http.get('https://*/api/v1/repos/:owner/:repo/compare/:basehead', () =>
@@ -280,21 +332,25 @@ export const handlers = [
     }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', () => json([mockTimelineComment])),
+  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request }) =>
+    json(paginate(request, [mockTimelineComment])),
+  ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/commits', () => json([mockPullRequestCommit])),
+  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/commits', ({ request }) =>
+    json(paginate(request, [mockPullRequestCommit])),
+  ),
 
   http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/merge', () => {
     prMerged = true;
     return new HttpResponse(null, { status: 200 });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', () =>
-    json([mockPullReview, ...submittedReviews, ...(pendingReview ? [pendingReview] : [])]),
+  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', ({ request }) =>
+    json(paginate(request, [mockPullReview, ...submittedReviews, ...(pendingReview ? [pendingReview] : [])])),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', () =>
-    json([mockPullReviewComment]),
+  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', ({ request }) =>
+    json(paginate(request, [mockPullReviewComment])),
   ),
 
   http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews', async ({ request }) => {
@@ -316,12 +372,20 @@ export const handlers = [
     return json(review);
   }),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', async ({ request }) => {
+  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments', async ({ request, params }) => {
+    // The real API only accepts comments on a pending review.
+    if (!pendingReview || String(pendingReview.id) !== String(params.id)) {
+      return json({ message: 'review is not pending' }, 422);
+    }
     const body = (await request.json()) as Record<string, unknown>;
     return json({ ...mockPullReviewComment, body: String(body.body ?? mockPullReviewComment.body) });
   }),
 
-  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id', async ({ request }) => {
+  http.post('https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id', async ({ request, params }) => {
+    // The real API only submits a pending review.
+    if (!pendingReview || String(pendingReview.id) !== String(params.id)) {
+      return json({ message: 'review is not pending' }, 422);
+    }
     const body = (await request.json()) as { event?: string; body?: string };
     pendingReview = undefined;
     const submitted = {
@@ -354,11 +418,13 @@ export const handlers = [
 
   http.get('https://*/api/v1/repos/:owner/:repo/contents/:filepath', () => json({ message: 'Not Found' }, 404)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/branches', () =>
-    json([
-      { name: 'main', commit: { sha: 'abc123' }, protected: true },
-      { name: 'dev', commit: { sha: 'def456' }, protected: false },
-    ]),
+  http.get('https://*/api/v1/repos/:owner/:repo/branches', ({ request }) =>
+    json(
+      paginate(request, [
+        { name: 'main', commit: { sha: 'abc123' }, protected: true },
+        { name: 'dev', commit: { sha: 'def456' }, protected: false },
+      ]),
+    ),
   ),
 
   http.post('https://*/api/v1/repos/:owner/:repo/branches', async ({ request }) => {
@@ -396,7 +462,7 @@ export const handlers = [
     }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/tags', () => json([{ name: 'v1.0.0' }])),
+  http.get('https://*/api/v1/repos/:owner/:repo/tags', ({ request }) => json(paginate(request, [{ name: 'v1.0.0' }]))),
 
   http.post('https://*/api/v1/repos/:owner/:repo/tags', async ({ request }) => {
     const body = (await request.json()) as { tag_name?: string };
@@ -464,11 +530,11 @@ export const handlers = [
     return json({ sha: 'tree-sha', tree: [], truncated: false });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/labels', () => json([mockLabel])),
+  http.get('https://*/api/v1/repos/:owner/:repo/labels', ({ request }) => json(paginate(request, [mockLabel]))),
 
   http.get('https://*/api/v1/repos/:owner/:repo/assignees', () => json(mockAssignees)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/milestones', () => json([mockMilestone])),
+  http.get('https://*/api/v1/repos/:owner/:repo/milestones', ({ request }) => json(paginate(request, [mockMilestone]))),
 
   http.post('https://*/api/v1/markdown', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
