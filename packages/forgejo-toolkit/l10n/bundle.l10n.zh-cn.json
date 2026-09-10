@@ -100,5 +100,9 @@
   "Cancel this pending review? All draft comments will be discarded.": "取消这个待提交的评审？所有草稿评论都将被丢弃。",
   "Cancel Review": "取消评审",
   "Failed to cancel review: {0}": "取消评审失败：{0}",
-  "The export file uses an unsupported key-derivation iteration count": "导出文件使用了不受支持的密钥派生迭代次数"
+  "The export file uses an unsupported key-derivation iteration count": "导出文件使用了不受支持的密钥派生迭代次数",
+  "Unable to open diff: {0}": "无法打开 diff：{0}",
+  "Unable to open selected diffs: {0}": "无法打开选中的 diff：{0}",
+  "Unable to open file: {0}": "无法打开文件：{0}",
+  "Copied to clipboard": "已复制到剪贴板"
 }

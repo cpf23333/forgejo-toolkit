@@ -305,6 +305,14 @@ function onMergeStrategyChange(event: Event) {
   mergeStrategy.value = (event.target as HTMLSelectElement).value as 'merge' | 'rebase' | 'squash';
 }
 
+async function handleDeleteTime(timeId: number) {
+  const confirmed = await state.showConfirm(t('dashboard.detail.deleteTimeConfirm'));
+  if (!confirmed) {
+    return;
+  }
+  state.deleteIssueTime(instanceId.value, owner.value, repo.value, index.value, timeId);
+}
+
 const canMerge = computed(() => detail.value?.state === 'open' && !detail.value?.merged && canManagePullRequest.value);
 const isMergeable = computed(() => detail.value?.mergeable === true);
 const mergeBlockers = computed(() => detail.value?.mergeBlockers ?? []);
@@ -1358,7 +1366,7 @@ function reloadPullRequest() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.delete')"
-                @click="state.deleteIssueTime(instanceId, owner, repo, index, time.id ?? 0)"
+                @click="handleDeleteTime(time.id ?? 0)"
               >
                 <vscode-icon name="trash" />
               </button>

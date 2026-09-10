@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent, h, nextTick, onMounted } from 'vue';
 import PullReviewCommentPanel from '../PullReviewCommentPanel.vue';
+import { createTestI18n } from './helpers/test-utils';
 import type { PullReviewCommentContext } from '../types/config';
 
 const mountedContexts: PullReviewCommentContext[] = [];
@@ -42,7 +43,7 @@ describe('PullReviewCommentPanel', () => {
 
   it('rebuilds the editor when the panel is reused for another line', async () => {
     const wrapper = mount(PullReviewCommentPanel, {
-      global: { stubs: { PullReviewCommentEditor: EditorStub } },
+      global: { plugins: [createTestI18n('en')], stubs: { PullReviewCommentEditor: EditorStub } },
     });
     expect(mountedContexts).toHaveLength(1);
 
@@ -58,7 +59,7 @@ describe('PullReviewCommentPanel', () => {
 
   it('rebuilds the editor when the pending review id changes for the same line', async () => {
     const wrapper = mount(PullReviewCommentPanel, {
-      global: { stubs: { PullReviewCommentEditor: EditorStub } },
+      global: { plugins: [createTestI18n('en')], stubs: { PullReviewCommentEditor: EditorStub } },
     });
 
     dispatchContext(createContext({ pendingReviewId: 7 }));
@@ -70,7 +71,7 @@ describe('PullReviewCommentPanel', () => {
 
   it('keeps the editor instance when an identical context is re-sent', async () => {
     const wrapper = mount(PullReviewCommentPanel, {
-      global: { stubs: { PullReviewCommentEditor: EditorStub } },
+      global: { plugins: [createTestI18n('en')], stubs: { PullReviewCommentEditor: EditorStub } },
     });
 
     dispatchContext(createContext());

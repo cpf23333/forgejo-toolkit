@@ -108,7 +108,13 @@ function handleOpenSelectedDiffs(
   <div class="commit-diff-list">
     <div v-if="commits.length === 0" class="empty">{{ t('dashboard.detail.noChangedFiles') }}</div>
     <div v-for="commit in commits" :key="commit.sha" class="commit-item">
-      <div class="commit-header" @click="toggleCommit(commit.sha ?? '')">
+      <div
+        class="commit-header"
+        tabindex="0"
+        @click="toggleCommit(commit.sha ?? '')"
+        @keydown.enter="toggleCommit(commit.sha ?? '')"
+        @keydown.space.prevent="toggleCommit(commit.sha ?? '')"
+      >
         <span class="commit-toggle">{{ expanded.has(commit.sha ?? '') ? '▼' : '▶' }}</span>
         <span class="commit-message">{{ firstLine(commit.commit?.message) }}</span>
         <span class="commit-sha">{{ shortSha(commit.sha) }}</span>

@@ -119,7 +119,14 @@ function handleInputKeydown(event: KeyboardEvent) {
   }
 }
 
-function openRepo(instanceId: string, repo: ForgejoRepository) {
+function isActionClick(event: Event): boolean {
+  return !!(event.target as HTMLElement).closest('.tree-actions');
+}
+
+function openRepo(event: Event, instanceId: string, repo: ForgejoRepository) {
+  if (isActionClick(event)) {
+    return;
+  }
   state.openRepoDetail(instanceId, repo.owner.login, repo.name);
 }
 
@@ -136,7 +143,10 @@ function parseOwnerRepo(url: string): { owner: string; repo: string } | undefine
   return undefined;
 }
 
-function openIssue(instanceId: string, issue: ForgejoIssue) {
+function openIssue(event: Event, instanceId: string, issue: ForgejoIssue) {
+  if (isActionClick(event)) {
+    return;
+  }
   const ownerRepo = issue.repository?.full_name
     ? { owner: issue.repository.full_name.split('/')[0], repo: issue.repository.full_name.split('/')[1] }
     : parseOwnerRepo(issue.html_url);
@@ -145,7 +155,10 @@ function openIssue(instanceId: string, issue: ForgejoIssue) {
   }
 }
 
-function openPullRequest(instanceId: string, pr: ForgejoPullRequest) {
+function openPullRequest(event: Event, instanceId: string, pr: ForgejoPullRequest) {
+  if (isActionClick(event)) {
+    return;
+  }
   const ownerRepo = parseOwnerRepo(pr.html_url);
   if (ownerRepo) {
     state.openPullRequestDetail(instanceId, ownerRepo.owner, ownerRepo.repo, pr.number);
@@ -296,7 +309,7 @@ watch(stateFilter, () => {
                 <vscode-tree-item
                   v-for="repo in resultFor(instance.id)!.repositories"
                   :key="`repo-${repo.id}`"
-                  @click.capture="openRepo(instance.id, repo)"
+                  @click.capture="openRepo($event, instance.id, repo)"
                 >
                   <span class="result-title">{{ repo.full_name }}</span>
                   <span v-if="repo.description" class="result-meta" slot="description">{{ repo.description }}</span>
@@ -324,7 +337,7 @@ watch(stateFilter, () => {
                 v-for="repo in resultFor(instance.id)!.repositories"
                 v-else
                 :key="`repo-${repo.id}`"
-                @click.capture="openRepo(instance.id, repo)"
+                @click.capture="openRepo($event, instance.id, repo)"
               >
                 <span class="result-title">{{ repo.full_name }}</span>
                 <span v-if="repo.description" class="result-meta" slot="description">{{ repo.description }}</span>
@@ -356,7 +369,7 @@ watch(stateFilter, () => {
                 <vscode-tree-item
                   v-for="issue in resultFor(instance.id)!.issues"
                   :key="`issue-${issue.id}`"
-                  @click.capture="openIssue(instance.id, issue)"
+                  @click.capture="openIssue($event, instance.id, issue)"
                 >
                   <span class="result-title">#{{ issue.number }} {{ issue.title }}</span>
                   <span class="result-meta" slot="description">{{ issue.state }}</span>
@@ -384,7 +397,7 @@ watch(stateFilter, () => {
                 v-for="issue in resultFor(instance.id)!.issues"
                 v-else
                 :key="`issue-${issue.id}`"
-                @click.capture="openIssue(instance.id, issue)"
+                @click.capture="openIssue($event, instance.id, issue)"
               >
                 <span class="result-title">#{{ issue.number }} {{ issue.title }}</span>
                 <span class="result-meta" slot="description">{{ issue.state }}</span>
@@ -420,7 +433,7 @@ watch(stateFilter, () => {
                 <vscode-tree-item
                   v-for="pr in resultFor(instance.id)!.pullRequests"
                   :key="`pr-${pr.id}`"
-                  @click.capture="openPullRequest(instance.id, pr)"
+                  @click.capture="openPullRequest($event, instance.id, pr)"
                 >
                   <span class="result-title">#{{ pr.number }} {{ pr.title }}</span>
                   <span class="result-meta" slot="description">{{ pr.state }}</span>
@@ -448,7 +461,7 @@ watch(stateFilter, () => {
                 v-for="pr in resultFor(instance.id)!.pullRequests"
                 v-else
                 :key="`pr-${pr.id}`"
-                @click.capture="openPullRequest(instance.id, pr)"
+                @click.capture="openPullRequest($event, instance.id, pr)"
               >
                 <span class="result-title">#{{ pr.number }} {{ pr.title }}</span>
                 <span class="result-meta" slot="description">{{ pr.state }}</span>

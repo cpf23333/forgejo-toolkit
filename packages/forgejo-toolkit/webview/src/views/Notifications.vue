@@ -194,13 +194,32 @@ function formatTime(time?: string): string {
   return date.toLocaleString();
 }
 
+function notificationTypeLabel(notification: ForgejoNotification): string {
+  // The real API uses 'PullRequest'/'Issue' etc.; mocks and some servers use
+  // 'Pull'. Compare lowercased and cover both.
+  const type = notification.subject?.type?.toLowerCase();
+  switch (type) {
+    case 'issue':
+      return t('dashboard.notifications.types.issue');
+    case 'pullrequest':
+    case 'pull':
+      return t('dashboard.notifications.types.pullRequest');
+    case 'repository':
+      return t('dashboard.notifications.types.repository');
+    case 'commit':
+      return t('dashboard.notifications.types.commit');
+    default:
+      return notification.subject?.type ?? '';
+  }
+}
+
 function notificationMeta(notification: ForgejoNotification): string {
   const parts: string[] = [];
   if (notification.repository?.full_name) {
     parts.push(notification.repository.full_name);
   }
   if (notification.subject?.type) {
-    parts.push(notification.subject.type);
+    parts.push(notificationTypeLabel(notification));
   }
   if (notification.updated_at) {
     parts.push(formatTime(notification.updated_at));

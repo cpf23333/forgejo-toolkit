@@ -1887,7 +1887,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         } catch (error) {
           const err = error instanceof Error ? error.message : String(error);
           logger.error(`openPullRequestDiff failed for ${owner}/${repo}#${index} ${filename}: ${err}`);
-          vscode.window.showErrorMessage(`Unable to open diff: ${err}`);
+          vscode.window.showErrorMessage(vscode.l10n.t('Unable to open diff: {0}', err));
         }
         return;
       }
@@ -1945,7 +1945,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         } catch (error) {
           const err = error instanceof Error ? error.message : String(error);
           logger.error(`openSelectedPullRequestDiffs failed for ${owner}/${repo}#${index}: ${err}`);
-          vscode.window.showErrorMessage(`Unable to open selected diffs: ${err}`);
+          vscode.window.showErrorMessage(vscode.l10n.t('Unable to open selected diffs: {0}', err));
         }
         return;
       }
@@ -2526,7 +2526,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         } catch (error) {
           const err = error instanceof Error ? error.message : String(error);
           logger.error(`openRepoFile failed for ${owner}/${repo}/${path}: ${err}`);
-          vscode.window.showErrorMessage(`Unable to open file: ${err}`);
+          vscode.window.showErrorMessage(vscode.l10n.t('Unable to open file: {0}', err));
         }
         return;
       }
@@ -2627,7 +2627,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         } catch (error) {
           const err = error instanceof Error ? error.message : String(error);
           logger.error(`openRepoFileDiff failed for ${owner}/${repo}/${path}: ${err}`);
-          vscode.window.showErrorMessage(`Unable to open diff: ${err}`);
+          vscode.window.showErrorMessage(vscode.l10n.t('Unable to open diff: {0}', err));
         }
         return;
       }
@@ -2992,7 +2992,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         const text = message.text;
         if (typeof text === 'string') {
           await vscode.env.clipboard.writeText(text);
-          vscode.window.showInformationMessage('Copied to clipboard');
+          vscode.window.showInformationMessage(vscode.l10n.t('Copied to clipboard'));
         }
         return;
       }

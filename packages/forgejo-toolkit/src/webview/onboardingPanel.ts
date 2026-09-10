@@ -230,7 +230,7 @@ export class OnboardingWebviewPanel {
             const text = message.text;
             if (typeof text === 'string') {
               await vscode.env.clipboard.writeText(text);
-              vscode.window.showInformationMessage('Copied to clipboard');
+              vscode.window.showInformationMessage(vscode.l10n.t('Copied to clipboard'));
             }
             return;
           }

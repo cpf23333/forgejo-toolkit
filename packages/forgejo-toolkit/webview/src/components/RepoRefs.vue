@@ -35,9 +35,13 @@ const dialogOpen = ref(false);
 const dialogMode = ref<RepoRefFormMode>('branch');
 const editingRelease = ref<ForgejoRelease | undefined>(undefined);
 const isSubmitting = ref(false);
+const submitError = ref<string | undefined>(undefined);
 const pendingReleaseAttachments = ref<File[]>([]);
 const uploadingReleaseAttachmentCount = ref(0);
 const isUploadingReleaseAttachments = ref(false);
+// Remembered after a successful create so a retry only uploads the remaining
+// attachments instead of creating a duplicate release (tag conflict).
+const createdReleaseId = ref<number | undefined>(undefined);
 
 watch(
   () => [props.instanceId, props.owner, props.repo],
@@ -74,6 +78,8 @@ function openDialog(mode: RepoRefFormMode, release?: ForgejoRelease) {
   dialogMode.value = mode;
   editingRelease.value = release;
   pendingReleaseAttachments.value = [];
+  submitError.value = undefined;
+  createdReleaseId.value = undefined;
   dialogOpen.value = true;
 }
 
@@ -81,6 +87,8 @@ function closeDialog() {
   dialogOpen.value = false;
   editingRelease.value = undefined;
   pendingReleaseAttachments.value = [];
+  submitError.value = undefined;
+  createdReleaseId.value = undefined;
 }
 
 function handleReleaseAttachmentUpload(file: File) {
@@ -126,22 +134,28 @@ async function handleSubmit(data: Record<string, unknown>) {
         });
       } else {
         isUploadingReleaseAttachments.value = true;
+        submitError.value = undefined;
         try {
-          const release = await state.createRepoRelease(
-            props.instanceId,
-            props.owner,
-            props.repo,
-            String(data.tagName),
-            data.name ? String(data.name) : undefined,
-            data.body ? String(data.body) : undefined,
-            data.targetCommitish ? String(data.targetCommitish) : undefined,
-            Boolean(data.prerelease),
-            Boolean(data.draft),
-            Boolean(data.hideArchiveLinks),
-          );
-          const files = pendingReleaseAttachments.value;
-          const releaseId = release.id;
+          let releaseId = createdReleaseId.value;
+          if (releaseId === undefined) {
+            const release = await state.createRepoRelease(
+              props.instanceId,
+              props.owner,
+              props.repo,
+              String(data.tagName),
+              data.name ? String(data.name) : undefined,
+              data.body ? String(data.body) : undefined,
+              data.targetCommitish ? String(data.targetCommitish) : undefined,
+              Boolean(data.prerelease),
+              Boolean(data.draft),
+              Boolean(data.hideArchiveLinks),
+            );
+            releaseId = release.id;
+            createdReleaseId.value = releaseId;
+          }
+          const files = [...pendingReleaseAttachments.value];
           if (releaseId !== undefined && files.length > 0) {
+            const remaining: File[] = [];
             await Promise.all(
               files.map(async (file) => {
                 uploadingReleaseAttachmentCount.value += 1;
@@ -155,15 +169,26 @@ async function handleSubmit(data: Record<string, unknown>) {
                     file.name,
                     new Uint8Array(buffer),
                   );
+                } catch {
+                  // Keep the failed file queued so a retry re-uploads only the remainder.
+                  remaining.push(file);
                 } finally {
                   uploadingReleaseAttachmentCount.value -= 1;
                 }
               }),
             );
+            pendingReleaseAttachments.value = remaining;
+            if (remaining.length > 0) {
+              submitError.value = t('dashboard.repoRefs.attachmentUploadFailed', { count: remaining.length });
+              isSubmitting.value = false;
+              return;
+            }
           }
           pendingReleaseAttachments.value = [];
+          createdReleaseId.value = undefined;
           state.loadRepoRefs(props.instanceId, props.owner, props.repo, true);
-        } catch {
+        } catch (err) {
+          submitError.value = err instanceof Error && err.message ? err.message : String(err);
           isSubmitting.value = false;
         } finally {
           isUploadingReleaseAttachments.value = false;
@@ -326,7 +351,7 @@ async function removeRelease(id?: number) {
       :repo="repo"
       :default-branch="defaultBranch"
       :loading="(loading && isSubmitting) || isUploadingReleaseAttachments || uploadingReleaseAttachmentCount > 0"
-      :error="error"
+      :error="submitError ?? error"
       :release="editingRelease"
       :branches="data?.branches.map((b) => b.name ?? '').filter(Boolean)"
       :tags="data?.tags.map((t) => t.name ?? '').filter(Boolean)"

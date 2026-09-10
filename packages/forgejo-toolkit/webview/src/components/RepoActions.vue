@@ -31,6 +31,9 @@ const POLL_INTERVAL_MS = 4000;
 const MAX_LIST_POLL_ATTEMPTS = 15;
 let listPollAttempts = 0;
 const pollingAfterIndex = ref<number | undefined>(undefined);
+// Feedback for the dispatch flow: 'waiting' while polling for the new run,
+// 'timeout' when the poll gives up without seeing it.
+const dispatchStatus = ref<'idle' | 'waiting' | 'timeout'>('idle');
 const totalKey = computed(() => `${props.instanceId}:${props.owner}/${props.repo}`);
 const runs = computed(() => state.actionRuns.value.get(key.value) ?? []);
 const loading = computed(() => state.loading.get(key.value) ?? false);
@@ -64,6 +67,7 @@ watch(
       pollingAfterIndex.value !== undefined &&
       isActive.value
     ) {
+      dispatchStatus.value = 'waiting';
       startListPolling(pollingAfterIndex.value);
       pollingAfterIndex.value = undefined;
     }
@@ -194,12 +198,14 @@ function startListPolling(afterIndex: number) {
     listPollAttempts += 1;
     if (listPollAttempts > MAX_LIST_POLL_ATTEMPTS) {
       stopListPolling();
+      dispatchStatus.value = 'timeout';
       return;
     }
     state.loadActionRuns(props.instanceId, props.owner, props.repo, 1, true);
     const currentLatest = latestRunIndex();
     if (currentLatest > afterIndex) {
       stopListPolling();
+      dispatchStatus.value = 'idle';
       page.value = 1;
     }
   }, POLL_INTERVAL_MS);
@@ -242,6 +248,7 @@ function resetTrigger() {
   triggerWorkflow.value = '';
   triggerRef.value = props.defaultBranch ?? '';
   triggerInputs.value = [];
+  dispatchStatus.value = 'idle';
   showTrigger.value = false;
 }
 
@@ -342,6 +349,12 @@ onUnmounted(() => {
         <div v-if="dispatchError" class="error-state">
           <span>{{ t('dashboard.error', { message: dispatchError }) }}</span>
         </div>
+        <div v-else-if="dispatchStatus === 'waiting'" class="status-message">
+          {{ t('dashboard.repoActions.dispatchWaiting') }}
+        </div>
+        <div v-else-if="dispatchStatus === 'timeout'" class="status-message">
+          {{ t('dashboard.repoActions.dispatchTimeout') }}
+        </div>
         <div class="trigger-actions">
           <vscode-button
             :disabled="dispatchLoading || !triggerWorkflow.trim() || !triggerRef.trim()"
@@ -357,7 +370,16 @@ onUnmounted(() => {
     </div>
 
     <div v-if="runs.length > 0" class="actions-list">
-      <div v-for="run in runs" :key="run.id ?? run.index_in_repo" class="action-run-item" @click="openRunDetail(run)">
+      <div
+        v-for="run in runs"
+        :key="run.id ?? run.index_in_repo"
+        class="action-run-item"
+        tabindex="0"
+        role="button"
+        @click="openRunDetail(run)"
+        @keydown.enter="openRunDetail(run)"
+        @keydown.space.prevent="openRunDetail(run)"
+      >
         <vscode-icon :class="['run-status-icon', statusClass(run.status)]" :name="statusIcon(run.status)" />
         <div class="run-info">
           <div class="run-title-row">
@@ -433,6 +455,11 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
+}
+
+.status-message {
+  padding: 4px 0;
+  color: var(--vscode-descriptionForeground);
 }
 
 .actions-list {

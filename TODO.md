@@ -116,9 +116,9 @@
 - [x] `forgejoToolkit.hasLinkedRepo` 只在侧栏可见时更新——`setContext` 已移到可见性早退之前，`_reply('linkedRepository')` 保持 gated
 - [ ] 多窗口 token 内存表不刷新：`_tokens` 只在 `init()` 读一次 SecretStorage，未监听 `secrets.onDidChange`（`config.ts:16,22-43`）；窗口 A 改 token 后窗口 B 全部 API 匿名化失败直到重启（TODO 已记实例列表覆盖，这是另一半机制）
 - [ ] worktree「替换当前窗口」确认框取消后仍回 `worktreeOpened`（`gitOperations.ts:322-330` + 三个调用方 `viewProvider.ts:3521,3665,3690`），webview 把取消当已打开，且取消前记录已写入；应返回 boolean/改回 `worktreeCancelled`，记录写入移到确认后
-- [ ] GlobalSearch 结果行操作图标会同时触发整行导航：`@click.capture` 父级先触发且 open 函数无守卫（`GlobalSearch.vue:299` 等 6 处）；对比 `DashboardInstanceItem.vue:165-170` 有 `isActionClick` 守卫；点「复制 clone 地址」会被带进仓库详情
-- [ ] 创建 Release 附件上传失败被静默吞错且状态残留：`RepoRefs.vue:166` 空 catch，无错误提示、pending 列表未清、弹窗保持打开，再点提交会重复创建同名 Release（tag 冲突）
-- [ ] 键盘可达性系统性短板：主列表项用 `div/li @click` 无 tabindex/keydown（`RepoActions.vue:360` 进运行详情唯一入口、`RepoFileHistoryDialog.vue:87`、`CommitDiffList.vue:99`、`RepoFileBrowser.vue:219`、`AttachmentList.vue:86`）；`ViewTabs.vue` 声明 `role="tablist"` 但无方向键导航/roving tabindex
+- [x] GlobalSearch 结果行操作图标会同时触发整行导航：`@click.capture` 父级先触发且 open 函数无守卫（`GlobalSearch.vue:299` 等 6 处）；对比 `DashboardInstanceItem.vue:165-170` 有 `isActionClick` 守卫；点「复制 clone 地址」会被带进仓库详情——已修：照搬 `isActionClick(event)` 守卫模式，`openRepo`/`openIssue`/`openPullRequest` 第一参改 `$event`，点击 `.tree-actions` 内图标时早退
+- [x] 创建 Release 附件上传失败被静默吞错且状态残留：`RepoRefs.vue:166` 空 catch，无错误提示、pending 列表未清、弹窗保持打开，再点提交会重复创建同名 Release（tag 冲突）——已修：失败文件留在 pending 列表并把错误写进 dialog `:error`（i18n `attachmentUploadFailed`），`isSubmitting` 复位；记住已创建的 `createdReleaseId`，重试只补传剩余附件不再走创建分支；创建本身失败时展示 host 错误消息
+- [x] 键盘可达性系统性短板：主列表项用 `div/li @click` 无 tabindex/keydown（`RepoActions.vue:360` 进运行详情唯一入口、`RepoFileHistoryDialog.vue:87`、`CommitDiffList.vue:99`、`RepoFileBrowser.vue:219`、`AttachmentList.vue:86`）；`ViewTabs.vue` 声明 `role="tablist"` 但无方向键导航/roving tabindex——已修：5 处加 `tabindex="0"` + Enter/Space 触发（AttachmentList 额外 `role="link"`，action-run-item `role="button"`）；ViewTabs 补 ARIA tabs 模式：Left/Right 循环切换并移动焦点，仅激活 tab `tabindex="0"`
 - [x] mock 保真度（会让走查误判为扩展 bug）：仓库级 issues 端点忽略 `type`/`q` 参数（`handlers.ts:111-116`，搜 PR 返回 Issue、搜 Issue 恒全量）；Issue/PR 关闭/重开 state 不持久化（PATCH 后 GET 回静态数据，只有 merge 有翻转）；评审 pending-only 约束不模拟（两条 422 错误路径在 mock 下是死代码）；仓库详情端点忽略 `:repo`（another-repo 显示 demo-repo 数据）；`mockPullReview.state` 用了 GitHub 式 `'COMMENTED'`（真实为 `'COMMENT'`）——已修：issues 端点支持 `type=pulls` 分派与 title/body 大小写不敏感 `q` 过滤；PATCH 编辑落模块级 `issueEdits`/`pullEdits`，后续 GET 详情/列表反映；非 pending 评审的评论/提交返回 422；仓库详情按 `:repo` 分派；`mockPullReview.state` 改 `'COMMENT'`；补 5 个保真测试 + 2 个 422 测试
 - [ ] msw + 全部 mock 数据被打进生产扩展包：`extension.ts:31-41` 动态 import mock server，`esbuild.js` 无剥离配置，`out/extension.js`（479KB）含全部 handlers；`useMockApi` 是公开设置，用户开启后 msw 以 warn 模式拦截宿主所有 HTTPS 请求；production 构建应剥离并把设置标注为开发用途
 - [ ] 「刷新实例」按钮坐实只刷实例列表：`refreshInstances` → `_sendInstances()`（`viewProvider.ts:3110-3112`），仓库/issue/PR 数据不刷新（TODO 第二轮的"需实测"可坐实）
@@ -126,9 +126,9 @@
 **轻**
 
 - [x] 评审编辑器提交防重复形同虚设——已修：编辑器消费 host 的 `pullReviewCommentSubmitted`/`pullReviewSubmitted`/`pullReviewDeleted` 回包，`submitting` 等到回包才复位；`submitReview`/`cancelReview` 加同样守卫并禁用按钮；host 补齐未配对路径的回包（空 body、取消评审的确认框被拒绝时回 `cancelled: true`）
-- [ ] Trigger workflow 成功无反馈、轮询 60s 静默超时（`RepoActions.vue:57-71,190-206`）
-- [ ] 删除已记录工时/移除依赖无确认（`IssueDetail.vue:898,920`、`PullRequestDetail.vue:1344`），与其它删除路径均有确认不一致
-- [ ] i18n 补充点位：`Notifications.vue:203` 渲染 `subject.type` 原文；`viewProvider.ts:2524,2625,2990`/`onboardingPanel.ts:229` 的 `Unable to open ...`、`Copied to clipboard` 硬编码；`PullReviewCommentPanel.vue:27` `Loading...` 硬编码
+- [x] Trigger workflow 成功无反馈、轮询 60s 静默超时（`RepoActions.vue:57-71,190-206`）——已修：dispatch 成功后显示「已触发，等待运行出现…」（i18n 双语），轮询到新运行或 4s×15 超时后提示未等到；`resetTrigger` 复位状态
+- [x] 删除已记录工时/移除依赖无确认（`IssueDetail.vue:898,920`、`PullRequestDetail.vue:1344`），与其它删除路径均有确认不一致——已修：三处改走 `showConfirm()`（host 原生确认框），新增 `deleteTimeConfirm`/`removeDependencyConfirm` 双语 key
+- [x] i18n 补充点位：`Notifications.vue:203` 渲染 `subject.type` 原文；`viewProvider.ts:2524,2625,2990`/`onboardingPanel.ts:229` 的 `Unable to open ...`、`Copied to clipboard` 硬编码；`PullReviewCommentPanel.vue:27` `Loading...` 硬编码——已修：通知类型走 `notifications.types.*` 映射（小写比较兜住 'PullRequest'/'Pull' 两种取值，未知类型回退原文）；host 5 处硬编码改 `vscode.l10n.t` 并补 bundle 双语；面板 `Loading...` 改 `t('dashboard.loading')`（顺带修复面板测试未装 i18n 插件的隐患）
 - [ ] `revertMergeCommit` 不校验当前分支（revert 提交可能落到错误分支并推上去），且此 push 不带 token 与其它路径不一致（`gitOperations.ts:302-311`）
 - [ ] 只增不减的 Map：`pullReviewCommentController.ts:50,342` `_commentContextMap` 从不清理；`resolveAttachmentImages.ts:8` session 级图片 dataURL 缓存无 LRU 上限
 - [ ] mention 文档链接每次调用都重跑仓库探测（`issueMentionProvider.ts:70-85,138`，无缓存）
@@ -141,7 +141,7 @@
 - [x] `dispatchWorkflow` 的 204 归一化无效——显式判空对象返回 undefined（baseClient 把 204 变 `{}`，`??` 兜不住），补测试
 - [ ] Dashboard「我的 Issue/PR」未传 limit，受服务端默认页大小截断（`client.ts:253-265`）
 - [x] mock 数据把宿主计算字段（`mergeBlockers`/`statusChecks`/`repoPermissions`/`is_pull`）烘进「API 响应」，误导后续开发；`resetMockServer()` 清不掉模块级可变状态（`prMerged`/`submittedReviews`），测试靠执行顺序硬撑——已修：新增 `resetMockState()` 复位全部模块级状态（含新增 `issueEdits`/`pullEdits`），`resetMockServer()` 调用之；计算字段保留但加注释标明是走查展示用非真实 API 字段
-- [ ] package.json 的 7 个设置项 description 硬编码英文，未走 package.nls（命令标题已全部走占位）
+- [x] package.json 的 7 个设置项 description 硬编码英文，未走 package.nls（命令标题已全部走占位）——已修：7 处改 `%config.*.description%` 占位，`package.nls.json`/`package.nls.zh-cn.json` 各补 7 条（worktreeOpenMode 的 enumDescriptions 不在本轮范围）
 
 **存疑（需实测/验证）**
 
@@ -160,6 +160,7 @@
 
 ### 最近完成
 
+- [x] 批 5 UX 体验修复（第四轮「中」3 条 +「轻」4 条）：GlobalSearch 结果行操作图标加 `isActionClick` 守卫（照搬 DashboardInstanceItem 模式，点复制/外链图标不再触发整行导航）；创建 Release 附件上传失败不再吞错——失败文件留 pending 列表、错误进 dialog `:error`、记住 `createdReleaseId` 使重试只补传剩余附件不重复建 Release；键盘可达性——5 个组件的可点击项加 `tabindex="0"` + Enter/Space，ViewTabs 补 ARIA tabs 方向键循环 + roving tabindex；Trigger workflow 加「已触发等待/超时未等到」状态反馈；删除工时/依赖三处接入 `showConfirm()`；i18n 补点——通知类型映射（兜 PullRequest/Pull）、host 5 处硬编码改 l10n.t、评审面板 Loading 改 t()；7 个设置项 description 走 package.nls 双语；补 RepoActions/ViewTabs/RepoRefs 共 7 个测试
 - [x] 批 4 数据正确性 + mock 保真：`_fetchAllPages` 以首页实际返回数探测生效页大小（服务端 clamp 页大小不再静默丢数据，mock 列表端点配套 `paginate()` 真实分页）；重命名文件 diff 全链路保留 `previous_filename`，host 侧 base URI 用旧路径取内容（不再渲染成整文件新增）；通知拆双槽位——轮询写 `polledNotifications` 独立槽驱动徽标/toast，筛选响应只写视图槽，标记已读双槽同步，replay 判定后跳过 stale 落库；仓库 Issue/PR 列表加 30s TTL（过期后台重拉、旧数据保持可见）；mock 保真六项——issues 端点 `type`/`q` 分派过滤、PATCH 编辑 state 持久化、评审 pending-only 422、仓库详情按 `:repo` 分派、`mockPullReview.state` 改 `'COMMENT'`、`resetMockState()` 接入 `resetMockServer()` + 计算字段注释；补 client 9 个、useAppState 6 个、viewProviderDispatch 2 个测试
 - [x] 评论子系统专题（第四轮走查的四条评论链路缺陷）：面板复用切行状态泄漏——编辑器按完整 context `:key` 重建（draft/pendingReviewId/mode 不再跨行/跨 PR 残留，草稿丢弃行为保持现状）；`_onOpenDocument` 并发竞态——load+render 全部串行到 `_renderChain`，同文档双触发不再交错建重复 thread；评审数据零缓存——按 PR 加 15s TTL 缓存 + InFlightTasks 合并并发加载，`_refreshOpenPrDocuments` 失效后一次拉取渲染全部文档（30 文件 multi-diff 提交评论从 60 倍请求降为 1 次）；编辑器提交防重复——webview 消费 host 完成回包后才复位 `submitting`，`submitReview`/`cancelReview` 同步加守卫，host 补齐空 body 与确认取消两条未配对回包（协议加 `cancelled` 字段）；补 controller 4 个、panel host 1 个、webview 组件 6 个测试
 

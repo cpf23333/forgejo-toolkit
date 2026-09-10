@@ -150,7 +150,13 @@
       "allTypes": "全部类型",
       "markAsRead": "标记为已读",
       "markAllAsRead": "全部已读",
-      "untitled": "无标题"
+      "untitled": "无标题",
+      "types": {
+        "issue": "Issue",
+        "pullRequest": "Pull Request",
+        "repository": "仓库",
+        "commit": "提交"
+      }
     },
     "repoRefs": {
       "branches": "分支",
@@ -188,7 +194,8 @@
       "saveDraft": "保存草稿",
       "publishRelease": "发布版本",
       "attachmentsLabel": "附件",
-      "addAttachment": "添加附件"
+      "addAttachment": "添加附件",
+      "attachmentUploadFailed": "{count} 个附件上传失败。Release 已创建，再次提交将只重试剩余附件。"
     },
     "branches": "分支",
     "defaultBranch": "默认",
@@ -217,7 +224,9 @@
       "untitledRun": "未命名运行",
       "loadMore": "加载更多",
       "triggerWorkflow": "触发 workflow",
-      "runWorkflow": "运行"
+      "runWorkflow": "运行",
+      "dispatchWaiting": "已触发，正在等待新运行出现…",
+      "dispatchTimeout": "已触发，但暂未等到新运行出现，请稍后刷新列表查看。"
     },
     "actionRun": {
       "jobs": "任务",
@@ -276,6 +285,8 @@
     "detail": {
       "status": "状态",
       "deleteIssueConfirm": "确定删除 issue #{number} 吗？此操作无法撤销。",
+      "deleteTimeConfirm": "确定删除这条工时记录吗？",
+      "removeDependencyConfirm": "确定移除对 #{number} 的依赖吗？",
       "author": "作者",
       "createdAt": "创建于",
       "updatedAt": "更新于",

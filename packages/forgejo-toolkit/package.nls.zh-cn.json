@@ -7,5 +7,12 @@
   "command.publishToForgejo.title": "发布到 Forgejo",
   "command.createPrFromCurrentBranch.title": "从当前分支创建 PR",
   "command.deletePullReviewComment.title": "删除审查评论",
-  "command.addPullReviewComment.title": "添加审查评论"
+  "command.addPullReviewComment.title": "添加审查评论",
+  "config.locale.description": "Forgejo Toolkit 面板的显示语言",
+  "config.debug.description": "启用调试日志，输出到 Forgejo Toolkit 输出通道",
+  "config.worktreeOpenMode.description": "PR worktree 创建后的打开方式",
+  "config.worktreeCacheDirectory.description": "PR worktree 的自定义父目录。留空则使用默认的扩展存储位置。",
+  "config.notificationPollingEnabled.description": "定期轮询 Forgejo 实例的未读通知并显示 VS Code 提醒。",
+  "config.notificationPollingInterval.description": "通知轮询的间隔秒数。",
+  "config.useMockApi.description": "使用 mock Forgejo API 响应进行离线开发。"
 }

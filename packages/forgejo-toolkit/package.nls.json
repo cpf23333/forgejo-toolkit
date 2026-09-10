@@ -7,5 +7,12 @@
   "command.publishToForgejo.title": "Publish to Forgejo",
   "command.createPrFromCurrentBranch.title": "Create PR from Current Branch",
   "command.deletePullReviewComment.title": "Delete Review Comment",
-  "command.addPullReviewComment.title": "Add Pull Review Comment"
+  "command.addPullReviewComment.title": "Add Pull Review Comment",
+  "config.locale.description": "Display language for the Forgejo Toolkit panel",
+  "config.debug.description": "Enable debug logging to the Forgejo Toolkit output channel",
+  "config.worktreeOpenMode.description": "How to open a PR worktree after it is created",
+  "config.worktreeCacheDirectory.description": "Custom parent directory for PR worktrees. Leave empty to use the default extension storage location.",
+  "config.notificationPollingEnabled.description": "Periodically poll Forgejo instances for unread notifications and show VS Code alerts.",
+  "config.notificationPollingInterval.description": "Interval in seconds between notification polls.",
+  "config.useMockApi.description": "Use mock Forgejo API responses for offline development."
 }

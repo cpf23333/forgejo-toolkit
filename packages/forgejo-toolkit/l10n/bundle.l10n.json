@@ -100,5 +100,9 @@
   "Cancel this pending review? All draft comments will be discarded.": "Cancel this pending review? All draft comments will be discarded.",
   "Cancel Review": "Cancel Review",
   "Failed to cancel review: {0}": "Failed to cancel review: {0}",
-  "The export file uses an unsupported key-derivation iteration count": "The export file uses an unsupported key-derivation iteration count"
+  "The export file uses an unsupported key-derivation iteration count": "The export file uses an unsupported key-derivation iteration count",
+  "Unable to open diff: {0}": "Unable to open diff: {0}",
+  "Unable to open selected diffs: {0}": "Unable to open selected diffs: {0}",
+  "Unable to open file: {0}": "Unable to open file: {0}",
+  "Copied to clipboard": "Copied to clipboard"
 }

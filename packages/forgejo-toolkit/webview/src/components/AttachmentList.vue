@@ -83,9 +83,15 @@ function formatFileSize(bytes?: number): string {
         class="attachment-item"
         :class="{ 'pending-delete': asset.id !== undefined && pendingDeleteIds?.includes(asset.id) }"
       >
-        <span class="attachment-name" @click="emit('openExternal', asset.browser_download_url ?? '')">{{
-          asset.name
-        }}</span>
+        <span
+          class="attachment-name"
+          tabindex="0"
+          role="link"
+          @click="emit('openExternal', asset.browser_download_url ?? '')"
+          @keydown.enter="emit('openExternal', asset.browser_download_url ?? '')"
+          @keydown.space.prevent="emit('openExternal', asset.browser_download_url ?? '')"
+          >{{ asset.name }}</span
+        >
         <span v-if="asset.size" class="attachment-size">{{ formatFileSize(asset.size) }}</span>
         <button
           v-if="allowDelete"

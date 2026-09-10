@@ -220,7 +220,10 @@ onUnmounted(() => {
               v-for="file in searchResults"
               :key="file.sha ?? file.path"
               class="search-result-item"
+              tabindex="0"
               @click="openSearchResult(file)"
+              @keydown.enter="openSearchResult(file)"
+              @keydown.space.prevent="openSearchResult(file)"
             >
               <i class="codicon" :class="isImageFile(file.path ?? '') ? 'codicon-file-media' : 'codicon-file'"></i>
               <span class="search-result-path">{{ file.path }}</span>

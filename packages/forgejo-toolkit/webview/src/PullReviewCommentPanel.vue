@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import PullReviewCommentEditor from './views/PullReviewCommentEditor.vue';
 import type { PullReviewCommentContext } from './types/config';
+
+const { t } = useI18n();
 
 const context = ref<PullReviewCommentContext | undefined>(window.__FORGEJO_TOOLKIT_CONFIG__?.pullReviewComment);
 
@@ -35,7 +38,7 @@ onUnmounted(() => {
   <div v-if="context" class="pull-review-comment-panel">
     <PullReviewCommentEditor :key="editorKey" :context="context" />
   </div>
-  <div v-else class="pull-review-comment-panel-empty">Loading...</div>
+  <div v-else class="pull-review-comment-panel-empty">{{ t('dashboard.loading') }}</div>
 </template>
 
 <style scoped>

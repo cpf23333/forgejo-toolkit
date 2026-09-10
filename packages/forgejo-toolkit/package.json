@@ -79,12 +79,12 @@
             "en",
             "zh"
           ],
-          "description": "Display language for the Forgejo Toolkit panel"
+          "description": "%config.locale.description%"
         },
         "forgejoToolkit.debug": {
           "type": "boolean",
           "default": false,
-          "description": "Enable debug logging to the Forgejo Toolkit output channel"
+          "description": "%config.debug.description%"
         },
         "forgejoToolkit.worktreeOpenMode": {
           "type": "string",
@@ -99,29 +99,29 @@
             "Open worktrees in a new VS Code window",
             "Open worktrees in the current VS Code window"
           ],
-          "description": "How to open a PR worktree after it is created"
+          "description": "%config.worktreeOpenMode.description%"
         },
         "forgejoToolkit.worktreeCacheDirectory": {
           "type": "string",
           "default": "",
-          "description": "Custom parent directory for PR worktrees. Leave empty to use the default extension storage location."
+          "description": "%config.worktreeCacheDirectory.description%"
         },
         "forgejoToolkit.notificationPollingEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Periodically poll Forgejo instances for unread notifications and show VS Code alerts."
+          "description": "%config.notificationPollingEnabled.description%"
         },
         "forgejoToolkit.notificationPollingInterval": {
           "type": "number",
           "default": 300,
           "minimum": 60,
           "maximum": 3600,
-          "description": "Interval in seconds between notification polls."
+          "description": "%config.notificationPollingInterval.description%"
         },
         "forgejoToolkit.useMockApi": {
           "type": "boolean",
           "default": false,
-          "description": "Use mock Forgejo API responses for offline development."
+          "description": "%config.useMockApi.description%"
         }
       }
     },

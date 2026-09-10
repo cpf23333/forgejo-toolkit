@@ -17,10 +17,26 @@ const emit = defineEmits<{
 function selectTab(key: string) {
   emit('update:modelValue', key as T);
 }
+
+// ARIA tabs keyboard pattern: Left/Right moves focus and activates the tab
+// (automatic activation); only the active tab stays in the tab order.
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+    return;
+  }
+  event.preventDefault();
+  const keys = props.tabs.map((tab) => tab.key);
+  const current = keys.indexOf(props.modelValue);
+  const delta = event.key === 'ArrowRight' ? 1 : -1;
+  const next = (current + delta + keys.length) % keys.length;
+  emit('update:modelValue', keys[next] as T);
+  const buttons = (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('.tab-button');
+  buttons[next]?.focus();
+}
 </script>
 
 <template>
-  <div class="view-tabs" role="tablist">
+  <div class="view-tabs" role="tablist" @keydown="onKeydown">
     <button
       v-for="tab in props.tabs"
       :key="tab.key"
@@ -28,6 +44,7 @@ function selectTab(key: string) {
       :class="{ active: props.modelValue === tab.key }"
       role="tab"
       :aria-selected="props.modelValue === tab.key"
+      :tabindex="props.modelValue === tab.key ? 0 : -1"
       @click="selectTab(tab.key)"
     >
       {{ tab.label }}

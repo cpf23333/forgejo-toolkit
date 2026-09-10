@@ -458,6 +458,22 @@ async function handleDeleteIssue() {
   state.deleteIssue(instanceId.value, owner.value, repo.value, index.value);
 }
 
+async function handleDeleteTime(timeId: number) {
+  const confirmed = await state.showConfirm(t('dashboard.detail.deleteTimeConfirm'));
+  if (!confirmed) {
+    return;
+  }
+  state.deleteIssueTime(instanceId.value, owner.value, repo.value, index.value, timeId);
+}
+
+async function handleRemoveDependency(depNumber: number) {
+  const confirmed = await state.showConfirm(t('dashboard.detail.removeDependencyConfirm', { number: depNumber }));
+  if (!confirmed) {
+    return;
+  }
+  state.removeIssueDependency(instanceId.value, owner.value, repo.value, index.value, depNumber);
+}
+
 watch(
   () => state.lastSavedIssue.value,
   async (saved) => {
@@ -895,7 +911,7 @@ function reloadIssue() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.delete')"
-                @click="state.deleteIssueTime(instanceId, owner, repo, index, time.id ?? 0)"
+                @click="handleDeleteTime(time.id ?? 0)"
               >
                 <vscode-icon name="trash" />
               </button>
@@ -917,7 +933,7 @@ function reloadIssue() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.delete')"
-                @click="state.removeIssueDependency(instanceId, owner, repo, index, dep.number)"
+                @click="handleRemoveDependency(dep.number)"
               >
                 <vscode-icon name="trash" />
               </button>

@@ -84,7 +84,15 @@ function onItemClick(commit: ForgejoCommit) {
         {{ state.t('dashboard.fileBrowser.noHistory') }}
       </div>
       <ul v-else class="history-list">
-        <li v-for="commit in commits" :key="commit.sha" class="history-item" @click="onItemClick(commit)">
+        <li
+          v-for="commit in commits"
+          :key="commit.sha"
+          class="history-item"
+          tabindex="0"
+          @click="onItemClick(commit)"
+          @keydown.enter="onItemClick(commit)"
+          @keydown.space.prevent="onItemClick(commit)"
+        >
           <div class="history-message" :title="commit.commit?.message">
             {{ truncateMessage(commit.commit?.message ?? '') }}
           </div>

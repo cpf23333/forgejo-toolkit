@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { defineComponent, h, KeepAlive } from 'vue';
+import { defineComponent, h, KeepAlive, nextTick } from 'vue';
 import RepoActions from '../RepoActions.vue';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
 
@@ -17,13 +17,21 @@ const { stateMock } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../../composables/useAppState', () => ({
-  useAppState: () => stateMock,
-  actionRunsKey: (instanceId: string, owner: string, repo: string, page: number) =>
-    `${instanceId}:${owner}/${repo}:actions:page-${page}`,
-  dispatchWorkflowKey: (instanceId: string, owner: string, repo: string, workflow: string) =>
-    `${instanceId}:${owner}/${repo}:actions:dispatch:${workflow}`,
-}));
+vi.mock('../../composables/useAppState', async () => {
+  // Wrap in reactive so the component's computed/watch observe Map mutations
+  // the tests perform through useAppState().
+  const { reactive } = await import('vue');
+  const state = reactive(stateMock);
+  return {
+    useAppState: () => state,
+    actionRunsKey: (instanceId: string, owner: string, repo: string, page: number) =>
+      `${instanceId}:${owner}/${repo}:actions:page-${page}`,
+    dispatchWorkflowKey: (instanceId: string, owner: string, repo: string, workflow: string) =>
+      `${instanceId}:${owner}/${repo}:actions:dispatch:${workflow}`,
+  };
+});
+
+import { useAppState } from '../../composables/useAppState';
 
 // RepoActions lives inside RepoDetail, which App.vue renders under keep-alive.
 // Simulate that: toggling `show` deactivates/activates the component instead
@@ -85,5 +93,54 @@ describe('RepoActions under keep-alive', () => {
     await wrapper.setProps({ instanceId: 'inst-2' });
 
     expect(stateMock.loadActionRuns).toHaveBeenCalledWith('inst-2', 'owner', 'repo', 1);
+  });
+});
+
+describe('RepoActions dispatch feedback', () => {
+  beforeEach(() => {
+    stateMock.loadActionRuns.mockClear();
+    stateMock.dispatchWorkflow.mockClear();
+    stateMock.loading.clear();
+    stateMock.errors.clear();
+  });
+
+  it('shows waiting feedback after a successful dispatch and timeout feedback when no run appears', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mountHost();
+
+      // Open the trigger form and fill workflow + ref.
+      const triggerButton = wrapper.findAll('vscode-button').find((b) => b.text().includes('Trigger workflow'));
+      expect(triggerButton).toBeTruthy();
+      await triggerButton!.trigger('click');
+
+      const textfields = wrapper.findAll('vscode-textfield');
+      expect(textfields.length).toBeGreaterThanOrEqual(2);
+      (textfields[0].element as unknown as { value: string }).value = 'ci.yml';
+      await textfields[0].trigger('input');
+      (textfields[1].element as unknown as { value: string }).value = 'main';
+      await textfields[1].trigger('input');
+
+      const runButton = wrapper.findAll('vscode-button').find((b) => b.text().trim() === 'Run');
+      expect(runButton).toBeTruthy();
+      await runButton!.trigger('click');
+      expect(stateMock.dispatchWorkflow).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 'ci.yml', 'main', {});
+
+      // Dispatch completes successfully → the poll for the new run starts.
+      const state = useAppState() as unknown as { loading: Map<string, boolean> };
+      state.loading.set('inst-1:owner/repo:actions:dispatch:ci.yml', true);
+      await nextTick();
+      state.loading.set('inst-1:owner/repo:actions:dispatch:ci.yml', false);
+      await nextTick();
+
+      expect(wrapper.text()).toContain('Waiting for the new run to appear');
+
+      // Exhaust all polling attempts without a new run → timeout feedback.
+      await vi.advanceTimersByTimeAsync(4000 * 16);
+      await nextTick();
+      expect(wrapper.text()).toContain('no new run appeared yet');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -150,7 +150,13 @@
       "allTypes": "All types",
       "markAsRead": "Mark as read",
       "markAllAsRead": "Mark all as read",
-      "untitled": "Untitled"
+      "untitled": "Untitled",
+      "types": {
+        "issue": "Issue",
+        "pullRequest": "Pull Request",
+        "repository": "Repository",
+        "commit": "Commit"
+      }
     },
     "repoRefs": {
       "branches": "Branches",
@@ -188,7 +194,8 @@
       "saveDraft": "Save draft",
       "publishRelease": "Publish release",
       "attachmentsLabel": "Attachments",
-      "addAttachment": "Add attachment"
+      "addAttachment": "Add attachment",
+      "attachmentUploadFailed": "{count} attachment(s) failed to upload. The release was created; submit again to retry only the remaining attachments."
     },
     "branches": "Branches",
     "defaultBranch": "default",
@@ -217,7 +224,9 @@
       "untitledRun": "Untitled run",
       "loadMore": "Load more",
       "triggerWorkflow": "Trigger workflow",
-      "runWorkflow": "Run"
+      "runWorkflow": "Run",
+      "dispatchWaiting": "Workflow dispatched. Waiting for the new run to appear…",
+      "dispatchTimeout": "Workflow dispatched, but no new run appeared yet. Refresh the list later to check."
     },
     "actionRun": {
       "jobs": "Jobs",
@@ -276,6 +285,8 @@
     "detail": {
       "status": "Status",
       "deleteIssueConfirm": "Delete issue #{number}? This cannot be undone.",
+      "deleteTimeConfirm": "Delete this tracked time entry?",
+      "removeDependencyConfirm": "Remove the dependency on #{number}?",
       "author": "Author",
       "createdAt": "Created",
       "updatedAt": "Updated",
