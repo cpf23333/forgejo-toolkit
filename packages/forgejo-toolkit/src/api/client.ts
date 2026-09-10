@@ -94,6 +94,7 @@ import {
   userGetCurrent,
   userGetStopWatches,
   userSearch,
+  renderMarkdown as apiRenderMarkdown,
 } from '@cpf23333-forgejo-toolkit/api';
 
 import type {
@@ -256,18 +257,24 @@ export class ForgejoClient {
     return createCurrentUserRepo(data, { client: this._client() });
   }
 
-  getUserIssues(state: string = 'open'): Promise<ForgejoIssue[]> {
-    return issueSearchIssues(
-      { state: state as 'open' | 'closed' | 'all', type: 'issues' },
-      { client: this._client() },
-    ) as Promise<ForgejoIssue[]>;
+  async getUserIssues(state: string = 'open'): Promise<ForgejoIssue[]> {
+    const issues = await this._fetchAllPages((page) =>
+      issueSearchIssues(
+        { state: state as 'open' | 'closed' | 'all', type: 'issues', page, limit: PAGE_SIZE },
+        { client: this._client() },
+      ),
+    );
+    return issues as ForgejoIssue[];
   }
 
-  getUserPullRequests(state: string = 'open'): Promise<ForgejoPullRequest[]> {
-    return issueSearchIssues(
-      { state: state as 'open' | 'closed' | 'all', type: 'pulls' },
-      { client: this._client() },
-    ) as Promise<ForgejoPullRequest[]>;
+  async getUserPullRequests(state: string = 'open'): Promise<ForgejoPullRequest[]> {
+    const pulls = await this._fetchAllPages((page) =>
+      issueSearchIssues(
+        { state: state as 'open' | 'closed' | 'all', type: 'pulls', page, limit: PAGE_SIZE },
+        { client: this._client() },
+      ),
+    );
+    return pulls as ForgejoPullRequest[];
   }
 
   searchRepositories(query: string, limit: number = 20): Promise<ForgejoRepository[]> {
@@ -1349,21 +1356,13 @@ export class ForgejoClient {
   }
 
   async renderMarkdown(text: string, context?: string): Promise<string> {
-    const baseURL = `${this.url.replace(/\/$/, '')}/api/v1`;
-    const response = await fetch(`${baseURL}/markdown`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/html',
-        Authorization: `token ${this.token}`,
-      },
-      body: JSON.stringify({ Text: text, Mode: 'gfm', Context: context }),
-    });
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Forgejo API error ${response.status}: ${text || response.statusText}`);
-    }
-    return response.text();
+    // Routed through _client() like every other call: debug logging, error
+    // body truncation, and syncApiUrlsToInstanceUrl URL rewriting all apply.
+    const result = await apiRenderMarkdown(
+      { Text: text, Mode: 'gfm', Context: context },
+      { client: this._client(), responseType: 'text', headers: { Accept: 'text/html' } },
+    );
+    return (result as unknown as string) ?? '';
   }
 
   private _rewriteResponseData<T>(data: T): T {

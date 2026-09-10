@@ -6,7 +6,7 @@ export interface TimedCache<T> {
   clear(): void;
 }
 
-export function createTimedCache<T>(ttlMs: number): TimedCache<T> {
+export function createTimedCache<T>(ttlMs: number, maxEntries?: number): TimedCache<T> {
   const cache = new Map<string, { value: T; timestamp: number }>();
 
   function isExpired(entry: { value: T; timestamp: number }): boolean {
@@ -26,6 +26,14 @@ export function createTimedCache<T>(ttlMs: number): TimedCache<T> {
       return entry.value;
     },
     set(key, value) {
+      // Map iteration order is insertion order: evict the oldest entry once
+      // the cap is reached (only for brand-new keys; updates keep their slot).
+      if (maxEntries !== undefined && !cache.has(key) && cache.size >= maxEntries) {
+        const oldest = cache.keys().next().value;
+        if (oldest !== undefined) {
+          cache.delete(oldest);
+        }
+      }
       cache.set(key, { value, timestamp: Date.now() });
     },
     has(key) {

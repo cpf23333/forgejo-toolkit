@@ -4,10 +4,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // query from Uri.toString, which this controller relies on, so this file
 // registers its own mock (it takes precedence over the setup-file mock).
 const state = vi.hoisted(() => ({
-  createdThreads: [] as Array<{ uriString: string; dispose: ReturnType<typeof vi.fn> }>,
+  createdThreads: [] as Array<{ uriString: string; comments: unknown[]; dispose: ReturnType<typeof vi.fn> }>,
   openHandlers: [] as Array<(doc: unknown) => unknown>,
   editorHandlers: [] as Array<(editor: unknown) => unknown>,
   diffFetches: 0,
+  comments: null as unknown[] | null,
 }));
 
 vi.mock('vscode', () => {
@@ -103,7 +104,7 @@ vi.mock('../../api/client', () => ({
         return DIFF;
       }),
       listPullReviews: vi.fn(async () => [{ id: 10, state: 'COMMENTED', user: { login: 'reviewer' } }]),
-      getPullReviewComments: vi.fn(async () => COMMENTS),
+      getPullReviewComments: vi.fn(async () => state.comments ?? COMMENTS),
     };
   }),
 }));
@@ -276,5 +277,39 @@ describe('PullReviewCommentController context key', () => {
     expect(executeCommand).toHaveBeenCalledWith('setContext', 'forgejoToolkit.inPullRequestDiff', false);
 
     controller.dispose();
+  });
+});
+
+describe('PullReviewCommentController comment context cleanup', () => {
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.comments = null;
+  });
+
+  it('drops the comment context when a re-render disposes its thread', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
+
+      await openDocument(makeDocument(false));
+      const thread = state.createdThreads[0];
+      const contextValue = (thread.comments[0] as { contextValue?: string }).contextValue as string;
+      expect(controller.getCommentContext(contextValue)).toBeDefined();
+
+      // The head-side comment (position 2) vanishes upstream; after the review
+      // data cache TTL the re-render disposes its thread and must drop the
+      // encoded context entry too.
+      state.comments = [COMMENTS[0]];
+      vi.setSystemTime(Date.now() + 60_000);
+      await openDocument(makeDocument(false));
+
+      expect(thread.dispose).toHaveBeenCalled();
+      expect(controller.getCommentContext(contextValue)).toBeUndefined();
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

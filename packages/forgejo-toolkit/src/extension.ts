@@ -28,7 +28,9 @@ export async function activate(context: vscode.ExtensionContext) {
     logger.error(`Failed to initialize stored instance tokens: ${err}`);
   }
 
-  if (config.isMockApiEnabled()) {
+  // The mock module (msw + all fixtures) is stripped from production builds:
+  // esbuild defines this flag and dead-code-eliminates the guarded branch.
+  if (process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS === 'true' && config.isMockApiEnabled()) {
     import('./test/mocks/server')
       .then(({ startMockServer }) => {
         startMockServer();

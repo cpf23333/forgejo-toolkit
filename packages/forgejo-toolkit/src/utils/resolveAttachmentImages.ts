@@ -3,9 +3,32 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 /**
  * Session-level cache of resolved attachment images. Attachment content at a
  * UUID URL is immutable, so a resolved data URL never expires. Failed lookups
- * are not cached.
+ * are not cached. Bounded with simple LRU eviction: data URLs are large
+ * (base64), so an unbounded Map would grow with every attachment ever viewed.
  */
+const MAX_RESOLVED_IMAGES = 100;
 const resolvedImageCache = new Map<string, string>();
+
+function cacheResolvedImage(url: string, dataUrl: string): void {
+  if (!resolvedImageCache.has(url) && resolvedImageCache.size >= MAX_RESOLVED_IMAGES) {
+    // Map iteration order is insertion order: the first key is the oldest.
+    const oldest = resolvedImageCache.keys().next().value;
+    if (oldest !== undefined) {
+      resolvedImageCache.delete(oldest);
+    }
+  }
+  resolvedImageCache.set(url, dataUrl);
+}
+
+function getCachedImage(url: string): string | undefined {
+  const dataUrl = resolvedImageCache.get(url);
+  if (dataUrl !== undefined) {
+    // Refresh recency: re-insert so frequently used images are evicted last.
+    resolvedImageCache.delete(url);
+    resolvedImageCache.set(url, dataUrl);
+  }
+  return dataUrl;
+}
 
 /** Clear the session-level image cache. Exported for tests. */
 export function clearResolvedImageCache(): void {
@@ -28,7 +51,7 @@ export async function resolveAttachmentImages(text: string, instance: ForgejoIns
   const dataUrlMap = new Map<string, string>();
   await Promise.all(
     Array.from(imageUrls).map(async (url) => {
-      const cached = resolvedImageCache.get(url);
+      const cached = getCachedImage(url);
       if (cached) {
         dataUrlMap.set(url, cached);
         return;
@@ -44,7 +67,7 @@ export async function resolveAttachmentImages(text: string, instance: ForgejoIns
         const base64 = Buffer.from(buffer).toString('base64');
         const contentType = response.headers.get('content-type') ?? guessMimeType(url);
         const dataUrl = `data:${contentType};base64,${base64}`;
-        resolvedImageCache.set(url, dataUrl);
+        cacheResolvedImage(url, dataUrl);
         dataUrlMap.set(url, dataUrl);
       } catch {
         // Keep the original URL on failure.

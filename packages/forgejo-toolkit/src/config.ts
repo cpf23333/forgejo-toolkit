@@ -40,6 +40,25 @@ export class ConfigManager {
         stored.map((instance) => ({ ...instance, token: '' })),
       );
     }
+    // Keep the in-memory token table in sync with SecretStorage: other windows
+    // share the storage but not this Map, so without this their token edits
+    // would only apply here after a reload. Disposed with the extension context.
+    this.context.subscriptions.push(
+      this.context.secrets.onDidChange((event) => {
+        if (!event.key.startsWith(TOKEN_SECRET_PREFIX)) {
+          return;
+        }
+        const id = event.key.slice(TOKEN_SECRET_PREFIX.length);
+        void this.context.secrets.get(event.key).then((secret) => {
+          if (secret === undefined) {
+            this._tokens.delete(id);
+          } else {
+            this._tokens.set(id, secret);
+          }
+          this._onInstancesChanged.fire(this.getInstances());
+        });
+      }),
+    );
   }
 
   getInstances(): ForgejoInstance[] {

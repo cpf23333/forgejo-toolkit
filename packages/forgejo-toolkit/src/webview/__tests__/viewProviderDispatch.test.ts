@@ -19,7 +19,7 @@ vi.mock('../../worktree/gitOperations', () => ({
   getRemoteUrl: vi.fn(),
   isCurrentWorkspaceBaseRepo: vi.fn(),
   isGitRepository: vi.fn(),
-  openWorktree: vi.fn(),
+  openWorktree: vi.fn(async () => true),
   revertMergeCommit: vi.fn(),
   sanitizeForPath: vi.fn((value: string) => value),
   validatePrWorktree: vi.fn(),

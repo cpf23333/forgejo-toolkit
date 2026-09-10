@@ -1,12 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConfigManager } from '../config';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 function createFakeContext() {
   const store = new Map<string, unknown>();
   const secretStore = new Map<string, string>();
+  const secretListeners: Array<(event: { key: string }) => void> = [];
   return {
     secretStore,
+    fireSecretChange(key: string) {
+      for (const listener of secretListeners) {
+        listener({ key });
+      }
+    },
     context: {
       subscriptions: [] as Array<{ dispose(): void }>,
       globalState: {
@@ -22,6 +28,10 @@ function createFakeContext() {
         },
         delete: async (key: string) => {
           secretStore.delete(key);
+        },
+        onDidChange: (listener: (event: { key: string }) => void) => {
+          secretListeners.push(listener);
+          return { dispose: () => undefined };
         },
       },
     },
@@ -84,6 +94,47 @@ describe('ConfigManager', () => {
     expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
     const stored = fake.context.globalState.get('forgejoToolkit.instances', []) as ForgejoInstance[];
     expect(stored[0].token).toBe('');
+    expect(config.getInstances()[0].token).toBe('token-1');
+  });
+
+  it('refreshes the in-memory token table when SecretStorage changes elsewhere', async () => {
+    await config.addInstance(instance);
+    await config.init();
+    // The mocked vscode EventEmitter does not wire fire() to event listeners,
+    // so assert on the fire spy instead of a subscribed callback.
+    const fireSpy = (config as unknown as { _onInstancesChanged: { fire: ReturnType<typeof vi.fn> } })
+      ._onInstancesChanged.fire;
+    fireSpy.mockClear();
+
+    // Another window rotated the token directly in SecretStorage.
+    const tokenKey = 'forgejoToolkit.instanceToken.forgejo.example.com-user';
+    await fake.context.secrets.store(tokenKey, 'token-rotated');
+    fake.fireSecretChange(tokenKey);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(config.getInstances()[0].token).toBe('token-rotated');
+    expect(fireSpy).toHaveBeenCalledTimes(1);
+
+    // Deletion elsewhere clears the cached token too.
+    await fake.context.secrets.delete(tokenKey);
+    fake.fireSecretChange(tokenKey);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(config.getInstances()[0].token).toBe('');
+    expect(fireSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores SecretStorage changes for unrelated keys', async () => {
+    await config.addInstance(instance);
+    await config.init();
+    const fireSpy = (config as unknown as { _onInstancesChanged: { fire: ReturnType<typeof vi.fn> } })
+      ._onInstancesChanged.fire;
+    fireSpy.mockClear();
+
+    fake.fireSecretChange('forgejoToolkit.somethingElse');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fireSpy).not.toHaveBeenCalled();
     expect(config.getInstances()[0].token).toBe('token-1');
   });
 });

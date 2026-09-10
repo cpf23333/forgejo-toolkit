@@ -102,4 +102,23 @@ describe('resolveAttachmentImages', () => {
     expect(second).toBe(first);
     expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
   });
+
+  it('evicts the oldest resolved image when the cache exceeds 100 entries', async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    const instance = createInstance();
+
+    const urls = Array.from({ length: 101 }, (_, i) => `/attachments/evict-${i}`);
+    for (const url of urls) {
+      await resolveAttachmentImages(`![a](${url})`, instance);
+    }
+    expect(fetchMock.mock.calls.length).toBe(101);
+
+    // The oldest entry was evicted, so resolving it again refetches.
+    await resolveAttachmentImages(`![a](${urls[0]})`, instance);
+    expect(fetchMock.mock.calls.length).toBe(102);
+
+    // The most recent entry is still cached.
+    await resolveAttachmentImages(`![a](${urls[100]})`, instance);
+    expect(fetchMock.mock.calls.length).toBe(102);
+  });
 });

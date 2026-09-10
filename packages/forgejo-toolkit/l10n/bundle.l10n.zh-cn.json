@@ -104,5 +104,6 @@
   "Unable to open diff: {0}": "无法打开 diff：{0}",
   "Unable to open selected diffs: {0}": "无法打开选中的 diff：{0}",
   "Unable to open file: {0}": "无法打开文件：{0}",
-  "Copied to clipboard": "已复制到剪贴板"
+  "Copied to clipboard": "已复制到剪贴板",
+  "Revert aborted: the current branch is not the pull request base branch {0}": "已中止 revert：当前分支不是该 PR 的目标分支 {0}"
 }

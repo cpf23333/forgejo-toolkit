@@ -126,7 +126,7 @@ export const handlers = [
       data = [...mockPullRequests];
     }
     data = data.filter((item) => state === 'all' || item.state === state);
-    return json(data);
+    return json(paginate(request, data));
   }),
 
   http.get('https://*/api/v1/users/search', () => json({ ok: true, data: [mockUser], total_count: 1 })),

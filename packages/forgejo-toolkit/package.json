@@ -95,9 +95,9 @@
             "currentWindow"
           ],
           "enumDescriptions": [
-            "Ask each time how to open a worktree",
-            "Open worktrees in a new VS Code window",
-            "Open worktrees in the current VS Code window"
+            "%config.worktreeOpenMode.enumDescriptions.ask%",
+            "%config.worktreeOpenMode.enumDescriptions.newWindow%",
+            "%config.worktreeOpenMode.enumDescriptions.currentWindow%"
           ],
           "description": "%config.worktreeOpenMode.description%"
         },

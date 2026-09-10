@@ -1505,7 +1505,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           if (!localRepo) {
             throw new Error(vscode.l10n.t('No local repository found for {0}/{1}', owner, repo));
           }
-          await revertMergeCommit(localRepo, pr.merge_commit_sha);
+          await revertMergeCommit(localRepo, pr.merge_commit_sha, pr.base?.ref, instance.token, instance.url);
           this._reply('revertMergeCommitResult', {
             instanceId: instance.id,
             owner,
@@ -3529,7 +3529,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       );
       if (existsOnDisk) {
         try {
-          await openWorktree(existing.worktreePath, openInNewWindow);
+          const opened = await openWorktree(existing.worktreePath, openInNewWindow);
+          if (!opened) {
+            this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+            return;
+          }
           this._reply('worktreeOpened', { worktree: existing, existed: true });
         } catch (error) {
           const err = error instanceof Error ? error.message : String(error);
@@ -3672,8 +3676,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           worktreePath,
           createdAt: Date.now(),
         };
+        const openedForCurrent = await openWorktree(worktreePath, openInNewWindow);
+        if (!openedForCurrent) {
+          this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+          return;
+        }
+        // Record only after the user confirmed the open, so a cancelled
+        // "replace current window" prompt leaves no stale entry.
         await this._worktreeManager.addWorktree(worktree);
-        await openWorktree(worktreePath, openInNewWindow);
         this._reply('worktreeOpened', { worktree, existed: true });
         return;
       }
@@ -3697,8 +3707,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         worktreePath,
         createdAt: Date.now(),
       };
+      const openedNew = await openWorktree(worktreePath, openInNewWindow);
+      if (!openedNew) {
+        this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+        return;
+      }
+      // Record only after the user confirmed the open, so a cancelled
+      // "replace current window" prompt leaves no stale entry.
       await this._worktreeManager.addWorktree(worktree);
-      await openWorktree(worktreePath, openInNewWindow);
       this._reply('worktreeOpened', { worktree, existed: false });
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error);

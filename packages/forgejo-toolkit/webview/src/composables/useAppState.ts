@@ -186,7 +186,7 @@ function createAppState() {
   const issueDetailCache = createTimedCache<ForgejoIssueDetail>(5_000);
   const pullRequestDetailCache = createTimedCache<ForgejoPullRequestDetail>(5_000);
   const pullRequestCommentsCache = createTimedCache<ForgejoTimelineComment[]>(5_000);
-  const renderedMarkdownCache = createTimedCache<string>(30_000);
+  const renderedMarkdownCache = createTimedCache<string>(30_000, 100);
 
   let inputRequestId = 0;
   const inputBoxPromises = new Map<string, (value: string | undefined) => void>();

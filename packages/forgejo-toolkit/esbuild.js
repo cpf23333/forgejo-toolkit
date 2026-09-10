@@ -14,6 +14,11 @@ const config = {
   target: 'node18',
   sourcemap: !production,
   minify: production,
+  define: {
+    // Production builds strip the mock server module (msw + fixtures) via
+    // dead-code elimination of the guarded import in extension.ts.
+    'process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS': production ? '"false"' : '"true"',
+  },
 };
 
 async function main() {

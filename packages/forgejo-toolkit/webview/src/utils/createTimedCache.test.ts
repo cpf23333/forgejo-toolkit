@@ -56,3 +56,27 @@ describe('createTimedCache', () => {
     expect(longCache.has('b')).toBe(true);
   });
 });
+
+describe('maxEntries', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  it('evicts the oldest entry once the cap is reached', () => {
+    const cache = createTimedCache<string>(60_000, 2);
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.set('c', '3');
+    expect(cache.has('a')).toBe(false);
+    expect(cache.has('b')).toBe(true);
+    expect(cache.has('c')).toBe(true);
+  });
+
+  it('updating an existing key does not evict', () => {
+    const cache = createTimedCache<string>(60_000, 2);
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.set('a', 'updated');
+    expect(cache.get('a')).toBe('updated');
+    expect(cache.has('b')).toBe(true);
+  });
+});

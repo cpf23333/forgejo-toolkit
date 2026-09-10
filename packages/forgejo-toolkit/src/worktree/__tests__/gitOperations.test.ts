@@ -26,10 +26,12 @@ import {
   createWorktreeFromBranch,
   fetchPullRequestHead,
   getRemoteUrl,
+  openWorktree,
   pushBranch,
   remoteMatchesInstance,
   revertMergeCommit,
 } from '../gitOperations';
+import * as vscode from 'vscode';
 
 type ExecFileCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
@@ -270,6 +272,112 @@ describe('gitOperations argument passing', () => {
       expect.anything(),
       expect.any(Function),
     );
-    expect(mocks.execFile).toHaveBeenCalledWith('git', ['push'], expect.anything(), expect.any(Function));
+    // No upstream configured in this mock: falls back to a plain origin push.
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['push', 'origin', 'HEAD'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+});
+
+function mockGitSequence(handlers: Array<[string, string]>) {
+  mocks.execFile.mockImplementation((_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+    const cmd = args.join(' ');
+    for (const [prefix, stdout] of handlers) {
+      if (cmd.startsWith(prefix)) {
+        callback(null, { stdout, stderr: '' } as unknown as string, '');
+        return;
+      }
+    }
+    callback(null, { stdout: '', stderr: '' } as unknown as string, '');
+  });
+}
+
+describe('revertMergeCommit branch guard and token push', () => {
+  const token = 'secret-token-abc123';
+  const instanceUrl = 'https://forgejo.example.com';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('aborts before reverting when the current branch is not the base branch', async () => {
+    mockGitSequence([['rev-parse --abbrev-ref HEAD', 'feature-x\n']]);
+    await expect(revertMergeCommit('/repo', 'abc123', 'main')).rejects.toThrow('base branch');
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['revert']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('reverts and pushes with the token to the upstream branch', async () => {
+    mockGitSequence([
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote get-url origin', 'https://forgejo.example.com/owner/repo.git\n'],
+    ]);
+    await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl);
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['revert', '-m', '1', '--no-edit', 'abc123'],
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['-c', `http.extraHeader=Authorization: token ${token}`, 'push', 'origin', 'HEAD:main'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('aborts the push when the remote belongs to another host', async () => {
+    mockGitSequence([
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote get-url origin', 'https://github.example.com/owner/repo.git\n'],
+    ]);
+    await expect(revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl)).rejects.toThrow('does not belong');
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['push']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+});
+
+describe('openWorktree', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [];
+  });
+
+  it('opens in a new window without asking', async () => {
+    await expect(openWorktree('/wt', true)).resolves.toBe(true);
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('vscode.openFolder', expect.anything(), true);
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+  });
+
+  it('returns false when the replace-current-window confirmation is dismissed', async () => {
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue(undefined);
+    await expect(openWorktree('/wt', false)).resolves.toBe(false);
+    expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
+  });
+
+  it('opens in the current window after confirmation', async () => {
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Open' as never);
+    await expect(openWorktree('/wt', false)).resolves.toBe(true);
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('vscode.openFolder', expect.anything(), false);
+  });
+
+  it('treats an already-open worktree as opened without asking', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/wt' } }];
+    await expect(openWorktree('/wt', false)).resolves.toBe(true);
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
   });
 });

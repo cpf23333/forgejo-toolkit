@@ -316,6 +316,7 @@ export class PullReviewCommentController implements vscode.Disposable {
         const instanceName = instance?.name ?? params.instanceId;
         const existing = this._threads.get(key);
         if (existing) {
+          this._dropCommentContexts(existing);
           existing.comments = [await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName)];
           continue;
         }
@@ -334,8 +335,20 @@ export class PullReviewCommentController implements vscode.Disposable {
     // of the same file stay untouched.
     for (const [key, thread] of this._threads.entries()) {
       if (pullReviewThreadMatchesScope(key, scope) && !threadsToKeep.has(key)) {
+        this._dropCommentContexts(thread);
         thread.dispose();
         this._threads.delete(key);
+      }
+    }
+  }
+
+  // The map is keyed by an encoded context string that includes the position,
+  // so a comment whose line moves (or whose thread is disposed) would leave a
+  // stale entry behind unless its old contextValue is removed here.
+  private _dropCommentContexts(thread: vscode.CommentThread): void {
+    for (const comment of thread.comments) {
+      if (comment.contextValue) {
+        this._commentContextMap.delete(comment.contextValue);
       }
     }
   }

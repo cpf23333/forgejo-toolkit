@@ -334,37 +334,63 @@ export async function getCurrentCommitSha(repoPath: string): Promise<string | un
   }
 }
 
-export async function revertMergeCommit(repoPath: string, mergeCommitSha: string): Promise<void> {
+/**
+ * Revert a merged PR's merge commit and push the result.
+ *
+ * When `expectedBranch` is given, the current branch must match it — reverting
+ * on the wrong branch would push the revert to the wrong place. The push goes
+ * through `pushBranch` with the instance token, so the remote is re-validated
+ * against the instance (TOCTOU) and credentials are never sent to another host.
+ */
+export async function revertMergeCommit(
+  repoPath: string,
+  mergeCommitSha: string,
+  expectedBranch?: string,
+  token?: string,
+  tokenInstanceUrl?: string,
+): Promise<void> {
+  if (expectedBranch) {
+    const currentBranch = await getCurrentBranch(repoPath);
+    if (currentBranch !== expectedBranch) {
+      throw new Error(
+        vscode.l10n.t('Revert aborted: the current branch is not the pull request base branch {0}', expectedBranch),
+      );
+    }
+  }
   const revertResult = await runGit(['revert', '-m', '1', '--no-edit', mergeCommitSha], repoPath);
   if (revertResult.stderr && revertResult.stderr.toLowerCase().includes('error')) {
     throw new Error(revertResult.stderr);
   }
-  const pushResult = await runGit(['push'], repoPath);
-  if (pushResult.stderr && pushResult.stderr.toLowerCase().includes('error')) {
-    throw new Error(pushResult.stderr);
+  const upstream = await getUpstreamBranch(repoPath);
+  if (upstream && upstream.includes('/')) {
+    const [remote, ...branchParts] = upstream.split('/');
+    await pushBranch(repoPath, remote, `HEAD:${branchParts.join('/')}`, token, false, tokenInstanceUrl);
+  } else {
+    await pushBranch(repoPath, 'origin', 'HEAD', token, false, tokenInstanceUrl);
   }
 }
 
-export async function openWorktree(worktreePath: string, openInNewWindow: boolean): Promise<void> {
+export async function openWorktree(worktreePath: string, openInNewWindow: boolean): Promise<boolean> {
   const uri = vscode.Uri.file(worktreePath);
   if (openInNewWindow) {
     await vscode.commands.executeCommand('vscode.openFolder', uri, true);
-  } else {
-    const currentFolder = vscode.workspace.workspaceFolders?.[0]?.uri;
-    if (currentFolder && currentFolder.fsPath === worktreePath) {
-      return;
-    }
-    const openLabel = vscode.l10n.t('Open');
-    const choice = await vscode.window.showWarningMessage(
-      vscode.l10n.t('This will replace the current workspace with the worktree. Continue?'),
-      { modal: true },
-      openLabel,
-    );
-    if (choice !== openLabel) {
-      return;
-    }
-    await vscode.commands.executeCommand('vscode.openFolder', uri, false);
+    return true;
   }
+  const currentFolder = vscode.workspace.workspaceFolders?.[0]?.uri;
+  if (currentFolder && currentFolder.fsPath === worktreePath) {
+    return true;
+  }
+  const openLabel = vscode.l10n.t('Open');
+  const choice = await vscode.window.showWarningMessage(
+    vscode.l10n.t('This will replace the current workspace with the worktree. Continue?'),
+    { modal: true },
+    openLabel,
+  );
+  if (choice !== openLabel) {
+    return false;
+  }
+  await vscode.commands.executeCommand('vscode.openFolder', uri, false);
+  return true;
 }
 
 async function findGitRoot(startPath: string): Promise<string | undefined> {

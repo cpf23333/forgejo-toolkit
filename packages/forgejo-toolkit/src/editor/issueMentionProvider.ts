@@ -3,6 +3,7 @@ import type { ConfigManager } from '../config';
 import { ForgejoClient } from '../api/client';
 import { detectLinkedRepository } from '../worktree/gitOperations';
 import { FORGEJO_PR_SCHEME, type ForgejoPrUriParams } from '../prFileSystemProvider';
+import type { LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { logger } from '../logger';
 
 interface RepoContext {
@@ -16,6 +17,24 @@ const ISSUE_MENTION_REGEX = /#(\d+)/g;
 const USER_MENTION_REGEX = /@([a-zA-Z0-9_.-]+)/g;
 
 const MENTION_CACHE_TTL_MS = 60_000;
+const LINKED_REPO_CACHE_TTL_MS = 30_000;
+
+// detectLinkedRepository spawns git probes on every call and provideDocumentLinks
+// runs on each render, so the (possibly negative) result is cached briefly. The
+// cache is keyed by the instance id list so adding/removing an instance
+// invalidates it immediately.
+let linkedRepoCache: { key: string; value: LinkedRepository | undefined; expiresAt: number } | undefined;
+
+async function detectLinkedRepositoryCached(config: ConfigManager): Promise<LinkedRepository | undefined> {
+  const instances = config.getInstances();
+  const key = instances.map((i) => i.id).join(',');
+  if (linkedRepoCache && linkedRepoCache.key === key && linkedRepoCache.expiresAt > Date.now()) {
+    return linkedRepoCache.value;
+  }
+  const value = await detectLinkedRepository(instances);
+  linkedRepoCache = { key, value, expiresAt: Date.now() + LINKED_REPO_CACHE_TTL_MS };
+  return value;
+}
 
 interface MentionCacheEntry {
   value: unknown[];
@@ -68,7 +87,7 @@ async function getRepoContext(document: vscode.TextDocument, config: ConfigManag
   }
 
   if (document.uri.scheme === 'file') {
-    const linked = await detectLinkedRepository(config.getInstances());
+    const linked = await detectLinkedRepositoryCached(config);
     if (!linked) {
       return undefined;
     }

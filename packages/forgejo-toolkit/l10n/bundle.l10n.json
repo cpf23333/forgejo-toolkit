@@ -104,5 +104,6 @@
   "Unable to open diff: {0}": "Unable to open diff: {0}",
   "Unable to open selected diffs: {0}": "Unable to open selected diffs: {0}",
   "Unable to open file: {0}": "Unable to open file: {0}",
-  "Copied to clipboard": "Copied to clipboard"
+  "Copied to clipboard": "Copied to clipboard",
+  "Revert aborted: the current branch is not the pull request base branch {0}": "Revert aborted: the current branch is not the pull request base branch {0}"
 }

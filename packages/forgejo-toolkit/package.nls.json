@@ -14,5 +14,8 @@
   "config.worktreeCacheDirectory.description": "Custom parent directory for PR worktrees. Leave empty to use the default extension storage location.",
   "config.notificationPollingEnabled.description": "Periodically poll Forgejo instances for unread notifications and show VS Code alerts.",
   "config.notificationPollingInterval.description": "Interval in seconds between notification polls.",
-  "config.useMockApi.description": "Use mock Forgejo API responses for offline development."
+  "config.useMockApi.description": "Use mock Forgejo API responses for offline development. Development use only; stripped from production builds.",
+  "config.worktreeOpenMode.enumDescriptions.ask": "Ask each time how to open a worktree",
+  "config.worktreeOpenMode.enumDescriptions.newWindow": "Open worktrees in a new VS Code window",
+  "config.worktreeOpenMode.enumDescriptions.currentWindow": "Open worktrees in the current VS Code window"
 }
