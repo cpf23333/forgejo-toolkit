@@ -328,7 +328,8 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
     expect(messages.some((m) => m.command === 'worktreeRemoved')).toBe(false);
     const list = messages.find((m) => m.command === 'worktreesList');
-    expect((list?.worktrees as unknown[]).length).toBe(1);
+    expect(list).toBeDefined();
+    expect((list!.worktrees as unknown[]).length).toBe(1);
   });
 
   it('opens a renamed file diff with the old path on the base side', async () => {
@@ -348,8 +349,8 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
     const diffCall = vi.mocked(vscode.commands.executeCommand).mock.calls.find((call) => call[0] === 'vscode.diff');
     expect(diffCall).toBeDefined();
-    expect((diffCall?.[1] as { path: string }).path).toContain('src/old-name.ts');
-    expect((diffCall?.[2] as { path: string }).path).toContain('src/new-name.ts');
+    expect((diffCall![1] as { path: string }).path).toContain('src/old-name.ts');
+    expect((diffCall![2] as { path: string }).path).toContain('src/new-name.ts');
   });
 
   it('opens selected diffs with the old base path for renamed files', async () => {
