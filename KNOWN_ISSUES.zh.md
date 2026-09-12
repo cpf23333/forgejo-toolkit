@@ -84,6 +84,16 @@ VS Code 稳定版 Comments API 没有暴露 `CommentController.onDidCreateCommen
 
 因此新增 PR 审阅评论改通过编辑器右键菜单命令 **Add Pull Review Comment** 触发；已有评论仍会作为 `CommentThread` 渲染在对应的 base/head 行上。这是稳定版 VS Code API 的限制，短期内没有 workaround。
 
+## 点击 PR diff 编辑器的 gutter 会误设断点
+
+PR 文件 diff 编辑器（`forgejo-pr:` scheme，inline/合并模式）中，修改侧在「原始侧行号列」与「修改侧行号列」之间保留了一条约 19px 宽的 glyph margin。单击这条区域会在只读的 diff 文档上设下断点，行为与普通文件编辑器完全一致——已在默认配置的开发宿主上实测确认，不需要 `debug.allowBreakpointsEverywhere` 或任何特殊设置。
+
+这个断点既没有意义又容易误导：文档是按 sha 寻址的只读快照，任何调试器都不可能绑定到它；而且这条区域紧邻行号，而行号的右键菜单正是 **Add Pull Review Comment** 评审入口。
+
+扩展侧无法阻止。diff 是通过 `vscode.diff` 命令打开的，其选项不携带任何编辑器设置（无法对单个 diff 关闭 `editor.glyphMargin`）；gutter 单击由 VS Code 内置的编辑器组件处理，不经过带 `when` 子句的命令，context key 无从拦截。
+
+规避方法：在**运行和调试**视图中删除误设的断点（或执行 **Debug: Remove All Breakpoints**）。更激进的替代方案是全局设置 `editor.glyphMargin: false`，但那会影响所有编辑器。
+
 ## 项目看板未在 REST API 中暴露
 
 Forgejo 网页界面为仓库和组织提供了项目看板功能，包括创建项目、管理列、把 Issue 分配到项目等。但官方 v1 REST API 没有暴露任何 `/projects` 端点。

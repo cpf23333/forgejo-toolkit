@@ -84,6 +84,16 @@ VS Code's stable Comments API does not expose `CommentController.onDidCreateComm
 
 New pull-request review comments are therefore added through the editor context-menu command **Add Pull Review Comment** instead. Existing comments are still rendered as `CommentThread`s on the appropriate base/head line. This is a limitation of the stable VS Code API; there is no short-term workaround.
 
+## Clicking the PR diff editor gutter sets an accidental breakpoint
+
+In the PR file diff editor (`forgejo-pr:` scheme, inline/unified mode), the modified side keeps a ~19px glyph margin between the original-side and modified-side line-number columns. Clicking that strip sets a breakpoint on the read-only diff document, exactly like in a regular file editor — verified on a default-profile dev host with no `debug.allowBreakpointsEverywhere` or other custom settings.
+
+The breakpoint is useless and confusing: the document is a read-only snapshot addressed by sha that no debugger can ever bind to, and the strip sits right next to the line numbers whose context menu carries **Add Pull Review Comment**.
+
+The extension cannot prevent this. Diffs are opened with the `vscode.diff` command, whose options carry no editor settings (there is no way to disable `editor.glyphMargin` per diff), and gutter clicks are handled by VS Code's built-in editor contributions rather than by a command with a `when` clause that a context key could gate.
+
+Workaround: delete the stray breakpoint in the **Run and Debug** view (or run **Debug: Remove All Breakpoints**). The heavy-handed alternative is setting `editor.glyphMargin: false`, which affects every editor.
+
 ## Project boards are not exposed through the REST API
 
 Forgejo's web UI provides project boards for repositories and organizations, including creating projects, managing columns, and assigning issues to projects. However, the official v1 REST API does not expose any `/projects` endpoints.

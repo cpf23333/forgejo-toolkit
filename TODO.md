@@ -63,9 +63,9 @@
 - [x] ModalDialog 关闭口径：× 和 Esc 在脏表单下弹放弃确认，表单内「Cancel」直接关闭——已确认为设计决定（显式取消免确认），维持现状
 - [ ] mock 数据缺口（剩余）：`contents/:filepath` 通用路径仍 404（仅 src/index.ts 等具体路径有 mock，且忽略 ref 参数）；「No Changed Files」在拉取失败与真空列表两种情况下仍无法区分。已解决：diff 评审编辑器与 Actions 运行数据已有基础 mock，评审/合并全流程可实测
 - [ ] 仓库详情的 issue/PR 计数是进入对应列表的唯一入口，渲染得像静态统计文本（有 tooltip 无链接样式），可发现性弱；scm/title 也缺入口（第二轮已记）
-- [ ] tab 栏激活态歧义（存疑）：激活 tab 用下划线，但非激活 tab 偶发带深色背景，看起来像两个激活 tab；需复现确认是 hover 残留还是 focus 样式
+- [x] tab 栏激活态歧义（存疑）：激活 tab 用下划线，但非激活 tab 偶发带深色背景，看起来像两个激活 tab；需复现确认是 hover 残留还是 focus 样式——实测坐实为 **hover 残留**：`ViewTabs.vue` 的 `.tab-button:hover` 用 `--vscode-list-hoverBackground`，鼠标停在非激活 tab 上即出现深色块，移开即消失；鼠标点击不触发 `:focus-visible`（仅键盘方向键切换才有焦点框）。建议修法（未修）：非激活 tab 的 hover 底色减弱/去掉或改文字色，避免与激活下划线形成「两个激活」错觉——已修：`.tab-button:hover` 背景块移除，非激活 tab hover 改为下划线预览（`--vscode-descriptionForeground` 描边），激活态唯一性不再歧义
 - [x] 评审操作零反馈 + 提交后不刷新：提交评审/评论成功 toast 按「开始评审/追加到待提交评审/单条评论/批准/要求修改」区分文案（host l10n 双语）；新增 `pullRequestReviewSubmitted` host→webview 消息，提交评审后 Dashboard 已打开该 PR 详情时强制刷新 detail+comments（合并区 blocker 即时核销），未打开则不拉取省流量；已实测全链路
-- [ ] 评审入口发现性（剩余）：gutter 区域单击会误设断点（走查中实测误触），与行号右键的评审入口相邻易混淆。已改善：正文右键菜单也加了「Add Pull Review Comment」（`editor/context` + `forgejoToolkit.inPullRequestDiff`，已实测）
+- [x] 评审入口发现性（剩余）：gutter 区域单击会误设断点（走查中实测误触），与行号右键的评审入口相邻易混淆。已改善：正文右键菜单也加了「Add Pull Review Comment」（`editor/context` + `forgejoToolkit.inPullRequestDiff`，已实测）——gutter 误设断点实测坐实且为平台限制：inline diff 修改侧在两列行号之间有 19px glyph margin（DOM 实测 x=894 w=19），默认设置下单击即设断点（无需 allowBreakpointsEverywhere；对照组 baseline.ts 同位置同样可设）；扩展用 `vscode.diff` 打开无编辑器选项可关、when 子句拦不住 Monaco 内建行为，已记 KNOWN_ISSUES 双语。已收口：右键菜单是唯一的评审评论入口，gutter 未赋予功能，误设断点判定为平台默认行为而非缺陷，不再跟进
 - [x] mock 数据不一致：PR 详情 `changed_files` 写死 5，实际 mock diff 只有 1 个文件——已对齐为 1 个文件 +10/−2
 - [x] Release 相关文案中英混排——已确认是刻意保留术语（zh.json 中 releases/createRelease/editRelease 统一用 "Release"），非遗漏
 - [x] 合并成功的后续行为验证：mock 增加 `prMerged` 状态翻转（POST merge 后列表与详情返回 closed/merged），走查实测合并后 PR 变为已合并态
@@ -145,7 +145,7 @@
 
 **存疑（需实测/验证）**
 
-- [ ] `App.vue:15` 返回按钮：webview 重建后直落深路由时 `router.back()` 无历史可退，按钮点了没反应（需 webview 重载 + 深链实测）
+- [x] `App.vue:15` 返回按钮：webview 重建后直落深路由时 `router.back()` 无历史可退，按钮点了没反应（需 webview 重载 + 深链实测）——实测不成立（tools/ui-review harness）：memory history 下 Reload Webviews 后 webview 直接重置回根路由 `/`（无任何深路由恢复机制），返回按钮因 `canGoBack = path !== '/'` 根本不显示；且所有深链导航（host 消息/列表点击）都是 `router.push`，历史栈底恒为 `/`，正常路径点返回实测可回列表页。「无历史可退的死按钮」在当前构建无法构造
 - [x] `execFile` 默认 maxBuffer 1MB，`git clone --bare` 超大仓库 stderr 进度可能超限被杀（需大仓库实测；可加 maxBuffer 或 `--quiet`）——已修：clone 加 `--quiet`，进度不进 stderr；fatal 错误仍打印，`stderr.includes('error')` 检测不受影响
 - [x] 评论面板与 diff 编辑器同 column 打开盖住代码（`pullReviewCommentPanel.ts:44-55`，确认是否刻意，否则改 `ViewColumn.Beside`）——已修：创建固定 `ViewColumn.Beside`（不再取 activeTextEditor 所在列）；复用路径 `reveal()` 不传 column，用户拖走过的面板不被拽回
 - [x] `prFileSystemProvider.stat` 的 `mtime: Date.now()` 恒变化，可能导致 VS Code 反复 readFile 真实拉 API（影响程度需实测）——已修：`mtime` 改常量 0 并加注释（URI 以 sha 寻址，内容变 URI 就变，无需 mtime 信号）
@@ -160,6 +160,7 @@
 
 ### 最近完成
 
+- [x] 批 8 UI 存疑项实测（tools/ui-review harness，CDP 截图 + 坐标点击 + workbench eval）：`App.vue` 返回按钮「重建后死按钮」不成立——Reload Webviews 后 memory history 直接重置回 `/`，无深路由恢复机制，按钮不显示；正常导航全部 `router.push` 自 `/`，阳性对照点返回正常回列表；tab 栏激活态歧义坐实为 hover 残留——`.tab-button:hover` 的 `--vscode-list-hoverBackground` 深色块，鼠标移开即消失，非 focus 样式（修法建议已记条目，未修）；gutter 单击误设断点坐实——inline diff 修改侧 19px glyph margin（DOM 实测定位），默认设置可复现，对照组（普通 .ts 文件 gutter）验证点击机制，`vscode.diff` 无选项、when 子句拦不住，判平台限制并记 KNOWN_ISSUES 双语；实测中临时开启的 `debug.allowBreakpointsEverywhere` 与 `renderSideBySide` 已还原、断点已清空、临时 baseline.ts 已删
 - [x] 批 7 存疑区代码修复（第四轮「存疑」4 条）：评论面板创建固定 `ViewColumn.Beside` 不再盖住 diff 编辑器、复用时 `reveal()` 不传 column 保留用户拖动位置；`prFileSystemProvider.stat` 的 `mtime` 改常量 0（URI 以 sha 寻址无需 mtime 信号）；`git clone --bare` 加 `--quiet` 防大仓库进度写爆 execFile 1MB maxBuffer；`_detectServerOrigin` 按 key 跳过 `avatar_url`（外部头像服务不再被误判为服务器 origin）；既有 URL 改写测试改走 `getRepoDetail` 的 `html_url`（原断言依赖 avatar 参与探测）；补 gitOperations 1 个、client 1 个测试，panel 2 处断言
 - [x] 批 6 宿主端修复（第四轮「中」3 条 +「轻」6 条）：worktree「替换当前窗口」取消后正确回 `worktreeCancelled`——`openWorktree` 返回 `Promise<boolean>`，两处 `addWorktree` 记录移到确认后；多窗口 token 同步——`config.ts` 监听 `secrets.onDidChange`（前缀过滤）更新 `_tokens` 并 fire `onInstancesChanged`；msw 剥离生产包——mock 启动加 `FORGEJO_TOOLKIT_INCLUDE_MOCKS` 环境守卫 + `esbuild.js` `define` 死代码消除，`useMockApi` 标注仅开发用途、`worktreeOpenMode` enumDescriptions 走 package.nls 双语；`revertMergeCommit` 校验当前分支（非 PR base 分支抛 l10n 错中止）且 push 改走 `pushBranch` 带 token + 远端归属校验；`_commentContextMap` 随 thread dispose/评论重建按 contextValue 清理，附件图片缓存加 100 条 LRU；mention 仓库探测加 30s 缓存（含负结果，实例列表变更失效）；`renderedMarkdownCache` 加 `maxEntries = 100` 上限（`createTimedCache` 新可选参数）；`client.renderMarkdown` 改走 `_client()` 管道；Dashboard 我的 Issue/PR 改 `_fetchAllPages` 全量分页；补 gitOperations 7 个、config 2 个、issueMentionProvider 4 个、pullReviewCommentController 1 个、resolveAttachmentImages 1 个、createTimedCache 2 个测试
 - [x] 批 5 UX 体验修复（第四轮「中」3 条 +「轻」4 条）：GlobalSearch 结果行操作图标加 `isActionClick` 守卫（照搬 DashboardInstanceItem 模式，点复制/外链图标不再触发整行导航）；创建 Release 附件上传失败不再吞错——失败文件留 pending 列表、错误进 dialog `:error`、记住 `createdReleaseId` 使重试只补传剩余附件不重复建 Release；键盘可达性——5 个组件的可点击项加 `tabindex="0"` + Enter/Space，ViewTabs 补 ARIA tabs 方向键循环 + roving tabindex；Trigger workflow 加「已触发等待/超时未等到」状态反馈；删除工时/依赖三处接入 `showConfirm()`；i18n 补点——通知类型映射（兜 PullRequest/Pull）、host 5 处硬编码改 l10n.t、评审面板 Loading 改 t()；7 个设置项 description 走 package.nls 双语；补 RepoActions/ViewTabs/RepoRefs 共 7 个测试

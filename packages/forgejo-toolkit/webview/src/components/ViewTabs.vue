@@ -78,8 +78,10 @@ function onKeydown(event: KeyboardEvent) {
   white-space: nowrap;
 }
 
-.tab-button:hover {
-  background-color: var(--vscode-list-hoverBackground);
+/* No hover background: a filled block next to the active tab's underline
+   reads as a second active tab. Preview the underline instead. */
+.tab-button:not(.active):hover {
+  border-bottom-color: var(--vscode-descriptionForeground);
 }
 
 .tab-button.active {
