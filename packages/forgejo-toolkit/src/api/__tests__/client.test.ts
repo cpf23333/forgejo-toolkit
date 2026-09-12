@@ -411,8 +411,10 @@ describe('ForgejoClient with MSW', () => {
 
   it('rewrites API URLs when server origin differs from configured origin', async () => {
     const client = new ForgejoClient('https://configured.example.com', 'mock-token', undefined, true);
-    const user = await client.getCurrentUser();
-    expect(user.avatar_url).toBe('https://configured.example.com/avatars/1');
+    const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+    // Detection ignores avatar_url (external avatar hosts would dominate the
+    // count); the repository html_url carries the real server origin.
+    expect(detail.repository.html_url).toBe('https://configured.example.com/demo-user/demo-repo');
   });
 
   describe('Actions', () => {
@@ -1233,6 +1235,29 @@ describe('ForgejoClient with MSW', () => {
       const client = createDebugClient(messages);
       await client.getCurrentUser();
       expect(messages.some((m) => m.startsWith('Response body:') && m.includes(mockUser.login))).toBe(true);
+    });
+  });
+
+  describe('detected server origin', () => {
+    function detect(client: ForgejoClient, data: unknown): string | undefined {
+      return (client as unknown as { _detectServerOrigin(data: unknown): string | undefined })._detectServerOrigin(
+        data,
+      );
+    }
+
+    it('ignores avatar_url values so an external avatar host is not mistaken for the server origin', () => {
+      const client = new ForgejoClient('https://forgejo.internal.example.com', 'mock-token');
+      // Every embedded user carries an avatar on the external avatar host,
+      // which would otherwise outnumber the real server origin's URLs.
+      const data = {
+        html_url: 'https://forgejo.public.example.com/demo-user/demo-repo',
+        user: { login: 'a', avatar_url: 'https://avatar.example.com/a.png' },
+        assignees: [
+          { login: 'b', avatar_url: 'https://avatar.example.com/b.png' },
+          { login: 'c', avatar_url: 'https://avatar.example.com/c.png' },
+        ],
+      };
+      expect(detect(client, data)).toBe('https://forgejo.public.example.com');
     });
   });
 });

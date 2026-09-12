@@ -198,8 +198,10 @@ export async function getGitHeadPath(dirPath: string): Promise<string | undefine
 export async function cloneRepository(url: string, targetPath: string, token?: string): Promise<void> {
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
   // Pass the token via a per-command header so it is not persisted in the
-  // cloned repository's remote URL.
-  const { stderr } = await runGit([...authArgs(token), 'clone', '--bare', url, targetPath]);
+  // cloned repository's remote URL. --quiet keeps clone progress out of
+  // stderr (huge repos would overflow execFile's 1MB maxBuffer); fatal
+  // errors are still printed, so the check below is unaffected.
+  const { stderr } = await runGit([...authArgs(token), 'clone', '--bare', '--quiet', url, targetPath]);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }

@@ -146,10 +146,10 @@
 **存疑（需实测/验证）**
 
 - [ ] `App.vue:15` 返回按钮：webview 重建后直落深路由时 `router.back()` 无历史可退，按钮点了没反应（需 webview 重载 + 深链实测）
-- [ ] `execFile` 默认 maxBuffer 1MB，`git clone --bare` 超大仓库 stderr 进度可能超限被杀（需大仓库实测；可加 maxBuffer 或 `--quiet`）
-- [ ] 评论面板与 diff 编辑器同 column 打开盖住代码（`pullReviewCommentPanel.ts:44-55`，确认是否刻意，否则改 `ViewColumn.Beside`）
-- [ ] `prFileSystemProvider.stat` 的 `mtime: Date.now()` 恒变化，可能导致 VS Code 反复 readFile 真实拉 API（影响程度需实测）
-- [ ] `_detectServerOrigin` 启发式可能把外部头像服务 origin 误判为服务器 origin 导致头像 404（`client.ts:1341-1388`，需外部头像源实例实测）
+- [x] `execFile` 默认 maxBuffer 1MB，`git clone --bare` 超大仓库 stderr 进度可能超限被杀（需大仓库实测；可加 maxBuffer 或 `--quiet`）——已修：clone 加 `--quiet`，进度不进 stderr；fatal 错误仍打印，`stderr.includes('error')` 检测不受影响
+- [x] 评论面板与 diff 编辑器同 column 打开盖住代码（`pullReviewCommentPanel.ts:44-55`，确认是否刻意，否则改 `ViewColumn.Beside`）——已修：创建固定 `ViewColumn.Beside`（不再取 activeTextEditor 所在列）；复用路径 `reveal()` 不传 column，用户拖走过的面板不被拽回
+- [x] `prFileSystemProvider.stat` 的 `mtime: Date.now()` 恒变化，可能导致 VS Code 反复 readFile 真实拉 API（影响程度需实测）——已修：`mtime` 改常量 0 并加注释（URI 以 sha 寻址，内容变 URI 就变，无需 mtime 信号）
+- [x] `_detectServerOrigin` 启发式可能把外部头像服务 origin 误判为服务器 origin 导致头像 404（`client.ts:1341-1388`，需外部头像源实例实测）——已修：遍历按 key 跳过 `avatar_url` 值（每个内嵌 user 都有，外部头像服务计数必然最高）；改写阶段不受影响，真实服务器 origin 上的头像仍会改写
 - [ ] git 进程存活期间 token 在命令行中同机可读（`gitOperations.ts:30-32`，威胁模型取决于本机权限；可改 GIT_ASKPASS/stdin）
 
 ## 进行中
@@ -160,6 +160,7 @@
 
 ### 最近完成
 
+- [x] 批 7 存疑区代码修复（第四轮「存疑」4 条）：评论面板创建固定 `ViewColumn.Beside` 不再盖住 diff 编辑器、复用时 `reveal()` 不传 column 保留用户拖动位置；`prFileSystemProvider.stat` 的 `mtime` 改常量 0（URI 以 sha 寻址无需 mtime 信号）；`git clone --bare` 加 `--quiet` 防大仓库进度写爆 execFile 1MB maxBuffer；`_detectServerOrigin` 按 key 跳过 `avatar_url`（外部头像服务不再被误判为服务器 origin）；既有 URL 改写测试改走 `getRepoDetail` 的 `html_url`（原断言依赖 avatar 参与探测）；补 gitOperations 1 个、client 1 个测试，panel 2 处断言
 - [x] 批 6 宿主端修复（第四轮「中」3 条 +「轻」6 条）：worktree「替换当前窗口」取消后正确回 `worktreeCancelled`——`openWorktree` 返回 `Promise<boolean>`，两处 `addWorktree` 记录移到确认后；多窗口 token 同步——`config.ts` 监听 `secrets.onDidChange`（前缀过滤）更新 `_tokens` 并 fire `onInstancesChanged`；msw 剥离生产包——mock 启动加 `FORGEJO_TOOLKIT_INCLUDE_MOCKS` 环境守卫 + `esbuild.js` `define` 死代码消除，`useMockApi` 标注仅开发用途、`worktreeOpenMode` enumDescriptions 走 package.nls 双语；`revertMergeCommit` 校验当前分支（非 PR base 分支抛 l10n 错中止）且 push 改走 `pushBranch` 带 token + 远端归属校验；`_commentContextMap` 随 thread dispose/评论重建按 contextValue 清理，附件图片缓存加 100 条 LRU；mention 仓库探测加 30s 缓存（含负结果，实例列表变更失效）；`renderedMarkdownCache` 加 `maxEntries = 100` 上限（`createTimedCache` 新可选参数）；`client.renderMarkdown` 改走 `_client()` 管道；Dashboard 我的 Issue/PR 改 `_fetchAllPages` 全量分页；补 gitOperations 7 个、config 2 个、issueMentionProvider 4 个、pullReviewCommentController 1 个、resolveAttachmentImages 1 个、createTimedCache 2 个测试
 - [x] 批 5 UX 体验修复（第四轮「中」3 条 +「轻」4 条）：GlobalSearch 结果行操作图标加 `isActionClick` 守卫（照搬 DashboardInstanceItem 模式，点复制/外链图标不再触发整行导航）；创建 Release 附件上传失败不再吞错——失败文件留 pending 列表、错误进 dialog `:error`、记住 `createdReleaseId` 使重试只补传剩余附件不重复建 Release；键盘可达性——5 个组件的可点击项加 `tabindex="0"` + Enter/Space，ViewTabs 补 ARIA tabs 方向键循环 + roving tabindex；Trigger workflow 加「已触发等待/超时未等到」状态反馈；删除工时/依赖三处接入 `showConfirm()`；i18n 补点——通知类型映射（兜 PullRequest/Pull）、host 5 处硬编码改 l10n.t、评审面板 Loading 改 t()；7 个设置项 description 走 package.nls 双语；补 RepoActions/ViewTabs/RepoRefs 共 7 个测试
 - [x] 批 4 数据正确性 + mock 保真：`_fetchAllPages` 以首页实际返回数探测生效页大小（服务端 clamp 页大小不再静默丢数据，mock 列表端点配套 `paginate()` 真实分页）；重命名文件 diff 全链路保留 `previous_filename`，host 侧 base URI 用旧路径取内容（不再渲染成整文件新增）；通知拆双槽位——轮询写 `polledNotifications` 独立槽驱动徽标/toast，筛选响应只写视图槽，标记已读双槽同步，replay 判定后跳过 stale 落库；仓库 Issue/PR 列表加 30s TTL（过期后台重拉、旧数据保持可见）；mock 保真六项——issues 端点 `type`/`q` 分派过滤、PATCH 编辑 state 持久化、评审 pending-only 422、仓库详情按 `:repo` 分派、`mockPullReview.state` 改 `'COMMENT'`、`resetMockState()` 接入 `resetMockServer()` + 计算字段注释；补 client 9 个、useAppState 6 个、viewProviderDispatch 2 个测试

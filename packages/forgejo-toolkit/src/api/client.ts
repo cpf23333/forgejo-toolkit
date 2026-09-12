@@ -1384,8 +1384,14 @@ export class ForgejoClient {
   private _detectServerOrigin(data: unknown): string | undefined {
     const counts = new Map<string, number>();
 
-    const visit = (value: unknown) => {
+    const visit = (value: unknown, key?: string) => {
       if (typeof value === 'string') {
+        // avatar_url is skipped: every embedded user object carries one, so an
+        // external avatar host (e.g. gravatar) would always win the count and
+        // be mistaken for the server origin.
+        if (key === 'avatar_url') {
+          return;
+        }
         const parsed = this._parseUrl(value);
         if (parsed && parsed.origin !== this.configuredOrigin) {
           counts.set(parsed.origin, (counts.get(parsed.origin) ?? 0) + 1);
@@ -1397,7 +1403,7 @@ export class ForgejoClient {
         return;
       }
       if (value && typeof value === 'object') {
-        for (const item of Object.values(value)) visit(item);
+        for (const [childKey, item] of Object.entries(value)) visit(item, childKey);
       }
     };
 

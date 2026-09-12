@@ -31,7 +31,9 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
     return {
       type: vscode.FileType.File,
       ctime: 0,
-      mtime: Date.now(),
+      // Constant mtime: URIs are content-addressed by sha, so changed content
+      // means a changed URI; a varying mtime would only make VS Code re-read.
+      mtime: 0,
       size: 0,
     };
   }

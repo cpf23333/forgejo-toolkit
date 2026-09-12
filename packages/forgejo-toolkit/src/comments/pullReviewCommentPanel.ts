@@ -41,18 +41,19 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     reviewContext: PullReviewCommentContext,
     callbacks?: PullReviewCommentPanelCallbacks,
   ): PullReviewCommentPanel {
-    const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
-
     if (PullReviewCommentPanel.currentPanel) {
       PullReviewCommentPanel.currentPanel._setContext(reviewContext, callbacks);
-      PullReviewCommentPanel.currentPanel._panel.reveal(column);
+      // Keep the panel where it is: revealing with a column would drag it back
+      // next to the active editor even if the user moved it elsewhere.
+      PullReviewCommentPanel.currentPanel._panel.reveal();
       return PullReviewCommentPanel.currentPanel;
     }
 
     const panel = vscode.window.createWebviewPanel(
       PullReviewCommentPanel.viewType,
       PullReviewCommentPanel._title(reviewContext),
-      column ?? vscode.ViewColumn.Beside,
+      // Beside the diff editor instead of on top of it.
+      vscode.ViewColumn.Beside,
       {
         enableScripts: true,
         localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'out', 'webview')],

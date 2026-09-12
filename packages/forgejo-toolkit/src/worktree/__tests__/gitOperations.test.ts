@@ -207,6 +207,16 @@ describe('gitOperations argument passing', () => {
     );
   });
 
+  it('cloneRepository passes --quiet so clone progress does not overflow stderr maxBuffer', async () => {
+    await cloneRepository('https://forgejo.example.com/a/b.git', '/tmp/b');
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['clone', '--bare', '--quiet', 'https://forgejo.example.com/a/b.git', '/tmp/b'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
   it('pushBranch adds -u when setUpstream is true and the auth header when a token is given', async () => {
     await pushBranch('/repo', 'origin', 'main', 'tok', true);
     expect(mocks.execFile).toHaveBeenCalledWith(

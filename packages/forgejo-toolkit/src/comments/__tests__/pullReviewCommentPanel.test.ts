@@ -67,6 +67,13 @@ describe('PullReviewCommentPanel.createOrShow', () => {
     );
 
     expect(vscode.window.createWebviewPanel).toHaveBeenCalledTimes(1);
+    // Opens beside the diff editor instead of covering it.
+    expect(vscode.window.createWebviewPanel).toHaveBeenCalledWith(
+      PullReviewCommentPanel.viewType,
+      expect.any(String),
+      vscode.ViewColumn.Beside,
+      expect.any(Object),
+    );
     expect(PullReviewCommentPanel.currentPanel).toBe(panel);
   });
 
@@ -92,7 +99,9 @@ describe('PullReviewCommentPanel.createOrShow', () => {
 
     expect(reused).toBe(panel);
     expect(vscode.window.createWebviewPanel).toHaveBeenCalledTimes(1);
+    // reveal() without a column keeps the panel where the user left it.
     expect(fakePanel.reveal).toHaveBeenCalledTimes(1);
+    expect(fakePanel.reveal).toHaveBeenCalledWith();
 
     const internals = panelInternals(panel);
     expect(internals._context.index).toBe(3);
