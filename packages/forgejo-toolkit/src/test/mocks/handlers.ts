@@ -3,6 +3,7 @@ import {
   mockUser,
   mockRepository,
   mockRepository2,
+  mockRepositoryFail,
   mockNotifications,
   mockIssues,
   mockIssueDetail,
@@ -86,7 +87,9 @@ export const handlers = [
   // feature enabled in the mock environment.
   http.get('https://*/api/v1/version', () => json({ version: '1.21.5' })),
 
-  http.get('https://*/api/v1/user/repos', ({ request }) => json(paginate(request, [mockRepository, mockRepository2]))),
+  http.get('https://*/api/v1/user/repos', ({ request }) =>
+    json(paginate(request, [mockRepository, mockRepository2, mockRepositoryFail])),
+  ),
 
   http.get('https://*/api/v1/user/stopwatches', () => json([])),
 
@@ -115,7 +118,7 @@ export const handlers = [
   http.get('https://*/api/v1/repos/search', ({ request }) => {
     const url = new URL(request.url);
     const query = url.searchParams.get('q') ?? '';
-    const data = [mockRepository, mockRepository2].filter((repo) =>
+    const data = [mockRepository, mockRepository2, mockRepositoryFail].filter((repo) =>
       repo.full_name.toLowerCase().includes(query.toLowerCase()),
     );
     return json({ ok: true, data, total_count: data.length });
@@ -138,7 +141,13 @@ export const handlers = [
   http.get('https://*/api/v1/users/:username', () => json(mockUser)),
 
   http.get('https://*/api/v1/repos/:owner/:repo', ({ params }) =>
-    json(params.repo === mockRepository2.name ? mockRepository2 : mockRepository),
+    json(
+      params.repo === mockRepository2.name
+        ? mockRepository2
+        : params.repo === mockRepositoryFail.name
+          ? mockRepositoryFail
+          : mockRepository,
+    ),
   ),
 
   http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
@@ -322,11 +331,16 @@ export const handlers = [
     return json({ ...mockPullRequestDetail, ...pullEdits });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/files', ({ request }) =>
-    json(
+  http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/files', ({ request, params }) => {
+    // Walkthrough failure switch: broken-repo always fails the changed-files
+    // fetch, so the UI error state can be told apart from an empty file list.
+    if (params.repo === mockRepositoryFail.name) {
+      return json({ message: 'Mock failure: broken-repo cannot load changed files' }, 500);
+    }
+    return json(
       paginate(request, [{ filename: 'src/index.ts', status: 'modified', additions: 10, deletions: 2, changes: 12 }]),
-    ),
-  ),
+    );
+  }),
 
   http.get('https://*/api/v1/repos/:owner/:repo/compare/:basehead', () =>
     json({
@@ -420,7 +434,26 @@ export const handlers = [
 
   http.get('https://*/api/v1/repos/:owner/:repo/contents/src/index.ts', () => json(mockIndexTsContent)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/contents/:filepath', () => json({ message: 'Not Found' }, 404)),
+  // Catch-all for paths without a dedicated fixture: return placeholder
+  // content instead of 404 so walkthroughs can open any file (diff editor old/
+  // new versions, repo browser). The requested `ref` is echoed into the
+  // content so different branches stay visually distinguishable.
+  http.get('https://*/api/v1/repos/:owner/:repo/contents/*', ({ request }) => {
+    const url = new URL(request.url);
+    const ref = url.searchParams.get('ref');
+    const filepath = decodeURIComponent(url.pathname.split('/contents/')[1] ?? '');
+    const name = filepath.split('/').pop() ?? filepath;
+    const text = `// Mock content for ${filepath}\n// ref: ${ref ?? 'default branch'}\n`;
+    return json({
+      name,
+      path: filepath,
+      type: 'file',
+      sha: `mock-sha-${filepath}`,
+      size: text.length,
+      content: btoa(text),
+      encoding: 'base64',
+    });
+  }),
 
   http.get('https://*/api/v1/repos/:owner/:repo/branches', ({ request }) =>
     json(

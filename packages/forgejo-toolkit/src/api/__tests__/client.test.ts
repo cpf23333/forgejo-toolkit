@@ -23,6 +23,7 @@ import {
   mockUser,
   mockRepository,
   mockRepository2,
+  mockRepositoryFail,
   mockNotifications,
   mockIssues,
   mockIssueDetail,
@@ -81,9 +82,10 @@ describe('ForgejoClient with MSW', () => {
   it('fetches user repositories', async () => {
     const client = createClient();
     const repos = await client.getUserRepositories();
-    expect(repos).toHaveLength(2);
+    expect(repos).toHaveLength(3);
     expect(repos[0].full_name).toBe(mockRepository.full_name);
     expect(repos[1].full_name).toBe(mockRepository2.full_name);
+    expect(repos[2].full_name).toBe(mockRepositoryFail.full_name);
   });
 
   it('paginates past a server that silently clamps the page size', async () => {
@@ -178,7 +180,7 @@ describe('ForgejoClient with MSW', () => {
   it('searches repositories', async () => {
     const client = createClient();
     const repos = await client.searchRepositories('demo');
-    expect(repos).toHaveLength(2);
+    expect(repos).toHaveLength(3);
     expect(repos[0].full_name).toBe(mockRepository.full_name);
   });
 
@@ -256,6 +258,13 @@ describe('ForgejoClient with MSW', () => {
     const client = createClient();
     const content = await client.getFileContent('demo-user', 'demo-repo', 'README.md', 'main');
     expect(content).toContain('Demo Repository');
+  });
+
+  it('serves placeholder content for paths without a fixture, echoing the requested ref', async () => {
+    const client = createClient();
+    const content = await client.getFileContent('demo-user', 'demo-repo', 'docs/guide.md', 'dev');
+    expect(content).toContain('docs/guide.md');
+    expect(content).toContain('ref: dev');
   });
 
   it('fetches repository branches', async () => {
@@ -955,6 +964,11 @@ describe('ForgejoClient with MSW', () => {
       const files = await client.getPullRequestFiles('demo-user', 'demo-repo', 2);
       expect(files.length).toBeGreaterThan(0);
       expect(files[0].filename).toBeDefined();
+    });
+
+    it('fails the changed-files fetch for broken-repo (walkthrough failure switch)', async () => {
+      const client = createClient();
+      await expect(client.getPullRequestFiles('demo-user', mockRepositoryFail.name, 2)).rejects.toThrow(/500/);
     });
 
     it('normalizes the deleted file status to removed', async () => {

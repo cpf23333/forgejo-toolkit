@@ -186,4 +186,34 @@ describe('publishToForgejo', () => {
     expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
     expect(pushBranch).toHaveBeenCalledWith('/repo', 'origin', 'main', 'tok-bob', false, INSTANCE_URL);
   });
+
+  // Push failures must propagate to the command registration's catch
+  // (commands/index.ts), which shows "Failed to publish". Swallowing them here
+  // would pretend success — worst case right after the remote repository was
+  // already created.
+  it('propagates a push failure after the remote repository was created', async () => {
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockResolvedValue({ clone_url: `${INSTANCE_URL}/alice/my-repo.git`, full_name: 'alice/my-repo' });
+    vi.mocked(pushBranch).mockRejectedValue(new Error('push failed: permission denied'));
+    const { provider, refresh } = createViewProvider();
+
+    await expect(publishToForgejo(createConfig([instance('a', 'alice', 'tok')]), provider)).rejects.toThrow(
+      'push failed',
+    );
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('propagates a push failure when pushing to an existing remote', async () => {
+    setupWorkspace(`${INSTANCE_URL}/alice/repo.git`);
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    vi.mocked(getUpstreamBranch).mockResolvedValue('origin/main');
+    vi.mocked(pushBranch).mockRejectedValue(new Error('push failed: non-fast-forward'));
+
+    await expect(publishToForgejo(createConfig([instance('a', 'alice', 'tok')]))).rejects.toThrow('push failed');
+    expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+  });
 });

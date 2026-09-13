@@ -37,3 +37,24 @@ export const mockRepository2: ForgejoRepository = {
   has_pull_requests: true,
   mirror: false,
 };
+
+// Walkthrough switch for failure states: endpoints that can break (currently
+// the pull-request changed-files fetch) return 500 for this repository, so the
+// UI error path can be told apart from a genuinely empty result.
+export const mockRepositoryFail: ForgejoRepository = {
+  id: 3,
+  name: 'broken-repo',
+  full_name: 'demo-user/broken-repo',
+  html_url: 'https://forgejo.example.com/demo-user/broken-repo',
+  private: false,
+  description: 'Demonstrates API failure states: changed-files fetches fail with 500.',
+  owner: mockUser,
+  default_branch: 'main',
+  stars_count: 0,
+  forks_count: 0,
+  open_issues_count: 0,
+  open_pr_counter: 1,
+  has_issues: true,
+  has_pull_requests: true,
+  mirror: false,
+};
