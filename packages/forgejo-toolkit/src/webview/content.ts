@@ -5,7 +5,6 @@ import * as fs from 'fs';
 export interface WebviewContentOptions {
   panelMode?: 'onboarding' | 'pullReviewComment';
   locale?: 'en' | 'zh';
-  codiconCssPath?: string;
   pullReviewComment?: {
     instanceId: string;
     owner: string;
@@ -56,10 +55,7 @@ export function getWebviewContent(
   const configScript = `<script nonce="${nonce}">window.__FORGEJO_TOOLKIT_CONFIG__ = ${JSON.stringify(config)};</script>`;
 
   const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src 'self' blob: data: ${webview.cspSource} http: https:; connect-src 'self' ${webview.cspSource} http: https:;">`;
-  const codiconLink = options?.codiconCssPath
-    ? `<link rel="stylesheet" href="${webview.asWebviewUri(vscode.Uri.file(options.codiconCssPath)).toString()}" id="vscode-codicon-stylesheet">`
-    : '';
-  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}\n    ${codiconLink}\n    ${configScript}`);
+  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}\n    ${configScript}`);
 
   const baseUri = webview.asWebviewUri(vscode.Uri.file(webviewDistPath)).toString().replace(/\/$/, '');
   html = html.replace(/(src|href)="([^"]*)"/g, (match, attr, value) => {

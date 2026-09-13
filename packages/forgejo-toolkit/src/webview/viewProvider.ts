@@ -11,7 +11,6 @@ import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messa
 import { getWebviewContent } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
-import { createRequire } from 'module';
 import { buildRepoFileUri } from '../repoFileProvider';
 import { WorktreeManager, WorktreeInfo, validateCacheDirectory } from '../worktree/worktreeManager';
 import { InFlightTasks } from '../worktree/inFlightTasks';
@@ -79,19 +78,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   ) {
     this._view = webviewView;
 
-    const require = createRequire(__filename);
-    const codiconCssPath = require.resolve('@vscode/codicons/dist/codicon.css');
+    // Codicons ship inside the webview bundle (imported in webview/src/main.ts
+    // with the font inlined), so there is nothing to resolve from node_modules
+    // here — which would also fail in a packaged install where node_modules is
+    // excluded.
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(this._extensionUri, 'out', 'webview'),
-        vscode.Uri.file(path.dirname(codiconCssPath)),
-      ],
+      localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'out', 'webview')],
     };
 
-    webviewView.webview.html = getWebviewContent(webviewView.webview, this._extensionUri.fsPath, {
-      codiconCssPath,
-    });
+    webviewView.webview.html = getWebviewContent(webviewView.webview, this._extensionUri.fsPath);
 
     webviewView.onDidDispose(() => {
       if (this._view === webviewView) {
