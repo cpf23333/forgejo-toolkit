@@ -11,6 +11,7 @@ import { PullReviewCommentController } from './comments/pullReviewCommentControl
 import { NotificationPoller } from './notifications/notificationPoller';
 import { CreatePrStatusBarController } from './statusBar/createPrStatusBar';
 import { userFacingErrorMessage } from './api/errors';
+import { probeServerVersion } from './api/versionProbe';
 import { logger } from './logger';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -27,6 +28,12 @@ export async function activate(context: vscode.ExtensionContext) {
     // their own errors later.
     const err = userFacingErrorMessage(error);
     logger.error(`Failed to initialize stored instance tokens: ${err}`);
+  }
+
+  // Best-effort version probes feed the feature gates (e.g. the Actions API
+  // requires ≥ 1.19); failures fail open and are logged at debug level.
+  for (const instance of config.getInstances()) {
+    void probeServerVersion(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
   }
 
   // The mock module (msw + all fixtures) is stripped from production builds:

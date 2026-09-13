@@ -129,6 +129,10 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
       data = (await response.text()) as unknown as TResponseData;
     } else if (responseType === 'arraybuffer') {
       data = (await response.arrayBuffer()) as unknown as TResponseData;
+    } else if (responseType === 'stream') {
+      // Hand the raw body to the caller for streaming consumers (e.g. large
+      // artifact downloads piped straight to disk).
+      data = response.body as unknown as TResponseData;
     } else if (responseType === 'blob') {
       data = (await response.blob()) as unknown as TResponseData;
     } else {

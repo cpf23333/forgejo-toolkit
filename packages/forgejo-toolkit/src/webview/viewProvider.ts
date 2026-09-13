@@ -33,6 +33,7 @@ import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { computeTokenConflicts, readExportDataFromUri, sanitizeImportedInstances } from './instanceImport';
 import { userFacingErrorMessage } from '../api/errors';
+import { probeServerVersion } from '../api/versionProbe';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { resolveLocale } from '../utils/resolveLocale';
 
@@ -197,6 +198,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(url, effectiveToken, logger);
           const user = await client.getCurrentUser();
+          // Refresh the cached server version used by the feature gates.
+          void probeServerVersion(url, effectiveToken, logger);
           this._reply('testConnectionResult', { success: true, username: user.login });
         } catch (error) {
           const err = userFacingErrorMessage(error);
@@ -227,6 +230,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           };
 
           await this._config.addInstance(instance);
+          void probeServerVersion(normalizedUrl, token, logger, syncApiUrlsToInstanceUrl);
           this._sendInstances();
           this._detectAndSendLinkedRepository();
           this._reply('saveInstanceResult', { success: true });
@@ -264,6 +268,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             username: user.login,
             syncApiUrlsToInstanceUrl,
           });
+          void probeServerVersion(normalizedUrl, effectiveToken, logger, syncApiUrlsToInstanceUrl);
           this._sendInstances();
           this._detectAndSendLinkedRepository();
           this._reply('saveInstanceResult', { success: true });
@@ -2448,8 +2453,6 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         try {
-          const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const data = await client.downloadActionArtifact(owner, repo, artifactId);
           const defaultName = name.endsWith('.zip') ? name : `${name}.zip`;
           const uri = await vscode.window.showSaveDialog({
             defaultUri: vscode.Uri.file(defaultName),
@@ -2465,7 +2468,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             });
             return;
           }
-          await fs.promises.writeFile(uri.fsPath, data);
+          const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+          // The artifact streams straight to disk (no 50 MB memory cap), so
+          // report progress while it downloads.
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: vscode.l10n.t('Downloading artifact {0}…', defaultName),
+            },
+            (progress) =>
+              client.downloadActionArtifactToFile(owner, repo, artifactId, uri.fsPath, (bytesWritten) => {
+                progress.report({
+                  message: vscode.l10n.t('{0} MB downloaded', (bytesWritten / (1024 * 1024)).toFixed(1)),
+                });
+              }),
+          );
           this._reply('actionArtifactDownloaded', {
             instanceId: instance.id,
             owner,
@@ -3677,6 +3694,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               () => cloneRepository(cloneUrl, cacheRepoPath, instance.token),
             );
           }
+          await this._worktreeManager.touchCachedRepo(cacheRepoPath);
+          // Lazy LRU sweep of the bare clone cache (no timer): aged-out and
+          // over-cap repositories are removed while a worktree is created.
+          void this._worktreeManager
+            .cleanupCachedRepos()
+            .then((removed) => {
+              if (removed.length > 0) {
+                logger.info(`Cleaned up ${removed.length} unused cached repositories: ${removed.join(', ')}`);
+              }
+            })
+            .catch((error: unknown) => {
+              logger.debug(`Cached repository cleanup failed: ${userFacingErrorMessage(error)}`);
+            });
         } else {
           const selected = await vscode.window.showOpenDialog({
             canSelectFiles: false,

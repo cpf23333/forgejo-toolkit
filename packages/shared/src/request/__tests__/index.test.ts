@@ -197,6 +197,29 @@ describe('client', () => {
     expect(result.data).toEqual({});
   });
 
+  it('returns the raw body stream for responseType stream', async () => {
+    mockServer.use(http.get('http://example.com/api/blob', () => new HttpResponse(new Uint8Array([1, 2, 3]).buffer)));
+
+    const result = (await client({
+      baseURL: 'http://example.com',
+      url: '/api/blob',
+      responseType: 'stream',
+    })) as ResponseConfig<ReadableStream<Uint8Array> | null>;
+
+    const body = result.data;
+    expect(body).toBeTruthy();
+    const reader = body!.getReader();
+    const chunks: number[] = [];
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      chunks.push(...value);
+    }
+    expect(chunks).toEqual([1, 2, 3]);
+  });
+
   it('serializes JSON body and sets content-type', async () => {
     const requestSpy = vi.fn();
     mockServer.use(

@@ -1,10 +1,15 @@
+import * as fs from 'fs';
+import { Readable, Transform } from 'stream';
+import { pipeline } from 'stream/promises';
 import * as vscode from 'vscode';
 import { buildUrl, client as baseClient, encodePathSegment } from '@cpf23333-forgejo-toolkit/shared/request';
 import { toApiError } from './errors';
+import { assertActionsSupported } from './serverVersion';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
   createCurrentUserRepo,
   getTree,
+  getVersion,
   issueAddSubscription,
   issueAddTime,
   issueCheckSubscription,
@@ -166,9 +171,10 @@ const TREE_CACHE_TTL_MS = 60_000;
 const PAGE_SIZE = 50;
 // Safety bound so a misbehaving server cannot keep us fetching forever.
 const MAX_PAGES = 10;
-// Raw payload caps: CI logs and artifacts are loaded fully into memory.
+// Raw payload caps: CI logs are loaded fully into memory; artifacts stream to
+// disk and only carry a large defensive cap against unbounded writes.
 const MAX_JOB_LOG_LENGTH = 10 * 1024 * 1024;
-const MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
+const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024 * 1024;
 // Guard for the recursive git tree loop against servers that ignore the
 // pagination params and keep returning the same page with truncated=true.
 const MAX_TREE_PAGES = 50;
@@ -224,6 +230,21 @@ export class ForgejoClient {
 
   getCurrentUser(): Promise<ForgejoUser> {
     return userGetCurrent({ client: this._client() }) as Promise<ForgejoUser>;
+  }
+
+  /** Raw `/api/v1/version` string (e.g. "1.21.5"), undefined when the server omits it. */
+  async getServerVersion(): Promise<string | undefined> {
+    const result = await getVersion({ client: this._client() });
+    return (result as { version?: string }).version;
+  }
+
+  /**
+   * The Actions API only exists on Forgejo/Gitea ≥ 1.19; older instances
+   * answer a bare 404. Gate on the probed server version (fail-open when
+   * unknown) so users get an actionable message instead.
+   */
+  private _assertActions(): void {
+    assertActionsSupported(this.url);
   }
 
   /**
@@ -305,14 +326,17 @@ export class ForgejoClient {
   }
 
   listActionRuns(owner: string, repo: string, page: number = 1, limit: number = 30): Promise<ForgejoActionRunList> {
+    this._assertActions();
     return listActionRuns(owner, repo, { page, limit }, { client: this._client() }) as Promise<ForgejoActionRunList>;
   }
 
   async getActionRun(owner: string, repo: string, runId: number): Promise<ActionRun> {
+    this._assertActions();
     return actionRun(owner, repo, runId, { client: this._client() }) as Promise<ActionRun>;
   }
 
   async getActionRunJobs(owner: string, repo: string, runId: number): Promise<ForgejoActionRunJob[]> {
+    this._assertActions();
     const result = await listActionRunJobs(owner, repo, runId, { client: this._client() });
     return (
       Array.isArray(result) ? result : ((result as { jobs?: ActionRunJob[] }).jobs ?? [])
@@ -320,6 +344,7 @@ export class ForgejoClient {
   }
 
   async getActionRunArtifacts(owner: string, repo: string, runId: number): Promise<ForgejoActionArtifact[]> {
+    this._assertActions();
     const result = await listActionRunArtifacts(owner, repo, runId, undefined, { client: this._client() });
     return (
       Array.isArray(result) ? result : ((result as { artifacts?: ActionArtifact[] }).artifacts ?? [])
@@ -327,6 +352,7 @@ export class ForgejoClient {
   }
 
   async getActionJobLog(owner: string, repo: string, jobId: number): Promise<string> {
+    this._assertActions();
     const response = await repoGetActionJobLogs(owner, repo, jobId, undefined, {
       client: this._client(),
       responseType: 'text',
@@ -346,6 +372,7 @@ export class ForgejoClient {
     ref: string,
     inputs?: Record<string, string>,
   ): Promise<DispatchWorkflowRun | undefined> {
+    this._assertActions();
     const result = await dispatchWorkflow(
       owner,
       repo,
@@ -364,23 +391,67 @@ export class ForgejoClient {
   }
 
   async cancelActionRun(owner: string, repo: string, runId: number): Promise<void> {
+    this._assertActions();
     await cancelActionRun(owner, repo, runId, { client: this._client() });
   }
 
-  async downloadActionArtifact(owner: string, repo: string, artifactId: number): Promise<Uint8Array> {
-    const response = await downloadActionArtifact(owner, repo, artifactId, {
+  /**
+   * Streams an artifact straight to disk instead of buffering it in the
+   * extension host. The body is written to `<targetPath>.part` first and
+   * renamed into place only after the download completed, so a failure never
+   * leaves a half-written file at the target path (the partial file is
+   * removed). Returns the number of bytes written. `maxBytes` is the
+   * defensive size cap (2 GB by default); tests pass a small value.
+   */
+  async downloadActionArtifactToFile(
+    owner: string,
+    repo: string,
+    artifactId: number,
+    targetPath: string,
+    onProgress?: (bytesWritten: number) => void,
+    maxBytes: number = MAX_ARTIFACT_BYTES,
+  ): Promise<number> {
+    this._assertActions();
+    const stream = (await downloadActionArtifact(owner, repo, artifactId, {
       client: this._client(),
-      responseType: 'arraybuffer',
-    });
-    const bytes = new Uint8Array(response as unknown as ArrayBuffer);
-    // Artifacts are loaded fully into memory; refuse unreasonably large ones.
-    if (bytes.byteLength > MAX_ARTIFACT_BYTES) {
-      throw new Error(`Forgejo artifact ${artifactId} exceeds the 50 MB size limit and was not downloaded.`);
+      responseType: 'stream',
+    })) as unknown as ReadableStream<Uint8Array> | null;
+    if (!stream) {
+      throw new Error(`Forgejo artifact ${artifactId} returned no response body.`);
     }
-    return bytes;
+
+    const tempPath = `${targetPath}.part`;
+    let written = 0;
+    // Defensive cap against unbounded writes; enforced mid-stream so the
+    // download aborts as soon as the limit is crossed.
+    const counter = new Transform({
+      transform(chunk: Uint8Array, _encoding, callback) {
+        written += chunk.length;
+        if (written > maxBytes) {
+          callback(new Error(`Forgejo artifact ${artifactId} exceeds the 2 GB size limit and was not downloaded.`));
+          return;
+        }
+        onProgress?.(written);
+        callback(null, chunk);
+      },
+    });
+
+    try {
+      await pipeline(
+        Readable.fromWeb(stream as unknown as import('stream/web').ReadableStream<Uint8Array>),
+        counter,
+        fs.createWriteStream(tempPath),
+      );
+      await fs.promises.rename(tempPath, targetPath);
+    } catch (error) {
+      await fs.promises.rm(tempPath, { force: true }).catch(() => undefined);
+      throw error;
+    }
+    return written;
   }
 
   async deleteActionRun(owner: string, repo: string, runId: number): Promise<void> {
+    this._assertActions();
     await deleteActionRun(owner, repo, runId, { client: this._client() });
   }
 
@@ -1533,7 +1604,9 @@ export class ForgejoClient {
 
         return {
           ...response,
-          data: this._rewriteResponseData(response.data),
+          // Streams are passed through untouched: rewriting walks JSON-shaped
+          // payloads and would mangle a ReadableStream into an empty object.
+          data: config.responseType === 'stream' ? response.data : this._rewriteResponseData(response.data),
         };
       } catch (error) {
         if (debugEnabled) {

@@ -11,6 +11,7 @@ import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messa
 import { computeTokenConflicts, readExportDataFromUri } from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
 import { userFacingErrorMessage } from '../api/errors';
+import { probeServerVersion } from '../api/versionProbe';
 import { validateCacheDirectory } from '../worktree/worktreeManager';
 
 export class OnboardingWebviewPanel {
@@ -115,6 +116,8 @@ export class OnboardingWebviewPanel {
               try {
                 const client = new ForgejoClient(url, token, logger);
                 const user = await client.getCurrentUser();
+                // Refresh the cached server version used by the feature gates.
+                void probeServerVersion(url, token, logger);
                 this._reply('testConnectionResult', { success: true, username: user.login });
               } catch (error) {
                 const err = userFacingErrorMessage(error);
@@ -148,6 +151,7 @@ export class OnboardingWebviewPanel {
                 };
 
                 await this._config.addInstance(instance);
+                void probeServerVersion(normalizedUrl, token, logger, syncApiUrlsToInstanceUrl);
                 this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
                 this._reply('saveInstanceResult', { success: true });
                 vscode.window.showInformationMessage(vscode.l10n.t('Connected to Forgejo as {0}', user.login));

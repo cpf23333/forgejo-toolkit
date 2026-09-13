@@ -142,8 +142,9 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
     mockRemoteUrlThenPush('https://forgejo.example.com/owner/repo.git');
     await pushBranch('/repo', 'origin', 'main', token, true, instanceUrl);
     const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
-    expect(pushCall?.[1]).toEqual(['push', '-u', 'origin', 'main']);
-    const env = (pushCall?.[2] as { env?: NodeJS.ProcessEnv }).env;
+    expect(pushCall).toBeDefined();
+    expect(pushCall![1]).toEqual(['push', '-u', 'origin', 'main']);
+    const env = (pushCall![2] as { env?: NodeJS.ProcessEnv }).env;
     expect(env?.GIT_CONFIG_VALUE_0).toBe(`Authorization: token ${token}`);
   });
 
@@ -166,8 +167,9 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
     mockRemoteUrlThenPush(undefined);
     await pushBranch('/repo', 'origin', 'main', token, false, instanceUrl);
     const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
-    expect(pushCall?.[1]).toEqual(['push', 'origin', 'main']);
-    const env = (pushCall?.[2] as { env?: NodeJS.ProcessEnv }).env;
+    expect(pushCall).toBeDefined();
+    expect(pushCall![1]).toEqual(['push', 'origin', 'main']);
+    const env = (pushCall![2] as { env?: NodeJS.ProcessEnv }).env;
     expect(env?.GIT_CONFIG_VALUE_0).toBeUndefined();
   });
 

@@ -19,6 +19,12 @@ export interface WorktreeInfo {
 }
 
 const WORKTREES_KEY = 'forgejoToolkit.worktrees';
+const CACHE_REPO_USAGE_KEY = 'forgejoToolkit.cacheRepoUsage';
+
+/** Cached bare repositories unused for this long are deleted by the LRU sweep. */
+export const CACHE_REPO_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/** Beyond this many cached bare repositories, the least recently used are deleted. */
+export const CACHE_REPO_MAX_COUNT = 20;
 
 /**
  * Verify that a directory can serve as the worktree cache: create it when it
@@ -98,5 +104,87 @@ export class WorktreeManager {
       return custom.trim();
     }
     return this.getDefaultCacheDirectory?.() ?? vscode.Uri.joinPath(this.context.globalStorageUri, 'worktrees').fsPath;
+  }
+
+  private _getCacheRepoUsage(): Record<string, number> {
+    return this.context.globalState.get<Record<string, number>>(CACHE_REPO_USAGE_KEY, {});
+  }
+
+  /** Stamps a cached bare repository as used now (LRU recency for the sweep). */
+  async touchCachedRepo(cacheRepoPath: string): Promise<void> {
+    const usage = { ...this._getCacheRepoUsage() };
+    usage[path.resolve(cacheRepoPath)] = Date.now();
+    await this.context.globalState.update(CACHE_REPO_USAGE_KEY, usage);
+  }
+
+  /**
+   * LRU sweep for the bare clone cache (`<cacheDir>/repos/*.git`), which is
+   * otherwise never cleaned. Deletes repositories unused for
+   * CACHE_REPO_MAX_AGE_MS and, when more than CACHE_REPO_MAX_COUNT remain,
+   * the least recently used ones. Repositories referenced by a recorded
+   * worktree are never deleted (their worktrees' git metadata points into
+   * them), and deletion is restricted to direct `*.git` children of the
+   * repos directory. Triggered lazily from worktree operations — no timer.
+   * Returns the names of the removed repositories.
+   */
+  async cleanupCachedRepos(now: number = Date.now()): Promise<string[]> {
+    const reposDir = path.join(this.getCacheDirectory(), 'repos');
+    const resolvedReposDir = path.resolve(reposDir);
+    const entries = await fs.promises.readdir(reposDir, { withFileTypes: true }).catch(() => [] as fs.Dirent[]);
+    const candidates = entries.filter((entry) => entry.isDirectory() && entry.name.endsWith('.git'));
+    if (candidates.length === 0) {
+      return [];
+    }
+
+    // Defense in depth: only ever delete direct children of the repos dir.
+    const repos = candidates
+      .map((entry) => path.resolve(reposDir, entry.name))
+      .filter((repoPath) => path.dirname(repoPath) === resolvedReposDir);
+    const activePaths = new Set(this.getWorktrees().map((w) => path.resolve(w.sourceRepoPath)));
+
+    const usage = { ...this._getCacheRepoUsage() };
+    // Repositories that predate usage tracking get a fresh timestamp instead
+    // of being treated as ancient and wiped on the first sweep.
+    const tracked = repos.map((repoPath) => {
+      const lastUsed = usage[repoPath] ?? now;
+      usage[repoPath] = lastUsed;
+      return { repoPath, lastUsed };
+    });
+
+    const removable = tracked.filter(({ repoPath }) => !activePaths.has(repoPath));
+    const victims = new Set(
+      removable.filter(({ lastUsed }) => now - lastUsed > CACHE_REPO_MAX_AGE_MS).map(({ repoPath }) => repoPath),
+    );
+    const survivors = removable
+      .filter(({ repoPath }) => !victims.has(repoPath))
+      .sort((a, b) => a.lastUsed - b.lastUsed);
+    while (survivors.length > CACHE_REPO_MAX_COUNT) {
+      victims.add(survivors.shift()!.repoPath);
+    }
+
+    const removed: string[] = [];
+    for (const { repoPath } of tracked) {
+      if (!victims.has(repoPath)) {
+        continue;
+      }
+      try {
+        await fs.promises.rm(repoPath, { recursive: true, force: true });
+        removed.push(path.basename(repoPath));
+        delete usage[repoPath];
+      } catch {
+        // A repo that cannot be deleted stays (and keeps its usage entry);
+        // the next sweep retries.
+      }
+    }
+    // Drop usage entries for repos under this directory that no longer exist
+    // on disk (e.g. deleted manually), so the map cannot grow unboundedly.
+    const onDisk = new Set(repos);
+    for (const key of Object.keys(usage)) {
+      if (path.dirname(key) === resolvedReposDir && !onDisk.has(key)) {
+        delete usage[key];
+      }
+    }
+    await this.context.globalState.update(CACHE_REPO_USAGE_KEY, usage);
+    return removed;
   }
 }

@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { http, HttpResponse } from 'msw';
 import type {
   CreateBranchRepoOption,
@@ -13,6 +16,7 @@ import type {
 } from '@cpf23333-forgejo-toolkit/api';
 import { ForgejoClient } from '../client';
 import { ApiError } from '../errors';
+import { clearServerVersions, setServerVersion } from '../serverVersion';
 import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
 import {
@@ -534,11 +538,87 @@ describe('ForgejoClient with MSW', () => {
       await expect(client.cancelActionRun('demo-user', 'demo-repo', 42)).resolves.toBeUndefined();
     });
 
-    it('downloads an action artifact', async () => {
+    it('fetches the server version', async () => {
       const client = createClient();
-      const data = await client.downloadActionArtifact('demo-user', 'demo-repo', 7);
-      expect(data).toBeInstanceOf(Uint8Array);
-      expect(data.length).toBe(3);
+      await expect(client.getServerVersion()).resolves.toBe('1.21.5');
+    });
+
+    it('rejects Actions calls with a clear message on servers older than 1.19', async () => {
+      setServerVersion('https://forgejo.example.com', '1.18.0');
+      try {
+        const client = createClient();
+        // listActionRuns is not async, so the gate throws synchronously.
+        expect(() => client.listActionRuns('demo-user', 'demo-repo')).toThrow(/requires Forgejo .* or newer/);
+      } finally {
+        clearServerVersions();
+      }
+    });
+
+    it('streams an action artifact to disk', async () => {
+      const client = createClient();
+      const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'artifact-test-'));
+      try {
+        const target = path.join(dir, 'artifact.zip');
+        const chunks: number[] = [];
+        const written = await client.downloadActionArtifactToFile('demo-user', 'demo-repo', 7, target, (bytes) =>
+          chunks.push(bytes),
+        );
+        expect(written).toBe(3);
+        expect(await fs.promises.readFile(target)).toEqual(Buffer.from([1, 2, 3]));
+        // No partial file is left behind after a successful rename.
+        await expect(fs.promises.access(`${target}.part`)).rejects.toThrow();
+        // The progress callback fired at least once with a cumulative count.
+        expect(chunks.length).toBeGreaterThan(0);
+        expect(chunks[chunks.length - 1]).toBe(3);
+      } finally {
+        await fs.promises.rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('reassembles a chunked artifact body in order', async () => {
+      const client = createClient();
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2]));
+          controller.enqueue(new Uint8Array([3, 4, 5]));
+          controller.enqueue(new Uint8Array([6]));
+          controller.close();
+        },
+      });
+      mockServer.use(
+        http.get(
+          'https://*/api/v1/repos/:owner/:repo/actions/artifacts/:artifact_id/zip',
+          () => new HttpResponse(stream, { status: 200, headers: { 'Content-Type': 'application/zip' } }),
+        ),
+      );
+      const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'artifact-test-'));
+      try {
+        const target = path.join(dir, 'chunked.zip');
+        const written = await client.downloadActionArtifactToFile('demo-user', 'demo-repo', 7, target);
+        expect(written).toBe(6);
+        expect(await fs.promises.readFile(target)).toEqual(Buffer.from([1, 2, 3, 4, 5, 6]));
+      } finally {
+        await fs.promises.rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('removes the partial file when the artifact download fails', async () => {
+      const client = createClient();
+      mockServer.use(
+        http.get(
+          'https://*/api/v1/repos/:owner/:repo/actions/artifacts/:artifact_id/zip',
+          () => new HttpResponse(null, { status: 404 }),
+        ),
+      );
+      const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'artifact-test-'));
+      try {
+        const target = path.join(dir, 'missing.zip');
+        await expect(client.downloadActionArtifactToFile('demo-user', 'demo-repo', 7, target)).rejects.toThrow();
+        await expect(fs.promises.access(target)).rejects.toThrow();
+        await expect(fs.promises.access(`${target}.part`)).rejects.toThrow();
+      } finally {
+        await fs.promises.rm(dir, { recursive: true, force: true });
+      }
     });
 
     it('deletes an action run', async () => {
@@ -1219,18 +1299,32 @@ describe('ForgejoClient with MSW', () => {
       expect(log).toContain('(truncated: log exceeds the 10 MB limit)');
     });
 
-    it('rejects artifacts larger than 50 MB', async () => {
+    it('rejects artifact streams that exceed the defensive size cap', async () => {
       const client = createClient();
-      const big = new Uint8Array(50 * 1024 * 1024 + 1);
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+          controller.close();
+        },
+      });
       mockServer.use(
         http.get(
           'https://*/api/v1/repos/:owner/:repo/actions/artifacts/:artifact_id/zip',
-          () => new HttpResponse(big.buffer as ArrayBuffer, { status: 200 }),
+          () => new HttpResponse(stream, { status: 200 }),
         ),
       );
-      await expect(client.downloadActionArtifact('demo-user', 'demo-repo', 1)).rejects.toThrow(
-        /exceeds the 50 MB size limit/,
-      );
+      const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'artifact-test-'));
+      try {
+        const target = path.join(dir, 'huge.zip');
+        await expect(
+          client.downloadActionArtifactToFile('demo-user', 'demo-repo', 1, target, undefined, 4),
+        ).rejects.toThrow(/exceeds the 2 GB size limit/);
+        // The oversized download must not leave a file behind.
+        await expect(fs.promises.access(target)).rejects.toThrow();
+        await expect(fs.promises.access(`${target}.part`)).rejects.toThrow();
+      } finally {
+        await fs.promises.rm(dir, { recursive: true, force: true });
+      }
     });
   });
 
