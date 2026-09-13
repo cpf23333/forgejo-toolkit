@@ -18,5 +18,13 @@
   "config.useMockApi.description": "Use mock Forgejo API responses for offline development. Development use only; stripped from production builds.",
   "config.worktreeOpenMode.enumDescriptions.ask": "Ask each time how to open a worktree",
   "config.worktreeOpenMode.enumDescriptions.newWindow": "Open worktrees in a new VS Code window",
-  "config.worktreeOpenMode.enumDescriptions.currentWindow": "Open worktrees in the current VS Code window"
+  "config.worktreeOpenMode.enumDescriptions.currentWindow": "Open worktrees in the current VS Code window",
+  "walkthrough.gettingStarted.title": "Get Started with Forgejo Toolkit",
+  "walkthrough.gettingStarted.description": "Connect a Forgejo instance and work with repositories, issues, and pull requests without leaving VS Code.",
+  "walkthrough.addInstance.title": "Add a Forgejo instance",
+  "walkthrough.addInstance.description": "Connect to your Forgejo instance with an access token.",
+  "walkthrough.openDashboard.title": "Open the Dashboard",
+  "walkthrough.openDashboard.description": "Browse repositories, issues, pull requests, and notifications.",
+  "walkthrough.publishOrCreatePr.title": "Publish a repository or create a PR",
+  "walkthrough.publishOrCreatePr.description": "Push a local repository to your instance, or start a pull request from the current branch."
 }

@@ -18,5 +18,13 @@
   "config.useMockApi.description": "使用 mock Forgejo API 响应进行离线开发。仅限开发用途，生产构建中已剥离。",
   "config.worktreeOpenMode.enumDescriptions.ask": "每次询问如何打开 worktree",
   "config.worktreeOpenMode.enumDescriptions.newWindow": "在新的 VS Code 窗口中打开 worktree",
-  "config.worktreeOpenMode.enumDescriptions.currentWindow": "在当前 VS Code 窗口中打开 worktree"
+  "config.worktreeOpenMode.enumDescriptions.currentWindow": "在当前 VS Code 窗口中打开 worktree",
+  "walkthrough.gettingStarted.title": "Forgejo Toolkit 入门",
+  "walkthrough.gettingStarted.description": "连接 Forgejo 实例，在 VS Code 中直接处理仓库、Issue 和 Pull Request。",
+  "walkthrough.addInstance.title": "添加 Forgejo 实例",
+  "walkthrough.addInstance.description": "使用访问令牌连接你的 Forgejo 实例。",
+  "walkthrough.openDashboard.title": "打开仪表板",
+  "walkthrough.openDashboard.description": "浏览仓库、Issue、Pull Request 和通知。",
+  "walkthrough.publishOrCreatePr.title": "发布仓库或创建 PR",
+  "walkthrough.publishOrCreatePr.description": "把本地仓库推送到实例，或从当前分支发起 Pull Request。"
 }

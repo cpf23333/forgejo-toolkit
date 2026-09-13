@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { registerCommands } from './commands';
 import { ForgejoToolkitViewProvider } from './webview/viewProvider';
+import { OnboardingWebviewPanel } from './webview/onboardingPanel';
 import { ConfigManager } from './config';
 import { registerReadmeProvider } from './readmeProvider';
 import { registerRepoFileProvider } from './repoFileProvider';
@@ -12,6 +13,7 @@ import { NotificationPoller } from './notifications/notificationPoller';
 import { CreatePrStatusBarController } from './statusBar/createPrStatusBar';
 import { userFacingErrorMessage } from './api/errors';
 import { probeServerVersion } from './api/versionProbe';
+import { maybeShowWelcomeOnboarding } from './welcome';
 import { logger } from './logger';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -51,6 +53,12 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const readmeProvider = registerReadmeProvider(context);
+
+  // First-run onboarding: show the setup guide once when no instance is
+  // configured yet; never auto-opens again after the first activation.
+  void maybeShowWelcomeOnboarding(context, config.getInstances().length > 0, () => {
+    OnboardingWebviewPanel.createOrShow(context, context.extensionUri, config, readmeProvider);
+  });
   registerRepoFileProvider(context, config);
   const prFileSystemProvider = new ForgejoPRFileSystemProvider(config);
 

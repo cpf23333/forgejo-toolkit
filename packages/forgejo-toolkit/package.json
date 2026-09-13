@@ -207,24 +207,41 @@
         }
       ]
     },
+    "walkthroughs": [
+      {
+        "id": "forgejoToolkit.gettingStarted",
+        "title": "%walkthrough.gettingStarted.title%",
+        "description": "%walkthrough.gettingStarted.description%",
+        "steps": [
+          {
+            "id": "addInstance",
+            "title": "%walkthrough.addInstance.title%",
+            "description": "%walkthrough.addInstance.description%",
+            "media": {
+              "markdown": "./walkthrough/addInstance.md"
+            }
+          },
+          {
+            "id": "openDashboard",
+            "title": "%walkthrough.openDashboard.title%",
+            "description": "%walkthrough.openDashboard.description%",
+            "media": {
+              "markdown": "./walkthrough/openDashboard.md"
+            }
+          },
+          {
+            "id": "publishOrCreatePr",
+            "title": "%walkthrough.publishOrCreatePr.title%",
+            "description": "%walkthrough.publishOrCreatePr.description%",
+            "media": {
+              "markdown": "./walkthrough/publishOrCreatePr.md"
+            }
+          }
+        ]
+      }
+    ],
     "menus": {
       "commandPalette": [
-        {
-          "command": "forgejoToolkit.openDashboard",
-          "when": "false"
-        },
-        {
-          "command": "forgejoToolkit.openOnboarding",
-          "when": "false"
-        },
-        {
-          "command": "forgejoToolkit.openSettings",
-          "when": "false"
-        },
-        {
-          "command": "forgejoToolkit.refreshInstances",
-          "when": "false"
-        },
         {
           "command": "forgejoToolkit.deletePullReviewComment",
           "when": "false"
