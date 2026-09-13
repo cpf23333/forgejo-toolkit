@@ -9,10 +9,10 @@ vi.mock('vscode', () => ({
     constructor(public range: unknown) {}
   },
   Range: class {
-    constructor(
-      public start: unknown,
-      public end: unknown,
-    ) {}
+    args: unknown[];
+    constructor(...args: unknown[]) {
+      this.args = args;
+    }
   },
   Uri: {
     parse: vi.fn((s: string) => ({ toString: () => s })),
@@ -28,15 +28,11 @@ vi.mock('../../api/client', () => ({
   ForgejoClient: vi.fn(),
 }));
 
-vi.mock('../../prFileSystemProvider', () => ({
-  FORGEJO_PR_SCHEME: 'forgejo-pr',
-}));
-
 vi.mock('../../logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
-import { ForgejoIssueMentionProvider } from '../issueMentionProvider';
+import { ForgejoIssueMentionProvider, getMentionRange } from '../issueMentionProvider';
 import { detectLinkedRepository } from '../../worktree/gitOperations';
 import type { ConfigManager } from '../../config';
 
@@ -126,5 +122,68 @@ describe('ForgejoIssueMentionProvider linked repository cache', () => {
     ids = ['inst-d', 'inst-e'];
     await provider.provideDocumentLinks(document as never, {} as never);
     expect(detectMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('getMentionRange', () => {
+  function docAt(text: string) {
+    return { lineAt: () => ({ text }) };
+  }
+
+  it('replaces only the trigger and typed text, not a preceding word (`foo@`)', () => {
+    const range = getMentionRange(docAt('foo@') as never, { line: 0, character: 4 } as never) as unknown as {
+      args: unknown[];
+    };
+    expect(range.args).toEqual([0, 3, 0, 4]);
+  });
+
+  it('includes the trigger character at line start (`@`)', () => {
+    const range = getMentionRange(docAt('@') as never, { line: 0, character: 1 } as never) as unknown as {
+      args: unknown[];
+    };
+    expect(range.args).toEqual([0, 0, 0, 1]);
+  });
+
+  it('covers trigger plus partially typed text (`#12`)', () => {
+    const range = getMentionRange(docAt('#12') as never, { line: 0, character: 3 } as never) as unknown as {
+      args: unknown[];
+    };
+    expect(range.args).toEqual([0, 0, 0, 3]);
+  });
+});
+
+describe('email address handling', () => {
+  beforeEach(() => {
+    detectMock.mockReset();
+    detectMock.mockResolvedValue({ instanceId: 'inst-a', owner: 'owner', repo: 'repo' } as never);
+  });
+
+  it('does not link the domain part of an email address', async () => {
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-a']));
+    const document = makeFileDocument('contact foo@bar.com');
+    const links = await provider.provideDocumentLinks(document as never, {} as never);
+    expect(links).toEqual([]);
+  });
+
+  it('still links a real user mention', async () => {
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-a']));
+    const document = makeFileDocument('thanks @bar');
+    const links = await provider.provideDocumentLinks(document as never, {} as never);
+    expect(links.length).toBe(1);
+  });
+
+  it('offers no `@` completions right after a word character (email context)', async () => {
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-a']));
+    const document = {
+      uri: { scheme: 'file' },
+      lineAt: () => ({ text: 'foo@' }),
+    };
+    const items = await provider.provideCompletionItems(
+      document as never,
+      { line: 0, character: 4 } as never,
+      {} as never,
+      { triggerCharacter: '@' } as never,
+    );
+    expect(items).toEqual([]);
   });
 });

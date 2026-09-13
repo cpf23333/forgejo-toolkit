@@ -48,6 +48,43 @@ export function computeTokenConflicts(imported: ForgejoInstance[], existing: For
   });
 }
 
+/**
+ * Validate raw instance entries (from an export file or a webview import
+ * message) and rebuild them as plain objects carrying only the known fields.
+ * Invalid entries are dropped and counted. `syncApiUrlsToInstanceUrl` is kept
+ * only when it is actually a boolean, so older exports without it round-trip
+ * to `undefined`.
+ */
+export function sanitizeImportedInstances(items: unknown[]): { valid: ForgejoInstance[]; dropped: number } {
+  const valid: ForgejoInstance[] = [];
+  let dropped = 0;
+  for (const item of items) {
+    const instance = item as Record<string, unknown>;
+    if (
+      instance &&
+      typeof instance.id === 'string' &&
+      typeof instance.url === 'string' &&
+      typeof instance.token === 'string' &&
+      typeof instance.name === 'string' &&
+      typeof instance.username === 'string'
+    ) {
+      valid.push({
+        id: instance.id,
+        url: instance.url,
+        token: instance.token,
+        name: instance.name,
+        username: instance.username,
+        ...(typeof instance.syncApiUrlsToInstanceUrl === 'boolean'
+          ? { syncApiUrlsToInstanceUrl: instance.syncApiUrlsToInstanceUrl }
+          : {}),
+      });
+    } else {
+      dropped += 1;
+    }
+  }
+  return { valid, dropped };
+}
+
 export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData> {
   const content = await fs.promises.readFile(uri.fsPath, 'utf8');
   const parsed = JSON.parse(content) as {
@@ -86,25 +123,7 @@ export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData
       ? (raw as { instances?: unknown[]; settings?: unknown })
       : { instances: Array.isArray(raw) ? raw : undefined, settings: undefined };
   const instances = Array.isArray(data.instances) ? data.instances : [];
-  const validInstances: ForgejoInstance[] = [];
-  for (const item of instances) {
-    const instance = item as Record<string, unknown>;
-    if (
-      typeof instance.id === 'string' &&
-      typeof instance.url === 'string' &&
-      typeof instance.token === 'string' &&
-      typeof instance.name === 'string' &&
-      typeof instance.username === 'string'
-    ) {
-      validInstances.push({
-        id: instance.id,
-        url: instance.url,
-        token: instance.token,
-        name: instance.name,
-        username: instance.username,
-      });
-    }
-  }
+  const { valid: validInstances } = sanitizeImportedInstances(instances);
   if (validInstances.length === 0) {
     throw new Error('No valid instances found in file');
   }

@@ -221,6 +221,14 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect('token' in instances[0]).toBe(false);
   });
 
+  it('refresh() also tells the webview to invalidate its data caches', async () => {
+    provider.refresh();
+    await flushDispatches();
+    const messages = postedMessages(fake.posted);
+    expect(messages.some((m) => m.command === 'instances')).toBe(true);
+    expect(messages.some((m) => m.command === 'refreshData')).toBe(true);
+  });
+
   it('allows http(s) openExternal and blocks other schemes', async () => {
     const openExternal = vscode.env.openExternal as ReturnType<typeof vi.fn>;
     openExternal.mockClear();
@@ -291,6 +299,44 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
     const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
     expect(preview).toMatchObject({ cancelled: true, instances: [] });
+  });
+
+  it('rejects an importInstances message whose entries are all invalid', async () => {
+    fake.send({
+      command: 'importInstances',
+      instances: [{ id: 'broken' }, 'not-an-object', null],
+    });
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+    expect(reply).toBeDefined();
+    expect(reply?.success).toBe(false);
+    expect(typeof reply?.error).toBe('string');
+    // Nothing was added beyond the seed instance.
+    expect(config.getInstances()).toHaveLength(1);
+  });
+
+  it('imports only the valid entries and keeps syncApiUrlsToInstanceUrl', async () => {
+    fake.send({
+      command: 'importInstances',
+      instances: [
+        {
+          id: 'imported-1',
+          url: 'https://forgejo.example.com',
+          token: 'tok',
+          name: 'imported',
+          username: 'user',
+          syncApiUrlsToInstanceUrl: true,
+        },
+        { id: 'broken' },
+      ],
+    });
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+    expect(reply).toMatchObject({ success: true, count: 1 });
+    const imported = config.getInstances().find((i) => i.id === 'imported-1');
+    expect(imported?.syncApiUrlsToInstanceUrl).toBe(true);
   });
 
   it('replies worktreeError with the PR identity when removal fails, keeping the record', async () => {

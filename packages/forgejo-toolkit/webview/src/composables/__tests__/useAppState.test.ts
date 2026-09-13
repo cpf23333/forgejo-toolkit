@@ -957,6 +957,35 @@ describe('useAppState', () => {
       expect(vscodePostMessage()).not.toHaveBeenCalled();
     });
 
+    it('refreshData clears the instance caches and force-reloads the dashboard lists', async () => {
+      const { state } = await createState();
+      dispatchMessage({
+        command: 'instances',
+        data: [
+          { id: 'inst-1', url: 'https://forgejo.example.com', name: 'user@forgejo.example.com', username: 'user' },
+        ],
+      });
+      state.repositoriesCache.set('inst-1', [fakeRepository]);
+      state.myIssuesCache.set('inst-1:open', []);
+      state.myPullRequestsCache.set('inst-1:open', []);
+      vscodePostMessage().mockClear();
+
+      dispatchMessage({ command: 'refreshData' });
+
+      expect(state.repositoriesCache.has('inst-1')).toBe(false);
+      expect(state.myIssuesCache.has('inst-1:open')).toBe(false);
+      expect(state.myPullRequestsCache.has('inst-1:open')).toBe(false);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getRepositories', instanceId: 'inst-1' }),
+      );
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getMyIssues', instanceId: 'inst-1', state: 'open' }),
+      );
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getMyPullRequests', instanceId: 'inst-1', state: 'open' }),
+      );
+    });
+
     it('loadRepoContents uses cache on repeat calls', async () => {
       const { state, mod } = await createState();
       vscodePostMessage().mockClear();

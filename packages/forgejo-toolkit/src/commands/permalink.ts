@@ -43,6 +43,18 @@ function lineRangeFragment(selection: vscode.Selection): string {
   return `#L${start}-L${end}`;
 }
 
+/**
+ * Encode a repository file path for use in a web URL. Each `/` segment is
+ * percent-encoded so names containing `#`, `?`, `%`, spaces, or non-ASCII
+ * characters do not break the link, while the `/` separators stay intact.
+ */
+export function encodePermalinkPath(filePath: string): string {
+  return filePath
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
+
 export async function copyPermalink(config: ConfigManager): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
@@ -60,13 +72,19 @@ export async function copyPermalink(config: ConfigManager): Promise<void> {
       vscode.window.showWarningMessage(vscode.l10n.t('Unable to parse Forgejo PR file URI'));
       return;
     }
+    if (params.isBase && params.status === 'added') {
+      vscode.window.showWarningMessage(
+        vscode.l10n.t('This file was added in the pull request and does not exist on the base ref'),
+      );
+      return;
+    }
     const instance = config.getInstances().find((i) => i.id === params.instanceId);
     if (!instance) {
       vscode.window.showWarningMessage(vscode.l10n.t('Forgejo instance not found'));
       return;
     }
     const normalizedUrl = instance.url.replace(/\/$/, '');
-    permalink = `${normalizedUrl}/${params.owner}/${params.repo}/blob/${params.ref}/${params.path}${lineRangeFragment(selection)}`;
+    permalink = `${normalizedUrl}/${params.owner}/${params.repo}/blob/${params.ref}/${encodePermalinkPath(params.path)}${lineRangeFragment(selection)}`;
   } else if (uri.scheme === 'file') {
     const linked = await detectLinkedRepository(config.getInstances());
     if (!linked) {
@@ -89,7 +107,7 @@ export async function copyPermalink(config: ConfigManager): Promise<void> {
       return;
     }
     const normalizedUrl = instance.url.replace(/\/$/, '');
-    permalink = `${normalizedUrl}/${linked.owner}/${linked.repo}/blob/${sha}/${relativePath}${lineRangeFragment(selection)}`;
+    permalink = `${normalizedUrl}/${linked.owner}/${linked.repo}/blob/${sha}/${encodePermalinkPath(relativePath)}${lineRangeFragment(selection)}`;
   } else {
     vscode.window.showWarningMessage(vscode.l10n.t('Permalink is not supported for this file type'));
     return;

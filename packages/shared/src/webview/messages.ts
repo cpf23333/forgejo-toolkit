@@ -46,6 +46,9 @@ export type PullReviewSubmitEvent = 'COMMENT' | 'APPROVED' | 'REQUEST_CHANGES';
 
 export type HostToWebviewMessage =
   | { command: 'instances'; data: PublicForgejoInstance[] }
+  // Sent by the "refresh instances" command: the webview should drop its
+  // instance-level TTL caches and reload the dashboard lists.
+  | { command: 'refreshData' }
   | {
       command: 'initialState';
       instances: PublicForgejoInstance[];

@@ -31,7 +31,7 @@ import {
 } from '../worktree/gitOperations';
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { computeTokenConflicts, readExportDataFromUri } from './instanceImport';
+import { computeTokenConflicts, readExportDataFromUri, sanitizeImportedInstances } from './instanceImport';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { resolveLocale } from '../utils/resolveLocale';
 
@@ -303,9 +303,28 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'importInstances': {
-        const instancesToImport = Array.isArray((message as { instances?: unknown[] }).instances)
-          ? ((message as { instances?: ForgejoInstance[] }).instances as ForgejoInstance[])
+        const rawInstances = Array.isArray((message as { instances?: unknown[] }).instances)
+          ? (message as { instances: unknown[] }).instances
           : undefined;
+        let instancesToImport: ForgejoInstance[] | undefined;
+        if (rawInstances) {
+          // The webview sends untrusted JSON: validate every entry instead of
+          // trusting the cast. If nothing survives, report it as an import
+          // failure rather than silently importing zero instances.
+          const { valid, dropped } = sanitizeImportedInstances(rawInstances);
+          if (valid.length === 0) {
+            logger.error(`importInstances: dropped all ${dropped} invalid instance entries from the webview`);
+            this._reply('instancesImported', {
+              success: false,
+              error: vscode.l10n.t('No valid instances found in the import data'),
+            });
+            return;
+          }
+          if (dropped > 0) {
+            logger.info(`importInstances: dropped ${dropped} invalid instance entries from the webview`);
+          }
+          instancesToImport = valid;
+        }
         const settings = (message as { settings?: ExportSettings }).settings;
         await this._importInstances(instancesToImport, settings);
         return;
@@ -3114,6 +3133,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
   public refresh() {
     this._sendInstances();
+    // Also tell the webview to invalidate its instance-level data caches —
+    // previously this command only refreshed the instance list itself.
+    this._reply('refreshData', {});
   }
 
   public updateTitle(locale: 'en' | 'zh') {

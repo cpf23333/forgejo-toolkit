@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import type { ConfigManager } from '../config';
 import { ForgejoClient } from '../api/client';
 import { detectLinkedRepository } from '../worktree/gitOperations';
-import { FORGEJO_PR_SCHEME, type ForgejoPrUriParams } from '../prFileSystemProvider';
 import type { LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { logger } from '../logger';
 
@@ -41,51 +40,9 @@ interface MentionCacheEntry {
   expiresAt: number;
 }
 
-function parseForgejoPrUri(uri: vscode.Uri): ForgejoPrUriParams | undefined {
-  if (uri.scheme !== FORGEJO_PR_SCHEME || !uri.query) {
-    return undefined;
-  }
-  try {
-    const query = JSON.parse(uri.query) as Partial<ForgejoPrUriParams>;
-    const pathMatch = uri.path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
-    if (!pathMatch) {
-      return undefined;
-    }
-    const [, instanceId, owner, repo, filepath] = pathMatch;
-    const index = typeof query.index === 'number' ? query.index : Number(query.index);
-    return {
-      instanceId,
-      owner,
-      repo,
-      index: Number.isNaN(index) ? 0 : index,
-      ref: query.ref ?? '',
-      path: filepath,
-      isBase: query.isBase ?? false,
-      status: query.status,
-    };
-  } catch {
-    return undefined;
-  }
-}
-
 async function getRepoContext(document: vscode.TextDocument, config: ConfigManager): Promise<RepoContext | undefined> {
-  if (document.uri.scheme === FORGEJO_PR_SCHEME) {
-    const params = parseForgejoPrUri(document.uri);
-    if (!params) {
-      return undefined;
-    }
-    const instance = config.getInstances().find((i) => i.id === params.instanceId);
-    if (!instance) {
-      return undefined;
-    }
-    return {
-      instanceId: params.instanceId,
-      owner: params.owner,
-      repo: params.repo,
-      instanceUrl: instance.url,
-    };
-  }
-
+  // Only `file` documents are supported: extension.ts registers this provider
+  // with `{ scheme: 'file' }`, so forgejo-pr virtual documents never reach it.
   if (document.uri.scheme === 'file') {
     const linked = await detectLinkedRepositoryCached(config);
     if (!linked) {
@@ -106,17 +63,20 @@ async function getRepoContext(document: vscode.TextDocument, config: ConfigManag
   return undefined;
 }
 
-function getMentionRange(document: vscode.TextDocument, position: vscode.Position): vscode.Range {
+export function getMentionRange(document: vscode.TextDocument, position: vscode.Position): vscode.Range {
   const line = document.lineAt(position.line);
   const text = line.text;
   let start = position.character;
-  while (start > 0) {
-    const char = text[start - 1];
-    if (char === '#' || char === '@' || /[a-zA-Z0-9_.-]/.test(char)) {
-      start -= 1;
-    } else {
-      break;
-    }
+  // Walk back over word characters only. Swallowing `#`/`@` here would let the
+  // range eat a preceding word (e.g. `foo@` would replace `foo@` instead of
+  // just `@`).
+  while (start > 0 && /[a-zA-Z0-9_.-]/.test(text[start - 1])) {
+    start -= 1;
+  }
+  // Include a directly preceding trigger character so the completion's
+  // insertText (`#123` / `@user`) replaces it instead of duplicating it.
+  if (start > 0 && (text[start - 1] === '#' || text[start - 1] === '@')) {
+    start -= 1;
   }
   return new vscode.Range(position.line, start, position.line, position.character);
 }
@@ -177,6 +137,11 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
 
     USER_MENTION_REGEX.lastIndex = 0;
     while ((match = USER_MENTION_REGEX.exec(text)) !== null) {
+      // Skip email addresses: a word character directly before `@` means this
+      // is not a user mention (e.g. `foo@bar.com`).
+      if (match.index > 0 && /[a-zA-Z0-9_.-]/.test(text[match.index - 1])) {
+        continue;
+      }
       const start = document.positionAt(match.index);
       const end = document.positionAt(match.index + match[0].length);
       const link = new vscode.DocumentLink(new vscode.Range(start, end));
@@ -198,6 +163,16 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
     const trigger = completionContext.triggerCharacter;
     if (trigger !== '#' && trigger !== '@') {
       return [];
+    }
+
+    // Do not offer user completions inside an email address: when `@` was just
+    // typed, the character before it being a word character means this is
+    // something like `foo@bar.com`, not a mention.
+    if (trigger === '@' && position.character >= 2) {
+      const lineText = document.lineAt(position.line).text;
+      if (/[a-zA-Z0-9_.-]/.test(lineText[position.character - 2])) {
+        return [];
+      }
     }
 
     const context = await getRepoContext(document, this.config);

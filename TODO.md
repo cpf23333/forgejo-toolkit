@@ -54,7 +54,7 @@
 - [ ] 切换 state/tab 时列表闪烁（新 key 无缓存直接替换为加载中）；可保留旧列表渲染
 - [ ] 通知筛选切换无防抖，连续切换产生多次请求
 - [ ] i18n 漏网：state 徽章直接渲染英文 "open"/"closed"、`aria-label="Close"` 硬编码、`Connected to Forgejo as ...` 等成功提示不走 l10n
-- [ ] Onboarding 缺「去实例上创建 token」链接；`scm/title` 缺 Publish/Create PR 图形入口；「刷新实例」按钮可能只刷新实例列表不刷新数据（需实测）
+- [ ] Onboarding 缺「去实例上创建 token」链接；`scm/title` 缺 Publish/Create PR 图形入口（原含「刷新实例只刷列表」存疑，已坐实并修复，见下文第四轮条目）
 - [ ] `InstanceList.vue` 整段英文硬编码且已无人引用（死代码，可删）
 
 #### 第三轮走查（2026-09-03，CDP 截图 + 坐标点击实测 mock 环境）
@@ -82,14 +82,14 @@
 **高（功能正确性）**
 
 - [ ] 多窗口实例配置互相覆盖：globalState 读-改-写无跨窗口监听，窗口 B 用陈旧列表回写丢掉窗口 A 新增的实例（`config.ts` `addInstance`/`removeInstance`）
-- [ ] mention 补全 range 回扫吞字：`foo@` 触发补全选中后 `foo` 被整体替换删除（`issueMentionProvider.ts:90-103`）；`@` 文档链接误匹配邮箱 `foo@bar.com`；`forgejo-pr` scheme 分支是死代码（只注册了 `file` scheme）
-- [ ] permalink 不做 URL 编码：文件名含 `#`/`?`/`%` 生成坏链接（`permalink.ts:69,92`）；新增文件的 base 侧生成 404 链接
+- [x] mention 补全 range 回扫吞字：`foo@` 触发补全选中后 `foo` 被整体替换删除（`issueMentionProvider.ts:90-103`）；`@` 文档链接误匹配邮箱 `foo@bar.com`；`forgejo-pr` scheme 分支是死代码（只注册了 `file` scheme）——已修：`getMentionRange` 回扫只吃单词字符、停下后仅补退一格含触发符（`foo@` 只替换 `@` 起部分，`@`/`#` insertText 正好整体覆盖）；`@` 文档链接与补全各加「前一字符是单词字符即邮箱上下文」守卫；删 `forgejo-pr` scheme 死分支与 `parseForgejoPrUri`；`getMentionRange` 导出直测，补 6 个测试
+- [x] permalink 不做 URL 编码：文件名含 `#`/`?`/`%` 生成坏链接（`permalink.ts:69,92`）；新增文件的 base 侧生成 404 链接——已修：新增导出纯函数 `encodePermalinkPath` 按 `/` 分段 `encodeURIComponent`（分隔符保留），forgejo-pr 与 file 两处拼接套用；base 侧新增文件（`isBase && status === 'added'`）不生成链接、弹 l10n 警告（双语新 key）；补 permalink 6 个纯函数测试
 - [ ] worktree 裸缓存仓库（`cacheDir/repos/*.git`）永不删除，无磁盘清理策略（阶段 6 明确排除，独立功能）
 
 **中低**
 
 - [ ] 发布功能：422 被合并误判为「名称冲突」且无客户端仓库名校验；空仓库（无 commit）发布提示「No branch is checked out」偏离真实原因且已创建半成品远程仓库；发布成功后无任何列表刷新；同主机多账号 `findInstanceForRemote` 只取第一个命中，可能用错 token push
-- [ ] 实例导入：`importInstances` 对 webview 回传数据无逐项校验；文件导入漏拷 `syncApiUrlsToInstanceUrl` 字段（导出有、导入丢）
+- [x] 实例导入：`importInstances` 对 webview 回传数据无逐项校验；文件导入漏拷 `syncApiUrlsToInstanceUrl` 字段（导出有、导入丢）——已修：提取共享 `sanitizeImportedInstances`（校验 id/url/token/name/username 必填 string、仅在布尔时保留 `syncApiUrlsToInstanceUrl`、计数丢弃项），文件导入与 webview 回传共用；回传全非法时回 `instancesImported { success: false, error }`（l10n 双语新 key），部分非法记日志后只导入合法项；补 instanceImport 4 个 + dispatch 2 个测试
 - [ ] Action artifact 下载改流式写盘：现在 `arrayBuffer()` 全量读进扩展宿主内存（为此加了 50MB 上限），改流式下载直接写盘后可去掉上限，支持大产物
 - [ ] 无版本探测/降级：Actions、`return_run_info`、PR files 等较新端点对老 Gitea/Forgejo 实例直接 404；建议首次连接调 `/api/v1/version` 特性门控，或文档声明最低版本
 - [ ] onboardingPanel 的消息入口未加 tracker 兜底（viewProvider 已有，其 handler 均自带 try/catch，可后续套用同一模式）
@@ -121,7 +121,7 @@
 - [x] 键盘可达性系统性短板：主列表项用 `div/li @click` 无 tabindex/keydown（`RepoActions.vue:360` 进运行详情唯一入口、`RepoFileHistoryDialog.vue:87`、`CommitDiffList.vue:99`、`RepoFileBrowser.vue:219`、`AttachmentList.vue:86`）；`ViewTabs.vue` 声明 `role="tablist"` 但无方向键导航/roving tabindex——已修：5 处加 `tabindex="0"` + Enter/Space 触发（AttachmentList 额外 `role="link"`，action-run-item `role="button"`）；ViewTabs 补 ARIA tabs 模式：Left/Right 循环切换并移动焦点，仅激活 tab `tabindex="0"`
 - [x] mock 保真度（会让走查误判为扩展 bug）：仓库级 issues 端点忽略 `type`/`q` 参数（`handlers.ts:111-116`，搜 PR 返回 Issue、搜 Issue 恒全量）；Issue/PR 关闭/重开 state 不持久化（PATCH 后 GET 回静态数据，只有 merge 有翻转）；评审 pending-only 约束不模拟（两条 422 错误路径在 mock 下是死代码）；仓库详情端点忽略 `:repo`（another-repo 显示 demo-repo 数据）；`mockPullReview.state` 用了 GitHub 式 `'COMMENTED'`（真实为 `'COMMENT'`）——已修：issues 端点支持 `type=pulls` 分派与 title/body 大小写不敏感 `q` 过滤；PATCH 编辑落模块级 `issueEdits`/`pullEdits`，后续 GET 详情/列表反映；非 pending 评审的评论/提交返回 422；仓库详情按 `:repo` 分派；`mockPullReview.state` 改 `'COMMENT'`；补 5 个保真测试 + 2 个 422 测试
 - [x] msw + 全部 mock 数据被打进生产扩展包：`extension.ts:31-41` 动态 import mock server，`esbuild.js` 无剥离配置，`out/extension.js`（479KB）含全部 handlers；`useMockApi` 是公开设置，用户开启后 msw 以 warn 模式拦截宿主所有 HTTPS 请求；production 构建应剥离并把设置标注为开发用途——已修：mock 启动加 `FORGEJO_TOOLKIT_INCLUDE_MOCKS === 'true'` 环境守卫，`esbuild.js` `define` 在 production 构建置 `'"false"'` 使整块成死代码被剥离；`useMockApi` description 双语标注仅开发用途，`worktreeOpenMode` 三条 enumDescriptions 改 package.nls 占位
-- [ ] 「刷新实例」按钮坐实只刷实例列表：`refreshInstances` → `_sendInstances()`（`viewProvider.ts:3110-3112`），仓库/issue/PR 数据不刷新（TODO 第二轮的"需实测"可坐实）
+- [x] 「刷新实例」按钮坐实只刷实例列表：`refreshInstances` → `_sendInstances()`（`viewProvider.ts:3110-3112`），仓库/issue/PR 数据不刷新（TODO 第二轮的"需实测"可坐实）——已修：`refresh()` 除 `_sendInstances()` 外新发 `refreshData` 消息（`HostToWebviewMessage` 加协议条目），webview 收到后清 repositories/myIssues/myPullRequests 三个实例级 TTL 缓存并对每个实例 force 重拉（走已有 loading key 去重，不引入并发重复）；补 dispatch 1 个 + useAppState 1 个测试
 
 **轻**
 
@@ -160,6 +160,7 @@
 
 ### 最近完成
 
+- [x] 批 9 正确性快修（TODO :85/:86/:92/:124 四条）：mention 补全三问题——`getMentionRange` 回扫只吃单词字符不再吞 `foo@` 的 `foo`（触发符单独补退一格），`@` 文档链接/补全加邮箱上下文守卫，删 `forgejo-pr` scheme 死代码分支；permalink 路径按 `/` 分段 `encodeURIComponent`（`#`/`?`/`%`/空格/中文文件名不再坏链），base 侧新增文件不生成 404 链接改弹 l10n 警告；实例导入提取共享 `sanitizeImportedInstances`——文件导入不再丢 `syncApiUrlsToInstanceUrl`，webview 回传逐项校验、全非法回 `instancesImported` 错误；「刷新实例」除实例列表外新发 `refreshData` 消息，webview 清三个实例级 TTL 缓存并对每个实例 force 重拉仓库/我的 Issue/PR（loading key 去重）；l10n 双语各加 2 key；补 20 个测试（mention 6、permalink 6、instanceImport 4、dispatch 3、useAppState 1，全量 webview 136 + extension 294 通过）
 - [x] 批 8 UI 存疑项实测（tools/ui-review harness，CDP 截图 + 坐标点击 + workbench eval）：`App.vue` 返回按钮「重建后死按钮」不成立——Reload Webviews 后 memory history 直接重置回 `/`，无深路由恢复机制，按钮不显示；正常导航全部 `router.push` 自 `/`，阳性对照点返回正常回列表；tab 栏激活态歧义坐实为 hover 残留——`.tab-button:hover` 的 `--vscode-list-hoverBackground` 深色块，鼠标移开即消失，非 focus 样式（修法建议已记条目，未修）；gutter 单击误设断点坐实——inline diff 修改侧 19px glyph margin（DOM 实测定位），默认设置可复现，对照组（普通 .ts 文件 gutter）验证点击机制，`vscode.diff` 无选项、when 子句拦不住，判平台限制并记 KNOWN_ISSUES 双语；实测中临时开启的 `debug.allowBreakpointsEverywhere` 与 `renderSideBySide` 已还原、断点已清空、临时 baseline.ts 已删
 - [x] 批 7 存疑区代码修复（第四轮「存疑」4 条）：评论面板创建固定 `ViewColumn.Beside` 不再盖住 diff 编辑器、复用时 `reveal()` 不传 column 保留用户拖动位置；`prFileSystemProvider.stat` 的 `mtime` 改常量 0（URI 以 sha 寻址无需 mtime 信号）；`git clone --bare` 加 `--quiet` 防大仓库进度写爆 execFile 1MB maxBuffer；`_detectServerOrigin` 按 key 跳过 `avatar_url`（外部头像服务不再被误判为服务器 origin）；既有 URL 改写测试改走 `getRepoDetail` 的 `html_url`（原断言依赖 avatar 参与探测）；补 gitOperations 1 个、client 1 个测试，panel 2 处断言
 - [x] 批 6 宿主端修复（第四轮「中」3 条 +「轻」6 条）：worktree「替换当前窗口」取消后正确回 `worktreeCancelled`——`openWorktree` 返回 `Promise<boolean>`，两处 `addWorktree` 记录移到确认后；多窗口 token 同步——`config.ts` 监听 `secrets.onDidChange`（前缀过滤）更新 `_tokens` 并 fire `onInstancesChanged`；msw 剥离生产包——mock 启动加 `FORGEJO_TOOLKIT_INCLUDE_MOCKS` 环境守卫 + `esbuild.js` `define` 死代码消除，`useMockApi` 标注仅开发用途、`worktreeOpenMode` enumDescriptions 走 package.nls 双语；`revertMergeCommit` 校验当前分支（非 PR base 分支抛 l10n 错中止）且 push 改走 `pushBranch` 带 token + 远端归属校验；`_commentContextMap` 随 thread dispose/评论重建按 contextValue 清理，附件图片缓存加 100 条 LRU；mention 仓库探测加 30s 缓存（含负结果，实例列表变更失效）；`renderedMarkdownCache` 加 `maxEntries = 100` 上限（`createTimedCache` 新可选参数）；`client.renderMarkdown` 改走 `_client()` 管道；Dashboard 我的 Issue/PR 改 `_fetchAllPages` 全量分页；补 gitOperations 7 个、config 2 个、issueMentionProvider 4 个、pullReviewCommentController 1 个、resolveAttachmentImages 1 个、createTimedCache 2 个测试

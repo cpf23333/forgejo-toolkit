@@ -412,6 +412,9 @@ function createAppState() {
       case 'instances':
         instances.value = message.data ?? [];
         break;
+      case 'refreshData':
+        refreshInstanceData();
+        break;
       case 'requestError': {
         const { _requestId, error } = message as { _requestId?: unknown; error?: unknown };
         if (typeof _requestId === 'string') {
@@ -3989,6 +3992,23 @@ function createAppState() {
     }
     beginLoading(key);
     postMessage({ command: 'getRepositories', instanceId });
+  }
+
+  /**
+   * Handle the host "refresh instances" command: drop the instance-level TTL
+   * caches and force-reload the dashboard lists (repositories, my issues, my
+   * pull requests) for every known instance. In-flight requests are left alone
+   * — the load functions dedupe on their loading keys.
+   */
+  function refreshInstanceData() {
+    repositoriesCache.clear();
+    myIssuesCache.clear();
+    myPullRequestsCache.clear();
+    for (const instance of instances.value) {
+      loadRepositories(instance.id, true);
+      loadMyIssues(instance.id, 'open', true);
+      loadMyPullRequests(instance.id, 'open', true);
+    }
   }
 
   function loadMyIssues(instanceId: string, state = 'open', force = false) {

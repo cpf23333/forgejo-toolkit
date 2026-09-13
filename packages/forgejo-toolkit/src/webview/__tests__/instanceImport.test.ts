@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import * as crypto from 'crypto';
-import { computeTokenConflicts, decryptExportData, MAX_IMPORT_PBKDF2_ITERATIONS } from '../instanceImport';
+import {
+  computeTokenConflicts,
+  decryptExportData,
+  MAX_IMPORT_PBKDF2_ITERATIONS,
+  sanitizeImportedInstances,
+} from '../instanceImport';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 function instance(id: string, token: string): ForgejoInstance {
@@ -64,5 +69,46 @@ describe('decryptExportData iteration count guard', () => {
   it.each([0, -1, 1.5, MAX_IMPORT_PBKDF2_ITERATIONS + 1])('rejects the iteration count %s', (iterations) => {
     const payload = { ...encryptPayload({}, 'pw'), iterations };
     expect(() => decryptExportData(payload, 'pw')).toThrow(RangeError);
+  });
+});
+
+describe('sanitizeImportedInstances', () => {
+  it('keeps valid entries and rebuilds them with only the known fields', () => {
+    const { valid, dropped } = sanitizeImportedInstances([
+      { id: 'a', url: 'https://forgejo.example.com', token: 't', name: 'n', username: 'u', extra: 'dropped' },
+    ]);
+    expect(dropped).toBe(0);
+    expect(valid).toEqual([{ id: 'a', url: 'https://forgejo.example.com', token: 't', name: 'n', username: 'u' }]);
+    expect('extra' in valid[0]).toBe(false);
+  });
+
+  it('preserves syncApiUrlsToInstanceUrl when it is a boolean', () => {
+    const { valid } = sanitizeImportedInstances([
+      { id: 'a', url: 'u', token: 't', name: 'n', username: 'u', syncApiUrlsToInstanceUrl: true },
+      { id: 'b', url: 'u', token: 't', name: 'n', username: 'u', syncApiUrlsToInstanceUrl: false },
+    ]);
+    expect(valid[0].syncApiUrlsToInstanceUrl).toBe(true);
+    expect(valid[1].syncApiUrlsToInstanceUrl).toBe(false);
+  });
+
+  it('drops a non-boolean syncApiUrlsToInstanceUrl instead of trusting it', () => {
+    const { valid } = sanitizeImportedInstances([
+      { id: 'a', url: 'u', token: 't', name: 'n', username: 'u', syncApiUrlsToInstanceUrl: 'yes' },
+    ]);
+    expect('syncApiUrlsToInstanceUrl' in valid[0]).toBe(false);
+  });
+
+  it('drops entries missing required string fields and counts them', () => {
+    const { valid, dropped } = sanitizeImportedInstances([
+      { id: 'a', url: 'u', token: 't', name: 'n', username: 'u' },
+      { id: 'b', url: 'u', token: 't', name: 'n' }, // missing username
+      { url: 'u', token: 't', name: 'n', username: 'u' }, // missing id
+      null,
+      'not-an-object',
+      { id: 1, url: 'u', token: 't', name: 'n', username: 'u' }, // non-string id
+    ]);
+    expect(valid).toHaveLength(1);
+    expect(valid[0].id).toBe('a');
+    expect(dropped).toBe(5);
   });
 });

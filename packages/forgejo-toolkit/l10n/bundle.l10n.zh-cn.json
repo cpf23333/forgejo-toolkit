@@ -39,6 +39,8 @@
   "Unable to determine current commit SHA": "无法确定当前 commit SHA",
   "The current file is outside the linked repository": "当前文件不在关联仓库内",
   "Permalink is not supported for this file type": "该文件类型不支持复制 permalink",
+  "This file was added in the pull request and does not exist on the base ref": "该文件是在此 PR 中新增的，base 分支上不存在",
+  "No valid instances found in the import data": "导入数据中没有有效的实例",
   "Permalink copied to clipboard": "Permalink 已复制到剪贴板",
   "Failed to copy permalink: {0}": "复制 permalink 失败：{0}",
   "Open issue/PR #{0}": "打开 Issue/PR #{0}",

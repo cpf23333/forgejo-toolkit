@@ -39,6 +39,8 @@
   "Unable to determine current commit SHA": "Unable to determine current commit SHA",
   "The current file is outside the linked repository": "The current file is outside the linked repository",
   "Permalink is not supported for this file type": "Permalink is not supported for this file type",
+  "This file was added in the pull request and does not exist on the base ref": "This file was added in the pull request and does not exist on the base ref",
+  "No valid instances found in the import data": "No valid instances found in the import data",
   "Permalink copied to clipboard": "Permalink copied to clipboard",
   "Failed to copy permalink: {0}": "Failed to copy permalink: {0}",
   "Open issue/PR #{0}": "Open issue/PR #{0}",
