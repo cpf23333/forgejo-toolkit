@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { nextTick, ref, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState } from '../composables/useAppState';
 
@@ -43,6 +43,7 @@ function updateDialog(open: boolean) {
 onMounted(() => {
   if (props.open) {
     updateDialog(true);
+    void focusAutofocusTarget();
   }
 });
 
@@ -50,8 +51,19 @@ watch(
   () => props.open,
   (open) => {
     updateDialog(open);
+    if (open) {
+      void focusAutofocusTarget();
+    }
   },
 );
+
+// The native `autofocus` attribute does not apply inside webview dialogs that
+// open after mount; focus the marked field explicitly once the dialog shows.
+async function focusAutofocusTarget() {
+  await nextTick();
+  const target = dialogRef.value?.querySelector<HTMLElement>('[data-autofocus]');
+  target?.focus();
+}
 
 // Guards against duplicate confirm dialogs while one showConfirm call is pending.
 const confirmCloseInFlight = ref(false);
@@ -120,7 +132,15 @@ function handleClose() {
   <dialog ref="dialogRef" class="modal-dialog" @click="handleClick" @cancel="handleCancel" @close="handleClose">
     <div class="modal-header">
       <h3 v-if="title" class="modal-title">{{ title }}</h3>
-      <button v-if="!loading" type="button" class="modal-close" aria-label="Close" @click="requestClose">×</button>
+      <button
+        v-if="!loading"
+        type="button"
+        class="modal-close"
+        :aria-label="t('dashboard.actions.close')"
+        @click="requestClose"
+      >
+        ×
+      </button>
     </div>
     <div class="modal-body">
       <slot />

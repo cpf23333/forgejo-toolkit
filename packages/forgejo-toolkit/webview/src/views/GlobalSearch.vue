@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState, globalSearchKey } from '../composables/useAppState';
 import type { ForgejoIssue, ForgejoPullRequest, ForgejoRepository, GlobalSearchResult } from '../types/api';
 import type { ForgejoInstance } from '../types/instance';
+import { stateLabel } from '../utils/stateLabel';
 import ViewTabs from '../components/ViewTabs.vue';
 
 const { t } = useI18n();
@@ -197,6 +198,12 @@ function initializeInstanceMap() {
 
 watch(instances, initializeInstanceMap, { immediate: true });
 
+// The autofocus attribute is unreliable inside the webview; focus explicitly
+// both on first mount and when returning to this (keep-alive) view.
+const searchInputRef = ref<HTMLElement | null>(null);
+onMounted(() => searchInputRef.value?.focus());
+onActivated(() => searchInputRef.value?.focus());
+
 watch(activeTab, () => {
   if (currentQuery()) {
     runSearch();
@@ -217,6 +224,7 @@ watch(stateFilter, () => {
       <p class="search-description">{{ t('dashboard.search.description') }}</p>
       <div class="search-controls">
         <vscode-textfield
+          ref="searchInputRef"
           :value="query"
           @input="query = ($event.target as HTMLInputElement).value"
           class="search-input"
@@ -231,24 +239,38 @@ watch(stateFilter, () => {
         <div class="filter-group">
           <span class="filter-label">{{ t('dashboard.search.instanceFilter') }}</span>
           <div class="instance-checkboxes">
-            <label class="instance-checkbox">
-              <input v-model="allInstancesSelected" type="checkbox" />
-              <span>{{ t('dashboard.search.allInstances') }}</span>
-            </label>
-            <label v-for="instance in instances" :key="instance.id" class="instance-checkbox">
-              <input v-model="selectedInstanceMap[instance.id]" type="checkbox" />
-              <span :title="instance.url">{{ instance.url }} · {{ instance.username }}</span>
-            </label>
+            <vscode-checkbox
+              class="instance-checkbox"
+              :checked="allInstancesSelected"
+              @change="allInstancesSelected = ($event.target as HTMLInputElement).checked"
+            >
+              {{ t('dashboard.search.allInstances') }}
+            </vscode-checkbox>
+            <vscode-checkbox
+              v-for="instance in instances"
+              :key="instance.id"
+              class="instance-checkbox"
+              :checked="selectedInstanceMap[instance.id]"
+              :title="instance.url"
+              @change="selectedInstanceMap[instance.id] = ($event.target as HTMLInputElement).checked"
+            >
+              {{ instance.url }} · {{ instance.username }}
+            </vscode-checkbox>
           </div>
         </div>
         <div v-if="isStateFilterVisible()" class="filter-group">
           <label for="state-filter" class="filter-label">{{ t('dashboard.search.stateFilter') }}</label>
           <p class="filter-description">{{ t('dashboard.search.stateFilterDescription') }}</p>
-          <select id="state-filter" v-model="stateFilter" class="state-filter-select">
-            <option value="open">{{ t('dashboard.state.open') }}</option>
-            <option value="closed">{{ t('dashboard.state.closed') }}</option>
-            <option value="all">{{ t('dashboard.state.all') }}</option>
-          </select>
+          <vscode-single-select
+            id="state-filter"
+            class="state-filter-select"
+            :value="stateFilter"
+            @change="stateFilter = ($event.target as HTMLInputElement).value as typeof stateFilter"
+          >
+            <vscode-option value="open">{{ t('dashboard.state.open') }}</vscode-option>
+            <vscode-option value="closed">{{ t('dashboard.state.closed') }}</vscode-option>
+            <vscode-option value="all">{{ t('dashboard.state.all') }}</vscode-option>
+          </vscode-single-select>
         </div>
       </div>
     </div>
@@ -372,7 +394,7 @@ watch(stateFilter, () => {
                   @click.capture="openIssue($event, instance.id, issue)"
                 >
                   <span class="result-title">#{{ issue.number }} {{ issue.title }}</span>
-                  <span class="result-meta" slot="description">{{ issue.state }}</span>
+                  <span class="result-meta" slot="description">{{ stateLabel(issue.state, t) }}</span>
                   <span slot="actions" class="tree-actions">
                     <vscode-icon
                       name="link-external"
@@ -400,7 +422,7 @@ watch(stateFilter, () => {
                 @click.capture="openIssue($event, instance.id, issue)"
               >
                 <span class="result-title">#{{ issue.number }} {{ issue.title }}</span>
-                <span class="result-meta" slot="description">{{ issue.state }}</span>
+                <span class="result-meta" slot="description">{{ stateLabel(issue.state, t) }}</span>
                 <span slot="actions" class="tree-actions">
                   <vscode-icon
                     name="link-external"
@@ -436,7 +458,7 @@ watch(stateFilter, () => {
                   @click.capture="openPullRequest($event, instance.id, pr)"
                 >
                   <span class="result-title">#{{ pr.number }} {{ pr.title }}</span>
-                  <span class="result-meta" slot="description">{{ pr.state }}</span>
+                  <span class="result-meta" slot="description">{{ stateLabel(pr.state, t) }}</span>
                   <span slot="actions" class="tree-actions">
                     <vscode-icon
                       name="link-external"
@@ -464,7 +486,7 @@ watch(stateFilter, () => {
                 @click.capture="openPullRequest($event, instance.id, pr)"
               >
                 <span class="result-title">#{{ pr.number }} {{ pr.title }}</span>
-                <span class="result-meta" slot="description">{{ pr.state }}</span>
+                <span class="result-meta" slot="description">{{ stateLabel(pr.state, t) }}</span>
                 <span slot="actions" class="tree-actions">
                   <vscode-icon
                     name="link-external"
@@ -563,28 +585,17 @@ watch(stateFilter, () => {
 }
 
 .instance-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
   font-size: 0.85em;
-  color: var(--vscode-foreground);
-  cursor: pointer;
-}
-
-.instance-checkbox span {
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 100%;
 }
 
 .state-filter-select {
-  background-color: var(--vscode-dropdown-background);
-  color: var(--vscode-dropdown-foreground);
-  border: 1px solid var(--vscode-dropdown-border);
-  padding: 4px 8px;
+  --vscode-settings-dropdownBackground: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --vscode-settings-dropdownBorder: transparent;
+  --vscode-settings-dropdownListBorder: var(--vscode-panel-border, transparent);
+  width: auto;
+  min-width: 120px;
   font-size: 0.85em;
-  max-width: 200px;
 }
 
 .empty-state {

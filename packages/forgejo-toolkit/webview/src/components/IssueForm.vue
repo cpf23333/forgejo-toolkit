@@ -211,6 +211,7 @@ function handleSubmit() {
       <label>{{ t('dashboard.form.title') }}</label>
       <vscode-textfield
         :value="title"
+        data-autofocus
         @input="title = ($event.target as HTMLInputElement).value"
         :placeholder="t('dashboard.form.titlePlaceholder')"
       />

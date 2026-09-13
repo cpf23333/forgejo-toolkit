@@ -137,7 +137,7 @@ export class OnboardingWebviewPanel {
               await this._config.addInstance(instance);
               this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
               this._reply('saveInstanceResult', { success: true });
-              vscode.window.showInformationMessage(`Connected to Forgejo as ${user.login}`);
+              vscode.window.showInformationMessage(vscode.l10n.t('Connected to Forgejo as {0}', user.login));
             } catch (error) {
               const err = userFacingErrorMessage(error);
               logger.error(`onboarding saveInstance failed: ${err}`);

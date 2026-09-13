@@ -124,5 +124,9 @@
   "Unable to open selected diffs: {0}": "无法打开选中的 diff：{0}",
   "Unable to open file: {0}": "无法打开文件：{0}",
   "Copied to clipboard": "已复制到剪贴板",
-  "Revert aborted: the current branch is not the pull request base branch {0}": "已中止 revert：当前分支不是该 PR 的目标分支 {0}"
+  "Revert aborted: the current branch is not the pull request base branch {0}": "已中止 revert：当前分支不是该 PR 的目标分支 {0}",
+  "Connected to Forgejo as {0}": "已连接到 Forgejo，身份为 {0}",
+  "Updated Forgejo instance for {0}": "已更新 {0} 的 Forgejo 实例",
+  "Discard Draft": "丢弃草稿",
+  "The current draft comment will be discarded.": "当前评论草稿将被丢弃。"
 }

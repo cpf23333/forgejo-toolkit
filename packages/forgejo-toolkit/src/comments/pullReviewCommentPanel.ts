@@ -43,7 +43,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     callbacks?: PullReviewCommentPanelCallbacks,
   ): PullReviewCommentPanel {
     if (PullReviewCommentPanel.currentPanel) {
-      PullReviewCommentPanel.currentPanel._setContext(reviewContext, callbacks);
+      PullReviewCommentPanel.currentPanel._switchContext(reviewContext, callbacks);
       // Keep the panel where it is: revealing with a column would drag it back
       // next to the active editor even if the user moved it elsewhere.
       PullReviewCommentPanel.currentPanel._panel.reveal();
@@ -135,6 +135,73 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     this._callbacks = callbacks;
     this._panel.title = PullReviewCommentPanel._title(reviewContext);
     this._sendOpenEditor();
+  }
+
+  // Serializes context switches so rapid line changes cannot stack two
+  // discard confirmations on top of each other.
+  private _contextSwitch: Promise<void> = Promise.resolve();
+
+  /**
+   * Mirrors the webview editor key: same key means the editor is not rebuilt
+   * and the draft survives, so no confirmation is needed.
+   */
+  private _contextKey(c: PullReviewCommentContext): string {
+    return `${c.instanceId}:${c.owner}/${c.repo}#${c.index}:${c.path}:${c.lineNumber}:${c.isBase}:${c.mode}:${c.pendingReviewId ?? ''}`;
+  }
+
+  private _switchContext(reviewContext: PullReviewCommentContext, callbacks?: PullReviewCommentPanelCallbacks): void {
+    if (this._contextKey(reviewContext) === this._contextKey(this._context)) {
+      this._setContext(reviewContext, callbacks);
+      return;
+    }
+    this._contextSwitch = this._contextSwitch.then(() => this._confirmAndSetContext(reviewContext, callbacks));
+  }
+
+  /**
+   * Switching context rebuilds the editor and drops any unsubmitted draft.
+   * Ask the webview whether a draft exists, and if so make the user confirm
+   * the discard first (declining keeps the old context and draft).
+   */
+  private async _confirmAndSetContext(
+    reviewContext: PullReviewCommentContext,
+    callbacks?: PullReviewCommentPanelCallbacks,
+  ): Promise<void> {
+    if (await this._queryDraftDirty()) {
+      const discardLabel = vscode.l10n.t('Discard Draft');
+      const choice = await vscode.window.showWarningMessage(
+        vscode.l10n.t('The current draft comment will be discarded.'),
+        { modal: true },
+        discardLabel,
+      );
+      if (choice !== discardLabel) {
+        return;
+      }
+    }
+    this._setContext(reviewContext, callbacks);
+  }
+
+  /**
+   * Ask the webview editor whether it holds an unsubmitted draft. A webview
+   * that fails to answer is treated as clean: blocking the switch (or
+   * prompting on a stale panel) would be worse than the residual risk.
+   */
+  private _queryDraftDirty(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        subscription.dispose();
+        logger.debug('Pull review draft-state query timed out; switching context without confirmation');
+        resolve(false);
+      }, 2000);
+      const subscription = this._panel.webview.onDidReceiveMessage((message) => {
+        const data = message as { command?: string; dirty?: boolean };
+        if (data.command === 'pullReviewCommentDraftState') {
+          clearTimeout(timer);
+          subscription.dispose();
+          resolve(Boolean(data.dirty));
+        }
+      });
+      void this._panel.webview.postMessage({ command: 'queryPullReviewCommentDraft' });
+    });
   }
 
   private _sendOpenEditor(): void {

@@ -60,6 +60,7 @@
     "serverDescription": "输入你的 Forgejo 实例地址和访问令牌，测试连接成功后保存。",
     "importHint": "已有配置文件？",
     "importFromFile": "从文件导入",
+    "createTokenLink": "前往实例创建 token",
     "worktreeDescription": "选择在本地打开 PR 的方式以及 worktree 的存放位置。",
     "completeDescription": "基础设置已完成，可以进入仪表盘了。",
     "prev": "上一步",
@@ -206,6 +207,7 @@
     "state": {
       "open": "打开",
       "closed": "已关闭",
+      "merged": "已合并",
       "all": "全部"
     },
     "repoIssues": {

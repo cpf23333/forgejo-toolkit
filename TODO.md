@@ -25,7 +25,7 @@
 - [x] 10+ 处 `.catch(() => undefined)` 静默吞错，部分用户操作（如同步）失败时无任何反馈；至少加日志，关键路径提示用户——已修：`client.ts` 新增 `_probe()` 私有助手（失败记 debug 日志返回 undefined），转换全部 8 处探测性 `.catch(() => undefined)`（getReadme、Issue/PR 详情探测、用户/Issue 预览等），评论 assets 与仓库计数补充的 catch 补 debug 日志；设计内 fallback（搜索降级为 []、URI 解析守卫、keepalive、onboarding 图片探测）保留原样
 - [x] 多根 workspace 下关联检测只取第一个匹配的仓库，状态栏与命令上下文可能张冠李戴——已修：`detectLinkedRepository` 优先检测「活动编辑器所属 workspace 文件夹」（path.relative 判定包含关系后排序），无活动编辑器或无匹配时退回原顺序的第一个匹配；补 2 个测试
 - [ ] 通知轮询默认间隔 300s 延迟偏大，新通知弹窗也无聚合（一次弹多个）；考虑缩短默认值、聚合提示、动作失败时回滚已读标记
-- [ ] Review 评论面板是单例（`PullReviewCommentPanel.currentPanel`）：切行/切 PR 时编辑器组件按 key 重建，写到一半的草稿直接丢弃（已坐实并修正原假设——草稿不是跟随，是丢失）；需加丢弃确认或缓存草稿
+- [x] Review 评论面板是单例（`PullReviewCommentPanel.currentPanel`）：切行/切 PR 时编辑器组件按 key 重建，写到一半的草稿直接丢弃（已坐实并修正原假设——草稿不是跟随，是丢失）；需加丢弃确认或缓存草稿——已修：host 换 context 前先向 webview 查询草稿状态（新协议消息 `queryPullReviewCommentDraft`/`pullReviewCommentDraftState`），有草稿则弹原生 modal 确认「丢弃草稿」，拒绝则保留旧 context 与草稿；同 key 重入走原同步路径不打扰；切换经 promise 链串行防连点叠弹窗；查询 2s 超时按无草稿放行（防卡死）并记 debug 日志
 - [ ] `package.json` 的 `publisher` 仍是占位符 `your-publisher-name`，发布前必须改
 
 #### 第二轮走查（同日补充，均有代码证据）
@@ -49,20 +49,20 @@
 
 **轻微**
 
-- [ ] 表单/搜索框无 autofocus（新建 Issue、全局搜索进入后不聚焦）
-- [ ] 原生 `<select>`/`<checkbox>` 与 vscode-elements 组件混用（GlobalSearch、IssueDetail 依赖选择），观感与键盘体验不统一
-- [ ] 切换 state/tab 时列表闪烁（新 key 无缓存直接替换为加载中）；可保留旧列表渲染
-- [ ] 通知筛选切换无防抖，连续切换产生多次请求
-- [ ] i18n 漏网：state 徽章直接渲染英文 "open"/"closed"、`aria-label="Close"` 硬编码、`Connected to Forgejo as ...` 等成功提示不走 l10n
-- [ ] Onboarding 缺「去实例上创建 token」链接；`scm/title` 缺 Publish/Create PR 图形入口（原含「刷新实例只刷列表」存疑，已坐实并修复，见下文第四轮条目）
-- [ ] `InstanceList.vue` 整段英文硬编码且已无人引用（死代码，可删）
+- [x] 表单/搜索框无 autofocus（新建 Issue、全局搜索进入后不聚焦）——已修：webview 内 autofocus 属性不可靠，统一显式 focus——`ModalDialog` 打开时聚焦第一个 `[data-autofocus]` 字段（IssueForm/PullRequestForm 标题框已标记，新建/编辑弹窗均覆盖）；GlobalSearch 搜索框 onMounted + onActivated（keep-alive 返回）聚焦
+- [x] 原生 `<select>`/`<checkbox>` 与 vscode-elements 组件混用（GlobalSearch、IssueDetail 依赖选择），观感与键盘体验不统一——已修：GlobalSearch 实例勾选×2 与 state 筛选、Issue/PullRequestDetail 依赖选择、RepoRefFormDialog 三个 checkbox 全部换成 `vscode-checkbox`/`vscode-single-select`；DiffFileList/FileTreeNode 保留原生 checkbox（依赖 indeterminate 半选态，vscode-checkbox 不支持，替换会回退功能）
+- [x] 切换 state/tab 时列表闪烁（新 key 无缓存直接替换为加载中）；可保留旧列表渲染——已修：RepoIssues/RepoPullRequests 新增 `displayItems`——新 key 加载期间保留旧列表（加 `refreshing` 半透明 + aria-busy 提示刷新中），数据或错误到达才替换；loading 占位只在无旧内容可显示时出现（Dashboard 三个 tab 切换的是不同数据类型，保留旧列表无意义，维持现状）
+- [x] 通知筛选切换无防抖，连续切换产生多次请求——已修：status/type 筛选 watch 加 300ms 防抖（与 Issue/PR 列表搜索防抖一致），连续切换只发最后一次 loadAll
+- [x] i18n 漏网：state 徽章直接渲染英文 "open"/"closed"、`aria-label="Close"` 硬编码、`Connected to Forgejo as ...` 等成功提示不走 l10n——已修：新增 `utils/stateLabel.ts`（open/closed 走 `dashboard.state.*`，未知 state 回退原文），RepoIssues/RepoPullRequests/DashboardInstanceItem/GlobalSearch/IssueDetail 六处原始渲染全部替换；PR merged 态新增 `dashboard.state.merged` 双语 key（prStateText 同步本地化）；ModalDialog 关闭按钮 aria-label 改 `dashboard.actions.close`；host 侧 `Connected to Forgejo as {0}`/`Updated Forgejo instance for {0}` 三处改 l10n.t 并补 bundle 双语
+- [x] Onboarding 缺「去实例上创建 token」链接；`scm/title` 缺 Publish/Create PR 图形入口（原含「刷新实例只刷列表」存疑，已坐实并修复，见下文第四轮条目）——已修：Onboarding token 字段下加「前往实例创建 token」链接（按当前输入的实例 URL 拼 `{url}/user/settings/applications`，仅 http(s) URL 时显示，走 openExternal）；package.json 新增 `scm/title` 菜单——Publish（`scmProvider == git`）与 Create PR（`scmProvider == git && forgejoToolkit.hasLinkedRepo`），复用既有命令与图标
+- [x] `InstanceList.vue` 整段英文硬编码且已无人引用（死代码，可删）——已删：确认零引用后删除文件；其文案全为硬编码英文，无 i18n key 需要清理
 
 #### 第三轮走查（2026-09-03，CDP 截图 + 坐标点击实测 mock 环境）
 
-- [ ] 窄侧栏（默认宽度）多处截断：Dashboard tab 栏（Issues 挤成 "Iss…"）、Notifications 工具栏（「重试」按钮挤成残片）、仓库详情「Preview README」按钮文字被切；需响应式处理（换行 / 窄宽图标化 / 最小宽度）
+- [x] 窄侧栏（默认宽度）多处截断：Dashboard tab 栏（Issues 挤成 "Iss…"）、Notifications 工具栏（「重试」按钮挤成残片）、仓库详情「Preview README」按钮文字被切；需响应式处理（换行 / 窄宽图标化 / 最小宽度）——已修（代码）：ViewTabs tab 改 `flex: 0 1 auto` + min-width 0 + 省略号（全部 tab 保持可见，替代溢出裁切）；Notifications 工具栏与 RepoDetail actions 加 container query，窄宽（≤360/300px）隐藏按钮文字只留图标（均带 title/aria-label），Notifications 工具栏允许换行。harness 截图实测通过：webview ≈335px 时 Dashboard 三个 tab 全部可见（仓…/Is…/Pull R… 省略号）、通知/搜索按钮图标化；极端 ≈252px 时 tab 挤成 仓/Iss/P 仍全部可点、无视口裁切；通知页「全部已读」「重试」≤360px 图标化无溢出；仓库详情「在浏览器打开」「预览 README」≤300px 图标化，meta 行正常换行
 - [x] ModalDialog 关闭口径：× 和 Esc 在脏表单下弹放弃确认，表单内「Cancel」直接关闭——已确认为设计决定（显式取消免确认），维持现状
 - [ ] mock 数据缺口（剩余）：`contents/:filepath` 通用路径仍 404（仅 src/index.ts 等具体路径有 mock，且忽略 ref 参数）；「No Changed Files」在拉取失败与真空列表两种情况下仍无法区分。已解决：diff 评审编辑器与 Actions 运行数据已有基础 mock，评审/合并全流程可实测
-- [ ] 仓库详情的 issue/PR 计数是进入对应列表的唯一入口，渲染得像静态统计文本（有 tooltip 无链接样式），可发现性弱；scm/title 也缺入口（第二轮已记）
+- [x] 仓库详情的 issue/PR 计数是进入对应列表的唯一入口，渲染得像静态统计文本（有 tooltip 无链接样式），可发现性弱；scm/title 也缺入口（第二轮已记）——已核实：链接样式自 1276442 起已在代码中（`.meta-link`：textLink 主题色 + cursor:pointer + hover 下划线，配 `.link-button` 全局样式与 tooltip），静态检查确认作用于两个计数按钮；scm/title 入口本批已加（见 :57 条目）。harness 截图实测确认：issue/PR 计数以 textLink 主题色渲染（区别于 star/fork 的描述色），hover 出现下划线
 - [x] tab 栏激活态歧义（存疑）：激活 tab 用下划线，但非激活 tab 偶发带深色背景，看起来像两个激活 tab；需复现确认是 hover 残留还是 focus 样式——实测坐实为 **hover 残留**：`ViewTabs.vue` 的 `.tab-button:hover` 用 `--vscode-list-hoverBackground`，鼠标停在非激活 tab 上即出现深色块，移开即消失；鼠标点击不触发 `:focus-visible`（仅键盘方向键切换才有焦点框）。建议修法（未修）：非激活 tab 的 hover 底色减弱/去掉或改文字色，避免与激活下划线形成「两个激活」错觉——已修：`.tab-button:hover` 背景块移除，非激活 tab hover 改为下划线预览（`--vscode-descriptionForeground` 描边），激活态唯一性不再歧义
 - [x] 评审操作零反馈 + 提交后不刷新：提交评审/评论成功 toast 按「开始评审/追加到待提交评审/单条评论/批准/要求修改」区分文案（host l10n 双语）；新增 `pullRequestReviewSubmitted` host→webview 消息，提交评审后 Dashboard 已打开该 PR 详情时强制刷新 detail+comments（合并区 blocker 即时核销），未打开则不拉取省流量；已实测全链路
 - [x] 评审入口发现性（剩余）：gutter 区域单击会误设断点（走查中实测误触），与行号右键的评审入口相邻易混淆。已改善：正文右键菜单也加了「Add Pull Review Comment」（`editor/context` + `forgejoToolkit.inPullRequestDiff`，已实测）——gutter 误设断点实测坐实且为平台限制：inline diff 修改侧在两列行号之间有 19px glyph margin（DOM 实测 x=894 w=19），默认设置下单击即设断点（无需 allowBreakpointsEverywhere；对照组 baseline.ts 同位置同样可设）；扩展用 `vscode.diff` 打开无编辑器选项可关、when 子句拦不住 Monaco 内建行为，已记 KNOWN_ISSUES 双语。已收口：右键菜单是唯一的评审评论入口，gutter 未赋予功能，误设断点判定为平台默认行为而非缺陷，不再跟进
@@ -159,6 +159,8 @@
 ## 已完成
 
 ### 最近完成
+
+- [x] 批 12 UX 打磨（TODO :52/:53/:54/:55/:56/:57/:58/:62/:65/:28 十条）：autofocus——`ModalDialog` 打开时聚焦 `[data-autofocus]` 字段（Issue/PR 表单标题），GlobalSearch 搜索框 onMounted/onActivated 聚焦；原生控件收敛——GlobalSearch/Issue·PRDetail 依赖选择/RepoRefFormDialog 共 6 处原生 select/checkbox 换 vscode-elements（DiffFileList/FileTreeNode 因 indeterminate 保留原生）；列表闪烁——RepoIssues/RepoPullRequests 加 `displayItems`，新 key 加载期间旧列表半透明保留；通知筛选 300ms 防抖；i18n——新增 `utils/stateLabel.ts` 修六处英文 state 渲染、`dashboard.state.merged` 新 key、ModalDialog aria-label、host 三条成功提示走 l10n bundle；Onboarding 加「前往实例创建 token」链接（实例 URL 拼 `/user/settings/applications`）；`scm/title` 新增 Publish/Create PR 入口（when 用 `scmProvider == git`/`forgejoToolkit.hasLinkedRepo`）；删除死代码 InstanceList.vue；窄侧栏——ViewTabs tab 可缩省略、Notifications 工具栏与 RepoDetail actions container query 窄宽图标化；计数链接样式核实已存在（1276442）；评论面板草稿守护——换 context 前查询草稿态（新协议消息×2），有草稿弹原生确认、拒绝保留现场，promise 链串行防叠弹窗；补 5 个测试（host panel 3、webview editor 2，复用测试改造为异步应答模式，全量 webview 144 + extension 338 通过）。harness 截图验证已补（:62/:65 全部实测通过，详见各条目）
 
 - [x] 批 11 错误处理与反馈（TODO :36/:37/:25/:46/:44/:48/:47/:41/:42 九条）：新增 `src/api/errors.ts`——`ApiError` 结构化错误（network/timeout/http/unknown 分类，`message` 保留 raw 原文兼容既有匹配，`userMessage` 按 401/403/404/409/422 映射 l10n 文案），client catch 统一 `toApiError`，viewProvider 等 10 个文件 100+ 处展示边界改 `userFacingErrorMessage()`；client 请求加 30s `AbortSignal.timeout`（`API_REQUEST_TIMEOUT_MS`，调用方 signal 可覆盖）；8 处探测性 `.catch(() => undefined)` 改 `_probe()` 记 debug 日志；403 scope 提示按 `url|text` 每会话去重并带「Open Settings」按钮；通知轮询失败推 webview（协议加 `error` 字段 + `notificationPollErrors`，Notifications.vue 显示「刷新通知失败」，旧快照保留）；关闭/重开 Issue/PR 用独立 `issueStateKey`/`pullRequestStateKey`（协议 `state_toggle` echo），错误显示在按钮旁；logger 新增 `showErrorWithLog()` + `forgejoToolkit.showLog` 命令；`openSettings`/`openDashboard` 先 `_revealView()` 再发消息（未 resolve 时 focus 强制加载）；publish 建仓库/push 与 clone 共四处接 `withProgress`；l10n host 双语 + webview 各加若干 key；补 27 个测试（errors 15、useAppState 6、dispatch 5、client 1，publish 422 断言配套修正，全量 webview 142 + extension 335 通过）
 

@@ -763,6 +763,11 @@ export type HostToWebviewMessage =
       pendingReviewId?: number;
     }
   | {
+      // The panel is a singleton: before reusing it for a different line/PR
+      // the host asks whether the current editor holds an unsubmitted draft.
+      command: 'queryPullReviewCommentDraft';
+    }
+  | {
       command: 'pullReviewCommentSubmitted';
       instanceId: string;
       owner: string;
@@ -1380,5 +1385,9 @@ export type WebviewToHostMessage =
       repo: string;
       index: number;
       reviewId: number;
+    }
+  | {
+      command: 'pullReviewCommentDraftState';
+      dirty: boolean;
     }
   | { command: 'closePullReviewCommentPanel' };

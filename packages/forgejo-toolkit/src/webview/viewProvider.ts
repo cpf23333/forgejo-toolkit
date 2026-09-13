@@ -230,7 +230,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           this._sendInstances();
           this._detectAndSendLinkedRepository();
           this._reply('saveInstanceResult', { success: true });
-          vscode.window.showInformationMessage(`Connected to Forgejo as ${user.login}`);
+          vscode.window.showInformationMessage(vscode.l10n.t('Connected to Forgejo as {0}', user.login));
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`saveInstance failed: ${err}`);
@@ -267,7 +267,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           this._sendInstances();
           this._detectAndSendLinkedRepository();
           this._reply('saveInstanceResult', { success: true });
-          vscode.window.showInformationMessage(`Updated Forgejo instance for ${user.login}`);
+          vscode.window.showInformationMessage(vscode.l10n.t('Updated Forgejo instance for {0}', user.login));
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`editInstance failed: ${err}`);

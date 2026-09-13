@@ -307,24 +307,27 @@ function title(): string {
         </div>
 
         <div class="form-field checkbox-field">
-          <label class="checkbox-label">
-            <input v-model="releasePrerelease" type="checkbox" />
+          <vscode-checkbox
+            :checked="releasePrerelease"
+            @change="releasePrerelease = ($event.target as HTMLInputElement).checked"
+          >
             {{ t('dashboard.repoRefs.prerelease') }}
-          </label>
+          </vscode-checkbox>
         </div>
 
         <div class="form-field checkbox-field">
-          <label class="checkbox-label">
-            <input v-model="hideArchiveLinks" type="checkbox" />
+          <vscode-checkbox
+            :checked="hideArchiveLinks"
+            @change="hideArchiveLinks = ($event.target as HTMLInputElement).checked"
+          >
             {{ t('dashboard.repoRefs.hideArchiveLinks') }}
-          </label>
+          </vscode-checkbox>
         </div>
 
         <div v-if="release" class="form-field checkbox-field">
-          <label class="checkbox-label">
-            <input v-model="releaseDraft" type="checkbox" />
+          <vscode-checkbox :checked="releaseDraft" @change="releaseDraft = ($event.target as HTMLInputElement).checked">
             {{ t('dashboard.repoRefs.draft') }}
-          </label>
+          </vscode-checkbox>
         </div>
       </template>
 
@@ -418,17 +421,6 @@ function title(): string {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-}
-
-.checkbox-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-
-.checkbox-label input[type='checkbox'] {
-  margin: 0;
 }
 
 .form-error {

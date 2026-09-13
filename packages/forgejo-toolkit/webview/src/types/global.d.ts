@@ -154,7 +154,9 @@ declare module 'vue' {
     'vscode-textfield': DefineCustomElement<
       VscodeTextfield,
       { change: Event; input: Event },
-      keyof VscodeTextfieldProps
+      keyof VscodeTextfieldProps,
+      // Fallthrough attribute used by ModalDialog to find the field to focus.
+      { dataAutofocus?: boolean | string }
     >;
     'vscode-tree': DefineCustomElement<VscodeTree, { 'vsc-tree-select': VscTreeSelectEvent }, keyof VscodeTreeProps>;
     'vscode-tree-item': DefineCustomElement<VscodeTreeItem, {}, keyof VscodeTreeItemProps, VscodeTreeItemDataProps>;

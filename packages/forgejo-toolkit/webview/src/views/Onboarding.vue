@@ -64,6 +64,13 @@ const canTest = computed(() => url.value.trim() && token.value.trim());
 const canSaveInstance = computed(() => canTest.value && connectionStatusType.value === 'success');
 const canFinish = computed(() => true);
 
+// Forgejo's token management page lives at a fixed path under the instance
+// root; only offer the link once the URL looks like http(s).
+const tokenSettingsUrl = computed(() => {
+  const base = url.value.trim().replace(/\/+$/, '');
+  return /^https?:\/\//.test(base) ? `${base}/user/settings/applications` : '';
+});
+
 function setConnectionStatus(message: string, type: 'idle' | 'success' | 'error' = 'idle') {
   connectionStatus.value = message;
   connectionStatusType.value = type;
@@ -294,6 +301,14 @@ watch(
               @input="token = ($event.target as HTMLInputElement).value"
             />
             <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
+            <button
+              v-if="tokenSettingsUrl"
+              type="button"
+              class="link-button token-create-link"
+              @click="state.openExternal(tokenSettingsUrl)"
+            >
+              {{ t('onboarding.createTokenLink') }}
+            </button>
           </div>
 
           <div class="actions">
@@ -450,6 +465,11 @@ watch(
   font-size: 0.85em;
   color: var(--vscode-descriptionForeground);
   line-height: 1.4;
+}
+
+.token-create-link {
+  align-self: flex-start;
+  font-size: 0.85em;
 }
 
 .form-row {

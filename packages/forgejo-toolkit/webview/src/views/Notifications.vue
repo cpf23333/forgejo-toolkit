@@ -228,8 +228,14 @@ function notificationMeta(notification: ForgejoNotification): string {
   return parts.join(' · ');
 }
 
+// Debounce rapid filter toggles (e.g. unread → read → all) into a single
+// request round; 300ms matches the issue/PR list search debounce.
+let filterDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 watch([statusFilter, typeFilter], () => {
-  loadAll();
+  clearTimeout(filterDebounceTimer);
+  filterDebounceTimer = setTimeout(() => {
+    loadAll();
+  }, 300);
 });
 
 onMounted(() => {
@@ -247,19 +253,21 @@ onMounted(() => {
             icon="check-all"
             :disabled="isLoading() || unreadCount === 0"
             :title="t('dashboard.notifications.markAllAsRead')"
+            :aria-label="t('dashboard.notifications.markAllAsRead')"
             @click="markAllAsRead"
             secondary
           >
-            {{ t('dashboard.notifications.markAllAsRead') }}
+            <span class="button-label">{{ t('dashboard.notifications.markAllAsRead') }}</span>
           </vscode-button>
           <vscode-button
             icon="refresh"
             :disabled="isLoading()"
             :title="t('dashboard.retry')"
+            :aria-label="t('dashboard.retry')"
             @click="loadAll"
             secondary
           >
-            {{ t('dashboard.retry') }}
+            <span class="button-label">{{ t('dashboard.retry') }}</span>
           </vscode-button>
         </div>
       </div>
@@ -384,10 +392,20 @@ onMounted(() => {
 }
 
 .notifications-toolbar {
+  /* Narrow sidebars drop the button labels (icons keep their tooltips)
+     instead of clipping the text mid-word. */
+  container-type: inline-size;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
+}
+
+@container (max-width: 360px) {
+  .notifications-toolbar-actions .button-label {
+    display: none;
+  }
 }
 
 .notifications-title {

@@ -17,6 +17,7 @@ import {
   repoRefsKey,
 } from '../composables/useAppState';
 import type { ForgejoIssue } from '../types/api';
+import { stateLabel } from '../utils/stateLabel';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -35,6 +36,20 @@ const key = computed(() =>
 const items = computed(() => state.repoIssues.value.get(key.value) ?? []);
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
+
+// Keep the previous list on screen while a newly selected key (state filter,
+// search query) loads; swap only when fresh data or an error lands, so the
+// list never flashes a loading placeholder in place of the old items.
+const displayItems = ref<ForgejoIssue[]>([]);
+watch(
+  [items, loading, error],
+  ([newItems, isLoading, err]) => {
+    if (!isLoading || err) {
+      displayItems.value = newItems;
+    }
+  },
+  { immediate: true },
+);
 
 const isCreating = ref(false);
 const createFormResetKey = ref(0);
@@ -281,10 +296,9 @@ async function handleCreateSubmit(data: {
     </div>
 
     <div v-if="!hasIssues" class="empty-list">{{ t('dashboard.repoIssues.disabled') }}</div>
-    <div v-else-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
     <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
-    <div v-else-if="items.length" class="item-list">
-      <div v-for="issue in items" :key="issue.id" class="item-card">
+    <div v-else-if="displayItems.length" class="item-list" :class="{ refreshing: loading }" :aria-busy="loading">
+      <div v-for="issue in displayItems" :key="issue.id" class="item-card">
         <div class="item-title">
           <button type="button" class="link-button" @click="openIssue(issue)">
             #{{ issue.number }} {{ issue.title }}
@@ -306,13 +320,14 @@ async function handleCreateSubmit(data: {
           </span>
         </div>
         <div class="item-meta">
-          <span :class="`state-${issue.state}`" class="state-badge">{{ issue.state }}</span>
+          <span :class="`state-${issue.state}`" class="state-badge">{{ stateLabel(issue.state, t) }}</span>
           <img v-if="issue.user?.avatar_url" :src="issue.user.avatar_url" :alt="issue.user.login" class="user-avatar" />
           <span v-if="issue.user">{{ issue.user.login }}</span>
           <span>{{ formatDate(issue.updated_at) }}</span>
         </div>
       </div>
     </div>
+    <div v-else-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
     <div v-else class="empty-list">{{ t('dashboard.repoIssues.empty') }}</div>
 
     <ModalDialog
@@ -433,6 +448,13 @@ async function handleCreateSubmit(data: {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Previous items stay visible while the new filter loads; dim them slightly
+   to signal the refresh instead of flashing an empty loading state. */
+.item-list.refreshing {
+  opacity: 0.55;
+  transition: opacity 0.15s ease-in-out;
 }
 
 .item-card {

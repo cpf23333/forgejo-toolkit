@@ -8,16 +8,26 @@ import {
 import type { ConfigManager } from '../../config';
 
 function createFakePanel() {
+  const handlers: Array<(message: unknown) => unknown> = [];
   return {
     title: '',
     webview: {
       html: '',
       postMessage: vi.fn(),
-      onDidReceiveMessage: vi.fn((..._args: unknown[]) => ({ dispose: vi.fn() })),
+      onDidReceiveMessage: vi.fn((handler: (message: unknown) => unknown) => {
+        handlers.push(handler);
+        return { dispose: vi.fn() };
+      }),
     },
     onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
     reveal: vi.fn(),
     dispose: vi.fn(),
+    // Simulate the webview answering back (draft-state replies, requests).
+    receive: (message: unknown) => {
+      for (const handler of handlers) {
+        void handler(message);
+      }
+    },
   };
 }
 
@@ -77,7 +87,7 @@ describe('PullReviewCommentPanel.createOrShow', () => {
     expect(PullReviewCommentPanel.currentPanel).toBe(panel);
   });
 
-  it('updates context, callbacks and title when reusing the current panel', () => {
+  it('updates context, callbacks and title when reusing the current panel', async () => {
     const fakePanel = createFakePanel();
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
 
@@ -103,12 +113,102 @@ describe('PullReviewCommentPanel.createOrShow', () => {
     expect(fakePanel.reveal).toHaveBeenCalledTimes(1);
     expect(fakePanel.reveal).toHaveBeenCalledWith();
 
+    // A context switch is guarded by a draft check: the panel asks the
+    // webview whether the current editor holds an unsubmitted draft. The
+    // guard runs in a microtask chain, so let it post the query first.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith({ command: 'queryPullReviewCommentDraft' });
+    fakePanel.receive({ command: 'pullReviewCommentDraftState', dirty: false });
+    await vi.waitFor(() => {
+      expect(panelInternals(panel)._context.index).toBe(3);
+    });
+
     const internals = panelInternals(panel);
-    expect(internals._context.index).toBe(3);
     expect(internals._context.path).toBe('src/other.ts');
     // The reused panel must not keep the previous pull request's closures.
     expect(internals._callbacks).toBe(newCallbacks);
     expect(fakePanel.title).toBe('src/other.ts:5');
+    // A clean editor switches without asking the user.
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+  });
+
+  it('switches context without prompting when the webview reports no draft', async () => {
+    const fakePanel = createFakePanel();
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+
+    const panel = PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext(),
+    );
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext({ lineNumber: 9 }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fakePanel.receive({ command: 'pullReviewCommentDraftState', dirty: false });
+    await vi.waitFor(() => {
+      expect(panelInternals(panel)._context.lineNumber).toBe(9);
+    });
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+  });
+
+  it('asks for confirmation and switches when the user discards the draft', async () => {
+    const fakePanel = createFakePanel();
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Discard Draft' as never);
+
+    const panel = PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext(),
+    );
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext({ lineNumber: 9 }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fakePanel.receive({ command: 'pullReviewCommentDraftState', dirty: true });
+    await vi.waitFor(() => {
+      expect(panelInternals(panel)._context.lineNumber).toBe(9);
+    });
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ modal: true }),
+      'Discard Draft',
+    );
+  });
+
+  it('keeps the old context and draft when the user declines the discard', async () => {
+    const fakePanel = createFakePanel();
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue(undefined as never);
+
+    const panel = PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext(),
+    );
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext({ lineNumber: 9 }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fakePanel.receive({ command: 'pullReviewCommentDraftState', dirty: true });
+    // Let the guard chain settle; the context must stay on the original line.
+    await vi.waitFor(() => {
+      expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(panelInternals(panel)._context.lineNumber).toBe(1);
+    // The declined switch never re-titles the panel for the new line.
+    expect(fakePanel.title).not.toBe('src/index.ts:10');
   });
 
   it('clears stale callbacks when the reuse caller passes none', () => {

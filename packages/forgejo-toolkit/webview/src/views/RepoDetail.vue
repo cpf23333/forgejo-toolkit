@@ -197,16 +197,24 @@ function reloadRepo() {
         </div>
         <div class="actions">
           <div class="action-group primary-actions">
-            <vscode-button icon="link-external" @click="state.openExternal(repoUrl)" secondary>
-              {{ t('dashboard.actions.open') }}
+            <vscode-button
+              icon="link-external"
+              :title="t('dashboard.actions.open')"
+              :aria-label="t('dashboard.actions.open')"
+              @click="state.openExternal(repoUrl)"
+              secondary
+            >
+              <span class="button-label">{{ t('dashboard.actions.open') }}</span>
             </vscode-button>
             <vscode-button
               v-if="detail.readme"
               icon="preview"
+              :title="t('dashboard.actions.previewReadme')"
+              :aria-label="t('dashboard.actions.previewReadme')"
               @click="state.previewReadme(owner, repo, detail.readme)"
               secondary
             >
-              {{ t('dashboard.actions.previewReadme') }}
+              <span class="button-label">{{ t('dashboard.actions.previewReadme') }}</span>
             </vscode-button>
           </div>
           <div class="action-group secondary-actions">
@@ -400,11 +408,20 @@ function reloadRepo() {
 }
 
 .actions {
+  /* Narrow sidebars drop the primary button labels (icons keep their
+     tooltips) instead of clipping the text mid-word. */
+  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin-top: 4px;
+}
+
+@container (max-width: 300px) {
+  .actions .button-label {
+    display: none;
+  }
 }
 
 .action-group {

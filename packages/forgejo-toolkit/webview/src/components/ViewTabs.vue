@@ -67,7 +67,12 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 .tab-button {
-  flex: 0 0 auto;
+  /* Shrinkable with ellipsis: in a narrow sidebar all tabs stay visible
+     instead of the overflow clipping one mid-word. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;

@@ -11,6 +11,7 @@ import CommitDiffList from '../components/CommitDiffList.vue';
 import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
+import { stateLabel } from '../utils/stateLabel';
 import ReactionBar from '../components/ReactionBar.vue';
 import { CollapsibleSection } from '../vscode-controls';
 import DateTimePicker from '../components/DateTimePicker.vue';
@@ -789,9 +790,9 @@ function prStateClass(state?: string, merged?: boolean): string {
 
 function prStateText(state?: string, merged?: boolean): string {
   if (merged) {
-    return 'merged';
+    return t('dashboard.state.merged');
   }
-  return state ?? 'open';
+  return stateLabel(state, t);
 }
 
 const hasWorktree = computed(() =>
@@ -1410,16 +1411,16 @@ function reloadPullRequest() {
           <div class="dependency-form">
             <div v-if="repoIssuesLoading" class="dependency-status">{{ t('dashboard.detail.dependencyLoading') }}</div>
             <template v-else>
-              <select
+              <vscode-single-select
                 :value="selectedDependencyNumber === undefined ? '' : String(selectedDependencyNumber)"
                 class="dependency-select"
                 @change="selectedDependencyNumber = Number(($event.target as HTMLSelectElement).value) || undefined"
               >
-                <option value="">{{ t('dashboard.detail.dependencyPlaceholder') }}</option>
-                <option v-for="issue in availableDependencies" :key="issue.id" :value="String(issue.number)">
+                <vscode-option value="">{{ t('dashboard.detail.dependencyPlaceholder') }}</vscode-option>
+                <vscode-option v-for="issue in availableDependencies" :key="issue.id" :value="String(issue.number)">
                   #{{ issue.number }} {{ issue.title }}
-                </option>
-              </select>
+                </vscode-option>
+              </vscode-single-select>
               <vscode-button
                 icon="add"
                 :disabled="!selectedDependencyNumber || availableDependencies.length === 0"
@@ -1983,11 +1984,6 @@ function reloadPullRequest() {
 .dependency-select {
   flex: 1;
   min-width: 0;
-  padding: 4px 8px;
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 2px;
   font-size: 0.9em;
 }
 

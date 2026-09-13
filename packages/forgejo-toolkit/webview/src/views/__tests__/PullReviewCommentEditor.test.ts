@@ -112,3 +112,28 @@ describe('PullReviewCommentEditor submit guard', () => {
     expect(postMessageMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('PullReviewCommentEditor draft-state query', () => {
+  beforeEach(() => {
+    postMessageMock.mockClear();
+  });
+
+  it('answers clean when the body is empty or whitespace', async () => {
+    mountEditor(createContext());
+
+    dispatchHostReply('queryPullReviewCommentDraft');
+    await nextTick();
+
+    expect(postMessageMock).toHaveBeenCalledWith({ command: 'pullReviewCommentDraftState', dirty: false });
+  });
+
+  it('answers dirty when the editor holds an unsubmitted draft', async () => {
+    const wrapper = mountEditor(createContext());
+    await wrapper.find('[data-stub="easymde"]').setValue('work in progress');
+
+    dispatchHostReply('queryPullReviewCommentDraft');
+    await nextTick();
+
+    expect(postMessageMock).toHaveBeenCalledWith({ command: 'pullReviewCommentDraftState', dirty: true });
+  });
+});

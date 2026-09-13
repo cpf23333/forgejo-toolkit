@@ -124,5 +124,9 @@
   "Unable to open selected diffs: {0}": "Unable to open selected diffs: {0}",
   "Unable to open file: {0}": "Unable to open file: {0}",
   "Copied to clipboard": "Copied to clipboard",
-  "Revert aborted: the current branch is not the pull request base branch {0}": "Revert aborted: the current branch is not the pull request base branch {0}"
+  "Revert aborted: the current branch is not the pull request base branch {0}": "Revert aborted: the current branch is not the pull request base branch {0}",
+  "Connected to Forgejo as {0}": "Connected to Forgejo as {0}",
+  "Updated Forgejo instance for {0}": "Updated Forgejo instance for {0}",
+  "Discard Draft": "Discard Draft",
+  "The current draft comment will be discarded.": "The current draft comment will be discarded."
 }

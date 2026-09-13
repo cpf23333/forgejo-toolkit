@@ -35,6 +35,12 @@ function handleMessage(event: MessageEvent) {
     command === 'pullReviewDeleted'
   ) {
     submitting.value = false;
+    return;
+  }
+  // The host asks before reusing this singleton panel for another line/PR;
+  // a non-empty body is a draft the user may want to keep.
+  if (command === 'queryPullReviewCommentDraft') {
+    postMessage({ command: 'pullReviewCommentDraftState', dirty: body.value.trim().length > 0 });
   }
 }
 

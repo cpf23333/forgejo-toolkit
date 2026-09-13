@@ -12,6 +12,7 @@ import CommentTimeline from '../components/CommentTimeline.vue';
 import ModalDialog from '../components/ModalDialog.vue';
 import IssueForm from '../components/IssueForm.vue';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
+import { stateLabel } from '../utils/stateLabel';
 import {
   useAppState,
   issueDetailKey,
@@ -605,7 +606,9 @@ function reloadIssue() {
             {{ detail.title }}
           </h2>
           <div class="header-actions">
-            <span class="state-badge" :class="`state-${detail.state ?? 'open'}`">{{ detail.state }}</span>
+            <span class="state-badge" :class="`state-${detail.state ?? 'open'}`">{{
+              stateLabel(detail.state, t)
+            }}</span>
             <vscode-button
               icon="link-external"
               :title="t('dashboard.detail.openIssue')"
@@ -955,16 +958,16 @@ function reloadIssue() {
           <div class="dependency-form">
             <div v-if="repoIssuesLoading" class="dependency-status">{{ t('dashboard.detail.dependencyLoading') }}</div>
             <template v-else>
-              <select
+              <vscode-single-select
                 :value="selectedDependencyNumber === undefined ? '' : String(selectedDependencyNumber)"
                 class="dependency-select"
                 @change="selectedDependencyNumber = Number(($event.target as HTMLSelectElement).value) || undefined"
               >
-                <option value="">{{ t('dashboard.detail.dependencyPlaceholder') }}</option>
-                <option v-for="issue in availableDependencies" :key="issue.id" :value="String(issue.number)">
+                <vscode-option value="">{{ t('dashboard.detail.dependencyPlaceholder') }}</vscode-option>
+                <vscode-option v-for="issue in availableDependencies" :key="issue.id" :value="String(issue.number)">
                   #{{ issue.number }} {{ issue.title }}
-                </option>
-              </select>
+                </vscode-option>
+              </vscode-single-select>
               <vscode-button
                 icon="add"
                 :disabled="!selectedDependencyNumber || availableDependencies.length === 0"
@@ -1323,11 +1326,6 @@ function reloadIssue() {
 .dependency-select {
   flex: 1;
   min-width: 0;
-  padding: 4px 8px;
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 2px;
   font-size: 0.9em;
 }
 

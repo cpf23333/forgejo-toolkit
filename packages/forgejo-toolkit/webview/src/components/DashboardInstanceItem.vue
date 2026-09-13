@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useAppState } from '../composables/useAppState';
 import type { ForgejoInstance } from '../types/instance';
 import type { ForgejoRepository, ForgejoIssue, ForgejoPullRequest } from '../types/api';
+import { stateLabel } from '../utils/stateLabel';
 
 const props = defineProps<{
   instance: ForgejoInstance;
@@ -309,7 +310,7 @@ function loadingKey(): string {
       <template v-else>
         <vscode-tree-item v-for="issue in myIssues" :key="issue.id" @click.capture="openIssue($event, issue)">
           #{{ issue.number }} {{ issue.title }}
-          <span class="tree-issue-meta" slot="description">{{ issue.state }}</span>
+          <span class="tree-issue-meta" slot="description">{{ stateLabel(issue.state, t) }}</span>
           <span slot="actions" class="tree-actions">
             <vscode-icon
               name="link-external"
@@ -343,7 +344,7 @@ function loadingKey(): string {
       <template v-else>
         <vscode-tree-item v-for="pr in myPullRequests" :key="pr.id" @click.capture="openPullRequest($event, pr)">
           #{{ pr.number }} {{ pr.title }}
-          <span class="tree-pr-meta" slot="description">{{ pr.state }}</span>
+          <span class="tree-pr-meta" slot="description">{{ stateLabel(pr.state, t) }}</span>
           <span slot="actions" class="tree-actions">
             <vscode-icon
               name="link-external"

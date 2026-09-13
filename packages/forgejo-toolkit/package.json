@@ -281,6 +281,18 @@
           "when": "view == forgejoToolkitView",
           "group": "navigation@3"
         }
+      ],
+      "scm/title": [
+        {
+          "command": "forgejoToolkit.publishToForgejo",
+          "when": "scmProvider == git",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forgejoToolkit.createPrFromCurrentBranch",
+          "when": "scmProvider == git && forgejoToolkit.hasLinkedRepo",
+          "group": "navigation@2"
+        }
       ]
     }
   },

@@ -60,6 +60,7 @@
     "serverDescription": "Enter your Forgejo instance URL and access token. Save after the connection test succeeds.",
     "importHint": "Already have a configuration file?",
     "importFromFile": "Import from file",
+    "createTokenLink": "Create a token on the instance",
     "worktreeDescription": "Choose how PRs are opened locally and where worktrees are stored.",
     "completeDescription": "Initial setup is complete. You can now open the dashboard.",
     "prev": "Previous",
@@ -206,6 +207,7 @@
     "state": {
       "open": "Open",
       "closed": "Closed",
+      "merged": "Merged",
       "all": "All"
     },
     "repoIssues": {
