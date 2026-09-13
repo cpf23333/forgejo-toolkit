@@ -80,7 +80,7 @@ export class ConfigManager {
     }
     const instances = this._getStoredInstances().filter((i) => i.id !== instance.id);
     instances.push({ ...instance, token: '' });
-    await this.context.globalState.update(INSTANCES_KEY, instances);
+    await this._writeInstancesMerged(instances);
     this._onInstancesChanged.fire(this.getInstances());
   }
 
@@ -96,7 +96,7 @@ export class ConfigManager {
       this._tokens.set(id, updates.token);
     }
     instances[index] = { ...instances[index], ...updates, token: '' };
-    await this.context.globalState.update(INSTANCES_KEY, instances);
+    await this._writeInstancesMerged(instances);
     this._onInstancesChanged.fire(this.getInstances());
   }
 
@@ -104,8 +104,29 @@ export class ConfigManager {
     this._tokens.delete(id);
     await this.context.secrets.delete(this._tokenSecretKey(id));
     const instances = this._getStoredInstances().filter((i) => i.id !== id);
-    await this.context.globalState.update(INSTANCES_KEY, instances);
+    await this._writeInstancesMerged(instances, id);
     this._onInstancesChanged.fire(this.getInstances());
+  }
+
+  /**
+   * Write the instance list, merged by id with a fresh read taken immediately
+   * before the write. globalState has no cross-window change event, so another
+   * window may have updated the list since this window last read it; writing a
+   * stale list back would silently drop the other window's additions. Entries
+   * this call intentionally removed (`removedId`) stay removed. The merge
+   * cannot close the race entirely (get→update is not atomic), but it shrinks
+   * the window to the synchronous span between the two calls.
+   */
+  private async _writeInstancesMerged(instances: ForgejoInstance[], removedId?: string): Promise<void> {
+    const fresh = this._getStoredInstances();
+    const known = new Set(instances.map((i) => i.id));
+    const merged = [...instances];
+    for (const instance of fresh) {
+      if (!known.has(instance.id) && instance.id !== removedId) {
+        merged.push(instance);
+      }
+    }
+    await this.context.globalState.update(INSTANCES_KEY, merged);
   }
 
   private _getStoredInstances(): ForgejoInstance[] {

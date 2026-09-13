@@ -411,8 +411,37 @@ async function findGitRoot(startPath: string): Promise<string | undefined> {
   return undefined;
 }
 
+/** True when filePath lies inside folderPath (both absolute). */
+function isPathInsideFolder(folderPath: string, filePath: string): boolean {
+  const relative = path.relative(folderPath, filePath);
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+/**
+ * Pick the account to bind when several configured instances match the same
+ * remote host. Prefer the account whose username matches the remote's owner
+ * namespace (pushing to one's own namespace is the common case); otherwise
+ * keep the first match. Deterministic so the status bar and commands agree.
+ */
+export function preferOwnNamespaceInstance(matched: ForgejoInstance[], remoteOwner: string): ForgejoInstance {
+  const own = matched.find(
+    (instance) => instance.username && instance.username.toLowerCase() === remoteOwner.toLowerCase(),
+  );
+  return own ?? matched[0];
+}
+
 export async function detectLinkedRepository(instances: ForgejoInstance[]): Promise<LinkedRepository | undefined> {
-  const folders = vscode.workspace.workspaceFolders ?? [];
+  const folders = [...(vscode.workspace.workspaceFolders ?? [])];
+  // In a multi-root workspace, check the folder containing the active editor
+  // first: the status bar and commands should reflect the repository the user
+  // is looking at, not whichever folder happens to match first.
+  const activePath = vscode.window.activeTextEditor?.document.uri.fsPath;
+  if (activePath) {
+    folders.sort(
+      (a, b) =>
+        Number(isPathInsideFolder(b.uri.fsPath, activePath)) - Number(isPathInsideFolder(a.uri.fsPath, activePath)),
+    );
+  }
   logger.debug(`[detectLinkedRepository] workspace folders: ${folders.map((f) => f.uri.fsPath).join(', ')}`);
   logger.debug(`[detectLinkedRepository] instances: ${instances.map((i) => `${i.id}=${i.url}`).join(', ')}`);
 
@@ -438,26 +467,37 @@ export async function detectLinkedRepository(instances: ForgejoInstance[]): Prom
       continue;
     }
 
-    for (const instance of instances) {
+    const matched = instances.filter((instance) => {
       let instanceHostPath: string;
       try {
         const parsed = new URL(instance.url);
         instanceHostPath = normalizeGitUrl(`${parsed.host}${parsed.pathname}`);
       } catch {
-        continue;
+        return false;
       }
       logger.debug(`[detectLinkedRepository] compare ${remoteInfo.normalized} vs ${instanceHostPath}`);
-      if (remoteInfo.normalized === instanceHostPath || remoteInfo.normalized.startsWith(`${instanceHostPath}/`)) {
-        logger.debug(`[detectLinkedRepository] matched ${instance.id}`);
-        return {
-          instanceId: instance.id,
-          owner: remoteInfo.owner,
-          repo: remoteInfo.repo,
-          localPath: dirPath,
-          remoteUrl,
-        };
-      }
+      return remoteInfo.normalized === instanceHostPath || remoteInfo.normalized.startsWith(`${instanceHostPath}/`);
+    });
+    if (matched.length === 0) {
+      continue;
     }
+    // Several accounts on the same host all match the remote; bind explicitly
+    // to one (preferring the remote owner's own namespace) so follow-up write
+    // operations use a single, logged identity instead of an arbitrary one.
+    const chosen = preferOwnNamespaceInstance(matched, remoteInfo.owner);
+    if (matched.length > 1) {
+      logger.info(
+        `[detectLinkedRepository] ${matched.length} accounts match ${remoteUrl}; bound to ${chosen.id} (owner: ${remoteInfo.owner})`,
+      );
+    }
+    logger.debug(`[detectLinkedRepository] matched ${chosen.id}`);
+    return {
+      instanceId: chosen.id,
+      owner: remoteInfo.owner,
+      repo: remoteInfo.repo,
+      localPath: dirPath,
+      remoteUrl,
+    };
   }
   logger.debug('[detectLinkedRepository] no match');
   return undefined;

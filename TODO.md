@@ -20,10 +20,10 @@
 
 按影响排序；多数需要实测确认后单独拆任务处理。
 
-- [ ] 同一实例配置多账号时，仓库关联检测按 `instanceId + owner/repo` 匹配第一个实例，可能以错误身份执行评论/合并等写操作；应提示用户选择或显式绑定仓库到账号
+- [x] 同一实例配置多账号时，仓库关联检测按 `instanceId + owner/repo` 匹配第一个实例，可能以错误身份执行评论/合并等写操作；应提示用户选择或显式绑定仓库到账号——已修：`detectLinkedRepository` 收集全部匹配实例并显式绑定一个（新增 `preferOwnNamespaceInstance`：username 命中 remote owner 命名空间者优先，否则保持首个），多账号命中时 logger.info 记录绑定结果与歧义；推送链路（用户可交互）无法判定时弹 showQuickPick 选账号（见 :91 发布功能条目）
 - [ ] Token 过期或 scope 不足时只有报错弹窗，没有修复引导；添加实例表单也应列出推荐 scope 清单
 - [ ] 10+ 处 `.catch(() => undefined)` 静默吞错，部分用户操作（如同步）失败时无任何反馈；至少加日志，关键路径提示用户
-- [ ] 多根 workspace 下关联检测只取第一个匹配的仓库，状态栏与命令上下文可能张冠李戴
+- [x] 多根 workspace 下关联检测只取第一个匹配的仓库，状态栏与命令上下文可能张冠李戴——已修：`detectLinkedRepository` 优先检测「活动编辑器所属 workspace 文件夹」（path.relative 判定包含关系后排序），无活动编辑器或无匹配时退回原顺序的第一个匹配；补 2 个测试
 - [ ] 通知轮询默认间隔 300s 延迟偏大，新通知弹窗也无聚合（一次弹多个）；考虑缩短默认值、聚合提示、动作失败时回滚已读标记
 - [ ] Review 评论面板是单例（`PullReviewCommentPanel.currentPanel`）：切行/切 PR 时编辑器组件按 key 重建，写到一半的草稿直接丢弃（已坐实并修正原假设——草稿不是跟随，是丢失）；需加丢弃确认或缓存草稿
 - [ ] `package.json` 的 `publisher` 仍是占位符 `your-publisher-name`，发布前必须改
@@ -81,14 +81,14 @@
 
 **高（功能正确性）**
 
-- [ ] 多窗口实例配置互相覆盖：globalState 读-改-写无跨窗口监听，窗口 B 用陈旧列表回写丢掉窗口 A 新增的实例（`config.ts` `addInstance`/`removeInstance`）
+- [x] 多窗口实例配置互相覆盖：globalState 读-改-写无跨窗口监听，窗口 B 用陈旧列表回写丢掉窗口 A 新增的实例（`config.ts` `addInstance`/`removeInstance`）——已修：写入前经 `_writeInstancesMerged` 重新 get 并按 id 合并（本次计算结果优先、并发新增保留、显式删除不复活），竞态窗口缩到 get→update 的同步间隙（globalState 无原子写，无法彻底闭合）；`addInstance`/`updateInstance`/`removeInstance` 三处统一走该助手；补 2 个并发注入测试
 - [x] mention 补全 range 回扫吞字：`foo@` 触发补全选中后 `foo` 被整体替换删除（`issueMentionProvider.ts:90-103`）；`@` 文档链接误匹配邮箱 `foo@bar.com`；`forgejo-pr` scheme 分支是死代码（只注册了 `file` scheme）——已修：`getMentionRange` 回扫只吃单词字符、停下后仅补退一格含触发符（`foo@` 只替换 `@` 起部分，`@`/`#` insertText 正好整体覆盖）；`@` 文档链接与补全各加「前一字符是单词字符即邮箱上下文」守卫；删 `forgejo-pr` scheme 死分支与 `parseForgejoPrUri`；`getMentionRange` 导出直测，补 6 个测试
 - [x] permalink 不做 URL 编码：文件名含 `#`/`?`/`%` 生成坏链接（`permalink.ts:69,92`）；新增文件的 base 侧生成 404 链接——已修：新增导出纯函数 `encodePermalinkPath` 按 `/` 分段 `encodeURIComponent`（分隔符保留），forgejo-pr 与 file 两处拼接套用；base 侧新增文件（`isBase && status === 'added'`）不生成链接、弹 l10n 警告（双语新 key）；补 permalink 6 个纯函数测试
 - [ ] worktree 裸缓存仓库（`cacheDir/repos/*.git`）永不删除，无磁盘清理策略（阶段 6 明确排除，独立功能）
 
 **中低**
 
-- [ ] 发布功能：422 被合并误判为「名称冲突」且无客户端仓库名校验；空仓库（无 commit）发布提示「No branch is checked out」偏离真实原因且已创建半成品远程仓库；发布成功后无任何列表刷新；同主机多账号 `findInstanceForRemote` 只取第一个命中，可能用错 token push
+- [x] 发布功能：422 被合并误判为「名称冲突」且无客户端仓库名校验；空仓库（无 commit）发布提示「No branch is checked out」偏离真实原因且已创建半成品远程仓库；发布成功后无任何列表刷新；同主机多账号 `findInstanceForRemote` 只取第一个命中，可能用错 token push——已修：409 或 422 且 body 含 "already exists" 才判名称冲突，其他 422 经 `extractApiErrorMessage` 提取 body message 透传；`validateRepoName` 客户端预检（`[a-zA-Z0-9_.-]`、非空、不以 `.` 开头，validateInput 接入）；发布流程先查 `getCurrentCommitSha`，无 commit 直接双语报错中止（不再创建半成品远程）；`publishToForgejo` 接收 viewProvider，新仓库发布与推送成功后 `refresh()`（走批 9 refreshData 机制）；`pushToExistingRemote` 多账号命中时先按 remote owner 匹配 username，无法判定弹 showQuickPick 选账号；补 publish 12 个测试
 - [x] 实例导入：`importInstances` 对 webview 回传数据无逐项校验；文件导入漏拷 `syncApiUrlsToInstanceUrl` 字段（导出有、导入丢）——已修：提取共享 `sanitizeImportedInstances`（校验 id/url/token/name/username 必填 string、仅在布尔时保留 `syncApiUrlsToInstanceUrl`、计数丢弃项），文件导入与 webview 回传共用；回传全非法时回 `instancesImported { success: false, error }`（l10n 双语新 key），部分非法记日志后只导入合法项；补 instanceImport 4 个 + dispatch 2 个测试
 - [ ] Action artifact 下载改流式写盘：现在 `arrayBuffer()` 全量读进扩展宿主内存（为此加了 50MB 上限），改流式下载直接写盘后可去掉上限，支持大产物
 - [ ] 无版本探测/降级：Actions、`return_run_info`、PR files 等较新端点对老 Gitea/Forgejo 实例直接 404；建议首次连接调 `/api/v1/version` 特性门控，或文档声明最低版本
@@ -160,6 +160,7 @@
 
 ### 最近完成
 
+- [x] 批 10 发布/配置健壮性（TODO :91/:84/:26/:23 四条）：发布功能四子项——422 按 body 区分名称冲突与其他校验错误（`extractApiErrorMessage` 透传服务端 message）、`validateRepoName` 客户端预检、无 commit 仓库在创建远程前中止（双语提示，不再留半成品远程）、发布/推送成功后 `viewProvider.refresh()` 刷新列表；多窗口实例配置——`_writeInstancesMerged` 写入前重读按 id 合并，并发新增不再被整表覆盖；多根 workspace——`detectLinkedRepository` 优先活动编辑器所属文件夹；多账号身份——检测侧 `preferOwnNamespaceInstance`（remote owner 匹配 username 优先，多命中记日志），推送侧无法判定时 showQuickPick 选账号（三项共用同一启发式，合并实现）；l10n 双语各加 4 key；补 20 个测试（config 2、gitOperations 6、publish 12，全量 webview 136 + extension 314 通过）
 - [x] 批 9 正确性快修（TODO :85/:86/:92/:124 四条）：mention 补全三问题——`getMentionRange` 回扫只吃单词字符不再吞 `foo@` 的 `foo`（触发符单独补退一格），`@` 文档链接/补全加邮箱上下文守卫，删 `forgejo-pr` scheme 死代码分支；permalink 路径按 `/` 分段 `encodeURIComponent`（`#`/`?`/`%`/空格/中文文件名不再坏链），base 侧新增文件不生成 404 链接改弹 l10n 警告；实例导入提取共享 `sanitizeImportedInstances`——文件导入不再丢 `syncApiUrlsToInstanceUrl`，webview 回传逐项校验、全非法回 `instancesImported` 错误；「刷新实例」除实例列表外新发 `refreshData` 消息，webview 清三个实例级 TTL 缓存并对每个实例 force 重拉仓库/我的 Issue/PR（loading key 去重）；l10n 双语各加 2 key；补 20 个测试（mention 6、permalink 6、instanceImport 4、dispatch 3、useAppState 1，全量 webview 136 + extension 294 通过）
 - [x] 批 8 UI 存疑项实测（tools/ui-review harness，CDP 截图 + 坐标点击 + workbench eval）：`App.vue` 返回按钮「重建后死按钮」不成立——Reload Webviews 后 memory history 直接重置回 `/`，无深路由恢复机制，按钮不显示；正常导航全部 `router.push` 自 `/`，阳性对照点返回正常回列表；tab 栏激活态歧义坐实为 hover 残留——`.tab-button:hover` 的 `--vscode-list-hoverBackground` 深色块，鼠标移开即消失，非 focus 样式（修法建议已记条目，未修）；gutter 单击误设断点坐实——inline diff 修改侧 19px glyph margin（DOM 实测定位），默认设置可复现，对照组（普通 .ts 文件 gutter）验证点击机制，`vscode.diff` 无选项、when 子句拦不住，判平台限制并记 KNOWN_ISSUES 双语；实测中临时开启的 `debug.allowBreakpointsEverywhere` 与 `renderSideBySide` 已还原、断点已清空、临时 baseline.ts 已删
 - [x] 批 7 存疑区代码修复（第四轮「存疑」4 条）：评论面板创建固定 `ViewColumn.Beside` 不再盖住 diff 编辑器、复用时 `reveal()` 不传 column 保留用户拖动位置；`prFileSystemProvider.stat` 的 `mtime` 改常量 0（URI 以 sha 寻址无需 mtime 信号）；`git clone --bare` 加 `--quiet` 防大仓库进度写爆 execFile 1MB maxBuffer；`_detectServerOrigin` 按 key 跳过 `avatar_url`（外部头像服务不再被误判为服务器 origin）；既有 URL 改写测试改走 `getRepoDetail` 的 `html_url`（原断言依赖 avatar 参与探测）；补 gitOperations 1 个、client 1 个测试，panel 2 处断言

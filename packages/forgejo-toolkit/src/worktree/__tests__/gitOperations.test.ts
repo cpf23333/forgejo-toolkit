@@ -24,14 +24,18 @@ import {
   addRemote,
   cloneRepository,
   createWorktreeFromBranch,
+  detectLinkedRepository,
   fetchPullRequestHead,
   getRemoteUrl,
   openWorktree,
+  preferOwnNamespaceInstance,
   pushBranch,
   remoteMatchesInstance,
   revertMergeCommit,
 } from '../gitOperations';
 import * as vscode from 'vscode';
+import { logger } from '../../logger';
+import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 type ExecFileCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
@@ -389,5 +393,115 @@ describe('openWorktree', () => {
     (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/wt' } }];
     await expect(openWorktree('/wt', false)).resolves.toBe(true);
     expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('detectLinkedRepository', () => {
+  const instanceAlice: ForgejoInstance = {
+    id: 'host-alice',
+    url: 'https://forgejo.example.com',
+    token: '',
+    name: 'alice@host',
+    username: 'alice',
+  };
+  const instanceBob: ForgejoInstance = {
+    id: 'host-bob',
+    url: 'https://forgejo.example.com',
+    token: '',
+    name: 'bob@host',
+    username: 'bob',
+  };
+
+  function mockRemotes(remotesByCwd: Record<string, string>) {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], options: { cwd?: string }, callback: ExecFileCallback) => {
+        if (args[0] === 'remote' && args[1] === 'get-url') {
+          const url = options?.cwd ? remotesByCwd[options.cwd] : undefined;
+          if (url) {
+            callback(null, { stdout: `${url}\n`, stderr: '' } as unknown as string, '');
+          } else {
+            const error = new Error('Command failed: git remote get-url') as Error & { stderr: string };
+            error.stderr = 'fatal: No such remote';
+            callback(error, '', error.stderr);
+          }
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [];
+    (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = undefined;
+  });
+
+  it('prefers the workspace folder containing the active editor', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
+      { uri: { fsPath: '/ws/a' } },
+      { uri: { fsPath: '/ws/b' } },
+    ];
+    (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = {
+      document: { uri: { fsPath: '/ws/b/src/file.ts' } },
+    };
+    mockRemotes({
+      '/ws/a': 'https://forgejo.example.com/alice/repo-a.git',
+      '/ws/b': 'https://forgejo.example.com/alice/repo-b.git',
+    });
+
+    const linked = await detectLinkedRepository([instanceAlice]);
+
+    expect(linked?.localPath).toBe('/ws/b');
+    expect(linked?.repo).toBe('repo-b');
+  });
+
+  it('falls back to the first matching folder when no editor is active', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
+      { uri: { fsPath: '/ws/a' } },
+      { uri: { fsPath: '/ws/b' } },
+    ];
+    mockRemotes({
+      '/ws/a': 'https://forgejo.example.com/alice/repo-a.git',
+      '/ws/b': 'https://forgejo.example.com/alice/repo-b.git',
+    });
+
+    const linked = await detectLinkedRepository([instanceAlice]);
+
+    expect(linked?.localPath).toBe('/ws/a');
+  });
+
+  it('binds the account whose username matches the remote owner', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+    mockRemotes({ '/ws/a': 'https://forgejo.example.com/bob/repo.git' });
+
+    const linked = await detectLinkedRepository([instanceAlice, instanceBob]);
+
+    expect(linked?.instanceId).toBe('host-bob');
+  });
+
+  it('keeps the first match and logs the ambiguity when the owner does not disambiguate', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+    mockRemotes({ '/ws/a': 'https://forgejo.example.com/someone-else/repo.git' });
+    const infoSpy = vi.spyOn(logger, 'info');
+
+    const linked = await detectLinkedRepository([instanceAlice, instanceBob]);
+
+    expect(linked?.instanceId).toBe('host-alice');
+    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('2 accounts match'));
+  });
+});
+
+describe('preferOwnNamespaceInstance', () => {
+  const base = { url: 'https://forgejo.example.com', token: '', name: 'n' };
+  const alice: ForgejoInstance = { ...base, id: 'a', username: 'alice' };
+  const bob: ForgejoInstance = { ...base, id: 'b', username: 'bob' };
+
+  it('prefers the account matching the remote owner, case-insensitively', () => {
+    expect(preferOwnNamespaceInstance([alice, bob], 'Bob').id).toBe('b');
+  });
+
+  it('falls back to the first match when no username matches', () => {
+    expect(preferOwnNamespaceInstance([alice, bob], 'carol').id).toBe('a');
   });
 });

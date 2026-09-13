@@ -7,6 +7,7 @@ function createFakeContext() {
   const secretStore = new Map<string, string>();
   const secretListeners: Array<(event: { key: string }) => void> = [];
   return {
+    store,
     secretStore,
     fireSecretChange(key: string) {
       for (const listener of secretListeners) {
@@ -136,5 +137,64 @@ describe('ConfigManager', () => {
 
     expect(fireSpy).not.toHaveBeenCalled();
     expect(config.getInstances()[0].token).toBe('token-1');
+  });
+
+  /**
+   * Rig globalState.get so that right after this window reads the instance
+   * list, "another window" writes an extra instance into the shared store.
+   * The write path must then merge instead of dropping the concurrent entry.
+   */
+  function injectConcurrentAdd(concurrent: ForgejoInstance) {
+    const realGet = fake.context.globalState.get;
+    let firstRead = true;
+    fake.context.globalState.get = (key: string, fallback?: unknown) => {
+      const value = realGet(key, fallback);
+      if (firstRead && key === 'forgejoToolkit.instances') {
+        firstRead = false;
+        fake.store.set(key, [...(value as ForgejoInstance[]), concurrent]);
+      }
+      return value;
+    };
+    return () => {
+      fake.context.globalState.get = realGet;
+    };
+  }
+
+  it('preserves an instance added by another window during addInstance', async () => {
+    await config.addInstance(instance);
+    const concurrent: ForgejoInstance = {
+      id: 'other-window-instance',
+      url: 'https://forgejo.example.com',
+      token: '',
+      name: 'other',
+      username: 'other',
+    };
+    const restore = injectConcurrentAdd(concurrent);
+
+    await config.addInstance({ ...instance, id: 'new-instance' });
+    restore();
+
+    const ids = (fake.store.get('forgejoToolkit.instances') as ForgejoInstance[]).map((i) => i.id);
+    expect(ids).toContain('other-window-instance');
+    expect(ids).toContain('new-instance');
+  });
+
+  it('preserves an instance added by another window during removeInstance', async () => {
+    await config.addInstance(instance);
+    const concurrent: ForgejoInstance = {
+      id: 'other-window-instance',
+      url: 'https://forgejo.example.com',
+      token: '',
+      name: 'other',
+      username: 'other',
+    };
+    const restore = injectConcurrentAdd(concurrent);
+
+    await config.removeInstance(instance.id);
+    restore();
+
+    const ids = (fake.store.get('forgejoToolkit.instances') as ForgejoInstance[]).map((i) => i.id);
+    expect(ids).toContain('other-window-instance');
+    expect(ids).not.toContain(instance.id);
   });
 });

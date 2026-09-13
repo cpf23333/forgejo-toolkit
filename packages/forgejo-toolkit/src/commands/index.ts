@@ -41,7 +41,7 @@ export function registerCommands(
     }),
 
     vscode.commands.registerCommand('forgejoToolkit.publishToForgejo', () => {
-      publishToForgejo(config).catch((error: unknown) => {
+      publishToForgejo(config, viewProvider).catch((error: unknown) => {
         const err = error instanceof Error ? error.message : String(error);
         logger.error(`[publishToForgejo] ${err}`);
         vscode.window.showErrorMessage(vscode.l10n.t('Failed to publish to Forgejo: {0}', err));
