@@ -7,6 +7,7 @@ import type { HostToWebviewMessage, WebviewToHostMessage } from '@cpf23333-forge
 import type { ForgejoInstance, PullReviewSubmitEvent } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import { resolveLocale } from '../utils/resolveLocale';
+import { userFacingErrorMessage } from '../api/errors';
 
 export interface PullReviewCommentContext {
   instanceId: string;
@@ -222,7 +223,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
         vscode.window.showInformationMessage(vscode.l10n.t('Review comment added.'));
       }
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`Failed to submit pull review comment: ${err}`);
       this._reply('pullReviewCommentSubmitted', { ...this._repoParams(), error: err });
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to add review comment: {0}', err));
@@ -268,7 +269,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
         vscode.window.showInformationMessage(vscode.l10n.t('Review submitted.'));
       }
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`Failed to submit pull review ${reviewId}: ${err}`);
       this._reply('pullReviewSubmitted', { ...this._repoParams(), error: err });
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to submit review: {0}', err));
@@ -307,7 +308,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       this._callbacks?.onDeleted?.(this._context);
       this._panel.dispose();
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`Failed to delete pull review ${reviewId}: ${err}`);
       this._reply('pullReviewDeleted', { ...this._repoParams(), error: err });
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to cancel review: {0}', err));
@@ -368,7 +369,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
         _requestId: requestId,
       });
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`Failed to create issue attachment for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
       this._reply('issueAttachmentCreated', {
         instanceId: instance.id,

@@ -21,6 +21,7 @@ import {
   pullRequestCommentsKey,
   pullRequestCommitsKey,
   pullRequestFormKey,
+  pullRequestStateKey,
   pullRequestMergeFormKey,
   issueCommentFormKey,
   repoDetailKey,
@@ -491,8 +492,14 @@ function handleAttachmentDelete(asset: ForgejoIssueAttachment) {
 
 function toggleState() {
   const nextState = detail.value?.state === 'open' ? 'closed' : 'open';
-  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, { state: nextState });
+  state.togglePullRequestState(instanceId.value, owner.value, repo.value, index.value, nextState);
 }
+
+// Close/reopen reports against its own key: the error renders next to the
+// button instead of disappearing into the edit form's key.
+const stateToggleKey = computed(() => pullRequestStateKey(instanceId.value, owner.value, repo.value, index.value));
+const stateToggleError = computed(() => state.errors.get(stateToggleKey.value));
+const stateToggleLoading = computed(() => state.loading.get(stateToggleKey.value) ?? false);
 
 function toggleSubscription() {
   const user = currentUsername.value;
@@ -917,11 +924,16 @@ function reloadPullRequest() {
                 :icon="detail.state === 'open' ? 'close' : 'refresh'"
                 :title="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
                 :aria-label="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
+                :disabled="stateToggleLoading"
                 @click="toggleState"
                 icon-only
               />
             </template>
           </div>
+        </div>
+
+        <div v-if="stateToggleError" class="state-toggle-error">
+          {{ t('dashboard.error', { message: stateToggleError }) }}
         </div>
 
         <div class="detail-meta">
@@ -1497,6 +1509,12 @@ function reloadPullRequest() {
 
 .error-state {
   flex-wrap: wrap;
+}
+
+.state-toggle-error {
+  color: var(--vscode-testing-iconFailed);
+  font-size: 0.9em;
+  margin-bottom: 8px;
 }
 
 .detail-content {

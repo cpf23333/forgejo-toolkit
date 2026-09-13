@@ -10,6 +10,7 @@ import { ForgejoIssueMentionProvider } from './editor/issueMentionProvider';
 import { PullReviewCommentController } from './comments/pullReviewCommentController';
 import { NotificationPoller } from './notifications/notificationPoller';
 import { CreatePrStatusBarController } from './statusBar/createPrStatusBar';
+import { userFacingErrorMessage } from './api/errors';
 import { logger } from './logger';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -24,7 +25,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // systems without a keyring. Degrade gracefully: instances remain
     // readable from globalState and token-dependent operations surface
     // their own errors later.
-    const err = error instanceof Error ? error.message : String(error);
+    const err = userFacingErrorMessage(error);
     logger.error(`Failed to initialize stored instance tokens: ${err}`);
   }
 
@@ -37,7 +38,7 @@ export async function activate(context: vscode.ExtensionContext) {
         logger.info('Mock API server started for offline development');
       })
       .catch((error: unknown) => {
-        const err = error instanceof Error ? error.message : String(error);
+        const err = userFacingErrorMessage(error);
         logger.error(`Failed to start mock API server: ${err}`);
       });
   }

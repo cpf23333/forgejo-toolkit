@@ -5,6 +5,7 @@ import type { ForgejoPullRequest } from '../api/types';
 import type { ConfigManager } from '../config';
 import { logger } from '../logger';
 import { detectLinkedRepository, getCurrentBranch, getGitHeadPath } from '../worktree/gitOperations';
+import { userFacingErrorMessage } from '../api/errors';
 
 const REFRESH_DEBOUNCE_MS = 300;
 const OPEN_PR_CACHE_TTL_MS = 60_000;
@@ -88,7 +89,7 @@ export class CreatePrStatusBarController implements vscode.Disposable {
     clearTimeout(this._refreshTimer);
     this._refreshTimer = setTimeout(() => {
       this.refresh().catch((error: unknown) => {
-        logger.error(`[createPrStatusBar] refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(`[createPrStatusBar] refresh failed: ${userFacingErrorMessage(error)}`);
       });
     }, REFRESH_DEBOUNCE_MS);
   }
@@ -176,7 +177,7 @@ export class CreatePrStatusBarController implements vscode.Disposable {
     } catch (error) {
       // A failed lookup (e.g. a transient network error) is not proof that the
       // button should disappear — keep the last known state and only log.
-      logger.error(`[createPrStatusBar] refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(`[createPrStatusBar] refresh failed: ${userFacingErrorMessage(error)}`);
     }
   }
 

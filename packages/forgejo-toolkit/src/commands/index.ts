@@ -7,7 +7,8 @@ import { COMMAND_ADD_COMMENT, PullReviewCommentController } from '../comments/pu
 import { copyPermalink } from './permalink';
 import { publishToForgejo } from './publish';
 import { createPrFromCurrentBranch, type CreatePrFromCurrentBranchArgs } from './createPullRequest';
-import { logger } from '../logger';
+import { logger, showErrorWithLog } from '../logger';
+import { userFacingErrorMessage } from '../api/errors';
 
 export function registerCommands(
   context: vscode.ExtensionContext,
@@ -35,26 +36,30 @@ export function registerCommands(
 
     vscode.commands.registerCommand('forgejoToolkit.copyPermalink', () => {
       copyPermalink(config).catch((error: unknown) => {
-        const err = error instanceof Error ? error.message : String(error);
+        const err = userFacingErrorMessage(error);
         vscode.window.showErrorMessage(vscode.l10n.t('Failed to copy permalink: {0}', err));
       });
     }),
 
     vscode.commands.registerCommand('forgejoToolkit.publishToForgejo', () => {
       publishToForgejo(config, viewProvider).catch((error: unknown) => {
-        const err = error instanceof Error ? error.message : String(error);
+        const err = userFacingErrorMessage(error);
         logger.error(`[publishToForgejo] ${err}`);
-        vscode.window.showErrorMessage(vscode.l10n.t('Failed to publish to Forgejo: {0}', err));
+        void showErrorWithLog(vscode.l10n.t('Failed to publish to Forgejo: {0}', err));
       });
+    }),
+
+    vscode.commands.registerCommand('forgejoToolkit.showLog', () => {
+      logger.show();
     }),
 
     vscode.commands.registerCommand(
       'forgejoToolkit.createPrFromCurrentBranch',
       (args?: CreatePrFromCurrentBranchArgs) => {
         createPrFromCurrentBranch(config, viewProvider, args).catch((error: unknown) => {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`[createPrFromCurrentBranch] ${err}`);
-          vscode.window.showErrorMessage(vscode.l10n.t('Failed to create pull request: {0}', err));
+          void showErrorWithLog(vscode.l10n.t('Failed to create pull request: {0}', err));
         });
       },
     ),
@@ -68,7 +73,7 @@ export function registerCommands(
       // editor/lineNumber/context passes the 1-based line number; convert to 0-based for the API.
       const line = typeof lineNumber === 'number' ? lineNumber - 1 : editor.selection.active.line;
       pullReviewCommentController.addComment(editor, line).catch((error: unknown) => {
-        const err = error instanceof Error ? error.message : String(error);
+        const err = userFacingErrorMessage(error);
         vscode.window.showErrorMessage(vscode.l10n.t('Failed to add review comment: {0}', err));
       });
     }),
@@ -82,7 +87,7 @@ export function registerCommands(
         return;
       }
       pullReviewCommentController.deleteComment(context).catch((error: unknown) => {
-        const err = error instanceof Error ? error.message : String(error);
+        const err = userFacingErrorMessage(error);
         vscode.window.showErrorMessage(vscode.l10n.t('Failed to delete review comment: {0}', err));
       });
     }),

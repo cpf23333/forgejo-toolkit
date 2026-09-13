@@ -4,11 +4,13 @@ import { ConfigManager } from '../config';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { ForgejoNotification } from '../api/types';
 import type { Logger } from '../logger';
+import { userFacingErrorMessage } from '../api/errors';
 
 const SEEN_NOTIFICATION_IDS_KEY = 'forgejoToolkit.seenNotificationIds';
 
 export interface NotificationMessageSender {
   pushNotifications(instanceId: string, notifications: ForgejoNotification[]): void;
+  pushNotificationError(instanceId: string, error: string): void;
   openNotifications(): void;
 }
 
@@ -81,18 +83,27 @@ export class NotificationPoller implements vscode.Disposable {
     for (const instance of instances) {
       if (immediate) {
         this._pollInstance(instance).catch((error: unknown) => {
-          const err = error instanceof Error ? error.message : String(error);
-          this._logger?.error(`Initial notification poll failed for ${instance.name}: ${err}`);
+          this._handlePollFailure(instance, error);
         });
       }
       const timer = setInterval(() => {
         this._pollInstance(instance).catch((error: unknown) => {
-          const err = error instanceof Error ? error.message : String(error);
-          this._logger?.error(`Notification poll failed for ${instance.name}: ${err}`);
+          this._handlePollFailure(instance, error);
         });
       }, intervalMs);
       this._timers.set(instance.id, timer);
     }
+  }
+
+  /**
+   * A failed poll must be visible, not just logged: the notifications view
+   * shows the per-instance error (e.g. an expired token) instead of a
+   * misleading "no notifications" state.
+   */
+  private _handlePollFailure(instance: ForgejoInstance, error: unknown): void {
+    const err = userFacingErrorMessage(error);
+    this._logger?.error(`Notification poll failed for ${instance.name}: ${err}`);
+    this._sender.pushNotificationError(instance.id, err);
   }
 
   private async _pollInstance(instance: ForgejoInstance): Promise<void> {
@@ -198,7 +209,7 @@ export class NotificationPoller implements vscode.Disposable {
       await client.markAllNotificationsRead();
       await this._pollInstance(instance);
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       this._logger?.error(`Failed to mark all notifications read for ${instance.name}: ${err}`);
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to mark notifications as read: {0}', err));
     }

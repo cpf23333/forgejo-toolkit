@@ -118,6 +118,8 @@ export type HostToWebviewMessage =
       index: number;
       item?: unknown;
       error?: string;
+      /** Echoed from editIssue: this was a close/reopen toggle, not a form edit. */
+      stateToggle?: boolean;
     }
   | {
       command: 'issueDeleted';
@@ -234,6 +236,8 @@ export type HostToWebviewMessage =
       index: number;
       item?: unknown;
       error?: string;
+      /** Echoed from editPullRequest: this was a close/reopen toggle, not a form edit. */
+      stateToggle?: boolean;
     }
   | {
       command: 'pullRequestFiles';
@@ -563,7 +567,9 @@ export type HostToWebviewMessage =
       /** Poller pushes land in a separate slot from the user's filtered view. */
       command: 'polledNotifications';
       instanceId: string;
-      notifications: unknown[];
+      notifications?: unknown[];
+      /** Set when the poll itself failed (e.g. invalid token, instance down). */
+      error?: string;
     }
   | {
       command: 'notificationMarkedRead';
@@ -846,6 +852,8 @@ export type WebviewToHostMessage =
         milestone?: number;
         due_date?: string;
         unset_due_date?: boolean;
+        /** Marks a close/reopen toggle: stripped before the API call, echoed as stateToggle. */
+        state_toggle?: boolean;
       };
     }
   | {
@@ -957,6 +965,8 @@ export type WebviewToHostMessage =
         milestone?: number;
         due_date?: string;
         unset_due_date?: boolean;
+        /** Marks a close/reopen toggle: stripped before the API call, echoed as stateToggle. */
+        state_toggle?: boolean;
       };
     }
   | {

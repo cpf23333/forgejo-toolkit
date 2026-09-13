@@ -16,6 +16,7 @@ const typeFilter = ref<'all' | 'issue' | 'pull' | 'repository'>('all');
 const instances = computed(() => state.instances.value);
 const loading = computed(() => state.loading);
 const errors = computed(() => state.errors);
+const pollErrors = computed(() => state.notificationPollErrors.value);
 const notifications = computed(() => state.notifications.value);
 const unreadCount = computed(() => state.unreadNotificationCount.value);
 
@@ -74,17 +75,13 @@ function hasLoaded(): boolean {
   return false;
 }
 
-function hasVisibleNotifications(): boolean {
-  for (const instance of instances.value) {
-    if (filteredList(instance.id).length > 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
+// Instances with content, a view error, or a poll failure get a card — a
+// token-expired instance must not collapse into the global empty state.
 function visibleInstances(): ForgejoInstance[] {
-  return instances.value.filter((instance) => filteredList(instance.id).length > 0);
+  return instances.value.filter(
+    (instance) =>
+      filteredList(instance.id).length > 0 || errors.value.has(key(instance.id)) || pollErrors.value.has(instance.id),
+  );
 }
 
 function loadAll() {
@@ -94,7 +91,11 @@ function loadAll() {
 }
 
 function formatError(instanceId: string): string {
-  return t('dashboard.error', { message: errors.value.get(key(instanceId)) ?? '' });
+  const viewError = errors.value.get(key(instanceId));
+  if (viewError) {
+    return t('dashboard.error', { message: viewError });
+  }
+  return t('dashboard.notifications.pollFailed', { message: pollErrors.value.get(instanceId) ?? '' });
 }
 
 function notificationTypeIcon(notification: ForgejoNotification): string {
@@ -307,7 +308,7 @@ onMounted(() => {
       {{ t('dashboard.loading') }}
     </div>
 
-    <div v-else-if="hasLoaded() && !hasVisibleNotifications()" class="empty-state">
+    <div v-else-if="hasLoaded() && visibleInstances().length === 0" class="empty-state">
       {{ t('dashboard.notifications.empty') }}
     </div>
 
@@ -348,7 +349,7 @@ onMounted(() => {
               />
             </span>
           </vscode-tree-item>
-          <vscode-tree-item v-if="errors.get(key(instance.id))">
+          <vscode-tree-item v-if="errors.get(key(instance.id)) || pollErrors.get(instance.id)">
             <span class="error">{{ formatError(instance.id) }}</span>
             <vscode-icon
               slot="actions"

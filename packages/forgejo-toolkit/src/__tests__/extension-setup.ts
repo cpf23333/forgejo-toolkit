@@ -7,6 +7,9 @@ vi.mock('vscode', () => ({
     showWarningMessage: vi.fn(),
     showOpenDialog: vi.fn(),
     showQuickPick: vi.fn(),
+    withProgress: vi.fn((_options: unknown, task: (progress: unknown, token: unknown) => unknown) =>
+      task({ report: vi.fn() }, {}),
+    ),
     createWebviewPanel: vi.fn(),
     activeTextEditor: undefined,
     createStatusBarItem: vi.fn(() => ({
@@ -42,6 +45,7 @@ vi.mock('vscode', () => ({
     executeCommand: vi.fn(),
   },
   StatusBarAlignment: { Left: 1, Right: 2 },
+  ProgressLocation: { SourceControl: 1, Window: 10, Notification: 15 },
   ViewColumn: { Active: -1, Beside: 2, One: 1, Two: 2 },
   version: '1.99.0',
   RelativePattern: vi.fn().mockImplementation(function (base: unknown, pattern: unknown) {

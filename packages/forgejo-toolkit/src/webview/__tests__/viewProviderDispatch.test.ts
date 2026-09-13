@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
 
+const clientMocks = vi.hoisted(() => ({
+  editIssue: vi.fn(),
+  replaceIssueLabels: vi.fn(),
+}));
+
 vi.mock('../../api/client', () => ({
   ForgejoClient: vi.fn().mockImplementation(function () {
     return {
       searchMentions: vi.fn().mockRejectedValue(new Error('network down')),
       getCurrentUser: vi.fn().mockResolvedValue({ login: 'user' }),
+      editIssue: clientMocks.editIssue,
+      replaceIssueLabels: clientMocks.replaceIssueLabels,
     };
   }),
 }));
@@ -66,6 +73,7 @@ function createFakeView() {
   const view = {
     visible: true,
     title: undefined as string | undefined,
+    show: vi.fn(),
     webview: {
       options: undefined as unknown,
       html: '',
@@ -115,6 +123,8 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
   let fake: ReturnType<typeof createFakeView>;
 
   beforeEach(async () => {
+    clientMocks.editIssue.mockReset();
+    clientMocks.replaceIssueLabels.mockReset();
     context = createFakeContext();
     config = new ConfigManager(context as never);
     provider = new ForgejoToolkitViewProvider(
@@ -425,5 +435,75 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(resources[0][0]?.path).toContain('src/new-name.ts');
     // Untouched files keep the same path on both sides.
     expect(resources[1][1]?.path).toContain('src/touched.ts');
+  });
+
+  it('strips state_toggle before the API call and echoes stateToggle on success', async () => {
+    clientMocks.editIssue.mockResolvedValue({ number: 5, title: 'demo' });
+    fake.send({
+      command: 'editIssue',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+      data: { state: 'closed', state_toggle: true },
+    });
+    await flushDispatches();
+
+    expect(clientMocks.editIssue).toHaveBeenCalledWith('owner', 'repo', 5, { state: 'closed' });
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'issueUpdated');
+    expect(reply).toBeDefined();
+    expect(reply?.stateToggle).toBe(true);
+    expect(reply?.error).toBeUndefined();
+  });
+
+  it('echoes stateToggle on editIssue failure so the webview routes the error to the toggle button', async () => {
+    clientMocks.editIssue.mockRejectedValue(new Error('API down'));
+    fake.send({
+      command: 'editIssue',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+      data: { state: 'closed', state_toggle: true },
+    });
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'issueUpdated');
+    expect(reply).toBeDefined();
+    expect(reply?.stateToggle).toBe(true);
+    expect(reply?.error).toBe('API down');
+  });
+
+  it('pushNotificationError replies with polledNotifications carrying the error', async () => {
+    provider.pushNotificationError(testInstance.id, 'instance unreachable');
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'polledNotifications');
+    expect(reply).toBeDefined();
+    expect(reply?.instanceId).toBe(testInstance.id);
+    expect(reply?.error).toBe('instance unreachable');
+    expect(reply?.notifications).toBeUndefined();
+  });
+
+  it('openSettings reveals the resolved view and posts the openSettings message', async () => {
+    provider.openSettings();
+
+    expect(fake.view.show).toHaveBeenCalledWith(false);
+    expect(postedMessages(fake.posted).some((m) => m.command === 'openSettings')).toBe(true);
+  });
+
+  it('openSettings focuses the view id when the view has never been resolved', async () => {
+    const freshProvider = new ForgejoToolkitViewProvider(
+      context as never,
+      context.extensionUri as never,
+      config,
+      new ReadmeContentProvider(),
+    );
+    const executeCommand = vi.mocked(vscode.commands.executeCommand);
+    executeCommand.mockClear();
+
+    freshProvider.openSettings();
+
+    expect(executeCommand).toHaveBeenCalledWith('forgejoToolkitView.focus');
   });
 });

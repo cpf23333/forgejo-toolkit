@@ -147,6 +147,9 @@ function createAppState() {
   const globalSearchQuery = ref<string>('');
   const notifications = ref<Map<string, ForgejoNotification[]>>(new Map());
   const polledNotifications = ref<Map<string, ForgejoNotification[]>>(new Map());
+  // Per-instance poll failures (expired token, unreachable instance) so the
+  // notifications view can show an error instead of a misleading empty state.
+  const notificationPollErrors = ref<Map<string, string>>(new Map());
   const repoLabels = ref<Map<string, ForgejoLabel[]>>(new Map());
   const repoAssignees = ref<Map<string, string[]>>(new Map());
   const repoMilestones = ref<Map<string, ForgejoMilestone[]>>(new Map());
@@ -1094,8 +1097,13 @@ function createAppState() {
       case 'polledNotifications': {
         // Poller pushes go to a dedicated slot so they never clobber the
         // user's filtered view; the unread badge reads from this slot.
-        const data = message as { instanceId: string; notifications?: ForgejoNotification[] };
-        polledNotifications.value.set(data.instanceId, data.notifications ?? []);
+        const data = message as { instanceId: string; notifications?: ForgejoNotification[]; error?: string };
+        if (data.error) {
+          notificationPollErrors.value.set(data.instanceId, data.error);
+        } else {
+          notificationPollErrors.value.delete(data.instanceId);
+          polledNotifications.value.set(data.instanceId, data.notifications ?? []);
+        }
         break;
       }
       case 'notificationMarkedRead':
@@ -1842,9 +1850,14 @@ function createAppState() {
       item?: ForgejoIssue;
       error?: string;
       _requestId?: string;
+      stateToggle?: boolean;
     },
   ) {
-    const formKey = issueFormKey(data.instanceId, data.owner, data.repo, command === 'issueUpdated' ? data.index : 0);
+    // A close/reopen toggle reports against its own key so the error surfaces
+    // next to the toggle button, not inside the (possibly closed) edit form.
+    const formKey = data.stateToggle
+      ? issueStateKey(data.instanceId, data.owner, data.repo, data.index)
+      : issueFormKey(data.instanceId, data.owner, data.repo, command === 'issueUpdated' ? data.index : 0);
     loading.set(formKey, false);
     if (command === 'issueCreated' && data._requestId) {
       const pending = pendingIssueCreations.get(data._requestId);
@@ -2138,14 +2151,13 @@ function createAppState() {
       item?: ForgejoPullRequest;
       error?: string;
       _requestId?: string;
+      stateToggle?: boolean;
     },
   ) {
-    const formKey = pullRequestFormKey(
-      data.instanceId,
-      data.owner,
-      data.repo,
-      command === 'pullRequestUpdated' ? data.index : 0,
-    );
+    // Same split as handleIssueSaved: close/reopen toggles use their own key.
+    const formKey = data.stateToggle
+      ? pullRequestStateKey(data.instanceId, data.owner, data.repo, data.index)
+      : pullRequestFormKey(data.instanceId, data.owner, data.repo, command === 'pullRequestUpdated' ? data.index : 0);
     loading.set(formKey, false);
     if (command === 'pullRequestCreated' && data._requestId) {
       const pending = pendingPullRequestCreations.get(data._requestId);
@@ -3170,6 +3182,24 @@ function createAppState() {
     });
   }
 
+  /**
+   * Close/reopen an issue from the detail view. Uses its own loading/error key
+   * (echoed back as `stateToggle`) so a failure shows next to the button
+   * instead of inside the edit form's key, which the user may never open.
+   */
+  function toggleIssueState(instanceId: string, owner: string, repo: string, index: number, state: 'open' | 'closed') {
+    const key = issueStateKey(instanceId, owner, repo, index);
+    beginLoading(key);
+    postMessage({
+      command: 'editIssue',
+      instanceId,
+      owner,
+      repo,
+      index,
+      data: { state, state_toggle: true },
+    });
+  }
+
   function createIssueComment(
     instanceId: string,
     owner: string,
@@ -3400,6 +3430,26 @@ function createAppState() {
         due_date: data.dueDate,
         unset_due_date: data.unsetDueDate,
       },
+    });
+  }
+
+  /** See toggleIssueState: close/reopen gets its own loading/error key. */
+  function togglePullRequestState(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    state: 'open' | 'closed',
+  ) {
+    const key = pullRequestStateKey(instanceId, owner, repo, index);
+    beginLoading(key);
+    postMessage({
+      command: 'editPullRequest',
+      instanceId,
+      owner,
+      repo,
+      index,
+      data: { state, state_toggle: true },
     });
   }
 
@@ -4125,6 +4175,7 @@ function createAppState() {
     globalSearchQuery,
     notifications,
     polledNotifications,
+    notificationPollErrors,
     unreadNotificationCount,
     repoLabels,
     repoAssignees,
@@ -4196,6 +4247,8 @@ function createAppState() {
     openRepoFileDiff,
     createIssue,
     editIssue,
+    toggleIssueState,
+    togglePullRequestState,
     deleteIssue,
     createIssueComment,
     editIssueComment,
@@ -4300,6 +4353,14 @@ export function repoBranchCommitsKey(instanceId: string, owner: string, repo: st
 
 export function issueFormKey(instanceId: string, owner: string, repo: string, index: number): string {
   return `${instanceId}:${owner}/${repo}:issue-form:${index}`;
+}
+
+export function issueStateKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}:issue-state:${index}`;
+}
+
+export function pullRequestStateKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}:pull-state:${index}`;
 }
 
 export function issueDetailKey(instanceId: string, owner: string, repo: string, index: number): string {

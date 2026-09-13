@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { buildUrl, client as baseClient, encodePathSegment } from '@cpf23333-forgejo-toolkit/shared/request';
+import { toApiError } from './errors';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
   createCurrentUserRepo,
@@ -171,6 +172,12 @@ const MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
 // Guard for the recursive git tree loop against servers that ignore the
 // pagination params and keep returning the same page with truncated=true.
 const MAX_TREE_PAGES = 50;
+
+/** Per-request timeout: a reachable-but-unresponsive instance must not hang. */
+export const API_REQUEST_TIMEOUT_MS = 30_000;
+
+// 403 scope toasts are deduped per instance+scope for the whole session.
+const shownPermissionErrorKeys = new Set<string>();
 
 interface TreeCacheEntry {
   value: GitEntry[];
@@ -402,10 +409,25 @@ export class ForgejoClient {
   }
 
   async getReadme(owner: string, repo: string): Promise<string | undefined> {
-    const readmeFile = await repoGetContents(owner, repo, 'README.md', undefined, {
-      client: this._client(),
-    }).catch(() => undefined);
+    const readmeFile = await this._probe(
+      repoGetContents(owner, repo, 'README.md', undefined, { client: this._client() }),
+      `getReadme ${owner}/${repo}`,
+    );
     return readmeFile?.content ? decodeBase64(readmeFile.content) : undefined;
+  }
+
+  /**
+   * Best-effort enrichment probe (permissions, attachments, README, previews):
+   * a failure just means "no data", but it is logged at debug level so a
+   * systematically failing endpoint stays diagnosable.
+   */
+  private async _probe<T>(promise: Promise<T>, what: string): Promise<T | undefined> {
+    try {
+      return await promise;
+    } catch (error) {
+      this.logger?.debug(`[probe] ${what}: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
   }
 
   async getRepoDetail(owner: string, repo: string): Promise<ForgejoRepoDetail> {
@@ -668,7 +690,7 @@ export class ForgejoClient {
   async getIssueDetail(owner: string, repo: string, index: number): Promise<ForgejoIssueDetail> {
     const [issue, repoInfo] = await Promise.all([
       issueGetIssue(owner, repo, index, { client: this._client() }),
-      repoGet(owner, repo, { client: this._client() }).catch(() => undefined),
+      this._probe(repoGet(owner, repo, { client: this._client() }), `getIssueDetail repo ${owner}/${repo}`),
     ]);
     const permissions = (repoInfo as { permissions?: { admin?: boolean; push?: boolean; pull?: boolean } } | undefined)
       ?.permissions;
@@ -684,8 +706,11 @@ export class ForgejoClient {
     // which does include the `assets` field. See KNOWN_ISSUES.md.
     const [pr, issue, repoInfo] = await Promise.all([
       repoGetPullRequest(owner, repo, index, { client: this._client() }),
-      issueGetIssue(owner, repo, index, { client: this._client() }).catch(() => undefined),
-      repoGet(owner, repo, { client: this._client() }).catch(() => undefined),
+      this._probe(
+        issueGetIssue(owner, repo, index, { client: this._client() }),
+        `getPullRequestDetail issue #${index}`,
+      ),
+      this._probe(repoGet(owner, repo, { client: this._client() }), `getPullRequestDetail repo ${owner}/${repo}`),
     ]);
     const permissions = (repoInfo as { permissions?: { admin?: boolean; push?: boolean; pull?: boolean } } | undefined)
       ?.permissions;
@@ -694,14 +719,18 @@ export class ForgejoClient {
     const headSha = prDetail.head?.sha;
     const [protection, combinedStatus] = await Promise.all([
       baseRef
-        ? repoGetBranchProtection(owner, repo, encodePathSegment(baseRef), { client: this._client() }).catch(
-            () => undefined,
+        ? this._probe(
+            repoGetBranchProtection(owner, repo, encodePathSegment(baseRef), { client: this._client() }),
+            `branch protection ${owner}/${repo}@${baseRef}`,
           )
         : undefined,
       headSha
-        ? repoGetCombinedStatusByRef(owner, repo, encodePathSegment(headSha), undefined, {
-            client: this._client(),
-          }).catch(() => undefined)
+        ? this._probe(
+            repoGetCombinedStatusByRef(owner, repo, encodePathSegment(headSha), undefined, {
+              client: this._client(),
+            }),
+            `combined status ${owner}/${repo}@${headSha}`,
+          )
         : undefined,
     ]);
     // When the base branch requires approving reviews, count how many the PR
@@ -714,7 +743,7 @@ export class ForgejoClient {
       protection.required_approvals > 0 &&
       !(permissions?.admin === true && protection.apply_to_admins !== true)
     ) {
-      const reviews = await this.listPullReviews(owner, repo, index).catch(() => undefined);
+      const reviews = await this._probe(this.listPullReviews(owner, repo, index), `listPullReviews #${index}`);
       approvedCount = (reviews ?? []).filter(
         (review) => review.state === 'APPROVED' && review.official === true && !review.stale && !review.dismissed,
       ).length;
@@ -861,12 +890,15 @@ export class ForgejoClient {
   }
 
   async getUserPreview(username: string): Promise<ForgejoUser | undefined> {
-    const user = await userGet(username, { client: this._client() }).catch(() => undefined);
+    const user = await this._probe(userGet(username, { client: this._client() }), `getUserPreview ${username}`);
     return user as ForgejoUser | undefined;
   }
 
   async getIssuePreview(owner: string, repo: string, index: number): Promise<ForgejoIssue | undefined> {
-    const issue = await issueGetIssue(owner, repo, index, { client: this._client() }).catch(() => undefined);
+    const issue = await this._probe(
+      issueGetIssue(owner, repo, index, { client: this._client() }),
+      `getIssuePreview #${index}`,
+    );
     return issue as ForgejoIssue | undefined;
   }
 
@@ -1162,7 +1194,10 @@ export class ForgejoClient {
               browser_download_url: a.browser_download_url ?? `${this.url}/attachments/${a.uuid}`,
             })),
           );
-        } catch {
+        } catch (error) {
+          this.logger?.debug(
+            `[probe] comment assets for #${commentId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
           assetsMap.set(commentId, []);
         }
       }),
@@ -1467,6 +1502,9 @@ export class ForgejoClient {
         const response = await baseClient<TResponseData>({
           ...config,
           baseURL,
+          // A reachable-but-unresponsive instance must not hang the request
+          // forever; callers may still pass their own signal.
+          signal: config.signal ?? AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
           headers: mergeHeaders(config.headers, { Authorization: `token ${this.token}` }),
         });
 
@@ -1494,13 +1532,15 @@ export class ForgejoClient {
         if (error instanceof Error) {
           this._notifyIfPermissionError(error.message);
         }
-        throw error;
+        // Normalize into a structured ApiError: message stays raw for logs and
+        // pattern matching, userMessage carries the localized rendering.
+        throw toApiError(error);
       }
     };
   }
 
   private _notifyIfPermissionError(errorMessage: string) {
-    const match = errorMessage.match(/Forgejo API error (\d+):\s*(.+)/);
+    const match = errorMessage.match(/Forgejo API error (\d+):\s*([\s\S]+)/);
     if (!match) {
       return;
     }
@@ -1509,9 +1549,27 @@ export class ForgejoClient {
       return;
     }
     const text = body.trim();
-    if (/required scope|token does not have/i.test(text)) {
-      vscode.window.showErrorMessage(`Forgejo permission error: ${text}`);
+    if (!/required scope|token does not have/i.test(text)) {
+      return;
     }
+    // One toast per instance+scope per session: pollers and manual refreshes
+    // would otherwise re-toast the same 403 on every request.
+    const key = `${this.url}|${text}`;
+    if (shownPermissionErrorKeys.has(key)) {
+      return;
+    }
+    shownPermissionErrorKeys.add(key);
+    const openSettings = vscode.l10n.t('Open Settings');
+    void vscode.window
+      .showErrorMessage(
+        vscode.l10n.t('Permission denied by {0}: {1}. The access token may lack the required scope.', this.url, text),
+        openSettings,
+      )
+      .then((choice) => {
+        if (choice === openSettings) {
+          void vscode.commands.executeCommand('forgejoToolkit.openSettings');
+        }
+      });
   }
 }
 

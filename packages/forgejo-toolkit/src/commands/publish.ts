@@ -4,7 +4,12 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 import { normalizeGitRemote } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { ConfigManager } from '../config';
 import { ForgejoClient } from '../api/client';
-import { logger } from '../logger';
+// Single implementation lives in the shared API error helpers; re-exported
+// here for existing importers.
+import { extractApiErrorMessage, userFacingErrorMessage } from '../api/errors';
+import { logger, showErrorWithLog } from '../logger';
+
+export { extractApiErrorMessage };
 import type { ForgejoToolkitViewProvider } from '../webview/viewProvider';
 import {
   addRemote,
@@ -48,26 +53,6 @@ function isNameConflictError(message: string): boolean {
     return true;
   }
   return /Forgejo API error 422\b/.test(message) && /already exists/i.test(message);
-}
-
-/**
- * Pull the human-readable `message` field out of a `Forgejo API error <status>:
- * <json body>` string so non-conflict 422s surface their actual validation
- * error instead of raw JSON. Falls back to the original text.
- */
-export function extractApiErrorMessage(raw: string): string {
-  const bodyMatch = raw.match(/Forgejo API error \d+:\s*(\{[\s\S]*)/);
-  if (bodyMatch) {
-    try {
-      const parsed = JSON.parse(bodyMatch[1]) as { message?: unknown };
-      if (typeof parsed.message === 'string' && parsed.message.trim()) {
-        return parsed.message;
-      }
-    } catch {
-      // Not JSON — fall through to the raw message.
-    }
-  }
-  return raw;
 }
 
 async function pickTargetFolder(): Promise<string | undefined> {
@@ -170,20 +155,24 @@ async function publishNewRepository(
   const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
   let repository;
   try {
-    repository = await client.createUserRepo({ name, private: visibility.value, auto_init: false });
+    repository = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: vscode.l10n.t('Creating repository {0} on {1}…', name, instance.name),
+      },
+      () => client.createUserRepo({ name, private: visibility.value, auto_init: false }),
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error(`[publishToForgejo] failed to create repository: ${message}`);
-    if (isNameConflictError(message)) {
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`[publishToForgejo] failed to create repository: ${rawMessage}`);
+    if (isNameConflictError(rawMessage)) {
       vscode.window.showErrorMessage(
         vscode.l10n.t('A repository named "{0}" already exists on {1}. Choose a different name.', name, instance.name),
       );
     } else {
-      // 422s that are not name conflicts carry the server's validation message
-      // in the body — surface it instead of mislabeling them as conflicts.
-      vscode.window.showErrorMessage(
-        vscode.l10n.t('Failed to create repository: {0}', extractApiErrorMessage(message)),
-      );
+      // 422s that are not name conflicts surface the server's validation
+      // message (localized via ApiError) instead of raw JSON.
+      void showErrorWithLog(vscode.l10n.t('Failed to create repository: {0}', userFacingErrorMessage(error)));
     }
     return;
   }
@@ -207,7 +196,13 @@ async function publishNewRepository(
     );
     return;
   }
-  await pushBranch(folder, 'origin', branch, instance.token, true, instance.url);
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: vscode.l10n.t('Pushing {0} to {1}…', branch, instance.name),
+    },
+    () => pushBranch(folder, 'origin', branch, instance.token, true, instance.url),
+  );
   viewProvider?.refresh();
 
   const openInBrowser = vscode.l10n.t('Open in Browser');
@@ -279,7 +274,13 @@ async function pushToExistingRemote(
   }
 
   const upstream = await getUpstreamBranch(folder);
-  await pushBranch(folder, 'origin', branch, instance.token, !upstream, instance.url);
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: vscode.l10n.t('Pushing {0} to {1}…', branch, instance.name),
+    },
+    () => pushBranch(folder, 'origin', branch, instance.token, !upstream, instance.url),
+  );
   viewProvider?.refresh();
   if (upstream) {
     vscode.window.showInformationMessage(vscode.l10n.t('Pushed {0} to origin', branch));

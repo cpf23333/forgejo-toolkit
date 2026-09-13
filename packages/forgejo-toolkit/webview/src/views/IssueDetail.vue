@@ -27,6 +27,7 @@ import {
   userStopwatchesKey,
   issueDependenciesKey,
   issueReactionsKey,
+  issueStateKey,
 } from '../composables/useAppState';
 import type { ForgejoIssueAttachment } from '../types/api';
 
@@ -445,8 +446,14 @@ function handleAttachmentDelete(asset: ForgejoIssueAttachment) {
 
 function toggleState() {
   const nextState = detail.value?.state === 'open' ? 'closed' : 'open';
-  state.editIssue(instanceId.value, owner.value, repo.value, index.value, { state: nextState });
+  state.toggleIssueState(instanceId.value, owner.value, repo.value, index.value, nextState);
 }
+
+// Close/reopen reports against its own key: the error renders next to the
+// button instead of disappearing into the edit form's key.
+const stateToggleKey = computed(() => issueStateKey(instanceId.value, owner.value, repo.value, index.value));
+const stateToggleError = computed(() => state.errors.get(stateToggleKey.value));
+const stateToggleLoading = computed(() => state.loading.get(stateToggleKey.value) ?? false);
 
 async function handleDeleteIssue() {
   const confirmed = await state.showConfirm(
@@ -625,6 +632,7 @@ function reloadIssue() {
                 :icon="detail.state === 'open' ? 'close' : 'refresh'"
                 :title="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
                 :aria-label="detail.state === 'open' ? t('dashboard.actions.close') : t('dashboard.actions.reopen')"
+                :disabled="stateToggleLoading"
                 @click="toggleState"
                 icon-only
               />
@@ -637,6 +645,10 @@ function reloadIssue() {
               />
             </template>
           </div>
+        </div>
+
+        <div v-if="stateToggleError" class="error state-toggle-error">
+          {{ t('dashboard.error', { message: stateToggleError }) }}
         </div>
 
         <div class="detail-meta">
@@ -1039,6 +1051,12 @@ function reloadIssue() {
 
 .error-state {
   flex-wrap: wrap;
+}
+
+.state-toggle-error {
+  color: var(--vscode-testing-iconFailed);
+  font-size: 0.9em;
+  margin-bottom: 8px;
 }
 
 .detail-content {

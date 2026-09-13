@@ -163,6 +163,12 @@
         "icon": "$(cloud-upload)"
       },
       {
+        "command": "forgejoToolkit.showLog",
+        "title": "%command.showLog.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(output)"
+      },
+      {
         "command": "forgejoToolkit.createPrFromCurrentBranch",
         "title": "%command.createPrFromCurrentBranch.title%",
         "category": "Forgejo Toolkit",

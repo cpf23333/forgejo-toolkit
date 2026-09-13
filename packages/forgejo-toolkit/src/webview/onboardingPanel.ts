@@ -10,6 +10,7 @@ import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-too
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { computeTokenConflicts, readExportDataFromUri } from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
+import { userFacingErrorMessage } from '../api/errors';
 import { validateCacheDirectory } from '../worktree/worktreeManager';
 
 export class OnboardingWebviewPanel {
@@ -103,7 +104,7 @@ export class OnboardingWebviewPanel {
               const user = await client.getCurrentUser();
               this._reply('testConnectionResult', { success: true, username: user.login });
             } catch (error) {
-              const err = error instanceof Error ? error.message : String(error);
+              const err = userFacingErrorMessage(error);
               logger.error(`onboarding testConnection failed: ${err}`);
               this._reply('testConnectionResult', { success: false, error: err });
             }
@@ -138,7 +139,7 @@ export class OnboardingWebviewPanel {
               this._reply('saveInstanceResult', { success: true });
               vscode.window.showInformationMessage(`Connected to Forgejo as ${user.login}`);
             } catch (error) {
-              const err = error instanceof Error ? error.message : String(error);
+              const err = userFacingErrorMessage(error);
               logger.error(`onboarding saveInstance failed: ${err}`);
               this._reply('saveInstanceResult', { success: false, error: err });
             }
@@ -221,7 +222,7 @@ export class OnboardingWebviewPanel {
             try {
               await vscode.env.openExternal(uri);
             } catch (error) {
-              const err = error instanceof Error ? error.message : String(error);
+              const err = userFacingErrorMessage(error);
               logger.error(`onboarding openExternal failed for ${url}: ${err}`);
             }
             return;
@@ -256,7 +257,7 @@ export class OnboardingWebviewPanel {
               const htmlWithResolvedImages = await this._resolveImageUrls(html, instance);
               this._reply('renderedMarkdown', { _requestId, html: htmlWithResolvedImages });
             } catch (error) {
-              const err = error instanceof Error ? error.message : String(error);
+              const err = userFacingErrorMessage(error);
               logger.error(`onboarding renderMarkdown failed for ${instance.name}: ${err}`);
               this._reply('renderedMarkdown', { _requestId, error: err });
             }
@@ -314,7 +315,7 @@ export class OnboardingWebviewPanel {
       const tokenConflicts = computeTokenConflicts(instances, existingInstances);
       this._reply('importInstancesPreview', { instances, existingIds, tokenConflicts, settings });
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`onboarding previewImportInstances failed: ${err}`);
       this._reply('importInstancesPreview', {
         instances: [],
@@ -348,7 +349,7 @@ export class OnboardingWebviewPanel {
           settings = data.settings;
         }
       } catch (error) {
-        const err = error instanceof Error ? error.message : String(error);
+        const err = userFacingErrorMessage(error);
         logger.error(`onboarding importInstances failed: ${err}`);
         this._reply('instancesImported', { success: false, error: err });
         return;
@@ -362,7 +363,7 @@ export class OnboardingWebviewPanel {
       this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
       this._reply('instancesImported', { success: true, count: instances.length });
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`onboarding importInstances failed: ${err}`);
       this._reply('instancesImported', { success: false, error: err });
     }
@@ -409,7 +410,7 @@ export class OnboardingWebviewPanel {
       try {
         await validateCacheDirectory(trimmed);
       } catch (error) {
-        const err = error instanceof Error ? error.message : String(error);
+        const err = userFacingErrorMessage(error);
         void vscode.window.showErrorMessage(
           vscode.l10n.t('Cannot use "{0}" as the worktree cache directory: {1}', trimmed, err),
         );

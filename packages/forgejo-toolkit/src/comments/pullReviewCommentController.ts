@@ -10,6 +10,7 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 import type { Logger } from '../logger';
 import { PullReviewCommentPanel, type PullReviewCommentContext } from './pullReviewCommentPanel';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
+import { userFacingErrorMessage } from '../api/errors';
 import { InFlightTasks } from '../worktree/inFlightTasks';
 import { createTimedCache } from '../utils/timedCache';
 
@@ -219,7 +220,7 @@ export class PullReviewCommentController implements vscode.Disposable {
           const comments = await client.getPullReviewComments(params.owner, params.repo, params.index, reviewId);
           reviewData.push({ review, comments });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           this._logger?.error(`Failed to load pull review comments ${reviewId}: ${err}`);
         }
       }),
@@ -234,7 +235,7 @@ export class PullReviewCommentController implements vscode.Disposable {
 
   private _enqueueRender(task: () => Promise<void>): Promise<void> {
     const run = this._renderChain.then(task).catch((error: unknown) => {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       this._logger?.error(`Failed to render pull request review threads: ${err}`);
     });
     this._renderChain = run;
@@ -260,7 +261,7 @@ export class PullReviewCommentController implements vscode.Disposable {
       const data = await this._loadReviewData(params);
       await this._renderThreads(document, params, data);
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       this._logger?.error(
         `Failed to load pull request reviews for ${params.owner}/${params.repo}#${params.index}: ${err}`,
       );
@@ -429,7 +430,7 @@ export class PullReviewCommentController implements vscode.Disposable {
 
     const line = lineNumber ?? editor.selection.active.line;
     const data = await this._loadReviewData(params).catch((error: unknown) => {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       this._logger?.error(`Failed to load pull request diff for commenting: ${err}`);
       return undefined;
     });
@@ -482,13 +483,13 @@ export class PullReviewCommentController implements vscode.Disposable {
           index: params.index,
         });
         this._refreshOpenPrDocuments(params).catch((error: unknown) => {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           this._logger?.error(`Failed to refresh PR documents after review comment: ${err}`);
         });
       },
       onDeleted: () => {
         this._refreshOpenPrDocuments(params).catch((error: unknown) => {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           this._logger?.error(`Failed to refresh PR documents after review deletion: ${err}`);
         });
       },
@@ -508,7 +509,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     try {
       data = await this._loadReviewData(params);
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       this._logger?.error(
         `Failed to reload pull request reviews for ${params.owner}/${params.repo}#${params.index}: ${err}`,
       );
@@ -560,7 +561,7 @@ export class PullReviewCommentController implements vscode.Disposable {
       await this._refreshOpenPrDocuments(context);
       vscode.window.showInformationMessage(vscode.l10n.t('Review comment deleted'));
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       this._logger?.error(`Failed to delete pull review comment ${context.commentId}: ${err}`);
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to delete review comment: {0}', err));
     }

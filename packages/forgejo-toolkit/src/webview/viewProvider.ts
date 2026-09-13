@@ -32,6 +32,7 @@ import {
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { computeTokenConflicts, readExportDataFromUri, sanitizeImportedInstances } from './instanceImport';
+import { userFacingErrorMessage } from '../api/errors';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { resolveLocale } from '../utils/resolveLocale';
 
@@ -133,7 +134,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     try {
       await this._handleMessage(message);
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`Error handling webview message "${message.command}": ${err}`);
     } finally {
       if (requestId && this._unansweredRequests.has(requestId)) {
@@ -198,7 +199,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const user = await client.getCurrentUser();
           this._reply('testConnectionResult', { success: true, username: user.login });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`testConnection failed: ${err}`);
           this._reply('testConnectionResult', { success: false, error: err });
         }
@@ -231,7 +232,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           this._reply('saveInstanceResult', { success: true });
           vscode.window.showInformationMessage(`Connected to Forgejo as ${user.login}`);
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`saveInstance failed: ${err}`);
           this._reply('saveInstanceResult', { success: false, error: err });
         }
@@ -268,7 +269,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           this._reply('saveInstanceResult', { success: true });
           vscode.window.showInformationMessage(`Updated Forgejo instance for ${user.login}`);
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`editInstance failed: ${err}`);
           this._reply('saveInstanceResult', { success: false, error: err });
         }
@@ -361,7 +362,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           await vscode.env.openExternal(uri);
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`openExternal failed for ${url}: ${err}`);
         }
         return;
@@ -381,7 +382,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           await vscode.env.openExternal(vscode.Uri.file(worktreePath));
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`openWorktreePath failed for ${worktreePath}: ${err}`);
         }
         return;
@@ -397,7 +398,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           logger.info(`getRepositories returned ${repos.length} repos for ${instance.name}`);
           this._reply('repositories', { instanceId: instance.id, repositories: repos });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepositories failed for ${instance.name}: ${err}`);
           this._reply('repositories', { instanceId: message.instanceId, error: err });
         }
@@ -413,7 +414,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const issues = await client.getUserIssues(message.state ?? 'open');
           this._reply('myIssues', { instanceId: instance.id, issues });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getMyIssues failed for ${instance.name}: ${err}`);
           this._reply('myIssues', { instanceId: message.instanceId, error: err });
         }
@@ -429,7 +430,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const pulls = await client.getUserPullRequests(message.state ?? 'open');
           this._reply('myPullRequests', { instanceId: instance.id, pullRequests: pulls });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getMyPullRequests failed for ${instance.name}: ${err}`);
           this._reply('myPullRequests', { instanceId: message.instanceId, error: err });
         }
@@ -477,7 +478,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             pullRequests,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`globalSearch failed for ${instance.name}: ${err}`);
           this._reply('globalSearchResult', {
             instanceId: message.instanceId,
@@ -512,7 +513,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             notifications,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getNotifications failed for ${instance.name}: ${err}`);
           this._reply('notifications', { instanceId: message.instanceId, error: err });
         }
@@ -532,7 +533,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           await client.markNotificationRead(id);
           this._reply('notificationMarkedRead', { instanceId: instance.id, id });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`markNotificationRead failed for ${instance.name}/${id}: ${err}`);
           this._reply('notificationMarkedRead', { instanceId: message.instanceId, id, error: err });
         }
@@ -548,7 +549,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           await client.markAllNotificationsRead();
           this._reply('allNotificationsMarkedRead', { instanceId: instance.id });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`markAllNotificationsRead failed for ${instance.name}: ${err}`);
           this._reply('allNotificationsMarkedRead', { instanceId: message.instanceId, error: err });
         }
@@ -574,7 +575,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             detail: detailWithResolvedAvatars,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepoDetail failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('repoDetail', { instanceId: message.instanceId, owner, repo, error: err });
         }
@@ -605,7 +606,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             commits: commitsWithResolvedAvatars.recentCommits,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepoBranchCommits failed for ${instance.name}/${owner}/${repo}/${branch}: ${err}`);
           this._reply('repoBranchCommits', {
             instanceId: message.instanceId,
@@ -637,7 +638,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             detail,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getIssueDetail failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueDetail', {
             instanceId: message.instanceId,
@@ -670,7 +671,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             _requestId: message._requestId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`createIssue failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('issueCreated', {
             instanceId: message.instanceId,
@@ -694,7 +695,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const { labels, ...issueData } = data as {
+          const {
+            labels,
+            state_toggle: stateToggle,
+            ...issueData
+          } = data as {
             title?: string;
             body?: string;
             state?: string;
@@ -703,6 +708,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             milestone?: number;
             due_date?: string;
             unset_due_date?: boolean;
+            state_toggle?: boolean;
           };
           const item = await client.editIssue(owner, repo, index, issueData);
           if (Array.isArray(labels)) {
@@ -714,11 +720,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             repo,
             index,
             item,
+            ...(stateToggle ? { stateToggle: true } : {}),
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`editIssue failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
-          this._reply('issueUpdated', { instanceId: message.instanceId, owner, repo, index, error: err });
+          this._reply('issueUpdated', {
+            instanceId: message.instanceId,
+            owner,
+            repo,
+            index,
+            error: err,
+            ...((data as { state_toggle?: boolean }).state_toggle ? { stateToggle: true } : {}),
+          });
         }
         return;
       }
@@ -741,7 +755,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             index,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`deleteIssue failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueDeleted', { instanceId: message.instanceId, owner, repo, index, error: err });
         }
@@ -767,7 +781,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             subscribed: info.subscribed,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`checkIssueSubscription failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueSubscriptionChecked', {
             instanceId: message.instanceId,
@@ -808,7 +822,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             subscribed: subscribe,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`changeIssueSubscription failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueSubscriptionChanged', {
             instanceId: message.instanceId,
@@ -852,7 +866,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             action,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`${message.command} failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueStopwatchChanged', {
             instanceId: message.instanceId,
@@ -878,7 +892,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             stopwatches,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getUserStopWatches failed for ${instance.name}: ${err}`);
           this._reply('userStopwatches', {
             instanceId: message.instanceId,
@@ -907,7 +921,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             times,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getIssueTrackedTimes failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueTrackedTimes', {
             instanceId: message.instanceId,
@@ -944,7 +958,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             time: trackedTime,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`addIssueTime failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueTimeAdded', {
             instanceId: message.instanceId,
@@ -975,7 +989,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             index,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`resetIssueTime failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueTimeReset', {
             instanceId: message.instanceId,
@@ -1012,7 +1026,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             id,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`deleteIssueTime failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueTimeDeleted', {
             instanceId: message.instanceId,
@@ -1045,7 +1059,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             dependencies,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getIssueDependencies failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueDependencies', {
             instanceId: message.instanceId,
@@ -1089,7 +1103,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             action,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`${message.command} failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueDependencyChanged', {
             instanceId: message.instanceId,
@@ -1123,7 +1137,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             reactions,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getIssueReactions failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueReactions', {
             instanceId: message.instanceId,
@@ -1165,7 +1179,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             action: add ? 'add' : 'remove',
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`changeIssueReaction failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueReactionChanged', {
             instanceId: message.instanceId,
@@ -1199,7 +1213,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             reactions,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(
             `getCommentReactions failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`,
           );
@@ -1243,7 +1257,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             action: add ? 'add' : 'remove',
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(
             `changeCommentReaction failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`,
           );
@@ -1285,7 +1299,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             _requestId: message._requestId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`createIssueComment failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueCommentCreated', {
             instanceId: message.instanceId,
@@ -1337,7 +1351,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             _requestId: message._requestId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(
             `createIssueCommentAttachment failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`,
           );
@@ -1378,7 +1392,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             comment,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`editIssueComment failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`);
           this._reply('issueCommentEdited', {
             instanceId: message.instanceId,
@@ -1409,7 +1423,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             commentId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`deleteIssueComment failed for ${instance.name}/${owner}/${repo}/comments/${commentId}: ${err}`);
           this._reply('issueCommentDeleted', {
             instanceId: message.instanceId,
@@ -1447,7 +1461,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             _requestId: message._requestId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(
             `deleteIssueCommentAttachment failed for ${instance.name}/${owner}/${repo}/comments/${commentId}/assets/${attachmentId}: ${err}`,
           );
@@ -1488,7 +1502,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           });
           this.onPullRequestsChanged?.();
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`mergePullRequest failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('pullRequestMerged', {
             instanceId: message.instanceId,
@@ -1533,7 +1547,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             success: true,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`revertMergeCommit failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('revertMergeCommitResult', {
             instanceId: message.instanceId,
@@ -1575,7 +1589,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             _requestId: message._requestId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`createIssueAttachment failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueAttachmentCreated', {
             instanceId: message.instanceId,
@@ -1614,7 +1628,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             _requestId: message._requestId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`deleteIssueAttachment failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('issueAttachmentDeleted', {
             instanceId: message.instanceId,
@@ -1648,7 +1662,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             detail,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getPullRequestDetail failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('pullRequestDetail', {
             instanceId: message.instanceId,
@@ -1682,7 +1696,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           });
           this.onPullRequestsChanged?.();
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`createPullRequest failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('pullRequestCreated', {
             instanceId: message.instanceId,
@@ -1706,20 +1720,22 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const item = await client.editPullRequest(owner, repo, index, data);
+          const { state_toggle: stateToggle, ...prData } = data;
+          const item = await client.editPullRequest(owner, repo, index, prData);
           this._reply('pullRequestUpdated', {
             instanceId: instance.id,
             owner,
             repo,
             index,
             item,
+            ...(stateToggle ? { stateToggle: true } : {}),
           });
           // Closing (or reopening) a PR changes the status bar's open-PR lookup.
           if (data.state) {
             this.onPullRequestsChanged?.();
           }
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`editPullRequest failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('pullRequestUpdated', {
             instanceId: message.instanceId,
@@ -1727,6 +1743,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             repo,
             index,
             error: err,
+            ...(data.state_toggle ? { stateToggle: true } : {}),
           });
         }
         return;
@@ -1776,8 +1793,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 changes: counts.changes ?? (counts.additions ?? 0) + (counts.deletions ?? 0),
               };
             });
-          } catch {
+          } catch (error) {
             // counts are optional
+            logger.debug(
+              `getPullRequestFiles count supplement failed for ${owner}/${repo}#${index}: ${userFacingErrorMessage(error)}`,
+            );
           }
 
           logger.info(
@@ -1793,7 +1813,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             files,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getPullRequestFiles failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('pullRequestFiles', {
             instanceId: message.instanceId,
@@ -1827,7 +1847,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             comments,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(
             `getPullRequestCommentsAndTimeline failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`,
           );
@@ -1861,7 +1881,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             commits,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getPullRequestCommits failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
           this._reply('pullRequestCommits', {
             instanceId: message.instanceId,
@@ -1904,7 +1924,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             );
           }
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`openPullRequestDiff failed for ${owner}/${repo}#${index} ${filename}: ${err}`);
           vscode.window.showErrorMessage(vscode.l10n.t('Unable to open diff: {0}', err));
         }
@@ -1962,7 +1982,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             );
           }
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`openSelectedPullRequestDiffs failed for ${owner}/${repo}#${index}: ${err}`);
           vscode.window.showErrorMessage(vscode.l10n.t('Unable to open selected diffs: {0}', err));
         }
@@ -1989,7 +2009,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             issues,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepoIssues failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('repoIssues', {
             instanceId: message.instanceId,
@@ -2016,7 +2036,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const labels = await client.getRepoLabels(owner, repo);
           this._reply('repoLabels', { instanceId: instance.id, owner, repo, labels });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepoLabels failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('repoLabels', { instanceId: message.instanceId, owner, repo, error: err });
         }
@@ -2036,7 +2056,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const assignees = await client.getRepoAssignees(owner, repo);
           this._reply('repoAssignees', { instanceId: instance.id, owner, repo, assignees });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepoAssignees failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('repoAssignees', { instanceId: message.instanceId, owner, repo, error: err });
         }
@@ -2056,7 +2076,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const milestones = await client.getRepoMilestones(owner, repo);
           this._reply('repoMilestones', { instanceId: instance.id, owner, repo, milestones });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepoMilestones failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('repoMilestones', { instanceId: message.instanceId, owner, repo, error: err });
         }
@@ -2081,7 +2101,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const result = await client.searchMentions(owner, repo, query, type as 'user' | 'issue' | 'all');
           this._reply('mentionSearchResult', { _requestId, users: result.users, issues: result.issues });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`searchMentions failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('mentionSearchResult', { _requestId, error: err });
         }
@@ -2101,7 +2121,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const user = await client.getUserPreview(username);
           this._reply('userPreviewResult', { _requestId, user });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getUserPreview failed for ${instance.name}/${username}: ${err}`);
           this._reply('userPreviewResult', { _requestId, error: err });
         }
@@ -2126,7 +2146,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const issue = await client.getIssuePreview(owner, repo, index);
           this._reply('issuePreviewResult', { _requestId, issue });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getIssuePreview failed for ${instance.name}/${owner}/${repo}/${index}: ${err}`);
           this._reply('issuePreviewResult', { _requestId, error: err });
         }
@@ -2153,7 +2173,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             pullRequests,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepoPullRequests failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('repoPullRequests', {
             instanceId: message.instanceId,
@@ -2189,7 +2209,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             totalCount: result.total_count ?? 0,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getActionRuns failed for ${instance.name}/${owner}/${repo}: ${err}`);
           this._reply('actionRuns', {
             instanceId: message.instanceId,
@@ -2221,7 +2241,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             run,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getActionRun failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
           this._reply('actionRun', { instanceId: message.instanceId, owner, repo, runId, error: err });
         }
@@ -2247,7 +2267,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             jobs,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getActionRunJobs failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
           this._reply('actionRunJobs', { instanceId: message.instanceId, owner, repo, runId, error: err });
         }
@@ -2273,7 +2293,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             artifacts,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getActionRunArtifacts failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
           this._reply('actionRunArtifacts', { instanceId: message.instanceId, owner, repo, runId, error: err });
         }
@@ -2299,7 +2319,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             log,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getActionJobLog failed for ${instance.name}/${owner}/${repo}/jobs/${jobId}: ${err}`);
           this._reply('actionJobLog', { instanceId: message.instanceId, owner, repo, jobId, error: err });
         }
@@ -2337,7 +2357,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             run,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`dispatchWorkflow failed for ${instance.name}/${owner}/${repo}/${workflowfilename}: ${err}`);
           this._reply('actionRunDispatched', {
             instanceId: message.instanceId,
@@ -2369,7 +2389,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             success: true,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`cancelActionRun failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
           this._reply('actionRunCancelled', {
             instanceId: message.instanceId,
@@ -2401,7 +2421,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             success: true,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`deleteActionRun failed for ${instance.name}/${owner}/${repo}/${runId}: ${err}`);
           this._reply('actionRunDeleted', {
             instanceId: message.instanceId,
@@ -2454,7 +2474,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             path: uri.fsPath,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`downloadActionArtifact failed for ${instance.name}/${owner}/${repo}/${artifactId}: ${err}`);
           this._reply('actionArtifactDownloaded', {
             instanceId: message.instanceId,
@@ -2480,7 +2500,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const htmlWithResolvedImages = await resolveAttachmentImages(html, instance);
           this._reply('renderedMarkdown', { _requestId, html: htmlWithResolvedImages });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`renderMarkdown failed for ${instance.name}: ${err}`);
           this._reply('renderedMarkdown', { _requestId, error: err });
         }
@@ -2515,7 +2535,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             entries,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepoContents failed for ${instance.name}/${owner}/${repo}/${path}: ${err}`);
           this._reply('repoContents', {
             instanceId: message.instanceId,
@@ -2543,7 +2563,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const uri = buildRepoFileUri({ instanceId, owner, repo, ref, path });
           await vscode.commands.executeCommand('vscode.open', uri, { preview: false });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`openRepoFile failed for ${owner}/${repo}/${path}: ${err}`);
           vscode.window.showErrorMessage(vscode.l10n.t('Unable to open file: {0}', err));
         }
@@ -2575,7 +2595,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             files,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`searchRepoFiles failed for ${owner}/${repo}@${ref}: ${err}`);
           this._reply('repoFilesSearchResult', {
             instanceId: message.instanceId,
@@ -2614,7 +2634,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             commits,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getFileHistory failed for ${owner}/${repo}/${path}@${ref}: ${err}`);
           this._reply('fileHistory', {
             instanceId: message.instanceId,
@@ -2644,7 +2664,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const rightUri = buildRepoFileUri({ instanceId, owner, repo, ref: headRef, path });
           await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, `${path} (${baseRef}..${headRef})`);
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`openRepoFileDiff failed for ${owner}/${repo}/${path}: ${err}`);
           vscode.window.showErrorMessage(vscode.l10n.t('Unable to open diff: {0}', err));
         }
@@ -2668,7 +2688,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           ]);
           this._reply('repoRefs', { instanceId, owner, repo, branches, tags, releases });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`getRepoRefs failed for ${owner}/${repo}: ${err}`);
           this._reply('repoRefs', { instanceId, owner, repo, error: err });
         }
@@ -2694,7 +2714,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           await client.createBranch(owner, repo, { new_branch_name: newBranchName, old_ref_name: oldRef });
           this._reply('repoBranchCreated', { instanceId, owner, repo, branch: newBranchName });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`createRepoBranch failed for ${owner}/${repo}/${newBranchName}: ${err}`);
           this._reply('repoBranchCreated', { instanceId, owner, repo, branch: newBranchName, error: err });
         }
@@ -2719,7 +2739,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           await client.deleteBranch(owner, repo, branch);
           this._reply('repoBranchDeleted', { instanceId, owner, repo, branch });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`deleteRepoBranch failed for ${owner}/${repo}/${branch}: ${err}`);
           this._reply('repoBranchDeleted', { instanceId, owner, repo, branch, error: err });
         }
@@ -2748,7 +2768,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           });
           this._reply('repoTagCreated', { instanceId, owner, repo, tag: tagName });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`createRepoTag failed for ${owner}/${repo}/${tagName}: ${err}`);
           this._reply('repoTagCreated', { instanceId, owner, repo, tag: tagName, error: err });
         }
@@ -2773,7 +2793,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           await client.deleteTag(owner, repo, tag);
           this._reply('repoTagDeleted', { instanceId, owner, repo, tag });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`deleteRepoTag failed for ${owner}/${repo}/${tag}: ${err}`);
           this._reply('repoTagDeleted', { instanceId, owner, repo, tag, error: err });
         }
@@ -2826,7 +2846,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             _requestId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`createRepoRelease failed for ${owner}/${repo}/${tagName}: ${err}`);
           this._reply('repoReleaseCreated', {
             instanceId,
@@ -2858,7 +2878,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           await client.deleteRelease(owner, repo, id);
           this._reply('repoReleaseDeleted', { instanceId, owner, repo, release: String(id) });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`deleteRepoRelease failed for ${owner}/${repo}/${id}: ${err}`);
           this._reply('repoReleaseDeleted', { instanceId, owner, repo, release: String(id), error: err });
         }
@@ -2893,7 +2913,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           });
           this._reply('repoReleaseEdited', { instanceId, owner, repo, release: String(id) });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`editRepoRelease failed for ${owner}/${repo}/${id}: ${err}`);
           this._reply('repoReleaseEdited', { instanceId, owner, repo, release: String(id), error: err });
         }
@@ -2929,7 +2949,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             _requestId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`createReleaseAttachment failed for ${owner}/${repo}/releases/${id}: ${err}`);
           this._reply('releaseAttachmentCreated', {
             instanceId,
@@ -2970,7 +2990,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             _requestId,
           });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           logger.error(`deleteReleaseAttachment failed for ${owner}/${repo}/releases/${id}/${attachmentId}: ${err}`);
           this._reply('releaseAttachmentDeleted', {
             instanceId,
@@ -3036,7 +3056,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             // removeWorktree keeps the record on failure so the user can
             // retry; the error reaches the user exactly once, through this
             // worktreeError notification shown by the webview.
-            const err = error instanceof Error ? error.message : String(error);
+            const err = userFacingErrorMessage(error);
             const record = this._worktreeManager.getWorktree(id);
             this._reply('worktreeError', {
               error: err,
@@ -3099,11 +3119,27 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   public openSettings() {
-    this._view?.webview.postMessage({ command: 'openSettings' });
+    this._revealView();
+    this._postOrQueue({ command: 'openSettings' });
   }
 
   public openDashboard() {
-    this._view?.webview.postMessage({ command: 'openDashboard' });
+    this._revealView();
+    this._postOrQueue({ command: 'openDashboard' });
+  }
+
+  /**
+   * Bring the sidebar view on screen before messaging it. Commands like
+   * "Open Settings" used to silently no-op when the view had never been
+   * resolved; focusing the view id forces VS Code to resolve it, and the
+   * queued message reaches the webview once it mounts.
+   */
+  private _revealView() {
+    if (this._view) {
+      this._view.show(false);
+    } else {
+      void vscode.commands.executeCommand('forgejoToolkitView.focus');
+    }
   }
 
   public openCreatePullRequest(payload: { instanceId: string; owner: string; repo: string; head: string }) {
@@ -3223,7 +3259,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       await fs.promises.writeFile(uri.fsPath, JSON.stringify(data, null, 2), 'utf8');
       this._reply('instancesExported', { success: true, path: uri.fsPath });
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`exportInstances failed: ${err}`);
       this._reply('instancesExported', { success: false, error: err });
     }
@@ -3276,7 +3312,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       await vscode.env.clipboard.writeText(JSON.stringify(data, null, 2));
       this._reply('instancesExported', { success: true });
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`copyInstancesToClipboard failed: ${err}`);
       this._reply('instancesExported', { success: false, error: err });
     }
@@ -3354,7 +3390,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const tokenConflicts = computeTokenConflicts(instances, existingInstances);
       this._reply('importInstancesPreview', { instances, existingIds, tokenConflicts, settings });
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`previewImportInstances failed: ${err}`);
       this._reply('importInstancesPreview', {
         instances: [],
@@ -3391,7 +3427,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           settings = data.settings;
         }
       } catch (error) {
-        const err = error instanceof Error ? error.message : String(error);
+        const err = userFacingErrorMessage(error);
         logger.error(`importInstances failed: ${err}`);
         this._reply('instancesImported', { success: false, error: err });
         return;
@@ -3406,7 +3442,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       this._detectAndSendLinkedRepository();
       this._reply('instancesImported', { success: true, count: instances.length });
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`importInstances failed: ${err}`);
       this._reply('instancesImported', { success: false, error: err });
     }
@@ -3424,7 +3460,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       try {
         await validateCacheDirectory(trimmed);
       } catch (error) {
-        const err = error instanceof Error ? error.message : String(error);
+        const err = userFacingErrorMessage(error);
         void vscode.window.showErrorMessage(
           vscode.l10n.t('Cannot use "{0}" as the worktree cache directory: {1}', trimmed, err),
         );
@@ -3497,6 +3533,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._reply('polledNotifications', { instanceId, notifications });
   }
 
+  public pushNotificationError(instanceId: string, error: string): void {
+    this._reply('polledNotifications', { instanceId, error });
+  }
+
   public openNotifications(): void {
     this._reply('openNotifications', {});
   }
@@ -3558,7 +3598,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           }
           this._reply('worktreeOpened', { worktree: existing, existed: true });
         } catch (error) {
-          const err = error instanceof Error ? error.message : String(error);
+          const err = userFacingErrorMessage(error);
           this._reply('worktreeError', { error: err, operation: 'open', instanceId, owner, repo, index });
         }
         return;
@@ -3629,7 +3669,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (choice.value === 'clone') {
           sourceRepoPath = cacheRepoPath;
           if (!cacheRepoExisted) {
-            await cloneRepository(cloneUrl, sourceRepoPath, instance.token);
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: vscode.l10n.t('Cloning {0}/{1}…', owner, repo),
+              },
+              () => cloneRepository(cloneUrl, cacheRepoPath, instance.token),
+            );
           }
         } else {
           const selected = await vscode.window.showOpenDialog({
@@ -3739,7 +3785,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       await this._worktreeManager.addWorktree(worktree);
       this._reply('worktreeOpened', { worktree, existed: false });
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`openPrWorktree failed for ${owner}/${repo}#${index}: ${err}`);
       this._reply('worktreeError', { error: err, operation: 'open', instanceId, owner, repo, index });
     }
@@ -3797,7 +3843,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       logger.debug(`[avatar] resolved to data:${contentType};base64,${base64.slice(0, 40)}...`);
       return `data:${contentType};base64,${base64}`;
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`[avatar] error resolving ${url}: ${err}`);
       return url;
     }

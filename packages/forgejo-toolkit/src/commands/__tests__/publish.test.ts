@@ -27,6 +27,7 @@ vi.mock('../../api/client', () => ({
 }));
 
 import { extractApiErrorMessage, publishToForgejo, validateRepoName } from '../publish';
+import { ApiError } from '../../api/errors';
 import {
   getCurrentBranch,
   getCurrentCommitSha,
@@ -129,11 +130,18 @@ describe('publishToForgejo', () => {
     vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
     showInputBox.mockResolvedValue('my-repo');
     vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
-    createUserRepo.mockRejectedValue(new Error('Forgejo API error 422: {"message":"name is reserved"}'));
+    // The client wraps HTTP failures in ApiError; the user-facing message keeps
+    // the server's reason and offers a log button.
+    createUserRepo.mockRejectedValue(
+      new ApiError('http', 'Forgejo API error 422: {"message":"name is reserved"}', 422),
+    );
 
     await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('name is reserved'));
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining('name is reserved'),
+      'View Log',
+    );
     expect(vscode.window.showErrorMessage).not.toHaveBeenCalledWith(expect.stringContaining('already exists'));
   });
 

@@ -3,6 +3,7 @@ import type { ConfigManager } from '../config';
 import type { ForgejoToolkitViewProvider } from '../webview/viewProvider';
 import { ForgejoClient } from '../api/client';
 import { logger } from '../logger';
+import { userFacingErrorMessage } from '../api/errors';
 import {
   detectLinkedRepository,
   getAheadCount,
@@ -60,7 +61,7 @@ export async function createPrFromCurrentBranch(
     const detail = await client.getRepoDetail(linked.owner, linked.repo);
     defaultBranch = detail.repository.default_branch;
   } catch (error) {
-    const err = error instanceof Error ? error.message : String(error);
+    const err = userFacingErrorMessage(error);
     logger.error(`[createPrFromCurrentBranch] failed to resolve the default branch, skipping the guard: ${err}`);
   }
   if (defaultBranch && branch === defaultBranch) {
@@ -128,7 +129,7 @@ export async function createPrFromCurrentBranch(
     try {
       await pushBranch(linked.localPath, pushRemote, pushRefspec, pushToken, setUpstream, instance.url);
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
+      const err = userFacingErrorMessage(error);
       logger.error(`[createPrFromCurrentBranch] failed to push branch: ${err}`);
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to push branch {0}: {1}', branch, err));
       return;

@@ -1924,3 +1924,115 @@ describe('openPullRequestDiff', () => {
     );
   });
 });
+
+describe('notification poll errors', () => {
+  const instance = { id: 'inst-1', url: 'https://forgejo.example.com', token: 'token' };
+
+  async function createStateWithInstance() {
+    const { state, mod } = await createState();
+    dispatchMessage({ command: 'initialState', instances: [instance] });
+    await nextTick();
+    return { state, mod };
+  }
+
+  it('stores poll failures per instance without clearing the last good snapshot', async () => {
+    const { state } = await createStateWithInstance();
+
+    dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+    await nextTick();
+    expect(state.unreadNotificationCount.value).toBe(1);
+
+    dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', error: 'instance unreachable' });
+    await nextTick();
+
+    expect(state.notificationPollErrors.value.get('inst-1')).toBe('instance unreachable');
+    // The previous snapshot must survive: a failed poll is not an empty inbox.
+    expect(state.unreadNotificationCount.value).toBe(1);
+  });
+
+  it('clears the poll error on the next successful poll', async () => {
+    const { state } = await createStateWithInstance();
+
+    dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', error: 'instance unreachable' });
+    await nextTick();
+    expect(state.notificationPollErrors.value.get('inst-1')).toBe('instance unreachable');
+
+    dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', notifications: [] });
+    await nextTick();
+    expect(state.notificationPollErrors.value.has('inst-1')).toBe(false);
+  });
+});
+
+describe('issue/pull state toggles', () => {
+  it('toggleIssueState posts editIssue with the state_toggle marker and its own loading key', async () => {
+    const { state, mod } = await createState();
+    vscodePostMessage().mockClear();
+
+    state.toggleIssueState('inst-1', 'owner', 'repo', 5, 'closed');
+
+    expect(vscodePostMessage()).toHaveBeenCalledWith({
+      command: 'editIssue',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+      data: { state: 'closed', state_toggle: true },
+    });
+    expect(state.loading.get(mod.issueStateKey('inst-1', 'owner', 'repo', 5))).toBe(true);
+    expect(state.loading.get(mod.issueFormKey('inst-1', 'owner', 'repo', 5))).toBeUndefined();
+  });
+
+  it('togglePullRequestState posts editPullRequest with the state_toggle marker and its own loading key', async () => {
+    const { state, mod } = await createState();
+    vscodePostMessage().mockClear();
+
+    state.togglePullRequestState('inst-1', 'owner', 'repo', 7, 'closed');
+
+    expect(vscodePostMessage()).toHaveBeenCalledWith({
+      command: 'editPullRequest',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 7,
+      data: { state: 'closed', state_toggle: true },
+    });
+    expect(state.loading.get(mod.pullRequestStateKey('inst-1', 'owner', 'repo', 7))).toBe(true);
+  });
+
+  it('routes issueUpdated errors for state toggles to the state key, not the form key', async () => {
+    const { state, mod } = await createState();
+
+    dispatchMessage({
+      command: 'issueUpdated',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+      error: 'boom',
+      stateToggle: true,
+    });
+    await nextTick();
+
+    expect(state.errors.get(mod.issueStateKey('inst-1', 'owner', 'repo', 5))).toBe('boom');
+    expect(state.errors.get(mod.issueFormKey('inst-1', 'owner', 'repo', 5))).toBeUndefined();
+    expect(state.loading.get(mod.issueStateKey('inst-1', 'owner', 'repo', 5))).toBe(false);
+  });
+
+  it('routes pullRequestUpdated errors for state toggles to the state key, not the form key', async () => {
+    const { state, mod } = await createState();
+
+    dispatchMessage({
+      command: 'pullRequestUpdated',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 7,
+      error: 'boom',
+      stateToggle: true,
+    });
+    await nextTick();
+
+    expect(state.errors.get(mod.pullRequestStateKey('inst-1', 'owner', 'repo', 7))).toBe('boom');
+    expect(state.errors.get(mod.pullRequestFormKey('inst-1', 'owner', 'repo', 7))).toBeUndefined();
+  });
+});

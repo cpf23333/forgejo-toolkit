@@ -141,6 +141,7 @@
     "notifications": {
       "title": "Notifications",
       "empty": "No notifications match the selected filters.",
+      "pollFailed": "Failed to refresh notifications: {message}",
       "noInstances": "No Forgejo instances configured. Add an instance in Settings first.",
       "filterStatus": "Status",
       "filterType": "Type",

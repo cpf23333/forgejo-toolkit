@@ -22,7 +22,7 @@
 
 - [x] 同一实例配置多账号时，仓库关联检测按 `instanceId + owner/repo` 匹配第一个实例，可能以错误身份执行评论/合并等写操作；应提示用户选择或显式绑定仓库到账号——已修：`detectLinkedRepository` 收集全部匹配实例并显式绑定一个（新增 `preferOwnNamespaceInstance`：username 命中 remote owner 命名空间者优先，否则保持首个），多账号命中时 logger.info 记录绑定结果与歧义；推送链路（用户可交互）无法判定时弹 showQuickPick 选账号（见 :91 发布功能条目）
 - [ ] Token 过期或 scope 不足时只有报错弹窗，没有修复引导；添加实例表单也应列出推荐 scope 清单
-- [ ] 10+ 处 `.catch(() => undefined)` 静默吞错，部分用户操作（如同步）失败时无任何反馈；至少加日志，关键路径提示用户
+- [x] 10+ 处 `.catch(() => undefined)` 静默吞错，部分用户操作（如同步）失败时无任何反馈；至少加日志，关键路径提示用户——已修：`client.ts` 新增 `_probe()` 私有助手（失败记 debug 日志返回 undefined），转换全部 8 处探测性 `.catch(() => undefined)`（getReadme、Issue/PR 详情探测、用户/Issue 预览等），评论 assets 与仓库计数补充的 catch 补 debug 日志；设计内 fallback（搜索降级为 []、URI 解析守卫、keepalive、onboarding 图片探测）保留原样
 - [x] 多根 workspace 下关联检测只取第一个匹配的仓库，状态栏与命令上下文可能张冠李戴——已修：`detectLinkedRepository` 优先检测「活动编辑器所属 workspace 文件夹」（path.relative 判定包含关系后排序），无活动编辑器或无匹配时退回原顺序的第一个匹配；补 2 个测试
 - [ ] 通知轮询默认间隔 300s 延迟偏大，新通知弹窗也无聚合（一次弹多个）；考虑缩短默认值、聚合提示、动作失败时回滚已读标记
 - [ ] Review 评论面板是单例（`PullReviewCommentPanel.currentPanel`）：切行/切 PR 时编辑器组件按 key 重建，写到一半的草稿直接丢弃（已坐实并修正原假设——草稿不是跟随，是丢失）；需加丢弃确认或缓存草稿
@@ -33,19 +33,19 @@
 **严重**
 
 - [ ] 首次安装零引导：无 walkthrough / viewsWelcome / 首次激活逻辑，`openDashboard`/`openOnboarding` 等核心命令还被 `when: "false"` 从命令面板隐藏；应加 walkthrough、首启自动打开引导、解禁核心命令
-- [ ] client 层 fetch 无 `AbortSignal`/timeout（webview pending 60s 超时与 host 早退回包已在阶段 7 修复；实例能连接但不响应时 host 侧请求仍会悬挂，需给 client 加请求超时）
-- [ ] 网络错误与 HTTP 状态码无归类：断网/实例宕机显示 `fetch failed` 英文原文；401/404/409/422 一律 `Failed to X: {raw}`（PR 合并冲突 409 只显示原始报错）；应在 client 层抛结构化错误，按状态码映射 i18n 文案
+- [x] client 层 fetch 无 `AbortSignal`/timeout（webview pending 60s 超时与 host 早退回包已在阶段 7 修复；实例能连接但不响应时 host 侧请求仍会悬挂，需给 client 加请求超时）——已修：`_client()` 请求统一带 `signal: config.signal ?? AbortSignal.timeout(API_REQUEST_TIMEOUT_MS = 30_000)`，调用方自带 signal 可覆盖
+- [x] 网络错误与 HTTP 状态码无归类：断网/实例宕机显示 `fetch failed` 英文原文；401/404/409/422 一律 `Failed to X: {raw}`（PR 合并冲突 409 只显示原始报错）；应在 client 层抛结构化错误，按状态码映射 i18n 文案——已修：新增 `src/api/errors.ts`——`ApiError`（kind: network/timeout/http/unknown，`message` 保留 raw 原文兼容既有匹配，`userMessage` 走 l10n）+ `toApiError()` 分类 + `apiErrorUserMessage()` 按 401/403/404/409/422 映射双语文案（409/422 提取 body 的 message 字段）；client catch 统一 `throw toApiError(error)`；viewProvider 等 10 个文件 100+ 处展示边界改 `userFacingErrorMessage()`
 
 **中等**
 
-- [ ] 「Open Settings」按钮在侧栏 webview 未打开时静默失效（`publish.ts` 直接 postMessage 给 undefined）；`openSettings`/`openDashboard` 命令统一先 reveal/focus 视图再发消息
-- [ ] 长操作（push / clone / 发布）无 `withProgress` 进度反馈，大仓库发布几十秒用户分不清在跑还是卡死
+- [x] 「Open Settings」按钮在侧栏 webview 未打开时静默失效（`publish.ts` 直接 postMessage 给 undefined）；`openSettings`/`openDashboard` 命令统一先 reveal/focus 视图再发消息——已修：两命令先 `_revealView()`（已有 view 则 `show(false)`，从未 resolve 则 `forgejoToolkitView.focus` 强制加载）再 `_postOrQueue`，消息排队待 webview mount 后送达
+- [x] 长操作（push / clone / 发布）无 `withProgress` 进度反馈，大仓库发布几十秒用户分不清在跑还是卡死——已修：publish 创建仓库、两处 push、clone 共四处长操作接 `window.withProgress`（Notification 位置，标题双语带目标名）
 - [ ] Issue/PR 列表无分页（不传 limit/page），超出服务端默认页大小的老条目静默消失；全局搜索 limit 20、通知 limit 50，截断无提示；至少加「加载更多」或截断标识
-- [ ] 通知异常不可见：某实例 token 失效且无通知时显示「暂无通知」而非错误；轮询失败只写日志，列表停在旧数据无感知
+- [x] 通知异常不可见：某实例 token 失效且无通知时显示「暂无通知」而非错误；轮询失败只写日志，列表停在旧数据无感知——已修：协议 `polledNotifications` 加 `error` 字段，轮询失败统一走 `_handlePollFailure`（日志 + 推 webview）；`useAppState` 新增 `notificationPollErrors`（成功自动清除，旧快照保留）；Notifications.vue 错误条目显示「刷新通知失败：{message}」（双语），有 poll 错误的实例不再被空态吞掉
 - [ ] `#`/`@` 补全和文档链接注册到所有文件类型（`scheme: 'file'` 无语言过滤），写 Python `#` 注释、C `#include` 都会触发 issue 补全；限定语言或加行内上下文判断（需实测干扰程度）
-- [ ] 403 scope 不足提示每请求弹一次且无去重（轮询 + 手动刷新会持续弹英文 toast）；按 instance+scope 去重，每会话一次并附「打开设置」
-- [ ] 报错通知无可行动按钮（24 处 showErrorMessage 仅 1 处带按钮）；无「查看日志」命令，OutputChannel 默认日志不带 URL/状态码
-- [ ] 关闭/重开 Issue/PR 失败时错误写入编辑弹窗的 key，用户毫无反馈；需单独的错误展示位
+- [x] 403 scope 不足提示每请求弹一次且无去重（轮询 + 手动刷新会持续弹英文 toast）；按 instance+scope 去重，每会话一次并附「打开设置」——已修：`_notifyIfPermissionError` 重写——仅 403 且 body 含 scope 缺失特征时提示，模块级 Set 按 `url|text` 每会话去重，文案本地化并带「Open Settings」按钮直达设置
+- [x] 报错通知无可行动按钮（24 处 showErrorMessage 仅 1 处带按钮）；无「查看日志」命令，OutputChannel 默认日志不带 URL/状态码——已修：logger 新增 `showErrorWithLog()`（错误 toast 带「View Log」按钮直达 OutputChannel），注册 `forgejoToolkit.showLog` 命令（package.nls 双语），publish/createPr 关键失败路径接入
+- [x] 关闭/重开 Issue/PR 失败时错误写入编辑弹窗的 key，用户毫无反馈；需单独的错误展示位——已修：协议加 `state_toggle`/`stateToggle` 标记，useAppState 新增 `issueStateKey`/`pullRequestStateKey` 独立 loading/error key 与 `toggleIssueState`/`togglePullRequestState`；Issue/PR 详情页按钮在切换中禁用，失败错误显示在按钮下方（不再落进编辑弹窗的 key）
 
 **轻微**
 
@@ -159,6 +159,8 @@
 ## 已完成
 
 ### 最近完成
+
+- [x] 批 11 错误处理与反馈（TODO :36/:37/:25/:46/:44/:48/:47/:41/:42 九条）：新增 `src/api/errors.ts`——`ApiError` 结构化错误（network/timeout/http/unknown 分类，`message` 保留 raw 原文兼容既有匹配，`userMessage` 按 401/403/404/409/422 映射 l10n 文案），client catch 统一 `toApiError`，viewProvider 等 10 个文件 100+ 处展示边界改 `userFacingErrorMessage()`；client 请求加 30s `AbortSignal.timeout`（`API_REQUEST_TIMEOUT_MS`，调用方 signal 可覆盖）；8 处探测性 `.catch(() => undefined)` 改 `_probe()` 记 debug 日志；403 scope 提示按 `url|text` 每会话去重并带「Open Settings」按钮；通知轮询失败推 webview（协议加 `error` 字段 + `notificationPollErrors`，Notifications.vue 显示「刷新通知失败」，旧快照保留）；关闭/重开 Issue/PR 用独立 `issueStateKey`/`pullRequestStateKey`（协议 `state_toggle` echo），错误显示在按钮旁；logger 新增 `showErrorWithLog()` + `forgejoToolkit.showLog` 命令；`openSettings`/`openDashboard` 先 `_revealView()` 再发消息（未 resolve 时 focus 强制加载）；publish 建仓库/push 与 clone 共四处接 `withProgress`；l10n host 双语 + webview 各加若干 key；补 27 个测试（errors 15、useAppState 6、dispatch 5、client 1，publish 422 断言配套修正，全量 webview 142 + extension 335 通过）
 
 - [x] 批 10 发布/配置健壮性（TODO :91/:84/:26/:23 四条）：发布功能四子项——422 按 body 区分名称冲突与其他校验错误（`extractApiErrorMessage` 透传服务端 message）、`validateRepoName` 客户端预检、无 commit 仓库在创建远程前中止（双语提示，不再留半成品远程）、发布/推送成功后 `viewProvider.refresh()` 刷新列表；多窗口实例配置——`_writeInstancesMerged` 写入前重读按 id 合并，并发新增不再被整表覆盖；多根 workspace——`detectLinkedRepository` 优先活动编辑器所属文件夹；多账号身份——检测侧 `preferOwnNamespaceInstance`（remote owner 匹配 username 优先，多命中记日志），推送侧无法判定时 showQuickPick 选账号（三项共用同一启发式，合并实现）；l10n 双语各加 4 key；补 20 个测试（config 2、gitOperations 6、publish 12，全量 webview 136 + extension 314 通过）
 - [x] 批 9 正确性快修（TODO :85/:86/:92/:124 四条）：mention 补全三问题——`getMentionRange` 回扫只吃单词字符不再吞 `foo@` 的 `foo`（触发符单独补退一格），`@` 文档链接/补全加邮箱上下文守卫，删 `forgejo-pr` scheme 死代码分支；permalink 路径按 `/` 分段 `encodeURIComponent`（`#`/`?`/`%`/空格/中文文件名不再坏链），base 侧新增文件不生成 404 链接改弹 l10n 警告；实例导入提取共享 `sanitizeImportedInstances`——文件导入不再丢 `syncApiUrlsToInstanceUrl`，webview 回传逐项校验、全非法回 `instancesImported` 错误；「刷新实例」除实例列表外新发 `refreshData` 消息，webview 清三个实例级 TTL 缓存并对每个实例 force 重拉仓库/我的 Issue/PR（loading key 去重）；l10n 双语各加 2 key；补 20 个测试（mention 6、permalink 6、instanceImport 4、dispatch 3、useAppState 1，全量 webview 136 + extension 294 通过）

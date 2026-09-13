@@ -12,6 +12,7 @@ import type {
   EditReleaseOption,
 } from '@cpf23333-forgejo-toolkit/api';
 import { ForgejoClient } from '../client';
+import { ApiError } from '../errors';
 import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
 import {
@@ -134,6 +135,24 @@ describe('ForgejoClient with MSW', () => {
       ),
     );
     await expect(client.createUserRepo({ name: 'demo-repo' })).rejects.toThrow('Forgejo API error 409');
+  });
+
+  it('wraps HTTP failures in a structured ApiError', async () => {
+    const client = createClient();
+    mockServer.use(
+      http.post('https://*/api/v1/user/repos', () =>
+        HttpResponse.json({ message: 'The repository with the same name already exists.' }, { status: 409 }),
+      ),
+    );
+    const rejection = await client.createUserRepo({ name: 'demo-repo' }).catch((error: unknown) => error);
+    expect(rejection).toBeInstanceOf(ApiError);
+    const apiError = rejection as ApiError;
+    expect(apiError.kind).toBe('http');
+    expect(apiError.status).toBe(409);
+    // The raw message is preserved for logs/pattern matching; the localized
+    // rendering keeps the server's reason.
+    expect(apiError.rawMessage).toContain('Forgejo API error 409');
+    expect(apiError.userMessage).toContain('The repository with the same name already exists.');
   });
 
   it('fetches user issues', async () => {

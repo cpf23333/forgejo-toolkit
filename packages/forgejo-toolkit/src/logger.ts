@@ -63,3 +63,16 @@ export class Logger {
 }
 
 export const logger = new Logger();
+
+/**
+ * Show an error toast with a "View Log" action that reveals the extension's
+ * output channel. Use on failure paths where the output channel carries the
+ * underlying detail (push failures, publish failures, ...).
+ */
+export async function showErrorWithLog(message: string): Promise<void> {
+  const viewLogLabel = vscode.l10n.t('View Log');
+  const choice = await vscode.window.showErrorMessage(message, viewLogLabel);
+  if (choice === viewLogLabel) {
+    logger.show();
+  }
+}
