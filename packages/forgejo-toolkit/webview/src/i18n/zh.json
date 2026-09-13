@@ -137,7 +137,8 @@
       "instanceFilter": "实例",
       "allInstances": "全部实例",
       "stateFilter": "状态",
-      "stateFilterDescription": "仅对 Issues 和 Pull Requests 生效，仓库搜索不受状态影响。"
+      "stateFilterDescription": "仅对 Issues 和 Pull Requests 生效，仓库搜索不受状态影响。",
+      "truncated": "每类最多显示 {limit} 条结果，请细化搜索关键词以查看更多。"
     },
     "notifications": {
       "title": "通知",
@@ -153,6 +154,7 @@
       "markAsRead": "标记为已读",
       "markAllAsRead": "全部已读",
       "untitled": "无标题",
+      "truncated": "仅显示前 {limit} 条通知，将部分标记为已读或调整筛选以查看更多。",
       "types": {
         "issue": "Issue",
         "pullRequest": "Pull Request",

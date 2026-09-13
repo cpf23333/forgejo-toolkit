@@ -288,6 +288,53 @@ describe('ForgejoClient with MSW', () => {
     expect(pulls[0].title).toBe(mockPullRequests[0].title);
   });
 
+  it('paginates repository issues past the server default page size', async () => {
+    const client = createClient();
+    const requestedPages: number[] = [];
+    const total = 120;
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
+        const url = new URL(request.url);
+        const page = Number(url.searchParams.get('page') ?? '1');
+        requestedPages.push(page);
+        const start = (page - 1) * 50;
+        const items = Array.from({ length: Math.max(0, Math.min(50, total - start)) }, (_, i) => ({
+          ...mockIssues[0],
+          id: start + i + 1,
+          number: start + i + 1,
+        }));
+        return HttpResponse.json(items);
+      }),
+    );
+    const issues = await client.getRepoIssues('demo-user', 'demo-repo', 'open');
+    expect(issues).toHaveLength(total);
+    expect(issues[total - 1].number).toBe(total);
+    expect(requestedPages).toEqual([1, 2, 3]);
+  });
+
+  it('paginates repository pull requests past the server default page size', async () => {
+    const client = createClient();
+    const requestedPages: number[] = [];
+    const total = 60;
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/pulls', ({ request }) => {
+        const url = new URL(request.url);
+        const page = Number(url.searchParams.get('page') ?? '1');
+        requestedPages.push(page);
+        const start = (page - 1) * 50;
+        const items = Array.from({ length: Math.max(0, Math.min(50, total - start)) }, (_, i) => ({
+          ...mockPullRequests[0],
+          id: start + i + 1,
+          number: start + i + 1,
+        }));
+        return HttpResponse.json(items);
+      }),
+    );
+    const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'open');
+    expect(pulls).toHaveLength(total);
+    expect(requestedPages).toEqual([1, 2]);
+  });
+
   it('passes the trimmed search query to the repository issues endpoint', async () => {
     const client = createClient();
     let receivedQuery: string | null = null;

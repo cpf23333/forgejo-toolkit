@@ -4102,7 +4102,7 @@ function createAppState() {
       return;
     }
     beginLoading(key);
-    postMessage({ command: 'globalSearch', instanceId, scope, query: trimmed, state, limit: 20 });
+    postMessage({ command: 'globalSearch', instanceId, scope, query: trimmed, state, limit: GLOBAL_SEARCH_LIMIT });
   }
 
   function setGlobalSearchScope(scope: 'all' | 'repositories' | 'issues' | 'pullRequests') {
@@ -4121,7 +4121,7 @@ function createAppState() {
     }
     beginLoading(key);
     inFlightNotificationArgs.set(instanceId, JSON.stringify({ statusTypes, subjectType }));
-    postMessage({ command: 'getNotifications', instanceId, statusTypes, subjectType, limit: 50 });
+    postMessage({ command: 'getNotifications', instanceId, statusTypes, subjectType, limit: NOTIFICATIONS_LIMIT });
   }
 
   function markNotificationRead(instanceId: string, id: number) {
@@ -4524,6 +4524,11 @@ export function globalSearchKey(
 ): string {
   return `${instanceId}:global-search:${scope}:${state}:${query}`;
 }
+
+// Server-side caps for single-page lists. The views compare list lengths
+// against these to show a "only the first N" truncation hint.
+export const GLOBAL_SEARCH_LIMIT = 20;
+export const NOTIFICATIONS_LIMIT = 50;
 
 export function notificationsKey(instanceId: string): string {
   return `${instanceId}:notifications`;

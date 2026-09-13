@@ -18,6 +18,29 @@ const USER_MENTION_REGEX = /@([a-zA-Z0-9_.-]+)/g;
 const MENTION_CACHE_TTL_MS = 60_000;
 const LINKED_REPO_CACHE_TTL_MS = 30_000;
 
+/**
+ * Line-local heuristic deciding whether a `#`/`@` can start a mention, used by
+ * both completions and document links. The providers are registered for every
+ * `file` document, so without this a Python `# comment`, a C `#include`, or a
+ * line-start `@decorator` would trigger issue/user suggestions.
+ *
+ * A trigger with any non-whitespace text before it on the line is treated as
+ * in-prose and allowed. A trigger at line start (only whitespace before) is
+ * usually a comment/directive/decorator/at-rule and is rejected — except `#`
+ * directly followed by a digit, which is still an issue reference (`#123`).
+ * The remaining false positive (a `#` mid-line comment in a comment-heavy
+ * language) is accepted as the cost of staying language-agnostic.
+ */
+export function isMentionTriggerContext(lineText: string, triggerIndex: number, trigger: '#' | '@'): boolean {
+  if (/\S/.test(lineText.slice(0, triggerIndex))) {
+    return true;
+  }
+  if (trigger === '#') {
+    return /\d/.test(lineText.charAt(triggerIndex + 1));
+  }
+  return false;
+}
+
 // detectLinkedRepository spawns git probes on every call and provideDocumentLinks
 // runs on each render, so the (possibly negative) result is cached briefly. The
 // cache is keyed by the instance id list so adding/removing an instance
@@ -125,6 +148,9 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
 
     let match: RegExpExecArray | null;
     ISSUE_MENTION_REGEX.lastIndex = 0;
+    // `#` links need no extra context check: the regex already requires a
+    // digit right after `#`, which is exactly the mention shape kept by
+    // isMentionTriggerContext (`#include` / `# comment` never match).
     while ((match = ISSUE_MENTION_REGEX.exec(text)) !== null) {
       const start = document.positionAt(match.index);
       const end = document.positionAt(match.index + match[0].length);
@@ -143,6 +169,11 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
         continue;
       }
       const start = document.positionAt(match.index);
+      // Skip line-start `@token` (decorators, at-rules): only whitespace
+      // before `@` on the line means this is not an in-prose mention.
+      if (!isMentionTriggerContext(document.lineAt(start.line).text, start.character, '@')) {
+        continue;
+      }
       const end = document.positionAt(match.index + match[0].length);
       const link = new vscode.DocumentLink(new vscode.Range(start, end));
       const username = match[1];
@@ -165,11 +196,20 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
       return [];
     }
 
+    // Line-start triggers are comments/directives/decorators, not mentions:
+    // require in-prose context (see isMentionTriggerContext). At trigger time
+    // nothing follows the just-typed character yet, so the `#`+digit escape
+    // only matters for document links; line-start `#123` still gets linked.
+    const triggerIndex = position.character - 1;
+    const lineText = document.lineAt(position.line).text;
+    if (triggerIndex < 0 || !isMentionTriggerContext(lineText, triggerIndex, trigger)) {
+      return [];
+    }
+
     // Do not offer user completions inside an email address: when `@` was just
     // typed, the character before it being a word character means this is
     // something like `foo@bar.com`, not a mention.
     if (trigger === '@' && position.character >= 2) {
-      const lineText = document.lineAt(position.line).text;
       if (/[a-zA-Z0-9_.-]/.test(lineText[position.character - 2])) {
         return [];
       }

@@ -817,14 +817,17 @@ export class ForgejoClient {
     return blockers;
   }
 
-  getRepoIssues(owner: string, repo: string, state: string = 'open', query?: string): Promise<ForgejoIssue[]> {
+  async getRepoIssues(owner: string, repo: string, state: string = 'open', query?: string): Promise<ForgejoIssue[]> {
     const q = query?.trim();
-    return issueListIssues(
-      owner,
-      repo,
-      { state: state as 'open' | 'closed' | 'all', type: 'issues', ...(q ? { q } : {}) },
-      { client: this._client() },
-    ) as Promise<ForgejoIssue[]>;
+    const issues = await this._fetchAllPages((page) =>
+      issueListIssues(
+        owner,
+        repo,
+        { state: state as 'open' | 'closed' | 'all', type: 'issues', ...(q ? { q } : {}), page, limit: PAGE_SIZE },
+        { client: this._client() },
+      ),
+    );
+    return issues as ForgejoIssue[];
   }
 
   async getRepoLabels(owner: string, repo: string): Promise<Label[]> {
@@ -902,7 +905,7 @@ export class ForgejoClient {
     return issue as ForgejoIssue | undefined;
   }
 
-  getRepoPullRequests(
+  async getRepoPullRequests(
     owner: string,
     repo: string,
     state: string = 'open',
@@ -911,19 +914,27 @@ export class ForgejoClient {
     const q = query?.trim();
     if (q) {
       // repoListPullRequests has no keyword filter; the issues endpoint supports `q` with `type=pulls`.
-      return issueListIssues(
+      const pulls = await this._fetchAllPages((page) =>
+        issueListIssues(
+          owner,
+          repo,
+          { state: state as 'open' | 'closed' | 'all', type: 'pulls', q, page, limit: PAGE_SIZE },
+          { client: this._client() },
+        ),
+      );
+      return pulls as ForgejoPullRequest[];
+    }
+    const pulls = await this._fetchAllPages((page) =>
+      repoListPullRequests(
         owner,
         repo,
-        { state: state as 'open' | 'closed' | 'all', type: 'pulls', q },
-        { client: this._client() },
-      ) as Promise<ForgejoPullRequest[]>;
-    }
-    return repoListPullRequests(
-      owner,
-      repo,
-      { state: state as 'open' | 'closed' | 'all' },
-      { client: this._client() },
-    ) as Promise<ForgejoPullRequest[]>;
+        { state: state as 'open' | 'closed' | 'all', page, limit: PAGE_SIZE },
+        {
+          client: this._client(),
+        },
+      ),
+    );
+    return pulls as ForgejoPullRequest[];
   }
 
   createIssue(owner: string, repo: string, data: CreateIssueOption): Promise<ForgejoIssue> {

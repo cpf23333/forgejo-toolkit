@@ -75,9 +75,7 @@ describe('gitOperations token leak prevention', () => {
   it('falls back to a generic message when stderr is empty', async () => {
     mocks.execFile.mockImplementation(
       (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
-        const error = new Error(
-          `Command failed: git -c http.extraHeader=Authorization: token ${token} push`,
-        ) as Error & {
+        const error = new Error(`Command failed: git push`) as Error & {
           stderr: string;
         };
         error.stderr = '';
@@ -87,6 +85,27 @@ describe('gitOperations token leak prevention', () => {
     const failure = await pushBranch('/repo', 'origin', 'main', token).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).not.toContain(token);
+  });
+
+  it('never puts the token on the git command line for push/clone/fetch', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(null, '', '');
+      },
+    );
+    await pushBranch('/repo', 'origin', 'main', token);
+    await cloneRepository('https://forgejo.example.com/a/b.git', '/tmp/b', token);
+    await fetchPullRequestHead('/repo', 'origin', 1, 'pr-1', token);
+    expect(mocks.execFile).toHaveBeenCalledTimes(3);
+    for (const call of mocks.execFile.mock.calls) {
+      for (const arg of call[1] as string[]) {
+        expect(arg).not.toContain(token);
+      }
+      const env = (call[2] as { env?: NodeJS.ProcessEnv }).env;
+      expect(env?.GIT_CONFIG_COUNT).toBe('1');
+      expect(env?.GIT_CONFIG_KEY_0).toBe('http.extraHeader');
+      expect(env?.GIT_CONFIG_VALUE_0).toBe(`Authorization: token ${token}`);
+    }
   });
 });
 
@@ -122,12 +141,10 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
   it('pushes with the token when the remote URL matches the instance', async () => {
     mockRemoteUrlThenPush('https://forgejo.example.com/owner/repo.git');
     await pushBranch('/repo', 'origin', 'main', token, true, instanceUrl);
-    expect(mocks.execFile).toHaveBeenCalledWith(
-      'git',
-      ['-c', `http.extraHeader=Authorization: token ${token}`, 'push', '-u', 'origin', 'main'],
-      expect.anything(),
-      expect.any(Function),
-    );
+    const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
+    expect(pushCall?.[1]).toEqual(['push', '-u', 'origin', 'main']);
+    const env = (pushCall?.[2] as { env?: NodeJS.ProcessEnv }).env;
+    expect(env?.GIT_CONFIG_VALUE_0).toBe(`Authorization: token ${token}`);
   });
 
   it('aborts without pushing when the remote URL belongs to another host', async () => {
@@ -148,12 +165,10 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
   it('drops the token when the remote URL cannot be resolved', async () => {
     mockRemoteUrlThenPush(undefined);
     await pushBranch('/repo', 'origin', 'main', token, false, instanceUrl);
-    expect(mocks.execFile).toHaveBeenCalledWith(
-      'git',
-      ['push', 'origin', 'main'],
-      expect.anything(),
-      expect.any(Function),
-    );
+    const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
+    expect(pushCall?.[1]).toEqual(['push', 'origin', 'main']);
+    const env = (pushCall?.[2] as { env?: NodeJS.ProcessEnv }).env;
+    expect(env?.GIT_CONFIG_VALUE_0).toBeUndefined();
   });
 
   it('skips the check when tokenInstanceUrl is not given', async () => {
@@ -166,8 +181,14 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
     expect(mocks.execFile).toHaveBeenCalledTimes(1);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['-c', `http.extraHeader=Authorization: token ${token}`, 'push', 'origin', 'main'],
-      expect.anything(),
+      ['push', 'origin', 'main'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          GIT_CONFIG_COUNT: '1',
+          GIT_CONFIG_KEY_0: 'http.extraHeader',
+          GIT_CONFIG_VALUE_0: `Authorization: token ${token}`,
+        }),
+      }),
       expect.any(Function),
     );
   });
@@ -221,12 +242,16 @@ describe('gitOperations argument passing', () => {
     );
   });
 
-  it('pushBranch adds -u when setUpstream is true and the auth header when a token is given', async () => {
+  it('pushBranch adds -u when setUpstream is true and passes the token via env config', async () => {
     await pushBranch('/repo', 'origin', 'main', 'tok', true);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['-c', 'http.extraHeader=Authorization: token tok', 'push', '-u', 'origin', 'main'],
-      expect.anything(),
+      ['push', '-u', 'origin', 'main'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          GIT_CONFIG_VALUE_0: 'Authorization: token tok',
+        }),
+      }),
       expect.any(Function),
     );
   });
@@ -343,8 +368,12 @@ describe('revertMergeCommit branch guard and token push', () => {
     );
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['-c', `http.extraHeader=Authorization: token ${token}`, 'push', 'origin', 'HEAD:main'],
-      expect.anything(),
+      ['push', 'origin', 'HEAD:main'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          GIT_CONFIG_VALUE_0: `Authorization: token ${token}`,
+        }),
+      }),
       expect.any(Function),
     );
   });

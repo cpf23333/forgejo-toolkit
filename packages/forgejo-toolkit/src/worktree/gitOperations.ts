@@ -12,13 +12,16 @@ const execFile = promisify(cp.execFile);
 /**
  * Run git with an argument array (no shell, so ref/path arguments cannot be
  * used for shell injection). On failure, cp.execFile errors embed the full
- * command line in error.message — which would leak the token passed via
- * `-c http.extraHeader` — so re-throw an error carrying only git's stderr,
- * which never echoes the command line.
+ * command line in error.message, so re-throw an error carrying only git's
+ * stderr, which never echoes the command line.
  */
-async function runGit(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string }> {
+async function runGit(
+  args: string[],
+  cwd?: string,
+  extraEnv?: NodeJS.ProcessEnv,
+): Promise<{ stdout: string; stderr: string }> {
   try {
-    return await execFile('git', args, { cwd });
+    return await execFile('git', args, { cwd, env: extraEnv ? { ...process.env, ...extraEnv } : process.env });
   } catch (error) {
     const stderr = (error as { stderr?: unknown }).stderr;
     const message = typeof stderr === 'string' && stderr.trim() ? stderr.trim() : 'Git operation failed';
@@ -26,9 +29,25 @@ async function runGit(args: string[], cwd?: string): Promise<{ stdout: string; s
   }
 }
 
-/** Arguments that carry the auth token via a per-command header (not persisted in repo config). */
-function authArgs(token?: string): string[] {
-  return token ? ['-c', `http.extraHeader=Authorization: token ${token}`] : [];
+/**
+ * Environment that carries the auth token via git's env-based config (not
+ * persisted in repo config). Passing the header as `-c http.extraHeader=...`
+ * argv would put the token in git's command line, where it is visible in
+ * process listings (ps, Task Manager's command-line column) and in
+ * process-creation logs (auditd execve, Sysmon/ETW) that are routinely
+ * archived. The remaining exposure — same-user reading /proc/<pid>/environ —
+ * is identical to the command line's visibility on Linux and requires a
+ * targeted local attacker either way. Env config needs git >= 2.31.
+ */
+function authEnv(token?: string): NodeJS.ProcessEnv | undefined {
+  if (!token) {
+    return undefined;
+  }
+  return {
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'http.extraHeader',
+    GIT_CONFIG_VALUE_0: `Authorization: token ${token}`,
+  };
 }
 
 /**
@@ -145,12 +164,12 @@ export async function pushBranch(
       throw new Error(`Push aborted: remote "${remote}" does not belong to the expected Forgejo instance`);
     }
   }
-  const args = [...authArgs(token), 'push'];
+  const args = ['push'];
   if (setUpstream) {
     args.push('-u');
   }
   args.push(remote, refspec);
-  const { stderr } = await runGit(args, dirPath);
+  const { stderr } = await runGit(args, dirPath, authEnv(token));
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -197,11 +216,12 @@ export async function getGitHeadPath(dirPath: string): Promise<string | undefine
 
 export async function cloneRepository(url: string, targetPath: string, token?: string): Promise<void> {
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
-  // Pass the token via a per-command header so it is not persisted in the
-  // cloned repository's remote URL. --quiet keeps clone progress out of
-  // stderr (huge repos would overflow execFile's 1MB maxBuffer); fatal
-  // errors are still printed, so the check below is unaffected.
-  const { stderr } = await runGit([...authArgs(token), 'clone', '--bare', '--quiet', url, targetPath]);
+  // Pass the token via env-based per-command config so it is neither persisted
+  // in the cloned repository's remote URL nor visible in git's command line.
+  // --quiet keeps clone progress out of stderr (huge repos would overflow
+  // execFile's 1MB maxBuffer); fatal errors are still printed, so the check
+  // below is unaffected.
+  const { stderr } = await runGit(['clone', '--bare', '--quiet', url, targetPath], undefined, authEnv(token));
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -215,7 +235,7 @@ export async function fetchPullRequestHead(
   token?: string,
 ): Promise<void> {
   const ref = `refs/pull/${prIndex}/head`;
-  const { stderr } = await runGit([...authArgs(token), 'fetch', remote, `${ref}:${localBranch}`], repoPath);
+  const { stderr } = await runGit(['fetch', remote, `${ref}:${localBranch}`], repoPath, authEnv(token));
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }

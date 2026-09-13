@@ -159,7 +159,7 @@ export const handlers = [
       // The real API matches the query against title and body, case-insensitively.
       data = data.filter((item) => item.title?.toLowerCase().includes(q) || item.body?.toLowerCase().includes(q));
     }
-    return json(data);
+    return json(paginate(request, data));
   }),
 
   http.get('https://*/api/v1/repos/:owner/:repo/issues/:index', () => json({ ...mockIssueDetail, ...issueEdits })),
@@ -280,7 +280,7 @@ export const handlers = [
       list = list.map((pr) => (pr.number === mockPullRequestDetail.number ? { ...pr, state: 'closed' } : pr));
     }
     const data = list.filter((pr) => state === 'all' || pr.state === state);
-    return json(data);
+    return json(paginate(request, data));
   }),
 
   http.get(

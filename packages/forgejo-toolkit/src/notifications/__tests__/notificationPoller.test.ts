@@ -4,12 +4,13 @@ import type { ForgejoNotification } from '../../api/types';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 const mockGetNotifications = vi.fn<() => Promise<ForgejoNotification[]>>();
+const mockMarkAllRead = vi.fn<() => Promise<void>>();
 
 vi.mock('../../api/client', () => ({
   ForgejoClient: vi.fn().mockImplementation(function () {
     return {
       getNotifications: mockGetNotifications,
-      markAllNotificationsRead: vi.fn(),
+      markAllNotificationsRead: mockMarkAllRead,
     };
   }),
 }));
@@ -53,15 +54,22 @@ function createFakeContext() {
 }
 
 describe('NotificationPoller', () => {
-  let sender: { pushNotifications: ReturnType<typeof vi.fn>; openNotifications: ReturnType<typeof vi.fn> };
+  let sender: {
+    pushNotifications: ReturnType<typeof vi.fn>;
+    pushNotificationError: ReturnType<typeof vi.fn>;
+    openNotifications: ReturnType<typeof vi.fn>;
+  };
   const logger = { debug: vi.fn(), info: vi.fn(), error: vi.fn() };
 
   beforeEach(() => {
     vi.useFakeTimers();
     mockGetNotifications.mockReset();
-    sender = { pushNotifications: vi.fn(), openNotifications: vi.fn() };
+    mockMarkAllRead.mockReset();
+    mockMarkAllRead.mockResolvedValue(undefined);
+    sender = { pushNotifications: vi.fn(), pushNotificationError: vi.fn(), openNotifications: vi.fn() };
     (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockReset();
     (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (vscode.window.showErrorMessage as ReturnType<typeof vi.fn>).mockReset();
   });
 
   afterEach(() => {
@@ -189,6 +197,98 @@ describe('NotificationPoller', () => {
     await vi.advanceTimersByTimeAsync(300_000);
     seen = context.store.get('forgejoToolkit.seenNotificationIds') as Record<string, number[]>;
     expect(seen.a).toEqual([1, 2]);
+    poller.dispose();
+  });
+
+  it('aggregates one toast per poll round across instances with new notifications', async () => {
+    mockGetNotifications.mockResolvedValue([notification(1)]);
+    const config = createFakeConfig([instanceA, instanceB]);
+    const context = createFakeContext();
+    const poller = createPoller(config, context);
+
+    // First round only establishes the baseline.
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+
+    // Both instances gain a new notification in the same round: a single
+    // aggregated toast instead of one toast per instance.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+    const [message] = (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(message).toContain('across');
+    poller.dispose();
+  });
+
+  it('keeps per-instance wording when only one instance has new notifications', async () => {
+    mockGetNotifications.mockResolvedValue([notification(1)]);
+    const config = createFakeConfig([instanceA]);
+    const context = createFakeContext();
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2), notification(3)]);
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+    const [message] = (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(message).toContain('from');
+    poller.dispose();
+  });
+
+  it('reports a mark-all-read failure without touching the unread state or re-polling', async () => {
+    mockGetNotifications.mockResolvedValue([notification(1)]);
+    const config = createFakeConfig([instanceA]);
+    const context = createFakeContext();
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Second round: one new notification, the user picks "Mark all as read"
+    // and the mark request itself fails.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockResolvedValue('Mark all as read');
+    mockMarkAllRead.mockRejectedValueOnce(new Error('boom'));
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(mockGetNotifications).toHaveBeenCalledTimes(2);
+    expect(mockMarkAllRead).toHaveBeenCalledTimes(1);
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+    const [errorMessage] = (vscode.window.showErrorMessage as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(errorMessage).toContain('Failed to mark notifications as read');
+    // No refresh poll after a failed mark: the unread list stays as-is (there
+    // is nothing to roll back because nothing was marked locally).
+    expect(mockGetNotifications).toHaveBeenCalledTimes(2);
+    poller.dispose();
+  });
+
+  it('does not report a refresh failure after a successful mark as a mark failure', async () => {
+    mockGetNotifications.mockResolvedValue([notification(1)]);
+    const config = createFakeConfig([instanceA]);
+    const context = createFakeContext();
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Second round: user picks "Mark all as read"; the mark succeeds but the
+    // refresh poll fails.
+    mockGetNotifications
+      .mockResolvedValueOnce([notification(1), notification(2)])
+      .mockRejectedValueOnce(new Error('refresh failed'))
+      .mockResolvedValue([]);
+    (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockResolvedValue('Mark all as read');
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(mockMarkAllRead).toHaveBeenCalledTimes(1);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    // The failure is surfaced to the notifications view instead.
+    expect(sender.pushNotificationError).toHaveBeenCalledWith('a', expect.any(String));
     poller.dispose();
   });
 });

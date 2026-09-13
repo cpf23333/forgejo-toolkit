@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { useAppState, notificationsKey } from '../composables/useAppState';
+import { useAppState, notificationsKey, NOTIFICATIONS_LIMIT } from '../composables/useAppState';
 import type { ForgejoNotification } from '../types/api';
 import type { ForgejoInstance } from '../types/instance';
 
@@ -55,6 +55,12 @@ function filteredList(instanceId: string): ForgejoNotification[] {
     }
     return true;
   });
+}
+
+// The server caps the list at NOTIFICATIONS_LIMIT; a full page likely hides
+// older notifications, so surface that instead of dropping them silently.
+function isTruncated(instanceId: string): boolean {
+  return listFor(instanceId).length >= NOTIFICATIONS_LIMIT;
 }
 
 function isLoading(): boolean {
@@ -357,6 +363,11 @@ onMounted(() => {
               />
             </span>
           </vscode-tree-item>
+          <vscode-tree-item v-if="isTruncated(instance.id)">
+            <span class="truncation-hint">
+              {{ t('dashboard.notifications.truncated', { limit: NOTIFICATIONS_LIMIT }) }}
+            </span>
+          </vscode-tree-item>
           <vscode-tree-item v-if="errors.get(key(instance.id)) || pollErrors.get(instance.id)">
             <span class="error">{{ formatError(instance.id) }}</span>
             <vscode-icon
@@ -483,6 +494,11 @@ onMounted(() => {
   border-radius: 50%;
   background-color: var(--vscode-notificationCenter-border, var(--vscode-focusBorder));
   flex-shrink: 0;
+}
+
+.truncation-hint {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
 }
 
 .notification-type-icon {

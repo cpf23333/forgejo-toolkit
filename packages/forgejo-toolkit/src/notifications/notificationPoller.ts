@@ -14,8 +14,15 @@ export interface NotificationMessageSender {
   openNotifications(): void;
 }
 
+interface NewNotificationBatch {
+  instance: ForgejoInstance;
+  notifications: ForgejoNotification[];
+}
+
 export class NotificationPoller implements vscode.Disposable {
-  private readonly _timers = new Map<string, NodeJS.Timeout>();
+  // All instances share one interval, so a single timer drives one poll round
+  // per tick; a round's "new notification" toasts are aggregated into one.
+  private _timer: NodeJS.Timeout | undefined;
   private readonly _disposables: vscode.Disposable[] = [];
   private _started = false;
   private _disposed = false;
@@ -56,10 +63,10 @@ export class NotificationPoller implements vscode.Disposable {
 
   stop(): void {
     this._started = false;
-    for (const timer of this._timers.values()) {
-      clearInterval(timer);
+    if (this._timer !== undefined) {
+      clearInterval(this._timer);
+      this._timer = undefined;
     }
-    this._timers.clear();
   }
 
   restart(): void {
@@ -77,21 +84,43 @@ export class NotificationPoller implements vscode.Disposable {
   }
 
   private _scheduleAll(immediate: boolean): void {
-    const instances = this._config.getInstances();
     const intervalMs = this._config.getNotificationPollingInterval() * 1000;
 
-    for (const instance of instances) {
-      if (immediate) {
-        this._pollInstance(instance).catch((error: unknown) => {
+    if (immediate) {
+      this._pollAll().catch(() => {
+        // per-instance failures are already handled inside _pollAll
+      });
+    }
+    this._timer = setInterval(() => {
+      this._pollAll().catch(() => {
+        // per-instance failures are already handled inside _pollAll
+      });
+    }, intervalMs);
+  }
+
+  /**
+   * One poll round across all instances. New-notification toasts are
+   * aggregated: instead of one toast per instance, a single toast reports the
+   * round's total (and its "Mark all as read" covers every instance that had
+   * new notifications).
+   */
+  private async _pollAll(): Promise<void> {
+    const instances = this._config.getInstances();
+    const batches: NewNotificationBatch[] = [];
+    await Promise.all(
+      instances.map(async (instance) => {
+        try {
+          const batch = await this._pollInstance(instance);
+          if (batch && batch.notifications.length > 0) {
+            batches.push(batch);
+          }
+        } catch (error) {
           this._handlePollFailure(instance, error);
-        });
-      }
-      const timer = setInterval(() => {
-        this._pollInstance(instance).catch((error: unknown) => {
-          this._handlePollFailure(instance, error);
-        });
-      }, intervalMs);
-      this._timers.set(instance.id, timer);
+        }
+      }),
+    );
+    if (batches.length > 0 && !this._disposed) {
+      this._showAggregatedNotification(batches);
     }
   }
 
@@ -106,9 +135,15 @@ export class NotificationPoller implements vscode.Disposable {
     this._sender.pushNotificationError(instance.id, err);
   }
 
-  private async _pollInstance(instance: ForgejoInstance): Promise<void> {
+  /**
+   * Polls one instance and returns its new (not previously seen) notifications
+   * for the caller to aggregate; returns undefined when the result is stale
+   * (poller disposed or instance removed mid-flight). Toasting is the
+   * caller's job.
+   */
+  private async _pollInstance(instance: ForgejoInstance): Promise<NewNotificationBatch | undefined> {
     if (this._disposed) {
-      return;
+      return undefined;
     }
     this._logger?.debug(`Polling notifications for ${instance.name}`);
     const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
@@ -118,7 +153,7 @@ export class NotificationPoller implements vscode.Disposable {
     // request was in flight; drop the stale result instead of pushing it to
     // the webview or showing a toast.
     if (this._disposed || !this._config.getInstances().some((i) => i.id === instance.id)) {
-      return;
+      return undefined;
     }
 
     this._sender.pushNotifications(instance.id, notifications);
@@ -128,11 +163,9 @@ export class NotificationPoller implements vscode.Disposable {
     // establishes the baseline.
     const hadBaseline = this._getAllSeenIds().has(instance.id);
     const newNotifications = hadBaseline ? this._filterNewNotifications(instance.id, notifications) : [];
-    if (newNotifications.length > 0) {
-      this._showNotification(instance, newNotifications);
-    }
 
     await this._updateSeenIds(instance.id, notifications);
+    return { instance, notifications: newNotifications };
   }
 
   private _filterNewNotifications(instanceId: string, notifications: ForgejoNotification[]): ForgejoNotification[] {
@@ -184,12 +217,14 @@ export class NotificationPoller implements vscode.Disposable {
     return result;
   }
 
-  private _showNotification(instance: ForgejoInstance, notifications: ForgejoNotification[]): void {
-    const count = notifications.length;
+  private _showAggregatedNotification(batches: NewNotificationBatch[]): void {
+    const total = batches.reduce((sum, batch) => sum + batch.notifications.length, 0);
     const message =
-      count === 1
-        ? vscode.l10n.t('New notification from {0}', instance.name)
-        : vscode.l10n.t('{0} new notifications from {1}', count, instance.name);
+      batches.length === 1
+        ? total === 1
+          ? vscode.l10n.t('New notification from {0}', batches[0].instance.name)
+          : vscode.l10n.t('{0} new notifications from {1}', total, batches[0].instance.name)
+        : vscode.l10n.t('{0} new notifications across {1} instances', total, batches.length);
 
     const openLabel = vscode.l10n.t('Open');
     const markAllReadLabel = vscode.l10n.t('Mark all as read');
@@ -198,20 +233,32 @@ export class NotificationPoller implements vscode.Disposable {
       if (selection === openLabel) {
         this._sender.openNotifications();
       } else if (selection === markAllReadLabel) {
-        this._markAllRead(instance);
+        for (const batch of batches) {
+          void this._markAllRead(batch.instance);
+        }
       }
     });
   }
 
   private async _markAllRead(instance: ForgejoInstance): Promise<void> {
+    const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
     try {
-      const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
       await client.markAllNotificationsRead();
-      await this._pollInstance(instance);
     } catch (error) {
+      // Nothing was marked read locally (the webview only applies a mark on
+      // the success reply), so a failure needs no rollback — just surface it.
       const err = userFacingErrorMessage(error);
       this._logger?.error(`Failed to mark all notifications read for ${instance.name}: ${err}`);
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to mark notifications as read: {0}', err));
+      return;
+    }
+    // Refresh the view after a successful mark. A refresh failure is not a
+    // mark failure (the server already marked everything read) and must not
+    // be reported as one.
+    try {
+      await this._pollInstance(instance);
+    } catch (error) {
+      this._handlePollFailure(instance, error);
     }
   }
 }

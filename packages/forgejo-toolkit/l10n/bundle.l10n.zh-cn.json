@@ -50,6 +50,7 @@
   "Comments can only be added to lines within the pull request diff": "只能对 PR diff 内的行添加评论",
   "New notification from {0}": "来自 {0} 的新通知",
   "{0} new notifications from {1}": "来自 {1} 的 {0} 条新通知",
+  "{0} new notifications across {1} instances": "{1} 个实例共 {0} 条新通知",
   "Open": "打开",
   "Mark all as read": "全部标记为已读",
   "Failed to mark notifications as read: {0}": "标记通知已读失败：{0}",

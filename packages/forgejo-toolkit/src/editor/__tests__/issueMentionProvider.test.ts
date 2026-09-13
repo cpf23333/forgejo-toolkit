@@ -32,7 +32,7 @@ vi.mock('../../logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
-import { ForgejoIssueMentionProvider, getMentionRange } from '../issueMentionProvider';
+import { ForgejoIssueMentionProvider, getMentionRange, isMentionTriggerContext } from '../issueMentionProvider';
 import { detectLinkedRepository } from '../../worktree/gitOperations';
 import type { ConfigManager } from '../../config';
 
@@ -52,10 +52,21 @@ function createConfig(ids: string[]): ConfigManager {
 }
 
 function makeFileDocument(text: string) {
+  const lines = text.split('\n');
   return {
     uri: { scheme: 'file' },
     getText: () => text,
-    positionAt: (offset: number) => ({ line: 0, character: offset }),
+    positionAt: (offset: number) => {
+      let remaining = offset;
+      for (let i = 0; i < lines.length; i++) {
+        if (remaining <= lines[i].length) {
+          return { line: i, character: remaining };
+        }
+        remaining -= lines[i].length + 1;
+      }
+      return { line: lines.length - 1, character: lines[lines.length - 1].length };
+    },
+    lineAt: (line: number) => ({ text: lines[line] }),
   };
 }
 
@@ -185,5 +196,106 @@ describe('email address handling', () => {
       { triggerCharacter: '@' } as never,
     );
     expect(items).toEqual([]);
+  });
+});
+
+describe('isMentionTriggerContext', () => {
+  it('rejects a line-start `#` not followed by a digit (`#include`, `# comment`)', () => {
+    expect(isMentionTriggerContext('#include <stdio.h>', 0, '#')).toBe(false);
+    expect(isMentionTriggerContext('  # a comment', 2, '#')).toBe(false);
+  });
+
+  it('accepts a line-start `#` followed by a digit (`#123`)', () => {
+    expect(isMentionTriggerContext('#123', 0, '#')).toBe(true);
+  });
+
+  it('accepts an in-prose `#`', () => {
+    expect(isMentionTriggerContext('see #', 4, '#')).toBe(true);
+  });
+
+  it('rejects a line-start `@` (decorator / at-rule position)', () => {
+    expect(isMentionTriggerContext('@decorator', 0, '@')).toBe(false);
+    expect(isMentionTriggerContext('  @media', 2, '@')).toBe(false);
+  });
+
+  it('accepts an in-prose `@`', () => {
+    expect(isMentionTriggerContext('thanks @', 7, '@')).toBe(true);
+  });
+});
+
+describe('completion trigger context', () => {
+  beforeEach(() => {
+    detectMock.mockReset();
+    detectMock.mockImplementation(
+      (instances: { id: string }[]) =>
+        Promise.resolve({ instanceId: instances[0].id, owner: 'owner', repo: 'repo' }) as never,
+    );
+  });
+
+  function completionsAt(lineText: string, character: number, trigger: '#' | '@', ids: string[]) {
+    const provider = new ForgejoIssueMentionProvider(createConfig(ids));
+    const document = {
+      uri: { scheme: 'file' },
+      lineAt: () => ({ text: lineText }),
+    };
+    return provider.provideCompletionItems(
+      document as never,
+      { line: 0, character } as never,
+      {} as never,
+      { triggerCharacter: trigger } as never,
+    );
+  }
+
+  it('offers no `#` completions at line start (comment/directive position)', async () => {
+    expect(await completionsAt('#', 1, '#', ['inst-g1'])).toEqual([]);
+    expect(detectMock).not.toHaveBeenCalled();
+  });
+
+  it('offers no `@` completions at line start (decorator position)', async () => {
+    expect(await completionsAt('  @', 3, '@', ['inst-g2'])).toEqual([]);
+    expect(detectMock).not.toHaveBeenCalled();
+  });
+
+  it('still queries completions for an in-prose `#`', async () => {
+    await completionsAt('see #', 5, '#', ['inst-g3']);
+    expect(detectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('still queries completions for an in-prose `@`', async () => {
+    await completionsAt('hi @', 4, '@', ['inst-g4']);
+    expect(detectMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('document link trigger context', () => {
+  beforeEach(() => {
+    detectMock.mockReset();
+    detectMock.mockResolvedValue({ instanceId: 'inst-l1', owner: 'owner', repo: 'repo' } as never);
+  });
+
+  it('does not link a line-start `@` token (decorator / at-rule)', async () => {
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-l1']));
+    const document = makeFileDocument('@media screen {\n}\n  @override\n');
+    expect(await provider.provideDocumentLinks(document as never, {} as never)).toEqual([]);
+  });
+
+  it('does not link a line-start `@user`, but still links it in prose', async () => {
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-l1']));
+    const document = makeFileDocument('@user\nthanks @user');
+    const links = await provider.provideDocumentLinks(document as never, {} as never);
+    expect(links.length).toBe(1);
+  });
+
+  it('still links a line-start `#123`', async () => {
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-l1']));
+    const document = makeFileDocument('#123 fixed this');
+    const links = await provider.provideDocumentLinks(document as never, {} as never);
+    expect(links.length).toBe(1);
+  });
+
+  it('never links `#include` or `# comment` (regex requires digits)', async () => {
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-l1']));
+    const document = makeFileDocument('#include <stdio.h>\n# a comment');
+    expect(await provider.provideDocumentLinks(document as never, {} as never)).toEqual([]);
   });
 });

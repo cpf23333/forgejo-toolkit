@@ -137,7 +137,8 @@
       "instanceFilter": "Instances",
       "allInstances": "All instances",
       "stateFilter": "State",
-      "stateFilterDescription": "Only applies to Issues and Pull Requests. Repository search is not affected by state."
+      "stateFilterDescription": "Only applies to Issues and Pull Requests. Repository search is not affected by state.",
+      "truncated": "Each category shows at most {limit} results. Refine the search keyword to see more."
     },
     "notifications": {
       "title": "Notifications",
@@ -153,6 +154,7 @@
       "markAsRead": "Mark as read",
       "markAllAsRead": "Mark all as read",
       "untitled": "Untitled",
+      "truncated": "Only the first {limit} notifications are shown. Mark some as read or adjust the filters to see more.",
       "types": {
         "issue": "Issue",
         "pullRequest": "Pull Request",

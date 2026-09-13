@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useAppState, globalSearchKey } from '../composables/useAppState';
+import { useAppState, globalSearchKey, GLOBAL_SEARCH_LIMIT } from '../composables/useAppState';
 import type { ForgejoIssue, ForgejoPullRequest, ForgejoRepository, GlobalSearchResult } from '../types/api';
 import type { ForgejoInstance } from '../types/instance';
 import { stateLabel } from '../utils/stateLabel';
@@ -102,6 +102,24 @@ function hasResults(): boolean {
     }
   }
   return false;
+}
+
+// The server caps each category at GLOBAL_SEARCH_LIMIT results; a list that
+// exactly fills the cap is likely truncated, so say so instead of letting
+// older results vanish silently.
+function isTruncated(instanceId: string): boolean {
+  const result = resultFor(instanceId);
+  if (!result) {
+    return false;
+  }
+  if (activeTab.value === 'all') {
+    return (
+      result.repositories.length >= GLOBAL_SEARCH_LIMIT ||
+      result.issues.length >= GLOBAL_SEARCH_LIMIT ||
+      result.pullRequests.length >= GLOBAL_SEARCH_LIMIT
+    );
+  }
+  return result[activeTab.value].length >= GLOBAL_SEARCH_LIMIT;
 }
 
 function runSearch() {
@@ -507,6 +525,10 @@ watch(stateFilter, () => {
                 </span>
               </vscode-tree-item>
             </template>
+
+            <vscode-tree-item v-if="isTruncated(instance.id)">
+              <span class="truncation-hint">{{ t('dashboard.search.truncated', { limit: GLOBAL_SEARCH_LIMIT }) }}</span>
+            </vscode-tree-item>
           </template>
         </vscode-tree-item>
       </vscode-tree>
@@ -633,6 +655,11 @@ watch(stateFilter, () => {
 .error {
   color: var(--vscode-testing-iconFailed);
   font-size: 0.9em;
+}
+
+.truncation-hint {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
 }
 
 .search-loading-ring {
