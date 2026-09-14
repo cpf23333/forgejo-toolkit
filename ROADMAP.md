@@ -119,6 +119,9 @@
 - 在 Dashboard 顶部显示关联仓库卡片，支持快捷打开仓库、Issues、Pull Requests。
 - workspace 文件夹变化或实例增删时自动重新检测。
 - 发布本地仓库到 Forgejo：「Publish to Forgejo」命令引导选择实例、仓库名与可见性，自动创建远程仓库、添加 origin 并推送当前分支；已关联 Forgejo 仓库时该命令直接推送当前分支。
+- 作为 VS Code Git clone 源：已配置实例注册为 `RemoteSourceProvider`，「Git: Clone」快速选择中按关键字在服务端搜索仓库克隆，无关键字时列出当前用户仓库。
+- 多仓库 / 嵌套仓库 workspace：workspace folder 一层子目录中的独立 git 仓库（含 repo 内嵌套 repo）参与关联检测，按当前文件/活动编辑器归属仓库，多仓库歧义时交互命令弹 QuickPick 消歧。
+- Start Work on Issue：Issue 详情页一键从默认分支创建 `issue-<编号>-<标题>` 分支与 worktree 并打开。
 
 ### 状态栏
 
@@ -166,7 +169,6 @@
 
 ## 长期可能
 
-- Issue / PR 与 Git 分支联动：例如 Start Work on Issue（从 Issue 一键创建分支并 checkout）；PR 检出到 worktree 已支持。
 - 多账号权限管理：区分只读 / 读写 token。
 - 文件浏览器增强：文件重命名 / 删除（目前更推荐本地 clone 后操作）。
 - 构建工具统一：将 extension host 打包从 esbuild 迁移到 Rolldown。已评估：可行但收益有限，暂缓实施；需验证 Node builtins 处理、CJS 输出、sourcemap、minify、watch 模式等能力。
