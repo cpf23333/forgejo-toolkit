@@ -1,4 +1,4 @@
-[English](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/packages/forgejo-toolkit/README.md) | 中文
+[English](https://codeberg.org/cpf23333/forgejo-toolkit/src/branch/main/README.md) | 中文
 
 # Forgejo Toolkit
 
