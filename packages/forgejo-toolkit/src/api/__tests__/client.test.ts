@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from 'vitest';
+import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -1432,6 +1433,91 @@ describe('ForgejoClient with MSW', () => {
         ],
       };
       expect(detect(client, data)).toBe('https://forgejo.public.example.com');
+    });
+  });
+
+  describe('auth error fix guidance', () => {
+    beforeEach(() => {
+      vi.mocked(vscode.window.showErrorMessage)
+        .mockReset()
+        .mockResolvedValue(undefined as never);
+      vi.mocked(vscode.env.openExternal).mockClear();
+      vi.mocked(vscode.commands.executeCommand).mockClear();
+    });
+
+    function mockAuthFailure(status: number, body: Record<string, unknown>) {
+      mockServer.use(http.get('https://*/api/v1/user', () => HttpResponse.json(body, { status })));
+    }
+
+    it('shows token fix guidance with action buttons on 401', async () => {
+      mockAuthFailure(401, { message: 'unauthorized' });
+      const client = new ForgejoClient('https://auth-expired.example.com', 'bad-token');
+
+      await expect(client.getCurrentUser()).rejects.toThrow(ApiError);
+
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+      const [message, ...buttons] = vi.mocked(vscode.window.showErrorMessage).mock.calls[0];
+      expect(String(message)).toContain('Invalid or expired credentials');
+      expect(buttons).toContain('Open Token Settings');
+      expect(buttons).toContain('Open Settings');
+    });
+
+    it('dedupes the 401 toast per instance per session', async () => {
+      mockAuthFailure(401, { message: 'unauthorized' });
+      const client = new ForgejoClient('https://auth-dedupe.example.com', 'bad-token');
+
+      await expect(client.getCurrentUser()).rejects.toThrow();
+      await expect(client.getCurrentUser()).rejects.toThrow();
+
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('opens the instance token settings page from the toast button', async () => {
+      mockAuthFailure(401, { message: 'unauthorized' });
+      vi.mocked(vscode.window.showErrorMessage).mockResolvedValue('Open Token Settings' as never);
+      const client = new ForgejoClient('https://auth-action.example.com', 'bad-token');
+
+      await expect(client.getCurrentUser()).rejects.toThrow();
+      // The button handler runs in a .then callback; let it settle.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(vscode.env.openExternal).toHaveBeenCalledTimes(1);
+      const uri = vi.mocked(vscode.env.openExternal).mock.calls[0][0] as { fsPath: string };
+      expect(uri.fsPath).toBe('https://auth-action.example.com/user/settings/applications');
+    });
+
+    it('opens the extension settings view from the toast button', async () => {
+      mockAuthFailure(401, { message: 'unauthorized' });
+      vi.mocked(vscode.window.showErrorMessage).mockResolvedValue('Open Settings' as never);
+      const client = new ForgejoClient('https://auth-settings.example.com', 'bad-token');
+
+      await expect(client.getCurrentUser()).rejects.toThrow();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(vscode.commands.executeCommand).toHaveBeenCalledWith('forgejoToolkit.openSettings');
+    });
+
+    it('surfaces the required scope named in the 403 body', async () => {
+      mockAuthFailure(403, { message: 'token does not have at least one of required scope(s): [write:issue]' });
+      const client = new ForgejoClient('https://auth-scope.example.com', 'narrow-token');
+
+      await expect(client.getCurrentUser()).rejects.toThrow(ApiError);
+
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+      const [message, ...buttons] = vi.mocked(vscode.window.showErrorMessage).mock.calls[0];
+      expect(String(message)).toContain('lacks the required scope');
+      expect(String(message)).toContain('write:issue');
+      expect(buttons).toContain('Open Token Settings');
+      expect(buttons).toContain('Open Settings');
+    });
+
+    it('does not toast for non-scope 403 errors', async () => {
+      mockAuthFailure(403, { message: 'you are not allowed to see this' });
+      const client = new ForgejoClient('https://auth-other403.example.com', 'token');
+
+      await expect(client.getCurrentUser()).rejects.toThrow();
+
+      expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
     });
   });
 });

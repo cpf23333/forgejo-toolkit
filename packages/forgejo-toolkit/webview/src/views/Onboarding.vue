@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAppState } from '../composables/useAppState';
 import ImportPreview from './ImportPreview.vue';
+import TokenScopeList from '../components/TokenScopeList.vue';
 import type { Locale } from '../i18n';
 import { postMessage } from '../composables/vscode';
 import '../types/config';
@@ -309,6 +310,7 @@ watch(
             >
               {{ t('onboarding.createTokenLink') }}
             </button>
+            <TokenScopeList />
           </div>
 
           <div class="actions">

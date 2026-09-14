@@ -489,9 +489,21 @@
     "instanceUrl": "实例地址",
     "instanceUrlPlaceholder": "https://forgejo.example.com",
     "accessToken": "访问令牌",
-    "accessTokenDescription": "令牌至少需要有 read:repository、read:issue、read:pull 权限；编辑/创建 Issue、PR 或上传附件还需要 write:issue、write:pull 和 write:repository 权限。",
+    "accessTokenDescription": "令牌至少需要 read:user、read:repository、read:issue、read:notification 权限；创建/编辑操作还需对应的 write 权限。",
     "accessTokenPlaceholder": "请输入 Forgejo 访问令牌",
     "accessTokenKeepPlaceholder": "留空则保留当前令牌",
+    "tokenScopes": {
+      "title": "推荐 Token scope 清单",
+      "readHeader": "读取权限（浏览数据必需）",
+      "writeHeader": "写入权限（创建/编辑操作需要）",
+      "readUser": "账号信息、用户搜索、时间追踪",
+      "readRepository": "仓库、文件、PR、评审、CI、Release",
+      "readIssue": "Issue、评论、标签、里程碑",
+      "readNotification": "通知轮询",
+      "writeRepository": "发布仓库、创建/合并 PR、提交评审、Release、触发 workflow",
+      "writeIssue": "创建/编辑 Issue 与评论",
+      "writeNotification": "标记通知已读"
+    },
     "syncApiUrlsToInstanceUrl": {
       "label": "将 API 返回的 URL 同步为实例地址",
       "description": "把 Forgejo 返回的 URL（html_url、avatar_url、download_url 等）重写为上方配置的实例地址。如需保留服务端声明的原始地址，请关闭此选项。"

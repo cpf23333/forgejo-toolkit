@@ -1643,31 +1643,53 @@ export class ForgejoClient {
       return;
     }
     const [, status, body] = match;
-    if (status !== '403') {
-      return;
-    }
     const text = body.trim();
-    if (!/required scope|token does not have/i.test(text)) {
-      return;
-    }
-    // One toast per instance+scope per session: pollers and manual refreshes
-    // would otherwise re-toast the same 403 on every request.
-    const key = `${this.url}|${text}`;
-    if (shownPermissionErrorKeys.has(key)) {
-      return;
-    }
-    shownPermissionErrorKeys.add(key);
+
+    const openTokenSettings = vscode.l10n.t('Open Token Settings');
     const openSettings = vscode.l10n.t('Open Settings');
-    void vscode.window
-      .showErrorMessage(
-        vscode.l10n.t('Permission denied by {0}: {1}. The access token may lack the required scope.', this.url, text),
-        openSettings,
-      )
-      .then((choice) => {
-        if (choice === openSettings) {
+    const notify = (key: string, message: string) => {
+      // One toast per instance+reason per session: pollers and manual
+      // refreshes would otherwise re-toast the same failure on every request.
+      if (shownPermissionErrorKeys.has(key)) {
+        return;
+      }
+      shownPermissionErrorKeys.add(key);
+      void vscode.window.showErrorMessage(message, openTokenSettings, openSettings).then((choice) => {
+        if (choice === openTokenSettings) {
+          const tokenSettingsUrl = `${this.url.replace(/\/$/, '')}/user/settings/applications`;
+          void vscode.env.openExternal(vscode.Uri.parse(tokenSettingsUrl));
+        } else if (choice === openSettings) {
           void vscode.commands.executeCommand('forgejoToolkit.openSettings');
         }
       });
+    };
+
+    if (status === '401') {
+      // The token was rejected outright (deleted, expired, or the instance
+      // was reinstalled): point the user at the token page and the instance
+      // edit form instead of leaving them with a bare error.
+      notify(
+        `${this.url}|401`,
+        vscode.l10n.t('Invalid or expired credentials for {0}. Update the access token.', this.url),
+      );
+      return;
+    }
+
+    if (status !== '403' || !/required scope|token does not have/i.test(text)) {
+      return;
+    }
+    // Forgejo names the missing scope in the error body ("token does not have
+    // at least one of required scope(s): [write:issue]"); surface it so the
+    // user knows exactly which scope to grant.
+    const scopeMatch = text.match(/required scope\(s\): \[([^\]]+)\]/i);
+    const message = scopeMatch
+      ? vscode.l10n.t(
+          'Permission denied by {0}: the access token lacks the required scope {1}.',
+          this.url,
+          scopeMatch[1],
+        )
+      : vscode.l10n.t('Permission denied by {0}: {1}. The access token may lack the required scope.', this.url, text);
+    notify(`${this.url}|${text}`, message);
   }
 }
 

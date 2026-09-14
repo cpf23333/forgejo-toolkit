@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
 import ModalDialog from '../components/ModalDialog.vue';
+import TokenScopeList from '../components/TokenScopeList.vue';
 import type { ForgejoInstance } from '../types/instance';
 import type { Locale } from '../i18n';
 
@@ -22,6 +23,13 @@ watch(
 
 const url = ref('');
 const token = ref('');
+
+// Forgejo's token management page lives at a fixed path under the instance
+// (same helper as the onboarding form).
+const tokenSettingsUrl = computed(() => {
+  const base = url.value.trim().replace(/\/$/, '');
+  return /^https?:\/\//.test(base) ? `${base}/user/settings/applications` : '';
+});
 const syncApiUrlsToInstanceUrl = ref(true);
 const testing = ref(false);
 const saving = ref(false);
@@ -462,6 +470,15 @@ defineExpose({
           @input="token = ($event.target as HTMLInputElement).value"
         />
         <p class="field-description">{{ t('settings.accessTokenDescription') }}</p>
+        <button
+          v-if="tokenSettingsUrl"
+          type="button"
+          class="link-button token-create-link"
+          @click="state.openExternal(tokenSettingsUrl)"
+        >
+          {{ t('onboarding.createTokenLink') }}
+        </button>
+        <TokenScopeList />
       </div>
 
       <div class="form-row">
@@ -610,6 +627,11 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.token-create-link {
+  align-self: flex-start;
+  font-size: 0.85em;
 }
 
 .checkbox-row {

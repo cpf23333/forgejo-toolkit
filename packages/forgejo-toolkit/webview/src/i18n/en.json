@@ -489,9 +489,21 @@
     "instanceUrl": "Instance URL",
     "instanceUrlPlaceholder": "https://forgejo.example.com",
     "accessToken": "Access Token",
-    "accessTokenDescription": "The token needs at least read:repository, read:issue, and read:pull scopes. To edit/create issues and pull requests or upload attachments, also grant write:issue, write:pull, and write:repository.",
+    "accessTokenDescription": "The token needs at least read:user, read:repository, read:issue and read:notification scopes; grant the matching write scopes for create/edit actions.",
     "accessTokenPlaceholder": "Enter your Forgejo access token",
     "accessTokenKeepPlaceholder": "Leave empty to keep the current token",
+    "tokenScopes": {
+      "title": "Recommended token scopes",
+      "readHeader": "Read access (required for browsing data)",
+      "writeHeader": "Write access (for create/edit actions)",
+      "readUser": "account info, user search, time tracking",
+      "readRepository": "repositories, files, pull requests, reviews, CI, releases",
+      "readIssue": "issues, comments, labels, milestones",
+      "readNotification": "notification polling",
+      "writeRepository": "publish repos, create/merge PRs, submit reviews, releases, trigger workflows",
+      "writeIssue": "create/edit issues and comments",
+      "writeNotification": "mark notifications read"
+    },
     "syncApiUrlsToInstanceUrl": {
       "label": "Sync API URLs to instance URL",
       "description": "Rewrite URLs returned by Forgejo (html_url, avatar_url, download_url, etc.) to use the configured instance URL. Turn off if you want to keep the server-declared addresses."
