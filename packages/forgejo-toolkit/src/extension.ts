@@ -14,6 +14,7 @@ import { NotificationPoller } from './notifications/notificationPoller';
 import { CreatePrStatusBarController } from './statusBar/createPrStatusBar';
 import { userFacingErrorMessage } from './api/errors';
 import { probeServerVersion } from './api/versionProbe';
+import { registerForgejoRemoteSourceProviders } from './clone/remoteSourceProvider';
 import { maybeShowWelcomeOnboarding } from './welcome';
 import { logger } from './logger';
 
@@ -102,6 +103,10 @@ export async function activate(context: vscode.ExtensionContext) {
       providedCodeActionKinds: TodoCommentCodeActionProvider.providedCodeActionKinds,
     }),
   );
+
+  // Forgejo instances as clone sources in the "Git: Clone" quick pick.
+  // Degrades to a log line when the built-in git extension is unavailable.
+  void registerForgejoRemoteSourceProviders(context, config);
 
   logger.info('Forgejo Toolkit extension activated');
 }

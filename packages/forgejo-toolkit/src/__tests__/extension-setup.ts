@@ -70,6 +70,9 @@ vi.mock('vscode', () => ({
     openExternal: vi.fn(async () => true),
     clipboard: { writeText: vi.fn(async () => undefined) },
   },
+  extensions: {
+    getExtension: vi.fn(),
+  },
   l10n: {
     t: vi.fn((message: string, ...args: unknown[]) => {
       return args.length > 0 ? `${message} ${args.join(' ')}` : message;

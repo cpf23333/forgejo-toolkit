@@ -11,6 +11,8 @@ export interface ForgejoRepository {
   name: string;
   full_name: string;
   html_url: string;
+  clone_url?: string;
+  ssh_url?: string;
   private: boolean;
   description: string;
   owner: ForgejoUser;
