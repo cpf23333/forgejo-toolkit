@@ -208,6 +208,19 @@ function createAppState() {
   const supportsMultiDiff = computed(() => isVersionAtLeast(vscodeVersion, '1.86.0'));
   const dashboardActiveTab = ref<'repositories' | 'issues' | 'pullRequests'>('repositories');
   const linkedRepository = ref<LinkedRepository | undefined>(undefined);
+  // Every workspace repository linked to a configured instance (multi-root
+  // and nested repositories included); linkedRepository is the subset member
+  // the host attributed to the current editor context.
+  const linkedRepositories = ref<LinkedRepository[]>([]);
+  // Manual pick in the dashboard linked-repository card; sticks while the
+  // picked repository stays linked, editor attribution drives the card again
+  // once it is cleared.
+  const selectedLinkedRepoPath = ref<string | undefined>(undefined);
+  const activeLinkedRepository = computed(
+    () =>
+      linkedRepositories.value.find((entry) => entry.localPath === selectedLinkedRepoPath.value) ??
+      linkedRepository.value,
+  );
   const pendingCreatePr = ref<{ instanceId: string; owner: string; repo: string; head: string } | null>(null);
   const pendingNewIssue = ref<{
     instanceId: string;
@@ -416,9 +429,20 @@ function createAppState() {
         worktreeCacheDirectoryDefault.value = message.worktreeCacheDirectoryDefault;
         loadLinkedRepository();
         break;
-      case 'linkedRepository':
-        linkedRepository.value = (message as { linked?: LinkedRepository }).linked;
+      case 'linkedRepository': {
+        const payload = message as { linked?: LinkedRepository; all?: LinkedRepository[] };
+        linkedRepository.value = payload.linked;
+        linkedRepositories.value = payload.all ?? (payload.linked ? [payload.linked] : []);
+        // A manual selection is only meaningful while its repository is
+        // still linked; otherwise fall back to host attribution.
+        if (
+          selectedLinkedRepoPath.value &&
+          !linkedRepositories.value.some((entry) => entry.localPath === selectedLinkedRepoPath.value)
+        ) {
+          selectedLinkedRepoPath.value = undefined;
+        }
         break;
+      }
       case 'instances':
         instances.value = message.data ?? [];
         break;
@@ -3966,8 +3990,12 @@ function createAppState() {
     postMessage({ command: 'getLinkedRepository' });
   }
 
+  function selectLinkedRepository(localPath: string | undefined) {
+    selectedLinkedRepoPath.value = localPath;
+  }
+
   function openLinkedRepositoryDetail() {
-    const linked = linkedRepository.value;
+    const linked = activeLinkedRepository.value;
     if (!linked) {
       return;
     }
@@ -3975,7 +4003,7 @@ function createAppState() {
   }
 
   function openLinkedRepositoryIssues() {
-    const linked = linkedRepository.value;
+    const linked = activeLinkedRepository.value;
     if (!linked) {
       return;
     }
@@ -3983,7 +4011,7 @@ function createAppState() {
   }
 
   function openLinkedRepositoryPullRequests() {
-    const linked = linkedRepository.value;
+    const linked = activeLinkedRepository.value;
     if (!linked) {
       return;
     }
@@ -4238,6 +4266,8 @@ function createAppState() {
     supportsMultiDiff,
     dashboardActiveTab,
     linkedRepository,
+    linkedRepositories,
+    activeLinkedRepository,
     pendingCreatePr,
     pendingNewIssue,
     testConnectionResult,
@@ -4347,6 +4377,7 @@ function createAppState() {
     changeRepoIssuesState,
     changeRepoPullRequestsState,
     loadLinkedRepository,
+    selectLinkedRepository,
     openLinkedRepositoryDetail,
     openLinkedRepositoryIssues,
     openLinkedRepositoryPullRequests,

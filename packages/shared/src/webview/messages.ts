@@ -555,7 +555,7 @@ export type HostToWebviewMessage =
   | { command: 'worktreeCacheDirectory'; directory: string; defaultDirectory: string }
   | { command: 'testConnectionResult'; success: boolean; username?: string; error?: string }
   | { command: 'saveInstanceResult'; success: boolean; error?: string }
-  | { command: 'linkedRepository'; linked?: LinkedRepository }
+  | { command: 'linkedRepository'; linked?: LinkedRepository; all?: LinkedRepository[] }
   | {
       command: 'globalSearchResult';
       instanceId: string;

@@ -31,7 +31,12 @@ const activeTab = computed<Tab>({
 });
 
 const instances = computed(() => state.instances.value);
-const linkedRepository = computed(() => state.linkedRepository.value);
+const linkedRepository = computed(() => state.activeLinkedRepository.value);
+const linkedRepositories = computed(() => state.linkedRepositories.value);
+
+function selectLinkedRepository(localPath: string) {
+  state.selectLinkedRepository(localPath);
+}
 </script>
 
 <template>
@@ -52,7 +57,21 @@ const linkedRepository = computed(() => state.linkedRepository.value);
               <span class="linked-repo-title">{{ t('dashboard.linkedRepository.title') }}</span>
               <span class="linked-repo-path" :title="linkedRepository.localPath">{{ linkedRepository.localPath }}</span>
             </div>
-            <span class="linked-repo-name">{{ linkedRepository.owner }}/{{ linkedRepository.repo }}</span>
+            <vscode-single-select
+              v-if="linkedRepositories.length > 1"
+              class="linked-repo-switcher"
+              :value="linkedRepository.localPath"
+              :aria-label="t('dashboard.linkedRepository.switchRepository')"
+              :title="t('dashboard.linkedRepository.switchRepository')"
+              @change="selectLinkedRepository(($event.target as HTMLSelectElement).value)"
+            >
+              <vscode-option v-for="entry in linkedRepositories" :key="entry.localPath" :value="entry.localPath">
+                {{ entry.owner }}/{{ entry.repo }}
+              </vscode-option>
+            </vscode-single-select>
+            <span v-if="linkedRepositories.length <= 1" class="linked-repo-name">
+              {{ linkedRepository.owner }}/{{ linkedRepository.repo }}
+            </span>
             <span class="linked-repo-instance">{{ linkedRepository.remoteUrl }}</span>
           </div>
           <div class="linked-repo-actions">
@@ -190,6 +209,10 @@ const linkedRepository = computed(() => state.linkedRepository.value);
   color: var(--vscode-descriptionForeground);
   font-size: 0.85em;
   font-weight: 600;
+}
+
+.linked-repo-switcher {
+  margin: 2px 0;
 }
 
 .linked-repo-path {

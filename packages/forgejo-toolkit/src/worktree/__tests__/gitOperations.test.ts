@@ -36,6 +36,7 @@ import {
   cloneRepository,
   createWorktreeFromBranch,
   createWorktreeWithNewBranch,
+  detectLinkedRepositories,
   detectLinkedRepository,
   fetchBranch,
   fetchPullRequestHead,
@@ -601,6 +602,25 @@ describe('detectLinkedRepository', () => {
 
     expect(linked?.instanceId).toBe('host-alice');
     expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('2 accounts match'));
+  });
+
+  it('detectLinkedRepositories returns every match plus the attributed one', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
+      { uri: { fsPath: '/ws/a' } },
+      { uri: { fsPath: '/ws/b' } },
+    ];
+    (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = {
+      document: { uri: { fsPath: '/ws/b/src/file.ts' } },
+    };
+    mockRemotes({
+      '/ws/a': 'https://forgejo.example.com/alice/repo-a.git',
+      '/ws/b': 'https://forgejo.example.com/alice/repo-b.git',
+    });
+
+    const result = await detectLinkedRepositories([instanceAlice]);
+
+    expect(result.all.map((m) => m.localPath).sort()).toEqual(['/ws/a', '/ws/b']);
+    expect(result.linked?.localPath).toBe('/ws/b');
   });
 
   it('links via a non-origin remote when origin does not match any instance', async () => {

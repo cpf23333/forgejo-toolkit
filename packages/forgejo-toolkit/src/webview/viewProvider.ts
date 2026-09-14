@@ -18,7 +18,7 @@ import {
   cloneRepository,
   createWorktreeFromBranch,
   createWorktreeWithNewBranch,
-  detectLinkedRepository,
+  detectLinkedRepositories,
   fetchBranch,
   fetchPullRequestHead,
   findLocalRepo,
@@ -3540,7 +3540,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _detectAndSendLinkedRepository() {
-    const linked = await detectLinkedRepository(this._config.getInstances());
+    const { linked, all } = await detectLinkedRepositories(this._config.getInstances());
     // Gate the editor context menu (Copy Permalink) on whether the workspace
     // is linked to a Forgejo repository. This must run even when the view is
     // hidden, otherwise the key stays false until the sidebar is opened.
@@ -3548,7 +3548,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     if (!this._view?.visible) {
       return;
     }
-    this._reply('linkedRepository', { linked });
+    this._reply('linkedRepository', { linked, all });
   }
 
   private _reply<T extends HostToWebviewMessage['command']>(

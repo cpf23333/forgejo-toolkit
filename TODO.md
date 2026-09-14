@@ -20,7 +20,7 @@
 
 ### 低优先级
 
-- [ ] Dashboard「关联仓库」卡片支持列出全部已关联仓库并可切换：批 18 多仓库后卡片仍是单仓库设计（显示活动文件所属仓库，已追加编辑器切换联动）；用户期望能一览所有关联仓库（外层 + 嵌套）并手动切换关注对象（2026-09-14 用户提出）
+- [x] Dashboard「关联仓库」卡片支持列出全部已关联仓库并可切换——已实现（2026-09-14）：host 侧 `detectLinkedRepositories`（原 `detectLinkedRepository` 重构为其薄封装，行为不变）返回 `{ linked, all }`；协议 `linkedRepository` 消息加 `all` 字段；webview 侧新增 `linkedRepositories` 列表与 `selectedLinkedRepoPath` 手动选择——卡片在多仓库时显示 vscode-single-select 切换器（label `owner/repo`、description 本地路径），手动选择期间卡片按钮（打开仓库/Issues/PR）作用于选中仓库，所选仓库从列表消失时自动回落到编辑器归属；单仓库或无 `all` 的旧消息行为不变；i18n webview 双语 1 key；补 5 个测试（gitOperations 1 + useAppState 4）
 
 ### 用户视角走查发现的问题（2026-08-24）
 

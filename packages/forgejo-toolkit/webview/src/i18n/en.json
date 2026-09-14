@@ -108,6 +108,7 @@
     "refs": "Refs",
     "linkedRepository": {
       "title": "Linked Repository",
+      "switchRepository": "Switch linked repository",
       "openRepo": "Open Repo",
       "openIssues": "Issues",
       "openPullRequests": "Pull Requests"

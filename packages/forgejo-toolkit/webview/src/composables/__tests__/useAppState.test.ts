@@ -569,6 +569,63 @@ describe('useAppState', () => {
     });
   });
 
+  describe('linkedRepository message', () => {
+    const repoA = {
+      instanceId: 'inst-1',
+      owner: 'alice',
+      repo: 'repo-a',
+      localPath: '/ws/a',
+      remoteUrl: 'https://forgejo.example.com/alice/repo-a.git',
+    };
+    const repoB = {
+      instanceId: 'inst-1',
+      owner: 'alice',
+      repo: 'repo-b',
+      localPath: '/ws/b',
+      remoteUrl: 'https://forgejo.example.com/alice/repo-b.git',
+    };
+
+    it('stores the full list and the host-attributed repository', async () => {
+      const { state } = await createState();
+      dispatchMessage({ command: 'linkedRepository', linked: repoA, all: [repoA, repoB] });
+      await nextTick();
+
+      expect(state.linkedRepository.value).toEqual(repoA);
+      expect(state.linkedRepositories.value).toHaveLength(2);
+      expect(state.activeLinkedRepository.value).toEqual(repoA);
+    });
+
+    it('manual selection overrides the active repository', async () => {
+      const { state } = await createState();
+      dispatchMessage({ command: 'linkedRepository', linked: repoA, all: [repoA, repoB] });
+      await nextTick();
+
+      state.selectLinkedRepository('/ws/b');
+
+      expect(state.activeLinkedRepository.value).toEqual(repoB);
+    });
+
+    it('falls back to host attribution when the selected repository disappears', async () => {
+      const { state } = await createState();
+      dispatchMessage({ command: 'linkedRepository', linked: repoA, all: [repoA, repoB] });
+      await nextTick();
+      state.selectLinkedRepository('/ws/b');
+
+      dispatchMessage({ command: 'linkedRepository', linked: repoA, all: [repoA] });
+      await nextTick();
+
+      expect(state.activeLinkedRepository.value).toEqual(repoA);
+    });
+
+    it('derives the list from the attributed repository when all is absent', async () => {
+      const { state } = await createState();
+      dispatchMessage({ command: 'linkedRepository', linked: repoA });
+      await nextTick();
+
+      expect(state.linkedRepositories.value).toEqual([repoA]);
+    });
+  });
+
   describe('error message handlers', () => {
     it('sets errors Map when repository loading fails', async () => {
       const { state } = await createState();

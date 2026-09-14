@@ -108,6 +108,7 @@
     "refs": "引用",
     "linkedRepository": {
       "title": "关联仓库",
+      "switchRepository": "切换关联仓库",
       "openRepo": "打开仓库",
       "openIssues": "Issues",
       "openPullRequests": "Pull Requests"

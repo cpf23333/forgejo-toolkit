@@ -630,10 +630,17 @@ export interface DetectLinkedRepositoryOptions {
   pickOnAmbiguity?: boolean;
 }
 
-export async function detectLinkedRepository(
+export interface DetectLinkedRepositoriesResult {
+  /** The repository the calling context is attributed to (may be undefined). */
+  linked: LinkedRepository | undefined;
+  /** Every workspace repository linked to a configured instance. */
+  all: LinkedRepository[];
+}
+
+export async function detectLinkedRepositories(
   instances: ForgejoInstance[],
   options?: DetectLinkedRepositoryOptions,
-): Promise<LinkedRepository | undefined> {
+): Promise<DetectLinkedRepositoriesResult> {
   const folders = [...(vscode.workspace.workspaceFolders ?? [])];
   // In a multi-root workspace, check the folder containing the active editor
   // first: when no single repository can be attributed, the first match
@@ -739,7 +746,7 @@ export async function detectLinkedRepository(
 
   if (matches.length === 0) {
     logger.debug('[detectLinkedRepository] no match');
-    return undefined;
+    return { linked: undefined, all: matches };
   }
   if (matches.length > 1) {
     // Attribute by the file the command is operating on (or the active
@@ -752,7 +759,7 @@ export async function detectLinkedRepository(
         .sort((a, b) => b.localPath.length - a.localPath.length);
       if (containing.length > 0) {
         logger.debug(`[detectLinkedRepository] attributed to ${containing[0].localPath} via ${attributionPath}`);
-        return containing[0];
+        return { linked: containing[0], all: matches };
       }
     }
     if (options?.pickOnAmbiguity) {
@@ -764,9 +771,16 @@ export async function detectLinkedRepository(
         })),
         { placeHolder: vscode.l10n.t('Multiple Forgejo repositories found in the workspace. Select one') },
       );
-      return picked?.match;
+      return { linked: picked?.match, all: matches };
     }
   }
   logger.debug(`[detectLinkedRepository] resolved to ${matches[0].localPath}`);
-  return matches[0];
+  return { linked: matches[0], all: matches };
+}
+
+export async function detectLinkedRepository(
+  instances: ForgejoInstance[],
+  options?: DetectLinkedRepositoryOptions,
+): Promise<LinkedRepository | undefined> {
+  return (await detectLinkedRepositories(instances, options)).linked;
 }
