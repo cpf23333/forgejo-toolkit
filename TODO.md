@@ -32,7 +32,7 @@
 - [x] 多根 workspace 下关联检测只取第一个匹配的仓库，状态栏与命令上下文可能张冠李戴——已修：`detectLinkedRepository` 优先检测「活动编辑器所属 workspace 文件夹」（path.relative 判定包含关系后排序），无活动编辑器或无匹配时退回原顺序的第一个匹配；补 2 个测试
 - [x] 通知轮询默认间隔 300s 延迟偏大，新通知弹窗也无聚合（一次弹多个）；考虑缩短默认值、聚合提示、动作失败时回滚已读标记——已修（批 13）：定时器改为每扩展一个、`_pollAll()` 按轮次聚合所有实例，多实例新通知合并为一条汇总 toast（新 l10n key，双语）；「全部已读」覆盖本轮所有实例；`_markAllRead` 拆分标记失败（直接错误 toast 返回，webview 只在成功回包后改本地态，无需回滚）与标记后刷新失败（走 `_handlePollFailure` + pushNotificationError，不再误报标记失败）。300s 默认值不改：改默认值影响所有用户且收益不明确。补 4 个测试
 - [x] Review 评论面板是单例（`PullReviewCommentPanel.currentPanel`）：切行/切 PR 时编辑器组件按 key 重建，写到一半的草稿直接丢弃（已坐实并修正原假设——草稿不是跟随，是丢失）；需加丢弃确认或缓存草稿——已修：host 换 context 前先向 webview 查询草稿状态（新协议消息 `queryPullReviewCommentDraft`/`pullReviewCommentDraftState`），有草稿则弹原生 modal 确认「丢弃草稿」，拒绝则保留旧 context 与草稿；同 key 重入走原同步路径不打扰；切换经 promise 链串行防连点叠弹窗；查询 2s 超时按无草稿放行（防卡死）并记 debug 日志
-- [ ] `package.json` 的 `publisher` 仍是占位符 `your-publisher-name`，发布前必须改
+- [x] `package.json` 的 `publisher` 仍是占位符 `your-publisher-name`，发布前必须改——已改为 `cpf23333`（2026-09-14 用户确认）；发布前剩余事项为账号侧操作（Marketplace 创建同名 publisher、Azure DevOps PAT）与可选的扩展图标
 
 #### 第二轮走查（同日补充，均有代码证据）
 

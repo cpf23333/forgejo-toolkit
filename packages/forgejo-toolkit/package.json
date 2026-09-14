@@ -22,7 +22,7 @@
     "type": "git",
     "url": "https://codeberg.org/cpf23333/forgejo-toolkit.git"
   },
-  "publisher": "your-publisher-name",
+  "publisher": "cpf23333",
   "main": "./out/extension.js",
   "scripts": {
     "build": "node esbuild.js --production && vite build --config webview/vite.config.ts",
