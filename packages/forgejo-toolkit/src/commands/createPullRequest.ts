@@ -24,7 +24,9 @@ export async function createPrFromCurrentBranch(
   viewProvider: ForgejoToolkitViewProvider,
   args?: CreatePrFromCurrentBranchArgs,
 ): Promise<void> {
-  const linked = await detectLinkedRepository(config.getInstances());
+  // Interactive command: when several workspace repositories match and the
+  // active editor does not attribute one, let the user pick.
+  const linked = await detectLinkedRepository(config.getInstances(), { pickOnAmbiguity: true });
   if (!linked) {
     vscode.window.showInformationMessage(vscode.l10n.t('No linked Forgejo repository found for the current workspace'));
     return;

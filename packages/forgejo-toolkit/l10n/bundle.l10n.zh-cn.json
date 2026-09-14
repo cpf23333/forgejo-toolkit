@@ -85,6 +85,7 @@
   "Repository name may only contain letters, digits, \".\", \"_\" and \"-\"": "仓库名称只能包含字母、数字、\".\"、\"_\" 和 \"-\"",
   "The repository has no commits yet. Make a commit before publishing.": "仓库还没有任何提交，请先提交后再发布。",
   "Multiple accounts match this remote. Select the account to push with": "多个账号匹配此远端，请选择用于推送的账号",
+  "Multiple Forgejo repositories found in the workspace. Select one": "工作区中找到多个 Forgejo 仓库，请选择其中一个",
   "Private": "私有",
   "Public": "公开",
   "Repository visibility": "仓库可见性",

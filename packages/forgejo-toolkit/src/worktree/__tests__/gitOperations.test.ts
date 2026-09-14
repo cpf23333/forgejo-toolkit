@@ -16,6 +16,7 @@ vi.mock('fs', () => ({
     access: vi.fn(async () => undefined),
     stat: vi.fn(),
     readFile: vi.fn(),
+    readdir: vi.fn(async () => []),
     rm: vi.fn(),
   },
 }));
@@ -29,12 +30,15 @@ import {
   fetchBranch,
   fetchPullRequestHead,
   getRemoteUrl,
+  listWorkspaceRepositories,
   openWorktree,
   preferOwnNamespaceInstance,
   pushBranch,
   remoteMatchesInstance,
   revertMergeCommit,
 } from '../gitOperations';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { logger } from '../../logger';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -495,7 +499,30 @@ describe('detectLinkedRepository', () => {
     vi.clearAllMocks();
     (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [];
     (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = undefined;
+    // Default filesystem layout: every directory looks like a repo (access
+    // always succeeds) and has no subdirectories to scan.
+    (fs.promises.access as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => undefined);
+    (fs.promises.readdir as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => []);
   });
+
+  /**
+   * Simulate a filesystem layout for repository detection: `repos` are the
+   * directories containing a `.git` entry, `children` maps a directory to the
+   * names of its subdirectories.
+   */
+  function mockFsLayout(repos: string[], children: Record<string, string[]>) {
+    const gitMarkers = new Set(repos.map((repoPath) => path.join(repoPath, '.git')));
+    (fs.promises.access as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (p: unknown) => {
+      if (gitMarkers.has(String(p))) {
+        return undefined;
+      }
+      throw new Error('ENOENT');
+    });
+    (fs.promises.readdir as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (p: unknown) => {
+      const names = children[String(p)] ?? [];
+      return names.map((name) => ({ name, isDirectory: () => true }));
+    });
+  }
 
   it('prefers the workspace folder containing the active editor', async () => {
     (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
@@ -549,6 +576,151 @@ describe('detectLinkedRepository', () => {
 
     expect(linked?.instanceId).toBe('host-alice');
     expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('2 accounts match'));
+  });
+
+  it('discovers nested repositories one level below a non-repo folder', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/root' } }];
+    const dirA = path.join('/root', 'a');
+    const dirB = path.join('/root', 'b');
+    mockFsLayout([dirA, dirB], { '/root': ['a', 'b'] });
+    mockRemotes({
+      [dirA]: 'https://forgejo.example.com/alice/repo-a.git',
+      [dirB]: 'https://forgejo.example.com/alice/repo-b.git',
+    });
+
+    const linked = await detectLinkedRepository([instanceAlice]);
+
+    expect(linked?.localPath).toBe(dirA);
+    expect(linked?.repo).toBe('repo-a');
+  });
+
+  it('attributes the active editor to the nested repository containing it', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/root' } }];
+    const dirNested = path.join('/root', 'nested');
+    mockFsLayout(['/root', dirNested], { '/root': ['nested'] });
+    (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = {
+      document: { uri: { fsPath: path.join('/root', 'nested', 'src', 'file.ts') } },
+    };
+    mockRemotes({
+      '/root': 'https://forgejo.example.com/alice/root-repo.git',
+      [dirNested]: 'https://forgejo.example.com/alice/nested-repo.git',
+    });
+
+    const linked = await detectLinkedRepository([instanceAlice]);
+
+    expect(linked?.localPath).toBe(dirNested);
+    expect(linked?.repo).toBe('nested-repo');
+  });
+
+  it('prefers options.preferredPath over the active editor for attribution', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/root' } }];
+    const dirA = path.join('/root', 'a');
+    const dirB = path.join('/root', 'b');
+    mockFsLayout([dirA, dirB], { '/root': ['a', 'b'] });
+    (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = {
+      document: { uri: { fsPath: path.join('/root', 'a', 'file.ts') } },
+    };
+    mockRemotes({
+      [dirA]: 'https://forgejo.example.com/alice/repo-a.git',
+      [dirB]: 'https://forgejo.example.com/alice/repo-b.git',
+    });
+
+    const linked = await detectLinkedRepository([instanceAlice], {
+      preferredPath: path.join('/root', 'b', 'other.ts'),
+    });
+
+    expect(linked?.repo).toBe('repo-b');
+  });
+
+  it('asks the user to pick when several repositories match and pickOnAmbiguity is set', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/root' } }];
+    const dirA = path.join('/root', 'a');
+    const dirB = path.join('/root', 'b');
+    mockFsLayout([dirA, dirB], { '/root': ['a', 'b'] });
+    mockRemotes({
+      [dirA]: 'https://forgejo.example.com/alice/repo-a.git',
+      [dirB]: 'https://forgejo.example.com/alice/repo-b.git',
+    });
+    vi.mocked(vscode.window.showQuickPick).mockImplementation(
+      async (items: unknown) => (items as unknown[])[1] as never,
+    );
+
+    const linked = await detectLinkedRepository([instanceAlice], { pickOnAmbiguity: true });
+
+    expect(vscode.window.showQuickPick).toHaveBeenCalledTimes(1);
+    expect(linked?.repo).toBe('repo-b');
+    expect(linked?.localPath).toBe(dirB);
+  });
+
+  it('returns undefined when the ambiguity pick is dismissed', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/root' } }];
+    const dirA = path.join('/root', 'a');
+    const dirB = path.join('/root', 'b');
+    mockFsLayout([dirA, dirB], { '/root': ['a', 'b'] });
+    mockRemotes({
+      [dirA]: 'https://forgejo.example.com/alice/repo-a.git',
+      [dirB]: 'https://forgejo.example.com/alice/repo-b.git',
+    });
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue(undefined as never);
+
+    const linked = await detectLinkedRepository([instanceAlice], { pickOnAmbiguity: true });
+
+    expect(linked).toBeUndefined();
+  });
+
+  it('returns the first match without prompting by default', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/root' } }];
+    const dirA = path.join('/root', 'a');
+    const dirB = path.join('/root', 'b');
+    mockFsLayout([dirA, dirB], { '/root': ['a', 'b'] });
+    mockRemotes({
+      [dirA]: 'https://forgejo.example.com/alice/repo-a.git',
+      [dirB]: 'https://forgejo.example.com/alice/repo-b.git',
+    });
+
+    const linked = await detectLinkedRepository([instanceAlice]);
+
+    expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
+    expect(linked?.repo).toBe('repo-a');
+  });
+});
+
+describe('listWorkspaceRepositories', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [];
+  });
+
+  it('lists repo folders and one-level nested repositories', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
+      { uri: { fsPath: '/root' } },
+      { uri: { fsPath: '/plain' } },
+    ];
+    const gitMarkers = new Set(['/root', path.join('/plain', 'sub')].map((repoPath) => path.join(repoPath, '.git')));
+    (fs.promises.access as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (p: unknown) => {
+      if (gitMarkers.has(String(p))) {
+        return undefined;
+      }
+      throw new Error('ENOENT');
+    });
+    (fs.promises.readdir as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (p: unknown) => {
+      const names = String(p) === '/plain' ? ['sub', 'not-a-repo'] : [];
+      return names.map((name) => ({ name, isDirectory: () => true }));
+    });
+
+    const repos = await listWorkspaceRepositories();
+
+    expect(repos).toEqual(['/root', path.join('/plain', 'sub')]);
+  });
+
+  it('returns an empty list when the workspace has no repositories', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/plain' } }];
+    (fs.promises.access as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      throw new Error('ENOENT');
+    });
+    (fs.promises.readdir as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => []);
+
+    await expect(listWorkspaceRepositories()).resolves.toEqual([]);
   });
 });
 

@@ -17,7 +17,7 @@ import {
   getCurrentCommitSha,
   getRemoteUrl,
   getUpstreamBranch,
-  isGitRepository,
+  listWorkspaceRepositories,
   pushBranch,
   remoteMatchesInstance,
 } from '../worktree/gitOperations';
@@ -56,14 +56,11 @@ function isNameConflictError(message: string): boolean {
 }
 
 async function pickTargetFolder(): Promise<string | undefined> {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  const gitFolders: vscode.WorkspaceFolder[] = [];
-  for (const folder of folders) {
-    if (await isGitRepository(folder.uri.fsPath)) {
-      gitFolders.push(folder);
-    }
-  }
-  if (gitFolders.length === 0) {
+  // Includes nested repositories one level below each workspace folder, so a
+  // repo living inside a plain folder (or inside another repo) can be
+  // published too.
+  const repos = await listWorkspaceRepositories();
+  if (repos.length === 0) {
     vscode.window.showErrorMessage(
       vscode.l10n.t(
         'No git repository found in the current workspace. Open a folder containing a git repository to publish it.',
@@ -71,14 +68,14 @@ async function pickTargetFolder(): Promise<string | undefined> {
     );
     return undefined;
   }
-  if (gitFolders.length === 1) {
-    return gitFolders[0].uri.fsPath;
+  if (repos.length === 1) {
+    return repos[0];
   }
   const picked = await vscode.window.showQuickPick(
-    gitFolders.map((folder) => ({ label: folder.name, description: folder.uri.fsPath, folder })),
+    repos.map((repoPath) => ({ label: path.basename(repoPath), description: repoPath, repoPath })),
     { placeHolder: vscode.l10n.t('Select a folder to publish') },
   );
-  return picked?.folder.uri.fsPath;
+  return picked?.repoPath;
 }
 
 async function pickInstance(config: ConfigManager): Promise<ForgejoInstance | undefined> {

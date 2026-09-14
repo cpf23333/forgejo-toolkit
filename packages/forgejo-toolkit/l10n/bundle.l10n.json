@@ -85,6 +85,7 @@
   "Repository name may only contain letters, digits, \".\", \"_\" and \"-\"": "Repository name may only contain letters, digits, \".\", \"_\" and \"-\"",
   "The repository has no commits yet. Make a commit before publishing.": "The repository has no commits yet. Make a commit before publishing.",
   "Multiple accounts match this remote. Select the account to push with": "Multiple accounts match this remote. Select the account to push with",
+  "Multiple Forgejo repositories found in the workspace. Select one": "Multiple Forgejo repositories found in the workspace. Select one",
   "Private": "Private",
   "Public": "Public",
   "Repository visibility": "Repository visibility",

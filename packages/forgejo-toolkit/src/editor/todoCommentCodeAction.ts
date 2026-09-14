@@ -93,7 +93,9 @@ export async function createIssueFromComment(
   if (!args?.fsPath || typeof args.line !== 'number' || !args.text) {
     return;
   }
-  const linked = await detectLinkedRepository(config.getInstances());
+  // Attribute to the repository containing the commented file so nested
+  // repositories in the same workspace resolve to their own remote.
+  const linked = await detectLinkedRepository(config.getInstances(), { preferredPath: args.fsPath });
   if (!linked) {
     vscode.window.showWarningMessage(vscode.l10n.t('No linked Forgejo repository found for the current workspace'));
     return;

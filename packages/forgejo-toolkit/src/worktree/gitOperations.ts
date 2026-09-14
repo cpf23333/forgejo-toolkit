@@ -470,6 +470,50 @@ function isPathInsideFolder(folderPath: string, filePath: string): boolean {
 }
 
 /**
+ * Direct subdirectories of folderPath that are git repositories themselves.
+ * One level only: covers the common layouts (a plain folder holding several
+ * repos side by side, or a repo with another repo nested inside) without
+ * walking deep trees like node_modules.
+ */
+async function findNestedRepositories(folderPath: string): Promise<string[]> {
+  let entries: fs.Dirent[];
+  try {
+    entries = await fs.promises.readdir(folderPath, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const repos: string[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const subPath = path.join(folderPath, entry.name);
+    if (await isGitRepository(subPath)) {
+      repos.push(subPath);
+    }
+  }
+  return repos.sort();
+}
+
+/**
+ * All git repositories directly usable from the current workspace: every
+ * workspace folder that is a repository plus nested repositories one level
+ * below each folder. Used by publish to let the user pick the target repo.
+ */
+export async function listWorkspaceRepositories(): Promise<string[]> {
+  const repos = new Set<string>();
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    if (await isGitRepository(folder.uri.fsPath)) {
+      repos.add(folder.uri.fsPath);
+    }
+    for (const nested of await findNestedRepositories(folder.uri.fsPath)) {
+      repos.add(nested);
+    }
+  }
+  return [...repos];
+}
+
+/**
  * Pick the account to bind when several configured instances match the same
  * remote host. Prefer the account whose username matches the remote's owner
  * namespace (pushing to one's own namespace is the common case); otherwise
@@ -482,11 +526,30 @@ export function preferOwnNamespaceInstance(matched: ForgejoInstance[], remoteOwn
   return own ?? matched[0];
 }
 
-export async function detectLinkedRepository(instances: ForgejoInstance[]): Promise<LinkedRepository | undefined> {
+export interface DetectLinkedRepositoryOptions {
+  /**
+   * Attribute the linked repository to the repo containing this file path
+   * (defaults to the active editor's path). Interactive commands operating
+   * on a specific file should pass that file's path.
+   */
+  preferredPath?: string;
+  /**
+   * When several workspace repositories match configured instances and the
+   * preferred path does not attribute one, ask the user to pick. Defaults to
+   * false: passive callers (status bar, completion) get the first match.
+   */
+  pickOnAmbiguity?: boolean;
+}
+
+export async function detectLinkedRepository(
+  instances: ForgejoInstance[],
+  options?: DetectLinkedRepositoryOptions,
+): Promise<LinkedRepository | undefined> {
   const folders = [...(vscode.workspace.workspaceFolders ?? [])];
   // In a multi-root workspace, check the folder containing the active editor
-  // first: the status bar and commands should reflect the repository the user
-  // is looking at, not whichever folder happens to match first.
+  // first: when no single repository can be attributed, the first match
+  // should reflect the repository the user is looking at, not whichever
+  // folder happens to match first.
   const activePath = vscode.window.activeTextEditor?.document.uri.fsPath;
   if (activePath) {
     folders.sort(
@@ -504,9 +567,15 @@ export async function detectLinkedRepository(instances: ForgejoInstance[]): Prom
     if (gitRoot) {
       candidates.add(gitRoot);
     }
+    // Nested repositories one level below the folder root (e.g. a plain
+    // folder holding several repos, or a repo inside another repo).
+    for (const nested of await findNestedRepositories(folder.uri.fsPath)) {
+      candidates.add(nested);
+    }
   }
   logger.debug(`[detectLinkedRepository] candidates: ${Array.from(candidates).join(', ')}`);
 
+  const matches: LinkedRepository[] = [];
   for (const dirPath of candidates) {
     const remoteUrl = await getRemoteUrl(dirPath);
     logger.debug(`[detectLinkedRepository] remote for ${dirPath}: ${remoteUrl ?? 'none'}`);
@@ -543,14 +612,45 @@ export async function detectLinkedRepository(instances: ForgejoInstance[]): Prom
       );
     }
     logger.debug(`[detectLinkedRepository] matched ${chosen.id}`);
-    return {
+    matches.push({
       instanceId: chosen.id,
       owner: remoteInfo.owner,
       repo: remoteInfo.repo,
       localPath: dirPath,
       remoteUrl,
-    };
+    });
   }
-  logger.debug('[detectLinkedRepository] no match');
-  return undefined;
+
+  if (matches.length === 0) {
+    logger.debug('[detectLinkedRepository] no match');
+    return undefined;
+  }
+  if (matches.length > 1) {
+    // Attribute by the file the command is operating on (or the active
+    // editor): the repository containing that path wins; longest path first
+    // so a nested repository beats its enclosing one.
+    const attributionPath = options?.preferredPath ?? activePath;
+    if (attributionPath) {
+      const containing = matches
+        .filter((m) => m.localPath === attributionPath || isPathInsideFolder(m.localPath, attributionPath))
+        .sort((a, b) => b.localPath.length - a.localPath.length);
+      if (containing.length > 0) {
+        logger.debug(`[detectLinkedRepository] attributed to ${containing[0].localPath} via ${attributionPath}`);
+        return containing[0];
+      }
+    }
+    if (options?.pickOnAmbiguity) {
+      const picked = await vscode.window.showQuickPick(
+        matches.map((match) => ({
+          label: `${match.owner}/${match.repo}`,
+          description: match.localPath,
+          match,
+        })),
+        { placeHolder: vscode.l10n.t('Multiple Forgejo repositories found in the workspace. Select one') },
+      );
+      return picked?.match;
+    }
+  }
+  logger.debug(`[detectLinkedRepository] resolved to ${matches[0].localPath}`);
+  return matches[0];
 }

@@ -86,7 +86,9 @@ export async function copyPermalink(config: ConfigManager): Promise<void> {
     const normalizedUrl = instance.url.replace(/\/$/, '');
     permalink = `${normalizedUrl}/${params.owner}/${params.repo}/blob/${params.ref}/${encodePermalinkPath(params.path)}${lineRangeFragment(selection)}`;
   } else if (uri.scheme === 'file') {
-    const linked = await detectLinkedRepository(config.getInstances());
+    // Attribute to the repository containing the target file so nested
+    // repositories in the same workspace resolve to their own remote.
+    const linked = await detectLinkedRepository(config.getInstances(), { preferredPath: uri.fsPath });
     if (!linked) {
       vscode.window.showWarningMessage(vscode.l10n.t('No linked Forgejo repository found for the current workspace'));
       return;

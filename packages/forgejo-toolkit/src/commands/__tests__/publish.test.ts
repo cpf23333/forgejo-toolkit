@@ -11,7 +11,7 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
     getCurrentCommitSha: vi.fn(),
     getRemoteUrl: vi.fn(),
     getUpstreamBranch: vi.fn(),
-    isGitRepository: vi.fn(),
+    listWorkspaceRepositories: vi.fn(),
     pushBranch: vi.fn(),
     remoteMatchesInstance: original.remoteMatchesInstance,
   };
@@ -33,7 +33,7 @@ import {
   getCurrentCommitSha,
   getRemoteUrl,
   getUpstreamBranch,
-  isGitRepository,
+  listWorkspaceRepositories,
   pushBranch,
 } from '../../worktree/gitOperations';
 import type { ConfigManager } from '../../config';
@@ -59,7 +59,7 @@ const showInputBox = vi.fn();
 
 function setupWorkspace(remoteUrl?: string) {
   (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/repo' } }];
-  vi.mocked(isGitRepository).mockResolvedValue(true);
+  vi.mocked(listWorkspaceRepositories).mockResolvedValue(['/repo']);
   vi.mocked(getRemoteUrl).mockResolvedValue(remoteUrl);
 }
 
