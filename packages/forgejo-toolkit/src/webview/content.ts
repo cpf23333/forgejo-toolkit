@@ -14,6 +14,7 @@ export interface WebviewContentOptions {
     position: number;
     isBase: boolean;
     lineNumber: number;
+    extraLinesCount?: number;
     mode: 'single' | 'review';
     pendingReviewId?: number;
   };
@@ -54,10 +55,17 @@ export function getWebviewContent(
   };
   const configScript = `<script nonce="${nonce}">window.__FORGEJO_TOOLKIT_CONFIG__ = ${JSON.stringify(config)};</script>`;
 
-  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src 'self' blob: data: ${webview.cspSource} http: https:; connect-src 'self' ${webview.cspSource} http: https:;">`;
-  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}\n    ${configScript}`);
-
   const baseUri = webview.asWebviewUri(vscode.Uri.file(webviewDistPath)).toString().replace(/\/$/, '');
+
+  // vscode-elements' <vscode-icon> copies the codicon stylesheet into its
+  // shadow DOM by looking up this exact link id. The css + font are copied
+  // next to the bundle at build time (see webview/vite.config.ts), so this
+  // works in the packaged extension where node_modules does not exist.
+  const codiconLink = `<link rel="stylesheet" href="${baseUri}/codicon.css" id="vscode-codicon-stylesheet">`;
+
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src 'self' blob: data: ${webview.cspSource} http: https:; connect-src 'self' ${webview.cspSource} http: https:;">`;
+  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}\n    ${codiconLink}\n    ${configScript}`);
+
   html = html.replace(/(src|href)="([^"]*)"/g, (match, attr, value) => {
     if (value.startsWith('http') || value.startsWith('data:')) {
       return match;
