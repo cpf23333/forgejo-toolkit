@@ -12,6 +12,7 @@ vi.mock('vscode', () => ({
     ),
     createWebviewPanel: vi.fn(),
     activeTextEditor: undefined,
+    onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
     createStatusBarItem: vi.fn(() => ({
       text: '',
       tooltip: undefined,

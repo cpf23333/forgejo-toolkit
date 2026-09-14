@@ -70,6 +70,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._context.subscriptions.push(this._config.onInstancesChanged(() => this._sendInstances()));
     this._context.subscriptions.push(
       vscode.workspace.onDidChangeWorkspaceFolders(() => this._detectAndSendLinkedRepository()),
+      // In multi-repository workspaces the linked repository follows the
+      // active editor; re-resolve when it changes (debounced).
+      vscode.window.onDidChangeActiveTextEditor(() => this._scheduleLinkedRepositoryDetect()),
+      { dispose: () => clearTimeout(this._linkedRepoDetectTimer) },
     );
   }
 
@@ -3523,6 +3527,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         this._reply('worktreeCacheDirectory', { directory, defaultDirectory });
       }
     }
+  }
+
+  private _linkedRepoDetectTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Debounced: rapid tab switches must not spawn a git subprocess burst.
+  private _scheduleLinkedRepositoryDetect(): void {
+    clearTimeout(this._linkedRepoDetectTimer);
+    this._linkedRepoDetectTimer = setTimeout(() => {
+      void this._detectAndSendLinkedRepository();
+    }, 300);
   }
 
   private async _detectAndSendLinkedRepository() {

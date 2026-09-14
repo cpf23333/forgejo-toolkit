@@ -226,4 +226,21 @@ describe('CreatePrStatusBarController', () => {
       pattern: 'HEAD',
     });
   });
+
+  it('refreshes when the active text editor changes', async () => {
+    // Multi-repo workspaces attribute the linked repository to the active
+    // editor, so switching editors must re-resolve it.
+    vi.useFakeTimers();
+    try {
+      createController();
+      await vi.advanceTimersByTimeAsync(1000); // constructor's initial refresh
+      vi.mocked(detectLinkedRepository).mockClear();
+      const handler = vi.mocked(vscode.window.onDidChangeActiveTextEditor).mock.calls.at(-1)![0] as () => void;
+      handler();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(vi.mocked(detectLinkedRepository)).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

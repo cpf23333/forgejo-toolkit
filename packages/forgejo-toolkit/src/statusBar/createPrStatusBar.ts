@@ -71,6 +71,9 @@ export class CreatePrStatusBarController implements vscode.Disposable {
       this._item,
       this._config.onInstancesChanged(() => this.scheduleRefresh()),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleRefresh()),
+      // In multi-repository workspaces the linked repository follows the
+      // active editor; re-resolve when it changes (debounced).
+      vscode.window.onDidChangeActiveTextEditor(() => this.scheduleRefresh()),
     );
     this.scheduleRefresh();
   }
