@@ -84,6 +84,22 @@ VS Code's stable Comments API does not expose `CommentController.onDidCreateComm
 
 New pull-request review comments are therefore added through the editor context-menu command **Add Pull Review Comment** instead. Existing comments are still rendered as `CommentThread`s on the appropriate base/head line. This is a limitation of the stable VS Code API; there is no short-term workaround.
 
+## Base-side review comments do not render in inline diff mode
+
+When a PR file diff editor (`forgejo-pr:` scheme) is in inline (unified) mode, review comments anchored to the base (old/left) side of the diff do not render at all — neither the comment thread widget nor the range highlight appears. The same comments render correctly in side-by-side mode, and head-side (new/right) comments are unaffected in both modes.
+
+This is a VS Code projection limitation: in inline mode the original and modified documents are projected into a single view, and comment threads attached to the original-side document are not displayed. Extension-side logs confirm the threads and decorations are created and applied correctly; VS Code simply does not show them in the inline projection.
+
+Workaround: switch the diff editor to side-by-side mode (**Compare: Toggle Inline View**) to see base-side comments, or open them from the **Comments** panel, where all threads are listed regardless of view mode.
+
+## The last line of a multi-line review comment highlight has a slightly different shade
+
+VS Code's native comment-thread range decoration is an inline decoration: the first and interior lines of a multi-line comment range are painted full width, but the final line is only tinted up to the range's end column, which reads as "the last line is not highlighted". The extension supplements the final line with its own whole-line decoration using the same theme color (`editorCommentsWidget.rangeBackground`), applied only while the comment thread is expanded.
+
+The supplement cannot be pixel-perfect. VS Code paints its decoration through an internal CSS class while extensions can only paint through the editor decoration API, and the two composite differently with the translucent diff backgrounds underneath. As a result the final line's shade can look slightly different from the lines above it, most noticeably on added (green) diff lines, regardless of how many overlapping comments anchor on the range. An opaque supplement color is not an option either: extensions cannot resolve a theme color to its RGB value, so the blended color cannot be reproduced, and a hardcoded color would break other themes.
+
+This is cosmetic only — the comment range itself (widget anchor, line labels, Forgejo web UI) is correct.
+
 ## Clicking the PR diff editor gutter sets an accidental breakpoint
 
 In the PR file diff editor (`forgejo-pr:` scheme, inline/unified mode), the modified side keeps a ~19px glyph margin between the original-side and modified-side line-number columns. Clicking that strip sets a breakpoint on the read-only diff document, exactly like in a regular file editor — verified on a default-profile dev host with no `debug.allowBreakpointsEverywhere` or other custom settings.

@@ -61,10 +61,11 @@ export class PullReviewCommentController implements vscode.Disposable {
   private readonly _reviewDataCache = createTimedCache<PullRequestReviewCache>(REVIEW_DATA_CACHE_TTL_MS);
   private readonly _reviewDataInFlight = new InFlightTasks();
   // VS Code's built-in comment-thread range decoration is an inline decoration:
-  // interior lines get a full-width band via line-break fill, but the final
-  // line is only tinted up to the range's end column, which reads as "the last
-  // line is not highlighted". Paint a whole-line decoration over multi-line
-  // thread ranges (same theme color) so the band covers the full range.
+  // the first line (the thread range always starts at column 0) and interior
+  // lines get a full-width band via line-break fill, but the final line is
+  // only tinted up to the range's end column, which reads as "the last line
+  // is not highlighted". Paint a whole-line decoration over just the final
+  // line of expanded multi-line thread ranges to complete the band.
   private readonly _rangeDecoration = vscode.window.createTextEditorDecorationType({
     isWholeLine: true,
     backgroundColor: new vscode.ThemeColor('editorCommentsWidget.rangeBackground'),
@@ -96,12 +97,35 @@ export class PullReviewCommentController implements vscode.Disposable {
         if (editor?.document) {
           this._onOpenDocument(editor.document);
         }
+        // Safety net: if an editor ever loses its decorations without a
+        // visible-editors event, focus changes restore them.
+        this._applyThreadRangeDecorations();
       }),
       // Threads outlive editor visibility changes; re-apply the range
       // decorations when a document becomes visible in a (new) editor.
       vscode.window.onDidChangeVisibleTextEditors(() => this._applyThreadRangeDecorations()),
+      // The extension host learns about user-initiated comment-thread
+      // collapse/expand only through a silent thread update — no event is
+      // fired (verified against the shipped extension-host bundle). But the
+      // zone widget's height change always alters the editor's visible
+      // ranges, so use that as the trigger and debounce it (scrolling fires
+      // it constantly). The small delay also lets the updated collapsible
+      // state round-trip from the workbench before we read it.
+      vscode.window.onDidChangeTextEditorVisibleRanges(() => this._scheduleThreadRangeDecorationSync()),
     );
     this._updateActiveEditorContext(vscode.window.activeTextEditor);
+  }
+
+  private _threadRangeDecorationSyncTimer: ReturnType<typeof setTimeout> | undefined;
+
+  private _scheduleThreadRangeDecorationSync(): void {
+    if (this._threadRangeDecorationSyncTimer !== undefined) {
+      clearTimeout(this._threadRangeDecorationSyncTimer);
+    }
+    this._threadRangeDecorationSyncTimer = setTimeout(() => {
+      this._threadRangeDecorationSyncTimer = undefined;
+      this._applyThreadRangeDecorations();
+    }, 50);
   }
 
   private _updateActiveEditorContext(editor: vscode.TextEditor | undefined): void {
@@ -113,6 +137,10 @@ export class PullReviewCommentController implements vscode.Disposable {
   }
 
   dispose(): void {
+    if (this._threadRangeDecorationSyncTimer !== undefined) {
+      clearTimeout(this._threadRangeDecorationSyncTimer);
+      this._threadRangeDecorationSyncTimer = undefined;
+    }
     for (const thread of this._threads.values()) {
       thread.dispose();
     }
@@ -367,25 +395,49 @@ export class PullReviewCommentController implements vscode.Disposable {
     this._applyThreadRangeDecorations();
   }
 
-  // Re-apply the whole-line range decorations to every visible editor. Threads
-  // spanning a single line are left to VS Code's native inline decoration.
+  // Re-apply the whole-line last-line supplements to every visible editor.
+  // Threads spanning a single line are left to VS Code's native inline
+  // decoration; for multi-line threads only the final line needs the
+  // supplement (see the decoration type's comment). Ranges are deduplicated
+  // per line: overlapping threads ending on the same line would otherwise
+  // stack the translucent theme color once per thread. Like VS Code's own
+  // comment-thread-range decorator, only expanded threads are painted.
   private _applyThreadRangeDecorations(): void {
-    const rangesByUri = new Map<string, vscode.Range[]>();
+    const lastLineByUri = new Map<string, Map<number, vscode.Range>>();
     for (const thread of this._threads.values()) {
       const range = thread.range;
       if (!range || range.start.line === range.end.line) {
         continue;
       }
+      if (thread.collapsibleState !== vscode.CommentThreadCollapsibleState.Expanded) {
+        continue;
+      }
       const uriKey = thread.uri.toString();
-      const ranges = rangesByUri.get(uriKey);
-      if (ranges) {
-        ranges.push(range);
-      } else {
-        rangesByUri.set(uriKey, [range]);
+      let byLine = lastLineByUri.get(uriKey);
+      if (!byLine) {
+        byLine = new Map();
+        lastLineByUri.set(uriKey, byLine);
+      }
+      if (!byLine.has(range.end.line)) {
+        byLine.set(range.end.line, new vscode.Range(range.end.line, 0, range.end.line, range.end.character));
       }
     }
     for (const editor of vscode.window.visibleTextEditors) {
-      editor.setDecorations(this._rangeDecoration, rangesByUri.get(editor.document.uri.toString()) ?? []);
+      const byLine = lastLineByUri.get(editor.document.uri.toString());
+      editor.setDecorations(this._rangeDecoration, byLine ? [...byLine.values()] : []);
+    }
+    // Diagnostics for "multi-line range highlight misses lines" reports: if a
+    // user reproduces it with `forgejoToolkit.debug` enabled, this shows
+    // whether the decoration reached the affected editor (count per editor
+    // URI) or never matched it (0 / editor absent from the list).
+    if (lastLineByUri.size > 0) {
+      const detail = vscode.window.visibleTextEditors
+        .map(
+          (editor) =>
+            `${editor.document.uri.toString()}=${lastLineByUri.get(editor.document.uri.toString())?.size ?? 0}`,
+        )
+        .join(', ');
+      this._logger?.debug(`Thread range decorations applied per visible editor: ${detail}`);
     }
   }
 

@@ -8,10 +8,12 @@ const state = vi.hoisted(() => ({
     uriString: string;
     range: unknown;
     comments: unknown[];
+    collapsibleState: number;
     dispose: ReturnType<typeof vi.fn>;
   }>,
   openHandlers: [] as Array<(doc: unknown) => unknown>,
   editorHandlers: [] as Array<(editor: unknown) => unknown>,
+  visibleRangesHandlers: [] as Array<() => unknown>,
   visibleEditors: [] as Array<{ document: unknown; setDecorations: ReturnType<typeof vi.fn> }>,
   diffFetches: 0,
   comments: null as unknown[] | null,
@@ -62,6 +64,10 @@ vi.mock('vscode', () => {
         return { dispose: vi.fn() };
       }),
       onDidChangeVisibleTextEditors: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidChangeTextEditorVisibleRanges: vi.fn((cb: () => unknown) => {
+        state.visibleRangesHandlers.push(cb);
+        return { dispose: vi.fn() };
+      }),
       get visibleTextEditors() {
         return state.visibleEditors;
       },
@@ -397,10 +403,11 @@ describe('PullReviewCommentController multi-line comments', () => {
     controller.dispose();
   });
 
-  it('paints a whole-line decoration across the full range of a multi-line comment', async () => {
-    // VS Code's native thread-range decoration is inline: interior lines get a
-    // full-width band but the final line is tinted only up to the end column.
-    // The controller adds its own whole-line decoration to complete the band.
+  it('paints a whole-line decoration on the final line of a multi-line comment', async () => {
+    // VS Code's native thread-range decoration is inline: the first and
+    // interior lines get a full-width band but the final line is tinted only
+    // up to the end column. The controller supplements just that final line;
+    // decorating the whole range would double-tint the native-covered lines.
     state.comments = [
       { id: 104, path: 'src/index.ts', position: 2, original_position: 0, extra_lines_count: 3, body: 'multi' },
     ];
@@ -414,7 +421,7 @@ describe('PullReviewCommentController multi-line comments', () => {
     expect(editor.setDecorations).toHaveBeenCalled();
     const ranges = editor.setDecorations.mock.calls.at(-1)![1] as Array<{ startLine: number; endLine: number }>;
     expect(ranges).toHaveLength(1);
-    expect(ranges[0]).toMatchObject({ startLine: 1, endLine: 4 });
+    expect(ranges[0]).toMatchObject({ startLine: 4, endLine: 4 });
     controller.dispose();
   });
 
@@ -430,6 +437,82 @@ describe('PullReviewCommentController multi-line comments', () => {
     expect(editor.setDecorations).toHaveBeenCalled();
     const ranges = editor.setDecorations.mock.calls.at(-1)![1] as unknown[];
     expect(ranges).toEqual([]);
+    controller.dispose();
+  });
+
+  it('deduplicates last-line supplements from overlapping threads on the same line', async () => {
+    // Two threads ending on the same line must produce a single decoration:
+    // the translucent theme color would otherwise stack once per thread and
+    // make that line darker than the natively-decorated lines around it.
+    state.comments = [
+      { id: 106, path: 'src/index.ts', position: 2, original_position: 0, extra_lines_count: 3, body: 'multi a' },
+      { id: 107, path: 'src/index.ts', position: 3, original_position: 0, extra_lines_count: 2, body: 'multi b' },
+    ];
+    const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+    state.visibleEditors.push(editor);
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    expect(editor.setDecorations).toHaveBeenCalled();
+    const ranges = editor.setDecorations.mock.calls.at(-1)![1] as Array<{ startLine: number; endLine: number }>;
+    expect(ranges).toHaveLength(1);
+    expect(ranges[0]).toMatchObject({ startLine: 4, endLine: 4 });
+    controller.dispose();
+  });
+
+  it('does not paint supplements for collapsed threads', async () => {
+    // VS Code's own range decorator only paints expanded threads; the
+    // supplements must follow suit or a collapsed thread would leave a
+    // tinted final line behind with nothing on the interior lines. The
+    // extension host learns about user-initiated collapse silently (no
+    // event), so the controller re-applies debounced off the
+    // visible-ranges event that the zone widget's height change triggers.
+    state.comments = [
+      { id: 108, path: 'src/index.ts', position: 2, original_position: 0, extra_lines_count: 3, body: 'multi' },
+    ];
+    const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+    state.visibleEditors.push(editor);
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+    state.createdThreads[0].collapsibleState = 0;
+    editor.setDecorations.mockClear();
+
+    for (const handler of state.visibleRangesHandlers) {
+      handler();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    expect(editor.setDecorations).toHaveBeenCalled();
+    const ranges = editor.setDecorations.mock.calls.at(-1)![1] as unknown[];
+    expect(ranges).toEqual([]);
+    controller.dispose();
+  });
+
+  it('re-applies range decorations when the active editor changes', async () => {
+    // Focus changes are the safety net for editors that lost their decorations
+    // without a visible-editors event: the re-apply runs synchronously in the
+    // handler, ahead of the serialized re-render it also triggers.
+    state.comments = [
+      { id: 105, path: 'src/index.ts', position: 2, original_position: 0, extra_lines_count: 3, body: 'multi' },
+    ];
+    const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+    state.visibleEditors.push(editor);
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+    editor.setDecorations.mockClear();
+
+    state.editorHandlers.at(-1)!(editor);
+
+    expect(editor.setDecorations).toHaveBeenCalled();
+    const ranges = editor.setDecorations.mock.calls.at(-1)![1] as Array<{ startLine: number; endLine: number }>;
+    expect(ranges).toHaveLength(1);
+    expect(ranges[0]).toMatchObject({ startLine: 4, endLine: 4 });
     controller.dispose();
   });
 

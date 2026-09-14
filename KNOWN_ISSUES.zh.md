@@ -84,6 +84,22 @@ VS Code 稳定版 Comments API 没有暴露 `CommentController.onDidCreateCommen
 
 因此新增 PR 审阅评论改通过编辑器右键菜单命令 **Add Pull Review Comment** 触发；已有评论仍会作为 `CommentThread` 渲染在对应的 base/head 行上。这是稳定版 VS Code API 的限制，短期内没有 workaround。
 
+## base 侧评论在 inline diff 模式下不渲染
+
+PR 文件 diff 编辑器（`forgejo-pr:` scheme）处于 inline（合并）模式时，锚定在 base（旧/左）侧的审阅评论完全不渲染——评论 thread widget 和行范围高亮都不出现。相同的评论在并排（side-by-side）模式下渲染正常；head（新/右）侧评论在两种模式下都不受影响。
+
+这是 VS Code 的投影限制：inline 模式把原始文档和修改后文档投影到同一个视图中，挂在原始侧文档上的评论 thread 不会显示。扩展侧日志确认 thread 和装饰都已正确创建并应用，是 VS Code 在 inline 投影中不予展示。
+
+规避方法：用 **Compare: Toggle Inline View** 把 diff 编辑器切到并排模式查看 base 侧评论，或从**评论**面板打开——所有 thread 在面板中都会列出，不受视图模式影响。
+
+## 多行评论高亮的末行颜色与其他行略有差异
+
+VS Code 原生的评论范围装饰是 inline 装饰：多行评论范围的首行和中间行整行染色，但末行只染到范围的结束列，看起来就像「末行没有高亮」。扩展用自己的整行装饰补齐末行，使用相同的主题色（`editorCommentsWidget.rangeBackground`），并且只在评论 thread 展开时绘制。
+
+这个补齐无法做到像素级一致。VS Code 通过内部 CSS class 绘制它的装饰，而扩展只能走 editor decoration API，两者与底下的半透明 diff 背景叠加的方式不同。结果就是末行的色调可能与上面的行略有差异，在新增（绿色）diff 行上最明显，且与锚在该范围上的评论条数无关。不透明补偿色也不可行：扩展无法把主题色解析成 RGB 值，无法复现叠加后的颜色，而写死颜色又会破坏其他主题。
+
+这只是观感问题——评论范围本身（widget 锚点、行标签、Forgejo 网页端）都是正确的。
+
 ## 点击 PR diff 编辑器的 gutter 会误设断点
 
 PR 文件 diff 编辑器（`forgejo-pr:` scheme，inline/合并模式）中，修改侧在「原始侧行号列」与「修改侧行号列」之间保留了一条约 19px 宽的 glyph margin。单击这条区域会在只读的 diff 文档上设下断点，行为与普通文件编辑器完全一致——已在默认配置的开发宿主上实测确认，不需要 `debug.allowBreakpointsEverywhere` 或任何特殊设置。
