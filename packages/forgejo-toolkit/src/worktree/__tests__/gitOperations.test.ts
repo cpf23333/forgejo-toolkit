@@ -486,11 +486,25 @@ describe('detectLinkedRepository', () => {
     username: 'bob',
   };
 
-  function mockRemotes(remotesByCwd: Record<string, string>) {
+  /**
+   * Mock git remote queries. Each value is either a single URL (shorthand for
+   * `origin`) or a map of remote name to URL, reported via both
+   * `git remote -v` and `git remote get-url <name>`.
+   */
+  function mockRemotes(remotesByCwd: Record<string, string | Record<string, string>>) {
     mocks.execFile.mockImplementation(
       (_file: string, args: string[], options: { cwd?: string }, callback: ExecFileCallback) => {
+        const entry = options?.cwd ? remotesByCwd[options.cwd] : undefined;
+        const remotes: Record<string, string> = entry ? (typeof entry === 'string' ? { origin: entry } : entry) : {};
+        if (args[0] === 'remote' && args[1] === '-v') {
+          const stdout = Object.entries(remotes)
+            .map(([name, url]) => `${name}\t${url} (fetch)\n${name}\t${url} (push)`)
+            .join('\n');
+          callback(null, { stdout: stdout ? `${stdout}\n` : '', stderr: '' } as unknown as string, '');
+          return;
+        }
         if (args[0] === 'remote' && args[1] === 'get-url') {
-          const url = options?.cwd ? remotesByCwd[options.cwd] : undefined;
+          const url = remotes[args[2]];
           if (url) {
             callback(null, { stdout: `${url}\n`, stderr: '' } as unknown as string, '');
           } else {
@@ -587,6 +601,38 @@ describe('detectLinkedRepository', () => {
 
     expect(linked?.instanceId).toBe('host-alice');
     expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('2 accounts match'));
+  });
+
+  it('links via a non-origin remote when origin does not match any instance', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+    mockRemotes({
+      '/ws/a': {
+        origin: 'https://git.example.com/alice/repo.git',
+        forgejo: 'https://forgejo.example.com/alice/repo.git',
+      },
+    });
+
+    const linked = await detectLinkedRepository([instanceAlice]);
+
+    expect(linked?.localPath).toBe('/ws/a');
+    expect(linked?.remoteUrl).toBe('https://forgejo.example.com/alice/repo.git');
+    // The second remote host-matches in the cheap pass, so no repo-path
+    // fallback probe is needed for the non-matching origin.
+    expect(clientMocks.probeRepository).not.toHaveBeenCalled();
+  });
+
+  it('prefers origin when several remotes match configured instances', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+    mockRemotes({
+      '/ws/a': {
+        upstream: 'https://forgejo.example.com/alice/upstream-repo.git',
+        origin: 'https://forgejo.example.com/alice/repo.git',
+      },
+    });
+
+    const linked = await detectLinkedRepository([instanceAlice]);
+
+    expect(linked?.repo).toBe('repo');
   });
 
   it('discovers nested repositories one level below a non-repo folder', async () => {

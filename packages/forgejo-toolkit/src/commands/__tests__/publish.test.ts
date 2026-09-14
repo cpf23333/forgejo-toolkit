@@ -9,8 +9,8 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
     addRemote: vi.fn(),
     getCurrentBranch: vi.fn(),
     getCurrentCommitSha: vi.fn(),
-    getRemoteUrl: vi.fn(),
     getUpstreamBranch: vi.fn(),
+    listRemotes: vi.fn(),
     listWorkspaceRepositories: vi.fn(),
     pushBranch: vi.fn(),
     remoteMatchesInstance: original.remoteMatchesInstance,
@@ -31,8 +31,8 @@ import { ApiError } from '../../api/errors';
 import {
   getCurrentBranch,
   getCurrentCommitSha,
-  getRemoteUrl,
   getUpstreamBranch,
+  listRemotes,
   listWorkspaceRepositories,
   pushBranch,
 } from '../../worktree/gitOperations';
@@ -60,7 +60,7 @@ const showInputBox = vi.fn();
 function setupWorkspace(remoteUrl?: string) {
   (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/repo' } }];
   vi.mocked(listWorkspaceRepositories).mockResolvedValue(['/repo']);
-  vi.mocked(getRemoteUrl).mockResolvedValue(remoteUrl);
+  vi.mocked(listRemotes).mockResolvedValue(remoteUrl ? [{ name: 'origin', url: remoteUrl }] : []);
 }
 
 describe('validateRepoName', () => {
@@ -215,5 +215,50 @@ describe('publishToForgejo', () => {
 
     await expect(publishToForgejo(createConfig([instance('a', 'alice', 'tok')]))).rejects.toThrow('push failed');
     expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+  });
+
+  it('pushes to a Forgejo remote living under a non-origin name', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/repo' } }];
+    vi.mocked(listWorkspaceRepositories).mockResolvedValue(['/repo']);
+    vi.mocked(listRemotes).mockResolvedValue([
+      { name: 'upstream', url: 'https://git.example.com/alice/repo.git' },
+      { name: 'forgejo', url: `${INSTANCE_URL}/alice/repo.git` },
+    ]);
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    vi.mocked(getUpstreamBranch).mockResolvedValue('forgejo/main');
+    vi.mocked(pushBranch).mockResolvedValue(undefined);
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    expect(pushBranch).toHaveBeenCalledWith('/repo', 'forgejo', 'main', 'tok', false, INSTANCE_URL);
+  });
+
+  it('prefers origin when several remotes match configured instances', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/repo' } }];
+    vi.mocked(listWorkspaceRepositories).mockResolvedValue(['/repo']);
+    vi.mocked(listRemotes).mockResolvedValue([
+      { name: 'origin', url: `${INSTANCE_URL}/alice/repo.git` },
+      { name: 'mirror', url: `${INSTANCE_URL}/alice/mirror.git` },
+    ]);
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    vi.mocked(getUpstreamBranch).mockResolvedValue(undefined);
+    vi.mocked(pushBranch).mockResolvedValue(undefined);
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
+    expect(pushBranch).toHaveBeenCalledWith('/repo', 'origin', 'main', 'tok', true, INSTANCE_URL);
+  });
+
+  it('warns when no remote matches a configured instance', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/repo' } }];
+    vi.mocked(listWorkspaceRepositories).mockResolvedValue(['/repo']);
+    vi.mocked(listRemotes).mockResolvedValue([{ name: 'origin', url: 'https://git.example.com/alice/repo.git' }]);
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('No git remote'));
+    expect(pushBranch).not.toHaveBeenCalled();
+    expect(createUserRepo).not.toHaveBeenCalled();
   });
 });

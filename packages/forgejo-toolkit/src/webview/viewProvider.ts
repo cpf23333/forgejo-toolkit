@@ -22,9 +22,9 @@ import {
   fetchBranch,
   fetchPullRequestHead,
   findLocalRepo,
-  getRemoteUrl,
   isCurrentWorkspaceBaseRepo,
   isGitRepository,
+  listRemotes,
   openWorktree,
   revertMergeCommit,
   sanitizeForPath,
@@ -3677,13 +3677,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!(await isGitRepository(sourceRepoPath))) {
           return { kind: 'error', message: vscode.l10n.t('Selected folder is not a git repository') };
         }
-        const remote = await getRemoteUrl(sourceRepoPath);
+        const remotes = await listRemotes(sourceRepoPath);
         const normalizedInstanceUrl = instance.url.replace(/\/$/, '');
         const expectedUrls = [
           `${normalizedInstanceUrl}/${owner}/${repo}.git`,
           `${normalizedInstanceUrl}/${owner}/${repo}`,
         ];
-        if (!remote || !expectedUrls.some((url) => normalizeGitUrl(remote) === normalizeGitUrl(url))) {
+        const matches = remotes.some((remote) =>
+          expectedUrls.some((url) => normalizeGitUrl(remote.url) === normalizeGitUrl(url)),
+        );
+        if (!matches) {
           return { kind: 'error', message: vscode.l10n.t('Selected repository does not match the PR base repository') };
         }
       }

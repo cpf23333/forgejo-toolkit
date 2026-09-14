@@ -89,6 +89,43 @@ export async function getRemoteUrl(dirPath: string, remote = 'origin'): Promise<
   }
 }
 
+export interface GitRemoteEntry {
+  name: string;
+  url: string;
+}
+
+/**
+ * All remote URLs of the repository at dirPath, one entry per remote/URL pair
+ * reported by `git remote -v` (fetch and push lines included). Repositories
+ * often carry several remotes (e.g. an upstream mirror plus a Forgejo
+ * remote), so detection must look beyond origin. Entries are deduplicated and
+ * origin's come first, so callers iterating in order keep origin's priority.
+ */
+export async function listRemotes(dirPath: string): Promise<GitRemoteEntry[]> {
+  let stdout: string;
+  try {
+    ({ stdout } = await runGit(['remote', '-v'], dirPath));
+  } catch {
+    return [];
+  }
+  const seen = new Set<string>();
+  const entries: GitRemoteEntry[] = [];
+  for (const line of stdout.split('\n')) {
+    const match = /^(\S+)\t(\S+) \((?:fetch|push)\)$/.exec(line.trim());
+    if (!match) {
+      continue;
+    }
+    const key = `${match[1]}\0${match[2]}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    entries.push({ name: match[1], url: match[2] });
+  }
+  entries.sort((a, b) => Number(b.name === 'origin') - Number(a.name === 'origin'));
+  return entries;
+}
+
 export async function findLocalRepo(instanceUrl: string, owner: string, repo: string): Promise<string | undefined> {
   const normalizedInstanceUrl = instanceUrl.replace(/\/$/, '');
   const expectedUrls = [`${normalizedInstanceUrl}/${owner}/${repo}.git`, `${normalizedInstanceUrl}/${owner}/${repo}`];
@@ -101,8 +138,11 @@ export async function findLocalRepo(instanceUrl: string, owner: string, repo: st
 
   for (const candidate of candidates) {
     if (await isGitRepository(candidate)) {
-      const remote = await getRemoteUrl(candidate);
-      if (remote && expectedUrls.some((url) => normalizeGitUrl(remote) === normalizeGitUrl(url))) {
+      const remotes = await listRemotes(candidate);
+      const matches = remotes.some((remote) =>
+        expectedUrls.some((url) => normalizeGitUrl(remote.url) === normalizeGitUrl(url)),
+      );
+      if (matches) {
         return candidate;
       }
     }
@@ -359,13 +399,16 @@ export async function isCurrentWorkspaceBaseRepo(
   if (!(await isGitRepository(candidate))) {
     return undefined;
   }
-  const remote = await getRemoteUrl(candidate);
-  if (!remote) {
+  const remotes = await listRemotes(candidate);
+  if (remotes.length === 0) {
     return undefined;
   }
   const normalizedInstanceUrl = instanceUrl.replace(/\/$/, '');
   const expectedUrls = [`${normalizedInstanceUrl}/${owner}/${repo}.git`, `${normalizedInstanceUrl}/${owner}/${repo}`];
-  if (expectedUrls.some((url) => normalizeGitUrl(remote) === normalizeGitUrl(url))) {
+  const matches = remotes.some((remote) =>
+    expectedUrls.some((url) => normalizeGitUrl(remote.url) === normalizeGitUrl(url)),
+  );
+  if (matches) {
     return candidate;
   }
   return undefined;
@@ -623,63 +666,75 @@ export async function detectLinkedRepository(
 
   const matches: LinkedRepository[] = [];
   for (const dirPath of candidates) {
-    const remoteUrl = await getRemoteUrl(dirPath);
-    logger.debug(`[detectLinkedRepository] remote for ${dirPath}: ${remoteUrl ?? 'none'}`);
-    if (!remoteUrl) {
-      continue;
-    }
-    const remoteInfo = normalizeGitRemote(remoteUrl);
-    logger.debug(`[detectLinkedRepository] normalized remote: ${remoteInfo?.normalized ?? 'invalid'}`);
-    if (!remoteInfo) {
-      continue;
+    // A repository may carry several remotes (fork upstreams, mirrors, a
+    // Forgejo remote next to a non-Forgejo origin): link against any of them,
+    // with origin taking priority (listRemotes orders it first).
+    const remotes = await listRemotes(dirPath);
+    logger.debug(
+      `[detectLinkedRepository] remotes for ${dirPath}: ${remotes.map((r) => `${r.name}=${r.url}`).join(', ') || 'none'}`,
+    );
+    const remoteInfos: { entry: GitRemoteEntry; info: NonNullable<ReturnType<typeof normalizeGitRemote>> }[] = [];
+    for (const entry of remotes) {
+      const info = normalizeGitRemote(entry.url);
+      logger.debug(`[detectLinkedRepository] normalized remote ${entry.name}: ${info?.normalized ?? 'invalid'}`);
+      if (info) {
+        remoteInfos.push({ entry, info });
+      }
     }
 
-    const matched = instances.filter((instance) => {
-      let instanceHostPath: string;
-      try {
-        const parsed = new URL(instance.url);
-        instanceHostPath = normalizeGitUrl(`${parsed.host}${parsed.pathname}`);
-      } catch {
-        return false;
-      }
-      logger.debug(`[detectLinkedRepository] compare ${remoteInfo.normalized} vs ${instanceHostPath}`);
-      return remoteInfo.normalized === instanceHostPath || remoteInfo.normalized.startsWith(`${instanceHostPath}/`);
-    });
-    if (matched.length === 0) {
-      // Self-hosted servers are often reachable under several network
-      // addresses; when no host matches, verify owner/repo against each
-      // configured instance instead of giving up on this candidate.
-      const fallbackId = await resolveInstanceByRepoPath(instances, remoteInfo);
-      if (!fallbackId) {
+    let linked: LinkedRepository | undefined;
+    // Pass 1: host match across all remotes; cheap (no API calls).
+    for (const { entry, info } of remoteInfos) {
+      const matched = instances.filter((instance) => {
+        let instanceHostPath: string;
+        try {
+          const parsed = new URL(instance.url);
+          instanceHostPath = normalizeGitUrl(`${parsed.host}${parsed.pathname}`);
+        } catch {
+          return false;
+        }
+        logger.debug(`[detectLinkedRepository] compare ${info.normalized} vs ${instanceHostPath}`);
+        return info.normalized === instanceHostPath || info.normalized.startsWith(`${instanceHostPath}/`);
+      });
+      if (matched.length === 0) {
         continue;
       }
-      logger.debug(`[detectLinkedRepository] matched ${fallbackId}`);
-      matches.push({
-        instanceId: fallbackId,
-        owner: remoteInfo.owner,
-        repo: remoteInfo.repo,
-        localPath: dirPath,
-        remoteUrl,
-      });
-      continue;
+      // Several accounts on the same host all match the remote; bind explicitly
+      // to one (preferring the remote owner's own namespace) so follow-up write
+      // operations use a single, logged identity instead of an arbitrary one.
+      const chosen = preferOwnNamespaceInstance(matched, info.owner);
+      if (matched.length > 1) {
+        logger.info(
+          `[detectLinkedRepository] ${matched.length} accounts match ${entry.url}; bound to ${chosen.id} (owner: ${info.owner})`,
+        );
+      }
+      logger.debug(`[detectLinkedRepository] matched ${chosen.id}`);
+      linked = { instanceId: chosen.id, owner: info.owner, repo: info.repo, localPath: dirPath, remoteUrl: entry.url };
+      break;
     }
-    // Several accounts on the same host all match the remote; bind explicitly
-    // to one (preferring the remote owner's own namespace) so follow-up write
-    // operations use a single, logged identity instead of an arbitrary one.
-    const chosen = preferOwnNamespaceInstance(matched, remoteInfo.owner);
-    if (matched.length > 1) {
-      logger.info(
-        `[detectLinkedRepository] ${matched.length} accounts match ${remoteUrl}; bound to ${chosen.id} (owner: ${remoteInfo.owner})`,
-      );
+    // Pass 2: self-hosted servers are often reachable under several network
+    // addresses; when no host matches any remote, verify owner/repo against
+    // each configured instance instead of giving up on this candidate.
+    if (!linked) {
+      for (const { entry, info } of remoteInfos) {
+        const fallbackId = await resolveInstanceByRepoPath(instances, info);
+        if (!fallbackId) {
+          continue;
+        }
+        logger.debug(`[detectLinkedRepository] matched ${fallbackId}`);
+        linked = {
+          instanceId: fallbackId,
+          owner: info.owner,
+          repo: info.repo,
+          localPath: dirPath,
+          remoteUrl: entry.url,
+        };
+        break;
+      }
     }
-    logger.debug(`[detectLinkedRepository] matched ${chosen.id}`);
-    matches.push({
-      instanceId: chosen.id,
-      owner: remoteInfo.owner,
-      repo: remoteInfo.repo,
-      localPath: dirPath,
-      remoteUrl,
-    });
+    if (linked) {
+      matches.push(linked);
+    }
   }
 
   if (matches.length === 0) {

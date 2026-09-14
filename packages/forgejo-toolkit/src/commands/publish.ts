@@ -15,11 +15,12 @@ import {
   addRemote,
   getCurrentBranch,
   getCurrentCommitSha,
-  getRemoteUrl,
   getUpstreamBranch,
+  listRemotes,
   listWorkspaceRepositories,
   pushBranch,
   remoteMatchesInstance,
+  type GitRemoteEntry,
 } from '../worktree/gitOperations';
 
 export function findInstanceForRemote(remoteUrl: string, instances: ForgejoInstance[]): ForgejoInstance | undefined {
@@ -249,17 +250,17 @@ async function pickInstanceForRemote(
 async function pushToExistingRemote(
   config: ConfigManager,
   folder: string,
-  remoteUrl: string,
+  remote: GitRemoteEntry,
   viewProvider?: ForgejoToolkitViewProvider,
 ): Promise<void> {
-  const matched = config.getInstances().filter((instance) => remoteMatchesInstance(remoteUrl, instance.url));
+  const matched = config.getInstances().filter((instance) => remoteMatchesInstance(remote.url, instance.url));
   if (matched.length === 0) {
     vscode.window.showWarningMessage(
-      vscode.l10n.t('The origin remote does not match any configured Forgejo instance: {0}', remoteUrl),
+      vscode.l10n.t('The {0} remote does not match any configured Forgejo instance: {1}', remote.name, remote.url),
     );
     return;
   }
-  const instance = matched.length === 1 ? matched[0] : await pickInstanceForRemote(remoteUrl, matched);
+  const instance = matched.length === 1 ? matched[0] : await pickInstanceForRemote(remote.url, matched);
   if (!instance) {
     return;
   }
@@ -276,14 +277,28 @@ async function pushToExistingRemote(
       location: vscode.ProgressLocation.Notification,
       title: vscode.l10n.t('Pushing {0} to {1}…', branch, instance.name),
     },
-    () => pushBranch(folder, 'origin', branch, instance.token, !upstream, instance.url),
+    () => pushBranch(folder, remote.name, branch, instance.token, !upstream, instance.url),
   );
   viewProvider?.refresh();
   if (upstream) {
-    vscode.window.showInformationMessage(vscode.l10n.t('Pushed {0} to origin', branch));
+    vscode.window.showInformationMessage(vscode.l10n.t('Pushed {0} to {1}', branch, remote.name));
   } else {
     vscode.window.showInformationMessage(vscode.l10n.t('Published branch {0} to {1}', branch, instance.name));
   }
+}
+
+/**
+ * Pick which remote to push to when several remotes of the repository point
+ * at configured Forgejo instances (e.g. a fork's upstream plus one's own
+ * Forgejo remote). Only called when origin is not among the candidates —
+ * origin wins without asking.
+ */
+async function pickRemote(remotes: GitRemoteEntry[]): Promise<GitRemoteEntry | undefined> {
+  const picked = await vscode.window.showQuickPick(
+    remotes.map((remote) => ({ label: remote.name, description: remote.url, remote })),
+    { placeHolder: vscode.l10n.t('Multiple remotes match configured Forgejo instances. Select the remote to push to') },
+  );
+  return picked?.remote;
 }
 
 export async function publishToForgejo(
@@ -294,10 +309,27 @@ export async function publishToForgejo(
   if (!folder) {
     return;
   }
-  const remoteUrl = await getRemoteUrl(folder);
-  if (!remoteUrl) {
-    await publishNewRepository(config, folder, viewProvider);
-  } else {
-    await pushToExistingRemote(config, folder, remoteUrl, viewProvider);
+  // Consider every remote, not just origin: the Forgejo remote may live under
+  // another name next to a non-Forgejo origin.
+  const remotes = await listRemotes(folder);
+  const instances = config.getInstances();
+  const matching = remotes.filter((remote) =>
+    instances.some((instance) => remoteMatchesInstance(remote.url, instance.url)),
+  );
+  if (matching.length === 0) {
+    if (remotes.length === 0) {
+      await publishNewRepository(config, folder, viewProvider);
+    } else {
+      vscode.window.showWarningMessage(
+        vscode.l10n.t('No git remote in this repository matches a configured Forgejo instance'),
+      );
+    }
+    return;
   }
+  const remote = matching.find((entry) => entry.name === 'origin') ?? (matching.length === 1 ? matching[0] : undefined);
+  const chosen = remote ?? (await pickRemote(matching));
+  if (!chosen) {
+    return;
+  }
+  await pushToExistingRemote(config, folder, chosen, viewProvider);
 }

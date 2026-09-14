@@ -28,13 +28,13 @@ pnpm run check
 
 ## 脚本
 
-| 脚本                       | 说明                        |
-| -------------------------- | --------------------------- |
-| `pnpm run build`           | 构建扩展与 webview          |
-| `pnpm run build:extension` | 仅构建扩展宿主              |
-| `pnpm run build:webview`   | 仅构建 webview              |
-| `pnpm run watch:extension` | 监听构建扩展宿主            |
-| `pnpm run watch:webview`   | 监听构建 webview            |
+| 脚本                       | 说明                             |
+| -------------------------- | -------------------------------- |
+| `pnpm run build`           | 构建扩展与 webview               |
+| `pnpm run build:extension` | 仅构建扩展宿主                   |
+| `pnpm run build:webview`   | 仅构建 webview                   |
+| `pnpm run watch:extension` | 监听构建扩展宿主                 |
+| `pnpm run watch:webview`   | 监听构建 webview                 |
 | `pnpm run check`           | 对两个 TypeScript 工程做类型检查 |
 
 ## 打包
