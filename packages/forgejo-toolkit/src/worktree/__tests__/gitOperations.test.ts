@@ -5,9 +5,19 @@ const mocks = vi.hoisted(() => ({
   execFile: vi.fn(),
 }));
 
+const clientMocks = vi.hoisted(() => ({
+  probeRepository: vi.fn(),
+}));
+
 vi.mock('child_process', () => ({
   exec: mocks.exec,
   execFile: mocks.execFile,
+}));
+
+vi.mock('../../api/client', () => ({
+  ForgejoClient: vi.fn().mockImplementation(function () {
+    return { probeRepository: clientMocks.probeRepository };
+  }),
 }));
 
 vi.mock('fs', () => ({
@@ -497,6 +507,7 @@ describe('detectLinkedRepository', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    clientMocks.probeRepository.mockReset();
     (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [];
     (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = undefined;
     // Default filesystem layout: every directory looks like a repo (access
@@ -682,6 +693,109 @@ describe('detectLinkedRepository', () => {
 
     expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
     expect(linked?.repo).toBe('repo-a');
+  });
+
+  describe('repo-path fallback binding', () => {
+    // A self-hosted server reachable under two network addresses: the
+    // instance URL matches neither remote host, so host matching fails and
+    // the fallback probes each instance for owner/repo. Placeholder domains
+    // only (no literal IPs, per project rules).
+    const instanceLan: ForgejoInstance = {
+      id: 'lan',
+      url: 'https://lan.example.com',
+      token: '',
+      name: 'u@lan',
+      username: 'cpf23333',
+    };
+    const instanceVpnAlias: ForgejoInstance = {
+      id: 'vpn-alias',
+      url: 'https://vpn-alias.example.com',
+      token: '',
+      name: 'u@vpn-alias',
+      username: 'cpf23333',
+    };
+
+    function setupUnmatchedRemote(remote = 'https://vpn.example.com/cpf23333/repo.git') {
+      (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+      mockRemotes({ '/ws/a': remote });
+    }
+
+    it('binds the instance that verifies the repository path', async () => {
+      setupUnmatchedRemote('https://vpn.example.com/cpf23333/repo.git');
+      clientMocks.probeRepository.mockResolvedValue(true);
+      const infoSpy = vi.spyOn(logger, 'info');
+
+      const linked = await detectLinkedRepository([instanceLan]);
+
+      expect(linked?.instanceId).toBe('lan');
+      expect(linked?.owner).toBe('cpf23333');
+      expect(linked?.repo).toBe('repo');
+      expect(clientMocks.probeRepository).toHaveBeenCalledTimes(1);
+      expect(clientMocks.probeRepository).toHaveBeenCalledWith('cpf23333', 'repo');
+      expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('repo-path fallback'));
+    });
+
+    it('does not bind when no instance verifies the repository path', async () => {
+      setupUnmatchedRemote('https://vpn.example.com/cpf23333/unverified-repo.git');
+      clientMocks.probeRepository.mockResolvedValue(false);
+
+      const linked = await detectLinkedRepository([instanceLan]);
+
+      expect(linked).toBeUndefined();
+    });
+
+    it('binds the verifying instance when only one of several verifies', async () => {
+      setupUnmatchedRemote('https://vpn.example.com/cpf23333/one-verifies-repo.git');
+      clientMocks.probeRepository.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+      const linked = await detectLinkedRepository([instanceLan, instanceVpnAlias]);
+
+      expect(linked?.instanceId).toBe('vpn-alias');
+      expect(clientMocks.probeRepository).toHaveBeenCalledTimes(2);
+    });
+
+    it('binds the first and logs the ambiguity when several instances verify', async () => {
+      setupUnmatchedRemote('https://vpn.example.com/cpf23333/ambiguous-repo.git');
+      clientMocks.probeRepository.mockResolvedValue(true);
+      const infoSpy = vi.spyOn(logger, 'info');
+
+      const linked = await detectLinkedRepository([instanceLan, instanceVpnAlias]);
+
+      expect(linked?.instanceId).toBe('lan');
+      expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('bound to first'));
+    });
+
+    it('caches the positive binding and does not probe again on repeat detection', async () => {
+      setupUnmatchedRemote('https://vpn.example.com/cpf23333/positive-cache-repo.git');
+      clientMocks.probeRepository.mockResolvedValue(true);
+
+      await detectLinkedRepository([instanceLan]);
+      const linked = await detectLinkedRepository([instanceLan]);
+
+      expect(linked?.instanceId).toBe('lan');
+      expect(clientMocks.probeRepository).toHaveBeenCalledTimes(1);
+    });
+
+    it('caches the negative outcome and does not probe again on repeat detection', async () => {
+      setupUnmatchedRemote('https://vpn.example.com/cpf23333/negative-cache-repo.git');
+      clientMocks.probeRepository.mockResolvedValue(false);
+
+      await detectLinkedRepository([instanceLan]);
+      const linked = await detectLinkedRepository([instanceLan]);
+
+      expect(linked).toBeUndefined();
+      expect(clientMocks.probeRepository).toHaveBeenCalledTimes(1);
+    });
+
+    it('never probes when an instance host matches the remote', async () => {
+      (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+      mockRemotes({ '/ws/a': 'https://forgejo.example.com/alice/repo.git' });
+
+      const linked = await detectLinkedRepository([instanceAlice]);
+
+      expect(linked?.instanceId).toBe('host-alice');
+      expect(clientMocks.probeRepository).not.toHaveBeenCalled();
+    });
   });
 });
 

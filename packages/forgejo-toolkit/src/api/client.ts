@@ -501,6 +501,20 @@ export class ForgejoClient {
     }
   }
 
+  /**
+   * Lightweight existence check for repo-path fallback binding (a remote host
+   * that matches no configured instance URL may still be the same server
+   * under another network address). Never throws: 404/network errors are
+   * logged at debug level via _probe and reported as false.
+   */
+  async probeRepository(owner: string, repo: string): Promise<boolean> {
+    const repository = await this._probe(
+      repoGet(owner, repo, { client: this._client() }),
+      `probeRepository ${owner}/${repo}`,
+    );
+    return repository !== undefined;
+  }
+
   async getRepoDetail(owner: string, repo: string): Promise<ForgejoRepoDetail> {
     const repository = await repoGet(owner, repo, { client: this._client() });
     const isEmpty = (repository as { empty?: boolean }).empty ?? false;

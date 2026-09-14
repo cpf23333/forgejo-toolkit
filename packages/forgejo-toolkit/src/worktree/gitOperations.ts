@@ -5,6 +5,8 @@ import * as vscode from 'vscode';
 import { promisify } from 'util';
 import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { normalizeGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
+import { ForgejoClient } from '../api/client';
+import { createTimedCache } from '../utils/timedCache';
 import { logger } from '../logger';
 
 const execFile = promisify(cp.execFile);
@@ -526,6 +528,50 @@ export function preferOwnNamespaceInstance(matched: ForgejoInstance[], remoteOwn
   return own ?? matched[0];
 }
 
+// Repo-path fallback binding results, keyed by normalized remote plus an
+// instance-list fingerprint. Both positive and negative outcomes are cached:
+// detectLinkedRepository runs on passive paths (status bar, mention
+// completion, dashboard), and an unmatched remote would otherwise cost one
+// API probe per configured instance on every call.
+const repoPathBindingCache = createTimedCache<string | null>(60_000);
+
+/**
+ * Fallback binding for self-hosted instances reachable under several network
+ * addresses (LAN IP, VPN alias, public domain): when no configured instance
+ * host matches the remote, ask each instance whether it actually serves
+ * owner/repo. Returns the instance id to bind to, or null when no instance
+ * verifies. Never throws; probes are cached briefly either way.
+ */
+async function resolveInstanceByRepoPath(
+  instances: ForgejoInstance[],
+  remoteInfo: { normalized: string; owner: string; repo: string },
+): Promise<string | null> {
+  const cacheKey = `${remoteInfo.normalized}|${instances.map((i) => i.id).join(',')}`;
+  const cached = repoPathBindingCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const results = await Promise.all(
+    instances.map(async (instance) => {
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+      return (await client.probeRepository(remoteInfo.owner, remoteInfo.repo)) ? instance.id : undefined;
+    }),
+  );
+  const verified = results.filter((id): id is string => id !== undefined);
+  let bound: string | null = null;
+  if (verified.length === 1) {
+    bound = verified[0];
+    logger.info(`[detectLinkedRepository] bound ${remoteInfo.normalized} to ${bound} via repo-path fallback`);
+  } else if (verified.length > 1) {
+    bound = verified[0];
+    logger.info(
+      `[detectLinkedRepository] ${verified.length} instances serve ${remoteInfo.normalized}; bound to first (${bound}) via repo-path fallback`,
+    );
+  }
+  repoPathBindingCache.set(cacheKey, bound);
+  return bound;
+}
+
 export interface DetectLinkedRepositoryOptions {
   /**
    * Attribute the linked repository to the repo containing this file path
@@ -600,6 +646,21 @@ export async function detectLinkedRepository(
       return remoteInfo.normalized === instanceHostPath || remoteInfo.normalized.startsWith(`${instanceHostPath}/`);
     });
     if (matched.length === 0) {
+      // Self-hosted servers are often reachable under several network
+      // addresses; when no host matches, verify owner/repo against each
+      // configured instance instead of giving up on this candidate.
+      const fallbackId = await resolveInstanceByRepoPath(instances, remoteInfo);
+      if (!fallbackId) {
+        continue;
+      }
+      logger.debug(`[detectLinkedRepository] matched ${fallbackId}`);
+      matches.push({
+        instanceId: fallbackId,
+        owner: remoteInfo.owner,
+        repo: remoteInfo.repo,
+        localPath: dirPath,
+        remoteUrl,
+      });
       continue;
     }
     // Several accounts on the same host all match the remote; bind explicitly
