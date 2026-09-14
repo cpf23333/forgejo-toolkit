@@ -15,6 +15,7 @@
 - Issue / PR 卡片：编号、标题、状态、仓库名、复制链接图标。
 - 仓库详情页：README、分支列表、最近 commits、返回 Dashboard。
 - 初次使用引导页：以编辑器页签形式打开，支持语言、服务器、worktree 配置。
+- 首次安装引导：Walkthrough 三步入门指南（添加实例 → 打开仪表板 → 发布/创建 PR，中英双语）；首次激活且无实例时自动打开引导页。
 
 ### Pull Request Worktree
 
@@ -37,6 +38,7 @@
 ### 国际化
 
 - 支持中文 / 英文切换。
+- 扩展清单（名称、简介）与包内 README 中英双语，扩展详情页跟随 VS Code 显示语言。
 
 ### 调试日志
 
@@ -88,12 +90,14 @@
 - Issue 详情页支持订阅/取消订阅通知、时间追踪、依赖议题管理。
 - PR 编辑表单支持负责人、标签、里程碑、到期时间、引用分支/标签。
 - 自研 VS Code 风格日期时间选择器，替代浏览器原生 `datetime-local`/`date` 输入；集成到 Issue / PR 创建与编辑表单、详情页到期时间编辑。
+- 从代码中的 TODO / FIXME 注释快速创建 Issue：CodeAction 快速修复，正文自动附带源码永久链接。
 
 ### PR Review
 
 - PR 内联 review 评论（行级评论）：支持在 VS Code 原生 diff 中查看、添加、删除评论。
 - PR diff 行级评论富文本输入：使用独立 webview panel 内嵌 EasyMDE，提供 Markdown 工具栏、预览、@/# 提及、图片附件上传；支持「添加单条评论」和「开始评审/继续评审/提交评审」两种模式。
 - 提交评审时支持选择结论：评论 / 批准（Approve）/ 要求修改（Request changes），编辑器中的文本作为评审总结一并提交。
+- 多行 review 评论：在 diff 编辑器中拖选多行创建评论（Forgejo `extra_lines_count` 语义），与网页端多行评论互通。
 
 ### 富文本编辑器与附件
 
@@ -121,6 +125,8 @@
 - 发布本地仓库到 Forgejo：「Publish to Forgejo」命令引导选择实例、仓库名与可见性，自动创建远程仓库、添加 origin 并推送当前分支；已关联 Forgejo 仓库时该命令直接推送当前分支。
 - 作为 VS Code Git clone 源：已配置实例注册为 `RemoteSourceProvider`，「Git: Clone」快速选择中按关键字在服务端搜索仓库克隆，无关键字时列出当前用户仓库。
 - 多仓库 / 嵌套仓库 workspace：workspace folder 一层子目录中的独立 git 仓库（含 repo 内嵌套 repo）参与关联检测，按当前文件/活动编辑器归属仓库，多仓库歧义时交互命令弹 QuickPick 消歧。
+- 多 remote 仓库：一个仓库配置多个 git remote 时，任一 remote 匹配已配置实例即参与关联（origin 优先）；Publish 命令可选择推送到匹配的 remote。
+- Dashboard 关联仓库卡片列出全部已关联仓库，可手动切换关注对象；活动编辑器切换时自动跟随归属。
 - Start Work on Issue：Issue 详情页一键从默认分支创建 `issue-<编号>-<标题>` 分支与 worktree 并打开。
 
 ### 状态栏
