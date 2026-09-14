@@ -1,8 +1,8 @@
 {
   "name": "forgejo-toolkit",
-  "displayName": "Forgejo Toolkit",
+  "displayName": "%displayName%",
   "version": "0.0.1",
-  "description": "A VS Code extension for Forgejo",
+  "description": "%description%",
   "categories": [
     "Other"
   ],

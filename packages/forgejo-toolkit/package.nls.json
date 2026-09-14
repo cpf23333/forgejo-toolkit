@@ -1,4 +1,6 @@
 {
+  "displayName": "Forgejo Toolkit",
+  "description": "A VS Code extension for Forgejo",
   "command.openDashboard.title": "Open Dashboard",
   "command.openOnboarding.title": "Open Setup Guide",
   "command.openSettings.title": "Open Settings",

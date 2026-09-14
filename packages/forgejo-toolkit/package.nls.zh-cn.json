@@ -1,4 +1,6 @@
 {
+  "displayName": "Forgejo Toolkit",
+  "description": "用于 Forgejo 的 VS Code 扩展",
   "command.openDashboard.title": "打开仪表板",
   "command.openOnboarding.title": "打开设置向导",
   "command.openSettings.title": "打开设置",

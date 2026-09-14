@@ -1,3 +1,5 @@
+English | [中文](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/packages/forgejo-toolkit/README.zh.md)
+
 # Forgejo Toolkit
 
 A VS Code extension for [Forgejo](https://forgejo.org/) with a rich Webview-based dashboard.
