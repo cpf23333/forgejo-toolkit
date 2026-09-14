@@ -19,6 +19,11 @@ export interface PullReviewCommentContext {
   position: number;
   isBase: boolean;
   lineNumber: number;
+  /**
+   * Additional lines after `position` for multi-line comments (Forgejo
+   * `extra_lines_count`); undefined/0 means a single-line comment.
+   */
+  extraLinesCount?: number;
   mode: 'single' | 'review';
   pendingReviewId?: number;
 }
@@ -73,7 +78,11 @@ export class PullReviewCommentPanel implements vscode.Disposable {
   }
 
   private static _title(reviewContext: PullReviewCommentContext): string {
-    return `${reviewContext.path}:${reviewContext.lineNumber + 1}`;
+    const firstLine = reviewContext.lineNumber + 1;
+    if (reviewContext.extraLinesCount && reviewContext.extraLinesCount > 0) {
+      return `${reviewContext.path}:${firstLine}-${firstLine + reviewContext.extraLinesCount}`;
+    }
+    return `${reviewContext.path}:${firstLine}`;
   }
 
   private constructor(
@@ -146,7 +155,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
    * and the draft survives, so no confirmation is needed.
    */
   private _contextKey(c: PullReviewCommentContext): string {
-    return `${c.instanceId}:${c.owner}/${c.repo}#${c.index}:${c.path}:${c.lineNumber}:${c.isBase}:${c.mode}:${c.pendingReviewId ?? ''}`;
+    return `${c.instanceId}:${c.owner}/${c.repo}#${c.index}:${c.path}:${c.lineNumber}:${c.extraLinesCount ?? 0}:${c.isBase}:${c.mode}:${c.pendingReviewId ?? ''}`;
   }
 
   private _switchContext(reviewContext: PullReviewCommentContext, callbacks?: PullReviewCommentPanelCallbacks): void {
@@ -214,6 +223,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       position: this._context.position,
       isBase: this._context.isBase,
       lineNumber: this._context.lineNumber,
+      extraLinesCount: this._context.extraLinesCount,
       mode: this._context.mode,
       pendingReviewId: this._context.pendingReviewId,
     });
@@ -249,6 +259,11 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       comment.old_position = this._context.position;
     } else {
       comment.new_position = this._context.position;
+    }
+    // Multi-line comments: the position is the first line of the range and
+    // `extra_lines_count` extends it forward.
+    if (this._context.extraLinesCount && this._context.extraLinesCount > 0) {
+      comment.extra_lines_count = this._context.extraLinesCount;
     }
 
     const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);

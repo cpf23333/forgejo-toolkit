@@ -53,6 +53,8 @@ watch(
 
 const isCreating = ref(false);
 const createFormResetKey = ref(0);
+const createInitialTitle = ref('');
+const createInitialBody = ref('');
 const createFormDirty = ref(false);
 const createFormKey = computed(() => issueFormKey(instanceId.value, owner.value, repo.value, 0));
 const createLoading = computed(() => state.loading.get(createFormKey.value) ?? false);
@@ -173,11 +175,31 @@ function changeState(newState: string) {
   state.changeRepoIssuesState(instanceId.value, owner.value, repo.value, newState);
 }
 
-function openCreateIssue() {
+function openCreateIssue(prefill?: { title?: string; body?: string }) {
+  createInitialTitle.value = prefill?.title ?? '';
+  createInitialBody.value = prefill?.body ?? '';
   createFormResetKey.value += 1;
   state.errors.delete(createFormKey.value);
   isCreating.value = true;
 }
+
+// Open the create dialog prefilled when the host asked us to (e.g. the
+// "Create Issue from TODO comment" code action), both on mount and while
+// this view is already active. A deactivated instance must not consume the
+// pending intent meant for the currently active view.
+watch(
+  [instanceId, owner, repo, () => state.pendingNewIssue.value],
+  () => {
+    if (!isActive.value) {
+      return;
+    }
+    const pending = state.consumePendingNewIssue(instanceId.value, owner.value, repo.value);
+    if (pending) {
+      openCreateIssue({ title: pending.title, body: pending.body });
+    }
+  },
+  { immediate: true },
+);
 
 function closeCreateIssue() {
   for (const url of pendingImageObjectUrls.value.keys()) {
@@ -278,7 +300,7 @@ async function handleCreateSubmit(data: {
           :placeholder="t('dashboard.repoIssues.searchPlaceholder')"
           @input="searchInput = ($event.target as HTMLInputElement).value"
         />
-        <vscode-button icon="add" @click="openCreateIssue">
+        <vscode-button icon="add" @click="openCreateIssue()">
           {{ t('dashboard.actions.newIssue') }}
         </vscode-button>
         <div class="state-filter">
@@ -344,6 +366,8 @@ async function handleCreateSubmit(data: {
         :submit-label="t('dashboard.form.create')"
         :loading="createDialogLoading"
         :error="createError"
+        :initial-title="createInitialTitle"
+        :initial-body="createInitialBody"
         :labels="labels"
         :assignees="assignees"
         :milestones="milestones"

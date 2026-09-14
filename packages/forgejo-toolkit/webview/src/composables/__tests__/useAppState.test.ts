@@ -2036,3 +2036,105 @@ describe('issue/pull state toggles', () => {
     expect(state.errors.get(mod.pullRequestFormKey('inst-1', 'owner', 'repo', 7))).toBeUndefined();
   });
 });
+
+describe('openNewIssue pending intent', () => {
+  it('stores the prefill and navigates to the repo issues view', async () => {
+    const { state, router } = await createState();
+
+    dispatchMessage({
+      command: 'openNewIssue',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      title: 'refactor this',
+      body: 'https://forgejo.example.com/owner/repo/blob/abc/src/a.ts#L5',
+    });
+    await flushPromises();
+
+    expect(router.currentRoute.value.name).toBe('repoIssues');
+    expect(router.currentRoute.value.params).toMatchObject({ instanceId: 'inst-1', owner: 'owner', repo: 'repo' });
+    expect(state.pendingNewIssue.value).toMatchObject({ title: 'refactor this' });
+  });
+
+  it('consumePendingNewIssue returns the prefill once and only for the matching repo', async () => {
+    const { state } = await createState();
+
+    dispatchMessage({
+      command: 'openNewIssue',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      title: 'refactor this',
+      body: 'body',
+    });
+    await nextTick();
+
+    expect(state.consumePendingNewIssue('inst-1', 'owner', 'other')).toBeUndefined();
+    expect(state.pendingNewIssue.value).not.toBeNull();
+
+    const pending = state.consumePendingNewIssue('inst-1', 'owner', 'repo');
+    expect(pending).toMatchObject({ title: 'refactor this', body: 'body' });
+    expect(state.pendingNewIssue.value).toBeNull();
+  });
+});
+
+describe('startWorkOnIssue', () => {
+  it('posts startWorkOnIssue, sets loading, and routes errors to the start-work key', async () => {
+    const { state, mod } = await createState();
+    const key = mod.startWorkKey('inst-1', 'owner', 'repo', 5);
+
+    state.startWorkOnIssue('inst-1', 'owner', 'repo', 5, 'fix-bug');
+    await nextTick();
+
+    expect(vscodePostMessage()).toHaveBeenCalledWith({
+      command: 'startWorkOnIssue',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+      title: 'fix-bug',
+    });
+    expect(state.loading.get(key)).toBe(true);
+
+    dispatchMessage({
+      command: 'startWorkResult',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+      error: 'fatal: could not fetch',
+    });
+    await nextTick();
+
+    expect(state.loading.get(key)).toBe(false);
+    expect(state.errors.get(key)).toBe('fatal: could not fetch');
+  });
+
+  it('clears the start-work error on success', async () => {
+    const { state, mod } = await createState();
+    const key = mod.startWorkKey('inst-1', 'owner', 'repo', 5);
+
+    dispatchMessage({
+      command: 'startWorkResult',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+      error: 'previous failure',
+    });
+    await nextTick();
+    expect(state.errors.get(key)).toBe('previous failure');
+
+    dispatchMessage({
+      command: 'startWorkResult',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+    });
+    await nextTick();
+
+    expect(state.loading.get(key)).toBe(false);
+    expect(state.errors.get(key)).toBeUndefined();
+  });
+});

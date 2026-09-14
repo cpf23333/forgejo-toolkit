@@ -16,7 +16,7 @@ const editorKey = computed(() => {
   if (!c) {
     return '';
   }
-  return `${c.instanceId}:${c.owner}/${c.repo}#${c.index}:${c.path}:${c.lineNumber}:${c.isBase}:${c.mode}:${c.pendingReviewId ?? ''}`;
+  return `${c.instanceId}:${c.owner}/${c.repo}#${c.index}:${c.path}:${c.lineNumber}:${c.extraLinesCount ?? 0}:${c.isBase}:${c.mode}:${c.pendingReviewId ?? ''}`;
 });
 
 function handleMessage(event: MessageEvent) {

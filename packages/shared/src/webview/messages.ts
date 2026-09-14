@@ -66,7 +66,17 @@ export type HostToWebviewMessage =
   // (or threw) without sending its specific reply.
   | { command: 'requestError'; _requestId: string; error: string }
   | { command: 'openCreatePullRequest'; instanceId: string; owner: string; repo: string; head: string }
+  | { command: 'openNewIssue'; instanceId: string; owner: string; repo: string; title?: string; body?: string }
   | { command: 'openPullRequestDetail'; instanceId: string; owner: string; repo: string; index: number }
+  | {
+      command: 'startWorkResult';
+      instanceId: string;
+      owner: string;
+      repo: string;
+      index: number;
+      cancelled?: boolean;
+      error?: string;
+    }
   | { command: 'setLocale'; locale: 'en' | 'zh' }
   | { command: 'setDebug'; debug: boolean }
   | { command: 'repositories'; instanceId: string; repositories?: unknown[]; error?: string }
@@ -759,6 +769,8 @@ export type HostToWebviewMessage =
       position: number;
       isBase: boolean;
       lineNumber: number;
+      /** Additional lines after `lineNumber` for multi-line comments (0/undefined = single line). */
+      extraLinesCount?: number;
       mode: 'single' | 'review';
       pendingReviewId?: number;
     }
@@ -1168,6 +1180,7 @@ export type WebviewToHostMessage =
   | { command: 'openWorktreePath'; path: string }
   | { command: 'previewReadme'; owner: string; repo: string; content: string }
   | { command: 'openPrWorktree'; instanceId: string; owner: string; repo: string; index: number }
+  | { command: 'startWorkOnIssue'; instanceId: string; owner: string; repo: string; index: number; title?: string }
   | { command: 'removeWorktree'; id: string }
   | { command: 'setWorktreeOpenMode'; mode: 'ask' | 'currentWindow' | 'newWindow' }
   | { command: 'setWorktreeCacheDirectory'; directory: string }

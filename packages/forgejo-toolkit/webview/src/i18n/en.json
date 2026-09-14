@@ -274,6 +274,7 @@
       "more": "More",
       "close": "Close",
       "reopen": "Reopen",
+      "startWork": "Start work on this issue (create branch and open worktree)",
       "save": "Save",
       "cancel": "Cancel",
       "set": "Set"
@@ -570,6 +571,7 @@
     "titleStartReview": "Start a review",
     "titleAddToReview": "Add to review",
     "line": "Line {line}",
+    "lineRange": "Lines {start}–{end}",
     "placeholder": "Write a comment...",
     "addSingleComment": "Add single comment",
     "startReview": "Start review",

@@ -4,9 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // query from Uri.toString, which this controller relies on, so this file
 // registers its own mock (it takes precedence over the setup-file mock).
 const state = vi.hoisted(() => ({
-  createdThreads: [] as Array<{ uriString: string; comments: unknown[]; dispose: ReturnType<typeof vi.fn> }>,
+  createdThreads: [] as Array<{
+    uriString: string;
+    range: unknown;
+    comments: unknown[];
+    dispose: ReturnType<typeof vi.fn>;
+  }>,
   openHandlers: [] as Array<(doc: unknown) => unknown>,
   editorHandlers: [] as Array<(editor: unknown) => unknown>,
+  visibleEditors: [] as Array<{ document: unknown; setDecorations: ReturnType<typeof vi.fn> }>,
   diffFetches: 0,
   comments: null as unknown[] | null,
 }));
@@ -25,8 +31,16 @@ vi.mock('vscode', () => {
     comments: {
       createCommentController: vi.fn(() => ({
         commentingRangeProvider: undefined,
-        createCommentThread: vi.fn((uri: { toString(): string }, _range: unknown, comments: unknown[]) => {
-          const thread = { uriString: uri.toString(), comments, canReply: true, collapsibleState: 0, dispose: vi.fn() };
+        createCommentThread: vi.fn((uri: { toString(): string }, range: unknown, comments: unknown[]) => {
+          const thread = {
+            uri,
+            uriString: uri.toString(),
+            range,
+            comments,
+            canReply: true,
+            collapsibleState: 0,
+            dispose: vi.fn(),
+          };
           state.createdThreads.push(thread);
           return thread;
         }),
@@ -47,6 +61,11 @@ vi.mock('vscode', () => {
         state.editorHandlers.push(cb);
         return { dispose: vi.fn() };
       }),
+      onDidChangeVisibleTextEditors: vi.fn(() => ({ dispose: vi.fn() })),
+      get visibleTextEditors() {
+        return state.visibleEditors;
+      },
+      createTextEditorDecorationType: vi.fn(() => ({ dispose: vi.fn() })),
       showErrorMessage: vi.fn(),
       showWarningMessage: vi.fn(),
       showInformationMessage: vi.fn(),
@@ -56,16 +75,24 @@ vi.mock('vscode', () => {
       executeCommand: vi.fn(),
     },
     Range: class {
+      start: { line: number; character: number };
+      end: { line: number; character: number };
       constructor(
         public startLine: number,
         public startChar: number,
         public endLine: number,
         public endChar: number,
-      ) {}
+      ) {
+        this.start = { line: startLine, character: startChar };
+        this.end = { line: endLine, character: endChar };
+      }
     },
     MarkdownString: class {
       supportHtml = false;
       constructor(public value: string) {}
+    },
+    ThemeColor: class {
+      constructor(public id: string) {}
     },
     CommentMode: { Preview: 0, Editing: 1 },
     CommentThreadCollapsibleState: { Collapsed: 0, Expanded: 1 },
@@ -109,6 +136,13 @@ vi.mock('../../api/client', () => ({
   }),
 }));
 
+// addComment opens the singleton comment panel; capture the context it would
+// receive instead of spinning up a real webview panel.
+const panelState = vi.hoisted(() => ({ createOrShow: vi.fn() }));
+vi.mock('../pullReviewCommentPanel', () => ({
+  PullReviewCommentPanel: { createOrShow: panelState.createOrShow },
+}));
+
 import { PullReviewCommentController } from '../pullReviewCommentController';
 import { FORGEJO_PR_SCHEME } from '../../prFileSystemProvider';
 import type { ConfigManager } from '../../config';
@@ -143,7 +177,13 @@ function makeDocument(isBase: boolean) {
       return `${FORGEJO_PR_SCHEME}:${path}?${query}`;
     },
   };
-  return { uri, lineCount: 10 };
+  return {
+    uri,
+    lineCount: 10,
+    // The controller ends a multi-line thread range at the last line's end
+    // character so the final line stays highlighted.
+    lineAt: (line: number) => ({ text: `mock line ${line}` }),
+  };
 }
 
 function threadCount(controller: PullReviewCommentController): number {
@@ -311,5 +351,169 @@ describe('PullReviewCommentController comment context cleanup', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('PullReviewCommentController multi-line comments', () => {
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.visibleEditors.length = 0;
+    state.comments = null;
+    panelState.createOrShow.mockClear();
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+  });
+
+  it('renders a multi-line comment as a thread spanning anchor..anchor+extra_lines_count', async () => {
+    // Forgejo anchor semantics: `position` is the FIRST line of the range and
+    // `extra_lines_count` extends it forward (verified against Forgejo's
+    // models/issues/comment.go DisplayLine).
+    state.comments = [
+      { id: 102, path: 'src/index.ts', position: 2, original_position: 0, extra_lines_count: 3, body: 'multi' },
+    ];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    // 0-based anchor line 1, extending 3 lines forward -> lines 1..4. The
+    // range must end at the last line's end character, not column 0, or the
+    // final line renders without a highlight.
+    expect(state.createdThreads[0].range).toMatchObject({ startLine: 1, endLine: 4, endChar: 'mock line 4'.length });
+    controller.dispose();
+  });
+
+  it('clamps an outdated multi-line range to the document end', async () => {
+    state.comments = [
+      { id: 103, path: 'src/index.ts', position: 9, original_position: 0, extra_lines_count: 5, body: 'multi' },
+    ];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    // lineCount is 10 in makeDocument, so the range ends at line index 9.
+    await openDocument(makeDocument(false));
+
+    expect(state.createdThreads[0].range).toMatchObject({ startLine: 8, endLine: 9 });
+    controller.dispose();
+  });
+
+  it('paints a whole-line decoration across the full range of a multi-line comment', async () => {
+    // VS Code's native thread-range decoration is inline: interior lines get a
+    // full-width band but the final line is tinted only up to the end column.
+    // The controller adds its own whole-line decoration to complete the band.
+    state.comments = [
+      { id: 104, path: 'src/index.ts', position: 2, original_position: 0, extra_lines_count: 3, body: 'multi' },
+    ];
+    const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+    state.visibleEditors.push(editor);
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    expect(editor.setDecorations).toHaveBeenCalled();
+    const ranges = editor.setDecorations.mock.calls.at(-1)![1] as Array<{ startLine: number; endLine: number }>;
+    expect(ranges).toHaveLength(1);
+    expect(ranges[0]).toMatchObject({ startLine: 1, endLine: 4 });
+    controller.dispose();
+  });
+
+  it('leaves single-line comments to the native inline decoration', async () => {
+    const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+    state.visibleEditors.push(editor);
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    // Default COMMENTS: one single-line comment per diff side.
+    await openDocument(makeDocument(false));
+
+    expect(editor.setDecorations).toHaveBeenCalled();
+    const ranges = editor.setDecorations.mock.calls.at(-1)![1] as unknown[];
+    expect(ranges).toEqual([]);
+    controller.dispose();
+  });
+
+  it('comments on the selected line range when adding a comment with a selection', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const editor = {
+      document: makeDocument(false),
+      selection: {
+        isEmpty: false,
+        start: { line: 1, character: 0 },
+        end: { line: 3, character: 6 },
+        active: { line: 3 },
+      },
+    };
+
+    await controller.addComment(editor as never);
+
+    expect(panelState.createOrShow).toHaveBeenCalledTimes(1);
+    const context = panelState.createOrShow.mock.calls[0][2] as {
+      lineNumber: number;
+      position: number;
+      extraLinesCount?: number;
+    };
+    expect(context.lineNumber).toBe(1);
+    expect(context.position).toBe(2);
+    expect(context.extraLinesCount).toBe(2);
+    controller.dispose();
+  });
+
+  it('excludes the last line of a selection ending at column 0', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const editor = {
+      document: makeDocument(false),
+      selection: {
+        isEmpty: false,
+        start: { line: 1, character: 2 },
+        end: { line: 3, character: 0 },
+        active: { line: 3 },
+      },
+    };
+
+    await controller.addComment(editor as never);
+
+    const context = panelState.createOrShow.mock.calls[0][2] as { extraLinesCount?: number };
+    expect(context.extraLinesCount).toBe(1);
+    controller.dispose();
+  });
+
+  it('keeps single-line behavior for an explicit line number without a selection', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const editor = {
+      document: makeDocument(false),
+      selection: {
+        isEmpty: true,
+        start: { line: 5, character: 0 },
+        end: { line: 5, character: 0 },
+        active: { line: 5 },
+      },
+    };
+
+    await controller.addComment(editor as never, 2);
+
+    const context = panelState.createOrShow.mock.calls[0][2] as { lineNumber: number; extraLinesCount?: number };
+    expect(context.lineNumber).toBe(2);
+    expect(context.extraLinesCount).toBeUndefined();
+    controller.dispose();
+  });
+
+  it('rejects a selection whose last line is outside the pull request diff', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const editor = {
+      document: makeDocument(false),
+      selection: {
+        isEmpty: false,
+        start: { line: 0, character: 0 },
+        end: { line: 9, character: 1 },
+        active: { line: 9 },
+      },
+    };
+
+    await controller.addComment(editor as never);
+
+    expect(panelState.createOrShow).not.toHaveBeenCalled();
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('pull request diff'));
+    controller.dispose();
   });
 });

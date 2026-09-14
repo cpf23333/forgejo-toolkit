@@ -8,6 +8,7 @@ import { registerRepoFileProvider } from './repoFileProvider';
 import { FORGEJO_PR_SCHEME, ForgejoPRFileSystemProvider } from './prFileSystemProvider';
 import { ForgejoPRDecorationProvider } from './prDecorationProvider';
 import { ForgejoIssueMentionProvider } from './editor/issueMentionProvider';
+import { TodoCommentCodeActionProvider } from './editor/todoCommentCodeAction';
 import { PullReviewCommentController } from './comments/pullReviewCommentController';
 import { NotificationPoller } from './notifications/notificationPoller';
 import { CreatePrStatusBarController } from './statusBar/createPrStatusBar';
@@ -94,6 +95,12 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.languages.registerDocumentLinkProvider({ scheme: 'file' }, mentionProvider),
     vscode.languages.registerCompletionItemProvider({ scheme: 'file' }, mentionProvider, '#', '@'),
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider({ scheme: 'file' }, new TodoCommentCodeActionProvider(), {
+      providedCodeActionKinds: TodoCommentCodeActionProvider.providedCodeActionKinds,
+    }),
   );
 
   logger.info('Forgejo Toolkit extension activated');

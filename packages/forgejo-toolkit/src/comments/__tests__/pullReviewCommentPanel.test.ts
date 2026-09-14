@@ -1,5 +1,19 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as vscode from 'vscode';
+
+const clientMocks = vi.hoisted(() => ({
+  createPendingPullReview: vi.fn(
+    async (_owner: string, _repo: string, _index: number, _comment: Record<string, unknown>) => ({ id: 42 }),
+  ),
+  addPullReviewComment: vi.fn(async () => ({})),
+}));
+vi.mock('../../api/client', () => ({
+  ForgejoClient: class {
+    createPendingPullReview = clientMocks.createPendingPullReview;
+    addPullReviewComment = clientMocks.addPullReviewComment;
+  },
+}));
+
 import {
   PullReviewCommentPanel,
   type PullReviewCommentContext,
@@ -245,5 +259,82 @@ describe('PullReviewCommentPanel.createOrShow', () => {
     expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ command: 'pullReviewDeleted', cancelled: true }),
     );
+  });
+});
+
+describe('PullReviewCommentPanel multi-line comments', () => {
+  afterEach(() => {
+    PullReviewCommentPanel.currentPanel = undefined;
+    vi.clearAllMocks();
+  });
+
+  function createConfigWithInstance(): ConfigManager {
+    return {
+      getInstances: () => [
+        { id: 'demo', url: 'https://forgejo.example.com', token: 't', name: 'Demo', username: 'demo-user' },
+      ],
+    } as unknown as ConfigManager;
+  }
+
+  it('shows the line range in the panel title', () => {
+    const fakePanel = createFakePanel();
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext({ lineNumber: 1, position: 2, extraLinesCount: 3 }),
+    );
+
+    expect(vscode.window.createWebviewPanel).toHaveBeenCalledWith(
+      PullReviewCommentPanel.viewType,
+      'src/index.ts:2-5',
+      vscode.ViewColumn.Beside,
+      expect.any(Object),
+    );
+  });
+
+  it('submits extra_lines_count for a multi-line comment', async () => {
+    const fakePanel = createFakePanel();
+    let messageHandler: ((message: unknown) => Promise<void>) | undefined;
+    fakePanel.webview.onDidReceiveMessage = vi.fn((...args: unknown[]) => {
+      messageHandler = args[0] as (message: unknown) => Promise<void>;
+      return { dispose: vi.fn() };
+    });
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfigWithInstance(),
+      createContext({ lineNumber: 1, position: 2, extraLinesCount: 3 }),
+    );
+    await messageHandler?.({ command: 'submitPullReviewComment', body: 'looks off', mode: 'review' });
+
+    expect(clientMocks.createPendingPullReview).toHaveBeenCalledWith(
+      'demo-user',
+      'demo-repo',
+      2,
+      expect.objectContaining({ new_position: 2, extra_lines_count: 3 }),
+    );
+  });
+
+  it('omits extra_lines_count for a single-line comment', async () => {
+    const fakePanel = createFakePanel();
+    let messageHandler: ((message: unknown) => Promise<void>) | undefined;
+    fakePanel.webview.onDidReceiveMessage = vi.fn((...args: unknown[]) => {
+      messageHandler = args[0] as (message: unknown) => Promise<void>;
+      return { dispose: vi.fn() };
+    });
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfigWithInstance(),
+      createContext(),
+    );
+    await messageHandler?.({ command: 'submitPullReviewComment', body: 'single', mode: 'review' });
+
+    const comment = clientMocks.createPendingPullReview.mock.calls[0]![3];
+    expect(comment.extra_lines_count).toBeUndefined();
   });
 });

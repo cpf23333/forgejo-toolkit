@@ -6,6 +6,11 @@ import type { ReadmeContentProvider } from '../readmeProvider';
 import { COMMAND_ADD_COMMENT, PullReviewCommentController } from '../comments/pullReviewCommentController';
 import { copyPermalink } from './permalink';
 import { publishToForgejo } from './publish';
+import {
+  COMMAND_CREATE_ISSUE_FROM_COMMENT,
+  createIssueFromComment,
+  type CreateIssueFromCommentArgs,
+} from '../editor/todoCommentCodeAction';
 import { createPrFromCurrentBranch, type CreatePrFromCurrentBranchArgs } from './createPullRequest';
 import { logger, showErrorWithLog } from '../logger';
 import { userFacingErrorMessage } from '../api/errors';
@@ -91,5 +96,16 @@ export function registerCommands(
         vscode.window.showErrorMessage(vscode.l10n.t('Failed to delete review comment: {0}', err));
       });
     }),
+
+    vscode.commands.registerCommand(
+      COMMAND_CREATE_ISSUE_FROM_COMMENT,
+      (args: CreateIssueFromCommentArgs | undefined) => {
+        createIssueFromComment(config, viewProvider, args ?? {}).catch((error: unknown) => {
+          const err = userFacingErrorMessage(error);
+          logger.error(`[createIssueFromComment] ${err}`);
+          vscode.window.showErrorMessage(vscode.l10n.t('Failed to create issue from comment: {0}', err));
+        });
+      },
+    ),
   );
 }

@@ -262,6 +262,38 @@ export async function createWorktree(repoPath: string, worktreePath: string, bra
 }
 
 /**
+ * Fetch a single branch from a remote. After this call FETCH_HEAD points at
+ * the fetched tip in both regular checkouts and bare cache clones (where
+ * `refs/remotes/origin/<branch>` does not exist).
+ */
+export async function fetchBranch(repoPath: string, remote: string, branch: string, token?: string): Promise<void> {
+  const { stderr } = await runGit(['fetch', remote, branch], repoPath, authEnv(token));
+  if (stderr && stderr.toLowerCase().includes('error')) {
+    throw new Error(stderr);
+  }
+}
+
+/**
+ * Create a worktree on a NEW branch starting at startPoint (e.g. FETCH_HEAD
+ * right after fetchBranch, which works in bare caches and regular checkouts
+ * alike). `-B` also resets a leftover branch of the same name, so retrying a
+ * previously failed start-work flow cannot get stuck on "branch already
+ * exists".
+ */
+export async function createWorktreeWithNewBranch(
+  repoPath: string,
+  worktreePath: string,
+  newBranch: string,
+  startPoint: string,
+): Promise<void> {
+  await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
+  const { stderr } = await runGit(['worktree', 'add', '-B', newBranch, worktreePath, startPoint], repoPath);
+  if (stderr && stderr.toLowerCase().includes('error')) {
+    throw new Error(stderr);
+  }
+}
+
+/**
  * Remove a linked worktree. Runs `git worktree remove --force` in the source
  * repository so the .git/worktrees metadata and the branch's checked-out state
  * are cleaned up. If that fails (e.g. the directory was already deleted or git

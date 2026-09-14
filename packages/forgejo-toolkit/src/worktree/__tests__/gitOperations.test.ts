@@ -24,7 +24,9 @@ import {
   addRemote,
   cloneRepository,
   createWorktreeFromBranch,
+  createWorktreeWithNewBranch,
   detectLinkedRepository,
+  fetchBranch,
   fetchPullRequestHead,
   getRemoteUrl,
   openWorktree,
@@ -299,6 +301,33 @@ describe('gitOperations argument passing', () => {
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
       ['worktree', 'add', '-B', branch, worktreePath, branch],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('fetchBranch passes the branch as a single argv entry and the token via env config', async () => {
+    const branch = 'main$(touch pwned)';
+    await fetchBranch('/repo', 'origin', branch, 'tok');
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['fetch', 'origin', branch],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          GIT_CONFIG_VALUE_0: 'Authorization: token tok',
+        }),
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it('createWorktreeWithNewBranch passes branch, path and start point as single argv entries', async () => {
+    const branch = 'issue-1-fix$(touch pwned)';
+    const worktreePath = '/cache/worktrees/evil" && pwned';
+    await createWorktreeWithNewBranch('/repo', worktreePath, branch, 'FETCH_HEAD');
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['worktree', 'add', '-B', branch, worktreePath, 'FETCH_HEAD'],
       expect.anything(),
       expect.any(Function),
     );

@@ -274,6 +274,7 @@
       "more": "更多",
       "close": "关闭",
       "reopen": "重新打开",
+      "startWork": "开始处理此 Issue（创建分支并打开 worktree）",
       "save": "保存",
       "cancel": "取消",
       "set": "设置"
@@ -570,6 +571,7 @@
     "titleStartReview": "开始评审",
     "titleAddToReview": "添加到评审",
     "line": "第 {line} 行",
+    "lineRange": "第 {start}–{end} 行",
     "placeholder": "写下你的评论...",
     "addSingleComment": "添加单条评论",
     "startReview": "开始评审",

@@ -1,5 +1,7 @@
 {
   "How would you like to open the PR worktree?": "你希望如何打开 PR worktree？",
+  "How would you like to open the issue worktree?": "你希望如何打开 Issue worktree？",
+  "Started work on issue #{0}: created branch {1}": "已开始处理 Issue #{0}：已创建分支 {1}",
   "New window": "新窗口",
   "Current window": "当前窗口",
   "No local repository found for {owner}/{repo}. What would you like to do?": "未找到 {owner}/{repo} 的本地仓库。你想怎么做？",
@@ -40,6 +42,8 @@
   "The current file is outside the linked repository": "当前文件不在关联仓库内",
   "Permalink is not supported for this file type": "该文件类型不支持复制 permalink",
   "This file was added in the pull request and does not exist on the base ref": "该文件是在此 PR 中新增的，base 分支上不存在",
+  "Create Issue from {0} comment": "从 {0} 注释创建 Issue",
+  "Failed to create issue from comment: {0}": "从注释创建 Issue 失败：{0}",
   "No valid instances found in the import data": "导入数据中没有有效的实例",
   "Permalink copied to clipboard": "Permalink 已复制到剪贴板",
   "Failed to copy permalink: {0}": "复制 permalink 失败：{0}",

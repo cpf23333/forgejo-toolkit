@@ -29,6 +29,7 @@ import {
   issueDependenciesKey,
   issueReactionsKey,
   issueStateKey,
+  startWorkKey,
 } from '../composables/useAppState';
 import type { ForgejoIssueAttachment } from '../types/api';
 
@@ -456,6 +457,16 @@ const stateToggleKey = computed(() => issueStateKey(instanceId.value, owner.valu
 const stateToggleError = computed(() => state.errors.get(stateToggleKey.value));
 const stateToggleLoading = computed(() => state.loading.get(stateToggleKey.value) ?? false);
 
+// Start-work runs the worktree pipeline on the host (possibly with quick
+// picks), so it can take a while; the error renders next to the button.
+const startWorkLoadingKey = computed(() => startWorkKey(instanceId.value, owner.value, repo.value, index.value));
+const startWorkError = computed(() => state.errors.get(startWorkLoadingKey.value));
+const startWorkLoading = computed(() => state.loading.get(startWorkLoadingKey.value) ?? false);
+
+function handleStartWork() {
+  state.startWorkOnIssue(instanceId.value, owner.value, repo.value, index.value, detail.value?.title);
+}
+
 async function handleDeleteIssue() {
   const confirmed = await state.showConfirm(
     t('dashboard.detail.deleteIssueConfirm', { number: detail.value?.number ?? index.value }),
@@ -623,6 +634,14 @@ function reloadIssue() {
               @click="state.copyToClipboard(issueUrl)"
               icon-only
             />
+            <vscode-button
+              icon="git-branch"
+              :title="t('dashboard.actions.startWork')"
+              :aria-label="t('dashboard.actions.startWork')"
+              :disabled="startWorkLoading"
+              @click="handleStartWork"
+              icon-only
+            />
             <template v-if="canManageIssue">
               <vscode-button
                 icon="edit"
@@ -652,6 +671,9 @@ function reloadIssue() {
 
         <div v-if="stateToggleError" class="error state-toggle-error">
           {{ t('dashboard.error', { message: stateToggleError }) }}
+        </div>
+        <div v-if="startWorkError" class="error state-toggle-error">
+          {{ t('dashboard.error', { message: startWorkError }) }}
         </div>
 
         <div class="detail-meta">

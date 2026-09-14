@@ -17,7 +17,9 @@ import { InFlightTasks } from '../worktree/inFlightTasks';
 import {
   cloneRepository,
   createWorktreeFromBranch,
+  createWorktreeWithNewBranch,
   detectLinkedRepository,
+  fetchBranch,
   fetchPullRequestHead,
   findLocalRepo,
   getRemoteUrl,
@@ -3059,6 +3061,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         await this._handleOpenPrWorktree(message);
         return;
       }
+      case 'startWorkOnIssue': {
+        await this._handleStartWorkOnIssue(message);
+        return;
+      }
       case 'removeWorktree': {
         const { id } = message;
         if (typeof id === 'string') {
@@ -3157,6 +3163,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
   public openCreatePullRequest(payload: { instanceId: string; owner: string; repo: string; head: string }) {
     this._postOrQueue({ command: 'openCreatePullRequest', ...payload });
+  }
+
+  public openNewIssue(payload: { instanceId: string; owner: string; repo: string; title?: string; body?: string }) {
+    this._postOrQueue({ command: 'openNewIssue', ...payload });
   }
 
   public openPullRequestDetail(payload: { instanceId: string; owner: string; repo: string; index: number }) {
@@ -3561,6 +3571,210 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     await this._worktreeInFlight.run(key, () => this._doOpenPrWorktree(message));
   }
 
+  /**
+   * Resolve the local checkout a worktree can be added to: the current
+   * workspace, a previously used local clone, or the shared bare cache
+   * (offering to clone or pick a folder). Never replies to the webview; the
+   * caller maps the outcome to its own reply message. A clone failure is
+   * thrown so the caller's catch reports it like any other git error.
+   */
+  private async _resolveWorktreeSourceRepo(
+    instance: ForgejoInstance,
+    owner: string,
+    repo: string,
+  ): Promise<
+    | { kind: 'resolved'; sourceRepoPath: string; cacheDir: string }
+    | { kind: 'cancelled' }
+    | { kind: 'error'; message: string }
+  > {
+    const cloneUrl = `${instance.url}/${owner}/${repo}.git`;
+    const cacheDir = this._worktreeManager.getCacheDirectory();
+
+    let sourceRepoPath = await isCurrentWorkspaceBaseRepo(instance.url, owner, repo);
+    if (!sourceRepoPath) {
+      sourceRepoPath = await findLocalRepo(instance.url, owner, repo);
+    }
+
+    if (!sourceRepoPath) {
+      const cacheRepoPath = path.join(cacheDir, 'repos', `${owner}-${repo}.git`);
+      const cacheRepoExisted = await fs.promises
+        .access(cacheRepoPath)
+        .then(() => true)
+        .catch(() => false);
+
+      const choice = await vscode.window.showQuickPick(
+        [
+          {
+            label: cacheRepoExisted
+              ? vscode.l10n.t('Open cached bare repository')
+              : vscode.l10n.t('Clone to cache directory'),
+            value: 'clone' as const,
+          },
+          { label: vscode.l10n.t('Select an existing local repository'), value: 'select' as const },
+          { label: vscode.l10n.t('Cancel'), value: 'cancel' as const },
+        ],
+        {
+          placeHolder: vscode.l10n.t('No local repository found for {owner}/{repo}. What would you like to do?', {
+            owner,
+            repo,
+          }),
+          ignoreFocusOut: true,
+        },
+      );
+      if (!choice || choice.value === 'cancel') {
+        return { kind: 'cancelled' };
+      }
+
+      if (choice.value === 'clone') {
+        sourceRepoPath = cacheRepoPath;
+        if (!cacheRepoExisted) {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: vscode.l10n.t('Cloning {0}/{1}…', owner, repo),
+            },
+            () => cloneRepository(cloneUrl, cacheRepoPath, instance.token),
+          );
+        }
+        await this._worktreeManager.touchCachedRepo(cacheRepoPath);
+        // Lazy LRU sweep of the bare clone cache (no timer): aged-out and
+        // over-cap repositories are removed while a worktree is created.
+        void this._worktreeManager
+          .cleanupCachedRepos()
+          .then((removed) => {
+            if (removed.length > 0) {
+              logger.info(`Cleaned up ${removed.length} unused cached repositories: ${removed.join(', ')}`);
+            }
+          })
+          .catch((error: unknown) => {
+            logger.debug(`Cached repository cleanup failed: ${userFacingErrorMessage(error)}`);
+          });
+      } else {
+        const selected = await vscode.window.showOpenDialog({
+          canSelectFiles: false,
+          canSelectFolders: true,
+          canSelectMany: false,
+          openLabel: vscode.l10n.t('Select repository'),
+        });
+        if (!selected || selected.length === 0) {
+          return { kind: 'cancelled' };
+        }
+        sourceRepoPath = selected[0].fsPath;
+        if (!(await isGitRepository(sourceRepoPath))) {
+          return { kind: 'error', message: vscode.l10n.t('Selected folder is not a git repository') };
+        }
+        const remote = await getRemoteUrl(sourceRepoPath);
+        const normalizedInstanceUrl = instance.url.replace(/\/$/, '');
+        const expectedUrls = [
+          `${normalizedInstanceUrl}/${owner}/${repo}.git`,
+          `${normalizedInstanceUrl}/${owner}/${repo}`,
+        ];
+        if (!remote || !expectedUrls.some((url) => normalizeGitUrl(remote) === normalizeGitUrl(url))) {
+          return { kind: 'error', message: vscode.l10n.t('Selected repository does not match the PR base repository') };
+        }
+      }
+    }
+    return { kind: 'resolved', sourceRepoPath, cacheDir };
+  }
+
+  private async _handleStartWorkOnIssue(message: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    title?: string;
+  }) {
+    // Same double-click guard as openPrWorktree.
+    const key = `start-work:${message.instanceId}:${message.owner}/${message.repo}#${message.index}`;
+    await this._worktreeInFlight.run(key, () => this._doStartWorkOnIssue(message));
+  }
+
+  private async _doStartWorkOnIssue(message: {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+    title?: string;
+  }) {
+    const { instanceId, owner, repo, index } = message;
+    const reply = (data: { cancelled?: boolean; error?: string }) =>
+      this._reply('startWorkResult', { instanceId, owner, repo, index, ...data });
+
+    const instance = this._findInstance(instanceId);
+    if (!instance) {
+      reply({ error: vscode.l10n.t('Instance not found') });
+      return;
+    }
+
+    let openMode = this._config.getWorktreeOpenMode();
+    if (openMode === 'ask') {
+      const choice = await vscode.window.showQuickPick(
+        [
+          { label: vscode.l10n.t('New window'), value: 'newWindow' as const },
+          { label: vscode.l10n.t('Current window'), value: 'currentWindow' as const },
+        ],
+        {
+          placeHolder: vscode.l10n.t('How would you like to open the issue worktree?'),
+          ignoreFocusOut: true,
+        },
+      );
+      if (!choice) {
+        reply({ cancelled: true });
+        return;
+      }
+      openMode = choice.value;
+    }
+    const openInNewWindow = openMode === 'newWindow';
+
+    try {
+      const resolved = await this._resolveWorktreeSourceRepo(instance, owner, repo);
+      if (resolved.kind === 'cancelled') {
+        reply({ cancelled: true });
+        return;
+      }
+      if (resolved.kind === 'error') {
+        reply({ error: resolved.message });
+        return;
+      }
+      const { sourceRepoPath, cacheDir } = resolved;
+
+      const slug = sanitizeForPath(message.title ?? '');
+      const slugSuffix = slug ? `-${slug}` : '';
+      const branch = `issue-${index}${slugSuffix}`;
+      const worktreePath = path.join(cacheDir, 'worktrees', `${owner}-${repo}-issue-${index}${slugSuffix}`);
+
+      // A leftover directory from an earlier start-work run is reopened as
+      // is; the branch inside is already the issue branch.
+      const existsOnDisk = await fs.promises.access(worktreePath).then(
+        () => true,
+        () => false,
+      );
+      if (!existsOnDisk) {
+        const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+        const detail = await client.getRepoDetail(owner, repo);
+        const defaultBranch = detail.repository.default_branch ?? 'main';
+        // FETCH_HEAD works as the start point in regular checkouts and bare
+        // cache clones alike (see fetchBranch).
+        await fetchBranch(sourceRepoPath, 'origin', defaultBranch, instance.token);
+        await createWorktreeWithNewBranch(sourceRepoPath, worktreePath, branch, 'FETCH_HEAD');
+      }
+
+      const opened = await openWorktree(worktreePath, openInNewWindow);
+      if (!opened) {
+        reply({ cancelled: true });
+        return;
+      }
+      reply({});
+      vscode.window.showInformationMessage(
+        vscode.l10n.t('Started work on issue #{0}: created branch {1}', index, branch),
+      );
+    } catch (error) {
+      const err = userFacingErrorMessage(error);
+      logger.error(`startWorkOnIssue failed for ${owner}/${repo}#${index}: ${err}`);
+      reply({ error: err });
+    }
+  }
+
   private async _doOpenPrWorktree(message: { instanceId: string; owner: string; repo: string; index: number }) {
     const { instanceId, owner, repo, index } = message;
     const instance = this._findInstance(instanceId);
@@ -3640,111 +3854,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      const cloneUrl = `${instance.url}/${owner}/${repo}.git`;
-      const cacheDir = this._worktreeManager.getCacheDirectory();
-
-      let sourceRepoPath = await isCurrentWorkspaceBaseRepo(instance.url, owner, repo);
-      if (!sourceRepoPath) {
-        sourceRepoPath = await findLocalRepo(instance.url, owner, repo);
+      const resolved = await this._resolveWorktreeSourceRepo(instance, owner, repo);
+      if (resolved.kind === 'cancelled') {
+        this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+        return;
       }
-
-      if (!sourceRepoPath) {
-        const cacheRepoPath = path.join(cacheDir, 'repos', `${owner}-${repo}.git`);
-        const cacheRepoExisted = await fs.promises
-          .access(cacheRepoPath)
-          .then(() => true)
-          .catch(() => false);
-
-        const choice = await vscode.window.showQuickPick(
-          [
-            {
-              label: cacheRepoExisted
-                ? vscode.l10n.t('Open cached bare repository')
-                : vscode.l10n.t('Clone to cache directory'),
-              value: 'clone' as const,
-            },
-            { label: vscode.l10n.t('Select an existing local repository'), value: 'select' as const },
-            { label: vscode.l10n.t('Cancel'), value: 'cancel' as const },
-          ],
-          {
-            placeHolder: vscode.l10n.t('No local repository found for {owner}/{repo}. What would you like to do?', {
-              owner,
-              repo,
-            }),
-            ignoreFocusOut: true,
-          },
-        );
-        if (!choice || choice.value === 'cancel') {
-          this._reply('worktreeCancelled', { instanceId, owner, repo, index });
-          return;
-        }
-
-        if (choice.value === 'clone') {
-          sourceRepoPath = cacheRepoPath;
-          if (!cacheRepoExisted) {
-            await vscode.window.withProgress(
-              {
-                location: vscode.ProgressLocation.Notification,
-                title: vscode.l10n.t('Cloning {0}/{1}…', owner, repo),
-              },
-              () => cloneRepository(cloneUrl, cacheRepoPath, instance.token),
-            );
-          }
-          await this._worktreeManager.touchCachedRepo(cacheRepoPath);
-          // Lazy LRU sweep of the bare clone cache (no timer): aged-out and
-          // over-cap repositories are removed while a worktree is created.
-          void this._worktreeManager
-            .cleanupCachedRepos()
-            .then((removed) => {
-              if (removed.length > 0) {
-                logger.info(`Cleaned up ${removed.length} unused cached repositories: ${removed.join(', ')}`);
-              }
-            })
-            .catch((error: unknown) => {
-              logger.debug(`Cached repository cleanup failed: ${userFacingErrorMessage(error)}`);
-            });
-        } else {
-          const selected = await vscode.window.showOpenDialog({
-            canSelectFiles: false,
-            canSelectFolders: true,
-            canSelectMany: false,
-            openLabel: vscode.l10n.t('Select repository'),
-          });
-          if (!selected || selected.length === 0) {
-            this._reply('worktreeCancelled', { instanceId, owner, repo, index });
-            return;
-          }
-          sourceRepoPath = selected[0].fsPath;
-          if (!(await isGitRepository(sourceRepoPath))) {
-            this._reply('worktreeError', {
-              error: vscode.l10n.t('Selected folder is not a git repository'),
-              operation: 'open',
-              instanceId,
-              owner,
-              repo,
-              index,
-            });
-            return;
-          }
-          const remote = await getRemoteUrl(sourceRepoPath);
-          const normalizedInstanceUrl = instance.url.replace(/\/$/, '');
-          const expectedUrls = [
-            `${normalizedInstanceUrl}/${owner}/${repo}.git`,
-            `${normalizedInstanceUrl}/${owner}/${repo}`,
-          ];
-          if (!remote || !expectedUrls.some((url) => normalizeGitUrl(remote) === normalizeGitUrl(url))) {
-            this._reply('worktreeError', {
-              error: vscode.l10n.t('Selected repository does not match the PR base repository'),
-              operation: 'open',
-              instanceId,
-              owner,
-              repo,
-              index,
-            });
-            return;
-          }
-        }
+      if (resolved.kind === 'error') {
+        this._reply('worktreeError', {
+          error: resolved.message,
+          operation: 'open',
+          instanceId,
+          owner,
+          repo,
+          index,
+        });
+        return;
       }
+      const { sourceRepoPath, cacheDir } = resolved;
 
       const sanitizedTitle = sanitizeForPath(prTitle);
       const titleSuffix = sanitizedTitle ? `-${sanitizedTitle}` : '';

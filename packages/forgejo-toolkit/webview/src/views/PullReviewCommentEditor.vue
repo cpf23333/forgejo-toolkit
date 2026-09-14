@@ -62,6 +62,15 @@ const title = computed(() => {
   return t('pullReviewCommentEditor.titleSingleComment');
 });
 
+const lineLabel = computed(() => {
+  const firstLine = props.context.lineNumber + 1;
+  const extra = props.context.extraLinesCount ?? 0;
+  if (extra > 0) {
+    return t('pullReviewCommentEditor.lineRange', { start: firstLine, end: firstLine + extra });
+  }
+  return t('pullReviewCommentEditor.line', { line: firstLine });
+});
+
 function closePanel() {
   postMessage({ command: 'closePullReviewCommentPanel' });
 }
@@ -144,7 +153,7 @@ function uploadImage(file: File, onSuccess: (url: string) => void, onError: (err
     <h2 class="editor-title">{{ title }}</h2>
     <div class="editor-context">
       <span class="context-path">{{ context.path }}</span>
-      <span class="context-line">{{ t('pullReviewCommentEditor.line', { line: context.lineNumber + 1 }) }}</span>
+      <span class="context-line">{{ lineLabel }}</span>
     </div>
     <EasyMdeEditor
       v-model="body"

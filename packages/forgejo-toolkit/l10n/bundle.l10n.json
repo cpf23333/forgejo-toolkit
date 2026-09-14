@@ -1,5 +1,7 @@
 {
   "How would you like to open the PR worktree?": "How would you like to open the PR worktree?",
+  "How would you like to open the issue worktree?": "How would you like to open the issue worktree?",
+  "Started work on issue #{0}: created branch {1}": "Started work on issue #{0}: created branch {1}",
   "New window": "New window",
   "Current window": "Current window",
   "No local repository found for {owner}/{repo}. What would you like to do?": "No local repository found for {owner}/{repo}. What would you like to do?",
@@ -40,6 +42,8 @@
   "The current file is outside the linked repository": "The current file is outside the linked repository",
   "Permalink is not supported for this file type": "Permalink is not supported for this file type",
   "This file was added in the pull request and does not exist on the base ref": "This file was added in the pull request and does not exist on the base ref",
+  "Create Issue from {0} comment": "Create Issue from {0} comment",
+  "Failed to create issue from comment: {0}": "Failed to create issue from comment: {0}",
   "No valid instances found in the import data": "No valid instances found in the import data",
   "Permalink copied to clipboard": "Permalink copied to clipboard",
   "Failed to copy permalink: {0}": "Failed to copy permalink: {0}",

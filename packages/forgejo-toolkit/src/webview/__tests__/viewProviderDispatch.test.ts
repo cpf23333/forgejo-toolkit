@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 const clientMocks = vi.hoisted(() => ({
   editIssue: vi.fn(),
   replaceIssueLabels: vi.fn(),
+  getRepoDetail: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
@@ -13,6 +14,7 @@ vi.mock('../../api/client', () => ({
       getCurrentUser: vi.fn().mockResolvedValue({ login: 'user' }),
       editIssue: clientMocks.editIssue,
       replaceIssueLabels: clientMocks.replaceIssueLabels,
+      getRepoDetail: clientMocks.getRepoDetail,
     };
   }),
 }));
@@ -20,7 +22,9 @@ vi.mock('../../api/client', () => ({
 vi.mock('../../worktree/gitOperations', () => ({
   cloneRepository: vi.fn(),
   createWorktreeFromBranch: vi.fn(),
+  createWorktreeWithNewBranch: vi.fn(),
   detectLinkedRepository: vi.fn(),
+  fetchBranch: vi.fn(),
   fetchPullRequestHead: vi.fn(),
   findLocalRepo: vi.fn(),
   getRemoteUrl: vi.fn(),
@@ -35,7 +39,13 @@ vi.mock('../../worktree/gitOperations', () => ({
 
 import { ForgejoToolkitViewProvider } from '../viewProvider';
 import { ForgejoClient } from '../../api/client';
-import { removeWorktreeAndPrune } from '../../worktree/gitOperations';
+import {
+  createWorktreeWithNewBranch,
+  fetchBranch,
+  isCurrentWorkspaceBaseRepo,
+  openWorktree,
+  removeWorktreeAndPrune,
+} from '../../worktree/gitOperations';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -125,6 +135,11 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
   beforeEach(async () => {
     clientMocks.editIssue.mockReset();
     clientMocks.replaceIssueLabels.mockReset();
+    clientMocks.getRepoDetail.mockReset();
+    vi.mocked(fetchBranch).mockReset();
+    vi.mocked(createWorktreeWithNewBranch).mockReset();
+    vi.mocked(isCurrentWorkspaceBaseRepo).mockReset();
+    vi.mocked(openWorktree).mockReset().mockResolvedValue(true);
     context = createFakeContext();
     config = new ConfigManager(context as never);
     provider = new ForgejoToolkitViewProvider(
@@ -505,5 +520,75 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     freshProvider.openSettings();
 
     expect(executeCommand).toHaveBeenCalledWith('forgejoToolkitView.focus');
+  });
+
+  describe('startWorkOnIssue', () => {
+    it('creates a worktree on a new issue branch from the default branch tip', async () => {
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo');
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+      clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+
+      fake.send({
+        command: 'startWorkOnIssue',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        title: 'fix-bug',
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+      expect(reply).toMatchObject({ instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
+      expect(reply?.error).toBeUndefined();
+      expect(reply?.cancelled).toBeUndefined();
+      expect(vi.mocked(fetchBranch)).toHaveBeenCalledWith('/src/repo', 'origin', 'main', 'secret-token');
+      expect(vi.mocked(createWorktreeWithNewBranch)).toHaveBeenCalledWith(
+        '/src/repo',
+        expect.stringContaining('owner-repo-issue-5-fix-bug'),
+        'issue-5-fix-bug',
+        'FETCH_HEAD',
+      );
+      expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(expect.stringContaining('owner-repo-issue-5-fix-bug'), true);
+    });
+
+    it('replies startWorkResult with an error when the instance is unknown', async () => {
+      fake.send({
+        command: 'startWorkOnIssue',
+        instanceId: 'unknown-instance',
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+      expect(reply).toBeDefined();
+      expect(typeof reply?.error).toBe('string');
+      expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
+      expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+    });
+
+    it('replies startWorkResult with an error when fetching the default branch fails', async () => {
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo');
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('currentWindow');
+      clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+      vi.mocked(fetchBranch).mockRejectedValue(new Error('fatal: could not fetch'));
+
+      fake.send({
+        command: 'startWorkOnIssue',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        title: 'fix-bug',
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+      expect(reply?.error).toBe('fatal: could not fetch');
+      expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+      expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
+    });
   });
 });

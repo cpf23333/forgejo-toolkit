@@ -7,6 +7,7 @@ export interface PullReviewCommentContext {
   position: number;
   isBase: boolean;
   lineNumber: number;
+  extraLinesCount?: number;
   mode: 'single' | 'review';
   pendingReviewId?: number;
 }

@@ -10,6 +10,7 @@ import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/m
 import type { Logger } from '../logger';
 import { PullReviewCommentPanel, type PullReviewCommentContext } from './pullReviewCommentPanel';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
+import { toHardBreakMarkdown } from './commentBodyMarkdown';
 import { userFacingErrorMessage } from '../api/errors';
 import { InFlightTasks } from '../worktree/inFlightTasks';
 import { createTimedCache } from '../utils/timedCache';
@@ -59,6 +60,15 @@ export class PullReviewCommentController implements vscode.Disposable {
   private readonly _disposables: vscode.Disposable[] = [];
   private readonly _reviewDataCache = createTimedCache<PullRequestReviewCache>(REVIEW_DATA_CACHE_TTL_MS);
   private readonly _reviewDataInFlight = new InFlightTasks();
+  // VS Code's built-in comment-thread range decoration is an inline decoration:
+  // interior lines get a full-width band via line-break fill, but the final
+  // line is only tinted up to the range's end column, which reads as "the last
+  // line is not highlighted". Paint a whole-line decoration over multi-line
+  // thread ranges (same theme color) so the band covers the full range.
+  private readonly _rangeDecoration = vscode.window.createTextEditorDecorationType({
+    isWholeLine: true,
+    backgroundColor: new vscode.ThemeColor('editorCommentsWidget.rangeBackground'),
+  });
   // All thread mutations are chained through this promise: two interleaved
   // renders of the same document could both miss `this._threads.get(key)`
   // before either awaits, creating a duplicate thread whose Map entry is then
@@ -79,6 +89,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     this._controller.commentingRangeProvider = this._createRangeProvider();
     this._disposables.push(
       this._controller,
+      this._rangeDecoration,
       vscode.workspace.onDidOpenTextDocument((document) => this._onOpenDocument(document)),
       vscode.window.onDidChangeActiveTextEditor((editor) => {
         this._updateActiveEditorContext(editor);
@@ -86,6 +97,9 @@ export class PullReviewCommentController implements vscode.Disposable {
           this._onOpenDocument(editor.document);
         }
       }),
+      // Threads outlive editor visibility changes; re-apply the range
+      // decorations when a document becomes visible in a (new) editor.
+      vscode.window.onDidChangeVisibleTextEditors(() => this._applyThreadRangeDecorations()),
     );
     this._updateActiveEditorContext(vscode.window.activeTextEditor);
   }
@@ -315,14 +329,23 @@ export class PullReviewCommentController implements vscode.Disposable {
 
         const instance = this._findInstance(params.instanceId);
         const instanceName = instance?.name ?? params.instanceId;
+        // Multi-line comments anchor at the first line and extend
+        // `extraLines` lines forward; clamp to the document end for outdated
+        // ranges whose tail lines no longer exist in this revision. The range
+        // must end at the last line's end character: ending at column 0 would
+        // leave the final line unhighlighted.
+        const endLine = Math.min(resolved.line + resolved.extraLines, document.lineCount - 1);
+        const endCharacter = document.lineAt(endLine).text.length;
+        const threadRange = new vscode.Range(resolved.line, 0, endLine, endCharacter);
         const existing = this._threads.get(key);
         if (existing) {
           this._dropCommentContexts(existing);
+          existing.range = threadRange;
           existing.comments = [await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName)];
           continue;
         }
 
-        const thread = this._controller.createCommentThread(uri, new vscode.Range(resolved.line, 0, resolved.line, 0), [
+        const thread = this._controller.createCommentThread(uri, threadRange, [
           await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName),
         ]);
         thread.canReply = false;
@@ -340,6 +363,29 @@ export class PullReviewCommentController implements vscode.Disposable {
         thread.dispose();
         this._threads.delete(key);
       }
+    }
+    this._applyThreadRangeDecorations();
+  }
+
+  // Re-apply the whole-line range decorations to every visible editor. Threads
+  // spanning a single line are left to VS Code's native inline decoration.
+  private _applyThreadRangeDecorations(): void {
+    const rangesByUri = new Map<string, vscode.Range[]>();
+    for (const thread of this._threads.values()) {
+      const range = thread.range;
+      if (!range || range.start.line === range.end.line) {
+        continue;
+      }
+      const uriKey = thread.uri.toString();
+      const ranges = rangesByUri.get(uriKey);
+      if (ranges) {
+        ranges.push(range);
+      } else {
+        rangesByUri.set(uriKey, [range]);
+      }
+    }
+    for (const editor of vscode.window.visibleTextEditors) {
+      editor.setDecorations(this._rangeDecoration, rangesByUri.get(editor.document.uri.toString()) ?? []);
     }
   }
 
@@ -382,7 +428,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     if (instance?.token && instance.url) {
       bodyText = await resolveAttachmentImages(bodyText, instance);
     }
-    const bodyMarkdown = new vscode.MarkdownString(bodyText);
+    const bodyMarkdown = new vscode.MarkdownString(toHardBreakMarkdown(bodyText));
     bodyMarkdown.supportHtml = true;
     const timestamp = comment.created_at ? new Date(comment.created_at) : undefined;
     const context: CommentContext = {
@@ -428,7 +474,22 @@ export class PullReviewCommentController implements vscode.Disposable {
       return;
     }
 
-    const line = lineNumber ?? editor.selection.active.line;
+    // A non-empty selection comments on the whole line range (Forgejo anchors
+    // at the first line and `extra_lines_count` extends the range forward); a
+    // bare cursor or an explicit line-number menu click stays single-line.
+    let line = lineNumber ?? editor.selection.active.line;
+    let extraLinesCount = 0;
+    if (!editor.selection.isEmpty) {
+      const start = editor.selection.start.line;
+      let end = editor.selection.end.line;
+      // A selection ending at column 0 excludes that last line.
+      if (end > start && editor.selection.end.character === 0) {
+        end -= 1;
+      }
+      line = start;
+      extraLinesCount = end - start;
+    }
+
     const data = await this._loadReviewData(params).catch((error: unknown) => {
       const err = userFacingErrorMessage(error);
       this._logger?.error(`Failed to load pull request diff for commenting: ${err}`);
@@ -448,8 +509,8 @@ export class PullReviewCommentController implements vscode.Disposable {
     // `old_position`), so no diff-position conversion is needed. The diff
     // map only guards that the line is part of the pull request diff;
     // context lines are allowed, matching Forgejo's own web UI.
-    const lineType = params.isBase ? fileMap.baseLines.get(line) : fileMap.headLines.get(line);
-    if (!lineType) {
+    const sideLines = params.isBase ? fileMap.baseLines : fileMap.headLines;
+    if (!sideLines.get(line) || (extraLinesCount > 0 && !sideLines.get(line + extraLinesCount))) {
       vscode.window.showErrorMessage(vscode.l10n.t('Comments can only be added to lines within the pull request diff'));
       return;
     }
@@ -470,6 +531,7 @@ export class PullReviewCommentController implements vscode.Disposable {
       position,
       isBase: params.isBase,
       lineNumber: line,
+      extraLinesCount: extraLinesCount > 0 ? extraLinesCount : undefined,
       mode: 'review',
       pendingReviewId,
     };

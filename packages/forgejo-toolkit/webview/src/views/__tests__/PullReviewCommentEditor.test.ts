@@ -137,3 +137,15 @@ describe('PullReviewCommentEditor draft-state query', () => {
     expect(postMessageMock).toHaveBeenCalledWith({ command: 'pullReviewCommentDraftState', dirty: true });
   });
 });
+
+describe('PullReviewCommentEditor line label', () => {
+  it('shows a single line for single-line comments', () => {
+    const wrapper = mountEditor(createContext({ lineNumber: 4 }));
+    expect(wrapper.find('.context-line').text()).toBe('Line 5');
+  });
+
+  it('shows the line range for multi-line comments', () => {
+    const wrapper = mountEditor(createContext({ lineNumber: 4, extraLinesCount: 3 }));
+    expect(wrapper.find('.context-line').text()).toBe('Lines 5–8');
+  });
+});

@@ -209,6 +209,13 @@ function createAppState() {
   const dashboardActiveTab = ref<'repositories' | 'issues' | 'pullRequests'>('repositories');
   const linkedRepository = ref<LinkedRepository | undefined>(undefined);
   const pendingCreatePr = ref<{ instanceId: string; owner: string; repo: string; head: string } | null>(null);
+  const pendingNewIssue = ref<{
+    instanceId: string;
+    owner: string;
+    repo: string;
+    title?: string;
+    body?: string;
+  } | null>(null);
   const testConnectionResult = ref<{ success: boolean; username?: string; error?: string } | undefined>(undefined);
   const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
   const exportInstancesResult = ref<{ success: boolean; path?: string; error?: string } | undefined>(undefined);
@@ -438,6 +445,12 @@ function createAppState() {
         const { instanceId, owner, repo, head } = message;
         pendingCreatePr.value = { instanceId, owner, repo, head };
         router.push({ name: 'repoPullRequests', params: { instanceId, owner, repo, state: 'open' } });
+        break;
+      }
+      case 'openNewIssue': {
+        const { instanceId, owner, repo, title, body } = message;
+        pendingNewIssue.value = { instanceId, owner, repo, title, body };
+        router.push({ name: 'repoIssues', params: { instanceId, owner, repo, state: 'open' } });
         break;
       }
       case 'openPullRequestDetail':
@@ -1274,6 +1287,16 @@ function createAppState() {
           worktreeOpenMode.value = message.mode;
         }
         break;
+      case 'startWorkResult': {
+        const key = startWorkKey(message.instanceId, message.owner, message.repo, message.index);
+        loading.set(key, false);
+        if (message.error) {
+          setError(key, message.error);
+        } else {
+          errors.delete(key);
+        }
+        break;
+      }
       case 'worktreeCacheDirectory':
         worktreeCacheDirectory.value = message.directory;
         worktreeCacheDirectoryDefault.value = message.defaultDirectory;
@@ -3815,6 +3838,15 @@ function createAppState() {
     return pending;
   }
 
+  function consumePendingNewIssue(instanceId: string, owner: string, repo: string) {
+    const pending = pendingNewIssue.value;
+    if (!pending || pending.instanceId !== instanceId || pending.owner !== owner || pending.repo !== repo) {
+      return undefined;
+    }
+    pendingNewIssue.value = null;
+    return pending;
+  }
+
   function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
     const key = repoPullRequestsKey(instanceId, owner, repo, state, query);
     if (repoPullRequests.value.has(key) && repoPullRequestsFetchedAt.has(key)) {
@@ -3960,6 +3992,11 @@ function createAppState() {
 
   function openPrWorktree(instanceId: string, owner: string, repo: string, index: number) {
     postMessage({ command: 'openPrWorktree', instanceId, owner, repo, index });
+  }
+
+  function startWorkOnIssue(instanceId: string, owner: string, repo: string, index: number, title?: string) {
+    beginLoading(startWorkKey(instanceId, owner, repo, index));
+    postMessage({ command: 'startWorkOnIssue', instanceId, owner, repo, index, title });
   }
 
   function removeWorktree(id: string) {
@@ -4202,6 +4239,7 @@ function createAppState() {
     dashboardActiveTab,
     linkedRepository,
     pendingCreatePr,
+    pendingNewIssue,
     testConnectionResult,
     saveInstanceResult,
     exportInstancesResult,
@@ -4295,6 +4333,7 @@ function createAppState() {
     openRepoPullRequests,
     loadRepoPullRequests,
     consumePendingCreatePr,
+    consumePendingNewIssue,
     loadActionRuns,
     openActionRunDetail,
     loadActionRun,
@@ -4312,6 +4351,7 @@ function createAppState() {
     openLinkedRepositoryIssues,
     openLinkedRepositoryPullRequests,
     openPrWorktree,
+    startWorkOnIssue,
     removeWorktree,
     changeWorktreeOpenMode,
     setWorktreeCacheDirectory,
@@ -4357,6 +4397,10 @@ export function issueFormKey(instanceId: string, owner: string, repo: string, in
 
 export function issueStateKey(instanceId: string, owner: string, repo: string, index: number): string {
   return `${instanceId}:${owner}/${repo}:issue-state:${index}`;
+}
+
+export function startWorkKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}:start-work:${index}`;
 }
 
 export function pullRequestStateKey(instanceId: string, owner: string, repo: string, index: number): string {
