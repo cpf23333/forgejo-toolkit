@@ -41,7 +41,7 @@ VS Code's diff editor does not expose added/modified/removed badges in the title
 
 ### Can I upload attachments when creating a Release?
 
-No. The Forgejo API does not support uploading release attachments during release creation. You must create the release first, then edit it to add attachments.
+Yes. Pick the files in the create-release dialog; the extension creates the release first and then uploads the queued attachments automatically. If some uploads fail, only those files stay queued so you can retry them.
 
 ### Why is the worktree cache directory configurable?
 

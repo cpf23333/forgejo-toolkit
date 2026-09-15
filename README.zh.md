@@ -9,12 +9,18 @@
 ## 功能概览
 
 - **多实例管理**：添加、编辑、删除多个 Forgejo/Codeberg 实例，access token 使用 VS Code SecretStorage 保存。
-- **Dashboard 面板**：在 VS Code 侧边栏展示仓库、Issue、Pull Request 列表，按实例折叠。
-- **仓库详情**：查看 README、最近提交、分支 / 标签 / Release 列表、文件浏览器。
-- **文件浏览器**：目录树展示、文件内容查看、文件搜索、单文件历史、文件夹展开 loading 指示器。
-- **Issue / PR 管理**：列表、详情、创建、编辑、关闭 / 重新打开；支持 Markdown 渲染与附件列表。
-- **PR diff**：查看变更文件列表，支持按提交查看 diff，调用 VS Code 原生 diff 编辑器。
-- **PR Worktree**：在 PR 详情页一键检出 `refs/pull/<index>/head` 到本地 worktree，支持配置打开方式和缓存目录。
+- **Dashboard 面板**：在 VS Code 侧边栏展示仓库、Issue、Pull Request 列表，按实例折叠，支持关键词搜索与状态筛选。
+- **关联仓库**：自动识别 workspace 的 git remote（含多 remote、多根工作区），在 Dashboard 顶部展示关联仓库卡片便于快捷跳转。
+- **仓库详情**：README 预览、最近提交、分支 / 标签 / Release 管理（创建 / 删除、Release 附件），以及带搜索和文件历史的文件浏览器。
+- **Issue / PR 管理**：列表、详情、创建、编辑、关闭 / 重新打开、删除；支持 Markdown 渲染、评论、附件、标签、负责人、里程碑、到期时间、依赖、反应表情、订阅与时间追踪。
+- **PR Review**：在原生 diff 编辑器中添加行级 review 评论（单行 / 多行），配备富文本输入框；提交评审时可选择评论 / 批准 / 要求修改。
+- **PR diff 与合并**：变更文件列表、按提交查看 diff、合并状态与阻塞原因、CI 状态检查，支持 merge / squash / rebase / revert。
+- **PR Worktree**：一键检出 `refs/pull/<index>/head` 到本地 worktree，支持配置打开方式和缓存目录；Start Work on Issue 以同样方式创建 issue 分支。
+- **发布与创建 PR**：将本地仓库或分支发布到 Forgejo，通过 Git: Clone 快速选择克隆服务端仓库，状态栏按钮一键创建 PR。
+- **通知中心**：未读角标、后台轮询与消息提醒、状态 / 类型筛选、标记已读。
+- **全局搜索**：跨实例搜索仓库、Issue、PR。
+- **CI / Actions**：运行历史、job 日志、制品下载、取消运行、带输入参数的 workflow 触发。
+- **设置导出 / 导入**：将实例（可选加密）与设置导出为 JSON，导入前提供冲突预览。
 - **国际化**：支持中文 / 英文切换。
 - **调试日志**：可选开启 API 请求日志到 `Forgejo Toolkit` Output Channel。
 

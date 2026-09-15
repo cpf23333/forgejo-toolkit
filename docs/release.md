@@ -5,7 +5,7 @@ This document describes how to publish Forgejo Toolkit.
 ## Prerequisites
 
 - A [Codeberg](https://codeberg.org) account with push access to `https://codeberg.org/cpf23333/forgejo-toolkit`.
-- A [VS Code Marketplace](https://marketplace.visualstudio.com/) publisher ID. Replace `your-publisher-name` in `packages/forgejo-toolkit/package.json` with your real publisher ID before publishing.
+- A [VS Code Marketplace](https://marketplace.visualstudio.com/) publisher account — the extension is published under `cpf23333` (already configured in `packages/forgejo-toolkit/package.json`); you need a Personal Access Token for that publisher.
 - An [Open VSX](https://open-vsx.org/) account if you want to publish for VSCodium users.
 
 ## Release workflow

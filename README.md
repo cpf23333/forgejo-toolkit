@@ -9,12 +9,18 @@ A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-
 ## Features
 
 - **Multi-instance management**: add, edit, and remove multiple Forgejo/Codeberg instances. Access tokens are stored in VS Code SecretStorage.
-- **Dashboard panel**: display repository, Issue, and Pull Request lists in the VS Code sidebar, grouped by instance.
-- **Repository details**: view README, recent commits, branch / tag / release lists, and a file browser.
-- **File browser**: directory tree, file content preview, file search, single-file history, and loading indicator while expanding folders.
-- **Issue / PR management**: list, detail, create, edit, close / reopen; supports Markdown rendering and attachment lists.
-- **PR diff**: view changed file list, view diff per commit, and open VS Code's native diff editor.
-- **PR Worktree**: check out `refs/pull/<index>/head` to a local worktree from the PR detail page, with configurable open mode and cache directory.
+- **Dashboard panel**: repository, Issue, and Pull Request lists in the VS Code sidebar, grouped by instance, with keyword search and status filters.
+- **Linked repositories**: detects workspace git remotes (multi-remote and multi-root workspaces included) and shows linked repository cards for quick navigation.
+- **Repository details**: README preview, recent commits, branch / tag / release management (create / delete, release attachments), and a file browser with search and file history.
+- **Issue / PR management**: list, detail, create, edit, close / reopen, and delete; Markdown rendering, comments, attachments, labels, assignees, milestones, due dates, dependencies, reactions, subscriptions, and time tracking.
+- **PR review**: inline review comments (single-line and multi-line) in the native diff editor with a rich-text composer; submit reviews as comment, approve, or request changes.
+- **PR diff and merge**: changed-file list, per-commit diffs, merge status with blocking reasons, CI status checks, and merge / squash / rebase / revert support.
+- **PR Worktree**: check out `refs/pull/<index>/head` into a local worktree with configurable open mode and cache directory; Start Work on Issue creates an issue branch the same way.
+- **Publish and create PRs**: publish a local repository or branch to Forgejo, clone through the Git: Clone quick pick, and create PRs from the status bar button.
+- **Notifications**: unread badge, background polling with toast alerts, filters, and mark-as-read.
+- **Global search**: search repositories, Issues, and PRs across instances.
+- **CI / Actions**: run history, job logs, artifact downloads, run cancellation, and workflow dispatch with inputs.
+- **Settings export / import**: export instances (optionally encrypted) and settings to JSON, and import them back with a conflict preview.
 - **Internationalization**: supports switching between Chinese and English.
 - **Debug logs**: optional API request logging to the `Forgejo Toolkit` Output Channel.
 

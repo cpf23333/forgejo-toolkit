@@ -19,8 +19,8 @@
 
 - [x] `.vscodeignore` 排除不全：未排除 `*.vsix`（旧包会被嵌套打进新包）、`out/**/*.map`、`vitest.extension.config.ts`、`PRODUCT.md`——已全部补上
 - [ ] `revertMergeCommit` 的 `remoteMatchesInstance` 只比 host，同实例 fork 可通过 push 前校验（多 remote fetch 修复的遗留子项）
-- [ ] 根 README 功能清单落后 ROADMAP「已完成」：PR review、通知中心、全局搜索、CI/Actions、Publish、RemoteSourceProvider、状态栏 PR、导出/导入、Start Work on Issue 等 10+ 项未提
-- [ ] FAQ 与 release 文档过时：`FAQ.md:42-44`/`FAQ.zh.md:42-44` 称创建 Release 不能传附件（实际支持 pending 附件创建后自动上传）；`docs/release.md:8` 仍写替换 `your-publisher-name`
+- [x] 根 README 功能清单落后 ROADMAP「已完成」：PR review、通知中心、全局搜索、CI/Actions、Publish、RemoteSourceProvider、状态栏 PR、导出/导入、Start Work on Issue 等 10+ 项未提——中英清单已重写对齐
+- [x] FAQ 与 release 文档过时：`FAQ.md`/`FAQ.zh.md` 称创建 Release 不能传附件（实际支持 pending 附件创建后自动上传，已核实 `RepoRefs.vue` 流程）改为「可以」并说明失败重试语义；`docs/release.md` publisher 前提改为已配置 `cpf23333`、只需其 PAT
 - [ ] 评论 thread key/scope 不含 ref：同 PR 文件 force-push 后新旧 sha 两个 diff 文档 thread key 相同，互相改写 range/误 dispose（`pullReviewThreadKeys.ts:19-30`、`pullReviewCommentController.ts:368-381`）
 - [ ] mention 补全/文档链接多仓库归属错误：`issueMentionProvider.ts:50-59` 不传 `preferredPath` 且全局缓存单一结果，多仓库时指向活动编辑器的仓库
 - [ ] 侧栏行内修改 due date 失败无提示且错误残留：`IssueDetail.vue:367-379`/`PullRequestDetail.vue:549-561` 错误写入编辑弹窗的 key，弹窗未开则静默，下次开弹窗看到旧错误
