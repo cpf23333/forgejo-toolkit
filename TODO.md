@@ -8,16 +8,17 @@
 
 第五轮走查（2026-09-14，五方向子代理 + 主代理抽查坐实）中需要最先处理的项；前两项关系首次发布。
 
-- [ ] 打包流程缺口：`vsce package` 不触发生产构建，当前 `forgejo-toolkit-0.0.1.vsix` 是 watch 产物（banner 可证），含 msw + fixtures（144 处）与 2.1MB sourcemap——`package.json` 加 `vscode:prepublish` 钩子，发布必须用 `pnpm --filter forgejo-toolkit package` 重打并验证包内无 msw/sourcemap
-- [ ] 随包 README（`packages/forgejo-toolkit/README.md`/`README.zh.md`）严重过时：打包命令写 `npx vsce package`（正好绕过生产构建）、token 存储写 global state（实际早已是 SecretStorage）、功能清单停留在早期形态、Scripts 表缺 test/package——发布前重写
-- [ ] 编辑评论后时间线仍显示旧内容：`CommentTimeline.vue:51-69` 渲染缓存 key 只有 comment.id 不含 body，编辑保存后缓存命中旧 HTML，面板重载才更新（已坐实）
-- [ ] DateTimePicker date 类型序列化少一天：`DateTimePicker.vue:239-244` 对 iso 一律 `toISOString()`，日历格是本地午夜，UTC+8 选 5/10 发出 `2024-05-09T16:00Z`，Forgejo 网页端显示前一天（已坐实）
-- [ ] 多 remote 后 worktree fetch 仍硬编码 `origin`：`viewProvider.ts:3775,3929` 的 `fetchBranch`/`fetchPullRequestHead`，而解析侧任一 remote 匹配即接受——fork 布局（origin=fork、upstream=base）下 `refs/pull/N/head` 从 fork 拉，fork 有同号 PR 时拉到错误代码且从不校验 sha；关联：`revertMergeCommit` 的 `remoteMatchesInstance` 只比 host，同实例 fork 可通过校验
-- [ ] onboarding 面板 `_resolveImageUrls`（`onboardingPanel.ts:505-535`）对任意绝对 img URL 带 `Authorization: token` 抓取，未归一到实例源（对比 `resolveAttachmentImages` 的安全实现）——当前 webview 无触达路径，属潜伏泄漏原语，改复用 `resolveAttachmentImages`（已坐实代码）
+- [x] 打包流程缺口：`vsce package` 不触发生产构建，当时 `forgejo-toolkit-0.0.1.vsix` 是 watch 产物（banner 可证），含 msw + fixtures（144 处）与 2.1MB sourcemap——核实后 `package` 脚本（`pnpm run build && vsce package --no-dependencies`）本就先跑生产构建，漏的是旧包未重打与文档误导；已重打并验证包内无 msw/sourcemap（曾试 `vscode:prepublish` 钩子，vsce 只会用 npm/yarn 调它、不认 pnpm，放弃）
+- [x] 随包 README（`packages/forgejo-toolkit/README.md`/`README.zh.md`）严重过时：打包命令写 `npx vsce package`（正好绕过生产构建）、token 存储写 global state（实际早已是 SecretStorage）、功能清单停留在早期形态、Scripts 表缺 test/package——已重写对齐现状
+- [x] 编辑评论后时间线仍显示旧内容：`CommentTimeline.vue:51-69` 渲染缓存 key 只有 comment.id 不含 body，编辑保存后缓存命中旧 HTML，面板重载才更新（已坐实）——已加 body 来源比对，body 变化即重渲染
+- [x] DateTimePicker date 类型序列化少一天：`DateTimePicker.vue:239-244` 对 iso 一律 `toISOString()`，日历格是本地午夜，UTC+8 选 5/10 发出 `2024-05-09T16:00Z`，Forgejo 网页端显示前一天（已坐实）——date-only 改发 UTC 正午，任何时区都落在所选日
+- [x] 多 remote 后 worktree fetch 仍硬编码 `origin`：`viewProvider.ts` 的 `fetchBranch`/`fetchPullRequestHead`，而解析侧任一 remote 匹配即接受——fork 布局（origin=fork、upstream=base）下 `refs/pull/N/head` 从 fork 拉，fork 有同号 PR 时拉到错误代码且从不校验 sha——已加 `resolveRemoteForRepo` 按 URL 匹配 remote（origin 优先），PR fetch 后校验 sha 不符即删分支报错
+- [x] onboarding 面板 `_resolveImageUrls` 对任意绝对 img URL 带 `Authorization: token` 抓取，未归一到实例源（对比 `resolveAttachmentImages` 的安全实现）——已删除该方法，改复用 `resolveAttachmentImages`
 
 ### 中优先级
 
-- [ ] `.vscodeignore` 排除不全：未排除 `*.vsix`（旧包会被嵌套打进新包）、`out/**/*.map`、`vitest.extension.config.ts`、`PRODUCT.md`
+- [x] `.vscodeignore` 排除不全：未排除 `*.vsix`（旧包会被嵌套打进新包）、`out/**/*.map`、`vitest.extension.config.ts`、`PRODUCT.md`——已全部补上
+- [ ] `revertMergeCommit` 的 `remoteMatchesInstance` 只比 host，同实例 fork 可通过 push 前校验（多 remote fetch 修复的遗留子项）
 - [ ] 根 README 功能清单落后 ROADMAP「已完成」：PR review、通知中心、全局搜索、CI/Actions、Publish、RemoteSourceProvider、状态栏 PR、导出/导入、Start Work on Issue 等 10+ 项未提
 - [ ] FAQ 与 release 文档过时：`FAQ.md:42-44`/`FAQ.zh.md:42-44` 称创建 Release 不能传附件（实际支持 pending 附件创建后自动上传）；`docs/release.md:8` 仍写替换 `your-publisher-name`
 - [ ] 评论 thread key/scope 不含 ref：同 PR 文件 force-push 后新旧 sha 两个 diff 文档 thread key 相同，互相改写 range/误 dispose（`pullReviewThreadKeys.ts:19-30`、`pullReviewCommentController.ts:368-381`）

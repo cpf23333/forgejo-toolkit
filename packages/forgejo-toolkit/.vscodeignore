@@ -4,7 +4,11 @@ src/**
 webview/**
 esbuild.js
 tsconfig.json
+vitest.extension.config.ts
+PRODUCT.md
 .gitignore
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
+*.vsix
+out/**/*.map
