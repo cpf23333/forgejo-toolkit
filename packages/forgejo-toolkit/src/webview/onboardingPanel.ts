@@ -8,7 +8,7 @@ import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
 import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { computeTokenConflicts, readExportDataFromUri } from './instanceImport';
+import { computeTokenConflicts, readExportDataFromUri, sanitizeImportedInstances } from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { userFacingErrorMessage } from '../api/errors';
@@ -293,9 +293,29 @@ export class OnboardingWebviewPanel {
               return;
             }
             case 'importInstances': {
-              const instancesToImport = Array.isArray((message as { instances?: unknown[] }).instances)
-                ? ((message as { instances?: ForgejoInstance[] }).instances as ForgejoInstance[])
+              const rawInstances = Array.isArray((message as { instances?: unknown[] }).instances)
+                ? (message as { instances: unknown[] }).instances
                 : undefined;
+              let instancesToImport: ForgejoInstance[] | undefined;
+              if (rawInstances) {
+                // The webview sends untrusted JSON: validate every entry
+                // instead of trusting the cast (same as the main panel).
+                const { valid, dropped } = sanitizeImportedInstances(rawInstances);
+                if (valid.length === 0) {
+                  logger.error(
+                    `onboarding importInstances: dropped all ${dropped} invalid instance entries from the webview`,
+                  );
+                  this._reply('instancesImported', {
+                    success: false,
+                    error: vscode.l10n.t('No valid instances found in the import data'),
+                  });
+                  return;
+                }
+                if (dropped > 0) {
+                  logger.info(`onboarding importInstances: dropped ${dropped} invalid instance entries`);
+                }
+                instancesToImport = valid;
+              }
               const settings = (message as { settings?: ExportSettings }).settings;
               await this._importInstances(instancesToImport, settings);
               return;

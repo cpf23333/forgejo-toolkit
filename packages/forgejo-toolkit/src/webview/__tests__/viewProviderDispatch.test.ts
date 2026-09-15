@@ -555,7 +555,11 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         'issue-5-fix-bug',
         'FETCH_HEAD',
       );
-      expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(expect.stringContaining('owner-repo-issue-5-fix-bug'), true);
+      expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(
+        expect.stringContaining('owner-repo-issue-5-fix-bug'),
+        true,
+        expect.any(Function),
+      );
     });
 
     it('replies startWorkResult with an error when the instance is unknown', async () => {

@@ -818,6 +818,7 @@ function prStateText(state?: string, merged?: boolean): string {
 const hasWorktree = computed(() =>
   state.worktrees.value.some(
     (w) =>
+      (w.kind ?? 'pr') === 'pr' &&
       w.instanceId === instanceId.value &&
       w.owner === owner.value &&
       w.repo === repo.value &&
@@ -843,6 +844,7 @@ watch(
   () =>
     state.worktrees.value.find(
       (w) =>
+        (w.kind ?? 'pr') === 'pr' &&
         w.instanceId === instanceId.value &&
         w.owner === owner.value &&
         w.repo === repo.value &&

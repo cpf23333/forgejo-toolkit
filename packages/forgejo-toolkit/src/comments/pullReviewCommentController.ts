@@ -179,6 +179,7 @@ export class PullReviewCommentController implements vscode.Disposable {
       index: params.index,
       path: params.path,
       isBase: params.isBase,
+      ref: params.ref,
     };
   }
 

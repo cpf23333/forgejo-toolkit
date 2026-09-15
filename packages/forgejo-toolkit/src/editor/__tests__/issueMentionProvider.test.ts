@@ -21,7 +21,9 @@ vi.mock('vscode', () => ({
 }));
 
 vi.mock('../../worktree/gitOperations', () => ({
-  detectLinkedRepository: vi.fn(),
+  detectLinkedRepositories: vi.fn(),
+  isPathInsideFolder: (folder: string, file: string) =>
+    typeof folder === 'string' && typeof file === 'string' && file.startsWith(folder),
 }));
 
 vi.mock('../../api/client', () => ({
@@ -33,10 +35,15 @@ vi.mock('../../logger', () => ({
 }));
 
 import { ForgejoIssueMentionProvider, getMentionRange, isMentionTriggerContext } from '../issueMentionProvider';
-import { detectLinkedRepository } from '../../worktree/gitOperations';
+import { detectLinkedRepositories } from '../../worktree/gitOperations';
 import type { ConfigManager } from '../../config';
 
 const INSTANCE_URL = 'https://forgejo.example.com';
+
+function linkedResult(instanceId: string) {
+  const linked = { instanceId, owner: 'owner', repo: 'repo', localPath: '/repo', remoteUrl: INSTANCE_URL };
+  return { linked, all: [linked] };
+}
 
 function createConfig(ids: string[]): ConfigManager {
   return {
@@ -70,12 +77,12 @@ function makeFileDocument(text: string) {
   };
 }
 
-const detectMock = vi.mocked(detectLinkedRepository);
+const detectMock = vi.mocked(detectLinkedRepositories);
 
 describe('ForgejoIssueMentionProvider linked repository cache', () => {
   beforeEach(() => {
     detectMock.mockReset();
-    detectMock.mockResolvedValue({ instanceId: 'inst-a', owner: 'owner', repo: 'repo' } as never);
+    detectMock.mockResolvedValue(linkedResult('inst-a') as never);
   });
 
   it('probes the git repository only once per instance list within the TTL', async () => {
@@ -91,7 +98,7 @@ describe('ForgejoIssueMentionProvider linked repository cache', () => {
   });
 
   it('caches a negative probe result', async () => {
-    detectMock.mockResolvedValue(undefined);
+    detectMock.mockResolvedValue({ linked: undefined, all: [] } as never);
     const provider = new ForgejoIssueMentionProvider(createConfig(['inst-b']));
     const document = makeFileDocument('see #1');
 
@@ -103,7 +110,7 @@ describe('ForgejoIssueMentionProvider linked repository cache', () => {
   it('re-probes after the TTL expires', async () => {
     vi.useFakeTimers();
     try {
-      detectMock.mockResolvedValue({ instanceId: 'inst-c', owner: 'owner', repo: 'repo' } as never);
+      detectMock.mockResolvedValue(linkedResult('inst-c') as never);
       const provider = new ForgejoIssueMentionProvider(createConfig(['inst-c']));
       const document = makeFileDocument('see #1');
 
@@ -119,7 +126,7 @@ describe('ForgejoIssueMentionProvider linked repository cache', () => {
   });
 
   it('invalidates the cached probe when the instance list changes', async () => {
-    detectMock.mockResolvedValue({ instanceId: 'inst-d', owner: 'owner', repo: 'repo' } as never);
+    detectMock.mockResolvedValue(linkedResult('inst-d') as never);
     let ids = ['inst-d'];
     const config = {
       getInstances: () => createConfig(ids).getInstances(),
@@ -133,6 +140,33 @@ describe('ForgejoIssueMentionProvider linked repository cache', () => {
     ids = ['inst-d', 'inst-e'];
     await provider.provideDocumentLinks(document as never, {} as never);
     expect(detectMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('attributes the document to the repository containing its path, not the first match', async () => {
+    const repoA = {
+      instanceId: 'inst-f',
+      owner: 'owner',
+      repo: 'repo-a',
+      localPath: '/ws/repo-a',
+      remoteUrl: INSTANCE_URL,
+    };
+    const repoB = {
+      instanceId: 'inst-f',
+      owner: 'owner',
+      repo: 'repo-b',
+      localPath: '/ws/repo-b',
+      remoteUrl: INSTANCE_URL,
+    };
+    detectMock.mockResolvedValue({ linked: repoA, all: [repoA, repoB] } as never);
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-f']));
+    const document = {
+      ...makeFileDocument('see #1'),
+      uri: { scheme: 'file', fsPath: '/ws/repo-b/src/index.ts' },
+    };
+
+    const links = await provider.provideDocumentLinks(document as never, {} as never);
+    expect(links.length).toBe(1);
+    expect((links[0].target as { toString(): string }).toString()).toContain('/repo-b/');
   });
 });
 
@@ -166,7 +200,7 @@ describe('getMentionRange', () => {
 describe('email address handling', () => {
   beforeEach(() => {
     detectMock.mockReset();
-    detectMock.mockResolvedValue({ instanceId: 'inst-a', owner: 'owner', repo: 'repo' } as never);
+    detectMock.mockResolvedValue(linkedResult('inst-a') as never);
   });
 
   it('does not link the domain part of an email address', async () => {
@@ -227,8 +261,7 @@ describe('completion trigger context', () => {
   beforeEach(() => {
     detectMock.mockReset();
     detectMock.mockImplementation(
-      (instances: { id: string }[]) =>
-        Promise.resolve({ instanceId: instances[0].id, owner: 'owner', repo: 'repo' }) as never,
+      (instances: { id: string }[]) => Promise.resolve(linkedResult(instances[0].id)) as never,
     );
   });
 
@@ -270,7 +303,7 @@ describe('completion trigger context', () => {
 describe('document link trigger context', () => {
   beforeEach(() => {
     detectMock.mockReset();
-    detectMock.mockResolvedValue({ instanceId: 'inst-l1', owner: 'owner', repo: 'repo' } as never);
+    detectMock.mockResolvedValue(linkedResult('inst-l1') as never);
   });
 
   it('does not link a line-start `@` token (decorator / at-rule)', async () => {

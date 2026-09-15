@@ -8,6 +8,12 @@ export interface WorktreeInfo {
   instanceId: string;
   owner: string;
   repo: string;
+  /**
+   * What the worktree was created for. Records predating this field are PR
+   * worktrees, so `undefined` is treated as `'pr'`. Issue worktrees reuse
+   * `prIndex`/`prTitle` for the issue number/title and leave `headSha` empty.
+   */
+  kind?: 'pr' | 'issue';
   prIndex: number;
   prTitle: string;
   headBranch: string;
@@ -58,7 +64,12 @@ export class WorktreeManager {
 
   findWorktree(instanceId: string, owner: string, repo: string, prIndex: number): WorktreeInfo | undefined {
     return this.getWorktrees().find(
-      (w) => w.instanceId === instanceId && w.owner === owner && w.repo === repo && w.prIndex === prIndex,
+      (w) =>
+        (w.kind ?? 'pr') === 'pr' &&
+        w.instanceId === instanceId &&
+        w.owner === owner &&
+        w.repo === repo &&
+        w.prIndex === prIndex,
     );
   }
 

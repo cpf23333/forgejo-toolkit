@@ -488,6 +488,7 @@ export async function revertMergeCommit(
   expectedBranch?: string,
   token?: string,
   tokenInstanceUrl?: string,
+  expectedRepo?: { owner: string; repo: string },
 ): Promise<void> {
   if (expectedBranch) {
     const currentBranch = await getCurrentBranch(repoPath);
@@ -502,15 +503,43 @@ export async function revertMergeCommit(
     throw new Error(revertResult.stderr);
   }
   const upstream = await getUpstreamBranch(repoPath);
-  if (upstream && upstream.includes('/')) {
-    const [remote, ...branchParts] = upstream.split('/');
-    await pushBranch(repoPath, remote, `HEAD:${branchParts.join('/')}`, token, false, tokenInstanceUrl);
+  const remote = upstream && upstream.includes('/') ? upstream.split('/')[0] : 'origin';
+  const remoteBranch = upstream && upstream.includes('/') ? upstream.split('/').slice(1).join('/') : undefined;
+  if (expectedRepo) {
+    // remoteMatchesInstance (in pushBranch) only proves the remote is on the
+    // same host; a fork or any other repository on the same instance would
+    // pass that check and receive the revert push. Require the push remote to
+    // point at the pull request's own repository (Forgejo owner/repo names
+    // are case-insensitive).
+    const remoteUrl = await getRemoteUrl(repoPath, remote);
+    const remoteInfo = remoteUrl ? normalizeGitRemote(remoteUrl) : undefined;
+    if (
+      !remoteInfo ||
+      remoteInfo.owner.toLowerCase() !== expectedRepo.owner.toLowerCase() ||
+      remoteInfo.repo.toLowerCase() !== expectedRepo.repo.toLowerCase()
+    ) {
+      throw new Error(
+        vscode.l10n.t(
+          'Revert aborted: the {0} remote does not point at {1}/{2}',
+          remote,
+          expectedRepo.owner,
+          expectedRepo.repo,
+        ),
+      );
+    }
+  }
+  if (remoteBranch) {
+    await pushBranch(repoPath, remote, `HEAD:${remoteBranch}`, token, false, tokenInstanceUrl);
   } else {
     await pushBranch(repoPath, 'origin', 'HEAD', token, false, tokenInstanceUrl);
   }
 }
 
-export async function openWorktree(worktreePath: string, openInNewWindow: boolean): Promise<boolean> {
+export async function openWorktree(
+  worktreePath: string,
+  openInNewWindow: boolean,
+  beforeOpenInCurrentWindow?: () => Promise<void>,
+): Promise<boolean> {
   const uri = vscode.Uri.file(worktreePath);
   if (openInNewWindow) {
     await vscode.commands.executeCommand('vscode.openFolder', uri, true);
@@ -529,6 +558,10 @@ export async function openWorktree(worktreePath: string, openInNewWindow: boolea
   if (choice !== openLabel) {
     return false;
   }
+  // vscode.openFolder with forceNewWindow=false reloads the window and tears
+  // down this extension host, so anything that must still happen (persisting
+  // the worktree record) has to run before the command, not after it.
+  await beforeOpenInCurrentWindow?.();
   await vscode.commands.executeCommand('vscode.openFolder', uri, false);
   return true;
 }
@@ -550,7 +583,7 @@ async function findGitRoot(startPath: string): Promise<string | undefined> {
 }
 
 /** True when filePath lies inside folderPath (both absolute). */
-function isPathInsideFolder(folderPath: string, filePath: string): boolean {
+export function isPathInsideFolder(folderPath: string, filePath: string): boolean {
   const relative = path.relative(folderPath, filePath);
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }

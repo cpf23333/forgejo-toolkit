@@ -10,6 +10,13 @@ export interface PullReviewThreadScope {
    * is part of both the key and the cleanup scope.
    */
   isBase: boolean;
+  /**
+   * The revision (sha) the rendered document was fetched at. After a
+   * force-push the same file/PR re-opens at a new ref; without the ref in
+   * the key the old and new documents would share thread keys and overwrite
+   * or dispose each other's threads.
+   */
+  ref: string;
 }
 
 /**
@@ -24,6 +31,7 @@ export function pullReviewThreadKey(scope: PullReviewThreadScope, reviewId: numb
     scope.index,
     scope.path,
     scope.isBase,
+    scope.ref,
     reviewId,
     commentId,
   ]);
@@ -31,8 +39,10 @@ export function pullReviewThreadKey(scope: PullReviewThreadScope, reviewId: numb
 
 /**
  * Check whether a thread key belongs to the given document scope
- * (instance + repo + PR + file path + diff side), so cleanup only disposes
- * threads of the document being re-rendered instead of every open thread.
+ * (instance + repo + PR + file path + diff side + revision), so cleanup only
+ * disposes threads of the document being re-rendered instead of every open
+ * thread. Keys without a ref part (older format) never match, which is safe:
+ * they simply cannot be cleaned up by a re-render of a different revision.
  */
 export function pullReviewThreadMatchesScope(key: string, scope: PullReviewThreadScope): boolean {
   let parts: unknown;
@@ -50,6 +60,7 @@ export function pullReviewThreadMatchesScope(key: string, scope: PullReviewThrea
     parts[2] === scope.repo &&
     parts[3] === scope.index &&
     parts[4] === scope.path &&
-    parts[5] === scope.isBase
+    parts[5] === scope.isBase &&
+    parts[6] === scope.ref
   );
 }

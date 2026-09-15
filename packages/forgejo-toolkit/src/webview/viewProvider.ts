@@ -41,6 +41,50 @@ import { probeServerVersion } from '../api/versionProbe';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { resolveLocale } from '../utils/resolveLocale';
 
+/**
+ * Load-type webview requests whose handlers reply with a result message the
+ * requesting view waits on (spinner → data/error). When the targeted instance
+ * was deleted, the handler used to bail out silently on `_findInstance` and
+ * the keep-alive view spun forever; the guard in `_handleMessage` answers
+ * these requests with an error reply instead. Request/response messages
+ * (carrying `_requestId`) are already covered by the `_dispatchMessage`
+ * fallback, so they are not listed here.
+ */
+const LOAD_RESULT_COMMANDS: Record<string, string> = {
+  getRepositories: 'repositories',
+  getMyIssues: 'myIssues',
+  getMyPullRequests: 'myPullRequests',
+  globalSearch: 'globalSearchResult',
+  getNotifications: 'notifications',
+  getRepoDetail: 'repoDetail',
+  getRepoBranchCommits: 'repoBranchCommits',
+  getIssueDetail: 'issueDetail',
+  checkIssueSubscription: 'issueSubscriptionChecked',
+  getUserStopwatches: 'userStopwatches',
+  getIssueTrackedTimes: 'issueTrackedTimes',
+  getIssueDependencies: 'issueDependencies',
+  getIssueReactions: 'issueReactions',
+  getCommentReactions: 'commentReactions',
+  getPullRequestDetail: 'pullRequestDetail',
+  getPullRequestFiles: 'pullRequestFiles',
+  getPullRequestCommentsAndTimeline: 'pullRequestCommentsAndTimeline',
+  getPullRequestCommits: 'pullRequestCommits',
+  getRepoIssues: 'repoIssues',
+  getRepoLabels: 'repoLabels',
+  getRepoAssignees: 'repoAssignees',
+  getRepoMilestones: 'repoMilestones',
+  getRepoPullRequests: 'repoPullRequests',
+  getActionRuns: 'actionRuns',
+  getActionRun: 'actionRun',
+  getActionRunJobs: 'actionRunJobs',
+  getActionRunArtifacts: 'actionRunArtifacts',
+  getActionJobLog: 'actionJobLog',
+  getRepoContents: 'repoContents',
+  searchRepoFiles: 'repoFilesSearchResult',
+  getFileHistory: 'fileHistory',
+  getRepoRefs: 'repoRefs',
+};
+
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
 
@@ -156,6 +200,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
   private async _handleMessage(message: any): Promise<void> {
     logger.debug(`Received message from webview: ${message.command}`);
+    // Instance was deleted while a keep-alive view still targets it: answer
+    // load requests with an error reply so the view shows the error instead
+    // of spinning forever (the handlers themselves bail out silently).
+    const loadResultCommand = LOAD_RESULT_COMMANDS[message.command];
+    if (loadResultCommand && typeof message.instanceId === 'string' && !this._findInstance(message.instanceId)) {
+      logger.error(`${message.command} failed: instance not found: ${message.instanceId}`);
+      const { command: _command, ...rest } = message as Record<string, unknown>;
+      (this._reply as (command: string, data: Record<string, unknown>) => void)(loadResultCommand, {
+        ...rest,
+        error: vscode.l10n.t('The Forgejo instance is no longer configured'),
+      });
+      return;
+    }
     switch (message.command) {
       case 'getInitialState': {
         const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
@@ -1552,7 +1609,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           if (!localRepo) {
             throw new Error(vscode.l10n.t('No local repository found for {0}/{1}', owner, repo));
           }
-          await revertMergeCommit(localRepo, pr.merge_commit_sha, pr.base?.ref, instance.token, instance.url);
+          await revertMergeCommit(localRepo, pr.merge_commit_sha, pr.base?.ref, instance.token, instance.url, {
+            owner,
+            repo,
+          });
           this._reply('revertMergeCommitResult', {
             instanceId: instance.id,
             owner,
@@ -3770,15 +3830,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const worktreePath = path.join(cacheDir, 'worktrees', `${owner}-${repo}-issue-${index}${slugSuffix}`);
 
       // A leftover directory from an earlier start-work run is reopened as
-      // is; the branch inside is already the issue branch.
-      const existsOnDisk = await fs.promises.access(worktreePath).then(
+      // is; the branch inside is already the issue branch. A directory that
+      // is not a git worktree (no `.git` entry) is a broken leftover and is
+      // removed and recreated instead of being opened as-is.
+      let existsOnDisk = await fs.promises.access(worktreePath).then(
         () => true,
         () => false,
       );
+      if (existsOnDisk) {
+        const looksLikeWorktree = await fs.promises.access(path.join(worktreePath, '.git')).then(
+          () => true,
+          () => false,
+        );
+        if (!looksLikeWorktree) {
+          logger.error(`startWorkOnIssue: removing invalid leftover directory ${worktreePath}`);
+          await fs.promises.rm(worktreePath, { recursive: true, force: true });
+          existsOnDisk = false;
+        }
+      }
+      let defaultBranch = 'main';
       if (!existsOnDisk) {
         const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
         const detail = await client.getRepoDetail(owner, repo);
-        const defaultBranch = detail.repository.default_branch ?? 'main';
+        defaultBranch = detail.repository.default_branch ?? 'main';
         // Fetch through the remote that actually points at this repo, not a
         // hardcoded 'origin' (with several remotes it may point elsewhere).
         const remoteName = await resolveRemoteForRepo(sourceRepoPath, instance.url, owner, repo);
@@ -3792,10 +3866,34 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         await createWorktreeWithNewBranch(sourceRepoPath, worktreePath, branch, 'FETCH_HEAD');
       }
 
-      const opened = await openWorktree(worktreePath, openInNewWindow);
+      // Record the worktree so the Settings UI can delete it and the bare
+      // cache clone stays protected from the LRU sweep. Same persistence
+      // timing as openPrWorktree: in current-window mode the record has to
+      // be written before openFolder reloads the window.
+      const worktree: WorktreeInfo = {
+        id: `${instanceId}:${owner}/${repo}#issue-${index}`,
+        kind: 'issue',
+        instanceId,
+        owner,
+        repo,
+        prIndex: index,
+        prTitle: message.title ?? `Issue #${index}`,
+        headBranch: branch,
+        headSha: '',
+        baseBranch: defaultBranch,
+        sourceRepoPath,
+        worktreePath,
+        createdAt: Date.now(),
+      };
+      const opened = await openWorktree(worktreePath, openInNewWindow, () =>
+        this._worktreeManager.addWorktree(worktree),
+      );
       if (!opened) {
         reply({ cancelled: true });
         return;
+      }
+      if (openInNewWindow) {
+        await this._worktreeManager.addWorktree(worktree);
       }
       reply({});
       vscode.window.showInformationMessage(
@@ -3929,14 +4027,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           worktreePath,
           createdAt: Date.now(),
         };
-        const openedForCurrent = await openWorktree(worktreePath, openInNewWindow);
+        const openedForCurrent = await openWorktree(worktreePath, openInNewWindow, () =>
+          this._worktreeManager.addWorktree(worktree),
+        );
         if (!openedForCurrent) {
           this._reply('worktreeCancelled', { instanceId, owner, repo, index });
           return;
         }
         // Record only after the user confirmed the open, so a cancelled
-        // "replace current window" prompt leaves no stale entry.
-        await this._worktreeManager.addWorktree(worktree);
+        // "replace current window" prompt leaves no stale entry. In
+        // current-window mode the beforeOpen callback above already recorded
+        // it (the window reloads right after openFolder returns control).
+        if (openInNewWindow) {
+          await this._worktreeManager.addWorktree(worktree);
+        }
         this._reply('worktreeOpened', { worktree, existed: true });
         return;
       }
@@ -3996,14 +4100,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         worktreePath,
         createdAt: Date.now(),
       };
-      const openedNew = await openWorktree(worktreePath, openInNewWindow);
+      const openedNew = await openWorktree(worktreePath, openInNewWindow, () =>
+        this._worktreeManager.addWorktree(worktree),
+      );
       if (!openedNew) {
         this._reply('worktreeCancelled', { instanceId, owner, repo, index });
         return;
       }
       // Record only after the user confirmed the open, so a cancelled
-      // "replace current window" prompt leaves no stale entry.
-      await this._worktreeManager.addWorktree(worktree);
+      // "replace current window" prompt leaves no stale entry. In
+      // current-window mode the beforeOpen callback above already recorded
+      // it (the window reloads right after openFolder returns control).
+      if (openInNewWindow) {
+        await this._worktreeManager.addWorktree(worktree);
+      }
       this._reply('worktreeOpened', { worktree, existed: false });
     } catch (error) {
       const err = userFacingErrorMessage(error);

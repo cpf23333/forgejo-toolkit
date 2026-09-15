@@ -8,6 +8,7 @@ const scope: PullReviewThreadScope = {
   index: 2,
   path: 'src/index.ts',
   isBase: false,
+  ref: 'abc123',
 };
 
 describe('pullReviewThreadKey', () => {
@@ -19,6 +20,11 @@ describe('pullReviewThreadKey', () => {
   it('includes the diff side so base and head threads of the same comment do not collide', () => {
     const base = pullReviewThreadKey({ ...scope, isBase: true }, 100, 200);
     expect(pullReviewThreadKey(scope, 100, 200)).not.toBe(base);
+  });
+
+  it('includes the ref so threads from different revisions of the same PR do not collide', () => {
+    const other = pullReviewThreadKey({ ...scope, ref: 'def456' }, 100, 200);
+    expect(pullReviewThreadKey(scope, 100, 200)).not.toBe(other);
   });
 
   it('stays unambiguous when the path contains key separators', () => {
@@ -44,6 +50,7 @@ describe('pullReviewThreadMatchesScope', () => {
     expect(pullReviewThreadMatchesScope(key, { ...scope, index: 3 })).toBe(false);
     expect(pullReviewThreadMatchesScope(key, { ...scope, instanceId: 'other' })).toBe(false);
     expect(pullReviewThreadMatchesScope(key, { ...scope, isBase: true })).toBe(false);
+    expect(pullReviewThreadMatchesScope(key, { ...scope, ref: 'def456' })).toBe(false);
   });
 
   it('returns false for keys that are not serialized scopes', () => {

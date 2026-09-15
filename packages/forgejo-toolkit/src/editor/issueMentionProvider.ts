@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { ConfigManager } from '../config';
 import { ForgejoClient } from '../api/client';
-import { detectLinkedRepository } from '../worktree/gitOperations';
+import { detectLinkedRepositories, isPathInsideFolder } from '../worktree/gitOperations';
 import type { LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { logger } from '../logger';
 
@@ -41,21 +41,37 @@ export function isMentionTriggerContext(lineText: string, triggerIndex: number, 
   return false;
 }
 
-// detectLinkedRepository spawns git probes on every call and provideDocumentLinks
-// runs on each render, so the (possibly negative) result is cached briefly. The
-// cache is keyed by the instance id list so adding/removing an instance
-// invalidates it immediately.
-let linkedRepoCache: { key: string; value: LinkedRepository | undefined; expiresAt: number } | undefined;
+// detectLinkedRepositories spawns git probes on every call and provideDocumentLinks
+// runs on each render, so the full match list is cached briefly. The cache is
+// keyed by the instance id list so adding/removing an instance invalidates it
+// immediately. Attribution to a specific document happens locally against the
+// cached list, so several workspace repositories each get their own repo
+// context instead of sharing whichever repository matched first.
+let linkedReposCache: { key: string; value: LinkedRepository[]; expiresAt: number } | undefined;
 
-async function detectLinkedRepositoryCached(config: ConfigManager): Promise<LinkedRepository | undefined> {
+async function detectAllLinkedRepositoriesCached(config: ConfigManager): Promise<LinkedRepository[]> {
   const instances = config.getInstances();
   const key = instances.map((i) => i.id).join(',');
-  if (linkedRepoCache && linkedRepoCache.key === key && linkedRepoCache.expiresAt > Date.now()) {
-    return linkedRepoCache.value;
+  if (linkedReposCache && linkedReposCache.key === key && linkedReposCache.expiresAt > Date.now()) {
+    return linkedReposCache.value;
   }
-  const value = await detectLinkedRepository(instances);
-  linkedRepoCache = { key, value, expiresAt: Date.now() + LINKED_REPO_CACHE_TTL_MS };
-  return value;
+  const { all } = await detectLinkedRepositories(instances);
+  linkedReposCache = { key, value: all, expiresAt: Date.now() + LINKED_REPO_CACHE_TTL_MS };
+  return all;
+}
+
+// Mirror the attribution rule in detectLinkedRepositories: the repository
+// containing the document wins; longest path first so a nested repository
+// beats its enclosing one. Without a containing match, fall back to the first
+// linked repository (the passive-caller default).
+function attributeLinkedRepository(all: LinkedRepository[], fsPath: string): LinkedRepository | undefined {
+  if (all.length === 0) {
+    return undefined;
+  }
+  const containing = all
+    .filter((m) => m.localPath === fsPath || isPathInsideFolder(m.localPath, fsPath))
+    .sort((a, b) => b.localPath.length - a.localPath.length);
+  return containing[0] ?? all[0];
 }
 
 interface MentionCacheEntry {
@@ -67,7 +83,7 @@ async function getRepoContext(document: vscode.TextDocument, config: ConfigManag
   // Only `file` documents are supported: extension.ts registers this provider
   // with `{ scheme: 'file' }`, so forgejo-pr virtual documents never reach it.
   if (document.uri.scheme === 'file') {
-    const linked = await detectLinkedRepositoryCached(config);
+    const linked = attributeLinkedRepository(await detectAllLinkedRepositoriesCached(config), document.uri.fsPath);
     if (!linked) {
       return undefined;
     }

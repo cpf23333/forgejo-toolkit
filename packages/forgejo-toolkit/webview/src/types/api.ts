@@ -206,6 +206,8 @@ export interface ForgejoPullRequestWorktreeInfo {
   instanceId: string;
   owner: string;
   repo: string;
+  /** Records predating this field are PR worktrees; `undefined` means `'pr'`. */
+  kind?: 'pr' | 'issue';
   prIndex: number;
   prTitle: string;
   headBranch: string;

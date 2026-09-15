@@ -18,11 +18,11 @@
 ### 中优先级
 
 - [x] `.vscodeignore` 排除不全：未排除 `*.vsix`（旧包会被嵌套打进新包）、`out/**/*.map`、`vitest.extension.config.ts`、`PRODUCT.md`——已全部补上
-- [ ] `revertMergeCommit` 的 `remoteMatchesInstance` 只比 host，同实例 fork 可通过 push 前校验（多 remote fetch 修复的遗留子项）
+- [x] `revertMergeCommit` 的 `remoteMatchesInstance` 只比 host，同实例 fork 可通过 push 前校验（多 remote fetch 修复的遗留子项）——`revertMergeCommit` 新增 `expectedRepo` 参数，push 前解析目标 remote URL 并要求 owner/repo 与 PR 仓库一致（大小写不敏感），调用方传入 PR 的 owner/repo
 - [x] 根 README 功能清单落后 ROADMAP「已完成」：PR review、通知中心、全局搜索、CI/Actions、Publish、RemoteSourceProvider、状态栏 PR、导出/导入、Start Work on Issue 等 10+ 项未提——中英清单已重写对齐
 - [x] FAQ 与 release 文档过时：`FAQ.md`/`FAQ.zh.md` 称创建 Release 不能传附件（实际支持 pending 附件创建后自动上传，已核实 `RepoRefs.vue` 流程）改为「可以」并说明失败重试语义；`docs/release.md` publisher 前提改为已配置 `cpf23333`、只需其 PAT
-- [ ] 评论 thread key/scope 不含 ref：同 PR 文件 force-push 后新旧 sha 两个 diff 文档 thread key 相同，互相改写 range/误 dispose（`pullReviewThreadKeys.ts:19-30`、`pullReviewCommentController.ts:368-381`）
-- [ ] mention 补全/文档链接多仓库归属错误：`issueMentionProvider.ts:50-59` 不传 `preferredPath` 且全局缓存单一结果，多仓库时指向活动编辑器的仓库
+- [x] 评论 thread key/scope 不含 ref：同 PR 文件 force-push 后新旧 sha 两个 diff 文档 thread key 相同，互相改写 range/误 dispose（`pullReviewThreadKeys.ts:19-30`、`pullReviewCommentController.ts:368-381`）——`PullReviewThreadScope` 新增 `ref` 字段并进入 key 与 `matchesScope` 比对，scope 构建取 URI 参数里的 ref
+- [x] mention 补全/文档链接多仓库归属错误：`issueMentionProvider.ts:50-59` 不传 `preferredPath` 且全局缓存单一结果，多仓库时指向活动编辑器的仓库——改为缓存 `detectLinkedRepositories` 的完整 `all` 列表，按文档路径本地归属（含文档路径的最长 localPath 优先，无包含匹配回退首个），`isPathInsideFolder` 从 gitOperations 导出
 - [x] 侧栏行内修改 due date 失败无提示且错误残留：`IssueDetail.vue`/`PullRequestDetail.vue` 错误写入编辑弹窗的 key，弹窗未开则静默，下次开弹窗看到旧错误——镜像 `state_toggle` 模式新增 `due_date_update` 回显与 `issueDueDateKey`/`pullRequestDueDateKey`，编辑器保存期间保持打开、成功才关闭、错误就地展示
 - [x] 编辑态附件上传失败静默：`IssueDetail.vue`/`PullRequestDetail.vue` 的 `handleAttachmentUpload` 只有 try/finally 无 catch，零反馈 + unhandled rejection——补 catch，错误写入编辑弹窗 key 就地显示
 - [x] 大体积下载仍受 30s 全局超时约束：`client.ts` 默认 `AbortSignal.timeout(30_000)` 覆盖 artifact 流式下载（2GB 上限）/CI 日志（10MB）/PR diff，慢网络中途 abort——CI 日志/PR diff 改用 5 分钟 `API_DOWNLOAD_TIMEOUT_MS`；artifact 流式下载取消总时长上限，改为 30s 无数据的 idle watchdog，停滞报错文案明确
@@ -31,11 +31,11 @@
 - [x] compare 状态合并把「先 added 后 modified」错标为 `modified`：`client.ts` 条件写宽，base 侧拉取 404/空 diff——抽出 `mergeCompareStatuses`：added 后 modified 仍为 added、added 后 removed 抵消、removed 后 added 记 modified、renamed 优先于 generic changed
 - [x] 零变更文件的 PR 永久显示加载中：`PullRequestDetail.vue` `filesLoading = files.length === 0 && !filesError`，空 diff 加载成功后 spinner 不消失——改为按 key 是否存在判断（与 comments/commits 一致）
 - [x] RepoRefs 操作失败整列表被错误行替换且无重试入口：`RepoRefs.vue` 错误独占渲染，缓存数据不兜底——有缓存数据时保留列表 + 顶部错误条带 Retry；无数据时错误页也带 Retry；顺带解决低优先级「每次刷新整列表闪 Loading」（loading 仅在无数据时显示）
-- [ ] 删除实例后其 keep-alive 视图永久转圈：load 类消息无 `_requestId`/超时，host `_findInstance` 失败静默 return，webview 无任何错误提示
+- [x] 删除实例后其 keep-alive 视图永久转圈：load 类消息无 `_requestId`/超时，host `_findInstance` 失败静默 return，webview 无任何错误提示——`viewProvider` 新增 `LOAD_RESULT_COMMANDS` 映射表与 `_handleMessage` 入口守卫：load 类命令目标实例不存在时按对应结果命令回 `{ error }`（原样回显 owner/repo/index 等路由字段），webview 各视图按既有错误路径展示
 - [x] 日期面板按 Esc 连带关闭整个编辑模态框：`DateTimePicker.vue` 无法阻止原生 `<dialog>` 的 cancel 事件（`ModalDialog.vue`），脏表单还会额外弹放弃确认——面板打开时 Esc 做 preventDefault + stopPropagation，只关面板
-- [ ] `currentWindow` 模式打开 worktree 记录永不落盘：`openFolder` 重载销毁扩展宿主，其后的 `addWorktree()`/`_reply` 不执行（`gitOperations.ts:491`、`viewProvider.ts:3916-3924`）——记录应移到 openFolder 之前
-- [ ] `startWorkOnIssue` 的 issue worktree 从不写入 WorktreeManager：UI 删不掉、源仓库不受 LRU 活跃保护；复用残留目录只查 `fs.access` 无合法性校验（`viewProvider.ts:3709-3793`）
-- [ ] onboarding 的 `importInstances` 缺 `sanitizeImportedInstances` 校验：`onboardingPanel.ts:292-298` 直接 cast，与 viewProvider 同消息处理不一致
+- [x] `currentWindow` 模式打开 worktree 记录永不落盘：`openFolder` 重载销毁扩展宿主，其后的 `addWorktree()`/`_reply` 不执行（`gitOperations.ts:491`、`viewProvider.ts:3916-3924`）——`openWorktree` 新增 `beforeOpenInCurrentWindow` 回调，在用户确认后、`vscode.openFolder` 重载前执行；两个创建路径在该回调里写 WorktreeManager，新窗口路径维持打开后记录
+- [x] `startWorkOnIssue` 的 issue worktree 从不写入 WorktreeManager：UI 删不掉、源仓库不受 LRU 活跃保护；复用残留目录只查 `fs.access` 无合法性校验（`viewProvider.ts:3709-3793`）——`WorktreeInfo` 新增 `kind?: 'pr' | 'issue'`（缺省视为 pr，`findWorktree` 与 PR 详情页 `hasWorktree` 只匹配 pr），issue worktree 以 `#issue-<n>` id 写入 WorktreeManager（记录时机同 PR 路径）；残留目录无 `.git` 条目时视为损坏，删除后重建
+- [x] onboarding 的 `importInstances` 缺 `sanitizeImportedInstances` 校验：`onboardingPanel.ts:292-298` 直接 cast，与 viewProvider 同消息处理不一致——onboarding 面板对齐主面板：逐条 sanitize、全部无效时回 `instancesImported { success:false, error }`、部分丢弃记日志
 
 ### 低优先级
 
