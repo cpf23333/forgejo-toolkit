@@ -493,6 +493,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, {
       panelMode: 'pullReviewComment',
       locale,
+      instanceUrls: this._config.getInstances().map((i) => i.url),
       pullReviewComment: this._context,
     });
   }

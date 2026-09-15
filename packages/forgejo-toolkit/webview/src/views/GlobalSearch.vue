@@ -6,6 +6,7 @@ import type { ForgejoIssue, ForgejoPullRequest, ForgejoRepository, GlobalSearchR
 import type { ForgejoInstance } from '../types/instance';
 import { stateLabel } from '../utils/stateLabel';
 import ViewTabs from '../components/ViewTabs.vue';
+import IconActionButton from '../components/IconActionButton.vue';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -327,14 +328,7 @@ watch(stateFilter, () => {
           <template v-if="errors.get(searchKey(instance.id))">
             <vscode-tree-item>
               <span class="error">{{ formatError(instance.id) }}</span>
-              <vscode-icon
-                name="refresh"
-                action-icon
-                :size="16"
-                :title="t('dashboard.retry')"
-                :aria-label="t('dashboard.retry')"
-                @click.stop.prevent="runSearch()"
-              />
+              <IconActionButton name="refresh" :label="t('dashboard.retry')" @click.stop.prevent="runSearch()" />
             </vscode-tree-item>
           </template>
           <template v-else-if="resultFor(instance.id)">
@@ -354,20 +348,14 @@ watch(stateFilter, () => {
                   <span class="result-title">{{ repo.full_name }}</span>
                   <span v-if="repo.description" class="result-meta" slot="description">{{ repo.description }}</span>
                   <span slot="actions" class="tree-actions">
-                    <vscode-icon
+                    <IconActionButton
                       name="link-external"
-                      action-icon
-                      :size="16"
-                      :title="t('dashboard.actions.open')"
-                      :aria-label="t('dashboard.actions.open')"
+                      :label="t('dashboard.actions.open')"
                       @click.prevent="state.openExternal(repo.html_url)"
                     />
-                    <vscode-icon
+                    <IconActionButton
                       name="copy"
-                      action-icon
-                      :size="16"
-                      :title="t('dashboard.actions.copyClone')"
-                      :aria-label="t('dashboard.actions.copyClone')"
+                      :label="t('dashboard.actions.copyClone')"
                       @click.prevent="state.copyToClipboard(repoCloneUrl(instance, repo))"
                     />
                   </span>
@@ -382,20 +370,14 @@ watch(stateFilter, () => {
                 <span class="result-title">{{ repo.full_name }}</span>
                 <span v-if="repo.description" class="result-meta" slot="description">{{ repo.description }}</span>
                 <span slot="actions" class="tree-actions">
-                  <vscode-icon
+                  <IconActionButton
                     name="link-external"
-                    action-icon
-                    :size="16"
-                    :title="t('dashboard.actions.open')"
-                    :aria-label="t('dashboard.actions.open')"
+                    :label="t('dashboard.actions.open')"
                     @click.prevent="state.openExternal(repo.html_url)"
                   />
-                  <vscode-icon
+                  <IconActionButton
                     name="copy"
-                    action-icon
-                    :size="16"
-                    :title="t('dashboard.actions.copyClone')"
-                    :aria-label="t('dashboard.actions.copyClone')"
+                    :label="t('dashboard.actions.copyClone')"
                     @click.prevent="state.copyToClipboard(repoCloneUrl(instance, repo))"
                   />
                 </span>
@@ -414,20 +396,14 @@ watch(stateFilter, () => {
                   <span class="result-title">#{{ issue.number }} {{ issue.title }}</span>
                   <span class="result-meta" slot="description">{{ stateLabel(issue.state, t) }}</span>
                   <span slot="actions" class="tree-actions">
-                    <vscode-icon
+                    <IconActionButton
                       name="link-external"
-                      action-icon
-                      :size="16"
-                      :title="t('dashboard.actions.open')"
-                      :aria-label="t('dashboard.actions.open')"
+                      :label="t('dashboard.actions.open')"
                       @click.prevent="state.openExternal(issue.html_url)"
                     />
-                    <vscode-icon
+                    <IconActionButton
                       name="copy"
-                      action-icon
-                      :size="16"
-                      :title="t('dashboard.actions.copyUrl')"
-                      :aria-label="t('dashboard.actions.copyUrl')"
+                      :label="t('dashboard.actions.copyUrl')"
                       @click.prevent="state.copyToClipboard(issue.html_url)"
                     />
                   </span>
@@ -442,20 +418,14 @@ watch(stateFilter, () => {
                 <span class="result-title">#{{ issue.number }} {{ issue.title }}</span>
                 <span class="result-meta" slot="description">{{ stateLabel(issue.state, t) }}</span>
                 <span slot="actions" class="tree-actions">
-                  <vscode-icon
+                  <IconActionButton
                     name="link-external"
-                    action-icon
-                    :size="16"
-                    :title="t('dashboard.actions.open')"
-                    :aria-label="t('dashboard.actions.open')"
+                    :label="t('dashboard.actions.open')"
                     @click.prevent="state.openExternal(issue.html_url)"
                   />
-                  <vscode-icon
+                  <IconActionButton
                     name="copy"
-                    action-icon
-                    :size="16"
-                    :title="t('dashboard.actions.copyUrl')"
-                    :aria-label="t('dashboard.actions.copyUrl')"
+                    :label="t('dashboard.actions.copyUrl')"
                     @click.prevent="state.copyToClipboard(issue.html_url)"
                   />
                 </span>
@@ -478,20 +448,14 @@ watch(stateFilter, () => {
                   <span class="result-title">#{{ pr.number }} {{ pr.title }}</span>
                   <span class="result-meta" slot="description">{{ stateLabel(pr.state, t) }}</span>
                   <span slot="actions" class="tree-actions">
-                    <vscode-icon
+                    <IconActionButton
                       name="link-external"
-                      action-icon
-                      :size="16"
-                      :title="t('dashboard.actions.open')"
-                      :aria-label="t('dashboard.actions.open')"
+                      :label="t('dashboard.actions.open')"
                       @click.prevent="state.openExternal(pr.html_url)"
                     />
-                    <vscode-icon
+                    <IconActionButton
                       name="copy"
-                      action-icon
-                      :size="16"
-                      :title="t('dashboard.actions.copyUrl')"
-                      :aria-label="t('dashboard.actions.copyUrl')"
+                      :label="t('dashboard.actions.copyUrl')"
                       @click.prevent="state.copyToClipboard(pr.html_url)"
                     />
                   </span>
@@ -506,20 +470,14 @@ watch(stateFilter, () => {
                 <span class="result-title">#{{ pr.number }} {{ pr.title }}</span>
                 <span class="result-meta" slot="description">{{ stateLabel(pr.state, t) }}</span>
                 <span slot="actions" class="tree-actions">
-                  <vscode-icon
+                  <IconActionButton
                     name="link-external"
-                    action-icon
-                    :size="16"
-                    :title="t('dashboard.actions.open')"
-                    :aria-label="t('dashboard.actions.open')"
+                    :label="t('dashboard.actions.open')"
                     @click.prevent="state.openExternal(pr.html_url)"
                   />
-                  <vscode-icon
+                  <IconActionButton
                     name="copy"
-                    action-icon
-                    :size="16"
-                    :title="t('dashboard.actions.copyUrl')"
-                    :aria-label="t('dashboard.actions.copyUrl')"
+                    :label="t('dashboard.actions.copyUrl')"
                     @click.prevent="state.copyToClipboard(pr.html_url)"
                   />
                 </span>

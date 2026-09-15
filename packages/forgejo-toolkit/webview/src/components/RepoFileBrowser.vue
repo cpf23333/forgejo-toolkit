@@ -66,6 +66,20 @@ function onTreeSelect(event: Event) {
   loadEntry({ path, type, name });
 }
 
+// vscode-tree expands a focused branch on ArrowRight without emitting
+// vsc-tree-select, so keyboard expansion must load directory children here.
+function onTreeKeydown(event: KeyboardEvent) {
+  if (event.key !== 'ArrowRight') {
+    return;
+  }
+  const item = (event.target as HTMLElement | null)?.closest?.('vscode-tree-item');
+  if (!item || (item as HTMLElement).dataset.type !== 'dir') {
+    return;
+  }
+  const path = (item as HTMLElement).dataset.filePath ?? '';
+  state.loadRepoContents(props.instanceId, props.owner, props.repo, path, selectedRef.value);
+}
+
 function scheduleSearch() {
   if (searchDebounceTimer.value) {
     clearTimeout(searchDebounceTimer.value);
@@ -233,7 +247,12 @@ onUnmounted(() => {
         <template v-else>
           <div v-if="rootLoading" class="tree-status">{{ state.t('dashboard.loading') }}</div>
           <div v-else-if="rootError" class="tree-status error">{{ rootError }}</div>
-          <vscode-tree v-else-if="rootEntries.length" ref="treeRef" @vsc-tree-select="onTreeSelect">
+          <vscode-tree
+            v-else-if="rootEntries.length"
+            ref="treeRef"
+            @vsc-tree-select="onTreeSelect"
+            @keydown="onTreeKeydown"
+          >
             <FileTreeItem
               v-for="entry in rootEntries"
               :key="entry.sha ?? entry.path ?? entry.name"

@@ -143,7 +143,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'out', 'webview')],
     };
 
-    webviewView.webview.html = getWebviewContent(webviewView.webview, this._extensionUri.fsPath);
+    webviewView.webview.html = getWebviewContent(webviewView.webview, this._extensionUri.fsPath, {
+      instanceUrls: this._config.getInstances().map((i) => i.url),
+    });
 
     webviewView.onDidDispose(() => {
       if (this._view === webviewView) {
@@ -637,7 +639,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const detail = await client.getRepoDetail(owner, repo);
-          const detailWithResolvedAvatars = await this._resolveCommitAvatars(detail);
+          const detailWithResolvedAvatars = await this._resolveCommitAvatars(detail, instance);
           this._reply('repoDetail', {
             instanceId: instance.id,
             owner,
@@ -663,11 +665,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const commits = await client.getRepoBranchCommits(owner, repo, branch);
-          const commitsWithResolvedAvatars = await this._resolveCommitAvatars({
-            repository: {},
-            branches: [],
-            recentCommits: commits,
-          });
+          const commitsWithResolvedAvatars = await this._resolveCommitAvatars(
+            {
+              repository: {},
+              branches: [],
+              recentCommits: commits,
+            },
+            instance,
+          );
           this._reply('repoBranchCommits', {
             instanceId: instance.id,
             owner,
@@ -4132,31 +4137,34 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async _resolveCommitAvatars(detail: {
-    repository: unknown;
-    readme?: string;
-    branches: string[];
-    recentCommits: Array<{
-      sha: string;
-      commit: unknown;
-      author?: { avatar_url?: string };
-      committer?: { avatar_url?: string };
-      html_url: string;
-    }>;
-  }): Promise<typeof detail> {
+  private async _resolveCommitAvatars(
+    detail: {
+      repository: unknown;
+      readme?: string;
+      branches: string[];
+      recentCommits: Array<{
+        sha: string;
+        commit: unknown;
+        author?: { avatar_url?: string };
+        committer?: { avatar_url?: string };
+        html_url: string;
+      }>;
+    },
+    instance: ForgejoInstance,
+  ): Promise<typeof detail> {
     const resolvedCommits = await Promise.all(
       detail.recentCommits.map(async (commit) => {
         const resolved = { ...commit };
         if (commit.committer?.avatar_url) {
           resolved.committer = {
             ...commit.committer,
-            avatar_url: await this._resolveAvatarUrl(commit.committer.avatar_url),
+            avatar_url: await this._resolveAvatarUrl(commit.committer.avatar_url, instance),
           };
         }
         if (commit.author?.avatar_url) {
           resolved.author = {
             ...commit.author,
-            avatar_url: await this._resolveAvatarUrl(commit.author.avatar_url),
+            avatar_url: await this._resolveAvatarUrl(commit.author.avatar_url, instance),
           };
         }
         return resolved;
@@ -4165,14 +4173,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     return { ...detail, recentCommits: resolvedCommits };
   }
 
-  private async _resolveAvatarUrl(url: string): Promise<string> {
+  private async _resolveAvatarUrl(url: string, instance: ForgejoInstance): Promise<string> {
     if (!this._view) {
       logger.debug(`[avatar] no view, returning original url: ${url}`);
       return url;
     }
     logger.debug(`[avatar] resolving: ${url}`);
     try {
-      const response = await fetch(url);
+      // Avatar URLs on private instances (force-login) require the API token,
+      // but the token must never leak to third-party origins (e.g. gravatar).
+      // Same pattern as resolveAttachmentImages: only same-origin URLs get the
+      // Authorization header. Relative URLs resolve against the instance URL.
+      const parsed = new URL(url, instance.url);
+      const sameOrigin = parsed.origin === new URL(instance.url).origin;
+      const response = await fetch(
+        parsed.href,
+        sameOrigin ? { headers: { Authorization: `token ${instance.token}` } } : undefined,
+      );
       logger.debug(`[avatar] response status: ${response.status} ${response.statusText}`);
       if (!response.ok) {
         logger.error(`[avatar] fetch failed: ${response.status} ${response.statusText}`);

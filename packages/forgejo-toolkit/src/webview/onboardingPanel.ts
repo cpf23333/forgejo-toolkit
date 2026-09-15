@@ -511,6 +511,7 @@ export class OnboardingWebviewPanel {
     this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, {
       panelMode: 'onboarding',
       locale,
+      instanceUrls: this._config.getInstances().map((i) => i.url),
     });
   }
 

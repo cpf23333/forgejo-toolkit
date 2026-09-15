@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import { ForgejoClient } from './api/client';
+import { ApiError } from './api/errors';
 import { ConfigManager } from './config';
 import { logger } from './logger';
+import { base64ToUint8Array } from './repoFileProvider';
 
 export interface ForgejoPrUriParams {
   instanceId: string;
@@ -49,14 +51,14 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
   async readFile(uri: vscode.Uri): Promise<Uint8Array> {
     const params = this._parseUri(uri);
     if (!params) {
-      return new TextEncoder().encode('');
+      return new Uint8Array(0);
     }
 
     const { instanceId, owner, repo, ref, isBase, status } = params;
 
     // For added files, the base side is empty; for removed files, the head side is empty.
     if ((isBase && status === 'added') || (!isBase && status === 'removed')) {
-      return new TextEncoder().encode('');
+      return new Uint8Array(0);
     }
 
     const instance = this._config.getInstances().find((i) => i.id === instanceId);
@@ -66,13 +68,19 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
 
     try {
       const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-      const content = await client.getFileContent(owner, repo, params.path, ref);
-      return new TextEncoder().encode(content);
-    } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
-      if (err.includes('404')) {
-        return new TextEncoder().encode('');
+      const entries = await client.getRepoContents(owner, repo, params.path, ref);
+      const entry = entries[0];
+      if (!entry || entry.type !== 'file') {
+        throw new Error(`Unexpected contents response for ${params.path}@${ref}`);
       }
+      // Decode base64 straight to bytes: routing binary content through a
+      // UTF-8 string would corrupt it.
+      return entry.content ? base64ToUint8Array(entry.content) : new Uint8Array(0);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return new Uint8Array(0);
+      }
+      const err = error instanceof Error ? error.message : String(error);
       logger.error(`Failed to fetch Forgejo PR file content for ${uri.toString()}: ${err}`);
       throw new Error(`Failed to fetch ${params.path}@${ref}: ${err}`);
     }

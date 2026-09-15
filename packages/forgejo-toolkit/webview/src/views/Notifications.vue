@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router';
 import { useAppState, notificationsKey, NOTIFICATIONS_LIMIT } from '../composables/useAppState';
 import type { ForgejoNotification } from '../types/api';
 import type { ForgejoInstance } from '../types/instance';
+import IconActionButton from '../components/IconActionButton.vue';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -348,21 +349,15 @@ onActivated(() => {
               {{ notificationMeta(notification) }}
             </span>
             <span slot="actions" class="notification-actions">
-              <vscode-icon
+              <IconActionButton
                 v-if="notification.unread"
                 name="check"
-                action-icon
-                :size="16"
-                :title="t('dashboard.notifications.markAsRead')"
-                :aria-label="t('dashboard.notifications.markAsRead')"
+                :label="t('dashboard.notifications.markAsRead')"
                 @click.stop.prevent="markAsRead($event, instance.id, notification)"
               />
-              <vscode-icon
+              <IconActionButton
                 name="link-external"
-                action-icon
-                :size="16"
-                :title="t('dashboard.actions.open')"
-                :aria-label="t('dashboard.actions.open')"
+                :label="t('dashboard.actions.open')"
                 @click.stop.prevent="state.openExternal(notification.subject?.html_url ?? '')"
               />
             </span>
@@ -374,15 +369,13 @@ onActivated(() => {
           </vscode-tree-item>
           <vscode-tree-item v-if="errors.get(key(instance.id)) || pollErrors.get(instance.id)">
             <span class="error">{{ formatError(instance.id) }}</span>
-            <vscode-icon
-              slot="actions"
-              name="refresh"
-              action-icon
-              :size="16"
-              :title="t('dashboard.retry')"
-              :aria-label="t('dashboard.retry')"
-              @click.stop.prevent="state.loadNotifications(instance.id, statusTypes, subjectType)"
-            />
+            <span slot="actions">
+              <IconActionButton
+                name="refresh"
+                :label="t('dashboard.retry')"
+                @click.stop.prevent="state.loadNotifications(instance.id, statusTypes, subjectType)"
+              />
+            </span>
           </vscode-tree-item>
         </vscode-tree-item>
       </vscode-tree>

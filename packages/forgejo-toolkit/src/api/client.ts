@@ -1845,11 +1845,14 @@ function decodeBase64(content: string): string {
 // encodes itself.
 //
 // Single-segment params (branch/tag/ref) use encodePathSegment, i.e. full
-// encodeURIComponent. Forgejo's router decodes %2F before matching and the
-// branch/tag endpoints use wildcard routes, so `release/1.0` works there.
-// Endpoints with non-wildcard routes (e.g. git/trees/{sha}) may still 404
-// for refs containing `/` — a server-side routing limitation that raw
-// interpolation did not handle either.
+// encodeURIComponent. Verified against the Forgejo source: a global
+// middleware forces chi to route on the escaped path (RawPath) and
+// ctx.Params unescapes afterwards, so `%2F` survives matching even on
+// non-wildcard single-segment routes like git/trees/{sha} —
+// `feature%2Ffoo` resolves correctly (routers/common/middleware.go,
+// services/context/base.go in the Forgejo tree). The only case that
+// still 404s is a reverse proxy in front of Forgejo that decodes %2F
+// before forwarding; that is a deployment issue the client cannot fix.
 //
 // File paths keep their `/` separators because the contents API route
 // wildcard-matches the remainder of the path, so each segment is encoded

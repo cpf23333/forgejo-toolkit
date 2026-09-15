@@ -41,6 +41,42 @@ describe('normalizeGitRemote', () => {
     });
   });
 
+  it('drops the default https port', () => {
+    const result = normalizeGitRemote('https://forgejo.example.com:443/owner/repo.git');
+    expect(result).toEqual({
+      normalized: 'forgejo.example.com/owner/repo',
+      owner: 'owner',
+      repo: 'repo',
+    });
+  });
+
+  it('strips the port from ssh:// remotes', () => {
+    const result = normalizeGitRemote('ssh://git@forgejo.example.com:2222/owner/repo.git');
+    expect(result).toEqual({
+      normalized: 'forgejo.example.com/owner/repo',
+      owner: 'owner',
+      repo: 'repo',
+    });
+  });
+
+  it('parses ssh:// remotes without a port', () => {
+    const result = normalizeGitRemote('ssh://git@forgejo.example.com/owner/repo.git');
+    expect(result).toEqual({
+      normalized: 'forgejo.example.com/owner/repo',
+      owner: 'owner',
+      repo: 'repo',
+    });
+  });
+
+  it('strips the port from git:// remotes', () => {
+    const result = normalizeGitRemote('git://forgejo.example.com:9418/owner/repo.git');
+    expect(result).toEqual({
+      normalized: 'forgejo.example.com/owner/repo',
+      owner: 'owner',
+      repo: 'repo',
+    });
+  });
+
   it('returns undefined for invalid urls', () => {
     expect(normalizeGitRemote('not-a-url')).toBeUndefined();
   });

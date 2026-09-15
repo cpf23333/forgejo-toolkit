@@ -62,17 +62,17 @@
 
 ### 存疑（需实测/核实）
 
-- [ ] 私有实例（强制登录）commit 头像 401 裂图：`_resolveAvatarUrl` 不带 token 抓头像（防泄漏正确但与私有实例冲突），修法需先钉 origin 再带 token
-- [ ] `ssh://` 带自定义端口的 remote 无法匹配实例（`shared/src/git/url.ts:21` host 含端口，自托管 SSH 2222/HTTPS 443 场景）；scp 式无此问题
-- [ ] 行号右键评论被非空 selection 覆盖：`pullReviewCommentController.ts:532-543` 无条件用 selection 覆盖显式 lineNumber，取决于 VS Code 右键行号时是否重置 selection（需实测）
-- [ ] `prFileSystemProvider.readFile` 的 `err.includes('404')` 匹配过宽吞掉真实错误；PR 中二进制文件经 base64→UTF-8 往返显示乱码（与 repoFileProvider 保留原始字节不一致）
-- [ ] 文档关闭后 thread 无清理：无 `onDidCloseTextDocument` 监听，关闭 diff 后 thread 留在 Comments 面板（可视为导航特性，需确认意图）
-- [ ] CSP `img-src`/`connect-src` 放行所有 http(s)（`content.ts:66`），可收敛到实例源 + cspSource
-- [ ] webview config 注入未转义 `</script>` + `src|href` 全局重写发生在注入之后，怪异文件路径可截断 config 或被篡改（`content.ts:56,69-75`，CSP nonce 挡执行，仅 DoS/路径篡改）
-- [ ] 键盘展开仓库文件树目录可能不加载子项（`RepoFileBrowser.vue:56-67` 只监听 vsc-tree-select，需 harness 实测）
-- [ ] `vscode-icon` 操作图标（评论 kebab、通知行内操作）键盘可达性需真实 webview Tab 实测
-- [ ] MentionHoverCard 无视口边界钳制，窄侧栏可能被裁（`MentionHoverCard.vue:74-86`，需窄栏实测）
-- [ ] 含 `/` 分支名在 `git/trees/{sha}` 路由 404 导致文件搜索不可用（`client.ts:665` 注释已承认，需对照 Forgejo 源码 chi 路由核实 `%2F` 行为；branch protection `_probe` 吞 404 同理）
+- [x] 私有实例（强制登录）commit 头像 401 裂图——`_resolveAvatarUrl` 对实例同 origin URL 带 token 抓取（沿用 resolveAttachmentImages 模式），第三方 origin 仍匿名
+- [x] `ssh://` 带自定义端口的 remote 无法匹配实例——`normalizeGitRemote` 对 ssh:/git: 协议剥端口（传输层语义），https 非标端口语义保留
+- [x] 行号右键评论被非空 selection 覆盖——实测代码确认会覆盖；已修为显式 lineNumber 优先，仅无显式行号时才用 selection
+- [x] `prFileSystemProvider.readFile` 404 匹配过宽+二进制乱码——改判 `ApiError.status === 404`；内容改走 `getRepoContents` + base64 直解字节（与 repoFileProvider 一致）
+- [x] 文档关闭后 thread 无清理——确认意图为「文档关 → thread 清」，加 `onDidCloseTextDocument` 监听按 URI 精确 dispose
+- [x] CSP `img-src`/`connect-src` 放行所有 http(s)——收敛到实例 origins + cspSource（connect-src 更严，webview 无直接 fetch）；第三方外链图片被拦属有意取舍，已记 KNOWN_ISSUES
+- [x] webview config 注入未转义 `</script>`——JSON.stringify 后 `<`→`\u003c`；注入移到 src/href 重写之后，顺带修掉 nonce 重复属性
+- [x] 键盘展开仓库文件树目录可能不加载子项——核实为 ArrowRight 展开不发事件（vscode-elements 行为），已加 keydown 处理走同一加载路径
+- [x] `vscode-icon` 操作图标键盘可达性——新建 IconActionButton（原生 button + codicon），替换全部 24 处可点击 vscode-icon
+- [x] MentionHoverCard 无视口边界钳制——定位改 computed cardStyle，水平钳制在视口内 + `min(360px, 100vw-16px)` 兜底
+- [x] 含 `/` 分支名 `git/trees/{sha}` 路由 404——对照 Forgejo 源码核实：服务端强制 RawPath 路由 + PathUnescape，`%2F` 编码可用（client.ts:1847 旧注释方向写反，已修正）；仅反向代理解码 `%2F` 的部署场景无解，已记 KNOWN_ISSUES
 
 ### 走查方向备忘（2026-09-14 盘点）
 

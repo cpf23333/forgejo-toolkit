@@ -131,6 +131,20 @@ This appears to be a transient VS Code rendering race involving comment zone wid
 
 Workaround if it happens: toggle the view mode (**Compare: Toggle Inline View**) or reload the window.
 
+## Branch names containing `/` may 404 behind reverse proxies that decode `%2F`
+
+The extension percent-encodes branch/tag/ref path parameters (`feature/foo` → `feature%2Ffoo`). Verified against the Forgejo server source: a global middleware forces chi to route on the escaped path (`RawPath`) and unescapes route parameters afterwards, so encoded slashes work on every route — including single-segment ones such as `git/trees/{sha}`, contrary to what one might expect from chi's defaults.
+
+Some reverse proxies (certain nginx/Apache configurations) decode `%2F` back to `/` before forwarding, which splits the parameter into extra path segments and makes the request 404. Affected features include file search and anything else that addresses a branch by name.
+
+Workaround: configure the proxy to forward the escaped path unchanged (for nginx, a `proxy_pass` without a URI part does not decode), or avoid `/` in branch names. The extension cannot detect or repair proxy-side decoding.
+
+## External images in issue/PR bodies are blocked by the webview CSP
+
+The webview Content-Security-Policy restricts `img-src` to the configured instance origins (plus `data:` and `blob:`). Images served by the instance itself — avatars, attachments, images embedded in Markdown — render normally, but images hot-linked from third-party hosts are refused by the browser and show as broken images.
+
+This is a deliberate security trade-off: the previous policy allowed `http:`/`https:` from any origin, which let arbitrary remote content (including tracking pixels) into the webview. Workaround: open the issue/PR in the browser to see externally hosted images.
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._

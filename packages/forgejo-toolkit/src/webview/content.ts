@@ -5,6 +5,8 @@ import * as fs from 'fs';
 export interface WebviewContentOptions {
   panelMode?: 'onboarding' | 'pullReviewComment';
   locale?: 'en' | 'zh';
+  /** URLs of the configured Forgejo instances; their origins are added to CSP img-src. */
+  instanceUrls?: string[];
   pullReviewComment?: {
     instanceId: string;
     owner: string;
@@ -53,7 +55,10 @@ export function getWebviewContent(
     vscodeVersion: vscode.version,
     pullReviewComment: options?.pullReviewComment,
   };
-  const configScript = `<script nonce="${nonce}">window.__FORGEJO_TOOLKIT_CONFIG__ = ${JSON.stringify(config)};</script>`;
+  // Escape `<` so a `</script>` inside a value (e.g. a weird file path) cannot
+  // terminate the script block early.
+  const configJson = JSON.stringify(config).replace(/</g, '\\u003c');
+  const configScript = `<script nonce="${nonce}">window.__FORGEJO_TOOLKIT_CONFIG__ = ${configJson};</script>`;
 
   const baseUri = webview.asWebviewUri(vscode.Uri.file(webviewDistPath)).toString().replace(/\/$/, '');
 
@@ -63,8 +68,14 @@ export function getWebviewContent(
   // works in the packaged extension where node_modules does not exist.
   const codiconLink = `<link rel="stylesheet" href="${baseUri}/codicon.css" id="vscode-codicon-stylesheet">`;
 
-  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src 'self' blob: data: ${webview.cspSource} http: https:; connect-src 'self' ${webview.cspSource} http: https:;">`;
-  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}\n    ${codiconLink}\n    ${configScript}`);
+  // Images (avatars, attachments, markdown images) are served by the
+  // configured instances; private attachments are additionally inlined as
+  // data URLs by the host (see resolveAttachmentImages). The webview never
+  // fetches directly — everything goes through postMessage — so connect-src
+  // stays limited to webview resources.
+  const instanceOrigins = toInstanceOrigins(options?.instanceUrls ?? []);
+  const imgSrc = [`'self'`, 'blob:', 'data:', webview.cspSource, ...instanceOrigins].join(' ');
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${imgSrc}; connect-src 'self' ${webview.cspSource};">`;
 
   html = html.replace(/(src|href)="([^"]*)"/g, (match, attr, value) => {
     if (value.startsWith('http') || value.startsWith('data:')) {
@@ -76,7 +87,31 @@ export function getWebviewContent(
 
   html = html.replace(/<script /g, `<script nonce="${nonce}" `);
 
+  // Injected after the rewrites above so the injected markup (CSP meta,
+  // codicon link, config script) is never touched by them.
+  html = html.replace(/<head>/i, `<head>\n    ${cspMeta}\n    ${codiconLink}\n    ${configScript}`);
+
   return html;
+}
+
+/**
+ * Derive the unique http(s) origins of the configured instances. Instance
+ * URLs may carry a path (Forgejo installed under a sub-path), which CSP
+ * source expressions do not support — only the origin is kept.
+ */
+export function toInstanceOrigins(instanceUrls: string[]): string[] {
+  const origins = new Set<string>();
+  for (const url of instanceUrls) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        origins.add(parsed.origin);
+      }
+    } catch {
+      // Malformed instance URLs simply get no CSP entry.
+    }
+  }
+  return [...origins];
 }
 
 function getNonce(): string {

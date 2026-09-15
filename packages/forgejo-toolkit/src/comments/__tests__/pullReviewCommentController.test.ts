@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
     dispose: ReturnType<typeof vi.fn>;
   }>,
   openHandlers: [] as Array<(doc: unknown) => unknown>,
+  closeHandlers: [] as Array<(doc: unknown) => unknown>,
   editorHandlers: [] as Array<(editor: unknown) => unknown>,
   visibleRangesHandlers: [] as Array<() => unknown>,
   visibleEditors: [] as Array<{ document: unknown; setDecorations: ReturnType<typeof vi.fn> }>,
@@ -52,6 +53,10 @@ vi.mock('vscode', () => {
     workspace: {
       onDidOpenTextDocument: vi.fn((cb: (doc: unknown) => unknown) => {
         state.openHandlers.push(cb);
+        return { dispose: vi.fn() };
+      }),
+      onDidCloseTextDocument: vi.fn((cb: (doc: unknown) => unknown) => {
+        state.closeHandlers.push(cb);
         return { dispose: vi.fn() };
       }),
       textDocuments: [],
@@ -200,6 +205,7 @@ describe('PullReviewCommentController thread cleanup', () => {
   beforeEach(() => {
     state.createdThreads.length = 0;
     state.openHandlers.length = 0;
+    state.closeHandlers.length = 0;
   });
 
   it('keeps base-side threads alive when the head-side document renders, and vice versa', async () => {
@@ -226,6 +232,66 @@ describe('PullReviewCommentController thread cleanup', () => {
     expect(threadCount(controller)).toBe(2);
     expect(baseThread.dispose).not.toHaveBeenCalled();
 
+    controller.dispose();
+  });
+
+  it('disposes a thread when its document closes, leaving the other diff side alone', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const closeDocument = state.closeHandlers[0];
+
+    const headDocument = makeDocument(false);
+    const baseDocument = makeDocument(true);
+    await openDocument(headDocument);
+    await openDocument(baseDocument);
+    expect(threadCount(controller)).toBe(2);
+    const [headThread, baseThread] = state.createdThreads;
+
+    // Closing a diff editor fires one close event per side; each event must
+    // only dispose the threads anchored on that side's URI.
+    closeDocument(headDocument);
+    expect(headThread.dispose).toHaveBeenCalledTimes(1);
+    expect(baseThread.dispose).not.toHaveBeenCalled();
+    expect(threadCount(controller)).toBe(1);
+
+    closeDocument(baseDocument);
+    expect(baseThread.dispose).toHaveBeenCalledTimes(1);
+    expect(threadCount(controller)).toBe(0);
+
+    controller.dispose();
+  });
+
+  it('drops the comment context when its thread is disposed on document close', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const closeDocument = state.closeHandlers[0];
+
+    const headDocument = makeDocument(false);
+    await openDocument(headDocument);
+    const thread = state.createdThreads[0];
+    const contextValue = (thread.comments[0] as { contextValue?: string }).contextValue as string;
+    expect(controller.getCommentContext(contextValue)).toBeDefined();
+
+    closeDocument(headDocument);
+
+    expect(thread.dispose).toHaveBeenCalled();
+    expect(controller.getCommentContext(contextValue)).toBeUndefined();
+    controller.dispose();
+  });
+
+  it('ignores close events for documents without threads', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const closeDocument = state.closeHandlers[0];
+
+    const headDocument = makeDocument(false);
+    await openDocument(headDocument);
+    expect(threadCount(controller)).toBe(1);
+
+    closeDocument(makeDocument(true));
+
+    expect(threadCount(controller)).toBe(1);
+    expect(state.createdThreads[0].dispose).not.toHaveBeenCalled();
     controller.dispose();
   });
 });
@@ -570,6 +636,28 @@ describe('PullReviewCommentController multi-line comments', () => {
         start: { line: 5, character: 0 },
         end: { line: 5, character: 0 },
         active: { line: 5 },
+      },
+    };
+
+    await controller.addComment(editor as never, 2);
+
+    const context = panelState.createOrShow.mock.calls[0][2] as { lineNumber: number; extraLinesCount?: number };
+    expect(context.lineNumber).toBe(2);
+    expect(context.extraLinesCount).toBeUndefined();
+    controller.dispose();
+  });
+
+  it('prefers an explicit line number over a non-empty selection elsewhere', async () => {
+    // Right-clicking a line number while a stale selection exists must anchor
+    // the comment on the clicked line, not on the selection range.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const editor = {
+      document: makeDocument(false),
+      selection: {
+        isEmpty: false,
+        start: { line: 0, character: 0 },
+        end: { line: 1, character: 5 },
+        active: { line: 1 },
       },
     };
 

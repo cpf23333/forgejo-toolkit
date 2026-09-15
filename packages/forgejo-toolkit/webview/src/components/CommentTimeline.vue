@@ -6,6 +6,7 @@ import AttachmentList from './AttachmentList.vue';
 import ModalDialog from './ModalDialog.vue';
 import EasyMdeEditor from './EasyMdeEditor.vue';
 import ReactionBar from './ReactionBar.vue';
+import IconActionButton from './IconActionButton.vue';
 import type { ForgejoTimelineComment, ForgejoIssueAttachment } from '../types/api';
 import { useAppState, issueCommentEditFormKey, commentReactionsKey } from '../composables/useAppState';
 
@@ -396,12 +397,9 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         <span class="event-type">{{ eventText(comment) }}</span>
         <span v-if="comment.created_at" class="meta-item">{{ formatDate(comment.created_at) }}</span>
         <div v-if="isOwnComment(comment) && comment.type === 'comment'" class="comment-menu-wrapper">
-          <vscode-icon
+          <IconActionButton
             name="kebab-vertical"
-            :size="16"
-            action-icon
-            :title="t('dashboard.actions.more')"
-            :aria-label="t('dashboard.actions.more')"
+            :label="t('dashboard.actions.more')"
             @click="openMenu(comment, $event)"
           />
           <vscode-context-menu
@@ -635,12 +633,11 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
   flex-shrink: 0;
 }
 
-.comment-menu-wrapper vscode-icon {
-  cursor: pointer;
+.comment-menu-wrapper .icon-action-button {
   opacity: 0.7;
 }
 
-.comment-menu-wrapper vscode-icon:hover {
+.comment-menu-wrapper .icon-action-button:hover {
   opacity: 1;
 }
 

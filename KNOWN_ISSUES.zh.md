@@ -131,6 +131,20 @@ API 中唯一与项目相关的字段只有：
 
 如果再次出现，规避方法：切换视图模式（**Compare: Toggle Inline View**）或重新加载窗口。
 
+## 分支名含 `/` 时，在会解码 `%2F` 的反向代理后可能 404
+
+扩展会对分支/标签/ref 路径参数做百分号编码（`feature/foo` → `feature%2Ffoo`）。已对 Forgejo 服务端源码核实：一个全局中间件强制 chi 在转义后的路径（`RawPath`）上路由，路由参数再解码还原，因此编码后的斜杠在**所有**路由上都能正常工作——包括 `git/trees/{sha}` 这类单段参数路由，与 chi 默认行为给人的直觉相反。
+
+但某些反向代理（部分 nginx/Apache 配置）会在转发前把 `%2F` 解码回 `/`，导致参数被拆成多余的路径段，请求 404。受影响的功能包括文件搜索等一切按名字定位分支的操作。
+
+规避方法：调整代理配置，原样转发转义后的路径（nginx 使用不带 URI 部分的 `proxy_pass` 即不会解码）；或避免在分支名中使用 `/`。扩展侧无法检测或修复代理层的解码行为。
+
+## Issue/PR 正文里的第三方外链图片会被 webview CSP 拦截
+
+webview 的 Content-Security-Policy 把 `img-src` 限制为已配置实例的 origin（外加 `data:` 与 `blob:`）。实例自身提供的图片——头像、附件、Markdown 内嵌图——都能正常显示，但引用第三方图床的外链图片会被浏览器拒绝，显示为裂图。
+
+这是有意的安全取舍：此前的策略允许任意 origin 的 `http:`/`https:` 图片，意味着任意远程内容（包括追踪像素）都能进入 webview。规避方法：在浏览器中打开对应 Issue/PR 查看外链图片。
+
 ---
 
 _各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_

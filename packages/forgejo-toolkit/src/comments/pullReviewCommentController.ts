@@ -92,6 +92,10 @@ export class PullReviewCommentController implements vscode.Disposable {
       this._controller,
       this._rangeDecoration,
       vscode.workspace.onDidOpenTextDocument((document) => this._onOpenDocument(document)),
+      // Threads render on a specific document; when that document closes
+      // (for example a PR diff editor being closed), its threads must not
+      // linger in the Comments panel.
+      vscode.workspace.onDidCloseTextDocument((document) => this._onCloseDocument(document)),
       vscode.window.onDidChangeActiveTextEditor((editor) => {
         this._updateActiveEditorContext(editor);
         if (editor?.document) {
@@ -297,6 +301,24 @@ export class PullReviewCommentController implements vscode.Disposable {
     // the same diff document; serialize the load+render so the second trigger
     // reuses the cached data instead of racing the first render.
     return this._enqueueRender(() => this._loadAndRender(document, params));
+  }
+
+  // Threads are matched by exact URI, so closing one side of a diff editor
+  // only clears that side's threads; the other side (a different URI via the
+  // `isBase` query flag) stays until its own document closes. VS Code fires
+  // this event once per real document — closing a diff editor fires it for
+  // both sides, while a virtual diff side that never became an actual
+  // document never fires it (and never created threads here either, since
+  // threads are only rendered for opened documents).
+  private _onCloseDocument(document: vscode.TextDocument): void {
+    const uriKey = document.uri.toString();
+    for (const [key, thread] of this._threads.entries()) {
+      if (thread.uri.toString() === uriKey) {
+        this._dropCommentContexts(thread);
+        thread.dispose();
+        this._threads.delete(key);
+      }
+    }
   }
 
   private async _loadAndRender(document: vscode.TextDocument, params: ForgejoPrUriParams): Promise<void> {
@@ -527,12 +549,16 @@ export class PullReviewCommentController implements vscode.Disposable {
       return;
     }
 
-    // A non-empty selection comments on the whole line range (Forgejo anchors
-    // at the first line and `extra_lines_count` extends the range forward); a
-    // bare cursor or an explicit line-number menu click stays single-line.
+    // An explicit line number (line-number context menu) always wins: the
+    // user right-clicked that line, and a stale non-empty selection elsewhere
+    // must not redirect the anchor. The selection is only consulted when no
+    // line number was passed (editor text-area context menu / command
+    // palette); a non-empty selection then comments on the whole line range
+    // (Forgejo anchors at the first line and `extra_lines_count` extends the
+    // range forward).
     let line = lineNumber ?? editor.selection.active.line;
     let extraLinesCount = 0;
-    if (!editor.selection.isEmpty) {
+    if (lineNumber === undefined && !editor.selection.isEmpty) {
       const start = editor.selection.start.line;
       let end = editor.selection.end.line;
       // A selection ending at column 0 excludes that last line.

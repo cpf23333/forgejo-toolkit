@@ -20,6 +20,18 @@ const issue = computed(() => (props.type === 'issue' ? (props.data as ForgejoIss
 const issueIcon = computed(() => (issue.value?.is_pull ? 'git-pull-request' : 'issues'));
 const issueStateClass = computed(() => (issue.value?.state === 'open' ? 'state-open' : 'state-closed'));
 
+// Keep the fixed-position card inside the webview viewport so it is not
+// clipped by the right edge in narrow sidebars.
+const CARD_MAX_WIDTH = 360;
+const VIEWPORT_GAP = 8;
+
+const cardStyle = computed(() => {
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+  const maxLeft = Math.max(VIEWPORT_GAP, viewportWidth - CARD_MAX_WIDTH - VIEWPORT_GAP);
+  const left = Math.min(Math.max(props.x + 12, VIEWPORT_GAP), maxLeft);
+  return { top: `${props.y + 12}px`, left: `${left}px` };
+});
+
 function formatDate(value?: string): string {
   if (!value) {
     return '';
@@ -33,12 +45,7 @@ function formatDate(value?: string): string {
 </script>
 
 <template>
-  <div
-    class="mention-hover-card"
-    :style="{ top: `${y + 12}px`, left: `${x + 12}px` }"
-    @mouseenter.stop
-    @mouseleave.stop
-  >
+  <div class="mention-hover-card" :style="cardStyle" @mouseenter.stop @mouseleave.stop>
     <div v-if="loading" class="hover-loading">{{ t('dashboard.hoverCard.loading') }}</div>
     <div v-else-if="error" class="hover-error">{{ t('dashboard.hoverCard.error', { message: error }) }}</div>
     <div v-else-if="user" class="hover-user">
@@ -74,7 +81,7 @@ function formatDate(value?: string): string {
   position: fixed;
   z-index: 1000;
   min-width: 240px;
-  max-width: 360px;
+  max-width: min(360px, calc(100vw - 16px));
   padding: 12px;
   background-color: var(--vscode-editorHoverWidget-background);
   color: var(--vscode-editorHoverWidget-foreground);

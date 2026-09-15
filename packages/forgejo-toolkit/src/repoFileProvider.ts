@@ -46,7 +46,7 @@ function parseRepoFileUri(uri: vscode.Uri): RepoFileUriParams | undefined {
   }
 }
 
-function base64ToUint8Array(content: string): Uint8Array {
+export function base64ToUint8Array(content: string): Uint8Array {
   const binary = Buffer.from(content, 'base64');
   return new Uint8Array(binary.buffer, binary.byteOffset, binary.byteLength);
 }

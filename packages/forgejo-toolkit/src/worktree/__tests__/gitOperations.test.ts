@@ -230,6 +230,24 @@ describe('remoteMatchesInstance', () => {
     expect(remoteMatchesInstance('not a url', 'https://forgejo.example.com')).toBe(false);
     expect(remoteMatchesInstance('https://forgejo.example.com/owner/repo.git', 'not a url')).toBe(false);
   });
+
+  it('matches ssh:// remotes with a custom port against the instance host', () => {
+    expect(
+      remoteMatchesInstance('ssh://git@forgejo.example.com:2222/owner/repo.git', 'https://forgejo.example.com'),
+    ).toBe(true);
+    expect(remoteMatchesInstance('git://forgejo.example.com:9418/owner/repo.git', 'https://forgejo.example.com')).toBe(
+      true,
+    );
+  });
+
+  it('matches https remotes and instances on the same non-default port', () => {
+    expect(
+      remoteMatchesInstance('https://forgejo.example.com:8443/owner/repo.git', 'https://forgejo.example.com:8443'),
+    ).toBe(true);
+    expect(
+      remoteMatchesInstance('https://forgejo.example.com:8443/owner/repo.git', 'https://forgejo.example.com:3000'),
+    ).toBe(false);
+  });
 });
 
 describe('gitOperations argument passing', () => {
