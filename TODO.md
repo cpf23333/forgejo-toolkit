@@ -25,10 +25,10 @@
 - [ ] mention 补全/文档链接多仓库归属错误：`issueMentionProvider.ts:50-59` 不传 `preferredPath` 且全局缓存单一结果，多仓库时指向活动编辑器的仓库
 - [x] 侧栏行内修改 due date 失败无提示且错误残留：`IssueDetail.vue`/`PullRequestDetail.vue` 错误写入编辑弹窗的 key，弹窗未开则静默，下次开弹窗看到旧错误——镜像 `state_toggle` 模式新增 `due_date_update` 回显与 `issueDueDateKey`/`pullRequestDueDateKey`，编辑器保存期间保持打开、成功才关闭、错误就地展示
 - [x] 编辑态附件上传失败静默：`IssueDetail.vue`/`PullRequestDetail.vue` 的 `handleAttachmentUpload` 只有 try/finally 无 catch，零反馈 + unhandled rejection——补 catch，错误写入编辑弹窗 key 就地显示
-- [ ] 大体积下载仍受 30s 全局超时约束：`client.ts:1603` 默认 `AbortSignal.timeout(30_000)` 覆盖 artifact 流式下载（2GB 上限）/CI 日志（10MB）/PR diff，慢网络中途 abort，错误文案误导为实例不响应
-- [ ] `_treeCache` 完全失效：client 每消息新建（约 110 处 `new ForgejoClient`），60s TTL 缓存生命周期=单次请求，文件搜索每击键仍拉整棵 tree（`client.ts:219` 注释宣称的收益不存在）
-- [ ] `_detectServerOrigin` 误判：`website`/`original_url` 等外部 URL 字段参与计数可被「检测」为服务器源，随后仓库主页/镜像源链接被改写成实例坏链（`client.ts:1515-1552`）
-- [ ] compare 状态合并把「先 added 后 modified」错标为 `modified`：`client.ts:1223-1234` 条件写宽，base 侧拉取 404/空 diff
+- [x] 大体积下载仍受 30s 全局超时约束：`client.ts` 默认 `AbortSignal.timeout(30_000)` 覆盖 artifact 流式下载（2GB 上限）/CI 日志（10MB）/PR diff，慢网络中途 abort——CI 日志/PR diff 改用 5 分钟 `API_DOWNLOAD_TIMEOUT_MS`；artifact 流式下载取消总时长上限，改为 30s 无数据的 idle watchdog，停滞报错文案明确
+- [x] `_treeCache` 完全失效：client 每消息新建（约 110 处 `new ForgejoClient`），60s TTL 缓存生命周期=单次请求——改为模块级共享缓存，key 含 origin + token 哈希（同 origin 多账号不共享），上限 50 条先进先出；新增 `clearTreeCache()` 供测试
+- [x] `_detectServerOrigin` 误判：`website`/`original_url` 等外部 URL 字段参与计数可被「检测」为服务器源，随后仓库主页/镜像源链接被改写成实例坏链（`client.ts`）——两个 key 加入与 `avatar_url` 同级的忽略名单
+- [x] compare 状态合并把「先 added 后 modified」错标为 `modified`：`client.ts` 条件写宽，base 侧拉取 404/空 diff——抽出 `mergeCompareStatuses`：added 后 modified 仍为 added、added 后 removed 抵消、removed 后 added 记 modified、renamed 优先于 generic changed
 - [x] 零变更文件的 PR 永久显示加载中：`PullRequestDetail.vue` `filesLoading = files.length === 0 && !filesError`，空 diff 加载成功后 spinner 不消失——改为按 key 是否存在判断（与 comments/commits 一致）
 - [x] RepoRefs 操作失败整列表被错误行替换且无重试入口：`RepoRefs.vue` 错误独占渲染，缓存数据不兜底——有缓存数据时保留列表 + 顶部错误条带 Retry；无数据时错误页也带 Retry；顺带解决低优先级「每次刷新整列表闪 Loading」（loading 仅在无数据时显示）
 - [ ] 删除实例后其 keep-alive 视图永久转圈：load 类消息无 `_requestId`/超时，host `_findInstance` 失败静默 return，webview 无任何错误提示

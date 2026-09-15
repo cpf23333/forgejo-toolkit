@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { createHash } from 'crypto';
 import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import * as vscode from 'vscode';
@@ -182,12 +183,60 @@ const MAX_TREE_PAGES = 50;
 /** Per-request timeout: a reachable-but-unresponsive instance must not hang. */
 export const API_REQUEST_TIMEOUT_MS = 30_000;
 
+/**
+ * Longer budget for large buffered downloads (CI logs up to 10 MB, PR diffs):
+ * the generic 30 s cap aborts them mid-transfer on slow networks. Artifact
+ * streaming uses an idle watchdog instead of a total cap (see
+ * downloadActionArtifactToFile).
+ */
+export const API_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
+
 // 403 scope toasts are deduped per instance+scope for the whole session.
 const shownPermissionErrorKeys = new Set<string>();
 
 interface TreeCacheEntry {
   value: GitEntry[];
   expiresAt: number;
+}
+
+// Shared across ForgejoClient instances: the view provider constructs a
+// client per message, so an instance field would die with each request and
+// the TTL would never pay off. Entries are keyed by origin + token hash +
+// repo + ref, so same-origin accounts never share cached trees. Bounded with
+// simple oldest-first eviction.
+const treeCache = new Map<string, TreeCacheEntry>();
+const MAX_TREE_CACHE_ENTRIES = 50;
+
+/** Clear the shared git-tree cache. Exported for tests. */
+export function clearTreeCache(): void {
+  treeCache.clear();
+}
+
+/**
+ * Merge two per-commit statuses of the same file into the net status for the
+ * whole compare range. `undefined` means the changes cancel out. Order
+ * matters: an added file that is later modified is still a new file (the base
+ * side has nothing to fetch), while a removed file that is later re-added
+ * exists at both ends with different content.
+ */
+function mergeCompareStatuses(existing: string, next: string): string | undefined {
+  if (existing === 'added' && next === 'removed') {
+    return undefined;
+  }
+  if (existing === 'removed' && next === 'added') {
+    return 'modified';
+  }
+  if (existing === 'added' || existing === 'removed') {
+    return existing;
+  }
+  if (next === 'renamed') {
+    return 'renamed';
+  }
+  // Prefer a specific status over the generic 'changed'.
+  if (existing === 'changed') {
+    return next;
+  }
+  return existing;
 }
 
 export interface MentionUserItem {
@@ -214,9 +263,9 @@ export class ForgejoClient {
   private readonly configuredOrigin: string;
   private detectedServerOrigin: string | undefined;
   private readonly syncApiUrlsToInstanceUrl: boolean;
-  // Short-lived cache of the recursive git tree per ref, so debounced file
-  // searches do not refetch every page on each keystroke.
-  private readonly _treeCache = new Map<string, TreeCacheEntry>();
+  // Distinguishes same-origin accounts in the shared tree cache without
+  // embedding the raw token in cache keys.
+  private readonly tokenCacheKey: string;
 
   constructor(
     private url: string,
@@ -226,6 +275,7 @@ export class ForgejoClient {
   ) {
     this.configuredOrigin = new URL(this.url.replace(/\/$/, '')).origin;
     this.syncApiUrlsToInstanceUrl = syncApiUrlsToInstanceUrl ?? true;
+    this.tokenCacheKey = createHash('sha256').update(token).digest('hex').slice(0, 16);
   }
 
   getCurrentUser(): Promise<ForgejoUser> {
@@ -356,6 +406,7 @@ export class ForgejoClient {
     const response = await repoGetActionJobLogs(owner, repo, jobId, undefined, {
       client: this._client(),
       responseType: 'text',
+      signal: AbortSignal.timeout(API_DOWNLOAD_TIMEOUT_MS),
     });
     const text = (response as unknown as string) ?? '';
     // CI logs can be arbitrarily large; cap what is kept in memory and shown.
@@ -402,6 +453,8 @@ export class ForgejoClient {
    * leaves a half-written file at the target path (the partial file is
    * removed). Returns the number of bytes written. `maxBytes` is the
    * defensive size cap (2 GB by default); tests pass a small value.
+   * There is deliberately no total timeout — large artifacts on slow links
+   * take as long as they take; an idle watchdog aborts stalled downloads.
    */
   async downloadActionArtifactToFile(
     owner: string,
@@ -412,11 +465,42 @@ export class ForgejoClient {
     maxBytes: number = MAX_ARTIFACT_BYTES,
   ): Promise<number> {
     this._assertActions();
-    const stream = (await downloadActionArtifact(owner, repo, artifactId, {
-      client: this._client(),
-      responseType: 'stream',
-    })) as unknown as ReadableStream<Uint8Array> | null;
+    // No total cap: a 2 GB artifact on a slow link legitimately takes longer
+    // than any fixed timeout. Instead an idle watchdog aborts the download
+    // only when no bytes arrive for API_REQUEST_TIMEOUT_MS.
+    const controller = new AbortController();
+    let stalled = false;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    const resetIdleWatchdog = () => {
+      if (idleTimer !== undefined) {
+        clearTimeout(idleTimer);
+      }
+      idleTimer = setTimeout(() => {
+        stalled = true;
+        controller.abort();
+      }, API_REQUEST_TIMEOUT_MS);
+    };
+    resetIdleWatchdog();
+    let stream: ReadableStream<Uint8Array> | null;
+    try {
+      stream = (await downloadActionArtifact(owner, repo, artifactId, {
+        client: this._client(),
+        responseType: 'stream',
+        signal: controller.signal,
+      })) as unknown as ReadableStream<Uint8Array> | null;
+    } catch (error) {
+      if (idleTimer !== undefined) {
+        clearTimeout(idleTimer);
+      }
+      if (stalled) {
+        throw new Error(`Forgejo artifact ${artifactId} download stalled: no data received for 30 seconds.`);
+      }
+      throw error;
+    }
     if (!stream) {
+      if (idleTimer !== undefined) {
+        clearTimeout(idleTimer);
+      }
       throw new Error(`Forgejo artifact ${artifactId} returned no response body.`);
     }
 
@@ -431,6 +515,7 @@ export class ForgejoClient {
           callback(new Error(`Forgejo artifact ${artifactId} exceeds the 2 GB size limit and was not downloaded.`));
           return;
         }
+        resetIdleWatchdog();
         onProgress?.(written);
         callback(null, chunk);
       },
@@ -445,7 +530,14 @@ export class ForgejoClient {
       await fs.promises.rename(tempPath, targetPath);
     } catch (error) {
       await fs.promises.rm(tempPath, { force: true }).catch(() => undefined);
+      if (stalled) {
+        throw new Error(`Forgejo artifact ${artifactId} download stalled: no data received for 30 seconds.`);
+      }
       throw error;
+    } finally {
+      if (idleTimer !== undefined) {
+        clearTimeout(idleTimer);
+      }
     }
     return written;
   }
@@ -645,15 +737,15 @@ export class ForgejoClient {
 
   /**
    * Fetches the full recursive git tree (blob entries only) for a ref,
-   * serving it from a short-lived cache when possible.
+   * serving it from the shared short-lived cache when possible.
    */
   private async _getRepoTree(owner: string, repo: string, ref: string): Promise<GitEntry[]> {
-    const key = `${owner}/${repo}@${ref}`;
-    const cached = this._treeCache.get(key);
+    const key = `${this.configuredOrigin}|${this.tokenCacheKey}|${owner}/${repo}@${ref}`;
+    const cached = treeCache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value;
     }
-    this._treeCache.delete(key);
+    treeCache.delete(key);
 
     const allFiles: GitEntry[] = [];
     let truncated = false;
@@ -688,7 +780,14 @@ export class ForgejoClient {
     // returned is still filtered for the current query. Failures are not
     // cached either: an error above propagates before this point.
     if (!truncated) {
-      this._treeCache.set(key, { value: allFiles, expiresAt: Date.now() + TREE_CACHE_TTL_MS });
+      if (treeCache.size >= MAX_TREE_CACHE_ENTRIES) {
+        // Map iteration order is insertion order: the first key is the oldest.
+        const oldest = treeCache.keys().next().value;
+        if (oldest !== undefined) {
+          treeCache.delete(oldest);
+        }
+      }
+      treeCache.set(key, { value: allFiles, expiresAt: Date.now() + TREE_CACHE_TTL_MS });
     }
     return allFiles;
   }
@@ -1223,14 +1322,11 @@ export class ForgejoClient {
       const existing = statusMap.get(filename);
       const status = file.status ?? 'changed';
       if (existing) {
-        // If a file is both added and removed across commits, the net change is zero.
-        if ((existing === 'added' && status === 'removed') || (existing === 'removed' && status === 'added')) {
+        const merged = mergeCompareStatuses(existing, status);
+        if (merged === undefined) {
           statusMap.delete(filename);
-          continue;
-        }
-        // Prefer more specific statuses over generic 'changed'.
-        if (existing === 'changed' || status === 'modified' || status === 'renamed') {
-          statusMap.set(filename, status);
+        } else {
+          statusMap.set(filename, merged);
         }
       } else {
         statusMap.set(filename, status);
@@ -1380,6 +1476,7 @@ export class ForgejoClient {
     const response = await repoDownloadPullDiffOrPatch(owner, repo, index, 'diff', undefined, {
       client: this._client(),
       responseType: 'text',
+      signal: AbortSignal.timeout(API_DOWNLOAD_TIMEOUT_MS),
     });
     return (response as unknown as string) ?? '';
   }
@@ -1517,10 +1614,13 @@ export class ForgejoClient {
 
     const visit = (value: unknown, key?: string) => {
       if (typeof value === 'string') {
-        // avatar_url is skipped: every embedded user object carries one, so an
-        // external avatar host (e.g. gravatar) would always win the count and
-        // be mistaken for the server origin.
-        if (key === 'avatar_url') {
+        // Fields whose URLs legitimately point away from the server must not
+        // participate in the count, or an external host gets "detected" as the
+        // server origin and those links are then rewritten into broken
+        // instance URLs: avatar_url (every embedded user carries one, e.g.
+        // gravatar), website (user/repo homepages), original_url (mirror
+        // source of a mirrored repository).
+        if (key === 'avatar_url' || key === 'website' || key === 'original_url') {
           return;
         }
         const parsed = this._parseUrl(value);

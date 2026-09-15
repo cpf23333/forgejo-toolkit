@@ -15,7 +15,7 @@ import type {
   EditPullRequestOption,
   EditReleaseOption,
 } from '@cpf23333-forgejo-toolkit/api';
-import { ForgejoClient } from '../client';
+import { ForgejoClient, clearTreeCache } from '../client';
 import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
 import type { Logger } from '../../logger';
@@ -61,6 +61,9 @@ describe('ForgejoClient with MSW', () => {
 
   afterEach(() => {
     resetMockServer();
+    // The git-tree cache is shared across client instances; tests must not
+    // observe each other's cached trees.
+    clearTreeCache();
   });
 
   function createClient(): ForgejoClient {
@@ -675,6 +678,49 @@ describe('ForgejoClient with MSW', () => {
       expect(utilsFiles.map((f) => f.path)).toEqual(['src/utils.ts']);
       expect(treeRequests).toBe(1);
     });
+
+    it('shares the git tree cache across client instances of the same account', async () => {
+      let treeRequests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', () => {
+          treeRequests += 1;
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [{ path: 'src/index.ts', type: 'blob' }],
+            truncated: false,
+          });
+        }),
+      );
+      // The view provider constructs a client per message; the second client
+      // must hit the shared cache instead of refetching the whole tree.
+      const first = await createClient().searchRepoFiles('demo-user', 'demo-repo', 'main', 'index');
+      const second = await createClient().searchRepoFiles('demo-user', 'demo-repo', 'main', 'index');
+      expect(first.map((f) => f.path)).toEqual(['src/index.ts']);
+      expect(second.map((f) => f.path)).toEqual(['src/index.ts']);
+      expect(treeRequests).toBe(1);
+    });
+
+    it('does not share the tree cache between different tokens on the same origin', async () => {
+      let treeRequests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', () => {
+          treeRequests += 1;
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [{ path: 'src/index.ts', type: 'blob' }],
+            truncated: false,
+          });
+        }),
+      );
+      await createClient().searchRepoFiles('demo-user', 'demo-repo', 'main', 'index');
+      await new ForgejoClient('https://forgejo.example.com', 'other-token').searchRepoFiles(
+        'demo-user',
+        'demo-repo',
+        'main',
+        'index',
+      );
+      expect(treeRequests).toBe(2);
+    });
   });
 
   describe('Branch, tag, and release CRUD', () => {
@@ -1012,6 +1058,34 @@ describe('ForgejoClient with MSW', () => {
       expect(files).toHaveLength(1);
       expect(files[0].status).toBe('renamed');
       expect(files[0].previous_filename).toBe('src/old-name.ts');
+    });
+
+    it('merges per-commit statuses across the compare range', async () => {
+      const client = createClient();
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/compare/:basehead', () =>
+          HttpResponse.json({
+            total_commits: 2,
+            commits: [mockPullRequestCommit],
+            files: [
+              { filename: 'added-then-modified.ts', status: 'added' },
+              { filename: 'added-then-modified.ts', status: 'modified' },
+              { filename: 'added-then-removed.ts', status: 'added' },
+              { filename: 'added-then-removed.ts', status: 'removed' },
+              { filename: 'removed-then-added.ts', status: 'removed' },
+              { filename: 'removed-then-added.ts', status: 'added' },
+            ],
+          }),
+        ),
+      );
+      const files = await client.getPullRequestFilesFromCompare('demo-user', 'demo-repo', 'base', 'head');
+      const statuses = new Map(files.map((file) => [file.filename, file.status]));
+      // Added then modified: still a new file; the base side has nothing to fetch.
+      expect(statuses.get('added-then-modified.ts')).toBe('added');
+      // Added then removed: nets to no change at all.
+      expect(statuses.has('added-then-removed.ts')).toBe(false);
+      // Removed then re-added: changed content of a file existing at both ends.
+      expect(statuses.get('removed-then-added.ts')).toBe('modified');
     });
 
     it('fetches pull request comments and timeline', async () => {
@@ -1431,6 +1505,21 @@ describe('ForgejoClient with MSW', () => {
           { login: 'b', avatar_url: 'https://avatar.example.com/b.png' },
           { login: 'c', avatar_url: 'https://avatar.example.com/c.png' },
         ],
+      };
+      expect(detect(client, data)).toBe('https://forgejo.public.example.com');
+    });
+
+    it('ignores website and original_url so external hosts are not mistaken for the server origin', () => {
+      const client = new ForgejoClient('https://forgejo.internal.example.com', 'mock-token');
+      // External homepage/mirror-source fields outnumber the real server URLs;
+      // if they were counted, the external host would win and its links would
+      // be rewritten into broken instance URLs.
+      const data = {
+        html_url: 'https://forgejo.public.example.com/demo-user/demo-repo',
+        clone_url: 'https://forgejo.public.example.com/demo-user/demo-repo.git',
+        website: 'https://external.example.net/home',
+        original_url: 'https://external.example.net/mirror-source.git',
+        owner: { login: 'a', website: 'https://external.example.net/user' },
       };
       expect(detect(client, data)).toBe('https://forgejo.public.example.com');
     });
