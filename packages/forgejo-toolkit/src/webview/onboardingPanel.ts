@@ -23,6 +23,8 @@ export class OnboardingWebviewPanel {
   private _disposables: vscode.Disposable[] = [];
   /** Request ids currently being handled; a reply removes the id (see `_reply`). */
   private readonly _unansweredRequests = new Set<string>();
+  /** URL of the instance currently being tested (not yet saved); merged into the CSP instance origins. */
+  private _editingInstanceUrl: string | undefined;
 
   public static createOrShow(
     context: vscode.ExtensionContext,
@@ -114,6 +116,9 @@ export class OnboardingWebviewPanel {
                 this._reply('testConnectionResult', { success: false, error: 'Invalid input' });
                 return;
               }
+              // Remember the URL being tested so the next HTML regeneration
+              // includes its origin in the CSP (it is not saved yet).
+              this._editingInstanceUrl = url;
               try {
                 const client = new ForgejoClient(url, token, logger);
                 const user = await client.getCurrentUser();
@@ -153,6 +158,8 @@ export class OnboardingWebviewPanel {
 
                 await this._config.addInstance(instance);
                 void probeServerVersion(normalizedUrl, token, logger, syncApiUrlsToInstanceUrl);
+                // Saved now: getInstances() covers the origin again.
+                this._editingInstanceUrl = undefined;
                 this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
                 this._reply('saveInstanceResult', { success: true });
                 vscode.window.showInformationMessage(vscode.l10n.t('Connected to Forgejo as {0}', user.login));
@@ -508,10 +515,17 @@ export class OnboardingWebviewPanel {
   private _update() {
     const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
     const locale = resolveLocale(configured);
+    const instanceUrls = this._config.getInstances().map((i) => i.url);
+    // The instance currently being tested is not saved yet, so getInstances()
+    // does not cover it; without its origin the CSP would block its images in
+    // markdown previews.
+    if (this._editingInstanceUrl) {
+      instanceUrls.push(this._editingInstanceUrl);
+    }
     this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, {
       panelMode: 'onboarding',
       locale,
-      instanceUrls: this._config.getInstances().map((i) => i.url),
+      instanceUrls,
     });
   }
 

@@ -86,6 +86,15 @@ const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.v
 // route. Guard route-driven loading on isActive.
 const isActive = ref(true);
 
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+function applySearchQuery() {
+  appliedQuery.value = searchInput.value.trim();
+  if (hasPullRequests.value) {
+    state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value);
+  }
+}
+
 function loadListData() {
   state.loadRepoDetail(instanceId.value, owner.value, repo.value);
   if (hasPullRequests.value) {
@@ -95,6 +104,13 @@ function loadListData() {
 
 onActivated(() => {
   isActive.value = true;
+  // A debounced search dropped while this view was deactivated (isActive
+  // guard in the debounce callback) leaves the input ahead of the applied
+  // query; re-apply it so the list matches what the input still shows.
+  if (searchInput.value.trim() !== appliedQuery.value) {
+    clearTimeout(searchDebounceTimer);
+    applySearchQuery();
+  }
   // Params may have changed back before this hook ran; make sure data for the
   // current route is loaded (loaders dedup via their caches).
   loadListData();
@@ -114,20 +130,16 @@ watch(
   { immediate: true },
 );
 
-let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
-watch(searchInput, (value) => {
+watch(searchInput, () => {
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
     // The view may have been deactivated (or the route switched) during the
     // debounce window; applying the query then would fire a request with the
-    // new route's params.
+    // new route's params. onActivated re-applies the dropped input.
     if (!isActive.value) {
       return;
     }
-    appliedQuery.value = value.trim();
-    if (hasPullRequests.value) {
-      state.loadRepoPullRequests(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value);
-    }
+    applySearchQuery();
   }, 300);
 });
 

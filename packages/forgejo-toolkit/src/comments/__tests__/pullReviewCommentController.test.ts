@@ -191,6 +191,7 @@ function makeDocument(isBase: boolean) {
   return {
     uri,
     lineCount: 10,
+    isClosed: false,
     // The controller ends a multi-line thread range at the last line's end
     // character so the final line stays highlighted.
     lineAt: (line: number) => ({ text: `mock line ${line}` }),
@@ -292,6 +293,26 @@ describe('PullReviewCommentController thread cleanup', () => {
 
     expect(threadCount(controller)).toBe(1);
     expect(state.createdThreads[0].dispose).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('creates no thread when the document closes while the review data is still loading', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const closeDocument = state.closeHandlers[0];
+
+    // The close fires while the load is in flight, so the close handler finds
+    // no threads to dispose; without the post-load isClosed guard the render
+    // that finishes afterwards would leak a ghost thread into the Comments
+    // panel (no further close event ever arrives for it).
+    const headDocument = makeDocument(false);
+    const pendingRender = openDocument(headDocument);
+    headDocument.isClosed = true;
+    closeDocument(headDocument);
+    await pendingRender;
+
+    expect(state.createdThreads).toHaveLength(0);
+    expect(threadCount(controller)).toBe(0);
     controller.dispose();
   });
 });

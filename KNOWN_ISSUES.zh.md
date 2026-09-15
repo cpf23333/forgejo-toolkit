@@ -139,11 +139,13 @@ API 中唯一与项目相关的字段只有：
 
 规避方法：调整代理配置，原样转发转义后的路径（nginx 使用不带 URI 部分的 `proxy_pass` 即不会解码）；或避免在分支名中使用 `/`。扩展侧无法检测或修复代理层的解码行为。
 
-## Issue/PR 正文里的第三方外链图片会被 webview CSP 拦截
+## 仅第三方 http:// 明文图片会被 webview CSP 拦截
 
-webview 的 Content-Security-Policy 把 `img-src` 限制为已配置实例的 origin（外加 `data:` 与 `blob:`）。实例自身提供的图片——头像、附件、Markdown 内嵌图——都能正常显示，但引用第三方图床的外链图片会被浏览器拒绝，显示为裂图。
+webview 的 Content-Security-Policy 允许任意 origin 的 `https:` 图片，因此 Issue/PR 正文里的第三方 https 图片——包括 Forgejo 为未上传头像的用户返回的 gravatar 头像——都能正常显示。已配置实例的 origin 也会单独加入白名单，所以 `http://` 实例自身提供的图片同样正常。
 
-这是有意的安全取舍：此前的策略允许任意 origin 的 `http:`/`https:` 图片，意味着任意远程内容（包括追踪像素）都能进入 webview。规避方法：在浏览器中打开对应 Issue/PR 查看外链图片。
+只有来自其他主机的 `http://` 明文图片会被浏览器拒绝，显示为裂图。规避方法：在浏览器中打开对应 Issue/PR 查看这些图片。
+
+该 CSP 同时将 `connect-src` 限制为 webview 资源，但这没有用户可见影响：webview 不直接发起网络请求，一切都通过 postMessage 走扩展宿主。
 
 ---
 

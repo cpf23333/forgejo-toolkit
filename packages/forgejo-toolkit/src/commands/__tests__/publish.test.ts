@@ -89,12 +89,22 @@ describe('validateRemoteName', () => {
 
   it('accepts a free valid name', () => {
     expect(validateRemoteName('forgejo', existing)).toBeUndefined();
+    expect(validateRemoteName('na.me-1_x', existing)).toBeUndefined();
   });
 
   it('rejects empty names and invalid characters', () => {
     expect(validateRemoteName('  ', existing)).toBeTruthy();
     expect(validateRemoteName('bad name', existing)).toBeTruthy();
     expect(validateRemoteName('bad/name', existing)).toBeTruthy();
+  });
+
+  it('rejects names git check-ref-format would reject', () => {
+    expect(validateRemoteName('a..b', existing)).toBeTruthy();
+    expect(validateRemoteName('..', existing)).toBeTruthy();
+    expect(validateRemoteName('-bad', existing)).toBeTruthy();
+    expect(validateRemoteName('.hidden', existing)).toBeTruthy();
+    expect(validateRemoteName('trail.', existing)).toBeTruthy();
+    expect(validateRemoteName('name.lock', existing)).toBeTruthy();
   });
 
   it('rejects a name already used by another remote', () => {
@@ -209,7 +219,8 @@ describe('publishToForgejo', () => {
   // Push failures must propagate to the command registration's catch
   // (commands/index.ts), which shows "Failed to publish". Swallowing them here
   // would pretend success — worst case right after the remote repository was
-  // already created.
+  // already created. The propagated message spells out the intermediate state
+  // (repository created, remote added) so a retry does not blindly hit a 422.
   it('propagates a push failure after the remote repository was created', async () => {
     setupWorkspace(undefined);
     vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
@@ -220,9 +231,39 @@ describe('publishToForgejo', () => {
     vi.mocked(pushBranch).mockRejectedValue(new Error('push failed: permission denied'));
     const { provider, refresh } = createViewProvider();
 
-    await expect(publishToForgejo(createConfig([instance('a', 'alice', 'tok')]), provider)).rejects.toThrow(
-      'push failed',
+    const failure = await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]), provider).catch(
+      (error: unknown) => error,
     );
+    vi.mocked(pushBranch).mockReset();
+
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain('push failed');
+    expect((failure as Error).message).toContain('alice/my-repo');
+    expect((failure as Error).message).toContain('was created on');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('reports the created repository when adding the remote fails', async () => {
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockResolvedValue({ clone_url: `${INSTANCE_URL}/alice/my-repo.git`, full_name: 'alice/my-repo' });
+    vi.mocked(addRemote).mockRejectedValue(new Error('remote origin already exists'));
+    const { provider, refresh } = createViewProvider();
+
+    const failure = await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]), provider).catch(
+      (error: unknown) => error,
+    );
+    vi.mocked(addRemote).mockReset();
+
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain('alice/my-repo');
+    expect((failure as Error).message).toContain('remote failed');
+    expect((failure as Error).message).toContain('remote origin already exists');
+    // The push must not be attempted without the remote in place.
+    expect(pushBranch).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
 

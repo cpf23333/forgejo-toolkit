@@ -115,6 +115,25 @@ describe('WorktreeManager.removeWorktree', () => {
     expect(store.get(WORKTREES_KEY)).toEqual([]);
   });
 
+  it('removes the orphaned worktree directory when the source repository is gone', async () => {
+    const orphanedDir = path.join(sourceDir, 'orphaned-worktree');
+    fs.mkdirSync(orphanedDir);
+    fs.writeFileSync(path.join(orphanedDir, 'leftover.txt'), 'stale');
+    const target = makeWorktree({
+      sourceRepoPath: path.join(sourceDir, 'does-not-exist'),
+      worktreePath: orphanedDir,
+    });
+    const { context, store } = createContext([target]);
+    const manager = new WorktreeManager(context);
+
+    await manager.removeWorktree(target.id);
+
+    // Dropping the record removes the only entry point to the directory, so
+    // it must be deleted first (best-effort) instead of leaking on disk.
+    expect(fs.existsSync(orphanedDir)).toBe(false);
+    expect(store.get(WORKTREES_KEY)).toEqual([]);
+  });
+
   it('keeps the record and rethrows without toasting when git removal fails', async () => {
     const target = makeWorktree({ sourceRepoPath: sourceDir });
     const { context, store } = createContext([target]);

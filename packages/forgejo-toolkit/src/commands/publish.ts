@@ -51,8 +51,10 @@ export function validateRepoName(value: string): string | undefined {
 /**
  * Pre-check for the git remote name used when publishing a repository whose
  * origin is already taken (e.g. cloned from a non-Forgejo host). Same
- * character set as repository names, plus it must not collide with an
- * existing remote.
+ * character set as repository names, plus a reasonable subset of the
+ * git-check-ref-format rules git enforces on ref (and therefore remote)
+ * names: no "..", no leading "-", no leading/trailing ".", no ".lock"
+ * suffix. Also must not collide with an existing remote.
  */
 export function validateRemoteName(value: string, existing: GitRemoteEntry[]): string | undefined {
   const name = value.trim();
@@ -61,6 +63,18 @@ export function validateRemoteName(value: string, existing: GitRemoteEntry[]): s
   }
   if (!REPO_NAME_PATTERN.test(name)) {
     return vscode.l10n.t('Remote name may only contain letters, digits, ".", "_" and "-"');
+  }
+  if (name.includes('..')) {
+    return vscode.l10n.t('Remote name cannot contain ".."');
+  }
+  if (name.startsWith('-')) {
+    return vscode.l10n.t('Remote name cannot start with "-"');
+  }
+  if (name.startsWith('.') || name.endsWith('.')) {
+    return vscode.l10n.t('Remote name cannot start or end with "."');
+  }
+  if (name.endsWith('.lock')) {
+    return vscode.l10n.t('Remote name cannot end with ".lock"');
   }
   if (existing.some((remote) => remote.name === name)) {
     return vscode.l10n.t('A remote named "{0}" already exists', name);
@@ -217,9 +231,26 @@ async function publishNewRepository(
     vscode.window.showErrorMessage(vscode.l10n.t('The created repository did not return a clone URL'));
     return;
   }
-  await addRemote(folder, remoteName, cloneUrl);
-
   const repoLabel = repository.full_name ?? name;
+  // From here on the repository already exists on the instance; a blind retry
+  // would hit a 422 name conflict. Failures below therefore throw errors that
+  // spell out the intermediate state (repository created, and for push
+  // failures also the added remote) — the command registration's catch shows
+  // and logs them.
+  try {
+    await addRemote(folder, remoteName, cloneUrl);
+  } catch (error) {
+    throw new Error(
+      vscode.l10n.t(
+        'Repository {0} was created on {1}, but adding the "{2}" remote failed: {3}',
+        repoLabel,
+        instance.name,
+        remoteName,
+        userFacingErrorMessage(error),
+      ),
+    );
+  }
+
   const branch = await getCurrentBranch(folder);
   if (!branch) {
     vscode.window.showInformationMessage(
@@ -231,13 +262,26 @@ async function publishNewRepository(
     );
     return;
   }
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: vscode.l10n.t('Pushing {0} to {1}…', branch, instance.name),
-    },
-    () => pushBranch(folder, remoteName, branch, instance.token, true, instance.url),
-  );
+  try {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: vscode.l10n.t('Pushing {0} to {1}…', branch, instance.name),
+      },
+      () => pushBranch(folder, remoteName, branch, instance.token, true, instance.url),
+    );
+  } catch (error) {
+    throw new Error(
+      vscode.l10n.t(
+        'Repository {0} was created on {1} and the "{2}" remote was added, but pushing {3} failed: {4}',
+        repoLabel,
+        instance.name,
+        remoteName,
+        branch,
+        userFacingErrorMessage(error),
+      ),
+    );
+  }
   viewProvider?.refresh();
 
   const openInBrowser = vscode.l10n.t('Open in Browser');

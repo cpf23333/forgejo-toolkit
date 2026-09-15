@@ -251,8 +251,8 @@ async function removeRelease(id?: number) {
     </div>
 
     <template v-else>
-      <!-- A failed refresh keeps the cached list and shows a dismissible
-           banner with a retry entry instead of replacing everything. -->
+      <!-- A failed refresh keeps the cached list and shows an inline error
+           with a retry entry instead of replacing everything. -->
       <div v-if="error" class="status error">
         {{ error }}
         <button type="button" class="link-button" @click="retryLoad">{{ t('dashboard.retry') }}</button>

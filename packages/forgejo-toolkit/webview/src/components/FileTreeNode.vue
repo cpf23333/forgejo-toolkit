@@ -50,6 +50,13 @@ function onRowKeydown(event: KeyboardEvent) {
   if (event.key !== 'Enter' && event.key !== ' ') {
     return;
   }
+  // Keydown bubbles from focused inner controls; like onRowClick, leave the
+  // checkbox's own Space/Enter activation (and other inner targets) alone
+  // instead of stealing the key for expand/openDiff.
+  const target = event.target as HTMLElement;
+  if (target.closest('.node-checkbox, .tree-expander, .view-diff-link')) {
+    return;
+  }
   event.preventDefault();
   if (isDir) {
     onToggleExpand();

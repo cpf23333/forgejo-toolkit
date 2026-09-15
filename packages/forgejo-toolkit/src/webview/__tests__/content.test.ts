@@ -45,22 +45,22 @@ describe('getWebviewContent', () => {
     });
     const csp = extractCsp(html);
     expect(csp).toContain(
-      `img-src 'self' blob: data: ${CSP_SOURCE} https://forgejo.example.com https://git.example.com;`,
+      `img-src 'self' blob: data: https: ${CSP_SOURCE} https://forgejo.example.com https://git.example.com;`,
     );
   });
 
-  it('drops the http:/https: wildcards from img-src and connect-src', () => {
+  it('allows https: images (gravatar, hot-linked) but keeps http: and connect-src tight', () => {
     const csp = extractCsp(render({ instanceUrls: ['https://forgejo.example.com'] }));
     const imgSrc = /img-src ([^;]+);/.exec(csp)![1];
     const connectSrc = /connect-src ([^;]+);/.exec(csp)![1];
+    expect(imgSrc.split(' ')).toContain('https:');
     expect(imgSrc.split(' ')).not.toContain('http:');
-    expect(imgSrc.split(' ')).not.toContain('https:');
     expect(connectSrc).toBe(`'self' ${CSP_SOURCE}`);
   });
 
   it('works without instances', () => {
     const csp = extractCsp(render());
-    expect(csp).toContain(`img-src 'self' blob: data: ${CSP_SOURCE};`);
+    expect(csp).toContain(`img-src 'self' blob: data: https: ${CSP_SOURCE};`);
   });
 
   it('escapes </script> inside the injected config JSON', () => {

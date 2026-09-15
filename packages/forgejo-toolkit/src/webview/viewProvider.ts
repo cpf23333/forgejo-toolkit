@@ -3,12 +3,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { logger } from '../logger';
-import { ForgejoClient } from '../api/client';
+import { ForgejoClient, API_REQUEST_TIMEOUT_MS } from '../api/client';
 import type { ForgejoChangedFile } from '../api/types';
 import { ConfigManager } from '../config';
 import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { getWebviewContent } from './content';
+import { getWebviewContent, toInstanceOrigins } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
 import { buildRepoFileUri } from '../repoFileProvider';
@@ -117,7 +117,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         () => this._config.getDefaultWorktreeCacheDirectory(),
       );
 
-    this._context.subscriptions.push(this._config.onInstancesChanged(() => this._sendInstances()));
+    this._context.subscriptions.push(
+      this._config.onInstancesChanged(() => {
+        this._sendInstances();
+        this._refreshWebviewInstanceOrigins();
+      }),
+    );
     this._context.subscriptions.push(
       vscode.workspace.onDidChangeWorkspaceFolders(() => this._detectAndSendLinkedRepository()),
       // In multi-repository workspaces the linked repository follows the
@@ -125,6 +130,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       vscode.window.onDidChangeActiveTextEditor(() => this._scheduleLinkedRepositoryDetect()),
       { dispose: () => clearTimeout(this._linkedRepoDetectTimer) },
     );
+
+    // Cold-start detection: the user may never open a file or the sidebar,
+    // but the SCM publish button (forgejoToolkit.hasUnpublishedRepo) must
+    // still appear. Delayed so activation stays fast; unref'd so tests are
+    // not held open. Failures are swallowed inside
+    // _detectAndSendLinkedRepository, so this never becomes an unhandled
+    // rejection.
+    const initialDetectTimer = setTimeout(() => {
+      void this._detectAndSendLinkedRepository();
+    }, 2000);
+    initialDetectTimer.unref?.();
   }
 
   public resolveWebviewView(
@@ -143,9 +159,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'out', 'webview')],
     };
 
-    webviewView.webview.html = getWebviewContent(webviewView.webview, this._extensionUri.fsPath, {
-      instanceUrls: this._config.getInstances().map((i) => i.url),
-    });
+    webviewView.webview.html = this._renderWebviewHtml(webviewView.webview);
 
     webviewView.onDidDispose(() => {
       if (this._view === webviewView) {
@@ -167,6 +181,37 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         this._detectAndSendLinkedRepository();
       }
     });
+  }
+
+  /**
+   * Serialized instance-origin set baked into the last generated HTML. The
+   * CSP img-src allowlists instance origins, so the HTML must be regenerated
+   * when that set changes.
+   */
+  private _webviewInstanceOriginsKey: string | undefined;
+
+  private _renderWebviewHtml(webview: vscode.Webview): string {
+    const instanceUrls = this._config.getInstances().map((i) => i.url);
+    this._webviewInstanceOriginsKey = JSON.stringify(toInstanceOrigins(instanceUrls).sort());
+    return getWebviewContent(webview, this._extensionUri.fsPath, { instanceUrls });
+  }
+
+  /**
+   * The HTML — and with it the CSP instance-origin allowlist — is generated
+   * once at resolve time; an instance added afterwards would have its direct
+   * images blocked until a reload. Regenerate when the origin set changes.
+   * Reloading loses transient webview state, which is acceptable: instance
+   * changes are rare and the webview re-requests its initial state. There is
+   * no loop: resetting html does not fire another instances change.
+   */
+  private _refreshWebviewInstanceOrigins(): void {
+    if (!this._view) {
+      return;
+    }
+    const key = JSON.stringify(toInstanceOrigins(this._config.getInstances().map((i) => i.url)).sort());
+    if (key !== this._webviewInstanceOriginsKey) {
+      this._view.webview.html = this._renderWebviewHtml(this._view.webview);
+    }
   }
 
   /**
@@ -3280,6 +3325,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
   public refresh() {
     this._sendInstances();
+    // A just-published repository must drop the "Publish to Forgejo" button
+    // (forgejoToolkit.hasUnpublishedRepo) without waiting for an editor
+    // switch; debounced so a refresh burst does not spawn repeated git runs.
+    this._scheduleLinkedRepositoryDetect();
     // Also tell the webview to invalidate its instance-level data caches —
     // previously this command only refreshed the instance list itself.
     this._reply('refreshData', {});
@@ -3624,19 +3673,25 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _detectAndSendLinkedRepository() {
-    const { linked, all, unpublished } = await detectLinkedRepositories(this._config.getInstances());
-    // Gate the editor context menu (Copy Permalink) on whether the workspace
-    // is linked to a Forgejo repository. This must run even when the view is
-    // hidden, otherwise the key stays false until the sidebar is opened.
-    void vscode.commands.executeCommand('setContext', 'forgejoToolkit.hasLinkedRepo', Boolean(linked));
-    // The SCM "Publish to Forgejo" button only makes sense while at least one
-    // workspace repository has no Forgejo remote yet; once everything is
-    // published, pushing belongs to the built-in sync action.
-    void vscode.commands.executeCommand('setContext', 'forgejoToolkit.hasUnpublishedRepo', unpublished.length > 0);
-    if (!this._view?.visible) {
-      return;
+    try {
+      const { linked, all, unpublished } = await detectLinkedRepositories(this._config.getInstances());
+      // Gate the editor context menu (Copy Permalink) on whether the workspace
+      // is linked to a Forgejo repository. This must run even when the view is
+      // hidden, otherwise the key stays false until the sidebar is opened.
+      void vscode.commands.executeCommand('setContext', 'forgejoToolkit.hasLinkedRepo', Boolean(linked));
+      // The SCM "Publish to Forgejo" button only makes sense while at least one
+      // workspace repository has no Forgejo remote yet; once everything is
+      // published, pushing belongs to the built-in sync action.
+      void vscode.commands.executeCommand('setContext', 'forgejoToolkit.hasUnpublishedRepo', unpublished.length > 0);
+      if (!this._view?.visible) {
+        return;
+      }
+      this._reply('linkedRepository', { linked, all });
+    } catch (error) {
+      // Timer- and event-driven callers have no error surface; a rejection
+      // here would otherwise surface as an unhandled rejection.
+      logger.error(`Linked repository detection failed: ${userFacingErrorMessage(error)}`);
     }
-    this._reply('linkedRepository', { linked, all });
   }
 
   private _reply<T extends HostToWebviewMessage['command']>(
@@ -4190,10 +4245,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // Authorization header. Relative URLs resolve against the instance URL.
       const parsed = new URL(url, instance.url);
       const sameOrigin = parsed.origin === new URL(instance.url).origin;
-      const response = await fetch(
-        parsed.href,
-        sameOrigin ? { headers: { Authorization: `token ${instance.token}` } } : undefined,
-      );
+      // A hung image host must not stall the surrounding Promise.all; on
+      // timeout the fetch rejects and the original URL is kept (below).
+      const init: RequestInit = { signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS) };
+      if (sameOrigin) {
+        init.headers = { Authorization: `token ${instance.token}` };
+      }
+      const response = await fetch(parsed.href, init);
       logger.debug(`[avatar] response status: ${response.status} ${response.statusText}`);
       if (!response.ok) {
         logger.error(`[avatar] fetch failed: ${response.status} ${response.statusText}`);

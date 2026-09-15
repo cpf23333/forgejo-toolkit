@@ -49,6 +49,7 @@ import {
   remoteMatchesInstance,
   resolveRemoteForRepo,
   revertMergeCommit,
+  validatePrWorktree,
 } from '../gitOperations';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -246,6 +247,34 @@ describe('remoteMatchesInstance', () => {
     ).toBe(true);
     expect(
       remoteMatchesInstance('https://forgejo.example.com:8443/owner/repo.git', 'https://forgejo.example.com:3000'),
+    ).toBe(false);
+  });
+
+  it('ignores the instance web port for ssh/git remotes', () => {
+    // Self-hosted servers commonly serve SSH on 2222 while the web UI runs on
+    // 3000; the two ports have no correspondence, so ssh/git remotes match the
+    // instance host regardless of the instance URL's port.
+    expect(
+      remoteMatchesInstance('ssh://git@forgejo.example.com:2222/owner/repo.git', 'https://forgejo.example.com:3000'),
+    ).toBe(true);
+    expect(remoteMatchesInstance('git@forgejo.example.com:owner/repo.git', 'https://forgejo.example.com:3000')).toBe(
+      true,
+    );
+    expect(
+      remoteMatchesInstance('git://forgejo.example.com:9418/owner/repo.git', 'https://forgejo.example.com:3000'),
+    ).toBe(true);
+    // ...but the host must still match.
+    expect(
+      remoteMatchesInstance('ssh://git@other.example.com:2222/owner/repo.git', 'https://forgejo.example.com:3000'),
+    ).toBe(false);
+  });
+
+  it('keeps requiring the port for https remotes', () => {
+    expect(
+      remoteMatchesInstance('https://forgejo.example.com:8443/owner/repo.git', 'https://forgejo.example.com:3000'),
+    ).toBe(false);
+    expect(
+      remoteMatchesInstance('https://forgejo.example.com/owner/repo.git', 'https://forgejo.example.com:3000'),
     ).toBe(false);
   });
 });
@@ -840,6 +869,19 @@ describe('detectLinkedRepository', () => {
       expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('repo-path fallback'));
     });
 
+    it('does not count a repository linked via the fallback as unpublished', async () => {
+      setupUnmatchedRemote('https://vpn.example.com/cpf23333/fallback-linked-repo.git');
+      clientMocks.probeRepository.mockResolvedValue(true);
+
+      const result = await detectLinkedRepositories([instanceLan]);
+
+      // No remote host-matched (pass 1), but the repo-path fallback verified
+      // the repository on the instance: it is published, so the Publish
+      // button must not be offered for it.
+      expect(result.all.map((m) => m.localPath)).toEqual(['/ws/a']);
+      expect(result.unpublished).toEqual([]);
+    });
+
     it('does not bind when no instance verifies the repository path', async () => {
       setupUnmatchedRemote('https://vpn.example.com/cpf23333/unverified-repo.git');
       clientMocks.probeRepository.mockResolvedValue(false);
@@ -901,6 +943,121 @@ describe('detectLinkedRepository', () => {
       expect(linked?.instanceId).toBe('host-alice');
       expect(clientMocks.probeRepository).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('validatePrWorktree stale branch cleanup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // The leftover worktree directory exists on disk.
+    (fs.promises.access as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => undefined);
+  });
+
+  /**
+   * Mock the three git reads/writes involved in the stale path: HEAD lookup
+   * in the worktree (an old sha, so the directory is stale), the branch
+   * checked out there, and success for everything else (worktree removal,
+   * branch deletion).
+   */
+  function mockStaleWorktree(checkedOutBranch: string | undefined) {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+          callback(null, { stdout: 'old0000deadbeef\n', stderr: '' } as unknown as string, '');
+          return;
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
+          if (checkedOutBranch === undefined) {
+            const error = new Error('Command failed: git rev-parse') as Error & { stderr: string };
+            error.stderr = 'fatal: ref HEAD is not a symbolic ref';
+            callback(error, '', error.stderr);
+          } else {
+            callback(null, { stdout: `${checkedOutBranch}\n`, stderr: '' } as unknown as string, '');
+          }
+          return;
+        }
+        callback(null, { stdout: '', stderr: '' } as unknown as string, '');
+      },
+    );
+  }
+
+  it('deletes the throwaway pr-<n>-<sha7> branch after removing a stale worktree', async () => {
+    mockStaleWorktree('pr-1-abc1234');
+
+    await expect(validatePrWorktree('/repo', '/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).resolves.toBe(
+      'stale',
+    );
+
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['worktree', 'remove', '--force', '/cache/worktrees/owner-repo-pr-1'],
+      expect.objectContaining({ cwd: '/repo' }),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['branch', '-D', 'pr-1-abc1234'],
+      expect.objectContaining({ cwd: '/repo' }),
+      expect.any(Function),
+    );
+  });
+
+  it('never deletes a non-throwaway branch checked out in a stale worktree', async () => {
+    mockStaleWorktree('feature-user-work');
+
+    await expect(validatePrWorktree('/repo', '/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).resolves.toBe(
+      'stale',
+    );
+
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['branch']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('skips branch cleanup when the stale directory is detached', async () => {
+    mockStaleWorktree(undefined);
+
+    await expect(validatePrWorktree('/repo', '/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).resolves.toBe(
+      'stale',
+    );
+
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['branch']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('does not delete the branch when the worktree removal itself fails', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+          callback(null, { stdout: 'old0000deadbeef\n', stderr: '' } as unknown as string, '');
+          return;
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
+          callback(null, { stdout: 'pr-1-old0000\n', stderr: '' } as unknown as string, '');
+          return;
+        }
+        const error = new Error('Command failed') as Error & { stderr: string };
+        error.stderr = 'fatal: removal failed';
+        callback(error, '', error.stderr);
+      },
+    );
+
+    await expect(validatePrWorktree('/repo', '/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).rejects.toThrow(
+      'fatal: removal failed',
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['branch']),
+      expect.anything(),
+      expect.any(Function),
+    );
   });
 });
 

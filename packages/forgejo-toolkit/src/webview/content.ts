@@ -70,11 +70,14 @@ export function getWebviewContent(
 
   // Images (avatars, attachments, markdown images) are served by the
   // configured instances; private attachments are additionally inlined as
-  // data URLs by the host (see resolveAttachmentImages). The webview never
-  // fetches directly — everything goes through postMessage — so connect-src
-  // stays limited to webview resources.
+  // data URLs by the host (see resolveAttachmentImages). Third-party https
+  // images must also load: Forgejo returns gravatar URLs for users without
+  // an uploaded avatar, and issue/PR bodies hot-link images. Plain http
+  // stays blocked (cleartext). The webview never fetches directly —
+  // everything goes through postMessage — so connect-src stays limited to
+  // webview resources.
   const instanceOrigins = toInstanceOrigins(options?.instanceUrls ?? []);
-  const imgSrc = [`'self'`, 'blob:', 'data:', webview.cspSource, ...instanceOrigins].join(' ');
+  const imgSrc = [`'self'`, 'blob:', 'data:', 'https:', webview.cspSource, ...instanceOrigins].join(' ');
   const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${imgSrc}; connect-src 'self' ${webview.cspSource};">`;
 
   html = html.replace(/(src|href)="([^"]*)"/g, (match, attr, value) => {

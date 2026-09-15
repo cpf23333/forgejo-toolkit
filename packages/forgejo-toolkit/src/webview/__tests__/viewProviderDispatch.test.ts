@@ -8,6 +8,7 @@ const clientMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../api/client', () => ({
+  API_REQUEST_TIMEOUT_MS: 30_000,
   ForgejoClient: vi.fn().mockImplementation(function () {
     return {
       searchMentions: vi.fn().mockRejectedValue(new Error('network down')),

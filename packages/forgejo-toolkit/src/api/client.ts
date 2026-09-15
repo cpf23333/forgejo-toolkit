@@ -219,7 +219,10 @@ export function clearTreeCache(): void {
  * whole compare range. `undefined` means the changes cancel out. Order
  * matters: an added file that is later modified is still a new file (the base
  * side has nothing to fetch), while a removed file that is later re-added
- * exists at both ends with different content.
+ * exists at both ends with different content. A file that is gone at the head
+ * of the range is a removal no matter what happened earlier (e.g. modified
+ * then removed) — otherwise the diff editor tries to fetch the head side and
+ * shows an empty file on the 404.
  */
 function mergeCompareStatuses(existing: string, next: string): string | undefined {
   if (existing === 'added' && next === 'removed') {
@@ -227,6 +230,9 @@ function mergeCompareStatuses(existing: string, next: string): string | undefine
   }
   if (existing === 'removed' && next === 'added') {
     return 'modified';
+  }
+  if (next === 'removed') {
+    return 'removed';
   }
   if (existing === 'added' || existing === 'removed') {
     return existing;
@@ -312,8 +318,17 @@ export class ForgejoClient {
     const all: T[] = [];
     let effectivePageSize: number | undefined;
     let page = 1;
+    // Guards against servers that ignore the page param and keep returning
+    // the first page (same pattern as the git-tree loop below): without it,
+    // duplicates would accumulate up to MAX_ITEMS.
+    let previousFirstItemKey: string | undefined;
     while (all.length < MAX_ITEMS) {
       const items = (await fetchPage(page)) ?? [];
+      const firstItemKey = items.length > 0 ? JSON.stringify(items[0]) : undefined;
+      if (firstItemKey !== undefined && firstItemKey === previousFirstItemKey) {
+        break;
+      }
+      previousFirstItemKey = firstItemKey;
       all.push(...items);
       if (page === 1) {
         effectivePageSize = items.length;

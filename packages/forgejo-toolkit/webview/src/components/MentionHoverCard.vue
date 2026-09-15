@@ -80,7 +80,9 @@ function formatDate(value?: string): string {
 .mention-hover-card {
   position: fixed;
   z-index: 1000;
-  min-width: 240px;
+  /* Cap the minimum too: below ~248px viewport a fixed min-width wins over
+     max-width and the card would overflow the right edge. */
+  min-width: min(240px, calc(100vw - 16px));
   max-width: min(360px, calc(100vw - 16px));
   padding: 12px;
   background-color: var(--vscode-editorHoverWidget-background);

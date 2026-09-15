@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeGitRemote, normalizeGitUrl } from '../url';
+import { isSshOrGitRemote, normalizeGitRemote, normalizeGitUrl } from '../url';
 
 describe('normalizeGitUrl', () => {
   it('removes .git suffix and trailing slashes', () => {
@@ -84,5 +84,19 @@ describe('normalizeGitRemote', () => {
   it('returns undefined for urls without owner/repo', () => {
     expect(normalizeGitRemote('https://codeberg.org/')).toBeUndefined();
     expect(normalizeGitRemote('https://codeberg.org/owner')).toBeUndefined();
+  });
+});
+
+describe('isSshOrGitRemote', () => {
+  it('detects ssh://, git:// and scp-style remotes', () => {
+    expect(isSshOrGitRemote('ssh://git@forgejo.example.com:2222/owner/repo.git')).toBe(true);
+    expect(isSshOrGitRemote('git://forgejo.example.com:9418/owner/repo.git')).toBe(true);
+    expect(isSshOrGitRemote('git@forgejo.example.com:owner/repo.git')).toBe(true);
+  });
+
+  it('rejects http(s) remotes and invalid urls', () => {
+    expect(isSshOrGitRemote('https://forgejo.example.com/owner/repo.git')).toBe(false);
+    expect(isSshOrGitRemote('http://forgejo.example.com:3000/owner/repo.git')).toBe(false);
+    expect(isSshOrGitRemote('not-a-url')).toBe(false);
   });
 });

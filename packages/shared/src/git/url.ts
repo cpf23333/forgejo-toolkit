@@ -6,6 +6,18 @@ export function normalizeGitUrl(url: string): string {
     .toLowerCase();
 }
 
+/**
+ * True when the remote uses an SSH/git transport (ssh://, git://, or
+ * scp-style git@host:path). Ports on those URLs are transport-level and have
+ * no relation to the web port of a configured instance (a self-hosted server
+ * commonly serves SSH on 2222 while the web UI runs on 3000), so instance
+ * matching compares them against the instance host without its port.
+ */
+export function isSshOrGitRemote(url: string): boolean {
+  const cleaned = url.trim().toLowerCase();
+  return cleaned.startsWith('git@') || cleaned.startsWith('ssh://') || cleaned.startsWith('git://');
+}
+
 export function normalizeGitRemote(url: string): { normalized: string; owner: string; repo: string } | undefined {
   const cleaned = url.trim();
   let hostPath: string | undefined;

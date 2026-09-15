@@ -324,6 +324,12 @@ export class PullReviewCommentController implements vscode.Disposable {
   private async _loadAndRender(document: vscode.TextDocument, params: ForgejoPrUriParams): Promise<void> {
     try {
       const data = await this._loadReviewData(params);
+      // The document may have been closed while the load was in flight; the
+      // close event then found no threads to dispose, so threads created now
+      // would linger in the Comments panel forever.
+      if (document.isClosed) {
+        return;
+      }
       await this._renderThreads(document, params, data);
     } catch (error) {
       const err = userFacingErrorMessage(error);
@@ -396,6 +402,12 @@ export class PullReviewCommentController implements vscode.Disposable {
           continue;
         }
 
+        // _createComment awaits attachment resolution; re-check that the
+        // document is still open before creating a thread for it (same race
+        // as the post-load guard in _loadAndRender).
+        if (document.isClosed) {
+          return;
+        }
         const thread = this._controller.createCommentThread(uri, threadRange, [
           await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName),
         ]);

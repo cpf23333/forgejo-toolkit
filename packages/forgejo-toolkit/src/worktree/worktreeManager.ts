@@ -84,8 +84,11 @@ export class WorktreeManager {
    * + manual delete inside removeWorktreeAndPrune) so the source repository's
    * .git/worktrees metadata and the branch's checked-out state are cleaned up,
    * then drop the record. When the source repository itself is gone from disk
-   * (deleted manually) the git steps cannot run — the record is dropped
-   * directly instead of failing forever. On failure the record is kept so the
+   * (deleted manually) the git steps cannot run — the worktree directory
+   * (inside the cache directory, a controlled generated path) is removed
+   * best-effort before the record is dropped, or it would be orphaned
+   * forever with no entry point left to clean it up. On failure the record
+   * is kept so the
    * UI retains an entry point for retry, and the error is thrown for the
    * caller to surface (the view provider forwards it to the webview as
    * `worktreeError`) — this method must not also toast, or the user would see
@@ -112,6 +115,8 @@ export class WorktreeManager {
         const localBranch = `pr-${target.prIndex}-${target.headSha.slice(0, 7)}`;
         await deleteBranch(target.sourceRepoPath, localBranch).catch(() => undefined);
       }
+    } else {
+      await fs.promises.rm(target.worktreePath, { recursive: true, force: true }).catch(() => undefined);
     }
     await this.context.globalState.update(
       WORKTREES_KEY,

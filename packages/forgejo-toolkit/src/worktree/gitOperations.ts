@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { promisify } from 'util';
 import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { normalizeGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
+import { isSshOrGitRemote, normalizeGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import { ForgejoClient } from '../api/client';
 import { createTimedCache } from '../utils/timedCache';
 import { logger } from '../logger';
@@ -55,20 +55,29 @@ function authEnv(token?: string): NodeJS.ProcessEnv | undefined {
 /**
  * True when remoteUrl points at the Forgejo instance identified by
  * instanceUrl (host plus any sub-path the instance is deployed under).
+ * SSH/git remotes carry a transport-level port that has no relation to the
+ * instance's web port (self-hosted servers often serve SSH on 2222 while the
+ * web UI runs on 3000), so for them the instance URL's port is ignored;
+ * http(s) remotes keep the strict host-plus-port comparison.
  */
 export function remoteMatchesInstance(remoteUrl: string, instanceUrl: string): boolean {
   const remoteInfo = normalizeGitRemote(remoteUrl);
   if (!remoteInfo) {
     return false;
   }
-  let instanceHostPath: string;
+  let instanceHostPaths: string[];
   try {
     const parsed = new URL(instanceUrl);
-    instanceHostPath = normalizeGitUrl(`${parsed.host}${parsed.pathname}`);
+    instanceHostPaths = [normalizeGitUrl(`${parsed.host}${parsed.pathname}`)];
+    if (isSshOrGitRemote(remoteUrl)) {
+      instanceHostPaths.push(normalizeGitUrl(`${parsed.hostname}${parsed.pathname}`));
+    }
   } catch {
     return false;
   }
-  return remoteInfo.normalized === instanceHostPath || remoteInfo.normalized.startsWith(`${instanceHostPath}/`);
+  return instanceHostPaths.some(
+    (hostPath) => remoteInfo.normalized === hostPath || remoteInfo.normalized.startsWith(`${hostPath}/`),
+  );
 }
 
 export async function isGitRepository(dirPath: string): Promise<boolean> {
@@ -384,10 +393,24 @@ export async function removeWorktreeAndPrune(repoPath: string, worktreePath: str
 export type PrWorktreeState = 'current' | 'stale' | 'missing';
 
 /**
+ * Throwaway branch naming used for PR worktrees (`pr-<n>-<sha7>`, the same
+ * name WorktreeManager.removeWorktree deletes). The pattern guard keeps a
+ * real user branch safe when a stale directory somehow has one checked out.
+ */
+const PR_THROWAWAY_BRANCH_PATTERN = /^pr-\d+-[0-9a-f]{7}$/;
+
+/**
  * Validate a leftover worktree directory against the expected PR head sha.
  * 'current' means the directory is checked out at expectedSha and can be
  * reused; 'stale' means it did not match and has been removed so the caller
  * can recreate it from scratch; 'missing' means there is nothing on disk.
+ *
+ * The stale path also deletes the throwaway branch the removed worktree had
+ * checked out (`pr-<n>-<sha7>`): `git worktree remove` never removes
+ * branches, and once the caller overwrites the worktree record with the new
+ * head sha, the old branch name is no longer derivable and would leak
+ * forever. The branch is resolved from the stale worktree itself before
+ * removal and deleted best-effort, mirroring WorktreeManager.removeWorktree.
  */
 export async function validatePrWorktree(
   repoPath: string,
@@ -405,7 +428,11 @@ export async function validatePrWorktree(
   if (sha && sha === expectedSha) {
     return 'current';
   }
+  const staleBranch = await getCurrentBranch(worktreePath);
   await removeWorktreeAndPrune(repoPath, worktreePath);
+  if (staleBranch && PR_THROWAWAY_BRANCH_PATTERN.test(staleBranch)) {
+    await deleteBranch(repoPath, staleBranch).catch(() => undefined);
+  }
   return 'stale';
 }
 
@@ -785,18 +812,14 @@ export async function detectLinkedRepositories(
     // configured instance (pass-1 semantics, no API calls). Repositories
     // without one are publish candidates for the Publish to Forgejo button.
     let hasForgejoRemote = false;
-    // Pass 1: host match across all remotes; cheap (no API calls).
+    // Pass 1: host match across all remotes; cheap (no API calls). Uses the
+    // same matching rules as remoteMatchesInstance (SSH/git remotes ignore
+    // the instance URL's web port).
     for (const { entry, info } of remoteInfos) {
       const matched = instances.filter((instance) => {
-        let instanceHostPath: string;
-        try {
-          const parsed = new URL(instance.url);
-          instanceHostPath = normalizeGitUrl(`${parsed.host}${parsed.pathname}`);
-        } catch {
-          return false;
-        }
-        logger.debug(`[detectLinkedRepository] compare ${info.normalized} vs ${instanceHostPath}`);
-        return info.normalized === instanceHostPath || info.normalized.startsWith(`${instanceHostPath}/`);
+        const matchesInstance = remoteMatchesInstance(entry.url, instance.url);
+        logger.debug(`[detectLinkedRepository] compare ${info.normalized} vs ${instance.url}: ${matchesInstance}`);
+        return matchesInstance;
       });
       if (matched.length === 0) {
         continue;
@@ -838,7 +861,9 @@ export async function detectLinkedRepositories(
     if (linked) {
       matches.push(linked);
     }
-    if (!hasForgejoRemote && (await isGitRepository(dirPath))) {
+    // A repository linked via the pass-2 repo-path fallback is on Forgejo
+    // even though no remote host-matched, so it must not count as unpublished.
+    if (!hasForgejoRemote && !linked && (await isGitRepository(dirPath))) {
       unpublished.push(dirPath);
     }
   }

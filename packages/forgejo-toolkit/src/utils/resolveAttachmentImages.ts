@@ -1,4 +1,5 @@
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { API_REQUEST_TIMEOUT_MS } from '../api/client';
 
 /**
  * Session-level cache of resolved attachment images. Attachment content at a
@@ -57,8 +58,11 @@ export async function resolveAttachmentImages(text: string, instance: ForgejoIns
         return;
       }
       try {
+        // A hung image host must not stall the surrounding Promise.all; on
+        // timeout the fetch rejects and the original URL is kept.
         const response = await fetch(url, {
           headers: { Authorization: `token ${instance.token}` },
+          signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
         });
         if (!response.ok) {
           return;

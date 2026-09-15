@@ -139,11 +139,13 @@ Some reverse proxies (certain nginx/Apache configurations) decode `%2F` back to 
 
 Workaround: configure the proxy to forward the escaped path unchanged (for nginx, a `proxy_pass` without a URI part does not decode), or avoid `/` in branch names. The extension cannot detect or repair proxy-side decoding.
 
-## External images in issue/PR bodies are blocked by the webview CSP
+## Only plain-http third-party images are blocked by the webview CSP
 
-The webview Content-Security-Policy restricts `img-src` to the configured instance origins (plus `data:` and `blob:`). Images served by the instance itself — avatars, attachments, images embedded in Markdown — render normally, but images hot-linked from third-party hosts are refused by the browser and show as broken images.
+The webview Content-Security-Policy allows `https:` images from any origin, so third-party https images in issue/PR bodies — including gravatar avatars, which Forgejo returns for users without an uploaded avatar — render normally. The origins of the configured instances are additionally allowlisted explicitly, so images served by an `http://` instance itself also load.
 
-This is a deliberate security trade-off: the previous policy allowed `http:`/`https:` from any origin, which let arbitrary remote content (including tracking pixels) into the webview. Workaround: open the issue/PR in the browser to see externally hosted images.
+Only `http://` images from other hosts (cleartext third-party links) are refused by the browser and show as broken images. Workaround: open the issue/PR in the browser to see them.
+
+The same CSP also restricts `connect-src` to webview resources, but this has no user-visible effect: the webview never makes direct network requests — everything goes through the extension host via postMessage.
 
 ---
 

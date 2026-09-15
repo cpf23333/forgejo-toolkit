@@ -115,6 +115,29 @@ describe('ForgejoClient with MSW', () => {
     expect(repos[69].full_name).toBe('demo-user/repo-70');
   });
 
+  it('stops paginating when the server keeps returning the first page', async () => {
+    const client = createClient();
+    let requests = 0;
+    mockServer.use(
+      http.get('https://*/api/v1/user/repos', () => {
+        requests += 1;
+        // The server ignores the page param and always answers with the same
+        // full page; without the duplicate-page guard the client would
+        // accumulate copies up to the MAX_ITEMS cap.
+        return HttpResponse.json(
+          Array.from({ length: 50 }, (_, i) => ({
+            ...mockRepository,
+            id: i + 1,
+            full_name: `demo-user/repo-${i + 1}`,
+          })),
+        );
+      }),
+    );
+    const repos = await client.getUserRepositories();
+    expect(repos).toHaveLength(50);
+    expect(requests).toBe(2);
+  });
+
   it('creates a user repository', async () => {
     const client = createClient();
     let receivedBody: Record<string, unknown> | undefined;
@@ -1074,6 +1097,10 @@ describe('ForgejoClient with MSW', () => {
               { filename: 'added-then-removed.ts', status: 'removed' },
               { filename: 'removed-then-added.ts', status: 'removed' },
               { filename: 'removed-then-added.ts', status: 'added' },
+              { filename: 'modified-then-removed.ts', status: 'modified' },
+              { filename: 'modified-then-removed.ts', status: 'removed' },
+              { filename: 'renamed-then-removed.ts', status: 'renamed', previous_filename: 'old-name.ts' },
+              { filename: 'renamed-then-removed.ts', status: 'removed' },
             ],
           }),
         ),
@@ -1086,6 +1113,10 @@ describe('ForgejoClient with MSW', () => {
       expect(statuses.has('added-then-removed.ts')).toBe(false);
       // Removed then re-added: changed content of a file existing at both ends.
       expect(statuses.get('removed-then-added.ts')).toBe('modified');
+      // Modified/renamed then removed: the file is gone at the head of the
+      // range, so the head side must not be fetched.
+      expect(statuses.get('modified-then-removed.ts')).toBe('removed');
+      expect(statuses.get('renamed-then-removed.ts')).toBe('removed');
     });
 
     it('fetches pull request comments and timeline', async () => {
