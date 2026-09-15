@@ -23,6 +23,7 @@ import {
   pullRequestCommitsKey,
   pullRequestFormKey,
   pullRequestStateKey,
+  pullRequestDueDateKey,
   pullRequestMergeFormKey,
   issueCommentFormKey,
   repoDetailKey,
@@ -76,7 +77,9 @@ const filesKey = computed(() =>
 );
 const files = computed(() => state.pullRequestFiles.value.get(filesKey.value) ?? []);
 const filesError = computed(() => state.errors.get(filesKey.value));
-const filesLoading = computed(() => files.value.length === 0 && !filesError.value);
+// Keyed on presence, not length: a PR with zero changed files loads
+// successfully into an empty array and must not spin forever.
+const filesLoading = computed(() => !state.pullRequestFiles.value.has(filesKey.value) && !filesError.value);
 
 const commentsKey = computed(() => pullRequestCommentsKey(instanceId.value, owner.value, repo.value, index.value));
 const comments = computed(() => state.pullRequestComments.value.get(commentsKey.value) ?? []);
@@ -473,6 +476,10 @@ async function handleAttachmentUpload(file: File) {
       }
       current.assets.push(attachment);
     }
+  } catch (error) {
+    // Surface the failure in the edit dialog instead of swallowing it.
+    const message = error instanceof Error ? error.message : String(error);
+    state.errors.set(editFormKey.value, t('dashboard.form.error', { message }));
   } finally {
     uploadingAttachmentCount.value -= 1;
   }
@@ -538,24 +545,37 @@ function addDependency() {
 
 function startEditDueDate() {
   dueDateValue.value = detail.value?.due_date ?? null;
+  state.errors.delete(dueDateKey.value);
   isEditingDueDate.value = true;
 }
 
 function cancelEditDueDate() {
   isEditingDueDate.value = false;
   dueDateValue.value = null;
+  state.errors.delete(dueDateKey.value);
 }
 
+// Same own-key pattern as stateToggleKey: the inline editor stays open while
+// saving, closes on success, and shows failures next to itself.
+const dueDateKey = computed(() => pullRequestDueDateKey(instanceId.value, owner.value, repo.value, index.value));
+const dueDateError = computed(() => state.errors.get(dueDateKey.value));
+const dueDateSaving = computed(() => state.loading.get(dueDateKey.value) ?? false);
+
+watch(dueDateSaving, (saving, wasSaving) => {
+  if (wasSaving && !saving && !dueDateError.value) {
+    isEditingDueDate.value = false;
+    dueDateValue.value = null;
+  }
+});
+
 function saveDueDate() {
-  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, {
+  state.updatePullRequestDueDate(instanceId.value, owner.value, repo.value, index.value, {
     dueDate: dueDateValue.value || undefined,
   });
-  isEditingDueDate.value = false;
-  dueDateValue.value = null;
 }
 
 function clearDueDate() {
-  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, {
+  state.updatePullRequestDueDate(instanceId.value, owner.value, repo.value, index.value, {
     unsetDueDate: true,
   });
 }
@@ -1232,9 +1252,15 @@ function reloadPullRequest() {
 
         <CollapsibleSection :title="t('dashboard.detail.dueDate')">
           <div v-if="isEditingDueDate" class="due-date-edit">
-            <DateTimePicker v-model="dueDateValue" type="date" />
+            <DateTimePicker v-model="dueDateValue" type="date" :disabled="dueDateSaving" />
             <div class="due-date-edit-actions">
-              <button type="button" class="link-button" :title="t('dashboard.actions.save')" @click="saveDueDate">
+              <button
+                type="button"
+                class="link-button"
+                :title="t('dashboard.actions.save')"
+                :disabled="dueDateSaving"
+                @click="saveDueDate"
+              >
                 <vscode-icon name="check" />
               </button>
               <button
@@ -1282,6 +1308,9 @@ function reloadPullRequest() {
                 <vscode-icon name="edit" />
               </button>
             </template>
+          </div>
+          <div v-if="dueDateError" class="error state-toggle-error">
+            {{ t('dashboard.error', { message: dueDateError }) }}
           </div>
         </CollapsibleSection>
 

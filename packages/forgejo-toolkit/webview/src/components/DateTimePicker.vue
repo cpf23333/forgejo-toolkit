@@ -311,7 +311,13 @@ function togglePanel() {
 }
 
 function onKeyDown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
+  if (event.key === 'Escape' && panelOpen.value) {
+    // Keep Esc scoped to the date panel: preventing default stops the
+    // enclosing native <dialog> from firing its cancel event, which would
+    // otherwise close the whole edit modal (and, on a dirty form, pop the
+    // discard confirmation) while the user only meant to close the panel.
+    event.preventDefault();
+    event.stopPropagation();
     panelOpen.value = false;
     inputRef.value?.blur();
   }

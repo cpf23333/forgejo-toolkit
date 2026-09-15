@@ -130,6 +130,8 @@ export type HostToWebviewMessage =
       error?: string;
       /** Echoed from editIssue: this was a close/reopen toggle, not a form edit. */
       stateToggle?: boolean;
+      /** Echoed from editIssue: this was an inline due-date save, not a form edit. */
+      dueDateUpdate?: boolean;
     }
   | {
       command: 'issueDeleted';
@@ -248,6 +250,8 @@ export type HostToWebviewMessage =
       error?: string;
       /** Echoed from editPullRequest: this was a close/reopen toggle, not a form edit. */
       stateToggle?: boolean;
+      /** Echoed from editPullRequest: this was an inline due-date save, not a form edit. */
+      dueDateUpdate?: boolean;
     }
   | {
       command: 'pullRequestFiles';
@@ -871,6 +875,8 @@ export type WebviewToHostMessage =
         unset_due_date?: boolean;
         /** Marks a close/reopen toggle: stripped before the API call, echoed as stateToggle. */
         state_toggle?: boolean;
+        /** Marks an inline due-date save: stripped before the API call, echoed as dueDateUpdate. */
+        due_date_update?: boolean;
       };
     }
   | {
@@ -984,6 +990,8 @@ export type WebviewToHostMessage =
         unset_due_date?: boolean;
         /** Marks a close/reopen toggle: stripped before the API call, echoed as stateToggle. */
         state_toggle?: boolean;
+        /** Marks an inline due-date save: stripped before the API call, echoed as dueDateUpdate. */
+        due_date_update?: boolean;
       };
     }
   | {

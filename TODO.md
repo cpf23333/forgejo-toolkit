@@ -23,16 +23,16 @@
 - [x] FAQ 与 release 文档过时：`FAQ.md`/`FAQ.zh.md` 称创建 Release 不能传附件（实际支持 pending 附件创建后自动上传，已核实 `RepoRefs.vue` 流程）改为「可以」并说明失败重试语义；`docs/release.md` publisher 前提改为已配置 `cpf23333`、只需其 PAT
 - [ ] 评论 thread key/scope 不含 ref：同 PR 文件 force-push 后新旧 sha 两个 diff 文档 thread key 相同，互相改写 range/误 dispose（`pullReviewThreadKeys.ts:19-30`、`pullReviewCommentController.ts:368-381`）
 - [ ] mention 补全/文档链接多仓库归属错误：`issueMentionProvider.ts:50-59` 不传 `preferredPath` 且全局缓存单一结果，多仓库时指向活动编辑器的仓库
-- [ ] 侧栏行内修改 due date 失败无提示且错误残留：`IssueDetail.vue:367-379`/`PullRequestDetail.vue:549-561` 错误写入编辑弹窗的 key，弹窗未开则静默，下次开弹窗看到旧错误
-- [ ] 编辑态附件上传失败静默：`IssueDetail.vue:420-434`/`PullRequestDetail.vue:465-479` 只有 try/finally 无 catch，零反馈 + unhandled rejection
+- [x] 侧栏行内修改 due date 失败无提示且错误残留：`IssueDetail.vue`/`PullRequestDetail.vue` 错误写入编辑弹窗的 key，弹窗未开则静默，下次开弹窗看到旧错误——镜像 `state_toggle` 模式新增 `due_date_update` 回显与 `issueDueDateKey`/`pullRequestDueDateKey`，编辑器保存期间保持打开、成功才关闭、错误就地展示
+- [x] 编辑态附件上传失败静默：`IssueDetail.vue`/`PullRequestDetail.vue` 的 `handleAttachmentUpload` 只有 try/finally 无 catch，零反馈 + unhandled rejection——补 catch，错误写入编辑弹窗 key 就地显示
 - [ ] 大体积下载仍受 30s 全局超时约束：`client.ts:1603` 默认 `AbortSignal.timeout(30_000)` 覆盖 artifact 流式下载（2GB 上限）/CI 日志（10MB）/PR diff，慢网络中途 abort，错误文案误导为实例不响应
 - [ ] `_treeCache` 完全失效：client 每消息新建（约 110 处 `new ForgejoClient`），60s TTL 缓存生命周期=单次请求，文件搜索每击键仍拉整棵 tree（`client.ts:219` 注释宣称的收益不存在）
 - [ ] `_detectServerOrigin` 误判：`website`/`original_url` 等外部 URL 字段参与计数可被「检测」为服务器源，随后仓库主页/镜像源链接被改写成实例坏链（`client.ts:1515-1552`）
 - [ ] compare 状态合并把「先 added 后 modified」错标为 `modified`：`client.ts:1223-1234` 条件写宽，base 侧拉取 404/空 diff
-- [ ] 零变更文件的 PR 永久显示加载中：`PullRequestDetail.vue:79` `filesLoading = files.length === 0 && !filesError`，空 diff 加载成功后 spinner 不消失
-- [ ] RepoRefs 操作失败整列表被错误行替换且无重试入口：`RepoRefs.vue:243-244` 错误独占渲染，缓存数据不兜底
+- [x] 零变更文件的 PR 永久显示加载中：`PullRequestDetail.vue` `filesLoading = files.length === 0 && !filesError`，空 diff 加载成功后 spinner 不消失——改为按 key 是否存在判断（与 comments/commits 一致）
+- [x] RepoRefs 操作失败整列表被错误行替换且无重试入口：`RepoRefs.vue` 错误独占渲染，缓存数据不兜底——有缓存数据时保留列表 + 顶部错误条带 Retry；无数据时错误页也带 Retry；顺带解决低优先级「每次刷新整列表闪 Loading」（loading 仅在无数据时显示）
 - [ ] 删除实例后其 keep-alive 视图永久转圈：load 类消息无 `_requestId`/超时，host `_findInstance` 失败静默 return，webview 无任何错误提示
-- [ ] 日期面板按 Esc 连带关闭整个编辑模态框：`DateTimePicker.vue:307-312` 无法阻止原生 `<dialog>` 的 cancel 事件（`ModalDialog.vue:107-118`），脏表单还会额外弹放弃确认
+- [x] 日期面板按 Esc 连带关闭整个编辑模态框：`DateTimePicker.vue` 无法阻止原生 `<dialog>` 的 cancel 事件（`ModalDialog.vue`），脏表单还会额外弹放弃确认——面板打开时 Esc 做 preventDefault + stopPropagation，只关面板
 - [ ] `currentWindow` 模式打开 worktree 记录永不落盘：`openFolder` 重载销毁扩展宿主，其后的 `addWorktree()`/`_reply` 不执行（`gitOperations.ts:491`、`viewProvider.ts:3916-3924`）——记录应移到 openFolder 之前
 - [ ] `startWorkOnIssue` 的 issue worktree 从不写入 WorktreeManager：UI 删不掉、源仓库不受 LRU 活跃保护；复用残留目录只查 `fs.access` 无合法性校验（`viewProvider.ts:3709-3793`）
 - [ ] onboarding 的 `importInstances` 缺 `sanitizeImportedInstances` 校验：`onboardingPanel.ts:292-298` 直接 cast，与 viewProvider 同消息处理不一致
@@ -46,7 +46,7 @@
 - [ ] 列表搜索防抖回调无 keep-alive 守卫：`RepoIssues.vue:123-132`/`RepoPullRequests.vue:117-126`，输入后 300ms 内切走会用新路由参数发请求
 - [ ] Notifications 视图只在 onMounted 加载一次，keep-alive 返回列表陈旧（有手动刷新兜底）
 - [ ] PullRequestForm 标签色无对比度计算（`PullRequestForm.vue:251`，IssueForm.vue:169 有 isLightColor，两表单不一致）
-- [ ] RepoRefs 每次刷新整列表闪 Loading（与 RepoIssues「保留旧列表」策略不一致）
+- [x] RepoRefs 每次刷新整列表闪 Loading（与 RepoIssues「保留旧列表」策略不一致）——已随中优先级 RepoRefs 错误兜底一并修复（loading 仅在无缓存数据时显示）
 - [ ] FileTreeNode 目录行点击不展开（只有 14px 箭头可点）、整行无 tabindex/键盘事件；:76-112 用 emoji 当文件图标，与 AGENTS.md Codicons 约定不符
 - [ ] 源仓库被手动删除后 worktree 记录卡死在列表：`removeWorktreeAndPrune` 以不存在的 sourceRepoPath 为 cwd 必失败，`forgetWorktree` 未暴露给 webview
 - [ ] PR 本地分支 `pr-<n>-<sha7>` 从不清理：`git worktree remove` 不删分支，PR 每更新 head 累积一个废分支

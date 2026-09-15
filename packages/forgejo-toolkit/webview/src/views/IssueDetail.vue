@@ -29,6 +29,7 @@ import {
   issueDependenciesKey,
   issueReactionsKey,
   issueStateKey,
+  issueDueDateKey,
   startWorkKey,
 } from '../composables/useAppState';
 import type { ForgejoIssueAttachment } from '../types/api';
@@ -356,24 +357,38 @@ function addDependency() {
 
 function startEditDueDate() {
   dueDateValue.value = detail.value?.due_date ?? null;
+  state.errors.delete(dueDateKey.value);
   isEditingDueDate.value = true;
 }
 
 function cancelEditDueDate() {
   isEditingDueDate.value = false;
   dueDateValue.value = null;
+  state.errors.delete(dueDateKey.value);
 }
 
+// The inline due-date save reports against its own key (see stateToggleKey):
+// the editor stays open while saving, closes on success, and shows the error
+// next to itself on failure instead of losing it in the edit form's key.
+const dueDateKey = computed(() => issueDueDateKey(instanceId.value, owner.value, repo.value, index.value));
+const dueDateError = computed(() => state.errors.get(dueDateKey.value));
+const dueDateSaving = computed(() => state.loading.get(dueDateKey.value) ?? false);
+
+watch(dueDateSaving, (saving, wasSaving) => {
+  if (wasSaving && !saving && !dueDateError.value) {
+    isEditingDueDate.value = false;
+    dueDateValue.value = null;
+  }
+});
+
 function saveDueDate() {
-  state.editIssue(instanceId.value, owner.value, repo.value, index.value, {
+  state.updateIssueDueDate(instanceId.value, owner.value, repo.value, index.value, {
     dueDate: dueDateValue.value || undefined,
   });
-  isEditingDueDate.value = false;
-  dueDateValue.value = null;
 }
 
 function clearDueDate() {
-  state.editIssue(instanceId.value, owner.value, repo.value, index.value, {
+  state.updateIssueDueDate(instanceId.value, owner.value, repo.value, index.value, {
     unsetDueDate: true,
   });
 }
@@ -428,6 +443,10 @@ async function handleAttachmentUpload(file: File) {
       }
       current.assets.push(attachment);
     }
+  } catch (error) {
+    // Surface the failure in the edit dialog instead of swallowing it.
+    const message = error instanceof Error ? error.message : String(error);
+    state.errors.set(editFormKey.value, t('dashboard.form.error', { message }));
   } finally {
     uploadingAttachmentCount.value -= 1;
   }
@@ -801,9 +820,15 @@ function reloadIssue() {
 
         <CollapsibleSection :title="t('dashboard.detail.dueDate')">
           <div v-if="isEditingDueDate" class="due-date-edit">
-            <DateTimePicker v-model="dueDateValue" type="date" />
+            <DateTimePicker v-model="dueDateValue" type="date" :disabled="dueDateSaving" />
             <div class="due-date-edit-actions">
-              <button type="button" class="link-button" :title="t('dashboard.actions.save')" @click="saveDueDate">
+              <button
+                type="button"
+                class="link-button"
+                :title="t('dashboard.actions.save')"
+                :disabled="dueDateSaving"
+                @click="saveDueDate"
+              >
                 <vscode-icon name="check" />
               </button>
               <button
@@ -851,6 +876,9 @@ function reloadIssue() {
                 <vscode-icon name="edit" />
               </button>
             </template>
+          </div>
+          <div v-if="dueDateError" class="error state-toggle-error">
+            {{ t('dashboard.error', { message: dueDateError }) }}
           </div>
         </CollapsibleSection>
 

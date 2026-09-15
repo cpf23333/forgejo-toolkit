@@ -74,6 +74,10 @@ function selectBranch(name?: string) {
   }
 }
 
+function retryLoad() {
+  state.loadRepoRefs(props.instanceId, props.owner, props.repo, true);
+}
+
 function openDialog(mode: RepoRefFormMode, release?: ForgejoRelease) {
   dialogMode.value = mode;
   editingRelease.value = release;
@@ -240,10 +244,19 @@ async function removeRelease(id?: number) {
       </button>
     </div>
 
-    <div v-if="loading" class="status">{{ t('dashboard.loading') }}</div>
-    <div v-else-if="error" class="status error">{{ error }}</div>
+    <div v-if="loading && !data" class="status">{{ t('dashboard.loading') }}</div>
+    <div v-else-if="error && !data" class="status error">
+      {{ error }}
+      <button type="button" class="link-button" @click="retryLoad">{{ t('dashboard.retry') }}</button>
+    </div>
 
     <template v-else>
+      <!-- A failed refresh keeps the cached list and shows a dismissible
+           banner with a retry entry instead of replacing everything. -->
+      <div v-if="error" class="status error">
+        {{ error }}
+        <button type="button" class="link-button" @click="retryLoad">{{ t('dashboard.retry') }}</button>
+      </div>
       <div v-if="activeTab === 'branches'" class="ref-list">
         <div class="ref-actions">
           <button class="ref-action-button" @click="openDialog('branch')">

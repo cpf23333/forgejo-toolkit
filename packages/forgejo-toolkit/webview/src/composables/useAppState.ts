@@ -1898,13 +1898,17 @@ function createAppState() {
       error?: string;
       _requestId?: string;
       stateToggle?: boolean;
+      dueDateUpdate?: boolean;
     },
   ) {
-    // A close/reopen toggle reports against its own key so the error surfaces
-    // next to the toggle button, not inside the (possibly closed) edit form.
+    // A close/reopen toggle or an inline due-date save reports against its own
+    // key so the error surfaces next to the control that started it, not
+    // inside the (possibly closed) edit form.
     const formKey = data.stateToggle
       ? issueStateKey(data.instanceId, data.owner, data.repo, data.index)
-      : issueFormKey(data.instanceId, data.owner, data.repo, command === 'issueUpdated' ? data.index : 0);
+      : data.dueDateUpdate
+        ? issueDueDateKey(data.instanceId, data.owner, data.repo, data.index)
+        : issueFormKey(data.instanceId, data.owner, data.repo, command === 'issueUpdated' ? data.index : 0);
     loading.set(formKey, false);
     if (command === 'issueCreated' && data._requestId) {
       const pending = pendingIssueCreations.get(data._requestId);
@@ -2199,12 +2203,16 @@ function createAppState() {
       error?: string;
       _requestId?: string;
       stateToggle?: boolean;
+      dueDateUpdate?: boolean;
     },
   ) {
-    // Same split as handleIssueSaved: close/reopen toggles use their own key.
+    // Same split as handleIssueSaved: close/reopen toggles and inline due-date
+    // saves use their own keys.
     const formKey = data.stateToggle
       ? pullRequestStateKey(data.instanceId, data.owner, data.repo, data.index)
-      : pullRequestFormKey(data.instanceId, data.owner, data.repo, command === 'pullRequestUpdated' ? data.index : 0);
+      : data.dueDateUpdate
+        ? pullRequestDueDateKey(data.instanceId, data.owner, data.repo, data.index)
+        : pullRequestFormKey(data.instanceId, data.owner, data.repo, command === 'pullRequestUpdated' ? data.index : 0);
     loading.set(formKey, false);
     if (command === 'pullRequestCreated' && data._requestId) {
       const pending = pendingPullRequestCreations.get(data._requestId);
@@ -3247,6 +3255,31 @@ function createAppState() {
     });
   }
 
+  /**
+   * Update only the due date from the detail view's inline editor. Uses its
+   * own loading/error key (echoed back as `dueDateUpdate`) so a failure shows
+   * next to the inline editor instead of inside the edit form's key, which
+   * the user may never open.
+   */
+  function updateIssueDueDate(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    data: { dueDate?: string; unsetDueDate?: boolean },
+  ) {
+    const key = issueDueDateKey(instanceId, owner, repo, index);
+    beginLoading(key);
+    postMessage({
+      command: 'editIssue',
+      instanceId,
+      owner,
+      repo,
+      index,
+      data: { due_date: data.dueDate, unset_due_date: data.unsetDueDate, due_date_update: true },
+    });
+  }
+
   function createIssueComment(
     instanceId: string,
     owner: string,
@@ -3497,6 +3530,26 @@ function createAppState() {
       repo,
       index,
       data: { state, state_toggle: true },
+    });
+  }
+
+  /** See updateIssueDueDate: the inline due-date editor gets its own key. */
+  function updatePullRequestDueDate(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    index: number,
+    data: { dueDate?: string; unsetDueDate?: boolean },
+  ) {
+    const key = pullRequestDueDateKey(instanceId, owner, repo, index);
+    beginLoading(key);
+    postMessage({
+      command: 'editPullRequest',
+      instanceId,
+      owner,
+      repo,
+      index,
+      data: { due_date: data.dueDate, unset_due_date: data.unsetDueDate, due_date_update: true },
     });
   }
 
@@ -4317,6 +4370,8 @@ function createAppState() {
     editIssue,
     toggleIssueState,
     togglePullRequestState,
+    updateIssueDueDate,
+    updatePullRequestDueDate,
     deleteIssue,
     createIssueComment,
     editIssueComment,
@@ -4428,6 +4483,14 @@ export function issueFormKey(instanceId: string, owner: string, repo: string, in
 
 export function issueStateKey(instanceId: string, owner: string, repo: string, index: number): string {
   return `${instanceId}:${owner}/${repo}:issue-state:${index}`;
+}
+
+export function issueDueDateKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}:issue-due-date:${index}`;
+}
+
+export function pullRequestDueDateKey(instanceId: string, owner: string, repo: string, index: number): string {
+  return `${instanceId}:${owner}/${repo}:pr-due-date:${index}`;
 }
 
 export function startWorkKey(instanceId: string, owner: string, repo: string, index: number): string {

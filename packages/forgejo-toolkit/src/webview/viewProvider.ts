@@ -708,6 +708,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const {
             labels,
             state_toggle: stateToggle,
+            due_date_update: dueDateUpdate,
             ...issueData
           } = data as {
             title?: string;
@@ -719,6 +720,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             due_date?: string;
             unset_due_date?: boolean;
             state_toggle?: boolean;
+            due_date_update?: boolean;
           };
           const item = await client.editIssue(owner, repo, index, issueData);
           if (Array.isArray(labels)) {
@@ -731,6 +733,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             index,
             item,
             ...(stateToggle ? { stateToggle: true } : {}),
+            ...(dueDateUpdate ? { dueDateUpdate: true } : {}),
           });
         } catch (error) {
           const err = userFacingErrorMessage(error);
@@ -742,6 +745,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             index,
             error: err,
             ...((data as { state_toggle?: boolean }).state_toggle ? { stateToggle: true } : {}),
+            ...((data as { due_date_update?: boolean }).due_date_update ? { dueDateUpdate: true } : {}),
           });
         }
         return;
@@ -1730,7 +1734,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const { state_toggle: stateToggle, ...prData } = data;
+          const { state_toggle: stateToggle, due_date_update: dueDateUpdate, ...prData } = data;
           const item = await client.editPullRequest(owner, repo, index, prData);
           this._reply('pullRequestUpdated', {
             instanceId: instance.id,
@@ -1739,6 +1743,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             index,
             item,
             ...(stateToggle ? { stateToggle: true } : {}),
+            ...(dueDateUpdate ? { dueDateUpdate: true } : {}),
           });
           // Closing (or reopening) a PR changes the status bar's open-PR lookup.
           if (data.state) {
@@ -1754,6 +1759,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             index,
             error: err,
             ...(data.state_toggle ? { stateToggle: true } : {}),
+            ...(data.due_date_update ? { dueDateUpdate: true } : {}),
           });
         }
         return;
