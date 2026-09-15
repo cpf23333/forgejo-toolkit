@@ -88,6 +88,9 @@ const LOAD_RESULT_COMMANDS: Record<string, string> = {
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
 
+  /** Cap for the pre-mount message queue (see `_postOrQueue`). */
+  private static readonly MAX_PENDING_MESSAGES = 50;
+
   /** Invoked after a pull request is created, merged, or closed through the webview. */
   public onPullRequestsChanged: (() => void) | undefined;
 
@@ -3255,10 +3258,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     // When the sidebar has never been shown the webview does not exist yet;
     // queue the message and flush it once the webview mounts and asks for its
     // initial state (see the getInitialState handler). Multiple messages may
-    // arrive before that, so this is a queue, not a single slot.
+    // arrive before that, so this is a queue, not a single slot. The queue is
+    // capped: if the sidebar is never resolved at all, an unbounded queue
+    // would grow for the whole session — these messages are transient
+    // notifications, so the oldest is dropped.
     if (this._view) {
       this._view.webview.postMessage(message);
     } else {
+      if (this._pendingMessages.length >= ForgejoToolkitViewProvider.MAX_PENDING_MESSAGES) {
+        this._pendingMessages.shift();
+        logger.error('Pending webview message queue is full; dropped the oldest message');
+      }
       this._pendingMessages.push(message);
     }
   }

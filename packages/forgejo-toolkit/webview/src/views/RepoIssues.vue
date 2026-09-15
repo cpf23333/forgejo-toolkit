@@ -124,6 +124,12 @@ let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 watch(searchInput, (value) => {
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
+    // The view may have been deactivated (or the route switched) during the
+    // debounce window; applying the query then would fire a request with the
+    // new route's params.
+    if (!isActive.value) {
+      return;
+    }
     appliedQuery.value = value.trim();
     if (hasIssues.value) {
       state.loadRepoIssues(instanceId.value, owner.value, repo.value, stateParam.value, appliedQuery.value);

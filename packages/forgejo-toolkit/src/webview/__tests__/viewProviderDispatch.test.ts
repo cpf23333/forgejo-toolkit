@@ -381,7 +381,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       headBranch: 'feature',
       headSha: 'abc',
       baseBranch: 'main',
-      sourceRepoPath: '/src/repo',
+      sourceRepoPath: process.cwd(),
       worktreePath: '/cache/worktrees/w1',
       createdAt: 0,
     };

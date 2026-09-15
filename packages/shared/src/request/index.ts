@@ -95,11 +95,13 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
   const body =
     paramsConfig.data instanceof FormData
       ? paramsConfig.data
-      : paramsConfig.data
+      : // Explicit null/undefined check: falsy values like 0, '', or false are
+        // legitimate JSON bodies and must not be dropped.
+        paramsConfig.data !== undefined && paramsConfig.data !== null
         ? JSON.stringify(paramsConfig.data)
         : undefined;
 
-  if (body && !(paramsConfig.data instanceof FormData)) {
+  if (body !== undefined && !(paramsConfig.data instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
 

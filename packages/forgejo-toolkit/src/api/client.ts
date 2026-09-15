@@ -170,8 +170,10 @@ const TREE_CACHE_TTL_MS = 60_000;
 // Forgejo's default MAX_RESPONSE_ITEMS is 50 and larger limits are silently
 // clamped server-side, so paginate with a page size the server accepts.
 const PAGE_SIZE = 50;
-// Safety bound so a misbehaving server cannot keep us fetching forever.
-const MAX_PAGES = 10;
+// Safety bound on the total item count (not the page count), so a server that
+// clamps the page size cannot shrink the overall result window, and a
+// misbehaving server cannot keep us fetching forever.
+const MAX_ITEMS = 10 * PAGE_SIZE;
 // Raw payload caps: CI logs are loaded fully into memory; artifacts stream to
 // disk and only carry a large defensive cap against unbounded writes.
 const MAX_JOB_LOG_LENGTH = 10 * 1024 * 1024;
@@ -302,12 +304,15 @@ export class ForgejoClient {
    * requested limit (MAX_RESPONSE_ITEMS), so the first page's length — not
    * PAGE_SIZE — defines the effective page size: only a shorter later page
    * (or an empty one) means the list is exhausted. X-Total-Count is not
-   * available on all endpoints. MAX_PAGES remains the safety bound.
+   * available on all endpoints. The safety bound caps the total item count
+   * (not the page count), so a clamped page size does not shrink the overall
+   * result window.
    */
   private async _fetchAllPages<T>(fetchPage: (page: number) => Promise<T[] | null | undefined>): Promise<T[]> {
     const all: T[] = [];
     let effectivePageSize: number | undefined;
-    for (let page = 1; page <= MAX_PAGES; page++) {
+    let page = 1;
+    while (all.length < MAX_ITEMS) {
       const items = (await fetchPage(page)) ?? [];
       all.push(...items);
       if (page === 1) {
@@ -316,12 +321,16 @@ export class ForgejoClient {
       if (items.length === 0 || items.length < (effectivePageSize ?? PAGE_SIZE)) {
         break;
       }
+      page++;
     }
     return all;
   }
 
-  getUserStopWatches(): Promise<StopWatch[]> {
-    return userGetStopWatches(undefined, { client: this._client() }) as Promise<StopWatch[]>;
+  async getUserStopWatches(): Promise<StopWatch[]> {
+    const watches = await this._fetchAllPages((page) =>
+      userGetStopWatches({ page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return watches as StopWatch[];
   }
 
   async getUserRepositories(): Promise<ForgejoRepository[]> {
@@ -395,10 +404,17 @@ export class ForgejoClient {
 
   async getActionRunArtifacts(owner: string, repo: string, runId: number): Promise<ForgejoActionArtifact[]> {
     this._assertActions();
-    const result = await listActionRunArtifacts(owner, repo, runId, undefined, { client: this._client() });
-    return (
-      Array.isArray(result) ? result : ((result as { artifacts?: ActionArtifact[] }).artifacts ?? [])
-    ) as ForgejoActionArtifact[];
+    const artifacts = await this._fetchAllPages(async (page) => {
+      const result = await listActionRunArtifacts(
+        owner,
+        repo,
+        runId,
+        { page, limit: PAGE_SIZE },
+        { client: this._client() },
+      );
+      return Array.isArray(result) ? result : ((result as { artifacts?: ActionArtifact[] }).artifacts ?? []);
+    });
+    return artifacts as ForgejoActionArtifact[];
   }
 
   async getActionJobLog(owner: string, repo: string, jobId: number): Promise<string> {
@@ -1161,8 +1177,11 @@ export class ForgejoClient {
     return issueDeleteStopWatch(owner, repo, index, { client: this._client() });
   }
 
-  listIssueTrackedTimes(owner: string, repo: string, index: number): Promise<TrackedTime[]> {
-    return issueTrackedTimes(owner, repo, index, undefined, { client: this._client() }) as Promise<TrackedTime[]>;
+  async listIssueTrackedTimes(owner: string, repo: string, index: number): Promise<TrackedTime[]> {
+    const times = await this._fetchAllPages((page) =>
+      issueTrackedTimes(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return times as TrackedTime[];
   }
 
   addIssueTime(owner: string, repo: string, index: number, time: number): Promise<TrackedTime> {
@@ -1194,8 +1213,11 @@ export class ForgejoClient {
     return issueRemoveIssueDependencies(owner, repo, index, data, { client: this._client() });
   }
 
-  getIssueReactions(owner: string, repo: string, index: number): Promise<Reaction[]> {
-    return issueGetIssueReactions(owner, repo, index, undefined, { client: this._client() }) as Promise<Reaction[]>;
+  async getIssueReactions(owner: string, repo: string, index: number): Promise<Reaction[]> {
+    const reactions = await this._fetchAllPages((page) =>
+      issueGetIssueReactions(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    );
+    return reactions as Reaction[];
   }
 
   addIssueReaction(owner: string, repo: string, index: number, content: string): Promise<Reaction> {

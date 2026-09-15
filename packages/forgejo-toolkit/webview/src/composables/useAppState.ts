@@ -1209,7 +1209,7 @@ function createAppState() {
         if (pending) {
           pendingReleaseCreations.delete(_requestId);
           if (error || !item) {
-            pending.reject(new Error(error || 'Failed to create release'));
+            pending.reject(new Error(error || t('common.releaseCreationFailed')));
           } else {
             pending.resolve(item as ForgejoRelease);
           }
@@ -1243,7 +1243,7 @@ function createAppState() {
         if (pending) {
           releaseAttachmentPromises.delete(_requestId);
           if (error || !attachment) {
-            pending.reject(error || 'Attachment upload failed');
+            pending.reject(error || t('common.attachmentUploadFailed'));
           } else {
             pending.resolve(attachment);
           }
@@ -1862,7 +1862,7 @@ function createAppState() {
         browser_download_url: data.browser_download_url ?? `/attachments/${data.uuid}`,
       });
     } else {
-      pending.reject(new Error('Attachment upload failed'));
+      pending.reject(new Error(t('common.attachmentUploadFailed')));
     }
   }
 
@@ -1919,7 +1919,7 @@ function createAppState() {
         } else if (data.item) {
           pending.resolve(data.item);
         } else {
-          pending.reject(new Error('Issue creation failed'));
+          pending.reject(new Error(t('common.issueCreationFailed')));
         }
       }
     }
@@ -1987,7 +1987,7 @@ function createAppState() {
       } else if (data.comment) {
         pending.resolve(data.comment);
       } else {
-        pending.reject(new Error('Comment creation failed'));
+        pending.reject(new Error(t('common.commentCreationFailed')));
       }
     }
     if (data.error) {
@@ -2223,7 +2223,7 @@ function createAppState() {
         } else if (data.item) {
           pending.resolve(data.item);
         } else {
-          pending.reject(new Error('Pull request creation failed'));
+          pending.reject(new Error(t('common.pullRequestCreationFailed')));
         }
       }
     }
@@ -3376,7 +3376,7 @@ function createAppState() {
           _requestId: id,
         });
       };
-      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+      reader.onerror = () => reject(reader.error ?? new Error(t('common.readFileFailed')));
       reader.readAsArrayBuffer(file);
     });
   }
@@ -3407,7 +3407,7 @@ function createAppState() {
           _requestId: id,
         });
       };
-      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+      reader.onerror = () => reject(reader.error ?? new Error(t('common.readFileFailed')));
       reader.readAsArrayBuffer(file);
     });
   }

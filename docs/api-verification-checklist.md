@@ -476,7 +476,7 @@
 - [x] 不需要特殊 `Accept` header
 - [x] artifact 未确认上传完成时返回 404
 - [x] 源码位置：`routers/api/v1/repo/action.go:1419-1484`
-- [x] 差异记录：当前使用 `responseType: 'arraybuffer'`，与源码一致
+- [x] 差异记录：当前使用 `responseType: 'stream'` 流式写盘（带 2GB 防御上限与 30s 空闲 watchdog），与源码行为一致
 
 ### `DELETE /repos/{owner}/{repo}/actions/runs/{runId}`
 
@@ -509,7 +509,7 @@
 - [x] 不包含 collaborator 仓库（仅 `OwnerID=currentUser`）
 - [x] 支持 `page`/`limit`/`order_by` 分页排序
 - [x] 源码位置：`routers/api/v1/user/repo.go:88-170`
-- [x] 差异记录：当前 `getUserRepositories` 使用 `limit: 100`，未指定 `order_by`，与源码默认行为一致
+- [x] 差异记录：当前 `getUserRepositories` 经 `_fetchAllPages` 以 `limit: 50` 分页拉取，未指定 `order_by`，与源码默认行为一致
 
 ### `GET /user/stopwatches`
 

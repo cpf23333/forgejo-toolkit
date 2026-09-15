@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState, notificationsKey, NOTIFICATIONS_LIMIT } from '../composables/useAppState';
@@ -244,7 +244,11 @@ watch([statusFilter, typeFilter], () => {
   }, 300);
 });
 
-onMounted(() => {
+// Under keep-alive this view is deactivated (not unmounted) when navigating
+// away, so onMounted only ever fires once. onActivated fires on the first
+// mount as well as on every return, keeping the list fresh without relying on
+// the manual refresh button.
+onActivated(() => {
   loadAll();
 });
 </script>

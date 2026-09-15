@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { removeWorktreeAndPrune } from './gitOperations';
+import { deleteBranch, removeWorktreeAndPrune } from './gitOperations';
 
 export interface WorktreeInfo {
   id: string;
@@ -83,10 +83,18 @@ export class WorktreeManager {
    * Remove a worktree: run `git worktree remove` first (falling back to prune
    * + manual delete inside removeWorktreeAndPrune) so the source repository's
    * .git/worktrees metadata and the branch's checked-out state are cleaned up,
-   * then drop the record. On failure the record is kept so the UI retains an
-   * entry point for retry, and the error is thrown for the caller to surface
-   * (the view provider forwards it to the webview as `worktreeError`) — this
-   * method must not also toast, or the user would see the error twice.
+   * then drop the record. When the source repository itself is gone from disk
+   * (deleted manually) the git steps cannot run — the record is dropped
+   * directly instead of failing forever. On failure the record is kept so the
+   * UI retains an entry point for retry, and the error is thrown for the
+   * caller to surface (the view provider forwards it to the webview as
+   * `worktreeError`) — this method must not also toast, or the user would see
+   * the error twice.
+   *
+   * PR worktrees also delete their throwaway local branch (`pr-<n>-<sha7>`):
+   * `git worktree remove` never removes branches, so every PR head update
+   * would otherwise accumulate one dead branch. Issue worktrees keep their
+   * branch — it is the user's own work branch.
    */
   async removeWorktree(id: string): Promise<void> {
     const worktrees = this.getWorktrees();
@@ -94,7 +102,17 @@ export class WorktreeManager {
     if (!target) {
       return;
     }
-    await removeWorktreeAndPrune(target.sourceRepoPath, target.worktreePath);
+    const sourceExists = await fs.promises.access(target.sourceRepoPath).then(
+      () => true,
+      () => false,
+    );
+    if (sourceExists) {
+      await removeWorktreeAndPrune(target.sourceRepoPath, target.worktreePath);
+      if ((target.kind ?? 'pr') === 'pr' && target.headSha) {
+        const localBranch = `pr-${target.prIndex}-${target.headSha.slice(0, 7)}`;
+        await deleteBranch(target.sourceRepoPath, localBranch).catch(() => undefined);
+      }
+    }
     await this.context.globalState.update(
       WORKTREES_KEY,
       worktrees.filter((w) => w.id !== id),

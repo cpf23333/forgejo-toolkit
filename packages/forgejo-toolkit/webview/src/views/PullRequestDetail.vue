@@ -253,7 +253,7 @@ async function handleCommentImageUpload(
     const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
     const url = attachment.uuid ? `/attachments/${attachment.uuid}` : (attachment.browser_download_url ?? '');
     if (!url) {
-      onError('Failed to upload image');
+      onError(t('common.imageUploadFailed'));
       return;
     }
     onSuccess(url);
@@ -541,6 +541,16 @@ function addDependency() {
   }
   state.createIssueDependency(instanceId.value, owner.value, repo.value, index.value, dependencyIndex);
   selectedDependencyNumber.value = undefined;
+}
+
+// Same confirmation as the issue detail view: removing a dependency is a
+// write operation and must not fire from a single misclick.
+async function handleRemoveDependency(depNumber: number) {
+  const confirmed = await state.showConfirm(t('dashboard.detail.removeDependencyConfirm', { number: depNumber }));
+  if (!confirmed) {
+    return;
+  }
+  state.removeIssueDependency(instanceId.value, owner.value, repo.value, index.value, depNumber);
 }
 
 function startEditDueDate() {
@@ -1432,7 +1442,7 @@ function reloadPullRequest() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.delete')"
-                @click="state.removeIssueDependency(instanceId, owner, repo, index, dep.number)"
+                @click="handleRemoveDependency(dep.number ?? 0)"
               >
                 <vscode-icon name="trash" />
               </button>

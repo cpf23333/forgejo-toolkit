@@ -40,9 +40,22 @@ function onRowClick(event: MouseEvent) {
     return;
   }
   if (isDir) {
+    onToggleExpand();
     return;
   }
   openDiff();
+}
+
+function onRowKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+  event.preventDefault();
+  if (isDir) {
+    onToggleExpand();
+  } else {
+    openDiff();
+  }
 }
 
 function statusClass(status?: string): string {
@@ -73,48 +86,50 @@ function statusText(status?: string): string {
   }
 }
 
+// Codicon names (AGENTS.md prefers Codicons over emoji for file-type icons).
 function nodeIcon(): string {
   if (isDir) {
-    return '📁';
+    return 'folder';
   }
   const ext = props.node.name.split('.').pop()?.toLowerCase();
   switch (ext) {
     case 'ts':
     case 'tsx':
-      return '📘';
     case 'js':
     case 'jsx':
-      return '📒';
     case 'vue':
-      return '💚';
-    case 'json':
-      return '📋';
-    case 'md':
-      return '📝';
     case 'css':
     case 'scss':
     case 'less':
-      return '🎨';
     case 'html':
-      return '🌐';
     case 'yml':
     case 'yaml':
-      return '⚙️';
+      return 'file-code';
+    case 'json':
+      return 'json';
+    case 'md':
+      return 'markdown';
     case 'png':
     case 'jpg':
     case 'jpeg':
     case 'gif':
     case 'svg':
-      return '🖼️';
+      return 'file-media';
     default:
-      return '📄';
+      return 'file';
   }
 }
 </script>
 
 <template>
   <li class="tree-node">
-    <div class="tree-row" :class="{ 'is-file': !isDir }" @click="onRowClick">
+    <div
+      class="tree-row"
+      :class="{ 'is-file': !isDir, 'is-dir': isDir }"
+      tabindex="0"
+      @click="onRowClick"
+      @keydown="onRowKeydown"
+    >
       <input
         type="checkbox"
         class="node-checkbox"
@@ -131,7 +146,7 @@ function nodeIcon(): string {
         }"
         @click="onToggleExpand"
       />
-      <span class="node-icon">{{ nodeIcon() }}</span>
+      <span class="node-icon"><vscode-icon :name="nodeIcon()" /></span>
       <span class="node-name">{{ props.node.name }}</span>
       <span v-if="!isDir && props.node.file" class="node-status" :class="statusClass(props.node.file.status)">
         {{ statusText(props.node.file.status) }}
@@ -172,8 +187,14 @@ function nodeIcon(): string {
   background-color: var(--vscode-list-hoverBackground);
 }
 
-.tree-row.is-file {
+.tree-row.is-file,
+.tree-row.is-dir {
   cursor: pointer;
+}
+
+.tree-row:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 .node-checkbox {

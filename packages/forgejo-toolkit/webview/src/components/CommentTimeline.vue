@@ -347,7 +347,7 @@ async function handleUploadImageForEdit(
     const attachment = await uploadAttachmentForEdit(file);
     const url = attachment?.uuid ? `/attachments/${attachment.uuid}` : (attachment?.browser_download_url ?? '');
     if (!url) {
-      onError('Failed to upload image');
+      onError(t('common.imageUploadFailed'));
       return;
     }
     onSuccess(url);

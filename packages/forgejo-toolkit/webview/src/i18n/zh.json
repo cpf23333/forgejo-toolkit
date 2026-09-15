@@ -10,7 +10,14 @@
     "cancel": "取消",
     "discardChangesConfirm": "有未保存的更改，确定要放弃吗？",
     "requestTimeout": "请求超时，请重试。",
-    "requestFailed": "请求失败，请重试。"
+    "requestFailed": "请求失败，请重试。",
+    "imageUploadFailed": "图片上传失败",
+    "attachmentUploadFailed": "附件上传失败",
+    "issueCreationFailed": "Issue 创建失败",
+    "commentCreationFailed": "评论创建失败",
+    "pullRequestCreationFailed": "PR 创建失败",
+    "readFileFailed": "读取文件失败",
+    "releaseCreationFailed": "创建 Release 失败"
   },
   "editor": {
     "toolbar": {

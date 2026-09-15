@@ -546,7 +546,7 @@ export async function openWorktree(
     return true;
   }
   const currentFolder = vscode.workspace.workspaceFolders?.[0]?.uri;
-  if (currentFolder && currentFolder.fsPath === worktreePath) {
+  if (currentFolder && pathsEqual(currentFolder.fsPath, worktreePath)) {
     return true;
   }
   const openLabel = vscode.l10n.t('Open');
@@ -586,6 +586,15 @@ async function findGitRoot(startPath: string): Promise<string | undefined> {
 export function isPathInsideFolder(folderPath: string, filePath: string): boolean {
   const relative = path.relative(folderPath, filePath);
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+/**
+ * Path equality that tolerates Windows drive-letter casing (`C:` vs `c:`):
+ * the filesystem is case-insensitive there, so a strict string compare would
+ * treat the same directory as different.
+ */
+function pathsEqual(a: string, b: string): boolean {
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 /**

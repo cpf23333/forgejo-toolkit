@@ -229,7 +229,10 @@ export const handlers = [
     () => new HttpResponse(null, { status: 204 }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/times', () => json([mockTrackedTime])),
+  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/times', ({ request }) => {
+    const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+    return json(page > 1 ? [] : [mockTrackedTime]);
+  }),
 
   http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/times', async ({ request }) => {
     const body = (await request.json()) as { time?: number };
@@ -252,7 +255,10 @@ export const handlers = [
     () => new HttpResponse(null, { status: 204 }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/reactions', () => json([mockReaction])),
+  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/reactions', ({ request }) => {
+    const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+    return json(page > 1 ? [] : [mockReaction]);
+  }),
 
   http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/reactions', async ({ request }) => {
     const body = (await request.json()) as { content?: string };
@@ -591,9 +597,10 @@ export const handlers = [
 
   http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/jobs', () => json({ jobs: [mockActionRunJob] })),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/artifacts', () =>
-    json({ artifacts: [mockActionArtifact] }),
-  ),
+  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/artifacts', ({ request }) => {
+    const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+    return json({ artifacts: page > 1 ? [] : [mockActionArtifact] });
+  }),
 
   http.get(
     'https://*/api/v1/repos/:owner/:repo/actions/jobs/:job_id/logs',

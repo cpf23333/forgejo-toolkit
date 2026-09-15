@@ -5,10 +5,12 @@ import * as path from 'path';
 
 const mocks = vi.hoisted(() => ({
   removeWorktreeAndPrune: vi.fn(),
+  deleteBranch: vi.fn(async () => undefined),
 }));
 
 vi.mock('../gitOperations', () => ({
   removeWorktreeAndPrune: mocks.removeWorktreeAndPrune,
+  deleteBranch: mocks.deleteBranch,
 }));
 
 import * as vscode from 'vscode';
@@ -50,13 +52,22 @@ function makeWorktree(overrides: Partial<WorktreeInfo> = {}): WorktreeInfo {
 }
 
 describe('WorktreeManager.removeWorktree', () => {
+  let sourceDir: string;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.removeWorktreeAndPrune.mockResolvedValue(undefined);
+    // removeWorktree only runs the git steps when the source repository
+    // exists on disk, so point the record at a real directory.
+    sourceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-manager-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(sourceDir, { recursive: true, force: true });
   });
 
   it('removes the worktree via git first, then drops the record', async () => {
-    const target = makeWorktree();
+    const target = makeWorktree({ sourceRepoPath: sourceDir });
     const other = makeWorktree({ id: 'inst:owner/repo#pr-2', prIndex: 2 });
     const { context, store } = createContext([target, other]);
     const manager = new WorktreeManager(context);
@@ -67,8 +78,45 @@ describe('WorktreeManager.removeWorktree', () => {
     expect(store.get(WORKTREES_KEY)).toEqual([other]);
   });
 
+  it('deletes the throwaway PR branch after a successful removal', async () => {
+    const target = makeWorktree({ sourceRepoPath: sourceDir });
+    const { context } = createContext([target]);
+    const manager = new WorktreeManager(context);
+
+    await manager.removeWorktree(target.id);
+
+    expect(mocks.deleteBranch).toHaveBeenCalledWith(sourceDir, 'pr-1-abc1234');
+  });
+
+  it('keeps the branch of an issue worktree (it is the user work branch)', async () => {
+    const target = makeWorktree({
+      sourceRepoPath: sourceDir,
+      kind: 'issue',
+      headBranch: 'issue-5-fix-bug',
+      headSha: '',
+    });
+    const { context } = createContext([target]);
+    const manager = new WorktreeManager(context);
+
+    await manager.removeWorktree(target.id);
+
+    expect(mocks.removeWorktreeAndPrune).toHaveBeenCalledTimes(1);
+    expect(mocks.deleteBranch).not.toHaveBeenCalled();
+  });
+
+  it('drops the record without git when the source repository is gone from disk', async () => {
+    const target = makeWorktree({ sourceRepoPath: path.join(sourceDir, 'does-not-exist') });
+    const { context, store } = createContext([target]);
+    const manager = new WorktreeManager(context);
+
+    await manager.removeWorktree(target.id);
+
+    expect(mocks.removeWorktreeAndPrune).not.toHaveBeenCalled();
+    expect(store.get(WORKTREES_KEY)).toEqual([]);
+  });
+
   it('keeps the record and rethrows without toasting when git removal fails', async () => {
-    const target = makeWorktree();
+    const target = makeWorktree({ sourceRepoPath: sourceDir });
     const { context, store } = createContext([target]);
     const manager = new WorktreeManager(context);
     mocks.removeWorktreeAndPrune.mockRejectedValue(new Error('fatal: removal failed'));

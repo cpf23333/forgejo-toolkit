@@ -171,6 +171,28 @@ function toggleAssignee(login: string) {
   }
 }
 
+// Same contrast computation as IssueForm: the label color comes from the
+// server, so the text color must adapt instead of assuming white works.
+function labelStyle(color?: string): string {
+  if (!color) {
+    return '';
+  }
+  return `background-color: #${color}; color: ${isLightColor(color) ? '#000' : '#fff'};`;
+}
+
+function isLightColor(hex: string): boolean {
+  const normalized = hex.replace('#', '');
+  const r = parseInt(normalized.substring(0, 2), 16) / 255;
+  const g = parseInt(normalized.substring(2, 4), 16) / 255;
+  const b = parseInt(normalized.substring(4, 6), 16) / 255;
+  const luminance = 0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b);
+  return luminance > 0.5;
+}
+
+function channelLuminance(channel: number): number {
+  return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+}
+
 function handleSubmit() {
   emit('submit', {
     title: title.value,
@@ -248,7 +270,7 @@ function handleSubmit() {
           type="button"
           class="option-tag label-option"
           :class="{ selected: selectedLabelIds.includes(label.id ?? -1) }"
-          :style="label.color ? `background-color: #${label.color};` : ''"
+          :style="labelStyle(label.color)"
           @click="toggleLabel(label.id ?? -1)"
         >
           {{ label.name }}
@@ -359,10 +381,6 @@ function handleSubmit() {
 .option-tag.selected {
   border-color: var(--vscode-button-background);
   outline: 1px solid var(--vscode-button-background);
-}
-
-.label-option {
-  color: #fff;
 }
 
 .form-error {

@@ -39,26 +39,26 @@
 
 ### 低优先级
 
-- [ ] 4 个列表端点未分页被默认页大小截断：`getUserStopWatches`（client.ts:273）、`getActionRunArtifacts`（:348）、`listIssueTrackedTimes`（:1066）、`getIssueReactions`（:1099）
-- [ ] `_fetchAllPages` 与服务端 limit 钳制叠加时无声截断（MAX_PAGES 按 PAGE_SIZE=50 设计，钳到 10 时只取前 100 条）
-- [ ] i18n 漏网约 8 处硬编码英文错误串：`'Failed to upload image'`（IssueDetail/PullRequestDetail/CommentTimeline）、`'Attachment upload failed'`、`'Issue/Comment/Pull request creation failed'`、`'Failed to read file'`、`'Failed to create release'`
-- [ ] PR 详情页删除依赖无确认（`PullRequestDetail.vue:1400-1407`，Issue 详情页已有 showConfirm，不一致）
-- [ ] 列表搜索防抖回调无 keep-alive 守卫：`RepoIssues.vue:123-132`/`RepoPullRequests.vue:117-126`，输入后 300ms 内切走会用新路由参数发请求
-- [ ] Notifications 视图只在 onMounted 加载一次，keep-alive 返回列表陈旧（有手动刷新兜底）
-- [ ] PullRequestForm 标签色无对比度计算（`PullRequestForm.vue:251`，IssueForm.vue:169 有 isLightColor，两表单不一致）
+- [x] 4 个列表端点未分页被默认页大小截断——四个端点改经 `_fetchAllPages` 分页拉取（MSW handler 同步改 page 感知）
+- [x] `_fetchAllPages` 与服务端 limit 钳制叠加时无声截断——MAX_PAGES 改 MAX_ITEMS（10×50）按总条数封顶，服务端钳 limit 不再缩窗口
+- [x] i18n 漏网约 8 处硬编码英文错误串——en/zh.json `common` 下新增 7 键，替换 CommentTimeline/IssueDetail/PullRequestDetail 与 useAppState 全部硬编码
+- [x] PR 详情页删除依赖无确认——新增 `handleRemoveDependency` 带 `showConfirm`，复用既有 key `dashboard.detail.removeDependencyConfirm`
+- [x] 列表搜索防抖回调无 keep-alive 守卫——RepoIssues/RepoPullRequests 防抖回调内加 `isActive` 守卫
+- [x] Notifications 视图只在 onMounted 加载一次——改 `onActivated`，keep-alive 返回时重新 loadAll
+- [x] PullRequestForm 标签色无对比度计算——复制 IssueForm 的 `labelStyle`/`isLightColor`，模板改用动态样式，删除固定白字 CSS
 - [x] RepoRefs 每次刷新整列表闪 Loading（与 RepoIssues「保留旧列表」策略不一致）——已随中优先级 RepoRefs 错误兜底一并修复（loading 仅在无缓存数据时显示）
-- [ ] FileTreeNode 目录行点击不展开（只有 14px 箭头可点）、整行无 tabindex/键盘事件；:76-112 用 emoji 当文件图标，与 AGENTS.md Codicons 约定不符
-- [ ] 源仓库被手动删除后 worktree 记录卡死在列表：`removeWorktreeAndPrune` 以不存在的 sourceRepoPath 为 cwd 必失败，`forgetWorktree` 未暴露给 webview
-- [ ] PR 本地分支 `pr-<n>-<sha7>` 从不清理：`git worktree remove` 不删分支，PR 每更新 head 累积一个废分支
-- [ ] `openWorktree` 已打开检测用 fsPath 严格相等：`gitOperations.ts:478-479` Windows 盘符大小写差异导致重复弹确认框
-- [ ] `_pendingMessages` 无界增长：`viewProvider.ts:3185-3195` 侧栏从未 resolve 时命令消息永久积压（当前调用方都先 focus，概率低）
-- [ ] codicon（CC-BY-4.0）随包分发无署名，需补 attribution
-- [ ] `msw` 在 `@cpf23333-forgejo-toolkit/api` 的生产 dependencies（对扩展无运行时影响，但出现在 prod license 清单）
-- [ ] `@types/vscode` 声明 ^1.85.0 实际装 1.125.0，`^` 漂移使编译期拦不住 >1.85 API 误用，建议改 `~1.85.0`（当前 API 使用全部 ≤1.85，无不兼容）
-- [ ] `docs/api-verification-checklist.md` 漂移 2 处：:479 artifact 下载写 arraybuffer（实际 stream）、:512 getUserRepositories 写 limit 100（实际已分页）
+- [x] FileTreeNode 目录行点击不展开/emoji 图标——整行点击与 Enter/Space 触发展开，行加 tabindex 与 focus-visible 样式，图标换 codicon
+- [x] 源仓库被手动删除后 worktree 记录卡死在列表——`removeWorktree` 在源仓库不存在时跳过 git 直接删记录
+- [x] PR 本地分支 `pr-<n>-<sha7>` 从不清理——PR 类型 worktree 删除后顺带 `deleteBranch`（issue 类型保留分支）
+- [x] `openWorktree` 已打开检测用 fsPath 严格相等——新增 `pathsEqual`（win32 小写比较）处理盘符大小写差异
+- [x] `_pendingMessages` 无界增长——加 MAX_PENDING_MESSAGES=50 上限，队满丢最旧并记日志
+- [x] codicon（CC-BY-4.0）随包分发无署名——新增 `packages/forgejo-toolkit/NOTICE`（.vscodeignore 不排除，随包分发）
+- [x] `msw` 在 `@cpf23333-forgejo-toolkit/api` 的生产 dependencies——移到 devDependencies（只被 generated/mocks 用）
+- [x] `@types/vscode` 声明 ^1.85.0 实际装 1.125.0——改 `~1.85.0`
+- [x] `docs/api-verification-checklist.md` 漂移 2 处——artifact 下载改记 stream（含 2GB 上限与 30s idle watchdog）、getUserRepositories 改记 `_fetchAllPages` 分页
 - [ ] 根 README 引用 `docs/screenshots/` 10 张图片，目录不存在（发布前补截图或移除引用）
-- [ ] `forgejoToolkit.locale` 配置无 default 值（package.json:76-83）
-- [ ] shared/request 静默丢弃 falsy body（`0`/`''`/`false` 被当无 body；当前调用方都传对象，无触发路径）
+- [x] `forgejoToolkit.locale` 配置无 default 值——有意不加：`resolveLocale.ts` 在配置缺省时回退 VS Code UI 语言，静态 default 'en' 会破坏中文用户自动检测
+- [x] shared/request 静默丢弃 falsy body——body 判空改 `!== undefined && !== null`，Content-Type 判断同步
 
 ### 存疑（需实测/核实）
 
@@ -77,8 +77,8 @@
 ### 走查方向备忘（2026-09-14 盘点）
 
 - [x] 打包/发布链路审计——已查（发现见高优先级前两项与中优先级 `.vscodeignore` 条目）
-- [x] 依赖与 license 合规检查——已查：无强 copyleft；遗留 codicon 署名、msw 归属、@types/vscode 漂移三项（见低优先级）
-- [x] 文档一致性走查——已查（发现见中优先级 README/FAQ 条目与低优先级 checklist/screenshots 条目）
+- [x] 依赖与 license 合规检查——已查：无强 copyleft；遗留的 codicon 署名、msw 归属、@types/vscode 漂移三项已随低优先级条目全部修复
+- [x] 文档一致性走查——已查（发现见中优先级 README/FAQ 条目与低优先级 checklist/screenshots 条目，checklist 漂移已修）
 - [ ] 性能专项检查：激活成本、webview bundle 体积、长列表渲染、git 子进程频率——暂缓
 - [ ] 动态端到端走查：静态发现修复并重新打包 vsix 后，用 tools/ui-review harness 实测新功能闭环（多 remote 关联、关联仓库切换器、中文详情页）
 

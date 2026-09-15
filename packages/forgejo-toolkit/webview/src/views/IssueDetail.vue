@@ -239,7 +239,7 @@ async function handleCommentImageUpload(
     const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
     const url = attachment.uuid ? `/attachments/${attachment.uuid}` : (attachment.browser_download_url ?? '');
     if (!url) {
-      onError('Failed to upload image');
+      onError(t('common.imageUploadFailed'));
       return;
     }
     onSuccess(url);

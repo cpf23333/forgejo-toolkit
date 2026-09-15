@@ -10,7 +10,14 @@
     "cancel": "Cancel",
     "discardChangesConfirm": "You have unsaved changes. Discard them?",
     "requestTimeout": "Request timed out. Please try again.",
-    "requestFailed": "The request failed. Please try again."
+    "requestFailed": "The request failed. Please try again.",
+    "imageUploadFailed": "Failed to upload image",
+    "attachmentUploadFailed": "Attachment upload failed",
+    "issueCreationFailed": "Issue creation failed",
+    "commentCreationFailed": "Comment creation failed",
+    "pullRequestCreationFailed": "Pull request creation failed",
+    "readFileFailed": "Failed to read file",
+    "releaseCreationFailed": "Failed to create release"
   },
   "editor": {
     "toolbar": {
