@@ -189,6 +189,45 @@ describe('publishToForgejo', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it('opens the published repository in the browser when html_url is http(s)', async () => {
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockResolvedValue({
+      clone_url: `${INSTANCE_URL}/alice/my-repo.git`,
+      full_name: 'alice/my-repo',
+      html_url: `${INSTANCE_URL}/alice/my-repo`,
+    });
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValue('Open in Browser' as never);
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    expect(vscode.env.openExternal).toHaveBeenCalledTimes(1);
+    expect((vi.mocked(vscode.env.openExternal).mock.calls[0][0] as { scheme: string }).scheme).toBe('https');
+  });
+
+  it('does not open an html_url with a non-web scheme', async () => {
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    // html_url comes from the API response; a hostile or compromised instance
+    // must not get the host to open arbitrary schemes.
+    createUserRepo.mockResolvedValue({
+      clone_url: `${INSTANCE_URL}/alice/my-repo.git`,
+      full_name: 'alice/my-repo',
+      html_url: 'javascript:alert(1)',
+    });
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValue('Open in Browser' as never);
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    expect(vscode.env.openExternal).not.toHaveBeenCalled();
+  });
+
   it('asks which account to push with when several match the remote and the owner does not disambiguate', async () => {
     setupWorkspace(`${INSTANCE_URL}/shared/repo.git`);
     vi.mocked(getCurrentBranch).mockResolvedValue('main');

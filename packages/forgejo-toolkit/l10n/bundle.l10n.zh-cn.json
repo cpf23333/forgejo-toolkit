@@ -155,5 +155,6 @@
   "Connected to Forgejo as {0}": "已连接到 Forgejo，身份为 {0}",
   "Updated Forgejo instance for {0}": "已更新 {0} 的 Forgejo 实例",
   "Discard Draft": "丢弃草稿",
-  "The current draft comment will be discarded.": "当前评论草稿将被丢弃。"
+  "The current draft comment will be discarded.": "当前评论草稿将被丢弃。",
+  "Changing the instance URL requires entering the access token again": "修改实例地址需要重新输入访问令牌"
 }

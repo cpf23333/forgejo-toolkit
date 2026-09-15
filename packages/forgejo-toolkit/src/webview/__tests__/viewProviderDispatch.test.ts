@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as vscode from 'vscode';
 
 const clientMocks = vi.hoisted(() => ({
@@ -323,6 +323,88 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(client).toHaveBeenCalledWith(testInstance.url, 'fresh-token', expect.anything());
   });
 
+  it('testConnection falls back to the stored token for another URL on the same origin', async () => {
+    const client = vi.mocked(ForgejoClient);
+    client.mockClear();
+
+    fake.send({
+      command: 'testConnection',
+      url: `${testInstance.url}/subpath`,
+      token: '',
+      instanceId: testInstance.id,
+    });
+    await flushDispatches();
+
+    expect(client).toHaveBeenCalledWith(`${testInstance.url}/subpath`, 'secret-token', expect.anything());
+  });
+
+  it('testConnection does not send the stored token to a different origin', async () => {
+    const client = vi.mocked(ForgejoClient);
+    client.mockClear();
+
+    fake.send({
+      command: 'testConnection',
+      url: 'https://evil.example.com',
+      token: '',
+      instanceId: testInstance.id,
+    });
+    await flushDispatches();
+
+    // No fallback: the connection is tested anonymously, so the stored token
+    // can never leak to a webview-chosen host.
+    expect(client).toHaveBeenCalledWith('https://evil.example.com', '', expect.anything());
+  });
+
+  it('testConnection treats an unparseable URL as a different origin', async () => {
+    const client = vi.mocked(ForgejoClient);
+    client.mockClear();
+
+    fake.send({ command: 'testConnection', url: 'not a url', token: '', instanceId: testInstance.id });
+    await flushDispatches();
+
+    expect(client).toHaveBeenCalledWith('not a url', '', expect.anything());
+  });
+
+  it('editInstance keeps the stored token when the URL stays on the same origin', async () => {
+    const client = vi.mocked(ForgejoClient);
+    client.mockClear();
+
+    fake.send({ command: 'editInstance', id: testInstance.id, url: `${testInstance.url}/`, token: '' });
+    await flushDispatches();
+
+    expect(client).toHaveBeenCalledWith(`${testInstance.url}/`, 'secret-token', expect.anything());
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result).toMatchObject({ success: true });
+  });
+
+  it('editInstance rejects a URL change to a different origin without a new token', async () => {
+    const client = vi.mocked(ForgejoClient);
+    client.mockClear();
+
+    fake.send({ command: 'editInstance', id: testInstance.id, url: 'https://other.example.com', token: '' });
+    await flushDispatches();
+
+    // No validation request at all — the stored token must not be sent to the
+    // new host, and the persisted instance keeps its original URL.
+    expect(client).not.toHaveBeenCalled();
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result?.success).toBe(false);
+    expect(typeof result?.error).toBe('string');
+    expect(config.getInstances()[0].url).toBe(testInstance.url);
+  });
+
+  it('editInstance allows a URL change to a different origin when a new token is provided', async () => {
+    const client = vi.mocked(ForgejoClient);
+    client.mockClear();
+
+    fake.send({ command: 'editInstance', id: testInstance.id, url: 'https://other.example.com', token: 'new-token' });
+    await flushDispatches();
+
+    expect(client).toHaveBeenCalledWith('https://other.example.com', 'new-token', expect.anything());
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result).toMatchObject({ success: true });
+  });
+
   it('answers previewImportInstances with cancelled when the file picker is dismissed', async () => {
     vi.mocked(vscode.window.showOpenDialog).mockResolvedValue(undefined as never);
 
@@ -644,6 +726,65 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(typeof reply?.error).toBe('string');
       expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
       expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('_resolveAvatarUrl', () => {
+    const resolveAvatar = (url: string) =>
+      (
+        provider as unknown as {
+          _resolveAvatarUrl: (url: string, instance: ForgejoInstance) => Promise<string>;
+        }
+      )._resolveAvatarUrl(url, testInstance);
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('proxies same-origin avatar URLs through the host with the instance token', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+        headers: { get: () => 'image/png' },
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const resolved = await resolveAvatar(`${testInstance.url}/avatars/user.png`);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [target, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(target).toBe(`${testInstance.url}/avatars/user.png`);
+      expect((init.headers as Record<string, string>).Authorization).toBe('token secret-token');
+      expect(resolved).toBe('data:image/png;base64,AQID');
+    });
+
+    it('returns third-party avatar URLs unchanged without fetching them', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const url = 'https://gravatar.example.com/avatar/abc';
+
+      expect(await resolveAvatar(url)).toBe(url);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('does not let the host fetch intranet targets planted in avatar_url', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const url = 'http://internal.example.com/avatar.png';
+
+      expect(await resolveAvatar(url)).toBe(url);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('passes data: URLs through unchanged', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const url = 'data:image/png;base64,AAAA';
+
+      expect(await resolveAvatar(url)).toBe(url);
+      expect(fetchMock).not.toHaveBeenCalled();
     });
   });
 });

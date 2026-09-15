@@ -155,5 +155,6 @@
   "Connected to Forgejo as {0}": "Connected to Forgejo as {0}",
   "Updated Forgejo instance for {0}": "Updated Forgejo instance for {0}",
   "Discard Draft": "Discard Draft",
-  "The current draft comment will be discarded.": "The current draft comment will be discarded."
+  "The current draft comment will be discarded.": "The current draft comment will be discarded.",
+  "Changing the instance URL requires entering the access token again": "Changing the instance URL requires entering the access token again"
 }

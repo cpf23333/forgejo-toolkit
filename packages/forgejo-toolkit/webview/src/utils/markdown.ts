@@ -1,4 +1,17 @@
-const dangerousTags = new Set(['script', 'iframe', 'object', 'embed', 'form', 'input', 'textarea', 'button']);
+const dangerousTags = new Set([
+  'script',
+  'iframe',
+  'object',
+  'embed',
+  'form',
+  'input',
+  'textarea',
+  'button',
+  'style',
+  'link',
+  'base',
+  'meta',
+]);
 const dangerousSchemes = /^javascript:|data:text\/html|^data:image\/svg/i;
 const absoluteUrlPattern = /^[a-z][a-z0-9+.-]*:/i;
 
@@ -29,9 +42,11 @@ function sanitizeNode(node: Node, baseUrl?: string): Node | null {
         element.removeAttribute(attr.name);
         continue;
       }
-      if (name === 'href') {
+      if (name === 'href' || name.endsWith(':href')) {
         const value = attr.value.trim();
-        if (dangerousSchemes.test(value) || value.startsWith('#')) {
+        if (dangerousSchemes.test(value)) {
+          element.setAttribute(attr.name, 'javascript:void(0)');
+        } else if (value.startsWith('#')) {
           element.setAttribute(attr.name, value);
         } else {
           element.setAttribute('data-href', resolveUrl(value, baseUrl));
@@ -49,6 +64,10 @@ function sanitizeNode(node: Node, baseUrl?: string): Node | null {
         continue;
       }
       if (name === 'target') {
+        element.removeAttribute(attr.name);
+        continue;
+      }
+      if (name === 'style') {
         element.removeAttribute(attr.name);
         continue;
       }
@@ -91,10 +110,12 @@ function unwrapImageAnchors(doc: Document): void {
 /**
  * Sanitize rendered markdown HTML for safe display inside a webview.
  *
- * - Removes dangerous tags and event handlers.
- * - Neutralizes link hrefs (keeps the original URL in `data-href`).
+ * - Removes dangerous tags (including `style`, `link`, `base`, `meta`) and event handlers.
+ * - Neutralizes link hrefs (keeps the original URL in `data-href`); dangerous schemes
+ *   become `javascript:void(0)`. Applies to both `href` and namespaced variants such as
+ *   SVG `xlink:href`.
  * - Resolves relative image URLs against the configured base URL.
- * - Removes target attributes.
+ * - Removes target attributes and inline style attributes.
  * - Unwraps `<a>` tags that only contain an `<img>` so images are not clickable.
  */
 export function sanitizeMarkdownHtml(html: string, baseUrl?: string): string {
@@ -102,7 +123,9 @@ export function sanitizeMarkdownHtml(html: string, baseUrl?: string): string {
   const doc = parser.parseFromString(html, 'text/html');
   const children = Array.from(doc.body.childNodes);
   for (const child of children) {
-    sanitizeNode(child, baseUrl);
+    if (sanitizeNode(child, baseUrl) === null) {
+      doc.body.removeChild(child);
+    }
   }
   unwrapImageAnchors(doc);
   return doc.body.innerHTML;

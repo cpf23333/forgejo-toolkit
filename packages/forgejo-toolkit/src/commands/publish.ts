@@ -290,7 +290,14 @@ async function publishNewRepository(
     openInBrowser,
   );
   if (choice === openInBrowser && repository.html_url) {
-    await vscode.env.openExternal(vscode.Uri.parse(repository.html_url));
+    const uri = vscode.Uri.parse(repository.html_url);
+    // html_url comes from the API response; only open web URLs, same
+    // whitelist as the webview's openExternal handler.
+    if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+      logger.error(`Blocked openExternal with disallowed scheme "${uri.scheme}": ${repository.html_url}`);
+    } else {
+      await vscode.env.openExternal(uri);
+    }
   }
 }
 

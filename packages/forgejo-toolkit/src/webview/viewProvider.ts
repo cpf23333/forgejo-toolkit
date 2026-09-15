@@ -85,6 +85,19 @@ const LOAD_RESULT_COMMANDS: Record<string, string> = {
   getRepoRefs: 'repoRefs',
 };
 
+/**
+ * Origin equality with URL-parse failures treated as "different": callers use
+ * this to gate sending the stored token, so an unparseable target must fail
+ * closed.
+ */
+function isSameOrigin(a: string, b: string): boolean {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+}
+
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
 
@@ -302,10 +315,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         // When editing an instance the token field is left empty to keep the
         // stored token (tokens are never sent to the webview); fall back to it
-        // so testing the connection of a private instance does not fail.
+        // so testing the connection of a private instance does not fail. The
+        // fallback is restricted to the instance's own origin — otherwise a
+        // compromised webview could exfiltrate the token to any URL.
         let effectiveToken = token;
         if (!effectiveToken && typeof instanceId === 'string') {
-          effectiveToken = this._findInstance(instanceId)?.token ?? token;
+          const instance = this._findInstance(instanceId);
+          if (instance && isSameOrigin(url, instance.url)) {
+            effectiveToken = instance.token;
+          }
         }
         try {
           const client = new ForgejoClient(url, effectiveToken, logger);
@@ -368,6 +386,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           }
           // The webview never receives stored tokens; an empty token field
           // means "keep the current token", so validate with the stored one.
+          // A URL change to a different origin must not be validated — let
+          // alone persisted — with the stored token: that would hand the
+          // token to a third-party host chosen by the webview.
+          if (!token && !isSameOrigin(url, existing.url)) {
+            this._reply('saveInstanceResult', {
+              success: false,
+              error: vscode.l10n.t('Changing the instance URL requires entering the access token again'),
+            });
+            return;
+          }
           const effectiveToken = token || existing.token;
           const client = new ForgejoClient(url, effectiveToken, logger);
           const user = await client.getCurrentUser();
@@ -4239,18 +4267,25 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
     logger.debug(`[avatar] resolving: ${url}`);
     try {
-      // Avatar URLs on private instances (force-login) require the API token,
-      // but the token must never leak to third-party origins (e.g. gravatar).
-      // Same pattern as resolveAttachmentImages: only same-origin URLs get the
-      // Authorization header. Relative URLs resolve against the instance URL.
+      // Only same-origin URLs are proxied through the host: avatars on private
+      // instances (force-login) need the API token, and the token must never
+      // leak to third-party origins. Everything else — gravatar, but also any
+      // intranet address a malicious instance plants in avatar_url — is
+      // returned as-is for the webview to load directly (its CSP allows
+      // https: images), so the host never fetches attacker-chosen targets.
+      // Relative URLs resolve against the instance URL and are same-origin.
+      // Non-http(s) schemes (e.g. data:) have origin "null" and pass through.
       const parsed = new URL(url, instance.url);
-      const sameOrigin = parsed.origin === new URL(instance.url).origin;
+      if (!isSameOrigin(parsed.href, instance.url)) {
+        logger.debug(`[avatar] not same-origin, returning original url: ${url}`);
+        return url;
+      }
       // A hung image host must not stall the surrounding Promise.all; on
       // timeout the fetch rejects and the original URL is kept (below).
-      const init: RequestInit = { signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS) };
-      if (sameOrigin) {
-        init.headers = { Authorization: `token ${instance.token}` };
-      }
+      const init: RequestInit = {
+        signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
+        headers: { Authorization: `token ${instance.token}` },
+      };
       const response = await fetch(parsed.href, init);
       logger.debug(`[avatar] response status: ${response.status} ${response.statusText}`);
       if (!response.ok) {
