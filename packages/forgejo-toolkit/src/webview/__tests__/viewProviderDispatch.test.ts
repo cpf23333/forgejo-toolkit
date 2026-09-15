@@ -23,14 +23,18 @@ vi.mock('../../worktree/gitOperations', () => ({
   cloneRepository: vi.fn(),
   createWorktreeFromBranch: vi.fn(),
   createWorktreeWithNewBranch: vi.fn(),
+  deleteBranch: vi.fn(),
   detectLinkedRepository: vi.fn(),
+  detectLinkedRepositories: vi.fn(async () => ({ linked: undefined, all: [] })),
   fetchBranch: vi.fn(),
   fetchPullRequestHead: vi.fn(),
   findLocalRepo: vi.fn(),
+  getRefCommitSha: vi.fn(),
   isCurrentWorkspaceBaseRepo: vi.fn(),
   isGitRepository: vi.fn(),
   listRemotes: vi.fn(async () => []),
   openWorktree: vi.fn(async () => true),
+  resolveRemoteForRepo: vi.fn(async () => 'origin'),
   revertMergeCommit: vi.fn(),
   sanitizeForPath: vi.fn((value: string) => value),
   validatePrWorktree: vi.fn(),
@@ -45,6 +49,7 @@ import {
   isCurrentWorkspaceBaseRepo,
   openWorktree,
   removeWorktreeAndPrune,
+  resolveRemoteForRepo,
 } from '../../worktree/gitOperations';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
@@ -140,6 +145,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     vi.mocked(createWorktreeWithNewBranch).mockReset();
     vi.mocked(isCurrentWorkspaceBaseRepo).mockReset();
     vi.mocked(openWorktree).mockReset().mockResolvedValue(true);
+    vi.mocked(resolveRemoteForRepo).mockReset().mockResolvedValue('origin');
     context = createFakeContext();
     config = new ConfigManager(context as never);
     provider = new ForgejoToolkitViewProvider(
@@ -589,6 +595,50 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(reply?.error).toBe('fatal: could not fetch');
       expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
       expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
+    });
+
+    it('fetches through the remote resolved for the repo, not a hardcoded origin', async () => {
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo');
+      vi.mocked(resolveRemoteForRepo).mockResolvedValue('upstream');
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+      clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+
+      fake.send({
+        command: 'startWorkOnIssue',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        title: 'fix-bug',
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+      expect(reply?.error).toBeUndefined();
+      expect(vi.mocked(resolveRemoteForRepo)).toHaveBeenCalledWith('/src/repo', testInstance.url, 'owner', 'repo');
+      expect(vi.mocked(fetchBranch)).toHaveBeenCalledWith('/src/repo', 'upstream', 'main', 'secret-token');
+    });
+
+    it('replies startWorkResult with an error when no remote matches the repo', async () => {
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo');
+      vi.mocked(resolveRemoteForRepo).mockResolvedValue(undefined);
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+      clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+
+      fake.send({
+        command: 'startWorkOnIssue',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        title: 'fix-bug',
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+      expect(typeof reply?.error).toBe('string');
+      expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
+      expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
     });
   });
 });

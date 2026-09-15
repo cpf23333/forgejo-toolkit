@@ -41,11 +41,13 @@ import {
   fetchBranch,
   fetchPullRequestHead,
   getRemoteUrl,
+  getRefCommitSha,
   listWorkspaceRepositories,
   openWorktree,
   preferOwnNamespaceInstance,
   pushBranch,
   remoteMatchesInstance,
+  resolveRemoteForRepo,
   revertMergeCommit,
 } from '../gitOperations';
 import * as fs from 'fs';
@@ -915,5 +917,100 @@ describe('preferOwnNamespaceInstance', () => {
 
   it('falls back to the first match when no username matches', () => {
     expect(preferOwnNamespaceInstance([alice, bob], 'carol').id).toBe('a');
+  });
+});
+
+describe('resolveRemoteForRepo', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function mockRemoteV(remotes: Record<string, string>) {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'remote' && args[1] === '-v') {
+          const stdout = Object.entries(remotes)
+            .map(([name, url]) => `${name}\t${url} (fetch)\n${name}\t${url} (push)`)
+            .join('\n');
+          callback(null, { stdout: stdout ? `${stdout}\n` : '', stderr: '' } as unknown as string, '');
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+  }
+
+  it('returns origin when it points at the repo', async () => {
+    mockRemoteV({
+      origin: 'https://forgejo.example.com/alice/repo.git',
+      upstream: 'https://forgejo.example.com/someone-else/other.git',
+    });
+
+    await expect(resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo')).resolves.toBe('origin');
+  });
+
+  it('returns a non-origin remote when only it matches', async () => {
+    mockRemoteV({
+      origin: 'https://forgejo.example.com/alice/fork.git',
+      upstream: 'https://forgejo.example.com/alice/repo.git',
+    });
+
+    await expect(resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo')).resolves.toBe(
+      'upstream',
+    );
+  });
+
+  it('matches URLs with or without the .git suffix', async () => {
+    mockRemoteV({ upstream: 'https://forgejo.example.com/alice/repo' });
+
+    await expect(resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo')).resolves.toBe(
+      'upstream',
+    );
+  });
+
+  it('prefers origin when several remotes match', async () => {
+    mockRemoteV({
+      upstream: 'https://forgejo.example.com/alice/repo.git',
+      origin: 'https://forgejo.example.com/alice/repo.git',
+    });
+
+    await expect(resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo')).resolves.toBe('origin');
+  });
+
+  it('returns undefined when no remote points at the repo', async () => {
+    mockRemoteV({ origin: 'https://forgejo.example.com/alice/other.git' });
+
+    await expect(
+      resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo'),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe('getRefCommitSha', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('resolves a ref to its commit sha', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        expect(args).toEqual(['rev-parse', '--verify', 'pr-1-abcdef1^{commit}']);
+        callback(null, { stdout: 'abcdef1234567890\n', stderr: '' } as unknown as string, '');
+      },
+    );
+
+    await expect(getRefCommitSha('/repo', 'pr-1-abcdef1')).resolves.toBe('abcdef1234567890');
+  });
+
+  it('returns undefined for an unknown ref', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        const error = new Error('Command failed: git rev-parse') as Error & { stderr: string };
+        error.stderr = 'fatal: Needed a single revision';
+        callback(error, '', error.stderr);
+      },
+    );
+
+    await expect(getRefCommitSha('/repo', 'no-such-ref')).resolves.toBeUndefined();
   });
 });

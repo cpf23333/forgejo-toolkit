@@ -18,14 +18,17 @@ import {
   cloneRepository,
   createWorktreeFromBranch,
   createWorktreeWithNewBranch,
+  deleteBranch,
   detectLinkedRepositories,
   fetchBranch,
   fetchPullRequestHead,
   findLocalRepo,
+  getRefCommitSha,
   isCurrentWorkspaceBaseRepo,
   isGitRepository,
   listRemotes,
   openWorktree,
+  resolveRemoteForRepo,
   revertMergeCommit,
   sanitizeForPath,
   validatePrWorktree,
@@ -3770,9 +3773,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
         const detail = await client.getRepoDetail(owner, repo);
         const defaultBranch = detail.repository.default_branch ?? 'main';
+        // Fetch through the remote that actually points at this repo, not a
+        // hardcoded 'origin' (with several remotes it may point elsewhere).
+        const remoteName = await resolveRemoteForRepo(sourceRepoPath, instance.url, owner, repo);
+        if (!remoteName) {
+          reply({ error: vscode.l10n.t('No git remote in the local repository points at {0}/{1}', owner, repo) });
+          return;
+        }
         // FETCH_HEAD works as the start point in regular checkouts and bare
         // cache clones alike (see fetchBranch).
-        await fetchBranch(sourceRepoPath, 'origin', defaultBranch, instance.token);
+        await fetchBranch(sourceRepoPath, remoteName, defaultBranch, instance.token);
         await createWorktreeWithNewBranch(sourceRepoPath, worktreePath, branch, 'FETCH_HEAD');
       }
 
@@ -3925,8 +3935,44 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
 
+      // Fetch through the remote that actually points at this repo, not a
+      // hardcoded 'origin' (with several remotes it may point elsewhere).
+      const remoteName = await resolveRemoteForRepo(sourceRepoPath, instance.url, owner, repo);
+      if (!remoteName) {
+        this._reply('worktreeError', {
+          error: vscode.l10n.t('No git remote in the local repository points at {0}/{1}', owner, repo),
+          operation: 'open',
+          instanceId,
+          owner,
+          repo,
+          index,
+        });
+        return;
+      }
+
       const localBranch = `pr-${index}-${headSha.slice(0, 7)}`;
-      await fetchPullRequestHead(sourceRepoPath, 'origin', index, localBranch, instance.token);
+      await fetchPullRequestHead(sourceRepoPath, remoteName, index, localBranch, instance.token);
+
+      // Verify the fetched code is the PR head the API reported. Pull refs are
+      // per-repository, so a matching remote serves the right ones; the check
+      // catches the remaining drift (PR updated between the API call and the
+      // fetch) instead of silently opening stale code.
+      const fetchedSha = await getRefCommitSha(sourceRepoPath, localBranch);
+      if (fetchedSha !== headSha) {
+        await deleteBranch(sourceRepoPath, localBranch).catch(() => undefined);
+        this._reply('worktreeError', {
+          error: vscode.l10n.t(
+            'Fetched PR head does not match commit {0}; the pull request may have been updated, please retry',
+            headSha.slice(0, 7),
+          ),
+          operation: 'open',
+          instanceId,
+          owner,
+          repo,
+          index,
+        });
+        return;
+      }
 
       await createWorktreeFromBranch(sourceRepoPath, worktreePath, localBranch);
 

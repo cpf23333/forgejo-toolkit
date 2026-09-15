@@ -23,6 +23,9 @@ interface Props {
 
 const props = defineProps<Props>();
 const renderedBodies = reactive<Record<string, string>>({});
+// Body each rendered HTML was produced from: a comment keeps its id across
+// edits, so the cache must re-render when the body changes.
+const renderedBodySources = reactive<Record<string, string>>({});
 const loadingIds = ref<Set<string>>(new Set());
 const uploadingCommentCount = ref(0);
 const uploadErrors = reactive<Record<number, string>>({});
@@ -54,7 +57,10 @@ function commentKey(comment: ForgejoTimelineComment): string {
 
 async function renderComment(comment: ForgejoTimelineComment) {
   const key = commentKey(comment);
-  if (renderedBodies[key] || !comment.body) {
+  if (!comment.body) {
+    return;
+  }
+  if (renderedBodies[key] && renderedBodySources[key] === comment.body) {
     return;
   }
   loadingIds.value.add(key);
@@ -64,6 +70,7 @@ async function renderComment(comment: ForgejoTimelineComment) {
   } catch {
     renderedBodies[key] = comment.body;
   } finally {
+    renderedBodySources[key] = comment.body;
     loadingIds.value.delete(key);
   }
 }

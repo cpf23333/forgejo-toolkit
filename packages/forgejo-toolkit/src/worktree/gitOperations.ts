@@ -151,6 +151,29 @@ export async function findLocalRepo(instanceUrl: string, owner: string, repo: st
   return undefined;
 }
 
+/**
+ * Resolve the name of the remote in dirPath whose URL points at
+ * {instanceUrl}/{owner}/{repo} (with or without the .git suffix). Fetching
+ * must go through the matching remote rather than a hardcoded 'origin':
+ * with several remotes, 'origin' may point at a fork or a different host.
+ * listRemotes orders 'origin' first, so it wins when several remotes match.
+ */
+export async function resolveRemoteForRepo(
+  dirPath: string,
+  instanceUrl: string,
+  owner: string,
+  repo: string,
+): Promise<string | undefined> {
+  const normalizedInstanceUrl = instanceUrl.replace(/\/$/, '');
+  const expectedUrls = new Set(
+    [`${normalizedInstanceUrl}/${owner}/${repo}.git`, `${normalizedInstanceUrl}/${owner}/${repo}`].map((url) =>
+      normalizeGitUrl(url),
+    ),
+  );
+  const remotes = await listRemotes(dirPath);
+  return remotes.find((remote) => expectedUrls.has(normalizeGitUrl(remote.url)))?.name;
+}
+
 export async function addRemote(dirPath: string, remote: string, url: string): Promise<void> {
   const { stderr } = await runGit(['remote', 'add', remote, url], dirPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
@@ -430,6 +453,24 @@ export async function getCurrentCommitSha(repoPath: string): Promise<string | un
     return sha || undefined;
   } catch {
     return undefined;
+  }
+}
+
+/** Resolve an arbitrary ref (branch, tag, sha) to the commit sha it points at. */
+export async function getRefCommitSha(repoPath: string, ref: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await runGit(['rev-parse', '--verify', `${ref}^{commit}`], repoPath);
+    const sha = stdout.trim();
+    return sha || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function deleteBranch(repoPath: string, branch: string): Promise<void> {
+  const { stderr } = await runGit(['branch', '-D', branch], repoPath);
+  if (stderr && stderr.toLowerCase().includes('error')) {
+    throw new Error(stderr);
   }
 }
 

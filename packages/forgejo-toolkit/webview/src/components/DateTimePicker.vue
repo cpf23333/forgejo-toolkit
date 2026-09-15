@@ -238,6 +238,12 @@ function formatDate(date: Date, format: string): string {
 
 function formatValue(date: Date): string {
   if (valueFormat.value === 'iso') {
+    if (isDateOnly.value) {
+      // A picked day is a calendar day, not an instant: emit UTC noon so the
+      // stored timestamp lands on that day regardless of timezone. Local
+      // midnight shifts to the previous day for every timezone east of UTC.
+      return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12)).toISOString();
+    }
     return date.toISOString();
   }
   return formatDate(date, valueFormat.value);

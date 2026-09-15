@@ -14,6 +14,8 @@
   "Selected repository does not match the PR base repository": "Selected repository does not match the PR base repository",
   "Instance not found": "Instance not found",
   "Could not determine PR head branch or sha": "Could not determine PR head branch or sha",
+  "No git remote in the local repository points at {0}/{1}": "No git remote in the local repository points at {0}/{1}",
+  "Fetched PR head does not match commit {0}; the pull request may have been updated, please retry": "Fetched PR head does not match commit {0}; the pull request may have been updated, please retry",
   "This will replace the current workspace with the worktree. Continue?": "This will replace the current workspace with the worktree. Continue?",
   "Select Cache Directory": "Select Cache Directory",
   "Cannot use \"{0}\" as the worktree cache directory: {1}": "Cannot use \"{0}\" as the worktree cache directory: {1}",

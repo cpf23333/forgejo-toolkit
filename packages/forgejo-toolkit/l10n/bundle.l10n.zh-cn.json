@@ -14,6 +14,8 @@
   "Selected repository does not match the PR base repository": "所选仓库与 PR base 仓库不匹配",
   "Instance not found": "未找到实例",
   "Could not determine PR head branch or sha": "无法确定 PR head 分支或 sha",
+  "No git remote in the local repository points at {0}/{1}": "本地仓库中没有指向 {0}/{1} 的 git remote",
+  "Fetched PR head does not match commit {0}; the pull request may have been updated, please retry": "拉取到的 PR head 与提交 {0} 不匹配；该 PR 可能已更新，请重试",
   "This will replace the current workspace with the worktree. Continue?": "此操作将用 worktree 替换当前工作区。是否继续？",
   "Select Cache Directory": "选择缓存目录",
   "Cannot use \"{0}\" as the worktree cache directory: {1}": "无法将 \"{0}\" 用作 worktree 缓存目录：{1}",
