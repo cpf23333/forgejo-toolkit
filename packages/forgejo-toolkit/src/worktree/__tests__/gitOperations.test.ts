@@ -643,6 +643,25 @@ describe('detectLinkedRepository', () => {
     expect(result.linked?.localPath).toBe('/ws/b');
   });
 
+  it('detectLinkedRepositories reports repositories without a Forgejo remote as unpublished', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
+      { uri: { fsPath: '/ws/a' } },
+      { uri: { fsPath: '/ws/b' } },
+      { uri: { fsPath: '/ws/c' } },
+    ];
+    mockRemotes({
+      '/ws/a': 'https://forgejo.example.com/alice/repo-a.git',
+      // Points at another host: no Forgejo remote yet.
+      '/ws/b': 'https://git.example.com/alice/repo-b.git',
+      // No remotes at all (cwd absent from the map): publishable too.
+    });
+
+    const result = await detectLinkedRepositories([instanceAlice]);
+
+    expect(result.linked?.localPath).toBe('/ws/a');
+    expect(result.unpublished.sort()).toEqual(['/ws/b', '/ws/c']);
+  });
+
   it('links via a non-origin remote when origin does not match any instance', async () => {
     (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
     mockRemotes({

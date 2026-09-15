@@ -48,6 +48,26 @@ export function validateRepoName(value: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Pre-check for the git remote name used when publishing a repository whose
+ * origin is already taken (e.g. cloned from a non-Forgejo host). Same
+ * character set as repository names, plus it must not collide with an
+ * existing remote.
+ */
+export function validateRemoteName(value: string, existing: GitRemoteEntry[]): string | undefined {
+  const name = value.trim();
+  if (!name) {
+    return vscode.l10n.t('Remote name cannot be empty');
+  }
+  if (!REPO_NAME_PATTERN.test(name)) {
+    return vscode.l10n.t('Remote name may only contain letters, digits, ".", "_" and "-"');
+  }
+  if (existing.some((remote) => remote.name === name)) {
+    return vscode.l10n.t('A remote named "{0}" already exists', name);
+  }
+  return undefined;
+}
+
 /** True when the error is a 422 whose body reports a name conflict. */
 function isNameConflictError(message: string): boolean {
   if (/Forgejo API error 409\b/.test(message)) {
@@ -149,6 +169,23 @@ async function publishNewRepository(
     return;
   }
 
+  // The remote is named origin when free; a repository cloned from elsewhere
+  // already has an origin, so ask for the Forgejo remote's name before
+  // creating anything on the server.
+  const existingRemotes = await listRemotes(folder);
+  let remoteName = 'origin';
+  if (existingRemotes.some((remote) => remote.name === 'origin')) {
+    const pickedName = await vscode.window.showInputBox({
+      title: vscode.l10n.t('Remote name for the Forgejo remote'),
+      value: 'forgejo',
+      validateInput: (value) => validateRemoteName(value, existingRemotes),
+    });
+    if (!pickedName) {
+      return;
+    }
+    remoteName = pickedName.trim();
+  }
+
   const name = repoName.trim();
   const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
   let repository;
@@ -180,7 +217,7 @@ async function publishNewRepository(
     vscode.window.showErrorMessage(vscode.l10n.t('The created repository did not return a clone URL'));
     return;
   }
-  await addRemote(folder, 'origin', cloneUrl);
+  await addRemote(folder, remoteName, cloneUrl);
 
   const repoLabel = repository.full_name ?? name;
   const branch = await getCurrentBranch(folder);
@@ -199,7 +236,7 @@ async function publishNewRepository(
       location: vscode.ProgressLocation.Notification,
       title: vscode.l10n.t('Pushing {0} to {1}…', branch, instance.name),
     },
-    () => pushBranch(folder, 'origin', branch, instance.token, true, instance.url),
+    () => pushBranch(folder, remoteName, branch, instance.token, true, instance.url),
   );
   viewProvider?.refresh();
 
@@ -317,13 +354,11 @@ export async function publishToForgejo(
     instances.some((instance) => remoteMatchesInstance(remote.url, instance.url)),
   );
   if (matching.length === 0) {
-    if (remotes.length === 0) {
-      await publishNewRepository(config, folder, viewProvider);
-    } else {
-      vscode.window.showWarningMessage(
-        vscode.l10n.t('No git remote in this repository matches a configured Forgejo instance'),
-      );
-    }
+    // No remote points at a configured instance — either there are no remotes
+    // at all, or they point elsewhere (e.g. cloned from another host). Both
+    // cases are exactly what "Publish to Forgejo" is for: create the
+    // repository on an instance and add it as a new remote.
+    await publishNewRepository(config, folder, viewProvider);
     return;
   }
   const remote = matching.find((entry) => entry.name === 'origin') ?? (matching.length === 1 ? matching[0] : undefined);

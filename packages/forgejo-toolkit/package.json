@@ -302,7 +302,7 @@
       "scm/title": [
         {
           "command": "forgejoToolkit.publishToForgejo",
-          "when": "scmProvider == git",
+          "when": "scmProvider == git && forgejoToolkit.hasUnpublishedRepo",
           "group": "navigation@1"
         },
         {

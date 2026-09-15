@@ -718,6 +718,13 @@ export interface DetectLinkedRepositoriesResult {
   linked: LinkedRepository | undefined;
   /** Every workspace repository linked to a configured instance. */
   all: LinkedRepository[];
+  /**
+   * Workspace git repositories with no remote host-matching a configured
+   * instance (no Forgejo remote yet — either remote-less or pointing
+   * elsewhere). Drives the Publish to Forgejo button's visibility: it only
+   * makes sense while at least one repository is not on Forgejo yet.
+   */
+  unpublished: string[];
 }
 
 export async function detectLinkedRepositories(
@@ -755,6 +762,7 @@ export async function detectLinkedRepositories(
   logger.debug(`[detectLinkedRepository] candidates: ${Array.from(candidates).join(', ')}`);
 
   const matches: LinkedRepository[] = [];
+  const unpublished: string[] = [];
   for (const dirPath of candidates) {
     // A repository may carry several remotes (fork upstreams, mirrors, a
     // Forgejo remote next to a non-Forgejo origin): link against any of them,
@@ -773,6 +781,10 @@ export async function detectLinkedRepositories(
     }
 
     let linked: LinkedRepository | undefined;
+    // A repository "has a Forgejo remote" when any remote's host matches a
+    // configured instance (pass-1 semantics, no API calls). Repositories
+    // without one are publish candidates for the Publish to Forgejo button.
+    let hasForgejoRemote = false;
     // Pass 1: host match across all remotes; cheap (no API calls).
     for (const { entry, info } of remoteInfos) {
       const matched = instances.filter((instance) => {
@@ -789,6 +801,7 @@ export async function detectLinkedRepositories(
       if (matched.length === 0) {
         continue;
       }
+      hasForgejoRemote = true;
       // Several accounts on the same host all match the remote; bind explicitly
       // to one (preferring the remote owner's own namespace) so follow-up write
       // operations use a single, logged identity instead of an arbitrary one.
@@ -825,11 +838,14 @@ export async function detectLinkedRepositories(
     if (linked) {
       matches.push(linked);
     }
+    if (!hasForgejoRemote && (await isGitRepository(dirPath))) {
+      unpublished.push(dirPath);
+    }
   }
 
   if (matches.length === 0) {
     logger.debug('[detectLinkedRepository] no match');
-    return { linked: undefined, all: matches };
+    return { linked: undefined, all: matches, unpublished };
   }
   if (matches.length > 1) {
     // Attribute by the file the command is operating on (or the active
@@ -842,7 +858,7 @@ export async function detectLinkedRepositories(
         .sort((a, b) => b.localPath.length - a.localPath.length);
       if (containing.length > 0) {
         logger.debug(`[detectLinkedRepository] attributed to ${containing[0].localPath} via ${attributionPath}`);
-        return { linked: containing[0], all: matches };
+        return { linked: containing[0], all: matches, unpublished };
       }
     }
     if (options?.pickOnAmbiguity) {
@@ -854,11 +870,11 @@ export async function detectLinkedRepositories(
         })),
         { placeHolder: vscode.l10n.t('Multiple Forgejo repositories found in the workspace. Select one') },
       );
-      return { linked: picked?.match, all: matches };
+      return { linked: picked?.match, all: matches, unpublished };
     }
   }
   logger.debug(`[detectLinkedRepository] resolved to ${matches[0].localPath}`);
-  return { linked: matches[0], all: matches };
+  return { linked: matches[0], all: matches, unpublished };
 }
 
 export async function detectLinkedRepository(

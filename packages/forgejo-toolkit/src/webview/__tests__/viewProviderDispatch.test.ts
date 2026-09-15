@@ -25,7 +25,7 @@ vi.mock('../../worktree/gitOperations', () => ({
   createWorktreeWithNewBranch: vi.fn(),
   deleteBranch: vi.fn(),
   detectLinkedRepository: vi.fn(),
-  detectLinkedRepositories: vi.fn(async () => ({ linked: undefined, all: [] })),
+  detectLinkedRepositories: vi.fn(async () => ({ linked: undefined, all: [], unpublished: [] })),
   fetchBranch: vi.fn(),
   fetchPullRequestHead: vi.fn(),
   findLocalRepo: vi.fn(),

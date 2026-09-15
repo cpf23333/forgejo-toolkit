@@ -26,9 +26,10 @@ vi.mock('../../api/client', () => ({
   },
 }));
 
-import { extractApiErrorMessage, publishToForgejo, validateRepoName } from '../publish';
+import { extractApiErrorMessage, publishToForgejo, validateRemoteName, validateRepoName } from '../publish';
 import { ApiError } from '../../api/errors';
 import {
+  addRemote,
   getCurrentBranch,
   getCurrentCommitSha,
   getUpstreamBranch,
@@ -80,6 +81,24 @@ describe('validateRepoName', () => {
   it('rejects names with characters outside the allowed set', () => {
     expect(validateRepoName('bad name')).toBeTruthy();
     expect(validateRepoName('bad/name')).toBeTruthy();
+  });
+});
+
+describe('validateRemoteName', () => {
+  const existing = [{ name: 'origin', url: 'https://git.example.com/alice/repo.git' }];
+
+  it('accepts a free valid name', () => {
+    expect(validateRemoteName('forgejo', existing)).toBeUndefined();
+  });
+
+  it('rejects empty names and invalid characters', () => {
+    expect(validateRemoteName('  ', existing)).toBeTruthy();
+    expect(validateRemoteName('bad name', existing)).toBeTruthy();
+    expect(validateRemoteName('bad/name', existing)).toBeTruthy();
+  });
+
+  it('rejects a name already used by another remote', () => {
+    expect(validateRemoteName('origin', existing)).toBeTruthy();
   });
 });
 
@@ -250,15 +269,39 @@ describe('publishToForgejo', () => {
     expect(pushBranch).toHaveBeenCalledWith('/repo', 'origin', 'main', 'tok', true, INSTANCE_URL);
   });
 
-  it('warns when no remote matches a configured instance', async () => {
+  it('publishes under a new remote name when every existing remote points elsewhere', async () => {
     (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/repo' } }];
     vi.mocked(listWorkspaceRepositories).mockResolvedValue(['/repo']);
+    // Cloned from a non-Forgejo host: origin is taken, nothing matches the
+    // configured instance — the publish flow must still be offered.
     vi.mocked(listRemotes).mockResolvedValue([{ name: 'origin', url: 'https://git.example.com/alice/repo.git' }]);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    // Two input boxes: repository name, then the Forgejo remote's name.
+    showInputBox.mockResolvedValueOnce('my-repo').mockResolvedValueOnce('forgejo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockResolvedValue({ clone_url: `${INSTANCE_URL}/alice/my-repo.git`, full_name: 'alice/my-repo' });
 
     await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
 
-    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('No git remote'));
-    expect(pushBranch).not.toHaveBeenCalled();
-    expect(createUserRepo).not.toHaveBeenCalled();
+    expect(createUserRepo).toHaveBeenCalled();
+    expect(addRemote).toHaveBeenCalledWith('/repo', 'forgejo', `${INSTANCE_URL}/alice/my-repo.git`);
+    expect(pushBranch).toHaveBeenCalledWith('/repo', 'forgejo', 'main', 'tok', true, INSTANCE_URL);
+  });
+
+  it('uses origin without asking when no remote exists yet', async () => {
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockResolvedValue({ clone_url: `${INSTANCE_URL}/alice/my-repo.git`, full_name: 'alice/my-repo' });
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    // Only the repository name was asked for — no remote-name prompt.
+    expect(showInputBox).toHaveBeenCalledTimes(1);
+    expect(addRemote).toHaveBeenCalledWith('/repo', 'origin', `${INSTANCE_URL}/alice/my-repo.git`);
+    expect(pushBranch).toHaveBeenCalledWith('/repo', 'origin', 'main', 'tok', true, INSTANCE_URL);
   });
 });

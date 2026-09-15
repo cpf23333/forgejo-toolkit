@@ -3624,11 +3624,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _detectAndSendLinkedRepository() {
-    const { linked, all } = await detectLinkedRepositories(this._config.getInstances());
+    const { linked, all, unpublished } = await detectLinkedRepositories(this._config.getInstances());
     // Gate the editor context menu (Copy Permalink) on whether the workspace
     // is linked to a Forgejo repository. This must run even when the view is
     // hidden, otherwise the key stays false until the sidebar is opened.
     void vscode.commands.executeCommand('setContext', 'forgejoToolkit.hasLinkedRepo', Boolean(linked));
+    // The SCM "Publish to Forgejo" button only makes sense while at least one
+    // workspace repository has no Forgejo remote yet; once everything is
+    // published, pushing belongs to the built-in sync action.
+    void vscode.commands.executeCommand('setContext', 'forgejoToolkit.hasUnpublishedRepo', unpublished.length > 0);
     if (!this._view?.visible) {
       return;
     }
