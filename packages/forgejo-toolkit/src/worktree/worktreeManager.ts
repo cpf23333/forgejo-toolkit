@@ -27,6 +27,29 @@ export interface WorktreeInfo {
 const WORKTREES_KEY = 'forgejoToolkit.worktrees';
 const CACHE_REPO_USAGE_KEY = 'forgejoToolkit.cacheRepoUsage';
 
+/**
+ * Serializes every globalState read-modify-write cycle in this module.
+ * addWorktree/removeWorktree/forgetWorktree and the cache-usage writes all
+ * read the persisted array, transform it, and write it back; two overlapping
+ * cycles would silently drop one side's change (an orphaned worktree record,
+ * or a bare cache clone evicted by the LRU sweep while still in use). The
+ * queue is module-level because every WorktreeManager instance in this
+ * extension host persists to the same globalState keys. A failed task must
+ * not poison the queue, so each link starts by swallowing the previous
+ * rejection (the caller still sees it through the returned promise).
+ */
+let globalStateWriteQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueGlobalStateWrite<T>(task: () => Promise<T>): Promise<T> {
+  const run = globalStateWriteQueue
+    .catch(() => {
+      // keep the queue alive after a failed write
+    })
+    .then(task);
+  globalStateWriteQueue = run;
+  return run;
+}
+
 /** Cached bare repositories unused for this long are deleted by the LRU sweep. */
 export const CACHE_REPO_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 /** Beyond this many cached bare repositories, the least recently used are deleted. */
@@ -74,9 +97,11 @@ export class WorktreeManager {
   }
 
   async addWorktree(info: WorktreeInfo): Promise<void> {
-    const worktrees = this.getWorktrees().filter((w) => w.id !== info.id);
-    worktrees.push(info);
-    await this.context.globalState.update(WORKTREES_KEY, worktrees);
+    return enqueueGlobalStateWrite(async () => {
+      const worktrees = this.getWorktrees().filter((w) => w.id !== info.id);
+      worktrees.push(info);
+      await this.context.globalState.update(WORKTREES_KEY, worktrees);
+    });
   }
 
   /**
@@ -98,38 +123,48 @@ export class WorktreeManager {
    * `git worktree remove` never removes branches, so every PR head update
    * would otherwise accumulate one dead branch. Issue worktrees keep their
    * branch — it is the user's own work branch.
+   *
+   * The whole read-snapshot → git operations → write-back sequence runs inside
+   * the module write queue: the git steps can take seconds, and a record added
+   * meanwhile must not be lost when the (stale) snapshot is written back.
+   * Serializing the git operations too is the accepted trade-off — removals
+   * are rare and user-triggered.
    */
   async removeWorktree(id: string): Promise<void> {
-    const worktrees = this.getWorktrees();
-    const target = worktrees.find((w) => w.id === id);
-    if (!target) {
-      return;
-    }
-    const sourceExists = await fs.promises.access(target.sourceRepoPath).then(
-      () => true,
-      () => false,
-    );
-    if (sourceExists) {
-      await removeWorktreeAndPrune(target.sourceRepoPath, target.worktreePath);
-      if ((target.kind ?? 'pr') === 'pr' && target.headSha) {
-        const localBranch = `pr-${target.prIndex}-${target.headSha.slice(0, 7)}`;
-        await deleteBranch(target.sourceRepoPath, localBranch).catch(() => undefined);
+    return enqueueGlobalStateWrite(async () => {
+      const worktrees = this.getWorktrees();
+      const target = worktrees.find((w) => w.id === id);
+      if (!target) {
+        return;
       }
-    } else {
-      await fs.promises.rm(target.worktreePath, { recursive: true, force: true }).catch(() => undefined);
-    }
-    await this.context.globalState.update(
-      WORKTREES_KEY,
-      worktrees.filter((w) => w.id !== id),
-    );
+      const sourceExists = await fs.promises.access(target.sourceRepoPath).then(
+        () => true,
+        () => false,
+      );
+      if (sourceExists) {
+        await removeWorktreeAndPrune(target.sourceRepoPath, target.worktreePath);
+        if ((target.kind ?? 'pr') === 'pr' && target.headSha) {
+          const localBranch = `pr-${target.prIndex}-${target.headSha.slice(0, 7)}`;
+          await deleteBranch(target.sourceRepoPath, localBranch).catch(() => undefined);
+        }
+      } else {
+        await fs.promises.rm(target.worktreePath, { recursive: true, force: true }).catch(() => undefined);
+      }
+      await this.context.globalState.update(
+        WORKTREES_KEY,
+        worktrees.filter((w) => w.id !== id),
+      );
+    });
   }
 
   /** Drop the record without touching the disk (used when the directory is already gone). */
   async forgetWorktree(id: string): Promise<void> {
-    await this.context.globalState.update(
-      WORKTREES_KEY,
-      this.getWorktrees().filter((w) => w.id !== id),
-    );
+    return enqueueGlobalStateWrite(async () => {
+      await this.context.globalState.update(
+        WORKTREES_KEY,
+        this.getWorktrees().filter((w) => w.id !== id),
+      );
+    });
   }
 
   getCacheDirectory(): string {
@@ -146,9 +181,11 @@ export class WorktreeManager {
 
   /** Stamps a cached bare repository as used now (LRU recency for the sweep). */
   async touchCachedRepo(cacheRepoPath: string): Promise<void> {
-    const usage = { ...this._getCacheRepoUsage() };
-    usage[path.resolve(cacheRepoPath)] = Date.now();
-    await this.context.globalState.update(CACHE_REPO_USAGE_KEY, usage);
+    return enqueueGlobalStateWrite(async () => {
+      const usage = { ...this._getCacheRepoUsage() };
+      usage[path.resolve(cacheRepoPath)] = Date.now();
+      await this.context.globalState.update(CACHE_REPO_USAGE_KEY, usage);
+    });
   }
 
   /**
@@ -159,9 +196,16 @@ export class WorktreeManager {
    * worktree are never deleted (their worktrees' git metadata points into
    * them), and deletion is restricted to direct `*.git` children of the
    * repos directory. Triggered lazily from worktree operations — no timer.
-   * Returns the names of the removed repositories.
+   * Returns the names of the removed repositories. The sweep reads the
+   * worktree records and rewrites the usage map, so it runs inside the module
+   * write queue like the other globalState mutations (a concurrent
+   * touchCachedRepo must not be overwritten by a stale usage snapshot).
    */
   async cleanupCachedRepos(now: number = Date.now()): Promise<string[]> {
+    return enqueueGlobalStateWrite(() => this._cleanupCachedRepos(now));
+  }
+
+  private async _cleanupCachedRepos(now: number): Promise<string[]> {
     const reposDir = path.join(this.getCacheDirectory(), 'repos');
     const resolvedReposDir = path.resolve(reposDir);
     const entries = await fs.promises.readdir(reposDir, { withFileTypes: true }).catch(() => [] as fs.Dirent[]);

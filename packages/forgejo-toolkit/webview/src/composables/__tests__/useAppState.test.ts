@@ -1724,7 +1724,7 @@ describe('useAppState', () => {
       );
       expect(state.loading.get('issues-inst-1-closed')).toBe(true);
 
-      dispatchMessage({ command: 'myIssues', instanceId: 'inst-1', issues: [fakeIssue] });
+      dispatchMessage({ command: 'myIssues', instanceId: 'inst-1', state: 'closed', issues: [fakeIssue] });
       await nextTick();
 
       expect(state.loading.get('issues-inst-1-closed')).toBe(false);
@@ -1744,11 +1744,61 @@ describe('useAppState', () => {
       state.loadMyPullRequests('inst-1', 'open');
       expect(state.loading.get('pulls-inst-1-open')).toBe(true);
 
-      dispatchMessage({ command: 'myPullRequests', instanceId: 'inst-1', pullRequests: [fakePullRequest] });
+      dispatchMessage({
+        command: 'myPullRequests',
+        instanceId: 'inst-1',
+        state: 'open',
+        pullRequests: [fakePullRequest],
+      });
       await nextTick();
 
       expect(state.loading.get('pulls-inst-1-open')).toBe(false);
       expect(state.myPullRequestsCache.has('inst-1:open')).toBe(true);
+    });
+
+    it('routes concurrent myIssues responses to the state echoed by the host', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.loadMyIssues('inst-1', 'open');
+      state.loadMyIssues('inst-1', 'closed');
+      expect(state.loading.get('issues-inst-1-open')).toBe(true);
+      expect(state.loading.get('issues-inst-1-closed')).toBe(true);
+
+      // Responses arriving out of order must still land in their own slots.
+      dispatchMessage({ command: 'myIssues', instanceId: 'inst-1', state: 'closed', issues: [fakeIssue] });
+      await nextTick();
+      expect(state.loading.get('issues-inst-1-closed')).toBe(false);
+      expect(state.loading.get('issues-inst-1-open')).toBe(true);
+      expect(state.myIssuesCache.has('inst-1:closed')).toBe(true);
+      expect(state.myIssuesCache.has('inst-1:open')).toBe(false);
+
+      dispatchMessage({ command: 'myIssues', instanceId: 'inst-1', state: 'open', error: 'boom' });
+      await nextTick();
+      expect(state.loading.get('issues-inst-1-open')).toBe(false);
+      expect(state.errors.get('issues-inst-1-open')).toBe('boom');
+      expect(state.myIssuesCache.has('inst-1:open')).toBe(false);
+      expect(state.myIssuesCache.has('inst-1:closed')).toBe(true);
+    });
+
+    it('routes concurrent myPullRequests responses to the state echoed by the host', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.loadMyPullRequests('inst-1', 'open');
+      state.loadMyPullRequests('inst-1', 'closed');
+      dispatchMessage({
+        command: 'myPullRequests',
+        instanceId: 'inst-1',
+        state: 'closed',
+        pullRequests: [fakePullRequest],
+      });
+      await nextTick();
+
+      expect(state.loading.get('pulls-inst-1-closed')).toBe(false);
+      expect(state.loading.get('pulls-inst-1-open')).toBe(true);
+      expect(state.myPullRequestsCache.has('inst-1:closed')).toBe(true);
+      expect(state.myPullRequestsCache.has('inst-1:open')).toBe(false);
     });
   });
 });

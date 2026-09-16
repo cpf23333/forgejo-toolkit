@@ -86,6 +86,41 @@ const LOAD_RESULT_COMMANDS: Record<string, string> = {
 };
 
 /**
+ * Mutation-type webview requests whose handlers reply with a result message
+ * the requesting control waits on (button spinner → success/error). They share
+ * the deleted-instance pre-check with LOAD_RESULT_COMMANDS: without an error
+ * reply the control's loading state would never clear. The pre-check replies
+ * echo the request fields back (minus `command`), which is exactly how the
+ * webview routes the result to its loading key.
+ */
+const MUTATION_RESULT_COMMANDS: Record<string, string> = {
+  editIssue: 'issueUpdated',
+  deleteIssue: 'issueDeleted',
+  editPullRequest: 'pullRequestUpdated',
+  mergePullRequest: 'pullRequestMerged',
+  revertMergeCommit: 'revertMergeCommitResult',
+  editIssueComment: 'issueCommentEdited',
+  deleteIssueComment: 'issueCommentDeleted',
+  changeIssueSubscription: 'issueSubscriptionChanged',
+  changeIssueReaction: 'issueReactionChanged',
+  changeCommentReaction: 'commentReactionChanged',
+  startIssueStopwatch: 'issueStopwatchChanged',
+  stopIssueStopwatch: 'issueStopwatchChanged',
+  deleteIssueStopwatch: 'issueStopwatchChanged',
+  addIssueTime: 'issueTimeAdded',
+  resetIssueTime: 'issueTimeReset',
+  deleteIssueTime: 'issueTimeDeleted',
+  createIssueDependency: 'issueDependencyChanged',
+  removeIssueDependency: 'issueDependencyChanged',
+  dispatchWorkflow: 'actionRunDispatched',
+  cancelActionRun: 'actionRunCancelled',
+  deleteActionRun: 'actionRunDeleted',
+  downloadActionArtifact: 'actionArtifactDownloaded',
+  editRepoRelease: 'repoReleaseEdited',
+  deleteRepoRelease: 'repoReleaseDeleted',
+};
+
+/**
  * Origin equality with URL-parse failures treated as "different": callers use
  * this to gate sending the stored token, so an unparseable target must fail
  * closed.
@@ -114,6 +149,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   private readonly _worktreeManager: WorktreeManager;
   /** Guards against concurrent openPrWorktree runs for the same PR (double-click). */
   private readonly _worktreeInFlight = new InFlightTasks();
+  /**
+   * Dedupes concurrent bare clones into the same cache path: two PRs of the
+   * same repository opened at once would otherwise race `git clone --bare`
+   * into one directory (the later clone fails).
+   */
+  private readonly _bareCloneInFlight = new InFlightTasks();
 
   constructor(
     private readonly _context: vscode.ExtensionContext,
@@ -264,14 +305,28 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   private async _handleMessage(message: any): Promise<void> {
     logger.debug(`Received message from webview: ${message.command}`);
     // Instance was deleted while a keep-alive view still targets it: answer
-    // load requests with an error reply so the view shows the error instead
-    // of spinning forever (the handlers themselves bail out silently).
-    const loadResultCommand = LOAD_RESULT_COMMANDS[message.command];
-    if (loadResultCommand && typeof message.instanceId === 'string' && !this._findInstance(message.instanceId)) {
+    // load and mutation requests with an error reply so the view shows the
+    // error instead of spinning forever (the handlers themselves bail out
+    // silently). The reply echoes the request fields, which is how the
+    // webview routes it to the right loading key.
+    const resultCommand = LOAD_RESULT_COMMANDS[message.command] ?? MUTATION_RESULT_COMMANDS[message.command];
+    if (resultCommand && typeof message.instanceId === 'string' && !this._findInstance(message.instanceId)) {
       logger.error(`${message.command} failed: instance not found: ${message.instanceId}`);
       const { command: _command, ...rest } = message as Record<string, unknown>;
-      (this._reply as (command: string, data: Record<string, unknown>) => void)(loadResultCommand, {
+      // editIssue/editPullRequest route close/reopen toggles and inline
+      // due-date saves to their own loading keys via these flags, which the
+      // handlers derive from `data` on the normal path.
+      const editData = rest.data as { state_toggle?: unknown; due_date_update?: unknown } | undefined;
+      const routingFlags =
+        message.command === 'editIssue' || message.command === 'editPullRequest'
+          ? {
+              ...(editData?.state_toggle ? { stateToggle: true } : {}),
+              ...(editData?.due_date_update ? { dueDateUpdate: true } : {}),
+            }
+          : {};
+      (this._reply as (command: string, data: Record<string, unknown>) => void)(resultCommand, {
         ...rest,
+        ...routingFlags,
         error: vscode.l10n.t('The Forgejo instance is no longer configured'),
       });
       return;
@@ -554,14 +609,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!instance) {
           return;
         }
+        // Echo the requested state so the webview can route the reply to the
+        // right state-scoped slot even when several states load concurrently.
+        const state = typeof message.state === 'string' ? message.state : 'open';
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const issues = await client.getUserIssues(message.state ?? 'open');
-          this._reply('myIssues', { instanceId: instance.id, issues });
+          const issues = await client.getUserIssues(state);
+          this._reply('myIssues', { instanceId: instance.id, state, issues });
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`getMyIssues failed for ${instance.name}: ${err}`);
-          this._reply('myIssues', { instanceId: message.instanceId, error: err });
+          this._reply('myIssues', { instanceId: message.instanceId, state, error: err });
         }
         return;
       }
@@ -570,14 +628,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!instance) {
           return;
         }
+        const state = typeof message.state === 'string' ? message.state : 'open';
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const pulls = await client.getUserPullRequests(message.state ?? 'open');
-          this._reply('myPullRequests', { instanceId: instance.id, pullRequests: pulls });
+          const pulls = await client.getUserPullRequests(state);
+          this._reply('myPullRequests', { instanceId: instance.id, state, pullRequests: pulls });
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`getMyPullRequests failed for ${instance.name}: ${err}`);
-          this._reply('myPullRequests', { instanceId: message.instanceId, error: err });
+          this._reply('myPullRequests', { instanceId: message.instanceId, state, error: err });
         }
         return;
       }
@@ -3222,25 +3281,39 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       case 'removeWorktree': {
         const { id } = message;
         if (typeof id === 'string') {
-          try {
-            await this._worktreeManager.removeWorktree(id);
-            this._reply('worktreeRemoved', { id });
-          } catch (error) {
-            // removeWorktree keeps the record on failure so the user can
-            // retry; the error reaches the user exactly once, through this
-            // worktreeError notification shown by the webview.
-            const err = userFacingErrorMessage(error);
-            const record = this._worktreeManager.getWorktree(id);
-            this._reply('worktreeError', {
-              error: err,
-              operation: 'remove',
-              instanceId: record?.instanceId,
-              owner: record?.owner,
-              repo: record?.repo,
-              index: record?.prIndex,
-            });
-          }
-          this._reply('worktreesList', { worktrees: this._worktreeManager.getWorktrees() });
+          // Double-click/double-submit guard, keyed on the same identity
+          // dimension as openPrWorktree/startWorkOnIssue. The `remove:` prefix
+          // keeps it a separate entry: InFlightTasks reuses the in-flight
+          // promise, so sharing the exact open key would silently drop a
+          // legitimate remove that races an open (and vice versa) without any
+          // reply reaching the webview.
+          const record = this._worktreeManager.getWorktree(id);
+          const key = record
+            ? record.kind === 'issue'
+              ? `remove:start-work:${record.instanceId}:${record.owner}/${record.repo}#${record.prIndex}`
+              : `remove:${record.instanceId}:${record.owner}/${record.repo}#${record.prIndex}`
+            : `remove:${id}`;
+          await this._worktreeInFlight.run(key, async () => {
+            try {
+              await this._worktreeManager.removeWorktree(id);
+              this._reply('worktreeRemoved', { id });
+            } catch (error) {
+              // removeWorktree keeps the record on failure so the user can
+              // retry; the error reaches the user exactly once, through this
+              // worktreeError notification shown by the webview.
+              const err = userFacingErrorMessage(error);
+              const failedRecord = this._worktreeManager.getWorktree(id);
+              this._reply('worktreeError', {
+                error: err,
+                operation: 'remove',
+                instanceId: failedRecord?.instanceId,
+                owner: failedRecord?.owner,
+                repo: failedRecord?.repo,
+                index: failedRecord?.prIndex,
+              });
+            }
+            this._reply('worktreesList', { worktrees: this._worktreeManager.getWorktrees() });
+          });
         }
         return;
       }
@@ -3813,13 +3886,28 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       if (choice.value === 'clone') {
         sourceRepoPath = cacheRepoPath;
         if (!cacheRepoExisted) {
-          await vscode.window.withProgress(
-            {
-              location: vscode.ProgressLocation.Notification,
-              title: vscode.l10n.t('Cloning {0}/{1}…', owner, repo),
-            },
-            () => cloneRepository(cloneUrl, cacheRepoPath, instance.token),
-          );
+          // Dedupe on the target path: a concurrent open of another PR from
+          // the same repository reuses the in-flight clone instead of running
+          // `git clone --bare` into the same directory (which would fail).
+          await this._bareCloneInFlight.run(`clone:${cacheRepoPath}`, async () => {
+            // Re-check inside the task: when this run is not the one that
+            // started the clone (or the other open finished while this one
+            // was still at the picker), the cache repository is already there.
+            const nowExists = await fs.promises.access(cacheRepoPath).then(
+              () => true,
+              () => false,
+            );
+            if (nowExists) {
+              return;
+            }
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: vscode.l10n.t('Cloning {0}/{1}…', owner, repo),
+              },
+              () => cloneRepository(cloneUrl, cacheRepoPath, instance.token),
+            );
+          });
         }
         await this._worktreeManager.touchCachedRepo(cacheRepoPath);
         // Lazy LRU sweep of the bare clone cache (no timer): aged-out and

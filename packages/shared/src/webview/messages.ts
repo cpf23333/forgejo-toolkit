@@ -80,8 +80,8 @@ export type HostToWebviewMessage =
   | { command: 'setLocale'; locale: 'en' | 'zh' }
   | { command: 'setDebug'; debug: boolean }
   | { command: 'repositories'; instanceId: string; repositories?: unknown[]; error?: string }
-  | { command: 'myIssues'; instanceId: string; issues?: unknown[]; error?: string }
-  | { command: 'myPullRequests'; instanceId: string; pullRequests?: unknown[]; error?: string }
+  | { command: 'myIssues'; instanceId: string; state: string; issues?: unknown[]; error?: string }
+  | { command: 'myPullRequests'; instanceId: string; state: string; pullRequests?: unknown[]; error?: string }
   | { command: 'repoDetail'; instanceId: string; owner: string; repo: string; detail?: unknown; error?: string }
   | {
       command: 'repoBranchCommits';

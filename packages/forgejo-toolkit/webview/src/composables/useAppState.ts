@@ -163,11 +163,6 @@ function createAppState() {
   const repositoriesCache = createTimedCache<ForgejoRepository[]>(30_000);
   const myIssuesCache = createTimedCache<ForgejoIssue[]>(30_000);
   const myPullRequestsCache = createTimedCache<ForgejoPullRequest[]>(30_000);
-  // The myIssues/myPullRequests responses carry no `state` field, so the
-  // requested state is remembered here to resolve the loading/cache key when
-  // the response lands.
-  const myIssuesRequestStates = new Map<string, string>();
-  const myPullRequestsRequestStates = new Map<string, string>();
 
   const repoContentsCache = createTimedCache<ForgejoContentEntry[]>(30_000);
   const repoRefsCache = createTimedCache<{ branches: ForgejoBranch[]; tags: ForgejoTag[]; releases: ForgejoRelease[] }>(
@@ -490,10 +485,12 @@ function createAppState() {
         handleRepositories(message as { instanceId: string; repositories?: ForgejoRepository[]; error?: string });
         break;
       case 'myIssues':
-        handleMyIssues(message as { instanceId: string; issues?: ForgejoIssue[]; error?: string });
+        handleMyIssues(message as { instanceId: string; state?: string; issues?: ForgejoIssue[]; error?: string });
         break;
       case 'myPullRequests':
-        handleMyPullRequests(message as { instanceId: string; pullRequests?: ForgejoPullRequest[]; error?: string });
+        handleMyPullRequests(
+          message as { instanceId: string; state?: string; pullRequests?: ForgejoPullRequest[]; error?: string },
+        );
         break;
       case 'repoDetail':
         handleRepoDetail(
@@ -1372,9 +1369,10 @@ function createAppState() {
     }
   }
 
-  function handleMyIssues(data: { instanceId: string; issues?: ForgejoIssue[]; error?: string }) {
-    const state = myIssuesRequestStates.get(data.instanceId) ?? 'open';
-    myIssuesRequestStates.delete(data.instanceId);
+  function handleMyIssues(data: { instanceId: string; state?: string; issues?: ForgejoIssue[]; error?: string }) {
+    // The host echoes the requested state; fall back to the default only for
+    // replies from a host build that predates the echo.
+    const state = data.state ?? 'open';
     const key = `issues-${data.instanceId}-${state}`;
     loading.set(key, false);
     if (data.error) {
@@ -1387,9 +1385,13 @@ function createAppState() {
     }
   }
 
-  function handleMyPullRequests(data: { instanceId: string; pullRequests?: ForgejoPullRequest[]; error?: string }) {
-    const state = myPullRequestsRequestStates.get(data.instanceId) ?? 'open';
-    myPullRequestsRequestStates.delete(data.instanceId);
+  function handleMyPullRequests(data: {
+    instanceId: string;
+    state?: string;
+    pullRequests?: ForgejoPullRequest[];
+    error?: string;
+  }) {
+    const state = data.state ?? 'open';
     const key = `pulls-${data.instanceId}-${state}`;
     loading.set(key, false);
     if (data.error) {
@@ -4188,7 +4190,6 @@ function createAppState() {
       return;
     }
     beginLoading(key);
-    myIssuesRequestStates.set(instanceId, state);
     postMessage({ command: 'getMyIssues', instanceId, state });
   }
 
@@ -4201,7 +4202,6 @@ function createAppState() {
       return;
     }
     beginLoading(key);
-    myPullRequestsRequestStates.set(instanceId, state);
     postMessage({ command: 'getMyPullRequests', instanceId, state });
   }
 

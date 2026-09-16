@@ -163,7 +163,15 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       this._setContext(reviewContext, callbacks);
       return;
     }
-    this._contextSwitch = this._contextSwitch.then(() => this._confirmAndSetContext(reviewContext, callbacks));
+    // Recover the chain after a failure (e.g. the confirmation prompt throws);
+    // otherwise every later switch would ride on a rejected promise and
+    // silently never run.
+    this._contextSwitch = this._contextSwitch
+      .then(() => this._confirmAndSetContext(reviewContext, callbacks))
+      .catch((error: unknown) => {
+        const err = userFacingErrorMessage(error);
+        logger.error(`Failed to switch pull review comment context: ${err}`);
+      });
   }
 
   /**

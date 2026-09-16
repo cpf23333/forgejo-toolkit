@@ -225,6 +225,45 @@ describe('PullReviewCommentPanel.createOrShow', () => {
     expect(fakePanel.title).not.toBe('src/index.ts:10');
   });
 
+  it('recovers the switch chain after a failed switch so later switches still run', async () => {
+    const fakePanel = createFakePanel();
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+    // The confirmation prompt throws on the first switch.
+    vi.mocked(vscode.window.showWarningMessage).mockRejectedValueOnce(new Error('modal failed') as never);
+
+    const panel = PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext(),
+    );
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext({ lineNumber: 9 }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fakePanel.receive({ command: 'pullReviewCommentDraftState', dirty: true });
+    await vi.waitFor(() => {
+      expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The failed switch keeps the old context.
+    expect(panelInternals(panel)._context.lineNumber).toBe(1);
+
+    // A later switch must not be swallowed by the previously rejected chain.
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext({ lineNumber: 20 }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fakePanel.receive({ command: 'pullReviewCommentDraftState', dirty: false });
+    await vi.waitFor(() => {
+      expect(panelInternals(panel)._context.lineNumber).toBe(20);
+    });
+  });
+
   it('clears stale callbacks when the reuse caller passes none', () => {
     const fakePanel = createFakePanel();
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);

@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 const clientMocks = vi.hoisted(() => ({
   editIssue: vi.fn(),
   replaceIssueLabels: vi.fn(),
   getRepoDetail: vi.fn(),
+  getPullRequestDetail: vi.fn(),
+  getUserIssues: vi.fn(),
+  getUserPullRequests: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
@@ -16,6 +22,9 @@ vi.mock('../../api/client', () => ({
       editIssue: clientMocks.editIssue,
       replaceIssueLabels: clientMocks.replaceIssueLabels,
       getRepoDetail: clientMocks.getRepoDetail,
+      getPullRequestDetail: clientMocks.getPullRequestDetail,
+      getUserIssues: clientMocks.getUserIssues,
+      getUserPullRequests: clientMocks.getUserPullRequests,
     };
   }),
 }));
@@ -24,7 +33,7 @@ vi.mock('../../worktree/gitOperations', () => ({
   cloneRepository: vi.fn(),
   createWorktreeFromBranch: vi.fn(),
   createWorktreeWithNewBranch: vi.fn(),
-  deleteBranch: vi.fn(),
+  deleteBranch: vi.fn(async () => undefined),
   detectLinkedRepository: vi.fn(),
   detectLinkedRepositories: vi.fn(async () => ({ linked: undefined, all: [], unpublished: [] })),
   fetchBranch: vi.fn(),
@@ -45,8 +54,10 @@ vi.mock('../../worktree/gitOperations', () => ({
 import { ForgejoToolkitViewProvider } from '../viewProvider';
 import { ForgejoClient } from '../../api/client';
 import {
+  cloneRepository,
   createWorktreeWithNewBranch,
   fetchBranch,
+  getRefCommitSha,
   isCurrentWorkspaceBaseRepo,
   openWorktree,
   removeWorktreeAndPrune,
@@ -124,6 +135,16 @@ async function flushDispatches() {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/**
+ * Flush macrotasks until the predicate holds. Flows that cross real `fs`
+ * promises (threadpool) need more than a fixed number of ticks.
+ */
+async function flushUntil(predicate: () => boolean, attempts = 50) {
+  for (let i = 0; i < attempts && !predicate(); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
 const testInstance: ForgejoInstance = {
   id: 'forgejo.example.com-user',
   url: 'https://forgejo.example.com',
@@ -142,11 +163,18 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clientMocks.editIssue.mockReset();
     clientMocks.replaceIssueLabels.mockReset();
     clientMocks.getRepoDetail.mockReset();
+    clientMocks.getPullRequestDetail.mockReset();
+    clientMocks.getUserIssues.mockReset();
+    clientMocks.getUserPullRequests.mockReset();
     vi.mocked(fetchBranch).mockReset();
     vi.mocked(createWorktreeWithNewBranch).mockReset();
     vi.mocked(isCurrentWorkspaceBaseRepo).mockReset();
+    vi.mocked(cloneRepository).mockReset();
+    vi.mocked(getRefCommitSha).mockReset();
+    vi.mocked(removeWorktreeAndPrune).mockReset();
     vi.mocked(openWorktree).mockReset().mockResolvedValue(true);
     vi.mocked(resolveRemoteForRepo).mockReset().mockResolvedValue('origin');
+    vi.mocked(vscode.window.showQuickPick).mockReset();
     context = createFakeContext();
     config = new ConfigManager(context as never);
     provider = new ForgejoToolkitViewProvider(
@@ -490,6 +518,353 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     const list = messages.find((m) => m.command === 'worktreesList');
     expect(list).toBeDefined();
     expect((list!.worktrees as unknown[]).length).toBe(1);
+  });
+
+  it('dedupes a double-submitted removeWorktree for the same worktree', async () => {
+    const worktree = {
+      id: 'w1',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      prIndex: 1,
+      prTitle: 'title',
+      headBranch: 'feature',
+      headSha: 'abc1234',
+      baseBranch: 'main',
+      sourceRepoPath: process.cwd(),
+      worktreePath: '/cache/worktrees/w1',
+      createdAt: 0,
+    };
+    await context.globalState.update('forgejoToolkit.worktrees', [worktree]);
+    let finishGit!: () => void;
+    vi.mocked(removeWorktreeAndPrune).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishGit = resolve;
+        }),
+    );
+
+    fake.send({ command: 'removeWorktree', id: 'w1' });
+    fake.send({ command: 'removeWorktree', id: 'w1' });
+    await flushUntil(() => vi.mocked(removeWorktreeAndPrune).mock.calls.length > 0);
+    finishGit();
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeRemoved'));
+
+    // The second message reuses the in-flight removal instead of running the
+    // git steps against the same path again.
+    expect(vi.mocked(removeWorktreeAndPrune)).toHaveBeenCalledTimes(1);
+    expect(postedMessages(fake.posted).filter((m) => m.command === 'worktreeRemoved')).toHaveLength(1);
+  });
+
+  describe('mutation requests targeting a deleted instance', () => {
+    const cases: Array<{
+      command: string;
+      result: string;
+      message: Record<string, unknown>;
+      echo: Record<string, unknown>;
+    }> = [
+      {
+        command: 'editIssue',
+        result: 'issueUpdated',
+        message: { owner: 'owner', repo: 'repo', index: 5, data: { title: 'x' } },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'deleteIssue',
+        result: 'issueDeleted',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'editPullRequest',
+        result: 'pullRequestUpdated',
+        message: { owner: 'owner', repo: 'repo', index: 5, data: { title: 'x' } },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'mergePullRequest',
+        result: 'pullRequestMerged',
+        message: { owner: 'owner', repo: 'repo', index: 5, strategy: 'merge' },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'revertMergeCommit',
+        result: 'revertMergeCommitResult',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'editIssueComment',
+        result: 'issueCommentEdited',
+        message: { owner: 'owner', repo: 'repo', commentId: 7, body: 'x' },
+        echo: { owner: 'owner', repo: 'repo', commentId: 7 },
+      },
+      {
+        command: 'deleteIssueComment',
+        result: 'issueCommentDeleted',
+        message: { owner: 'owner', repo: 'repo', commentId: 7 },
+        echo: { owner: 'owner', repo: 'repo', commentId: 7 },
+      },
+      {
+        command: 'changeIssueSubscription',
+        result: 'issueSubscriptionChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5, user: 'user', subscribe: true },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'changeIssueReaction',
+        result: 'issueReactionChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5, content: '+1', add: true },
+        echo: { owner: 'owner', repo: 'repo', index: 5, content: '+1' },
+      },
+      {
+        command: 'changeCommentReaction',
+        result: 'commentReactionChanged',
+        message: { owner: 'owner', repo: 'repo', commentId: 7, content: '+1', add: true },
+        echo: { owner: 'owner', repo: 'repo', commentId: 7, content: '+1' },
+      },
+      {
+        command: 'startIssueStopwatch',
+        result: 'issueStopwatchChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'stopIssueStopwatch',
+        result: 'issueStopwatchChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'deleteIssueStopwatch',
+        result: 'issueStopwatchChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'addIssueTime',
+        result: 'issueTimeAdded',
+        message: { owner: 'owner', repo: 'repo', index: 5, time: 60 },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'resetIssueTime',
+        result: 'issueTimeReset',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'deleteIssueTime',
+        result: 'issueTimeDeleted',
+        message: { owner: 'owner', repo: 'repo', index: 5, id: 9 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, id: 9 },
+      },
+      {
+        command: 'createIssueDependency',
+        result: 'issueDependencyChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6 },
+      },
+      {
+        command: 'removeIssueDependency',
+        result: 'issueDependencyChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6 },
+      },
+      {
+        command: 'dispatchWorkflow',
+        result: 'actionRunDispatched',
+        message: { owner: 'owner', repo: 'repo', workflowfilename: 'ci.yml', ref: 'main' },
+        echo: { owner: 'owner', repo: 'repo', workflowfilename: 'ci.yml' },
+      },
+      {
+        command: 'cancelActionRun',
+        result: 'actionRunCancelled',
+        message: { owner: 'owner', repo: 'repo', runId: 3 },
+        echo: { owner: 'owner', repo: 'repo', runId: 3 },
+      },
+      {
+        command: 'deleteActionRun',
+        result: 'actionRunDeleted',
+        message: { owner: 'owner', repo: 'repo', runId: 3 },
+        echo: { owner: 'owner', repo: 'repo', runId: 3 },
+      },
+      {
+        command: 'downloadActionArtifact',
+        result: 'actionArtifactDownloaded',
+        message: { owner: 'owner', repo: 'repo', artifactId: 4, name: 'logs' },
+        echo: { owner: 'owner', repo: 'repo', artifactId: 4 },
+      },
+      {
+        command: 'editRepoRelease',
+        result: 'repoReleaseEdited',
+        message: { owner: 'owner', repo: 'repo', id: 2, data: { name: 'v2' } },
+        echo: { owner: 'owner', repo: 'repo' },
+      },
+      {
+        command: 'deleteRepoRelease',
+        result: 'repoReleaseDeleted',
+        message: { owner: 'owner', repo: 'repo', id: 2 },
+        echo: { owner: 'owner', repo: 'repo' },
+      },
+    ];
+
+    for (const { command, result, message, echo } of cases) {
+      it(`replies ${result} with an error for ${command}`, async () => {
+        fake.send({ command, instanceId: 'unknown-instance', ...message });
+        await flushDispatches();
+
+        const reply = postedMessages(fake.posted).find((m) => m.command === result);
+        expect(reply).toBeDefined();
+        expect(typeof reply?.error).toBe('string');
+        expect(reply).toMatchObject({ instanceId: 'unknown-instance', ...echo });
+      });
+    }
+
+    it('echoes stateToggle/dueDateUpdate routing flags for editIssue', async () => {
+      fake.send({
+        command: 'editIssue',
+        instanceId: 'unknown-instance',
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        data: { state: 'closed', state_toggle: true },
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'issueUpdated');
+      expect(reply).toBeDefined();
+      expect(reply?.stateToggle).toBe(true);
+      expect(reply?.dueDateUpdate).toBeUndefined();
+      expect(typeof reply?.error).toBe('string');
+    });
+
+    it('echoes stateToggle/dueDateUpdate routing flags for editPullRequest', async () => {
+      fake.send({
+        command: 'editPullRequest',
+        instanceId: 'unknown-instance',
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        data: { due_date: null, due_date_update: true },
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'pullRequestUpdated');
+      expect(reply).toBeDefined();
+      expect(reply?.dueDateUpdate).toBe(true);
+      expect(reply?.stateToggle).toBeUndefined();
+      expect(typeof reply?.error).toBe('string');
+    });
+  });
+
+  describe('getMyIssues/getMyPullRequests state echo', () => {
+    it('echoes the requested state on myIssues replies', async () => {
+      clientMocks.getUserIssues.mockResolvedValue([]);
+      fake.send({ command: 'getMyIssues', instanceId: testInstance.id, state: 'closed' });
+      await flushDispatches();
+
+      expect(clientMocks.getUserIssues).toHaveBeenCalledWith('closed');
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'myIssues');
+      expect(reply).toMatchObject({ instanceId: testInstance.id, state: 'closed' });
+    });
+
+    it('defaults the echoed state to open when the request omits it', async () => {
+      clientMocks.getUserIssues.mockResolvedValue([]);
+      fake.send({ command: 'getMyIssues', instanceId: testInstance.id });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'myIssues');
+      expect(reply).toMatchObject({ instanceId: testInstance.id, state: 'open' });
+    });
+
+    it('echoes the requested state on myIssues error replies', async () => {
+      clientMocks.getUserIssues.mockRejectedValue(new Error('API down'));
+      fake.send({ command: 'getMyIssues', instanceId: testInstance.id, state: 'closed' });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'myIssues');
+      expect(reply).toMatchObject({ instanceId: testInstance.id, state: 'closed', error: 'API down' });
+    });
+
+    it('echoes the requested state on myPullRequests replies', async () => {
+      clientMocks.getUserPullRequests.mockResolvedValue([]);
+      fake.send({ command: 'getMyPullRequests', instanceId: testInstance.id, state: 'closed' });
+      await flushDispatches();
+
+      expect(clientMocks.getUserPullRequests).toHaveBeenCalledWith('closed');
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'myPullRequests');
+      expect(reply).toMatchObject({ instanceId: testInstance.id, state: 'closed' });
+    });
+  });
+
+  describe('openPrWorktree bare clone dedup', () => {
+    let cacheDir: string;
+
+    beforeEach(() => {
+      cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-cache-dedup-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    });
+
+    function primeClonePath() {
+      // No workspace repo and no local clone: both opens land on the
+      // "Clone to cache directory" picker answer.
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue(undefined as never);
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+      vi.spyOn(config, 'getWorktreeCacheDirectory').mockReturnValue(cacheDir);
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'abcdef1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(vscode.window.showQuickPick).mockImplementation(async (items) => {
+        const list = items as unknown as Array<{ value?: string }>;
+        return list.find((item) => item.value === 'clone') as never;
+      });
+      vi.mocked(getRefCommitSha).mockResolvedValue('abcdef1234567890');
+    }
+
+    it('runs a single bare clone when two PRs of the same repository are opened concurrently', async () => {
+      primeClonePath();
+      let finishClone!: () => void;
+      vi.mocked(cloneRepository).mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishClone = resolve;
+          }),
+      );
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 2 });
+      await flushUntil(() => vi.mocked(cloneRepository).mock.calls.length > 0);
+      finishClone();
+      await flushUntil(() => postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened').length === 2);
+
+      // The second open waited on the first clone's promise instead of running
+      // `git clone --bare` into the same cache path again.
+      expect(vi.mocked(cloneRepository)).toHaveBeenCalledTimes(1);
+      expect(postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened')).toHaveLength(2);
+    });
+
+    it('reuses the cache path without a second clone once the first clone finished', async () => {
+      primeClonePath();
+      vi.mocked(cloneRepository).mockImplementation(async (_url: string, target: string) => {
+        await fs.promises.mkdir(target, { recursive: true });
+      });
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 2 });
+      await flushUntil(() => postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened').length === 2);
+
+      // Sequential opens: the second sees the completed clone on disk (the
+      // picker offered "Open cached bare repository") and never clones again.
+      expect(vi.mocked(cloneRepository)).toHaveBeenCalledTimes(1);
+      expect(postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened')).toHaveLength(2);
+    });
   });
 
   it('opens a renamed file diff with the old path on the base side', async () => {

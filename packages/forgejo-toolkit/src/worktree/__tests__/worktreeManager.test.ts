@@ -173,6 +173,87 @@ describe('WorktreeManager.forgetWorktree', () => {
   });
 });
 
+describe('WorktreeManager globalState write serialization', () => {
+  let sourceDir: string;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.removeWorktreeAndPrune.mockResolvedValue(undefined);
+    sourceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-manager-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(sourceDir, { recursive: true, force: true });
+  });
+
+  it('merges concurrent addWorktree calls instead of losing one record', async () => {
+    const { context, store } = createContext([]);
+    const manager = new WorktreeManager(context);
+
+    // Without the write queue both calls read the same empty snapshot and the
+    // second write-back would clobber the first.
+    await Promise.all([
+      manager.addWorktree(makeWorktree({ id: 'inst:owner/repo#pr-1' })),
+      manager.addWorktree(makeWorktree({ id: 'inst:owner/repo#pr-2', prIndex: 2 })),
+    ]);
+
+    const ids = (store.get(WORKTREES_KEY) as WorktreeInfo[]).map((w) => w.id).sort();
+    expect(ids).toEqual(['inst:owner/repo#pr-1', 'inst:owner/repo#pr-2']);
+  });
+
+  it('does not lose a record added while a removal is still running git operations', async () => {
+    const target = makeWorktree({ sourceRepoPath: sourceDir });
+    const { context, store } = createContext([target]);
+    const manager = new WorktreeManager(context);
+
+    let finishGit!: () => void;
+    mocks.removeWorktreeAndPrune.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishGit = resolve;
+        }),
+    );
+
+    const removal = manager.removeWorktree(target.id);
+    // The removal is now blocked inside its git step; an addWorktree issued
+    // meanwhile used to be lost when the removal wrote back its stale snapshot.
+    const addition = manager.addWorktree(makeWorktree({ id: 'inst:owner/repo#pr-2', prIndex: 2 }));
+    for (let i = 0; i < 50 && mocks.removeWorktreeAndPrune.mock.calls.length === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    finishGit();
+    await Promise.all([removal, addition]);
+
+    const ids = (store.get(WORKTREES_KEY) as WorktreeInfo[]).map((w) => w.id);
+    expect(ids).toEqual(['inst:owner/repo#pr-2']);
+  });
+
+  it('keeps the write queue alive after a failed write', async () => {
+    const target = makeWorktree({ sourceRepoPath: sourceDir });
+    const { context, store } = createContext([target]);
+    const manager = new WorktreeManager(context);
+    mocks.removeWorktreeAndPrune.mockRejectedValue(new Error('fatal: removal failed'));
+
+    await expect(manager.removeWorktree(target.id)).rejects.toThrow('fatal: removal failed');
+
+    // The next queued write must still run: the queue swallows the rejection.
+    await manager.addWorktree(makeWorktree({ id: 'inst:owner/repo#pr-2', prIndex: 2 }));
+    const ids = (store.get(WORKTREES_KEY) as WorktreeInfo[]).map((w) => w.id).sort();
+    expect(ids).toEqual(['inst:owner/repo#pr-1', 'inst:owner/repo#pr-2']);
+  });
+
+  it('merges a touchCachedRepo issued concurrently with another usage write', async () => {
+    const { context, store } = createContext([]);
+    const manager = new WorktreeManager(context);
+
+    await Promise.all([manager.touchCachedRepo('/cache/repos/a.git'), manager.touchCachedRepo('/cache/repos/b.git')]);
+
+    const usage = store.get(USAGE_KEY) as Record<string, number>;
+    expect(usage[path.resolve('/cache/repos/a.git')]).toBeGreaterThan(0);
+    expect(usage[path.resolve('/cache/repos/b.git')]).toBeGreaterThan(0);
+  });
+});
+
 describe('WorktreeManager cached repo cleanup', () => {
   let cacheDir: string;
 
