@@ -38,3 +38,7 @@ See [state-management.md](./state-management.md) for how application state is sh
 ## API client
 
 See [api-client.md](./api-client.md) for how the generated API client is used and extended.
+
+## MCP server (proposal)
+
+See [mcp-server.md](./mcp-server.md) for the proposal to expose configured instances to AI agents via MCP.
