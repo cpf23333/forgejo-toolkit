@@ -699,7 +699,7 @@ async function resolveInstanceByRepoPath(
   instances: ForgejoInstance[],
   remoteInfo: { normalized: string; owner: string; repo: string },
 ): Promise<string | null> {
-  const cacheKey = `${remoteInfo.normalized}|${instances.map((i) => i.id).join(',')}`;
+  const cacheKey = `${remoteInfo.normalized}|${instances.map((i) => `${i.id}=${i.url}`).join(',')}`;
   const cached = repoPathBindingCache.get(cacheKey);
   if (cached !== undefined) {
     return cached;
@@ -754,22 +754,73 @@ export interface DetectLinkedRepositoriesResult {
   unpublished: string[];
 }
 
-export async function detectLinkedRepositories(
+/**
+ * The options-independent half of detection: which workspace repositories
+ * match a configured instance, and which have no Forgejo remote yet. Which
+ * match becomes `linked` depends on the call's options and is recomputed per
+ * call from the cached scan.
+ */
+interface LinkedRepositoryScan {
+  matches: LinkedRepository[];
+  unpublished: string[];
+}
+
+// Short-TTL cache for the expensive half of detectLinkedRepositories:
+// candidate enumeration (fs probes), one `git remote -v` per candidate, and
+// pass-2 API probing (resolveInstanceByRepoPath, itself cached a bit longer).
+// The status bar, the webview provider, and mention completion all trigger
+// detection on the same events; without a shared cache each consumer spawns
+// its own git subprocess burst per tab switch. The key covers the post-sort
+// folder order (the active editor only reorders the scan; attribution is
+// recomputed per call) and the instance id/url list, so instance add/remove
+// and workspace-folder changes miss on their own. A token-only change keeps
+// the same key, which is why onInstancesChanged handlers must call
+// clearLinkedRepositoryCache.
+const LINKED_REPOSITORY_SCAN_TTL_MS = 10_000;
+const linkedRepositoryScanCache = createTimedCache<LinkedRepositoryScan>(LINKED_REPOSITORY_SCAN_TTL_MS);
+let linkedRepositoryScanInFlight: { key: string; promise: Promise<LinkedRepositoryScan> } | undefined;
+
+/**
+ * Drop every cached detection result (the workspace scan and the repo-path
+ * fallback bindings). Called when the instance configuration changes; also
+ * used by tests to isolate cases from each other.
+ */
+export function clearLinkedRepositoryCache(): void {
+  linkedRepositoryScanCache.clear();
+  repoPathBindingCache.clear();
+}
+
+async function scanLinkedRepositories(
   instances: ForgejoInstance[],
-  options?: DetectLinkedRepositoryOptions,
-): Promise<DetectLinkedRepositoriesResult> {
-  const folders = [...(vscode.workspace.workspaceFolders ?? [])];
-  // In a multi-root workspace, check the folder containing the active editor
-  // first: when no single repository can be attributed, the first match
-  // should reflect the repository the user is looking at, not whichever
-  // folder happens to match first.
-  const activePath = vscode.window.activeTextEditor?.document.uri.fsPath;
-  if (activePath) {
-    folders.sort(
-      (a, b) =>
-        Number(isPathInsideFolder(b.uri.fsPath, activePath)) - Number(isPathInsideFolder(a.uri.fsPath, activePath)),
-    );
+  folders: vscode.WorkspaceFolder[],
+): Promise<LinkedRepositoryScan> {
+  const key = JSON.stringify([folders.map((folder) => folder.uri.fsPath), instances.map((i) => [i.id, i.url])]);
+  const cached = linkedRepositoryScanCache.get(key);
+  if (cached) {
+    return cached;
   }
+  // Coalesce concurrent callers with the same key (the status bar and the
+  // webview fire on the same debounced events): one scan, shared result.
+  if (linkedRepositoryScanInFlight?.key === key) {
+    return linkedRepositoryScanInFlight.promise;
+  }
+  const promise = doScanLinkedRepositories(instances, folders);
+  linkedRepositoryScanInFlight = { key, promise };
+  try {
+    const scan = await promise;
+    linkedRepositoryScanCache.set(key, scan);
+    return scan;
+  } finally {
+    if (linkedRepositoryScanInFlight?.promise === promise) {
+      linkedRepositoryScanInFlight = undefined;
+    }
+  }
+}
+
+async function doScanLinkedRepositories(
+  instances: ForgejoInstance[],
+  folders: vscode.WorkspaceFolder[],
+): Promise<LinkedRepositoryScan> {
   logger.debug(`[detectLinkedRepository] workspace folders: ${folders.map((f) => f.uri.fsPath).join(', ')}`);
   logger.debug(`[detectLinkedRepository] instances: ${instances.map((i) => `${i.id}=${i.url}`).join(', ')}`);
 
@@ -867,6 +918,28 @@ export async function detectLinkedRepositories(
       unpublished.push(dirPath);
     }
   }
+
+  return { matches, unpublished };
+}
+
+export async function detectLinkedRepositories(
+  instances: ForgejoInstance[],
+  options?: DetectLinkedRepositoryOptions,
+): Promise<DetectLinkedRepositoriesResult> {
+  const folders = [...(vscode.workspace.workspaceFolders ?? [])];
+  // In a multi-root workspace, check the folder containing the active editor
+  // first: when no single repository can be attributed, the first match
+  // should reflect the repository the user is looking at, not whichever
+  // folder happens to match first. The sort only reorders the (cached) scan;
+  // attribution below is recomputed on every call.
+  const activePath = vscode.window.activeTextEditor?.document.uri.fsPath;
+  if (activePath) {
+    folders.sort(
+      (a, b) =>
+        Number(isPathInsideFolder(b.uri.fsPath, activePath)) - Number(isPathInsideFolder(a.uri.fsPath, activePath)),
+    );
+  }
+  const { matches, unpublished } = await scanLinkedRepositories(instances, folders);
 
   if (matches.length === 0) {
     logger.debug('[detectLinkedRepository] no match');

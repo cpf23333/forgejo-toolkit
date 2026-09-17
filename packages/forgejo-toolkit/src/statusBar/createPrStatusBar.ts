@@ -4,7 +4,12 @@ import { ForgejoClient } from '../api/client';
 import type { ForgejoPullRequest } from '../api/types';
 import type { ConfigManager } from '../config';
 import { logger } from '../logger';
-import { detectLinkedRepository, getCurrentBranch, getGitHeadPath } from '../worktree/gitOperations';
+import {
+  clearLinkedRepositoryCache,
+  detectLinkedRepository,
+  getCurrentBranch,
+  getGitHeadPath,
+} from '../worktree/gitOperations';
 import { userFacingErrorMessage } from '../api/errors';
 
 const REFRESH_DEBOUNCE_MS = 300;
@@ -69,7 +74,13 @@ export class CreatePrStatusBarController implements vscode.Disposable {
     this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
     this._disposables.push(
       this._item,
-      this._config.onInstancesChanged(() => this.scheduleRefresh()),
+      this._config.onInstancesChanged(() => {
+        // Detection results key on the instance id/url list, but a token-only
+        // change keeps the same key; clear explicitly so a reconfigured
+        // instance is re-probed immediately.
+        clearLinkedRepositoryCache();
+        this.scheduleRefresh();
+      }),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleRefresh()),
       // In multi-repository workspaces the linked repository follows the
       // active editor; re-resolve when it changes (debounced).

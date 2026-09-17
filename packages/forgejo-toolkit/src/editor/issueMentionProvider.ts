@@ -16,7 +16,6 @@ const ISSUE_MENTION_REGEX = /#(\d+)/g;
 const USER_MENTION_REGEX = /@([a-zA-Z0-9_.-]+)/g;
 
 const MENTION_CACHE_TTL_MS = 60_000;
-const LINKED_REPO_CACHE_TTL_MS = 30_000;
 
 /**
  * Line-local heuristic deciding whether a `#`/`@` can start a mention, used by
@@ -41,29 +40,14 @@ export function isMentionTriggerContext(lineText: string, triggerIndex: number, 
   return false;
 }
 
-// detectLinkedRepositories spawns git probes on every call and provideDocumentLinks
-// runs on each render, so the full match list is cached briefly. The cache is
-// keyed by the instance id list so adding/removing an instance invalidates it
-// immediately. Attribution to a specific document happens locally against the
-// cached list, so several workspace repositories each get their own repo
-// context instead of sharing whichever repository matched first.
-let linkedReposCache: { key: string; value: LinkedRepository[]; expiresAt: number } | undefined;
-
-async function detectAllLinkedRepositoriesCached(config: ConfigManager): Promise<LinkedRepository[]> {
-  const instances = config.getInstances();
-  const key = instances.map((i) => i.id).join(',');
-  if (linkedReposCache && linkedReposCache.key === key && linkedReposCache.expiresAt > Date.now()) {
-    return linkedReposCache.value;
-  }
-  const { all } = await detectLinkedRepositories(instances);
-  linkedReposCache = { key, value: all, expiresAt: Date.now() + LINKED_REPO_CACHE_TTL_MS };
-  return all;
-}
-
 // Mirror the attribution rule in detectLinkedRepositories: the repository
 // containing the document wins; longest path first so a nested repository
 // beats its enclosing one. Without a containing match, fall back to the first
-// linked repository (the passive-caller default).
+// linked repository (the passive-caller default). Attribution happens locally
+// against the `all` list, so several workspace repositories each get their own
+// repo context instead of sharing whichever repository matched first; the
+// expensive scan behind detectLinkedRepositories is cached there (short TTL),
+// so this per-render call does not respawn git probes.
 function attributeLinkedRepository(all: LinkedRepository[], fsPath: string): LinkedRepository | undefined {
   if (all.length === 0) {
     return undefined;
@@ -83,7 +67,10 @@ async function getRepoContext(document: vscode.TextDocument, config: ConfigManag
   // Only `file` documents are supported: extension.ts registers this provider
   // with `{ scheme: 'file' }`, so forgejo-pr virtual documents never reach it.
   if (document.uri.scheme === 'file') {
-    const linked = attributeLinkedRepository(await detectAllLinkedRepositoriesCached(config), document.uri.fsPath);
+    const linked = attributeLinkedRepository(
+      (await detectLinkedRepositories(config.getInstances())).all,
+      document.uri.fsPath,
+    );
     if (!linked) {
       return undefined;
     }

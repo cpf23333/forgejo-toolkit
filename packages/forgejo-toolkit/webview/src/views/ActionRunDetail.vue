@@ -45,6 +45,12 @@ const deleteError = computed(() => state.errors.get(deleteKey.value));
 const jobLogElements = ref<Map<number, HTMLPreElement>>(new Map());
 const jobLogScrollStates = ref<Map<number, { wasAtBottom: boolean }>>(new Map());
 
+// Job logs are collapsible and polling only re-fetches logs of expanded jobs,
+// so collapsed live jobs don't pull up to 10MB every poll cycle. Live and
+// failed jobs start expanded; other finished jobs start collapsed.
+const collapsedJobIds = ref<Set<number>>(new Set());
+const collapseDefaultedJobIds = new Set<number>();
+
 // Under keep-alive this view is deactivated (not unmounted) when navigating
 // away; `route.params` then tracks the global route, not this view's own
 // route. Guard all route-driven loading on isActive.
@@ -77,6 +83,53 @@ function isFinalStatus(status?: string): boolean {
   return ['success', 'failure', 'error', 'cancelled', 'skipped'].includes(status ?? '');
 }
 
+watch(runKey, () => {
+  collapsedJobIds.value = new Set();
+  collapseDefaultedJobIds.clear();
+});
+
+function applyJobCollapseDefaults() {
+  const next = new Set(collapsedJobIds.value);
+  let changed = false;
+  for (const job of jobs.value) {
+    const jobId = job.id;
+    if (jobId === undefined || collapseDefaultedJobIds.has(jobId)) {
+      continue;
+    }
+    collapseDefaultedJobIds.add(jobId);
+    if (isFinalStatus(job.status) && job.status !== 'failure' && job.status !== 'error') {
+      next.add(jobId);
+      changed = true;
+    }
+  }
+  if (changed) {
+    collapsedJobIds.value = next;
+  }
+}
+
+function isJobCollapsed(jobId: number | undefined): boolean {
+  return jobId !== undefined && collapsedJobIds.value.has(jobId);
+}
+
+function toggleJobCollapsed(jobId: number | undefined) {
+  if (jobId === undefined) {
+    return;
+  }
+  const next = new Set(collapsedJobIds.value);
+  if (next.has(jobId)) {
+    next.delete(jobId);
+  } else {
+    next.add(jobId);
+  }
+  collapsedJobIds.value = next;
+  if (!next.has(jobId)) {
+    // Fetch immediately on expand: live jobs get a fresh pull, finished jobs
+    // load once and are deduped by the log cache.
+    const job = jobs.value.find((candidate) => candidate.id === jobId);
+    state.loadActionJobLog(instanceId.value, owner.value, repo.value, jobId, job ? !isFinalStatus(job.status) : false);
+  }
+}
+
 function refreshRun() {
   if (!instanceId.value || !owner.value || !repo.value || Number.isNaN(runId.value)) {
     return;
@@ -86,10 +139,11 @@ function refreshRun() {
   state.loadActionRunArtifacts(instanceId.value, owner.value, repo.value, runId.value, true);
   for (const job of jobs.value) {
     const jobId = job.id;
-    if (jobId !== undefined) {
-      // Logs of finished jobs are immutable; only force-refetch logs of live jobs.
-      state.loadActionJobLog(instanceId.value, owner.value, repo.value, jobId, !isFinalStatus(job.status));
+    if (jobId === undefined || collapsedJobIds.value.has(jobId)) {
+      continue;
     }
+    // Logs of finished jobs are immutable; only force-refetch logs of live jobs.
+    state.loadActionJobLog(instanceId.value, owner.value, repo.value, jobId, !isFinalStatus(job.status));
   }
 }
 
@@ -129,6 +183,8 @@ onActivated(() => {
   // Params may have changed back before this hook ran; make sure data for the
   // current route is loaded (loaders dedup via their caches).
   loadRunData();
+  applyJobCollapseDefaults();
+  loadExpandedJobLogs(false);
   if (!isFinalStatus(run.value?.status)) {
     startPolling();
   }
@@ -166,22 +222,24 @@ onUnmounted(() => {
   stopPolling();
 });
 
-function loadAllJobLogs(force = false) {
+function loadExpandedJobLogs(force = false) {
   for (const job of jobs.value) {
     const jobId = job.id;
-    if (jobId !== undefined) {
-      state.loadActionJobLog(instanceId.value, owner.value, repo.value, jobId, force);
+    if (jobId === undefined || collapsedJobIds.value.has(jobId)) {
+      continue;
     }
+    state.loadActionJobLog(instanceId.value, owner.value, repo.value, jobId, force);
   }
 }
 
 watch(
-  () => jobs.value.map((job) => job.id).join(','),
+  () => jobs.value.map((job) => `${job.id}:${job.status}`).join(','),
   () => {
     if (!isActive.value) {
       return;
     }
-    loadAllJobLogs(false);
+    applyJobCollapseDefaults();
+    loadExpandedJobLogs(false);
   },
 );
 
@@ -455,11 +513,16 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
           :key="job.id"
           :class="['job-item', { failed: job.status === 'failure' || job.status === 'error' }]"
         >
-          <div class="job-header">
+          <div class="job-header" @click="toggleJobCollapsed(job.id)">
+            <vscode-icon
+              v-if="job.id !== undefined"
+              class="job-collapse-icon"
+              :name="isJobCollapsed(job.id) ? 'chevron-right' : 'chevron-down'"
+            />
             <vscode-icon :class="['job-status-icon', statusClass(job.status)]" :name="statusIcon(job.status)" />
             <span class="job-name">{{ job.name || t('dashboard.actionRun.untitledJob') }}</span>
           </div>
-          <div v-if="job.id !== undefined" class="job-log-panel">
+          <div v-if="job.id !== undefined && !isJobCollapsed(job.id)" class="job-log-panel">
             <div v-if="jobLogLoading(job.id)" class="loading-state">
               <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
             </div>
@@ -653,6 +716,12 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
   padding: 10px 12px;
   color: var(--vscode-foreground);
   font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.job-collapse-icon {
+  flex-shrink: 0;
 }
 
 .job-name {

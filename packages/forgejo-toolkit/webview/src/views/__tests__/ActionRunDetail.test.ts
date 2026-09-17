@@ -1,0 +1,197 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
+import ActionRunDetail from '../ActionRunDetail.vue';
+import { createTestI18n } from '../../__tests__/helpers/test-utils';
+
+const { routeMock, stateMock } = vi.hoisted(() => ({
+  routeMock: {
+    params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo', runId: '5' },
+  },
+  stateMock: {
+    loading: new Map<string, boolean>(),
+    errors: new Map<string, string>(),
+    actionRunDetails: { value: new Map<string, unknown>() },
+    actionRunJobs: { value: new Map<string, unknown[]>() },
+    actionRunArtifacts: { value: new Map<string, unknown[]>() },
+    actionJobLogs: { value: new Map<string, string>() },
+    loadActionRun: vi.fn(),
+    loadActionRunJobs: vi.fn(),
+    loadActionRunArtifacts: vi.fn(),
+    loadActionJobLog: vi.fn(),
+    cancelActionRun: vi.fn(),
+    deleteActionRun: vi.fn(),
+    downloadActionArtifact: vi.fn(),
+    showConfirm: vi.fn(async () => true),
+    openExternal: vi.fn(),
+  },
+}));
+
+vi.mock('vue-router', () => ({
+  useRoute: () => routeMock,
+}));
+
+vi.mock('../../composables/useAppState', async () => {
+  // Wrap in reactive so the component's computed/watch observe Map mutations
+  // the tests perform through useAppState().
+  const { reactive } = await import('vue');
+  const state = reactive(stateMock);
+  return {
+    useAppState: () => state,
+    actionRunKey: (instanceId: string, owner: string, repo: string, runId: number) =>
+      `${instanceId}:${owner}/${repo}:run:${runId}`,
+    actionRunJobsKey: (instanceId: string, owner: string, repo: string, runId: number) =>
+      `${instanceId}:${owner}/${repo}:run:${runId}:jobs`,
+    actionRunArtifactsKey: (instanceId: string, owner: string, repo: string, runId: number) =>
+      `${instanceId}:${owner}/${repo}:run:${runId}:artifacts`,
+    actionJobLogKey: (instanceId: string, owner: string, repo: string, jobId: number) =>
+      `${instanceId}:${owner}/${repo}:job:${jobId}:log`,
+    actionRunCancelKey: (instanceId: string, owner: string, repo: string, runId: number) =>
+      `${instanceId}:${owner}/${repo}:run:${runId}:cancel`,
+    actionRunDeleteKey: (instanceId: string, owner: string, repo: string, runId: number) =>
+      `${instanceId}:${owner}/${repo}:run:${runId}:delete`,
+    actionArtifactDownloadKey: (instanceId: string, owner: string, repo: string, artifactId: number) =>
+      `${instanceId}:${owner}/${repo}:artifact:${artifactId}`,
+  };
+});
+
+import { useAppState } from '../../composables/useAppState';
+
+type TestState = {
+  actionRunDetails: { value: Map<string, unknown> };
+  actionRunJobs: { value: Map<string, unknown[]> };
+  actionJobLogs: { value: Map<string, string> };
+};
+
+function state(): TestState {
+  return useAppState() as unknown as TestState;
+}
+
+function setRun(status: string) {
+  state().actionRunDetails.value.set('inst-1:owner/repo:run:5', { id: 5, status });
+}
+
+function setJobs(jobs: Array<{ id: number; name: string; status: string }>) {
+  state().actionRunJobs.value.set('inst-1:owner/repo:run:5:jobs', jobs);
+}
+
+function logCallsFor(jobId: number) {
+  return stateMock.loadActionJobLog.mock.calls.filter((args) => args[3] === jobId);
+}
+
+function mountDetail() {
+  return mount(ActionRunDetail, {
+    global: {
+      plugins: [createTestI18n('en')],
+    },
+  });
+}
+
+describe('ActionRunDetail job log collapsing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stateMock.loading.clear();
+    stateMock.errors.clear();
+    stateMock.actionRunDetails.value.clear();
+    stateMock.actionRunJobs.value.clear();
+    stateMock.actionRunArtifacts.value.clear();
+    stateMock.actionJobLogs.value.clear();
+    routeMock.params = { instanceId: 'inst-1', owner: 'owner', repo: 'repo', runId: '5' };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('loads logs only for jobs that are expanded by default', async () => {
+    const wrapper = mountDetail();
+    setRun('running');
+    setJobs([
+      { id: 1, name: 'build', status: 'running' },
+      { id: 2, name: 'test', status: 'success' },
+      { id: 3, name: 'publish', status: 'failure' },
+    ]);
+    await nextTick();
+
+    // Live and failed jobs start expanded; finished successful jobs start collapsed.
+    expect(logCallsFor(1)).toEqual([['inst-1', 'owner', 'repo', 1, false]]);
+    expect(logCallsFor(2)).toEqual([]);
+    expect(logCallsFor(3)).toEqual([['inst-1', 'owner', 'repo', 3, false]]);
+    expect(wrapper.findAll('.job-log-panel')).toHaveLength(2);
+    wrapper.unmount();
+  });
+
+  it('poll refreshes logs of expanded live jobs only', async () => {
+    vi.useFakeTimers();
+    const wrapper = mountDetail();
+    setRun('running');
+    setJobs([
+      { id: 1, name: 'build', status: 'running' },
+      { id: 2, name: 'test', status: 'running' },
+    ]);
+    await nextTick();
+    expect(logCallsFor(1)).toHaveLength(1);
+    expect(logCallsFor(2)).toHaveLength(1);
+
+    // Collapse the second job, then let a poll cycle run.
+    await wrapper.findAll('.job-header')[1].trigger('click');
+    stateMock.loadActionJobLog.mockClear();
+    vi.advanceTimersByTime(4000);
+
+    expect(logCallsFor(1)).toEqual([['inst-1', 'owner', 'repo', 1, true]]);
+    expect(logCallsFor(2)).toEqual([]);
+    wrapper.unmount();
+  });
+
+  it('keeps polling a live job that stays expanded', async () => {
+    vi.useFakeTimers();
+    const wrapper = mountDetail();
+    setRun('running');
+    setJobs([{ id: 1, name: 'build', status: 'running' }]);
+    await nextTick();
+
+    stateMock.loadActionJobLog.mockClear();
+    vi.advanceTimersByTime(8000);
+
+    expect(logCallsFor(1)).toEqual([
+      ['inst-1', 'owner', 'repo', 1, true],
+      ['inst-1', 'owner', 'repo', 1, true],
+    ]);
+    wrapper.unmount();
+  });
+
+  it('fetches a live job log immediately with force when expanded', async () => {
+    vi.useFakeTimers();
+    const wrapper = mountDetail();
+    setRun('running');
+    setJobs([
+      { id: 1, name: 'build', status: 'running' },
+      { id: 2, name: 'test', status: 'running' },
+    ]);
+    await nextTick();
+
+    // Collapse job 2, then expand it again: it must pull fresh logs right away.
+    await wrapper.findAll('.job-header')[1].trigger('click');
+    stateMock.loadActionJobLog.mockClear();
+    await wrapper.findAll('.job-header')[1].trigger('click');
+
+    expect(logCallsFor(2)).toEqual([['inst-1', 'owner', 'repo', 2, true]]);
+    expect(wrapper.findAll('.job-log-panel')).toHaveLength(2);
+    wrapper.unmount();
+  });
+
+  it('fetches a finished job log once (no force) when the user expands it', async () => {
+    const wrapper = mountDetail();
+    setRun('success');
+    setJobs([{ id: 2, name: 'test', status: 'success' }]);
+    await nextTick();
+    expect(logCallsFor(2)).toEqual([]);
+    expect(wrapper.findAll('.job-log-panel')).toHaveLength(0);
+
+    await wrapper.findAll('.job-header')[0].trigger('click');
+
+    expect(logCallsFor(2)).toEqual([['inst-1', 'owner', 'repo', 2, false]]);
+    expect(wrapper.findAll('.job-log-panel')).toHaveLength(1);
+    wrapper.unmount();
+  });
+});

@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import EasyMDE from 'easymde';
-import 'easymde/dist/easymde.min.css';
-import 'tributejs/tribute.css';
-import Tribute from 'tributejs';
+import type EasyMDE from 'easymde';
+import type Tribute from 'tributejs';
 import { isImageFile } from '../utils/file';
 import { sanitizeMarkdownHtml } from '../utils/markdown';
 import { createTimedCache } from '../utils/createTimedCache';
@@ -13,6 +11,12 @@ import { useAppState, type MentionUser, type MentionIssue } from '../composables
 type MentionItem = MentionUser | MentionIssue;
 
 type ToolbarScene = 'default' | 'wiki';
+
+// The easymde d.ts uses `export =`, so the dynamic-import namespace type is
+// the class itself; the CJS interop wrapper still exposes it on `default` at
+// runtime (see the load in onMounted).
+type EasyMDEStatic = typeof import('easymde');
+type TributeStatic = (typeof import('tributejs'))['default'];
 
 interface Props {
   modelValue?: string;
@@ -42,6 +46,8 @@ const state = useAppState();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 let easyMDE: EasyMDE | null = null;
+let TributeClass: TributeStatic | null = null;
+let isUnmounted = false;
 let visibilityObserver: IntersectionObserver | null = null;
 let tribute: Tribute<any> | null = null;
 let previewRenderTimer: ReturnType<typeof setTimeout> | undefined;
@@ -149,13 +155,13 @@ async function attachMentions() {
     return;
   }
   const input = getMentionInput();
-  if (!input || !wrapperRef.value) {
+  if (!input || !wrapperRef.value || !TributeClass) {
     return;
   }
 
   const { instanceId, owner, repo } = props as Required<Pick<Props, 'instanceId' | 'owner' | 'repo'>>;
 
-  tribute = new Tribute({
+  tribute = new TributeClass({
     menuContainer: wrapperRef.value,
     collection: [
       {
@@ -224,17 +230,17 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#039;');
 }
 
-function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['toolbar']> {
+function buildToolbar(mde: EasyMDEStatic, uploadEnabled: boolean): NonNullable<EasyMDE.Options['toolbar']> {
   const imageAction = uploadEnabled
     ? {
         name: 'upload-image',
-        action: EasyMDE.drawUploadedImage,
+        action: mde.drawUploadedImage,
         className: 'codicon codicon-cloud-upload',
         title: t('editor.toolbar.uploadImage'),
       }
     : {
         name: 'image',
-        action: EasyMDE.drawImage,
+        action: mde.drawImage,
         className: 'codicon codicon-file-media',
         title: t('editor.toolbar.image'),
       };
@@ -242,123 +248,123 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
   const builtin: Record<string, EasyMDE.ToolbarIcon> = {
     heading: {
       name: 'heading',
-      action: EasyMDE.toggleHeadingSmaller,
+      action: mde.toggleHeadingSmaller,
       className: 'codicon codicon-symbol-keyword',
       title: t('editor.toolbar.heading'),
     },
     'heading-1': {
       name: 'heading-1',
-      action: EasyMDE.toggleHeading1,
+      action: mde.toggleHeading1,
       className: 'codicon codicon-symbol-keyword',
       title: `${t('editor.toolbar.heading')} 1`,
     },
     'heading-2': {
       name: 'heading-2',
-      action: EasyMDE.toggleHeading2,
+      action: mde.toggleHeading2,
       className: 'codicon codicon-symbol-keyword',
       title: `${t('editor.toolbar.heading')} 2`,
     },
     'heading-3': {
       name: 'heading-3',
-      action: EasyMDE.toggleHeading3,
+      action: mde.toggleHeading3,
       className: 'codicon codicon-symbol-keyword',
       title: `${t('editor.toolbar.heading')} 3`,
     },
     'heading-bigger': {
       name: 'heading-bigger',
-      action: EasyMDE.toggleHeadingBigger,
+      action: mde.toggleHeadingBigger,
       className: 'codicon codicon-symbol-keyword',
       title: t('editor.toolbar.heading'),
     },
     'heading-smaller': {
       name: 'heading-smaller',
-      action: EasyMDE.toggleHeadingSmaller,
+      action: mde.toggleHeadingSmaller,
       className: 'codicon codicon-symbol-keyword',
       title: t('editor.toolbar.heading'),
     },
     bold: {
       name: 'bold',
-      action: EasyMDE.toggleBold,
+      action: mde.toggleBold,
       className: 'codicon codicon-bold',
       title: t('editor.toolbar.bold'),
     },
     italic: {
       name: 'italic',
-      action: EasyMDE.toggleItalic,
+      action: mde.toggleItalic,
       className: 'codicon codicon-italic',
       title: t('editor.toolbar.italic'),
     },
     strikethrough: {
       name: 'strikethrough',
-      action: EasyMDE.toggleStrikethrough,
+      action: mde.toggleStrikethrough,
       className: 'codicon codicon-strikethrough',
       title: t('editor.toolbar.strikethrough'),
     },
     quote: {
       name: 'quote',
-      action: EasyMDE.toggleBlockquote,
+      action: mde.toggleBlockquote,
       className: 'codicon codicon-quote',
       title: t('editor.toolbar.quote'),
     },
     code: {
       name: 'code',
-      action: EasyMDE.toggleCodeBlock,
+      action: mde.toggleCodeBlock,
       className: 'codicon codicon-code',
       title: t('editor.toolbar.code'),
     },
     link: {
       name: 'link',
-      action: EasyMDE.drawLink,
+      action: mde.drawLink,
       className: 'codicon codicon-link',
       title: t('editor.toolbar.link'),
     },
     image: {
       name: 'image',
-      action: EasyMDE.drawImage,
+      action: mde.drawImage,
       className: 'codicon codicon-file-media',
       title: t('editor.toolbar.image'),
     },
     table: {
       name: 'table',
-      action: EasyMDE.drawTable,
+      action: mde.drawTable,
       className: 'codicon codicon-table',
       title: t('editor.toolbar.table'),
     },
     'horizontal-rule': {
       name: 'horizontal-rule',
-      action: EasyMDE.drawHorizontalRule,
+      action: mde.drawHorizontalRule,
       className: 'codicon codicon-dash',
       title: t('editor.toolbar.horizontalRule'),
     },
     'unordered-list': {
       name: 'unordered-list',
-      action: EasyMDE.toggleUnorderedList,
+      action: mde.toggleUnorderedList,
       className: 'codicon codicon-list-unordered',
       title: t('editor.toolbar.unorderedList'),
     },
     'ordered-list': {
       name: 'ordered-list',
-      action: EasyMDE.toggleOrderedList,
+      action: mde.toggleOrderedList,
       className: 'codicon codicon-list-ordered',
       title: t('editor.toolbar.orderedList'),
     },
     preview: {
       name: 'preview',
-      action: EasyMDE.togglePreview,
+      action: mde.togglePreview,
       className: 'codicon codicon-preview',
       noDisable: true,
       title: t('editor.toolbar.preview'),
     },
     fullscreen: {
       name: 'fullscreen',
-      action: EasyMDE.toggleFullScreen,
+      action: mde.toggleFullScreen,
       className: 'codicon codicon-screen-full',
       noDisable: true,
       title: t('editor.toolbar.fullscreen'),
     },
     'side-by-side': {
       name: 'side-by-side',
-      action: EasyMDE.toggleSideBySide,
+      action: mde.toggleSideBySide,
       className: 'codicon codicon-split-horizontal',
       noDisable: true,
       title: t('editor.toolbar.sideBySide'),
@@ -539,15 +545,35 @@ function buildToolbar(uploadEnabled: boolean): NonNullable<EasyMDE.Options['tool
   return toolbar;
 }
 
-onMounted(() => {
-  if (!textareaRef.value) {
+onMounted(async () => {
+  const textarea = textareaRef.value;
+  if (!textarea) {
     return;
   }
+
+  // EasyMDE (CodeMirror 5 + marked) and Tribute are several hundred KB, so
+  // they are loaded on demand; Vite splits them (and their CSS) into async
+  // chunks that browsing-only sessions never fetch.
+  const [easymdeModule, tributeModule] = await Promise.all([
+    import('easymde'),
+    import('tributejs'),
+    import('easymde/dist/easymde.min.css'),
+    import('tributejs/tribute.css'),
+  ]);
+
+  // The component may have been unmounted while the chunks were loading.
+  if (isUnmounted) {
+    return;
+  }
+
+  const EasyMDEClass =
+    (easymdeModule as unknown as { default?: EasyMDEStatic }).default ?? (easymdeModule as unknown as EasyMDEStatic);
+  TributeClass = tributeModule.default;
 
   const uploadEnabled = props.uploadImage !== undefined;
 
   const options: EasyMDE.Options = {
-    element: textareaRef.value,
+    element: textarea,
     initialValue: props.modelValue,
     placeholder: props.placeholder,
     spellChecker: false,
@@ -561,7 +587,7 @@ onMounted(() => {
       }
       return renderedHtml.value;
     },
-    toolbar: buildToolbar(uploadEnabled),
+    toolbar: buildToolbar(EasyMDEClass, uploadEnabled),
     uploadImage: uploadEnabled,
     imageAccept: 'image/*',
     imageUploadFunction: uploadEnabled
@@ -593,7 +619,7 @@ onMounted(() => {
     },
   };
 
-  easyMDE = new EasyMDE(options);
+  easyMDE = new EasyMDEClass(options);
   easyMDE.codemirror.on('change', () => {
     emit('update:modelValue', easyMDE?.value() ?? '');
     schedulePreviewRender();
@@ -644,6 +670,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  isUnmounted = true;
   detachMentions();
   visibilityObserver?.disconnect();
   visibilityObserver = null;

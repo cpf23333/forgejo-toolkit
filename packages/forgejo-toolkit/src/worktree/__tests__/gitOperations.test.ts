@@ -33,6 +33,7 @@ vi.mock('fs', () => ({
 
 import {
   addRemote,
+  clearLinkedRepositoryCache,
   cloneRepository,
   createWorktreeFromBranch,
   createWorktreeWithNewBranch,
@@ -572,6 +573,9 @@ describe('detectLinkedRepository', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clientMocks.probeRepository.mockReset();
+    // The detection scan is cached module-wide (short TTL); isolate tests
+    // from each other.
+    clearLinkedRepositoryCache();
     (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [];
     (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = undefined;
     // Default filesystem layout: every directory looks like a repo (access
@@ -942,6 +946,130 @@ describe('detectLinkedRepository', () => {
 
       expect(linked?.instanceId).toBe('host-alice');
       expect(clientMocks.probeRepository).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('shared scan cache', () => {
+    function countRemoteListings(): number {
+      return mocks.execFile.mock.calls.filter(
+        (call) => (call[1] as string[])[0] === 'remote' && (call[1] as string[])[1] === '-v',
+      ).length;
+    }
+
+    it('does not spawn git again for a repeated detection within the TTL', async () => {
+      (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+      mockRemotes({ '/ws/a': 'https://forgejo.example.com/alice/repo.git' });
+
+      await detectLinkedRepository([instanceAlice]);
+      const listingsAfterFirst = countRemoteListings();
+      expect(listingsAfterFirst).toBeGreaterThan(0);
+
+      const linked = await detectLinkedRepository([instanceAlice]);
+
+      expect(linked?.localPath).toBe('/ws/a');
+      expect(countRemoteListings()).toBe(listingsAfterFirst);
+    });
+
+    it('coalesces concurrent detections into a single scan', async () => {
+      (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+      mockRemotes({ '/ws/a': 'https://forgejo.example.com/alice/repo.git' });
+
+      const [first, second] = await Promise.all([
+        detectLinkedRepositories([instanceAlice]),
+        detectLinkedRepositories([instanceAlice]),
+      ]);
+
+      expect(first.linked?.localPath).toBe('/ws/a');
+      expect(second.linked?.localPath).toBe('/ws/a');
+      expect(countRemoteListings()).toBe(1);
+    });
+
+    it('re-scans after clearLinkedRepositoryCache', async () => {
+      (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+      mockRemotes({ '/ws/a': 'https://forgejo.example.com/alice/repo.git' });
+
+      await detectLinkedRepository([instanceAlice]);
+      clearLinkedRepositoryCache();
+      await detectLinkedRepository([instanceAlice]);
+
+      expect(countRemoteListings()).toBe(2);
+    });
+
+    it('re-scans when the instance list changes', async () => {
+      (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+      mockRemotes({ '/ws/a': 'https://forgejo.example.com/alice/repo.git' });
+
+      await detectLinkedRepository([instanceAlice]);
+      const linked = await detectLinkedRepository([instanceAlice, instanceBob]);
+
+      expect(linked?.instanceId).toBe('host-alice');
+      expect(countRemoteListings()).toBe(2);
+    });
+
+    it('re-attributes to the active editor without re-scanning', async () => {
+      (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/root' } }];
+      const dirA = path.join('/root', 'a');
+      const dirB = path.join('/root', 'b');
+      mockFsLayout([dirA, dirB], { '/root': ['a', 'b'] });
+      mockRemotes({
+        [dirA]: 'https://forgejo.example.com/alice/repo-a.git',
+        [dirB]: 'https://forgejo.example.com/alice/repo-b.git',
+      });
+      (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = {
+        document: { uri: { fsPath: path.join('/root', 'a', 'file.ts') } },
+      };
+
+      const first = await detectLinkedRepository([instanceAlice]);
+      expect(first?.repo).toBe('repo-a');
+      const listingsAfterFirst = countRemoteListings();
+
+      (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = {
+        document: { uri: { fsPath: path.join('/root', 'b', 'file.ts') } },
+      };
+      const second = await detectLinkedRepository([instanceAlice]);
+
+      expect(second?.repo).toBe('repo-b');
+      expect(countRemoteListings()).toBe(listingsAfterFirst);
+    });
+
+    it('re-scans after the TTL expires', async () => {
+      vi.useFakeTimers();
+      try {
+        (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+        mockRemotes({ '/ws/a': 'https://forgejo.example.com/alice/repo.git' });
+
+        await detectLinkedRepository([instanceAlice]);
+        expect(countRemoteListings()).toBe(1);
+
+        vi.setSystemTime(Date.now() + 11_000);
+        await detectLinkedRepository([instanceAlice]);
+
+        expect(countRemoteListings()).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('still prompts per call with pickOnAmbiguity while reusing the scan', async () => {
+      (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/root' } }];
+      const dirA = path.join('/root', 'a');
+      const dirB = path.join('/root', 'b');
+      mockFsLayout([dirA, dirB], { '/root': ['a', 'b'] });
+      mockRemotes({
+        [dirA]: 'https://forgejo.example.com/alice/repo-a.git',
+        [dirB]: 'https://forgejo.example.com/alice/repo-b.git',
+      });
+      vi.mocked(vscode.window.showQuickPick).mockImplementation(
+        async (items: unknown) => (items as unknown[])[0] as never,
+      );
+
+      await detectLinkedRepository([instanceAlice], { pickOnAmbiguity: true });
+      const listingsAfterFirst = countRemoteListings();
+      expect(listingsAfterFirst).toBeGreaterThan(0);
+      await detectLinkedRepository([instanceAlice], { pickOnAmbiguity: true });
+
+      expect(vscode.window.showQuickPick).toHaveBeenCalledTimes(2);
+      expect(countRemoteListings()).toBe(listingsAfterFirst);
     });
   });
 });

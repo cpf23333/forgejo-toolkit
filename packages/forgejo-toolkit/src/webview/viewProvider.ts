@@ -133,6 +133,70 @@ function isSameOrigin(a: string, b: string): boolean {
   }
 }
 
+/**
+ * Session-level cache of proxied avatar fetches (same-origin URLs only; other
+ * URLs are returned unchanged and never reach the cache). Forgejo avatar URLs
+ * embed a content hash, so a resolved data URL never expires. Failures are
+ * cached briefly — not indefinitely — so a transient error or a 401 from a
+ * since-rotated token is retried instead of poisoning the session. The key is
+ * the absolute URL alone: same-origin content is identical for every instance
+ * on that origin, and the failure TTL covers the token-rotation edge.
+ *
+ * Values are promises so concurrent resolutions of the same URL share one
+ * fetch. Bounded with simple LRU eviction: data URLs are large (base64), so
+ * an unbounded Map would grow with every avatar ever viewed. Entries hold no
+ * sensitive data (public avatar images keyed by URL), and a removed or edited
+ * instance's entries simply stop being hit and age out, so instance changes
+ * need no explicit cache invalidation.
+ */
+const MAX_RESOLVED_AVATARS = 100;
+const AVATAR_FAILURE_TTL_MS = 60_000;
+
+interface ResolvedAvatarEntry {
+  promise: Promise<string | null>;
+  /** Failures expire (set once the promise settles); successes never do. */
+  expiresAt: number;
+}
+
+const resolvedAvatarCache = new Map<string, ResolvedAvatarEntry>();
+
+function getCachedAvatar(url: string): Promise<string | null> | undefined {
+  const entry = resolvedAvatarCache.get(url);
+  if (!entry) {
+    return undefined;
+  }
+  if (entry.expiresAt <= Date.now()) {
+    resolvedAvatarCache.delete(url);
+    return undefined;
+  }
+  // Refresh recency: re-insert so frequently used avatars are evicted last.
+  resolvedAvatarCache.delete(url);
+  resolvedAvatarCache.set(url, entry);
+  return entry.promise;
+}
+
+function cacheResolvedAvatar(url: string, promise: Promise<string | null>): void {
+  if (!resolvedAvatarCache.has(url) && resolvedAvatarCache.size >= MAX_RESOLVED_AVATARS) {
+    // Map iteration order is insertion order: the first key is the oldest.
+    const oldest = resolvedAvatarCache.keys().next().value;
+    if (oldest !== undefined) {
+      resolvedAvatarCache.delete(oldest);
+    }
+  }
+  const entry: ResolvedAvatarEntry = { promise, expiresAt: Number.POSITIVE_INFINITY };
+  void promise.then((dataUrl) => {
+    if (dataUrl === null) {
+      entry.expiresAt = Date.now() + AVATAR_FAILURE_TTL_MS;
+    }
+  });
+  resolvedAvatarCache.set(url, entry);
+}
+
+/** Clear the session-level avatar cache. Exported for tests. */
+export function clearResolvedAvatarCache(): void {
+  resolvedAvatarCache.clear();
+}
+
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'forgejoToolkitView';
 
@@ -4327,24 +4391,40 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     },
     instance: ForgejoInstance,
   ): Promise<typeof detail> {
-    const resolvedCommits = await Promise.all(
-      detail.recentCommits.map(async (commit) => {
-        const resolved = { ...commit };
-        if (commit.committer?.avatar_url) {
-          resolved.committer = {
-            ...commit.committer,
-            avatar_url: await this._resolveAvatarUrl(commit.committer.avatar_url, instance),
-          };
-        }
-        if (commit.author?.avatar_url) {
-          resolved.author = {
-            ...commit.author,
-            avatar_url: await this._resolveAvatarUrl(commit.author.avatar_url, instance),
-          };
-        }
-        return resolved;
+    // Dedupe by URL first: the same author typically appears on most of the
+    // listed commits, and each resolution is an HTTP fetch proxied through
+    // the host.
+    const avatarUrls = new Set<string>();
+    for (const commit of detail.recentCommits) {
+      if (commit.committer?.avatar_url) {
+        avatarUrls.add(commit.committer.avatar_url);
+      }
+      if (commit.author?.avatar_url) {
+        avatarUrls.add(commit.author.avatar_url);
+      }
+    }
+    const resolvedUrls = new Map<string, string>();
+    await Promise.all(
+      Array.from(avatarUrls).map(async (url) => {
+        resolvedUrls.set(url, await this._resolveAvatarUrl(url, instance));
       }),
     );
+    const resolvedCommits = detail.recentCommits.map((commit) => {
+      const resolved = { ...commit };
+      if (commit.committer?.avatar_url) {
+        resolved.committer = {
+          ...commit.committer,
+          avatar_url: resolvedUrls.get(commit.committer.avatar_url) ?? commit.committer.avatar_url,
+        };
+      }
+      if (commit.author?.avatar_url) {
+        resolved.author = {
+          ...commit.author,
+          avatar_url: resolvedUrls.get(commit.author.avatar_url) ?? commit.author.avatar_url,
+        };
+      }
+      return resolved;
+    });
     return { ...detail, recentCommits: resolvedCommits };
   }
 
@@ -4368,27 +4448,50 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         logger.debug(`[avatar] not same-origin, returning original url: ${url}`);
         return url;
       }
-      // A hung image host must not stall the surrounding Promise.all; on
-      // timeout the fetch rejects and the original URL is kept (below).
-      const init: RequestInit = {
-        signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
-        headers: { Authorization: `token ${instance.token}` },
-      };
-      const response = await fetch(parsed.href, init);
-      logger.debug(`[avatar] response status: ${response.status} ${response.statusText}`);
-      if (!response.ok) {
-        logger.error(`[avatar] fetch failed: ${response.status} ${response.statusText}`);
-        return url;
-      }
-      const buffer = await response.arrayBuffer();
-      const base64 = Buffer.from(buffer).toString('base64');
-      const contentType = response.headers.get('content-type') ?? 'image/png';
-      logger.debug(`[avatar] resolved to data:${contentType};base64,${base64.slice(0, 40)}...`);
-      return `data:${contentType};base64,${base64}`;
+      return (await this._fetchAvatarDataUrl(parsed.href, instance)) ?? url;
     } catch (error) {
       const err = userFacingErrorMessage(error);
       logger.error(`[avatar] error resolving ${url}: ${err}`);
       return url;
     }
+  }
+
+  /**
+   * Fetch a same-origin avatar as a data URL, going through the session-level
+   * cache. Returns null (cached briefly) when the fetch fails; the caller
+   * falls back to the original URL.
+   */
+  private _fetchAvatarDataUrl(absoluteUrl: string, instance: ForgejoInstance): Promise<string | null> {
+    const cached = getCachedAvatar(absoluteUrl);
+    if (cached) {
+      return cached;
+    }
+    const promise = (async (): Promise<string | null> => {
+      try {
+        // A hung image host must not stall the surrounding Promise.all; on
+        // timeout the fetch rejects and the original URL is kept.
+        const init: RequestInit = {
+          signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
+          headers: { Authorization: `token ${instance.token}` },
+        };
+        const response = await fetch(absoluteUrl, init);
+        logger.debug(`[avatar] response status: ${response.status} ${response.statusText}`);
+        if (!response.ok) {
+          logger.error(`[avatar] fetch failed: ${response.status} ${response.statusText}`);
+          return null;
+        }
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        const contentType = response.headers.get('content-type') ?? 'image/png';
+        logger.debug(`[avatar] resolved to data:${contentType};base64,${base64.slice(0, 40)}...`);
+        return `data:${contentType};base64,${base64}`;
+      } catch (error) {
+        const err = userFacingErrorMessage(error);
+        logger.error(`[avatar] error resolving ${absoluteUrl}: ${err}`);
+        return null;
+      }
+    })();
+    cacheResolvedAvatar(absoluteUrl, promise);
+    return promise;
   }
 }

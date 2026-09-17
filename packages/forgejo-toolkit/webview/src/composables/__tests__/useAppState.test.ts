@@ -677,9 +677,13 @@ describe('useAppState', () => {
         repo: 'repo',
         runId: 7,
       });
-      await flushPromises();
+      // The repoDetail view is lazy-loaded and the handler does not await its
+      // router.push, so a single flushPromises is not enough for the dynamic
+      // import to settle.
+      await vi.waitFor(() => {
+        expect(router.currentRoute.value.name).toBe('repoDetail');
+      });
 
-      expect(router.currentRoute.value.name).toBe('repoDetail');
       expect(router.currentRoute.value.params).toMatchObject({ instanceId: 'inst-1', owner: 'owner', repo: 'repo' });
     });
 

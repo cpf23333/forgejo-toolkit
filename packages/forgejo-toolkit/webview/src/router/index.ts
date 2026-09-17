@@ -1,15 +1,19 @@
 import { createRouter, createMemoryHistory } from 'vue-router';
-import Dashboard from '../views/Dashboard.vue';
-import GlobalSearch from '../views/GlobalSearch.vue';
-import ImportPreview from '../views/ImportPreview.vue';
-import Notifications from '../views/Notifications.vue';
-import RepoDetail from '../views/RepoDetail.vue';
-import RepoIssues from '../views/RepoIssues.vue';
-import RepoPullRequests from '../views/RepoPullRequests.vue';
-import IssueDetail from '../views/IssueDetail.vue';
-import PullRequestDetail from '../views/PullRequestDetail.vue';
-import ActionRunDetail from '../views/ActionRunDetail.vue';
-import Settings from '../views/Settings.vue';
+
+// All views are lazy-loaded so the initial bundle only contains the shell;
+// each view (and its transitive imports such as the markdown editor) becomes
+// its own chunk fetched on first navigation.
+const Dashboard = () => import('../views/Dashboard.vue');
+const GlobalSearch = () => import('../views/GlobalSearch.vue');
+const ImportPreview = () => import('../views/ImportPreview.vue');
+const Notifications = () => import('../views/Notifications.vue');
+const RepoDetail = () => import('../views/RepoDetail.vue');
+const RepoIssues = () => import('../views/RepoIssues.vue');
+const RepoPullRequests = () => import('../views/RepoPullRequests.vue');
+const IssueDetail = () => import('../views/IssueDetail.vue');
+const PullRequestDetail = () => import('../views/PullRequestDetail.vue');
+const ActionRunDetail = () => import('../views/ActionRunDetail.vue');
+const Settings = () => import('../views/Settings.vue');
 
 export const routes = [
   { path: '/', component: Dashboard, name: 'dashboard' },

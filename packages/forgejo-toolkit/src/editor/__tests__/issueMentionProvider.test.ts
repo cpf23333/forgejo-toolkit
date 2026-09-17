@@ -79,67 +79,24 @@ function makeFileDocument(text: string) {
 
 const detectMock = vi.mocked(detectLinkedRepositories);
 
-describe('ForgejoIssueMentionProvider linked repository cache', () => {
+describe('ForgejoIssueMentionProvider linked repository attribution', () => {
   beforeEach(() => {
     detectMock.mockReset();
     detectMock.mockResolvedValue(linkedResult('inst-a') as never);
   });
 
-  it('probes the git repository only once per instance list within the TTL', async () => {
+  it('resolves the repo context from the shared detection result on every call', async () => {
+    // The scan-level cache lives inside detectLinkedRepositories itself; the
+    // provider consults it per render instead of keeping its own cache.
     const provider = new ForgejoIssueMentionProvider(createConfig(['inst-a']));
     const document = makeFileDocument('see #1');
 
     const first = await provider.provideDocumentLinks(document as never, {} as never);
     const second = await provider.provideDocumentLinks(document as never, {} as never);
 
-    expect(detectMock).toHaveBeenCalledTimes(1);
+    expect(detectMock).toHaveBeenCalledTimes(2);
     expect(first.length).toBeGreaterThan(0);
     expect(second.length).toBeGreaterThan(0);
-  });
-
-  it('caches a negative probe result', async () => {
-    detectMock.mockResolvedValue({ linked: undefined, all: [] } as never);
-    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-b']));
-    const document = makeFileDocument('see #1');
-
-    expect(await provider.provideDocumentLinks(document as never, {} as never)).toEqual([]);
-    expect(await provider.provideDocumentLinks(document as never, {} as never)).toEqual([]);
-    expect(detectMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('re-probes after the TTL expires', async () => {
-    vi.useFakeTimers();
-    try {
-      detectMock.mockResolvedValue(linkedResult('inst-c') as never);
-      const provider = new ForgejoIssueMentionProvider(createConfig(['inst-c']));
-      const document = makeFileDocument('see #1');
-
-      await provider.provideDocumentLinks(document as never, {} as never);
-      expect(detectMock).toHaveBeenCalledTimes(1);
-
-      vi.setSystemTime(Date.now() + 31_000);
-      await provider.provideDocumentLinks(document as never, {} as never);
-      expect(detectMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('invalidates the cached probe when the instance list changes', async () => {
-    detectMock.mockResolvedValue(linkedResult('inst-d') as never);
-    let ids = ['inst-d'];
-    const config = {
-      getInstances: () => createConfig(ids).getInstances(),
-    } as unknown as ConfigManager;
-    const provider = new ForgejoIssueMentionProvider(config);
-    const document = makeFileDocument('see #1');
-
-    await provider.provideDocumentLinks(document as never, {} as never);
-    expect(detectMock).toHaveBeenCalledTimes(1);
-
-    ids = ['inst-d', 'inst-e'];
-    await provider.provideDocumentLinks(document as never, {} as never);
-    expect(detectMock).toHaveBeenCalledTimes(2);
   });
 
   it('attributes the document to the repository containing its path, not the first match', async () => {

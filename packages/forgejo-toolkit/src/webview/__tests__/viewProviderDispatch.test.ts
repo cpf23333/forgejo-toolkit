@@ -30,6 +30,7 @@ vi.mock('../../api/client', () => ({
 }));
 
 vi.mock('../../worktree/gitOperations', () => ({
+  clearLinkedRepositoryCache: vi.fn(),
   cloneRepository: vi.fn(),
   createWorktreeFromBranch: vi.fn(),
   createWorktreeWithNewBranch: vi.fn(),
@@ -51,7 +52,7 @@ vi.mock('../../worktree/gitOperations', () => ({
   removeWorktreeAndPrune: vi.fn(),
 }));
 
-import { ForgejoToolkitViewProvider } from '../viewProvider';
+import { ForgejoToolkitViewProvider, clearResolvedAvatarCache } from '../viewProvider';
 import { ForgejoClient } from '../../api/client';
 import {
   cloneRepository,
@@ -1114,7 +1115,19 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
     afterEach(() => {
       vi.unstubAllGlobals();
+      vi.useRealTimers();
+      clearResolvedAvatarCache();
     });
+
+    function stubAvatarFetch(status = 200) {
+      return vi.fn().mockResolvedValue({
+        ok: status >= 200 && status < 300,
+        status,
+        statusText: status === 200 ? 'OK' : 'Error',
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+        headers: { get: () => 'image/png' },
+      });
+    }
 
     it('proxies same-origin avatar URLs through the host with the instance token', async () => {
       const fetchMock = vi.fn().mockResolvedValue({
@@ -1160,6 +1173,99 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
       expect(await resolveAvatar(url)).toBe(url);
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('fetches a repeated same-origin URL only once per session', async () => {
+      const fetchMock = stubAvatarFetch();
+      vi.stubGlobal('fetch', fetchMock);
+      const url = `${testInstance.url}/avatars/repeated.png`;
+
+      expect(await resolveAvatar(url)).toBe('data:image/png;base64,AQID');
+      expect(await resolveAvatar(url)).toBe('data:image/png;base64,AQID');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('shares one fetch between concurrent resolutions of the same URL', async () => {
+      const fetchMock = stubAvatarFetch();
+      vi.stubGlobal('fetch', fetchMock);
+      const url = `${testInstance.url}/avatars/concurrent.png`;
+
+      const [a, b] = await Promise.all([resolveAvatar(url), resolveAvatar(url)]);
+      expect(a).toBe('data:image/png;base64,AQID');
+      expect(b).toBe('data:image/png;base64,AQID');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('dedupes avatar URLs within a single _resolveCommitAvatars call', async () => {
+      const fetchMock = stubAvatarFetch();
+      vi.stubGlobal('fetch', fetchMock);
+      const shared = `${testInstance.url}/avatars/shared.png`;
+      const other = `${testInstance.url}/avatars/other.png`;
+      const commit = (sha: string, avatar: string) => ({
+        sha,
+        commit: {},
+        author: { avatar_url: avatar },
+        committer: { avatar_url: avatar },
+        html_url: `${testInstance.url}/owner/repo/commit/${sha}`,
+      });
+      const detail = {
+        repository: {},
+        branches: ['main'],
+        recentCommits: [commit('a'.repeat(40), shared), commit('b'.repeat(40), shared), commit('c'.repeat(40), other)],
+      };
+
+      const resolved = await (
+        provider as unknown as {
+          _resolveCommitAvatars: (d: typeof detail, i: ForgejoInstance) => Promise<typeof detail>;
+        }
+      )._resolveCommitAvatars(detail, testInstance);
+
+      // Two unique URLs across 3 commits x (author + committer) = 2 fetches.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(resolved.recentCommits[0].author?.avatar_url).toBe('data:image/png;base64,AQID');
+      expect(resolved.recentCommits[1].committer?.avatar_url).toBe('data:image/png;base64,AQID');
+      expect(resolved.recentCommits[2].author?.avatar_url).toBe('data:image/png;base64,AQID');
+    });
+
+    it('evicts the least recently used avatar once the cache exceeds 100 entries', async () => {
+      const fetchMock = stubAvatarFetch();
+      vi.stubGlobal('fetch', fetchMock);
+      const urlAt = (n: number) => `${testInstance.url}/avatars/evict-${n}.png`;
+
+      for (let i = 0; i < 100; i++) {
+        await resolveAvatar(urlAt(i));
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(100);
+
+      // Refresh urlAt(0) so it is no longer the oldest entry.
+      await resolveAvatar(urlAt(0));
+      expect(fetchMock).toHaveBeenCalledTimes(100);
+
+      // The 101st unique URL evicts urlAt(1), the new oldest.
+      await resolveAvatar(urlAt(100));
+      expect(fetchMock).toHaveBeenCalledTimes(101);
+
+      await resolveAvatar(urlAt(0));
+      expect(fetchMock).toHaveBeenCalledTimes(101);
+      await resolveAvatar(urlAt(1));
+      expect(fetchMock).toHaveBeenCalledTimes(102);
+    });
+
+    it('caches failures briefly and retries after the TTL', async () => {
+      const fetchMock = stubAvatarFetch(401);
+      vi.stubGlobal('fetch', fetchMock);
+      const url = `${testInstance.url}/avatars/private.png`;
+
+      // Failure falls back to the original URL and is cached: no refetch yet.
+      expect(await resolveAvatar(url)).toBe(url);
+      expect(await resolveAvatar(url)).toBe(url);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Past the failure TTL (e.g. after a token rotation) the URL is retried.
+      vi.useFakeTimers();
+      vi.advanceTimersByTime(61_000);
+      expect(await resolveAvatar(url)).toBe(url);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 });

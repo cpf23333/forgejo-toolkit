@@ -5,6 +5,7 @@ import type { ConfigManager } from '../../config';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 vi.mock('../../worktree/gitOperations', () => ({
+  clearLinkedRepositoryCache: vi.fn(),
   detectLinkedRepository: vi.fn(),
   getCurrentBranch: vi.fn(),
   getGitHeadPath: vi.fn(),
@@ -21,7 +22,12 @@ vi.mock('../../api/client', () => ({
   },
 }));
 
-import { detectLinkedRepository, getCurrentBranch, getGitHeadPath } from '../../worktree/gitOperations';
+import {
+  clearLinkedRepositoryCache,
+  detectLinkedRepository,
+  getCurrentBranch,
+  getGitHeadPath,
+} from '../../worktree/gitOperations';
 
 const instance: ForgejoInstance = {
   id: 'inst1',
@@ -225,6 +231,24 @@ describe('CreatePrStatusBarController', () => {
       base: '/main-repo/.git/worktrees/wt',
       pattern: 'HEAD',
     });
+  });
+
+  it('clears the linked repository detection cache when instances change', () => {
+    // A token-only instance change keeps the same detection cache key, so the
+    // controller must drop the shared cache explicitly on onInstancesChanged.
+    let listener: (() => void) | undefined;
+    const config = {
+      getInstances: () => [instance],
+      onInstancesChanged: (l: () => void) => {
+        listener = l;
+        return { dispose: () => {} };
+      },
+    } as unknown as ConfigManager;
+    controller = new CreatePrStatusBarController(config);
+
+    listener!();
+
+    expect(vi.mocked(clearLinkedRepositoryCache)).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes when the active text editor changes', async () => {
