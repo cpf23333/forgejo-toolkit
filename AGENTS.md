@@ -113,6 +113,8 @@ To keep the project welcome on Codeberg:
 - The `webview/src/types/webview-window.d.ts` file marks these APIs as `@deprecated` as a reminder.
 - `showConfirm()` renders as a native OS dialog (VS Code modal message), on purpose: it matches VS Code's own destructive-action confirmations and blocks the whole window. Do **not** reimplement confirmations inside the webview unless native dialogs become too limited (e.g. multi-choice with details).
 - Native dialogs are invisible to CDP screenshots during UI testing; use a system-level screenshot plus simulated keystrokes to inspect and dismiss them. The `tools/ui-review/` harness packages all of this (isolated dev host, CDP driver, native-dialog helpers) — see its README.
+- Confirmations for destructive host commands (delete\*/merge/dispatchWorkflow etc.) are enforced host-side: the host's message dispatch pops the modal itself before executing. Webview code must **not** call `showConfirm()` for these commands — that would double-prompt.
+- Webview-side `showConfirm()` is only for pure UI-state confirmations that involve no host command (e.g. the discard-changes prompt in `ModalDialog.vue`).
 
 ## Project tracking documents
 

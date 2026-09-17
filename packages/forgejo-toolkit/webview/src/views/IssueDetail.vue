@@ -486,29 +486,17 @@ function handleStartWork() {
   state.startWorkOnIssue(instanceId.value, owner.value, repo.value, index.value, detail.value?.title);
 }
 
-async function handleDeleteIssue() {
-  const confirmed = await state.showConfirm(
-    t('dashboard.detail.deleteIssueConfirm', { number: detail.value?.number ?? index.value }),
-  );
-  if (!confirmed) {
-    return;
-  }
+// Destructive commands are confirmed host-side (viewProvider re-prompts
+// before executing); the webview must not add its own confirmation.
+function handleDeleteIssue() {
   state.deleteIssue(instanceId.value, owner.value, repo.value, index.value);
 }
 
-async function handleDeleteTime(timeId: number) {
-  const confirmed = await state.showConfirm(t('dashboard.detail.deleteTimeConfirm'));
-  if (!confirmed) {
-    return;
-  }
+function handleDeleteTime(timeId: number) {
   state.deleteIssueTime(instanceId.value, owner.value, repo.value, index.value, timeId);
 }
 
-async function handleRemoveDependency(depNumber: number) {
-  const confirmed = await state.showConfirm(t('dashboard.detail.removeDependencyConfirm', { number: depNumber }));
-  if (!confirmed) {
-    return;
-  }
+function handleRemoveDependency(depNumber: number) {
   state.removeIssueDependency(instanceId.value, owner.value, repo.value, index.value, depNumber);
 }
 

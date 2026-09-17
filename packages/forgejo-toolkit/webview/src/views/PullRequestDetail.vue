@@ -310,11 +310,9 @@ function onMergeStrategyChange(event: Event) {
   mergeStrategy.value = (event.target as HTMLSelectElement).value as 'merge' | 'rebase' | 'squash';
 }
 
-async function handleDeleteTime(timeId: number) {
-  const confirmed = await state.showConfirm(t('dashboard.detail.deleteTimeConfirm'));
-  if (!confirmed) {
-    return;
-  }
+// Destructive commands are confirmed host-side (viewProvider re-prompts
+// before executing); the webview must not add its own confirmation.
+function handleDeleteTime(timeId: number) {
   state.deleteIssueTime(instanceId.value, owner.value, repo.value, index.value, timeId);
 }
 
@@ -361,13 +359,8 @@ function checkStatusClass(status?: string): string {
   return status ?? 'unknown';
 }
 
-async function handleMerge() {
+function handleMerge() {
   if (!canMerge.value) {
-    return;
-  }
-  const strategy = t(`dashboard.detail.mergeStrategy.${mergeStrategy.value}`);
-  const confirmed = await state.showConfirm(t('dashboard.detail.mergeConfirm', { strategy }));
-  if (!confirmed) {
     return;
   }
   state.mergePullRequest(instanceId.value, owner.value, repo.value, index.value, mergeStrategy.value);
@@ -380,12 +373,8 @@ const revertMergeFormKey = computed(
 const revertMergeLoading = computed(() => state.loading.get(revertMergeFormKey.value) ?? false);
 const revertMergeError = computed(() => state.errors.get(revertMergeFormKey.value));
 
-async function handleRevertMerge() {
+function handleRevertMerge() {
   if (!canRevertMerge.value) {
-    return;
-  }
-  const confirmed = await state.showConfirm(t('dashboard.detail.revertMergeConfirm'));
-  if (!confirmed) {
     return;
   }
   state.revertMergeCommit(instanceId.value, owner.value, repo.value, index.value);
@@ -543,13 +532,9 @@ function addDependency() {
   selectedDependencyNumber.value = undefined;
 }
 
-// Same confirmation as the issue detail view: removing a dependency is a
-// write operation and must not fire from a single misclick.
-async function handleRemoveDependency(depNumber: number) {
-  const confirmed = await state.showConfirm(t('dashboard.detail.removeDependencyConfirm', { number: depNumber }));
-  if (!confirmed) {
-    return;
-  }
+// Same as the issue detail view: the host confirms the removal, so a single
+// misclick cannot fire it silently, and the webview adds no second prompt.
+function handleRemoveDependency(depNumber: number) {
   state.removeIssueDependency(instanceId.value, owner.value, repo.value, index.value, depNumber);
 }
 

@@ -4,7 +4,12 @@ vi.mock('vscode', () => ({
   window: {
     showErrorMessage: vi.fn(),
     showInformationMessage: vi.fn(),
-    showWarningMessage: vi.fn(),
+    showWarningMessage: vi.fn(async (_message: unknown, ...args: unknown[]) => {
+      // Modal confirmations default to "accepted": resolve with the first
+      // action button (string argument after the message/options), so tests
+      // exercise the confirm path unless they explicitly override the mock.
+      return args.find((arg) => typeof arg === 'string');
+    }),
     showOpenDialog: vi.fn(),
     showQuickPick: vi.fn(),
     withProgress: vi.fn((_options: unknown, task: (progress: unknown, token: unknown) => unknown) =>

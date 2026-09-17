@@ -1134,6 +1134,53 @@ describe('useAppState', () => {
       expect(vscodePostMessage()).toHaveBeenCalledTimes(2);
     });
 
+    it('renderMarkdown deduplicates concurrent calls for the same cacheKey', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      const first = state.renderMarkdown('inst-1', '**bold**', 'owner/repo');
+      const second = state.renderMarkdown('inst-1', '**bold**', 'owner/repo');
+      const third = state.renderMarkdown('inst-1', '**bold**', 'owner/repo');
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      const calls = vscodePostMessage().mock.calls;
+      const _requestId = (calls[calls.length - 1][0] as { _requestId: string })._requestId;
+      dispatchMessage({ command: 'renderedMarkdown', _requestId, html: '<p><strong>bold</strong></p>' });
+
+      await expect(first).resolves.toBe('<p><strong>bold</strong></p>');
+      await expect(second).resolves.toBe('<p><strong>bold</strong></p>');
+      await expect(third).resolves.toBe('<p><strong>bold</strong></p>');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+
+      // After the in-flight request settles, the cached value is served and
+      // the dedup slot is free again for a later TTL-expired refetch.
+      await expect(state.renderMarkdown('inst-1', '**bold**', 'owner/repo')).resolves.toBe(
+        '<p><strong>bold</strong></p>',
+      );
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+    });
+
+    it('renderMarkdown deduplicates concurrent rejections across callers', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      const first = state.renderMarkdown('inst-1', '**bold**', 'owner/repo');
+      const second = state.renderMarkdown('inst-1', '**bold**', 'owner/repo');
+
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      const calls = vscodePostMessage().mock.calls;
+      const _requestId = (calls[calls.length - 1][0] as { _requestId: string })._requestId;
+      dispatchMessage({ command: 'renderedMarkdown', _requestId, error: 'render failed' });
+
+      await expect(first).rejects.toThrow('render failed');
+      await expect(second).rejects.toThrow('render failed');
+
+      // A failed request must not leave a stale in-flight entry behind.
+      vscodePostMessage().mockClear();
+      void state.renderMarkdown('inst-1', '**bold**', 'owner/repo');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+    });
+
     it('loadIssueDetail only sends one message while loading', async () => {
       const { state } = await createState();
       vscodePostMessage().mockClear();
@@ -1407,6 +1454,98 @@ describe('useAppState', () => {
       expect(state.actionJobLogs.value.get(mod.actionJobLogKey('inst-1', 'owner', 'repo', 102))).toBeUndefined();
       expect(state.actionJobLogs.value.get(mod.actionJobLogKey('inst-1', 'owner', 'repo', 999))).toBe('other log');
       expect(state.actionRunJobs.value.get(mod.actionRunJobsKey('inst-1', 'owner', 'repo', 7))).toBeUndefined();
+    });
+  });
+
+  describe('cancelled replies for host-declined destructive confirmations', () => {
+    it('pullRequestMerged cancelled clears the spinner without marking the PR merged', async () => {
+      const { state, mod } = await createState();
+      const detailKey = mod.pullRequestDetailKey('inst-1', 'owner', 'repo', 5);
+      state.pullRequestDetails.value.set(detailKey, { state: 'open', merged: false } as never);
+      state.mergePullRequest('inst-1', 'owner', 'repo', 5, 'merge');
+      const formKey = mod.pullRequestMergeFormKey('inst-1', 'owner', 'repo', 5);
+      expect(state.loading.get(formKey)).toBe(true);
+
+      dispatchMessage({
+        command: 'pullRequestMerged',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        cancelled: true,
+      });
+      await nextTick();
+
+      expect(state.loading.get(formKey)).toBe(false);
+      expect(state.errors.get(formKey)).toBeUndefined();
+      expect(state.pullRequestDetails.value.get(detailKey)).toMatchObject({ state: 'open', merged: false });
+    });
+
+    it('issueCommentDeleted cancelled clears the spinner and keeps the comment', async () => {
+      const { state, mod } = await createState();
+      const commentsKey = mod.pullRequestCommentsKey('inst-1', 'owner', 'repo', 5);
+      state.pullRequestComments.value.set(commentsKey, [{ id: 7, body: 'keep me', type: 'comment' }] as never);
+      state.deleteIssueComment('inst-1', 'owner', 'repo', 7);
+      const formKey = mod.issueCommentDeleteFormKey('inst-1', 'owner', 'repo', 7);
+      expect(state.loading.get(formKey)).toBe(true);
+
+      dispatchMessage({
+        command: 'issueCommentDeleted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        commentId: 7,
+        cancelled: true,
+      });
+      await nextTick();
+
+      expect(state.loading.get(formKey)).toBe(false);
+      expect(state.errors.get(formKey)).toBeUndefined();
+      expect(state.pullRequestComments.value.get(commentsKey)).toHaveLength(1);
+    });
+
+    it('repoBranchDeleted cancelled does not reload the refs and sets no error', async () => {
+      const { state, mod } = await createState();
+      vscodePostMessage().mockClear();
+
+      dispatchMessage({
+        command: 'repoBranchDeleted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        branch: 'feature',
+        cancelled: true,
+      });
+      await nextTick();
+
+      const key = mod.repoRefsKey('inst-1', 'owner', 'repo');
+      expect(state.errors.get(key)).toBeUndefined();
+      expect(
+        vscodePostMessage().mock.calls.some((call) => (call[0] as { command: string }).command === 'getRepoRefs'),
+      ).toBe(false);
+    });
+
+    it('actionRunDeleted cancelled keeps the cached run', async () => {
+      const { state, mod } = await createState();
+      const runKey = mod.actionRunKey('inst-1', 'owner', 'repo', 7);
+      state.actionRunDetails.value.set(runKey, { id: 7, status: 'success' } as never);
+      state.deleteActionRun('inst-1', 'owner', 'repo', 7);
+      const deleteKey = mod.actionRunDeleteKey('inst-1', 'owner', 'repo', 7);
+      expect(state.loading.get(deleteKey)).toBe(true);
+
+      dispatchMessage({
+        command: 'actionRunDeleted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        runId: 7,
+        cancelled: true,
+      });
+      await nextTick();
+
+      expect(state.loading.get(deleteKey)).toBe(false);
+      expect(state.errors.get(deleteKey)).toBeUndefined();
+      expect(state.actionRunDetails.value.get(runKey)).toMatchObject({ id: 7 });
     });
   });
 
@@ -2160,7 +2299,11 @@ describe('openNewIssue pending intent', () => {
       title: 'refactor this',
       body: 'https://forgejo.example.com/owner/repo/blob/abc/src/a.ts#L5',
     });
-    await flushPromises();
+    // The router push lazy-loads the RepoIssues chunk; poll for the finished
+    // navigation instead of assuming a previous test already cached the chunk.
+    await vi.waitFor(() => {
+      expect(router.currentRoute.value.name).toBe('repoIssues');
+    });
 
     expect(router.currentRoute.value.name).toBe('repoIssues');
     expect(router.currentRoute.value.params).toMatchObject({ instanceId: 'inst-1', owner: 'owner', repo: 'repo' });

@@ -538,6 +538,175 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(postedMessages(fake.posted).filter((m) => m.command === 'revertMergeCommitResult')).toHaveLength(1);
   });
 
+  describe('host-enforced confirmations for destructive commands', () => {
+    // The shared vscode mock resolves showWarningMessage with the first action
+    // button by default (user accepts); this makes the next dialog decline.
+    function declineNextConfirm() {
+      vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
+    }
+
+    it('removeInstance aborts without touching the config when the user declines', async () => {
+      const removeSpy = vi.spyOn(config, 'removeInstance');
+      declineNextConfirm();
+
+      fake.send({ command: 'removeInstance', id: testInstance.id });
+      await flushDispatches();
+
+      expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+      expect(removeSpy).not.toHaveBeenCalled();
+      expect(config.getInstances()).toHaveLength(1);
+    });
+
+    it('removeInstance removes the instance when the user confirms', async () => {
+      fake.send({ command: 'removeInstance', id: testInstance.id });
+      await flushDispatches();
+
+      expect(config.getInstances()).toHaveLength(0);
+    });
+
+    const declineCases: Array<{
+      command: string;
+      result: string;
+      message: Record<string, unknown>;
+      echo: Record<string, unknown>;
+    }> = [
+      {
+        command: 'deleteIssue',
+        result: 'issueDeleted',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'deleteIssueTime',
+        result: 'issueTimeDeleted',
+        message: { owner: 'owner', repo: 'repo', index: 5, id: 9 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, id: 9 },
+      },
+      {
+        command: 'removeIssueDependency',
+        result: 'issueDependencyChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6, action: 'remove' },
+      },
+      {
+        command: 'deleteIssueComment',
+        result: 'issueCommentDeleted',
+        message: { owner: 'owner', repo: 'repo', commentId: 7 },
+        echo: { owner: 'owner', repo: 'repo', commentId: 7 },
+      },
+      {
+        command: 'mergePullRequest',
+        result: 'pullRequestMerged',
+        message: { owner: 'owner', repo: 'repo', index: 5, strategy: 'merge' },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'revertMergeCommit',
+        result: 'revertMergeCommitResult',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5 },
+      },
+      {
+        command: 'dispatchWorkflow',
+        result: 'actionRunDispatched',
+        message: { owner: 'owner', repo: 'repo', workflowfilename: 'ci.yml', ref: 'main' },
+        echo: { owner: 'owner', repo: 'repo', workflowfilename: 'ci.yml' },
+      },
+      {
+        command: 'cancelActionRun',
+        result: 'actionRunCancelled',
+        message: { owner: 'owner', repo: 'repo', runId: 3 },
+        echo: { owner: 'owner', repo: 'repo', runId: 3 },
+      },
+      {
+        command: 'deleteActionRun',
+        result: 'actionRunDeleted',
+        message: { owner: 'owner', repo: 'repo', runId: 3 },
+        echo: { owner: 'owner', repo: 'repo', runId: 3 },
+      },
+      {
+        command: 'deleteRepoBranch',
+        result: 'repoBranchDeleted',
+        message: { owner: 'owner', repo: 'repo', branch: 'feature' },
+        echo: { owner: 'owner', repo: 'repo', branch: 'feature' },
+      },
+      {
+        command: 'deleteRepoTag',
+        result: 'repoTagDeleted',
+        message: { owner: 'owner', repo: 'repo', tag: 'v1.0.0' },
+        echo: { owner: 'owner', repo: 'repo', tag: 'v1.0.0' },
+      },
+      {
+        command: 'deleteRepoRelease',
+        result: 'repoReleaseDeleted',
+        message: { owner: 'owner', repo: 'repo', id: 2 },
+        echo: { owner: 'owner', repo: 'repo', release: '2' },
+      },
+    ];
+
+    for (const { command, result, message, echo } of declineCases) {
+      it(`aborts ${command} without an API call when the user declines`, async () => {
+        vi.mocked(ForgejoClient).mockClear();
+        declineNextConfirm();
+
+        fake.send({ command, instanceId: testInstance.id, ...message });
+        await flushDispatches();
+
+        // The cancel reply clears the webview's loading state without being
+        // mistaken for success or failure.
+        const reply = postedMessages(fake.posted).find((m) => m.command === result);
+        expect(reply).toMatchObject({ instanceId: testInstance.id, ...echo, cancelled: true });
+        expect(reply?.error).toBeUndefined();
+        expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+      });
+    }
+
+    it('createIssueDependency does not prompt for confirmation (not destructive)', async () => {
+      vi.mocked(vscode.window.showWarningMessage).mockClear();
+
+      fake.send({
+        command: 'createIssueDependency',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        dependencyIndex: 6,
+      });
+      await flushDispatches();
+
+      expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    });
+
+    it('removeWorktree aborts without removing anything when the user declines', async () => {
+      const worktree = {
+        id: 'w1',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        prIndex: 1,
+        prTitle: 'title',
+        headBranch: 'feature',
+        headSha: 'abc',
+        baseBranch: 'main',
+        sourceRepoPath: '/src/repo',
+        worktreePath: '/cache/worktrees/w1',
+        createdAt: 0,
+      };
+      await context.globalState.update('forgejoToolkit.worktrees', [worktree]);
+      declineNextConfirm();
+
+      fake.send({ command: 'removeWorktree', id: 'w1' });
+      await flushDispatches();
+
+      expect(vi.mocked(removeWorktreeAndPrune)).not.toHaveBeenCalled();
+      const messages = postedMessages(fake.posted);
+      expect(messages.some((m) => m.command === 'worktreeRemoved')).toBe(false);
+      // The record stays so the user can retry.
+      const records = context.globalState.get('forgejoToolkit.worktrees') as unknown[];
+      expect(records).toHaveLength(1);
+    });
+  });
+
   it('answers previewImportInstances with cancelled when the file picker is dismissed', async () => {
     vi.mocked(vscode.window.showOpenDialog).mockResolvedValue(undefined as never);
 
@@ -548,42 +717,127 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(preview).toMatchObject({ cancelled: true, instances: [] });
   });
 
-  it('rejects an importInstances message whose entries are all invalid', async () => {
-    fake.send({
-      command: 'importInstances',
-      instances: [{ id: 'broken' }, 'not-an-object', null],
-    });
-    await flushDispatches();
+  describe('import instances preview/confirm', () => {
+    function writeExportFile(instances: unknown[]): string {
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'import-export-')), 'export.json');
+      fs.writeFileSync(file, JSON.stringify({ version: 1, instances }));
+      return file;
+    }
 
-    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
-    expect(reply).toBeDefined();
-    expect(reply?.success).toBe(false);
-    expect(typeof reply?.error).toBe('string');
-    // Nothing was added beyond the seed instance.
-    expect(config.getInstances()).toHaveLength(1);
-  });
+    async function previewExportFile(file: string) {
+      vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file(file)] as never);
+      fake.send({ command: 'previewImportInstances' });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'importInstancesPreview'));
+    }
 
-  it('imports only the valid entries and keeps syncApiUrlsToInstanceUrl', async () => {
-    fake.send({
-      command: 'importInstances',
-      instances: [
+    async function confirmImport(message: unknown) {
+      fake.send(message);
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesImported'));
+    }
+
+    it('strips tokens from the preview payload and rehydrates them from the stash on confirm', async () => {
+      const file = writeExportFile([
         {
           id: 'imported-1',
           url: 'https://forgejo.example.com',
-          token: 'tok',
-          name: 'imported',
+          token: 'file-token-1',
+          name: 'one',
           username: 'user',
           syncApiUrlsToInstanceUrl: true,
         },
-        { id: 'broken' },
-      ],
-    });
-    await flushDispatches();
+        { id: 'imported-2', url: 'https://other.example.com', token: 'file-token-2', name: 'two', username: 'user' },
+      ]);
+      await previewExportFile(file);
 
-    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
-    expect(reply).toMatchObject({ success: true, count: 1 });
-    const imported = config.getInstances().find((i) => i.id === 'imported-1');
-    expect(imported?.syncApiUrlsToInstanceUrl).toBe(true);
+      const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+      const previewInstances = preview?.instances as Array<Record<string, unknown>>;
+      expect(previewInstances).toHaveLength(2);
+      // No token value leaves the host in the preview payload.
+      expect(previewInstances.every((instance) => instance.token === '')).toBe(true);
+      expect(JSON.stringify(preview)).not.toContain('file-token');
+
+      await confirmImport({ command: 'importInstances', ids: ['imported-1'] });
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+      expect(reply).toMatchObject({ success: true, count: 1 });
+      // The stored instance carries the token from the file (host stash),
+      // and syncApiUrlsToInstanceUrl survives the round trip.
+      const imported = config.getInstances().find((i) => i.id === 'imported-1');
+      expect(imported?.token).toBe('file-token-1');
+      expect(imported?.syncApiUrlsToInstanceUrl).toBe(true);
+      expect(config.getInstances().some((i) => i.id === 'imported-2')).toBe(false);
+    });
+
+    it('flags in-file duplicate tokens in the preview conflict flags', async () => {
+      const file = writeExportFile([
+        { id: 'imported-1', url: 'https://forgejo.example.com', token: 'same-token', name: 'one', username: 'user' },
+        { id: 'imported-2', url: 'https://other.example.com', token: 'same-token', name: 'two', username: 'user' },
+      ]);
+      await previewExportFile(file);
+
+      const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+      expect(preview?.tokenConflicts).toEqual([true, true]);
+    });
+
+    it('ignores webview-supplied instance data (forged tokens) on confirm', async () => {
+      const file = writeExportFile([
+        { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'user' },
+      ]);
+      await previewExportFile(file);
+
+      await confirmImport({
+        command: 'importInstances',
+        ids: ['imported-1'],
+        // A compromised webview trying to smuggle its own token in.
+        instances: [
+          { id: 'imported-1', url: 'https://evil.example.com', token: 'forged-token', name: 'evil', username: 'evil' },
+        ],
+      });
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+      expect(reply).toMatchObject({ success: true, count: 1 });
+      const imported = config.getInstances().find((i) => i.id === 'imported-1');
+      expect(imported?.token).toBe('file-token-1');
+      expect(imported?.url).toBe('https://forgejo.example.com');
+    });
+
+    it('replies with an error when the confirmation has no pending preview', async () => {
+      await confirmImport({ command: 'importInstances', ids: ['whatever'] });
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+      expect(reply?.success).toBe(false);
+      expect(typeof reply?.error).toBe('string');
+      // Nothing was added beyond the seed instance.
+      expect(config.getInstances()).toHaveLength(1);
+    });
+
+    it('drops the stashed preview on cancelImportInstances', async () => {
+      const file = writeExportFile([
+        { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'user' },
+      ]);
+      await previewExportFile(file);
+
+      fake.send({ command: 'cancelImportInstances' });
+      await confirmImport({ command: 'importInstances', ids: ['imported-1'] });
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+      expect(reply?.success).toBe(false);
+      expect(config.getInstances()).toHaveLength(1);
+    });
+
+    it('consumes the stash: a second confirm of the same preview fails', async () => {
+      const file = writeExportFile([
+        { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'user' },
+      ]);
+      await previewExportFile(file);
+      await confirmImport({ command: 'importInstances', ids: ['imported-1'] });
+
+      fake.posted.length = 0;
+      await confirmImport({ command: 'importInstances', ids: ['imported-1'] });
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+      expect(reply?.success).toBe(false);
+    });
   });
 
   it('replies worktreeError with the PR identity when removal fails, keeping the record', async () => {
@@ -1355,6 +1609,101 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(typeof reply?.error).toBe('string');
       expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
       expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+    });
+
+    describe('leftover directory reopen', () => {
+      let cacheDir: string;
+      let worktreePath: string;
+
+      beforeEach(() => {
+        cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-worktree-leftover-'));
+        worktreePath = path.join(cacheDir, 'worktrees', 'owner-repo-issue-5-fix-bug');
+        fs.mkdirSync(worktreePath, { recursive: true });
+        // A `.git` entry marks the leftover as a valid worktree (reopened
+        // as-is instead of being removed and recreated).
+        fs.writeFileSync(path.join(worktreePath, '.git'), 'gitdir: /src/repo/.git/worktrees/issue-5');
+        vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo');
+        vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+        vi.spyOn(config, 'getWorktreeCacheDirectory').mockReturnValue(cacheDir);
+      });
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+      });
+
+      function sendStartWork() {
+        fake.send({
+          command: 'startWorkOnIssue',
+          instanceId: testInstance.id,
+          owner: 'owner',
+          repo: 'repo',
+          index: 5,
+          title: 'fix-bug',
+        });
+        return flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
+      }
+
+      function recordedBaseBranch(): unknown {
+        const records = context.globalState.get('forgejoToolkit.worktrees') as Array<Record<string, unknown>>;
+        return records.find((r) => r.id === `${testInstance.id}:owner/repo#issue-5`)?.baseBranch;
+      }
+
+      it('reuses the recorded base branch without an API call when a record exists', async () => {
+        await context.globalState.update('forgejoToolkit.worktrees', [
+          {
+            id: `${testInstance.id}:owner/repo#issue-5`,
+            kind: 'issue',
+            instanceId: testInstance.id,
+            owner: 'owner',
+            repo: 'repo',
+            prIndex: 5,
+            prTitle: 'Issue #5',
+            headBranch: 'issue-5-fix-bug',
+            headSha: '',
+            baseBranch: 'develop',
+            sourceRepoPath: '/src/repo',
+            worktreePath,
+            createdAt: 0,
+          },
+        ]);
+
+        await sendStartWork();
+
+        const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+        expect(reply?.error).toBeUndefined();
+        // Offline reopen: the base branch comes from the record, not the API.
+        expect(clientMocks.getRepoDetail).not.toHaveBeenCalled();
+        expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
+        expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+        expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(worktreePath, true, expect.any(Function));
+        expect(recordedBaseBranch()).toBe('develop');
+      });
+
+      it('resolves the default branch over the API for an unrecorded leftover directory', async () => {
+        clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'develop' } });
+
+        await sendStartWork();
+
+        const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+        expect(reply?.error).toBeUndefined();
+        expect(clientMocks.getRepoDetail).toHaveBeenCalledWith('owner', 'repo');
+        expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
+        expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+        expect(recordedBaseBranch()).toBe('develop');
+      });
+
+      it('still opens with a main fallback when the default-branch lookup fails', async () => {
+        clientMocks.getRepoDetail.mockRejectedValue(new Error('network down'));
+
+        await sendStartWork();
+
+        const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+        // The base branch is display-only: a failed lookup must not block the open.
+        expect(reply?.error).toBeUndefined();
+        expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(worktreePath, true, expect.any(Function));
+        expect(recordedBaseBranch()).toBe('main');
+      });
     });
   });
 

@@ -145,15 +145,13 @@ function cancelEdit() {
   setStatus('');
 }
 
-async function removeInstance(id: string) {
-  const instance = state.instances.value.find((i) => i.id === id);
-  if (!instance) {
+// Removal is confirmed host-side (the host re-prompts before executing);
+// the webview must not add its own confirmation.
+function removeInstance(id: string) {
+  if (!state.instances.value.some((i) => i.id === id)) {
     return;
   }
-  const confirmed = await state.showConfirm(t('settings.removeConfirm', { name: instance.name }));
-  if (confirmed) {
-    state.removeInstance(id);
-  }
+  state.removeInstance(id);
 }
 
 function handleExportInstances() {
@@ -246,11 +244,8 @@ function openWorktree(path: string) {
   state.openWorktreePath(path);
 }
 
-async function deleteWorktree(id: string) {
-  const confirmed = await state.showConfirm(t('settings.worktree.deleteConfirm'));
-  if (!confirmed) {
-    return;
-  }
+// Deletion is confirmed host-side; the webview adds no second prompt.
+function deleteWorktree(id: string) {
   state.removeWorktree(id);
 }
 

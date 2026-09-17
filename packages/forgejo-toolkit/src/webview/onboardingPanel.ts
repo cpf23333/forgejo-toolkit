@@ -8,7 +8,7 @@ import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
 import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { computeTokenConflicts, readExportDataFromUri, sanitizeImportedInstances } from './instanceImport';
+import { computeImportTokenConflicts, readExportDataFromUri, stripInstanceTokens } from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { userFacingErrorMessage } from '../api/errors';
@@ -27,6 +27,14 @@ export class OnboardingWebviewPanel {
   private readonly _unansweredRequests = new Set<string>();
   /** URL of the instance currently being tested (not yet saved); merged into the CSP instance origins. */
   private _editingInstanceUrl: string | undefined;
+  /**
+   * Full instance entries (tokens included) from the latest import preview,
+   * kept host-side so token values never cross into the webview. Same
+   * single-slot lifecycle as the main panel: overwritten by the next
+   * preview, cleared on confirm or cancel; `importInstances` rehydrates the
+   * selected entries by id.
+   */
+  private _pendingImportInstances: ForgejoInstance[] | undefined;
 
   public static createOrShow(
     context: vscode.ExtensionContext,
@@ -180,6 +188,15 @@ export class OnboardingWebviewPanel {
             case 'removeInstance': {
               const { id } = message;
               if (typeof id === 'string') {
+                const instance = this._findInstance(id);
+                if (!instance) {
+                  return;
+                }
+                // Same host-enforced confirmation as the main panel; a decline
+                // needs no reply (the webview tracks no pending state here).
+                if (!(await this._confirmDestructive(vscode.l10n.t('Remove instance "{0}"?', instance.name)))) {
+                  return;
+                }
                 await this._config.removeInstance(id);
                 this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
               }
@@ -307,31 +324,38 @@ export class OnboardingWebviewPanel {
               return;
             }
             case 'importInstances': {
-              const rawInstances = Array.isArray((message as { instances?: unknown[] }).instances)
-                ? (message as { instances: unknown[] }).instances
-                : undefined;
-              let instancesToImport: ForgejoInstance[] | undefined;
-              if (rawInstances) {
-                // The webview sends untrusted JSON: validate every entry
-                // instead of trusting the cast (same as the main panel).
-                const { valid, dropped } = sanitizeImportedInstances(rawInstances);
-                if (valid.length === 0) {
-                  logger.error(
-                    `onboarding importInstances: dropped all ${dropped} invalid instance entries from the webview`,
-                  );
+              const rawIds = (message as { ids?: unknown }).ids;
+              const settings = (message as { settings?: ExportSettings }).settings;
+              if (Array.isArray(rawIds)) {
+                // Preview confirmation: rehydrate the selected entries from
+                // the host-side stash (same as the main panel). Instance
+                // data sent by the webview is untrusted and ignored.
+                const pending = this._pendingImportInstances;
+                this._pendingImportInstances = undefined;
+                if (!pending) {
+                  this._reply('instancesImported', {
+                    success: false,
+                    error: vscode.l10n.t('The import preview is no longer available; please pick the file again'),
+                  });
+                  return;
+                }
+                const wanted = new Set(rawIds.filter((id): id is string => typeof id === 'string'));
+                const selected = pending.filter((instance) => wanted.has(instance.id));
+                if (selected.length === 0) {
                   this._reply('instancesImported', {
                     success: false,
                     error: vscode.l10n.t('No valid instances found in the import data'),
                   });
                   return;
                 }
-                if (dropped > 0) {
-                  logger.info(`onboarding importInstances: dropped ${dropped} invalid instance entries`);
-                }
-                instancesToImport = valid;
+                await this._importInstances(selected, settings);
+                return;
               }
-              const settings = (message as { settings?: ExportSettings }).settings;
-              await this._importInstances(instancesToImport, settings);
+              await this._importInstances(undefined, settings);
+              return;
+            }
+            case 'cancelImportInstances': {
+              this._pendingImportInstances = undefined;
               return;
             }
             case 'closeOnboarding': {
@@ -361,6 +385,16 @@ export class OnboardingWebviewPanel {
     );
   }
 
+  /**
+   * Same host-enforced confirmation as the main view provider: destructive
+   * commands must not rely on the (untrusted) webview to confirm.
+   */
+  private async _confirmDestructive(message: string): Promise<boolean> {
+    const confirmLabel = vscode.l10n.t('Confirm');
+    const choice = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
+    return choice === confirmLabel;
+  }
+
   private async _previewImportInstances() {
     const uris = await vscode.window.showOpenDialog({
       canSelectFiles: true,
@@ -382,13 +416,22 @@ export class OnboardingWebviewPanel {
     }
     try {
       const { instances, settings } = await readExportDataFromUri(uris[0]);
+      // Stash the full entries host-side; the webview only receives a
+      // token-less copy and later confirms by id (same as the main panel).
+      this._pendingImportInstances = instances;
       const existingInstances = this._config.getInstances();
       const existingIds = existingInstances.map((instance) => instance.id);
-      // Conflict flags are computed host-side (parallel to `instances`) so
-      // stored tokens are never sent to the webview.
-      const tokenConflicts = computeTokenConflicts(instances, existingInstances);
-      this._reply('importInstancesPreview', { instances, existingIds, tokenConflicts, settings });
+      // Conflict flags (stored-token collisions and in-file duplicates) are
+      // computed host-side (parallel to `instances`) — see the message type.
+      const tokenConflicts = computeImportTokenConflicts(instances, existingInstances);
+      this._reply('importInstancesPreview', {
+        instances: stripInstanceTokens(instances),
+        existingIds,
+        tokenConflicts,
+        settings,
+      });
     } catch (error) {
+      this._pendingImportInstances = undefined;
       const err = userFacingErrorMessage(error);
       logger.error(`onboarding previewImportInstances failed: ${err}`);
       this._reply('importInstancesPreview', {

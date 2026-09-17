@@ -228,6 +228,9 @@ function createAppState() {
   const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
   const exportInstancesResult = ref<{ success: boolean; path?: string; error?: string } | undefined>(undefined);
   const importInstancesResult = ref<{ success: boolean; count?: number; error?: string } | undefined>(undefined);
+  // Preview data from the host: token fields are stripped to '' host-side
+  // (conflict flags travel in `tokenConflicts`); confirmation goes back as
+  // ids only (see confirmImportInstances).
   const importPreview = ref<
     | {
         instances: ExportedForgejoInstance[];
@@ -282,6 +285,10 @@ function createAppState() {
     string,
     { resolve: (html: string) => void; reject: (error: Error) => void; cacheKey: string }
   >();
+  // In-flight renderMarkdown requests by cacheKey. Components often mount
+  // together and ask for the same markdown before the first response lands;
+  // they share this promise instead of each sending a duplicate request.
+  const inFlightRenderMarkdown = new Map<string, Promise<string>>();
   let attachmentUploadRequestId = 0;
   const pendingAttachmentUploads = new Map<
     string,
@@ -1178,12 +1185,17 @@ function createAppState() {
       case 'repoTagDeleted':
       case 'repoReleaseEdited':
       case 'repoReleaseDeleted': {
-        const { instanceId, owner, repo, error } = message as {
+        const { instanceId, owner, repo, cancelled, error } = message as {
           instanceId: string;
           owner: string;
           repo: string;
+          cancelled?: boolean;
           error?: string;
         };
+        if (cancelled) {
+          // The user declined the host-side confirmation: nothing was deleted.
+          break;
+        }
         const key = repoRefsKey(instanceId, owner, repo);
         if (error) {
           setError(key, error);
@@ -1644,10 +1656,15 @@ function createAppState() {
     repo: string;
     index: number;
     id: number;
+    cancelled?: boolean;
     error?: string;
   }) {
     const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: nothing was deleted.
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -1685,10 +1702,15 @@ function createAppState() {
     index: number;
     dependencyIndex: number;
     action: 'add' | 'remove';
+    cancelled?: boolean;
     error?: string;
   }) {
     const key = issueDependenciesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: nothing was changed.
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -1943,10 +1965,15 @@ function createAppState() {
     owner: string;
     repo: string;
     index: number;
+    cancelled?: boolean;
     error?: string;
   }) {
     const key = issueDetailKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: nothing was deleted.
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
       return;
@@ -2118,10 +2145,15 @@ function createAppState() {
     owner: string;
     repo: string;
     commentId: number;
+    cancelled?: boolean;
     error?: string;
   }) {
     const formKey = issueCommentDeleteFormKey(data.instanceId, data.owner, data.repo, data.commentId);
     loading.set(formKey, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: nothing was deleted.
+      return;
+    }
     if (data.error) {
       setError(formKey, data.error);
       return;
@@ -2153,10 +2185,15 @@ function createAppState() {
     owner: string;
     repo: string;
     index: number;
+    cancelled?: boolean;
     error?: string;
   }) {
     const formKey = pullRequestMergeFormKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(formKey, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: nothing was merged.
+      return;
+    }
     if (data.error) {
       setError(formKey, data.error);
       return;
@@ -2179,10 +2216,15 @@ function createAppState() {
     repo: string;
     index: number;
     success?: boolean;
+    cancelled?: boolean;
     error?: string;
   }) {
     const key = `revert-merge:${data.instanceId}:${data.owner}/${data.repo}#${data.index}`;
     loading.set(key, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: nothing was reverted.
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
       return;
@@ -2453,10 +2495,15 @@ function createAppState() {
     workflowfilename: string;
     accepted?: boolean;
     run?: unknown;
+    cancelled?: boolean;
     error?: string;
   }) {
     const key = dispatchWorkflowKey(data.instanceId, data.owner, data.repo, data.workflowfilename);
     loading.set(key, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: nothing was dispatched.
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -2476,10 +2523,15 @@ function createAppState() {
     repo: string;
     runId: number;
     success?: boolean;
+    cancelled?: boolean;
     error?: string;
   }) {
     const key = actionRunCancelKey(data.instanceId, data.owner, data.repo, data.runId);
     loading.set(key, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: the run was not cancelled.
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -2496,10 +2548,15 @@ function createAppState() {
     repo: string;
     runId: number;
     success?: boolean;
+    cancelled?: boolean;
     error?: string;
   }) {
     const key = actionRunDeleteKey(data.instanceId, data.owner, data.repo, data.runId);
     loading.set(key, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: nothing was deleted.
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -2878,12 +2935,18 @@ function createAppState() {
     postMessage({ command: 'previewImportInstances' });
   }
 
-  function confirmImportInstances(instances: ExportedForgejoInstance[], settings?: ExportSettings) {
+  function confirmImportInstances(ids: string[], settings?: ExportSettings) {
+    // Only the selected ids cross over: the host rehydrates the full entries
+    // (tokens included) from the stash it kept when previewing the file.
     postMessage({
       command: 'importInstances',
-      instances: instances.map((instance) => ({ ...instance })),
+      ids: [...ids],
       settings: settings ? { ...settings } : undefined,
     });
+  }
+
+  function cancelImportInstances() {
+    postMessage({ command: 'cancelImportInstances' });
   }
 
   function changeLocale(newLocale: Locale) {
@@ -3304,11 +3367,9 @@ function createAppState() {
     postMessage({ command: 'editIssueComment', instanceId, owner, repo, commentId, body });
   }
 
-  async function deleteIssueComment(instanceId: string, owner: string, repo: string, commentId: number) {
-    const confirmed = await showConfirm(t('dashboard.detail.confirmDeleteComment'));
-    if (!confirmed) {
-      return;
-    }
+  // No webview-side confirmation here: the host re-confirms destructive
+  // commands itself before executing (see viewProvider).
+  function deleteIssueComment(instanceId: string, owner: string, repo: string, commentId: number) {
     const key = issueCommentDeleteFormKey(instanceId, owner, repo, commentId);
     beginLoading(key);
     postMessage({ command: 'deleteIssueComment', instanceId, owner, repo, commentId });
@@ -4110,11 +4171,23 @@ function createAppState() {
     if (cached !== undefined) {
       return Promise.resolve(cached);
     }
+    const inFlight = inFlightRenderMarkdown.get(cacheKey);
+    if (inFlight) {
+      return inFlight;
+    }
     const _requestId = `render-${++renderMarkdownRequestId}`;
-    return new Promise((resolve, reject) => {
+    const promise = new Promise<string>((resolve, reject) => {
       registerPending(pendingRenderMarkdownRequests, _requestId, { resolve, reject }, { extra: { cacheKey } });
       postMessage({ command: 'renderMarkdown', instanceId, text, context, _requestId });
     });
+    inFlightRenderMarkdown.set(cacheKey, promise);
+    const dropInFlight = () => {
+      if (inFlightRenderMarkdown.get(cacheKey) === promise) {
+        inFlightRenderMarkdown.delete(cacheKey);
+      }
+    };
+    promise.then(dropInFlight, dropInFlight);
+    return promise;
   }
 
   function searchMentions(
@@ -4344,6 +4417,7 @@ function createAppState() {
     copyInstancesToClipboard,
     previewImportInstances,
     confirmImportInstances,
+    cancelImportInstances,
     changeLocale,
     changeDebug,
     openRepoDetail,

@@ -139,6 +139,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       index: number;
+      /** The user declined the host-side confirmation; nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -166,6 +168,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       commentId: number;
+      /** The user declined the host-side confirmation; nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -206,6 +210,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       index: number;
+      /** The user declined the host-side confirmation; nothing was merged. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -215,6 +221,8 @@ export type HostToWebviewMessage =
       repo: string;
       index: number;
       success?: boolean;
+      /** The user declined the host-side confirmation; nothing was reverted. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -356,6 +364,8 @@ export type HostToWebviewMessage =
       workflowfilename: string;
       accepted?: boolean;
       run?: unknown;
+      /** The user declined the host-side confirmation; nothing was dispatched. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -365,6 +375,8 @@ export type HostToWebviewMessage =
       repo: string;
       runId: number;
       success?: boolean;
+      /** The user declined the host-side confirmation; the run was not cancelled. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -384,6 +396,8 @@ export type HostToWebviewMessage =
       repo: string;
       runId: number;
       success?: boolean;
+      /** The user declined the host-side confirmation; nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -465,6 +479,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       branch?: string;
+      /** The user declined the host-side confirmation; nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -481,6 +497,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       tag?: string;
+      /** The user declined the host-side confirmation; nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -499,6 +517,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       release?: string;
+      /** The user declined the host-side confirmation; nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -610,9 +630,18 @@ export type HostToWebviewMessage =
     }
   | {
       command: 'importInstancesPreview';
+      /**
+       * Instances from the export file with `token` stripped to '' — token
+       * values never leave the extension host. The host keeps the full
+       * entries stashed and rehydrates them by id on `importInstances`.
+       */
       instances: ForgejoInstance[];
       existingIds: string[];
-      /** Parallel to `instances`: true when the token collides with a different existing instance. Computed host-side so stored tokens are never sent to the webview. */
+      /**
+       * Parallel to `instances`: true when the token collides with a
+       * different existing instance or is duplicated within the file.
+       * Computed host-side so token values are never sent to the webview.
+       */
       tokenConflicts?: boolean[];
       settings?: ExportSettings;
       error?: string;
@@ -685,6 +714,8 @@ export type HostToWebviewMessage =
       repo: string;
       index: number;
       id: number;
+      /** The user declined the host-side confirmation; nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -704,6 +735,8 @@ export type HostToWebviewMessage =
       index: number;
       dependencyIndex: number;
       action: 'add' | 'remove';
+      /** The user declined the host-side confirmation; nothing was changed. */
+      cancelled?: boolean;
       error?: string;
     }
   | {
@@ -1224,9 +1257,17 @@ export type WebviewToHostMessage =
   | { command: 'previewImportInstances' }
   | {
       command: 'importInstances';
-      instances?: ForgejoInstance[];
+      /**
+       * Ids of the instances selected in the preview. The host rehydrates
+       * the full entries (including tokens) from its stashed preview data —
+       * any instance data sent by the webview is ignored. When omitted, the
+       * host opens a file picker and imports the chosen file directly.
+       */
+      ids?: string[];
       settings?: ExportSettings;
     }
+  /** Drop the host's stashed import preview (user cancelled the preview). */
+  | { command: 'cancelImportInstances' }
   | {
       command: 'checkIssueSubscription';
       instanceId: string;

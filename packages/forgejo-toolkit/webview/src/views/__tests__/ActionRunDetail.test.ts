@@ -22,7 +22,6 @@ const { routeMock, stateMock } = vi.hoisted(() => ({
     cancelActionRun: vi.fn(),
     deleteActionRun: vi.fn(),
     downloadActionArtifact: vi.fn(),
-    showConfirm: vi.fn(async () => true),
     openExternal: vi.fn(),
   },
 }));

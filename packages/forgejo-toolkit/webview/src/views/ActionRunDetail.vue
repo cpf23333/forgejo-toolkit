@@ -355,23 +355,17 @@ function canCancelRun(status?: string): boolean {
   return ['running', 'waiting', 'pending', 'requested'].includes(status ?? '');
 }
 
-async function cancelRun() {
+// Destructive commands are confirmed host-side (viewProvider re-prompts
+// before executing); the webview must not add its own confirmation.
+function cancelRun() {
   if (!canCancelRun(run.value?.status)) {
-    return;
-  }
-  const confirmed = await state.showConfirm(t('dashboard.actionRun.cancelConfirm'));
-  if (!confirmed) {
     return;
   }
   state.cancelActionRun(instanceId.value, owner.value, repo.value, runId.value);
 }
 
-async function deleteRun() {
+function deleteRun() {
   if (deleteLoading.value) {
-    return;
-  }
-  const confirmed = await state.showConfirm(t('dashboard.actionRun.deleteConfirm'));
-  if (!confirmed) {
     return;
   }
   state.deleteActionRun(instanceId.value, owner.value, repo.value, runId.value);

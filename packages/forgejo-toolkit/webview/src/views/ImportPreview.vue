@@ -15,22 +15,10 @@ const selectedIds = ref<Set<string>>(new Set());
 
 const instances = computed(() => preview.value?.instances ?? []);
 const existingIds = computed(() => new Set(preview.value?.existingIds ?? []));
-// Conflict flags against stored instances are computed host-side (parallel
-// to `instances`), so stored tokens never reach the webview.
+// Conflict flags (stored-token collisions and in-file duplicates) are
+// computed host-side (parallel to `instances`): token values never reach
+// the webview, so the check cannot run here.
 const tokenConflicts = computed(() => preview.value?.tokenConflicts ?? []);
-const duplicatedImportedTokens = computed(() => {
-  const counts = new Map<string, number>();
-  for (const instance of instances.value) {
-    counts.set(instance.token, (counts.get(instance.token) ?? 0) + 1);
-  }
-  const duplicates = new Set<string>();
-  for (const [token, count] of counts) {
-    if (count > 1) {
-      duplicates.add(token);
-    }
-  }
-  return duplicates;
-});
 const settings = computed(() => preview.value?.settings);
 
 const currentInstancesById = computed(() => {
@@ -45,10 +33,7 @@ function getCurrentInstance(instance: ForgejoInstance): CurrentForgejoInstance |
   return currentInstancesById.value.get(instance.id);
 }
 
-function hasTokenConflict(instance: ForgejoInstance, index: number): boolean {
-  if (duplicatedImportedTokens.value.has(instance.token)) {
-    return true;
-  }
+function hasTokenConflict(index: number): boolean {
   return tokenConflicts.value[index] === true;
 }
 
@@ -80,7 +65,7 @@ function deselectAll() {
 }
 
 function handleImport() {
-  const selected = instances.value.filter((instance) => selectedIds.value.has(instance.id));
+  const selected = instances.value.filter((instance) => selectedIds.value.has(instance.id)).map((i) => i.id);
   if (selected.length === 0) {
     return;
   }
@@ -92,6 +77,7 @@ function handleImport() {
 }
 
 function cancel() {
+  state.cancelImportInstances();
   state.importPreview.value = undefined;
   if (router) {
     router.replace({ name: 'settings' });
@@ -162,7 +148,7 @@ watch(
                   <div v-if="current && current.username !== instance.username" class="diff-line">
                     {{ t('instance.username') }}: {{ current.username }} → {{ instance.username }}
                   </div>
-                  <div v-if="hasTokenConflict(instance, index)" class="diff-line conflict-line">
+                  <div v-if="hasTokenConflict(index)" class="diff-line conflict-line">
                     {{ t('settings.importPreview.tokenConflict') }}
                   </div>
                   <div v-else class="diff-line">{{ t('settings.importPreview.tokenUpdated') }}</div>

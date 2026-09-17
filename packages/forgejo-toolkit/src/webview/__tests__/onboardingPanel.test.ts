@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 vi.mock('../../api/client', () => ({
   ForgejoClient: vi.fn().mockImplementation(function () {
@@ -87,6 +90,16 @@ async function flushDispatches() {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/**
+ * Flush macrotasks until the predicate holds. Flows that cross real `fs`
+ * promises (threadpool) need more than a fixed number of ticks.
+ */
+async function flushUntil(predicate: () => boolean, attempts = 50) {
+  for (let i = 0; i < attempts && !predicate(); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
 const testInstance: ForgejoInstance = {
   id: 'forgejo.example.com-user',
   url: 'https://forgejo.example.com',
@@ -167,6 +180,18 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     expect(postedMessages(fake.posted).some((m) => m.command === 'requestError')).toBe(false);
   });
 
+  it('removeInstance aborts without touching the config when the user declines the confirmation', async () => {
+    const removeSpy = vi.spyOn(config, 'removeInstance');
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
+
+    fake.send({ command: 'removeInstance', id: testInstance.id });
+    await flushDispatches();
+
+    expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+    expect(removeSpy).not.toHaveBeenCalled();
+    expect(config.getInstances()).toHaveLength(1);
+  });
+
   it('ignores malformed messages without throwing', async () => {
     fake.send(undefined);
     fake.send('not-an-object');
@@ -184,5 +209,41 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     expect(result).toMatchObject({ success: true });
     expect(getServerVersion('https://new.example.com')).toBeUndefined();
     expect(vi.mocked(clearLinkedRepositoryCache)).toHaveBeenCalled();
+  });
+
+  it('strips tokens from the import preview and rehydrates them from the stash on confirm', async () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'onboarding-import-')), 'export.json');
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        instances: [
+          { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'u' },
+        ],
+      }),
+    );
+    vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file(file)] as never);
+
+    fake.send({ command: 'previewImportInstances' });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'importInstancesPreview'));
+
+    const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+    expect(JSON.stringify(preview)).not.toContain('file-token-1');
+
+    fake.send({
+      command: 'importInstances',
+      ids: ['imported-1'],
+      // Forged webview-supplied instance data must be ignored.
+      instances: [
+        { id: 'imported-1', url: 'https://evil.example.com', token: 'forged-token', name: 'evil', username: 'evil' },
+      ],
+    });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesImported'));
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+    expect(reply).toMatchObject({ success: true, count: 1 });
+    const imported = config.getInstances().find((i) => i.id === 'imported-1');
+    expect(imported?.token).toBe('file-token-1');
+    expect(imported?.url).toBe('https://forgejo.example.com');
   });
 });

@@ -1,4 +1,7 @@
-const dangerousTags = new Set([
+import DOMPurify from 'dompurify';
+import type { UponSanitizeAttributeHookEvent } from 'dompurify';
+
+const dangerousTags = [
   'script',
   'iframe',
   'object',
@@ -11,7 +14,7 @@ const dangerousTags = new Set([
   'link',
   'base',
   'meta',
-]);
+];
 const dangerousSchemes = /^javascript:|data:text\/html|^data:image\/svg/i;
 const absoluteUrlPattern = /^[a-z][a-z0-9+.-]*:/i;
 
@@ -26,22 +29,14 @@ function resolveUrl(value: string, baseUrl?: string): string {
   }
 }
 
-function sanitizeNode(node: Node, baseUrl?: string): Node | null {
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    const element = node as Element;
-    const tagName = element.tagName.toLowerCase();
-
-    if (dangerousTags.has(tagName)) {
-      return null;
-    }
-
-    const attributes = Array.from(element.attributes);
-    for (const attr of attributes) {
+// Neutralizes link hrefs (original URL moves to `data-href`) and resolves
+// relative image sources. Runs before DOMPurify so that dangerous schemes
+// are already replaced with `javascript:void(0)` when DOMPurify sees them;
+// this is the URL contract the click/hover handlers in MarkdownBody rely on.
+function rewriteUrlAttributes(root: ParentNode, baseUrl?: string): void {
+  for (const element of Array.from(root.querySelectorAll('*'))) {
+    for (const attr of Array.from(element.attributes)) {
       const name = attr.name.toLowerCase();
-      if (name.startsWith('on')) {
-        element.removeAttribute(attr.name);
-        continue;
-      }
       if (name === 'href' || name.endsWith(':href')) {
         const value = attr.value.trim();
         if (dangerousSchemes.test(value)) {
@@ -63,33 +58,24 @@ function sanitizeNode(node: Node, baseUrl?: string): Node | null {
         }
         continue;
       }
-      if (name === 'target') {
-        element.removeAttribute(attr.name);
-        continue;
-      }
-      if (name === 'style') {
-        element.removeAttribute(attr.name);
-        continue;
-      }
-    }
-
-    const children = Array.from(element.childNodes);
-    for (const child of children) {
-      const sanitized = sanitizeNode(child, baseUrl);
-      if (sanitized !== child) {
-        if (sanitized) {
-          element.replaceChild(sanitized, child);
-        } else {
-          element.removeChild(child);
-        }
-      }
     }
   }
-  return node;
 }
 
-function unwrapImageAnchors(doc: Document): void {
-  const anchors = Array.from(doc.querySelectorAll('a'));
+// After the rewrite above the only surviving href values are `javascript:void(0)`
+// and `#fragment` links, and src values are resolved or emptied — all inert,
+// but outside DOMPurify's URI allowlist. Force-keep them so they survive
+// sanitization. The hook is added and removed around the synchronous sanitize
+// call so it never leaks into other DOMPurify users.
+function keepRewrittenUrlAttributes(_node: Element, hookEvent: UponSanitizeAttributeHookEvent): void {
+  const name = hookEvent.attrName.toLowerCase();
+  if (name === 'href' || name.endsWith(':href') || name === 'src') {
+    hookEvent.forceKeepAttr = true;
+  }
+}
+
+function unwrapImageAnchors(root: ParentNode): void {
+  const anchors = Array.from(root.querySelectorAll('a'));
   for (const anchor of anchors) {
     const children = Array.from(anchor.childNodes);
     const onlyImage =
@@ -121,12 +107,15 @@ function unwrapImageAnchors(doc: Document): void {
 export function sanitizeMarkdownHtml(html: string, baseUrl?: string): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
-  const children = Array.from(doc.body.childNodes);
-  for (const child of children) {
-    if (sanitizeNode(child, baseUrl) === null) {
-      doc.body.removeChild(child);
-    }
-  }
+  rewriteUrlAttributes(doc, baseUrl);
   unwrapImageAnchors(doc);
-  return doc.body.innerHTML;
+  DOMPurify.addHook('uponSanitizeAttribute', keepRewrittenUrlAttributes);
+  try {
+    return DOMPurify.sanitize(doc.body.innerHTML, {
+      FORBID_TAGS: dangerousTags,
+      FORBID_ATTR: ['style', 'target'],
+    });
+  } finally {
+    DOMPurify.removeHook('uponSanitizeAttribute');
+  }
 }

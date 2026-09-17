@@ -36,7 +36,7 @@ import {
 } from '../worktree/gitOperations';
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { computeTokenConflicts, readExportDataFromUri, sanitizeImportedInstances } from './instanceImport';
+import { computeImportTokenConflicts, readExportDataFromUri, stripInstanceTokens } from './instanceImport';
 import { userFacingErrorMessage } from '../api/errors';
 import { probeServerVersion } from '../api/versionProbe';
 import { clearServerVersion } from '../api/serverVersion';
@@ -135,6 +135,18 @@ function isSameOrigin(a: string, b: string): boolean {
   }
 }
 
+/** Display label for a merge strategy, matching the webview's strategy picker. */
+function mergeStrategyLabel(strategy: 'merge' | 'rebase' | 'squash'): string {
+  switch (strategy) {
+    case 'squash':
+      return vscode.l10n.t('Squash and merge');
+    case 'rebase':
+      return vscode.l10n.t('Rebase and merge');
+    default:
+      return vscode.l10n.t('Create a merge commit');
+  }
+}
+
 /**
  * Session-level cache of proxied avatar fetches (same-origin URLs only; other
  * URLs are returned unchanged and never reach the cache). Forgejo avatar URLs
@@ -223,6 +235,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
    * into one directory (the later clone fails).
    */
   private readonly _bareCloneInFlight = new InFlightTasks();
+  /**
+   * Full instance entries (tokens included) from the latest import preview,
+   * kept host-side so token values never cross into the webview. Single slot:
+   * a new preview overwrites it, and a confirmed or cancelled import clears
+   * it. The `importInstances` confirmation rehydrates selected entries by id.
+   */
+  private _pendingImportInstances: ForgejoInstance[] | undefined;
 
   constructor(
     private readonly _context: vscode.ExtensionContext,
@@ -560,6 +579,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof id !== 'string') {
           return;
         }
+        const instance = this._findInstance(id);
+        if (!instance) {
+          return;
+        }
+        // The webview tracks no pending state for this command, so a declined
+        // confirmation needs no reply: the instance list simply stays as is.
+        if (!(await this._confirmDestructive(vscode.l10n.t('Remove instance "{0}"?', instance.name)))) {
+          return;
+        }
         await this._config.removeInstance(id);
         this._sendInstances();
         this._detectAndSendLinkedRepository();
@@ -584,30 +612,38 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'importInstances': {
-        const rawInstances = Array.isArray((message as { instances?: unknown[] }).instances)
-          ? (message as { instances: unknown[] }).instances
-          : undefined;
-        let instancesToImport: ForgejoInstance[] | undefined;
-        if (rawInstances) {
-          // The webview sends untrusted JSON: validate every entry instead of
-          // trusting the cast. If nothing survives, report it as an import
-          // failure rather than silently importing zero instances.
-          const { valid, dropped } = sanitizeImportedInstances(rawInstances);
-          if (valid.length === 0) {
-            logger.error(`importInstances: dropped all ${dropped} invalid instance entries from the webview`);
+        const rawIds = (message as { ids?: unknown }).ids;
+        const settings = (message as { settings?: ExportSettings }).settings;
+        if (Array.isArray(rawIds)) {
+          // Preview confirmation: rehydrate the selected entries from the
+          // host-side stash. Instance data sent by the webview (tokens in
+          // particular) is untrusted and ignored entirely.
+          const pending = this._pendingImportInstances;
+          this._pendingImportInstances = undefined;
+          if (!pending) {
+            this._reply('instancesImported', {
+              success: false,
+              error: vscode.l10n.t('The import preview is no longer available; please pick the file again'),
+            });
+            return;
+          }
+          const wanted = new Set(rawIds.filter((id): id is string => typeof id === 'string'));
+          const selected = pending.filter((instance) => wanted.has(instance.id));
+          if (selected.length === 0) {
             this._reply('instancesImported', {
               success: false,
               error: vscode.l10n.t('No valid instances found in the import data'),
             });
             return;
           }
-          if (dropped > 0) {
-            logger.info(`importInstances: dropped ${dropped} invalid instance entries from the webview`);
-          }
-          instancesToImport = valid;
+          await this._importInstances(selected, settings);
+          return;
         }
-        const settings = (message as { settings?: ExportSettings }).settings;
-        await this._importInstances(instancesToImport, settings);
+        await this._importInstances(undefined, settings);
+        return;
+      }
+      case 'cancelImportInstances': {
+        this._pendingImportInstances = undefined;
         return;
       }
       case 'setLocale': {
@@ -1036,6 +1072,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
           return;
         }
+        // Explicit cancel reply (like the import preview): the webview's
+        // loading state for this command would never clear otherwise.
+        if (!(await this._confirmDestructive(vscode.l10n.t('Delete issue #{0}? This cannot be undone.', index)))) {
+          this._reply('issueDeleted', { instanceId: instance.id, owner, repo, index, cancelled: true });
+          return;
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           await client.deleteIssue(owner, repo, index);
@@ -1306,6 +1348,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         ) {
           return;
         }
+        if (!(await this._confirmDestructive(vscode.l10n.t('Delete this tracked time entry?')))) {
+          this._reply('issueTimeDeleted', { instanceId: instance.id, owner, repo, index, id, cancelled: true });
+          return;
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           await client.deleteIssueTime(owner, repo, index, id);
@@ -1375,6 +1421,22 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           typeof index !== 'number' ||
           typeof dependencyIndex !== 'number'
         ) {
+          return;
+        }
+        // Only removal is destructive; creation needs no confirmation.
+        if (
+          message.command === 'removeIssueDependency' &&
+          !(await this._confirmDestructive(vscode.l10n.t('Remove the dependency on #{0}?', dependencyIndex)))
+        ) {
+          this._reply('issueDependencyChanged', {
+            instanceId: instance.id,
+            owner,
+            repo,
+            index,
+            dependencyIndex,
+            action: 'remove',
+            cancelled: true,
+          });
           return;
         }
         try {
@@ -1704,6 +1766,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof commentId !== 'number') {
           return;
         }
+        if (!(await this._confirmDestructive(vscode.l10n.t('Are you sure you want to delete this comment?')))) {
+          this._reply('issueCommentDeleted', { instanceId: instance.id, owner, repo, commentId, cancelled: true });
+          return;
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           await client.deleteIssueComment(owner, repo, commentId);
@@ -1789,6 +1855,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // is exactly the webview's loading key, so the late trigger's spinner
         // clears with it.
         await this._prMutationInFlight.run(`merge:${instance.id}:${owner}/${repo}#${index}`, async () => {
+          // The confirmation lives inside the guard: a second click landing
+          // while the dialog is open reuses this run, so the user is never
+          // prompted — nor merged — twice.
+          if (
+            !(await this._confirmDestructive(
+              vscode.l10n.t(
+                'Merge this pull request using "{0}"? This cannot be undone.',
+                mergeStrategyLabel(strategy as 'merge' | 'rebase' | 'squash'),
+              ),
+            ))
+          ) {
+            this._reply('pullRequestMerged', { instanceId: instance.id, owner, repo, index, cancelled: true });
+            return;
+          }
           try {
             const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
             await client.mergePullRequest(owner, repo, index, strategy);
@@ -1826,6 +1906,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // prefix keeps it a separate in-flight entry so a revert racing a merge
         // of the same PR is not silently dropped.
         await this._prMutationInFlight.run(`revert:${instance.id}:${owner}/${repo}#${index}`, async () => {
+          if (
+            !(await this._confirmDestructive(
+              vscode.l10n.t(
+                'Are you sure you want to revert this merge commit? This will create a new commit on the base branch.',
+              ),
+            ))
+          ) {
+            this._reply('revertMergeCommitResult', { instanceId: instance.id, owner, repo, index, cancelled: true });
+            return;
+          }
           try {
             const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
             const pr = await client.getPullRequestDetail(owner, repo, index);
@@ -2648,6 +2738,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         ) {
           return;
         }
+        if (
+          !(await this._confirmDestructive(vscode.l10n.t('Run workflow "{0}" on ref "{1}"?', workflowfilename, ref)))
+        ) {
+          this._reply('actionRunDispatched', {
+            instanceId: instance.id,
+            owner,
+            repo,
+            workflowfilename,
+            cancelled: true,
+          });
+          return;
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const run = await client.dispatchWorkflow(
@@ -2687,6 +2789,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
           return;
         }
+        if (!(await this._confirmDestructive(vscode.l10n.t('Cancel this run? In-progress jobs will be stopped.')))) {
+          this._reply('actionRunCancelled', { instanceId: instance.id, owner, repo, runId, cancelled: true });
+          return;
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           await client.cancelActionRun(owner, repo, runId);
@@ -2717,6 +2823,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         const { owner, repo, runId } = message;
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
+          return;
+        }
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t('Are you sure you want to delete this run? This cannot be undone.'),
+          ))
+        ) {
+          this._reply('actionRunDeleted', { instanceId: instance.id, owner, repo, runId, cancelled: true });
           return;
         }
         try {
@@ -3055,6 +3169,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!instance) {
           return;
         }
+        if (!(await this._confirmDestructive(vscode.l10n.t('Delete branch "{0}"?', branch)))) {
+          this._reply('repoBranchDeleted', { instanceId, owner, repo, branch, cancelled: true });
+          return;
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           await client.deleteBranch(owner, repo, branch);
@@ -3107,6 +3225,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         const instance = this._findInstance(instanceId);
         if (!instance) {
+          return;
+        }
+        if (!(await this._confirmDestructive(vscode.l10n.t('Delete tag "{0}"?', tag)))) {
+          this._reply('repoTagDeleted', { instanceId, owner, repo, tag, cancelled: true });
           return;
         }
         try {
@@ -3192,6 +3314,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         const instance = this._findInstance(instanceId);
         if (!instance) {
+          return;
+        }
+        if (!(await this._confirmDestructive(vscode.l10n.t('Delete release #{0}?', id)))) {
+          this._reply('repoReleaseDeleted', { instanceId, owner, repo, release: String(id), cancelled: true });
           return;
         }
         try {
@@ -3387,6 +3513,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               : `remove:${record.instanceId}:${record.owner}/${record.repo}#${record.prIndex}`
             : `remove:${id}`;
           await this._worktreeInFlight.run(key, async () => {
+            // The confirmation lives inside the guard (same reasoning as
+            // mergePullRequest). The webview tracks no pending state for
+            // removeWorktree, so a decline needs no reply: the record and
+            // the worktrees list simply stay as they are.
+            if (
+              !(await this._confirmDestructive(
+                vscode.l10n.t(
+                  'Delete this worktree? The local directory will be permanently deleted (not moved to the recycle bin) and any uncommitted changes will be lost.',
+                ),
+              ))
+            ) {
+              return;
+            }
             try {
               await this._worktreeManager.removeWorktree(id);
               this._reply('worktreeRemoved', { id });
@@ -3571,6 +3710,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  /**
+   * Mandatory host-side confirmation for destructive webview commands. The
+   * webview is untrusted: a compromised webview could skip its own confirm
+   * dialog, so the host always re-confirms before executing. Webview code
+   * must not show its own confirmation for these commands — that would
+   * double-prompt the user.
+   */
+  private async _confirmDestructive(message: string): Promise<boolean> {
+    const confirmLabel = vscode.l10n.t('Confirm');
+    const choice = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
+    return choice === confirmLabel;
+  }
+
   private async _exportInstances(ids?: string[]) {
     if (!this._view) {
       return;
@@ -3737,13 +3889,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
     try {
       const { instances, settings } = await readExportDataFromUri(uris[0]);
+      // Stash the full entries host-side; the webview only receives a
+      // token-less copy and later confirms by id, so token values never
+      // cross into the webview process in either direction.
+      this._pendingImportInstances = instances;
       const existingInstances = this._config.getInstances();
       const existingIds = existingInstances.map((instance) => instance.id);
-      // Conflict flags are computed host-side (parallel to `instances`) so
-      // stored tokens are never sent to the webview.
-      const tokenConflicts = computeTokenConflicts(instances, existingInstances);
-      this._reply('importInstancesPreview', { instances, existingIds, tokenConflicts, settings });
+      // Conflict flags (stored-token collisions and in-file duplicates) are
+      // computed host-side (parallel to `instances`) — see the message type.
+      const tokenConflicts = computeImportTokenConflicts(instances, existingInstances);
+      this._reply('importInstancesPreview', {
+        instances: stripInstanceTokens(instances),
+        existingIds,
+        tokenConflicts,
+        settings,
+      });
     } catch (error) {
+      this._pendingImportInstances = undefined;
       const err = userFacingErrorMessage(error);
       logger.error(`previewImportInstances failed: ${err}`);
       this._reply('importInstancesPreview', {
@@ -4131,6 +4293,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           existsOnDisk = false;
         }
       }
+      const worktreeId = `${instanceId}:${owner}/${repo}#issue-${index}`;
       let defaultBranch = 'main';
       if (!existsOnDisk) {
         const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
@@ -4147,6 +4310,27 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // cache clones alike (see fetchBranch).
         await fetchBranch(sourceRepoPath, remoteName, defaultBranch, instance.token);
         await createWorktreeWithNewBranch(sourceRepoPath, worktreePath, branch, 'FETCH_HEAD');
+      } else {
+        // Reopening a leftover directory needs no git work, but the recorded
+        // base branch should still be right. A recorded worktree already
+        // carries it (no API call, so reopening stays possible offline);
+        // otherwise resolve the default branch like the create path, falling
+        // back to 'main' when the server cannot be reached — the branch is
+        // display-only, so a wrong guess must not block the open.
+        const recorded = this._worktreeManager.getWorktree(worktreeId);
+        if (recorded) {
+          defaultBranch = recorded.baseBranch;
+        } else {
+          try {
+            const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+            const detail = await client.getRepoDetail(owner, repo);
+            defaultBranch = detail.repository.default_branch ?? 'main';
+          } catch (error) {
+            logger.error(
+              `startWorkOnIssue: could not resolve the default branch of ${owner}/${repo}: ${userFacingErrorMessage(error)}`,
+            );
+          }
+        }
       }
 
       // Record the worktree so the Settings UI can delete it and the bare
@@ -4154,7 +4338,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // timing as openPrWorktree: in current-window mode the record has to
       // be written before openFolder reloads the window.
       const worktree: WorktreeInfo = {
-        id: `${instanceId}:${owner}/${repo}#issue-${index}`,
+        id: worktreeId,
         kind: 'issue',
         instanceId,
         owner,

@@ -105,15 +105,13 @@ function handleImport() {
   state.previewImportInstances();
 }
 
-async function handleRemoveInstance(id: string) {
-  const instance = state.instances.value.find((i) => i.id === id);
-  if (!instance) {
+// Removal is confirmed host-side (the host re-prompts before executing);
+// the webview must not add its own confirmation.
+function handleRemoveInstance(id: string) {
+  if (!state.instances.value.some((i) => i.id === id)) {
     return;
   }
-  const confirmed = await state.showConfirm(t('settings.removeConfirm', { name: instance.name }));
-  if (confirmed) {
-    state.removeInstance(id);
-  }
+  state.removeInstance(id);
 }
 
 function handleWorktreeOpenModeChange(event: Event) {

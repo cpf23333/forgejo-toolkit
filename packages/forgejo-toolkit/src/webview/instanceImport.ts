@@ -49,11 +49,35 @@ export function computeTokenConflicts(imported: ForgejoInstance[], existing: For
 }
 
 /**
- * Validate raw instance entries (from an export file or a webview import
- * message) and rebuild them as plain objects carrying only the known fields.
- * Invalid entries are dropped and counted. `syncApiUrlsToInstanceUrl` is kept
- * only when it is actually a boolean, so older exports without it round-trip
- * to `undefined`.
+ * Token-conflict flags for the import preview, parallel to `imported`. On top
+ * of computeTokenConflicts this also flags tokens duplicated within the file
+ * itself — the webview used to run that check on the raw tokens before token
+ * values stopped crossing over (its conflict predicate ORed the two).
+ */
+export function computeImportTokenConflicts(imported: ForgejoInstance[], existing: ForgejoInstance[]): boolean[] {
+  const conflicts = computeTokenConflicts(imported, existing);
+  const counts = new Map<string, number>();
+  for (const instance of imported) {
+    counts.set(instance.token, (counts.get(instance.token) ?? 0) + 1);
+  }
+  return imported.map((instance, index) => conflicts[index] || (counts.get(instance.token) ?? 0) > 1);
+}
+
+/**
+ * Copies of the imported instances with the token blanked out, for the
+ * preview payload sent to the webview. The preview only renders non-secret
+ * fields (conflict flags travel in a parallel array); token values stay in
+ * the extension host and are rehydrated by id when the import is confirmed.
+ */
+export function stripInstanceTokens(instances: ForgejoInstance[]): ForgejoInstance[] {
+  return instances.map((instance) => ({ ...instance, token: '' }));
+}
+
+/**
+ * Validate raw instance entries from an export file and rebuild them as
+ * plain objects carrying only the known fields. Invalid entries are dropped
+ * and counted. `syncApiUrlsToInstanceUrl` is kept only when it is actually
+ * a boolean, so older exports without it round-trip to `undefined`.
  */
 export function sanitizeImportedInstances(items: unknown[]): { valid: ForgejoInstance[]; dropped: number } {
   const valid: ForgejoInstance[] = [];

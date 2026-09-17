@@ -21,7 +21,6 @@ const { stateMock } = vi.hoisted(() => ({
     deleteRepoRelease: vi.fn(),
     createRepoRelease: vi.fn(),
     uploadReleaseAttachment: vi.fn(),
-    showConfirm: vi.fn(async () => true),
   },
 }));
 

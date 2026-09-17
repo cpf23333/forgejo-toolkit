@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as crypto from 'crypto';
 import {
+  computeImportTokenConflicts,
   computeTokenConflicts,
   decryptExportData,
   MAX_IMPORT_PBKDF2_ITERATIONS,
   sanitizeImportedInstances,
+  stripInstanceTokens,
 } from '../instanceImport';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
@@ -42,6 +44,38 @@ describe('computeTokenConflicts', () => {
     const existing = [instance('old-1', '')];
     expect(computeTokenConflicts(imported, existing)).toEqual([true]);
     expect(computeTokenConflicts([instance('old-1', '')], existing)).toEqual([false]);
+  });
+});
+
+describe('computeImportTokenConflicts', () => {
+  it('flags tokens duplicated within the file even without stored instances', () => {
+    const imported = [instance('new-1', 'tok-a'), instance('new-2', 'tok-a'), instance('new-3', 'tok-b')];
+    expect(computeImportTokenConflicts(imported, [])).toEqual([true, true, false]);
+  });
+
+  it('flags duplicates of an empty token like the old webview check did', () => {
+    const imported = [instance('new-1', ''), instance('new-2', '')];
+    expect(computeImportTokenConflicts(imported, [])).toEqual([true, true]);
+  });
+
+  it('ORs in-file duplicates with stored-instance conflicts', () => {
+    const imported = [instance('new-1', 'tok-a'), instance('new-2', 'tok-a'), instance('new-3', 'tok-c')];
+    const existing = [instance('old-1', 'tok-c')];
+    expect(computeImportTokenConflicts(imported, existing)).toEqual([true, true, true]);
+  });
+});
+
+describe('stripInstanceTokens', () => {
+  it('blanks tokens while keeping every other field intact', () => {
+    const imported: ForgejoInstance[] = [
+      { ...instance('a', 'tok-a'), syncApiUrlsToInstanceUrl: true },
+      instance('b', 'tok-b'),
+    ];
+    const stripped = stripInstanceTokens(imported);
+    expect(stripped[0]).toEqual({ ...imported[0], token: '' });
+    expect(stripped[1]).toEqual({ ...imported[1], token: '' });
+    // The stash keeps the real tokens; stripping must not mutate it.
+    expect(imported[0].token).toBe('tok-a');
   });
 });
 

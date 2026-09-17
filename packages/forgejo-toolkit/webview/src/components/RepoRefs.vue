@@ -202,31 +202,27 @@ async function handleSubmit(data: Record<string, unknown>) {
   }
 }
 
-async function removeBranch(name?: string) {
+// Deletions are confirmed host-side (the host re-prompts before executing);
+// the webview must not add its own confirmation.
+function removeBranch(name?: string) {
   if (!name) {
     return;
   }
-  if (await state.showConfirm(t('dashboard.repoRefs.deleteBranchConfirm', { name }))) {
-    state.deleteRepoBranch(props.instanceId, props.owner, props.repo, name);
-  }
+  state.deleteRepoBranch(props.instanceId, props.owner, props.repo, name);
 }
 
-async function removeTag(name?: string) {
+function removeTag(name?: string) {
   if (!name) {
     return;
   }
-  if (await state.showConfirm(t('dashboard.repoRefs.deleteTagConfirm', { name }))) {
-    state.deleteRepoTag(props.instanceId, props.owner, props.repo, name);
-  }
+  state.deleteRepoTag(props.instanceId, props.owner, props.repo, name);
 }
 
-async function removeRelease(id?: number) {
+function removeRelease(id?: number) {
   if (id === undefined || id === null) {
     return;
   }
-  if (await state.showConfirm(t('dashboard.repoRefs.deleteReleaseConfirm', { id: String(id) }))) {
-    state.deleteRepoRelease(props.instanceId, props.owner, props.repo, id);
-  }
+  state.deleteRepoRelease(props.instanceId, props.owner, props.repo, id);
 }
 </script>
 
