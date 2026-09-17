@@ -60,8 +60,11 @@ import { clearServerVersions, getServerVersion, setServerVersion } from '../../a
 import {
   clearLinkedRepositoryCache,
   cloneRepository,
+  createWorktreeFromBranch,
   createWorktreeWithNewBranch,
+  deleteBranch,
   fetchBranch,
+  fetchPullRequestHead,
   findLocalRepo,
   getRefCommitSha,
   isCurrentWorkspaceBaseRepo,
@@ -69,6 +72,7 @@ import {
   removeWorktreeAndPrune,
   resolveRemoteForRepo,
   revertMergeCommit,
+  validatePrWorktree,
 } from '../../worktree/gitOperations';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
@@ -965,6 +969,155 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       // picker offered "Open cached bare repository") and never clones again.
       expect(vi.mocked(cloneRepository)).toHaveBeenCalledTimes(1);
       expect(postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened')).toHaveLength(2);
+    });
+  });
+
+  describe('openPrWorktree recorded worktree revalidation', () => {
+    let worktreeDir: string;
+
+    beforeEach(() => {
+      worktreeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorded-worktree-'));
+      vi.mocked(validatePrWorktree).mockReset();
+      vi.mocked(fetchPullRequestHead).mockReset();
+      vi.mocked(createWorktreeFromBranch).mockReset();
+      vi.mocked(deleteBranch).mockClear();
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+    });
+
+    afterEach(() => {
+      fs.rmSync(worktreeDir, { recursive: true, force: true });
+    });
+
+    function seedRecordedPrWorktree(headSha: string) {
+      const worktree = {
+        id: `${testInstance.id}:owner/repo#pr-1`,
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        prIndex: 1,
+        prTitle: 'Demo PR',
+        headBranch: 'feature',
+        headSha,
+        baseBranch: 'main',
+        sourceRepoPath: '/src/repo',
+        worktreePath: worktreeDir,
+        createdAt: 0,
+      };
+      return context.globalState.update('forgejoToolkit.worktrees', [worktree]);
+    }
+
+    it('reopens a recorded worktree directly when the PR head is unchanged', async () => {
+      await seedRecordedPrWorktree('abc1234567890');
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'abc1234567890' },
+        base: { ref: 'main' },
+      });
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
+
+      const opened = postedMessages(fake.posted).find((m) => m.command === 'worktreeOpened');
+      expect(opened).toMatchObject({ existed: true });
+      expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(worktreeDir, true);
+      // No rebuild: the head sha matched the record, so nothing was fetched or recreated.
+      expect(clientMocks.getPullRequestDetail).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(validatePrWorktree)).not.toHaveBeenCalled();
+      expect(vi.mocked(fetchPullRequestHead)).not.toHaveBeenCalled();
+      expect(vi.mocked(createWorktreeFromBranch)).not.toHaveBeenCalled();
+    });
+
+    it('rebuilds a recorded worktree when the PR head changed', async () => {
+      await seedRecordedPrWorktree('old-sha-0000001');
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'newsha1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo' as never);
+      vi.mocked(validatePrWorktree).mockResolvedValue('stale');
+      vi.mocked(getRefCommitSha).mockResolvedValue('newsha1234567890');
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
+
+      // The recorded directory went through the same stale validation as a
+      // leftover directory (which removes it and its throwaway branch).
+      expect(vi.mocked(validatePrWorktree)).toHaveBeenCalledWith('/src/repo', worktreeDir, 'newsha1234567890');
+      // The rebuild fetched the new head onto a new throwaway branch.
+      expect(vi.mocked(fetchPullRequestHead)).toHaveBeenCalledWith(
+        '/src/repo',
+        'origin',
+        1,
+        'pr-1-newsha1',
+        'secret-token',
+      );
+      expect(vi.mocked(createWorktreeFromBranch)).toHaveBeenCalled();
+      const opened = postedMessages(fake.posted).find((m) => m.command === 'worktreeOpened');
+      expect(opened).toMatchObject({ existed: false });
+      // The PR detail fetched for the revalidation is reused for the rebuild.
+      expect(clientMocks.getPullRequestDetail).toHaveBeenCalledTimes(1);
+      // The record now tracks the new head.
+      const records = context.globalState.get('forgejoToolkit.worktrees') as Array<Record<string, unknown>>;
+      expect(records).toHaveLength(1);
+      expect(records[0].headSha).toBe('newsha1234567890');
+    });
+
+    it('reports an error instead of opening when the current head cannot be fetched', async () => {
+      await seedRecordedPrWorktree('abc1234567890');
+      clientMocks.getPullRequestDetail.mockRejectedValue(new Error('network down'));
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeError'));
+
+      const error = postedMessages(fake.posted).find((m) => m.command === 'worktreeError');
+      expect(error).toMatchObject({
+        error: 'network down',
+        operation: 'open',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 1,
+      });
+      expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
+    });
+
+    it('does not revalidate issue worktrees', async () => {
+      const issueWorktree = {
+        id: `${testInstance.id}:owner/repo#issue-5`,
+        kind: 'issue',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        prIndex: 5,
+        prTitle: 'Issue #5',
+        headBranch: 'issue-5-fix-bug',
+        headSha: '',
+        baseBranch: 'main',
+        sourceRepoPath: '/src/repo',
+        worktreePath: worktreeDir,
+        createdAt: 0,
+      };
+      await context.globalState.update('forgejoToolkit.worktrees', [issueWorktree]);
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'abc1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo' as never);
+      vi.mocked(validatePrWorktree).mockResolvedValue('missing');
+      vi.mocked(getRefCommitSha).mockResolvedValue('abc1234567890');
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
+
+      // The issue record is invisible to the PR reopen flow: its directory was
+      // never opened or revalidated and the record stays untouched.
+      expect(vi.mocked(openWorktree)).not.toHaveBeenCalledWith(worktreeDir, true);
+      expect(vi.mocked(validatePrWorktree)).not.toHaveBeenCalledWith('/src/repo', worktreeDir, expect.anything());
+      const records = context.globalState.get('forgejoToolkit.worktrees') as Array<Record<string, unknown>>;
+      const issueRecord = records.find((r) => r.id === issueWorktree.id);
+      expect(issueRecord).toMatchObject({ kind: 'issue', headBranch: 'issue-5-fix-bug' });
     });
   });
 

@@ -4225,33 +4225,79 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const openInNewWindow = openMode === 'newWindow';
 
     const existing = this._worktreeManager.findWorktree(instanceId, owner, repo, index);
+    // PR detail fetched for the head-sha revalidation of a recorded worktree;
+    // the create path below reuses it instead of issuing a second API call.
+    let prefetchedPr: Awaited<ReturnType<ForgejoClient['getPullRequestDetail']>> | undefined;
     if (existing) {
       const existsOnDisk = await fs.promises.access(existing.worktreePath).then(
         () => true,
         () => false,
       );
       if (existsOnDisk) {
+        // A recorded worktree is only reopened as-is when the PR head still
+        // matches the recorded sha; after a force-push the outdated directory
+        // must not be opened silently. findWorktree only returns PR records,
+        // so issue worktrees (which have no head sha) never reach this check.
+        // When the current head cannot be determined, the open fails the same
+        // way the no-record create path does instead of guessing.
         try {
-          const opened = await openWorktree(existing.worktreePath, openInNewWindow);
-          if (!opened) {
-            this._reply('worktreeCancelled', { instanceId, owner, repo, index });
-            return;
+          const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+          prefetchedPr = await client.getPullRequestDetail(owner, repo, index);
+        } catch (error) {
+          const err = userFacingErrorMessage(error);
+          logger.error(`openPrWorktree head check failed for ${owner}/${repo}#${index}: ${err}`);
+          this._reply('worktreeError', { error: err, operation: 'open', instanceId, owner, repo, index });
+          return;
+        }
+        const currentHeadSha = prefetchedPr.head?.sha;
+        if (!currentHeadSha) {
+          this._reply('worktreeError', {
+            error: vscode.l10n.t('Could not determine PR head branch or sha'),
+            operation: 'open',
+            instanceId,
+            owner,
+            repo,
+            index,
+          });
+          return;
+        }
+        if (currentHeadSha === existing.headSha) {
+          try {
+            const opened = await openWorktree(existing.worktreePath, openInNewWindow);
+            if (!opened) {
+              this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+              return;
+            }
+            this._reply('worktreeOpened', { worktree: existing, existed: true });
+          } catch (error) {
+            const err = userFacingErrorMessage(error);
+            this._reply('worktreeError', { error: err, operation: 'open', instanceId, owner, repo, index });
           }
-          this._reply('worktreeOpened', { worktree: existing, existed: true });
+          return;
+        }
+        // Stale record: remove the outdated directory and its throwaway
+        // branch through the same stale semantics as a leftover directory,
+        // then fall through to the create path with the record kept;
+        // addWorktree overwrites it with the new head. The recorded path is
+        // revalidated explicitly because a renamed PR title changes the path
+        // the create path computes, which would otherwise orphan this one.
+        try {
+          await validatePrWorktree(existing.sourceRepoPath, existing.worktreePath, currentHeadSha);
         } catch (error) {
           const err = userFacingErrorMessage(error);
           this._reply('worktreeError', { error: err, operation: 'open', instanceId, owner, repo, index });
+          return;
         }
-        return;
+      } else {
+        // The recorded worktree directory is gone from disk; drop the stale
+        // record and fall through to recreate it.
+        await this._worktreeManager.forgetWorktree(existing.id);
       }
-      // The recorded worktree directory is gone from disk; drop the stale
-      // record and fall through to recreate it.
-      await this._worktreeManager.forgetWorktree(existing.id);
     }
 
     try {
       const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-      const pr = await client.getPullRequestDetail(owner, repo, index);
+      const pr = prefetchedPr ?? (await client.getPullRequestDetail(owner, repo, index));
       const headBranch = pr.head?.ref;
       const headSha = pr.head?.sha;
       const baseBranch = pr.base?.ref ?? 'main';

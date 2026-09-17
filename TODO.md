@@ -8,11 +8,14 @@
 
 - [ ] 根 README 引用 `docs/screenshots/` 10 张图片，目录不存在（发布前补截图或移除引用）
 
+### 规划中的功能
+
+- [ ] MCP Server Phase 1（只读 8 工具）——方案见 `docs/architecture/mcp-server.md`，`engines.vscode` 抬至 ~1.102 已批准，待开工
+
 ### 第六轮复审缓议项（2026-09-15 四方向复审已修完，以下已评估暂不动）
 
-- [ ] S2 破坏性操作（delete*/merge/dispatchWorkflow）确认全靠 webview 自发 showConfirm，host 侧无独立确认——host 弹 modal 会改变交互形态，待拍板
+- [ ] S2 破坏性操作（delete\*/merge/dispatchWorkflow）确认全靠 webview 自发 showConfirm，host 侧无独立确认——host 弹 modal 会改变交互形态，待拍板
 - [ ] S5 导入预览把文件中的 token 明文送入 webview 进程——改 host 侧暂存+索引回指，收益/工程量比一般
-- [ ] C9 有记录的 PR worktree 重开不校验 headSha，PR 更新后静默打开旧代码——可能是「记录即真相」的有意设计，待确认意图
 - [ ] P5 500 条列表全量渲染无分页/虚拟化——大仓库才感知，待性能实测后定
 - [ ] P6 renderMarkdown 无 in-flight 去重——并发挂载同 cacheKey 发重复请求，顺手级
 - [ ] DOMPurify 替换手工 sanitizer——license（Apache-2.0 OR MPL-2.0）与 bundle 体积评估后再定
