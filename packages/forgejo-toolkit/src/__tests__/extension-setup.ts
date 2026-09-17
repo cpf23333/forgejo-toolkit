@@ -1,4 +1,10 @@
 import { vi } from 'vitest';
+import { setForgejoClientHost } from '../api/clientHost';
+import { createVscodeClientHost } from '../api/vscodeClientHost';
+
+// The client is host-agnostic; tests exercise the extension-host behavior
+// (auth error toasts) through the vscode-backed host hooks.
+setForgejoClientHost(createVscodeClientHost());
 
 vi.mock('vscode', () => ({
   window: {

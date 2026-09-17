@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+import { passthroughTranslate, type TranslateFn } from './translate';
 
 export interface ServerVersion {
   major: number;
@@ -69,8 +69,10 @@ export function clearServerVersions(): void {
  * Throws a localized, actionable error when the cached server version is
  * known to predate the Actions API. Unknown or unparseable versions pass —
  * the version probe is best-effort and must never block a working instance.
+ * The extension passes vscode.l10n.t as `t`; headless consumers keep the
+ * English passthrough default.
  */
-export function assertActionsSupported(url: string): void {
+export function assertActionsSupported(url: string, t: TranslateFn = passthroughTranslate): void {
   const raw = getServerVersion(url);
   if (!raw) {
     return;
@@ -80,7 +82,7 @@ export function assertActionsSupported(url: string): void {
     return;
   }
   throw new Error(
-    vscode.l10n.t(
+    t(
       'This feature requires Forgejo {0} or newer, but this server reports version {1}.',
       MIN_ACTIONS_VERSION_TEXT,
       raw,

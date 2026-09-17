@@ -12,3 +12,6 @@ pnpm-lock.yaml
 yarn.lock
 *.vsix
 out/**/*.map
+
+# MCP server TypeScript sources ship bundled as out/mcp-server.js
+mcp/**

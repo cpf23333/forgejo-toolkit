@@ -13,14 +13,21 @@ import { PullReviewCommentController } from './comments/pullReviewCommentControl
 import { NotificationPoller } from './notifications/notificationPoller';
 import { CreatePrStatusBarController } from './statusBar/createPrStatusBar';
 import { userFacingErrorMessage } from './api/errors';
+import { setForgejoClientHost } from './api/clientHost';
+import { createVscodeClientHost } from './api/vscodeClientHost';
 import { probeServerVersion } from './api/versionProbe';
 import { registerForgejoRemoteSourceProviders } from './clone/remoteSourceProvider';
+import { registerMcpServerProvider } from './mcpServerProvider';
 import { maybeShowWelcomeOnboarding } from './welcome';
 import { logger } from './logger';
 
 export async function activate(context: vscode.ExtensionContext) {
   logger.watch();
   context.subscriptions.push({ dispose: () => logger.dispose() });
+
+  // Auth-failure toasts and localized client messages go through these hooks;
+  // the headless MCP server process keeps the no-op defaults.
+  setForgejoClientHost(createVscodeClientHost(logger));
 
   const config = new ConfigManager(context);
   try {
@@ -109,6 +116,9 @@ export async function activate(context: vscode.ExtensionContext) {
   // Forgejo instances as clone sources in the "Git: Clone" quick pick.
   // Degrades to a log line when the built-in git extension is unavailable.
   void registerForgejoRemoteSourceProviders(context, config);
+
+  // Expose the configured instances to agent mode as MCP tools.
+  registerMcpServerProvider(context, config, logger);
 
   logger.info('Forgejo Toolkit extension activated');
 }

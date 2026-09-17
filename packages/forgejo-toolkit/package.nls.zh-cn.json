@@ -28,5 +28,6 @@
   "walkthrough.openDashboard.title": "打开仪表板",
   "walkthrough.openDashboard.description": "浏览仓库、Issue、Pull Request 和通知。",
   "walkthrough.publishOrCreatePr.title": "发布仓库或创建 PR",
-  "walkthrough.publishOrCreatePr.description": "把本地仓库推送到实例，或从当前分支发起 Pull Request。"
+  "walkthrough.publishOrCreatePr.description": "把本地仓库推送到实例，或从当前分支发起 Pull Request。",
+  "mcpServerDefinitionProvider.instances.label": "Forgejo Toolkit 实例"
 }

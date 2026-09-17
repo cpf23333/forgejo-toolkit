@@ -2,9 +2,9 @@ import * as fs from 'fs';
 import { createHash } from 'crypto';
 import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
-import * as vscode from 'vscode';
 import { buildUrl, client as baseClient, encodePathSegment } from '@cpf23333-forgejo-toolkit/shared/request';
-import { toApiError } from './errors';
+import { toApiError } from './errors-core';
+import { getForgejoClientHost } from './clientHost';
 import { assertActionsSupported } from './serverVersion';
 import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
@@ -136,7 +136,6 @@ import type {
   User,
   WatchInfo,
 } from '@cpf23333-forgejo-toolkit/api';
-import type { Logger } from '../logger';
 import type {
   ForgejoActionRunJob,
   ForgejoActionArtifact,
@@ -186,15 +185,24 @@ const MAX_TREE_PAGES = 50;
 export const API_REQUEST_TIMEOUT_MS = 30_000;
 
 /**
+ * The logging surface ForgejoClient uses. Structural (not the extension's
+ * Logger class) so headless consumers — the MCP server process — can supply
+ * a console-backed implementation without pulling in the `vscode` module.
+ */
+export interface ClientLogger {
+  isDebugEnabled(): boolean;
+  debug(message: string): void;
+  info(message: string): void;
+  error(message: string): void;
+}
+
+/**
  * Longer budget for large buffered downloads (CI logs up to 10 MB, PR diffs):
  * the generic 30 s cap aborts them mid-transfer on slow networks. Artifact
  * streaming uses an idle watchdog instead of a total cap (see
  * downloadActionArtifactToFile).
  */
 export const API_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
-
-// 403 scope toasts are deduped per instance+scope for the whole session.
-const shownPermissionErrorKeys = new Set<string>();
 
 interface TreeCacheEntry {
   value: GitEntry[];
@@ -278,7 +286,7 @@ export class ForgejoClient {
   constructor(
     private url: string,
     private token: string,
-    private logger?: Logger,
+    private logger?: ClientLogger,
     syncApiUrlsToInstanceUrl?: boolean,
   ) {
     this.configuredOrigin = new URL(this.url.replace(/\/$/, '')).origin;
@@ -302,7 +310,7 @@ export class ForgejoClient {
    * unknown) so users get an actionable message instead.
    */
   private _assertActions(): void {
-    assertActionsSupported(this.url);
+    assertActionsSupported(this.url, getForgejoClientHost().t);
   }
 
   /**
@@ -1774,6 +1782,10 @@ export class ForgejoClient {
     };
   }
 
+  /**
+   * Routes auth failures (401, scope-related 403) to the registered host:
+   * the extension shows fix-guidance toasts, headless consumers ignore them.
+   */
   private _notifyIfPermissionError(errorMessage: string) {
     const match = errorMessage.match(/Forgejo API error (\d+):\s*([\s\S]+)/);
     if (!match) {
@@ -1781,41 +1793,10 @@ export class ForgejoClient {
     }
     const [, status, body] = match;
     const text = body.trim();
-
-    const openTokenSettings = vscode.l10n.t('Open Token Settings');
-    const openSettings = vscode.l10n.t('Open Settings');
-    const notify = (key: string, message: string) => {
-      // One toast per instance+reason per session: pollers and manual
-      // refreshes would otherwise re-toast the same failure on every request.
-      if (shownPermissionErrorKeys.has(key)) {
-        return;
-      }
-      shownPermissionErrorKeys.add(key);
-      void vscode.window.showErrorMessage(message, openTokenSettings, openSettings).then(
-        (choice) => {
-          if (choice === openTokenSettings) {
-            const tokenSettingsUrl = `${this.url.replace(/\/$/, '')}/user/settings/applications`;
-            void vscode.env.openExternal(vscode.Uri.parse(tokenSettingsUrl));
-          } else if (choice === openSettings) {
-            void vscode.commands.executeCommand('forgejoToolkit.openSettings');
-          }
-        },
-        (error: unknown) => {
-          this.logger?.error(
-            `Failed to show permission error notification: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        },
-      );
-    };
+    const host = getForgejoClientHost();
 
     if (status === '401') {
-      // The token was rejected outright (deleted, expired, or the instance
-      // was reinstalled): point the user at the token page and the instance
-      // edit form instead of leaving them with a bare error.
-      notify(
-        `${this.url}|401`,
-        vscode.l10n.t('Invalid or expired credentials for {0}. Update the access token.', this.url),
-      );
+      host.notifyInvalidCredentials(this.url);
       return;
     }
 
@@ -1823,17 +1804,9 @@ export class ForgejoClient {
       return;
     }
     // Forgejo names the missing scope in the error body ("token does not have
-    // at least one of required scope(s): [write:issue]"); surface it so the
-    // user knows exactly which scope to grant.
+    // at least one of required scope(s): [write:issue]").
     const scopeMatch = text.match(/required scope\(s\): \[([^\]]+)\]/i);
-    const message = scopeMatch
-      ? vscode.l10n.t(
-          'Permission denied by {0}: the access token lacks the required scope {1}.',
-          this.url,
-          scopeMatch[1],
-        )
-      : vscode.l10n.t('Permission denied by {0}: {1}. The access token may lack the required scope.', this.url, text);
-    notify(`${this.url}|${text}`, message);
+    host.notifyInsufficientScope(this.url, { scope: scopeMatch?.[1], body: text });
   }
 }
 
