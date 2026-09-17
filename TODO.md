@@ -10,15 +10,11 @@
 
 ### 规划中的功能
 
-- [ ] MCP Server Phase 1（只读 8 工具）——方案见 `docs/architecture/mcp-server.md`，`engines.vscode` 抬至 ~1.102 已批准，待开工
+- [ ] MCP Server Phase 1（只读 8 工具）——方案见 `docs/architecture/mcp-server.md`，实现已完成待提交；待用户在 VS Code agent mode 冒烟后补步骤 5 文档（README/FAQ/ROADMAP、方案转 spec）
 
 ### 第六轮复审缓议项（2026-09-15 四方向复审已修完，以下已评估暂不动）
 
 - [ ] P5 500 条列表全量渲染无分页/虚拟化——大仓库才感知，待性能实测后定
-- [ ] P6 renderMarkdown 无 in-flight 去重——并发挂载同 cacheKey 发重复请求，顺手级
-- [ ] DOMPurify 替换手工 sanitizer——license（Apache-2.0 OR MPL-2.0）与 bundle 体积评估后再定
-- [ ] `useAppState.test.ts` 的 `openNewIssue` 测试存在顺序脆弱性（依赖靠前测试已缓存懒加载 chunk），测试顺序变化时需改 `vi.waitFor`
-- [ ] P3 懒加载分包只做了 vite 配置静态分析，下次真实打包后实开 webview 确认动态 chunk 加载正常
 
 ### 低优先级（历史遗留）
 
@@ -27,7 +23,7 @@
 
 ### 走查方向
 
-- [ ] 动态端到端走查：重新打包 vsix 后用 tools/ui-review harness 实测功能闭环（多 remote 关联、关联仓库切换器、中文详情页、Publish 按钮新行为、评论 thread 清理、懒加载分包实包验证）
+- [ ] 动态端到端走查：重新打包 vsix 后用 tools/ui-review harness 实测功能闭环（多 remote 关联、关联仓库切换器、中文详情页、Publish 按钮新行为、评论 thread 清理）
 - [ ] `prFileSystemProvider` 大文件行为实测：contents API 对大文件可能不返回 `content` 字段，PR diff 里大文件会显示为空字节（与 repoFileProvider 一致，属既有行为），值得实测一次确认
 - [ ] 性能实测：激活耗时、懒加载后 bundle 实测体积（静态部分已完成并修复 P1-P4）
 

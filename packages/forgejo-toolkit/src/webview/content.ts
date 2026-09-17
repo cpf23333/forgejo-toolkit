@@ -76,9 +76,15 @@ export function getWebviewContent(
   // stays blocked (cleartext). The webview never fetches directly —
   // everything goes through postMessage — so connect-src stays limited to
   // webview resources.
+  // script-src pairs the nonce with 'strict-dynamic' so the trust of the
+  // nonce'd entry script propagates to its module graph — the code-split
+  // chunks (rolldown runtime, lazy views) are plain URL fetches that carry no
+  // nonce and would otherwise be blocked. webview.cspSource is the CSP2
+  // fallback for engines without strict-dynamic support (ignored where
+  // strict-dynamic is honored).
   const instanceOrigins = toInstanceOrigins(options?.instanceUrls ?? []);
   const imgSrc = [`'self'`, 'blob:', 'data:', 'https:', webview.cspSource, ...instanceOrigins].join(' ');
-  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${imgSrc}; connect-src 'self' ${webview.cspSource};">`;
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}' 'strict-dynamic' ${webview.cspSource}; img-src ${imgSrc}; connect-src 'self' ${webview.cspSource};">`;
 
   html = html.replace(/(src|href)="([^"]*)"/g, (match, attr, value) => {
     if (value.startsWith('http') || value.startsWith('data:')) {
