@@ -1,13 +1,9 @@
 {
   "app": {
-    "title": "Forgejo Toolkit",
-    "openOnboarding": "Open Setup Guide",
-    "back": "← Back",
-    "home": "Home"
+    "back": "← Back"
   },
   "common": {
     "confirm": "Confirm",
-    "cancel": "Cancel",
     "discardChangesConfirm": "You have unsaved changes. Discard them?",
     "requestTimeout": "Request timed out. Please try again.",
     "requestFailed": "The request failed. Please try again.",
@@ -75,13 +71,9 @@
     "finish": "Open Dashboard"
   },
   "dashboard": {
-    "title": "Forgejo Toolkit",
-    "settings": "Settings",
     "emptyTitle": "No Forgejo instances configured.",
     "emptyHint": "Click {button} to connect to your Forgejo server.",
     "openOnboarding": "Open Setup Guide",
-    "connectedInstances": "Connected Instances ({count})",
-    "viewTitle": "Dashboard",
     "tabs": {
       "repositories": "Repositories",
       "issues": "Issues",
@@ -128,7 +120,6 @@
       "clearSearch": "Clear search",
       "history": "File history",
       "historyTitle": "History: {path}",
-      "viewVersion": "View this version",
       "noHistory": "No history found for this file."
     },
     "search": {
@@ -182,24 +173,20 @@
       "emptyReleases": "No releases.",
       "createBranch": "New branch",
       "deleteBranch": "Delete branch",
-      "createBranchPrompt": "New branch name:",
       "createBranchFromPrompt": "Create from (branch/tag/commit):",
       "deleteBranchConfirm": "Delete branch \"{name}\"?",
       "createTag": "New tag",
       "deleteTag": "Delete tag",
-      "createTagPrompt": "New tag name:",
       "createTagTargetPrompt": "Target (branch/tag/commit):",
       "createTagMessagePrompt": "Tag message (optional):",
       "deleteTagConfirm": "Delete tag \"{name}\"?",
       "createRelease": "New release",
       "editRelease": "Edit release",
       "deleteRelease": "Delete release",
-      "createReleaseTagPrompt": "Release tag name:",
       "createReleaseNamePrompt": "Release title:",
       "deleteReleaseConfirm": "Delete release #{id}?",
       "nameLabel": "Name",
       "releaseTagNameLabel": "Tag name",
-      "releaseTargetCommitishLabel": "Target commit/branch",
       "releaseBodyLabel": "Release notes",
       "selectTarget": "-- select target --",
       "hideArchiveLinks": "Hide automatically generated archives",
@@ -211,8 +198,6 @@
     },
     "branches": "Branches",
     "defaultBranch": "default",
-    "readme": "README",
-    "noReadme": "No README",
     "remove": "Remove",
     "state": {
       "open": "Open",
@@ -244,7 +229,6 @@
     "actionRun": {
       "jobs": "Jobs",
       "artifacts": "Artifacts",
-      "logs": "Logs",
       "download": "Download",
       "workflowFile": "Workflow file",
       "selectWorkflow": "Select a workflow file",
@@ -255,7 +239,6 @@
       "inputKey": "Input key",
       "inputValue": "Input value",
       "addInput": "Add input",
-      "triggerWorkflow": "Trigger workflow",
       "untitledJob": "Untitled job",
       "noLogs": "No logs available.",
       "cancelRun": "Cancel run",
@@ -297,13 +280,9 @@
       "openedBy": "Opened by"
     },
     "detail": {
-      "status": "Status",
       "deleteIssueConfirm": "Delete issue #{number}? This cannot be undone.",
       "deleteTimeConfirm": "Delete this tracked time entry?",
       "removeDependencyConfirm": "Remove the dependency on #{number}?",
-      "author": "Author",
-      "createdAt": "Created",
-      "updatedAt": "Updated",
       "closedAt": "Closed",
       "mergedAt": "Merged",
       "labels": "Labels",
@@ -369,7 +348,6 @@
       "addCommentPlaceholder": "Write a comment...",
       "postComment": "Post comment",
       "editComment": "Edit comment",
-      "deleteComment": "Delete comment",
       "confirmDeleteComment": "Are you sure you want to delete this comment?",
       "mergePullRequest": "Merge Pull Request",
       "merge": "Merge",
@@ -390,7 +368,6 @@
         }
       },
       "checks": "Checks",
-      "checksEmpty": "No checks",
       "noStatusChecks": "No status checks",
       "checksState": {
         "success": "Passed",
@@ -405,8 +382,6 @@
         "squash": "Squash and merge",
         "rebase": "Rebase and merge"
       },
-      "commitFilesChanged": "{count} files changed",
-      "viewCommitDiff": "View diff",
       "timelineEvent": {
         "comment": "commented",
         "code": "commented on code",
@@ -490,7 +465,6 @@
     "username": "Username"
   },
   "settings": {
-    "title": "Settings",
     "language": "Language",
     "languageDescription": "Select display language for the Forgejo Toolkit panel.",
     "addInstanceTitle": "Add Forgejo Instance",
@@ -527,8 +501,6 @@
     "noSavedInstances": "No saved instances yet.",
     "remove": "Remove",
     "removeConfirm": "Remove instance \"{name}\"?",
-    "backToDashboard": "← Back to Dashboard",
-    "backToRepoDetail": "← Back to Repository",
     "debug": {
       "title": "Debug Logging",
       "description": "Enable request/response logging to the Forgejo Toolkit output channel.",

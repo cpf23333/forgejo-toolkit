@@ -16,7 +16,7 @@ const CSP_SOURCE = 'https://webview-cdn.example.com';
 function createFakeWebview(): vscode.Webview {
   return {
     cspSource: CSP_SOURCE,
-    asWebviewUri: (uri: { fsPath: string }) => ({
+    asWebviewUri: (_uri: { fsPath: string }) => ({
       toString: () => `${CSP_SOURCE}/bundle`,
     }),
   } as unknown as vscode.Webview;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onActivated, onDeactivated, onUnmounted } from 'vue';
 import { useAppState, repoContentsKey, repoFileSearchKey } from '../composables/useAppState';
 import FileTreeItem from './FileTreeItem.vue';
 import RepoFileHistoryDialog from './RepoFileHistoryDialog.vue';
@@ -24,6 +24,13 @@ const searchQuery = ref('');
 const searchInputRef = ref<HTMLInputElement>();
 const historyEntry = ref<ForgejoContentEntry | undefined>(undefined);
 const searchDebounceTimer = ref<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+// RepoFileBrowser lives inside RepoDetail, which App.vue renders under
+// keep-alive, so it is deactivated rather than unmounted when navigating
+// away. Props then track the global route; guard the debounced search on
+// isActive and re-apply a dropped query on activation.
+const isActive = ref(true);
+const appliedSearchQuery = ref('');
 
 const rootKey = computed(() => repoContentsKey(props.instanceId, props.owner, props.repo, selectedRef.value, ''));
 const rootEntries = computed(() => state.repoContents.value.get(rootKey.value) ?? []);
@@ -80,15 +87,26 @@ function onTreeKeydown(event: KeyboardEvent) {
   state.loadRepoContents(props.instanceId, props.owner, props.repo, path, selectedRef.value);
 }
 
+function runSearch() {
+  const query = searchQuery.value.trim();
+  appliedSearchQuery.value = query;
+  if (query) {
+    state.loadRepoFileSearch(props.instanceId, props.owner, props.repo, selectedRef.value, query);
+  }
+}
+
 function scheduleSearch() {
   if (searchDebounceTimer.value) {
     clearTimeout(searchDebounceTimer.value);
   }
   searchDebounceTimer.value = setTimeout(() => {
-    const query = searchQuery.value.trim();
-    if (query) {
-      state.loadRepoFileSearch(props.instanceId, props.owner, props.repo, selectedRef.value, query);
+    // The view may have been deactivated (route switched) during the debounce
+    // window; firing then would send a request with the new route's params.
+    // onActivated re-applies the dropped input.
+    if (!isActive.value) {
+      return;
     }
+    runSearch();
   }, 300);
 }
 
@@ -173,6 +191,23 @@ watch(
 );
 
 watch(searchQuery, scheduleSearch);
+
+onActivated(() => {
+  isActive.value = true;
+  // A debounced search dropped while deactivated (isActive guard above)
+  // leaves the input ahead of the applied query; re-apply it so the results
+  // match what the input still shows.
+  if (searchQuery.value.trim() !== appliedSearchQuery.value) {
+    if (searchDebounceTimer.value) {
+      clearTimeout(searchDebounceTimer.value);
+      searchDebounceTimer.value = undefined;
+    }
+    runSearch();
+  }
+});
+onDeactivated(() => {
+  isActive.value = false;
+});
 
 onUnmounted(() => {
   if (searchDebounceTimer.value) {

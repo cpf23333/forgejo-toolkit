@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { logger } from './logger';
 
 export type { ForgejoInstance };
 
@@ -49,14 +50,21 @@ export class ConfigManager {
           return;
         }
         const id = event.key.slice(TOKEN_SECRET_PREFIX.length);
-        void this.context.secrets.get(event.key).then((secret) => {
-          if (secret === undefined) {
-            this._tokens.delete(id);
-          } else {
-            this._tokens.set(id, secret);
-          }
-          this._onInstancesChanged.fire(this.getInstances());
-        });
+        void this.context.secrets.get(event.key).then(
+          (secret) => {
+            if (secret === undefined) {
+              this._tokens.delete(id);
+            } else {
+              this._tokens.set(id, secret);
+            }
+            this._onInstancesChanged.fire(this.getInstances());
+          },
+          (error: unknown) => {
+            logger.error(
+              `Failed to refresh stored token for instance ${id}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          },
+        );
       }),
     );
   }

@@ -13,6 +13,8 @@ import { resolveLocale } from '../utils/resolveLocale';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { userFacingErrorMessage } from '../api/errors';
 import { probeServerVersion } from '../api/versionProbe';
+import { clearServerVersion } from '../api/serverVersion';
+import { clearLinkedRepositoryCache } from '../worktree/gitOperations';
 import { validateCacheDirectory } from '../worktree/worktreeManager';
 
 export class OnboardingWebviewPanel {
@@ -157,6 +159,11 @@ export class OnboardingWebviewPanel {
                 };
 
                 await this._config.addInstance(instance);
+                // Match viewProvider's saveInstance: drop stale per-URL caches
+                // (server version gate, linked-repository scan) before
+                // re-probing the freshly saved instance.
+                clearServerVersion(normalizedUrl);
+                clearLinkedRepositoryCache();
                 void probeServerVersion(normalizedUrl, token, logger, syncApiUrlsToInstanceUrl);
                 // Saved now: getInstances() covers the origin again.
                 this._editingInstanceUrl = undefined;

@@ -1791,14 +1791,21 @@ export class ForgejoClient {
         return;
       }
       shownPermissionErrorKeys.add(key);
-      void vscode.window.showErrorMessage(message, openTokenSettings, openSettings).then((choice) => {
-        if (choice === openTokenSettings) {
-          const tokenSettingsUrl = `${this.url.replace(/\/$/, '')}/user/settings/applications`;
-          void vscode.env.openExternal(vscode.Uri.parse(tokenSettingsUrl));
-        } else if (choice === openSettings) {
-          void vscode.commands.executeCommand('forgejoToolkit.openSettings');
-        }
-      });
+      void vscode.window.showErrorMessage(message, openTokenSettings, openSettings).then(
+        (choice) => {
+          if (choice === openTokenSettings) {
+            const tokenSettingsUrl = `${this.url.replace(/\/$/, '')}/user/settings/applications`;
+            void vscode.env.openExternal(vscode.Uri.parse(tokenSettingsUrl));
+          } else if (choice === openSettings) {
+            void vscode.commands.executeCommand('forgejoToolkit.openSettings');
+          }
+        },
+        (error: unknown) => {
+          this.logger?.error(
+            `Failed to show permission error notification: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        },
+      );
     };
 
     if (status === '401') {

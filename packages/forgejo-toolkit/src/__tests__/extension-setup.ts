@@ -43,7 +43,8 @@ vi.mock('vscode', () => ({
     workspaceFolders: [],
   },
   commands: {
-    executeCommand: vi.fn(),
+    executeCommand: vi.fn(() => Promise.resolve(undefined)),
+    registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
   },
   StatusBarAlignment: { Left: 1, Right: 2 },
   ProgressLocation: { SourceControl: 1, Window: 10, Notification: 15 },

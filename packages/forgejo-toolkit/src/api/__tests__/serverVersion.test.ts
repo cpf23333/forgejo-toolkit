@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   assertActionsSupported,
+  clearServerVersion,
   clearServerVersions,
   getServerVersion,
   isVersionAtLeast,
@@ -59,6 +60,25 @@ describe('server version registry', () => {
 
   it('returns undefined for unknown instances', () => {
     expect(getServerVersion('https://unknown.example.com')).toBeUndefined();
+  });
+
+  it('clearServerVersion drops only the entry for the given URL', () => {
+    setServerVersion('https://forgejo.example.com', '1.18.0');
+    setServerVersion('https://other.example.com', '1.21.0');
+
+    clearServerVersion('https://forgejo.example.com/');
+
+    expect(getServerVersion('https://forgejo.example.com')).toBeUndefined();
+    expect(getServerVersion('https://other.example.com')).toBe('1.21.0');
+  });
+
+  it('clearServerVersion re-enables the Actions gate after a server upgrade', () => {
+    setServerVersion('https://old.example.com', '1.18.3');
+    expect(() => assertActionsSupported('https://old.example.com')).toThrow(/requires Forgejo .* or newer/);
+
+    clearServerVersion('https://old.example.com');
+    // Unknown versions fail open again until the next probe records one.
+    expect(() => assertActionsSupported('https://old.example.com')).not.toThrow();
   });
 });
 

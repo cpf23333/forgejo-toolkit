@@ -15,6 +15,12 @@ import { createPrFromCurrentBranch, type CreatePrFromCurrentBranchArgs } from '.
 import { logger, showErrorWithLog } from '../logger';
 import { userFacingErrorMessage } from '../api/errors';
 
+// Module-level double-click guard for the publish command: the flow mixes
+// input boxes, repository creation and git pushes, so a second invocation
+// while one is running must not start over. Minimal policy — the late
+// trigger is dropped silently (the first run still owns the UI).
+let publishToForgejoInFlight = false;
+
 export function registerCommands(
   context: vscode.ExtensionContext,
   config: ConfigManager,
@@ -42,16 +48,26 @@ export function registerCommands(
     vscode.commands.registerCommand('forgejoToolkit.copyPermalink', () => {
       copyPermalink(config).catch((error: unknown) => {
         const err = userFacingErrorMessage(error);
-        vscode.window.showErrorMessage(vscode.l10n.t('Failed to copy permalink: {0}', err));
+        logger.error(`[copyPermalink] ${err}`);
+        void showErrorWithLog(vscode.l10n.t('Failed to copy permalink: {0}', err));
       });
     }),
 
     vscode.commands.registerCommand('forgejoToolkit.publishToForgejo', () => {
-      publishToForgejo(config, viewProvider).catch((error: unknown) => {
-        const err = userFacingErrorMessage(error);
-        logger.error(`[publishToForgejo] ${err}`);
-        void showErrorWithLog(vscode.l10n.t('Failed to publish to Forgejo: {0}', err));
-      });
+      if (publishToForgejoInFlight) {
+        logger.info('[publishToForgejo] Ignored invocation while a publish is already running');
+        return;
+      }
+      publishToForgejoInFlight = true;
+      publishToForgejo(config, viewProvider)
+        .catch((error: unknown) => {
+          const err = userFacingErrorMessage(error);
+          logger.error(`[publishToForgejo] ${err}`);
+          void showErrorWithLog(vscode.l10n.t('Failed to publish to Forgejo: {0}', err));
+        })
+        .finally(() => {
+          publishToForgejoInFlight = false;
+        });
     }),
 
     vscode.commands.registerCommand('forgejoToolkit.showLog', () => {
@@ -79,7 +95,8 @@ export function registerCommands(
       const line = typeof lineNumber === 'number' ? lineNumber - 1 : editor.selection.active.line;
       pullReviewCommentController.addComment(editor, line).catch((error: unknown) => {
         const err = userFacingErrorMessage(error);
-        vscode.window.showErrorMessage(vscode.l10n.t('Failed to add review comment: {0}', err));
+        logger.error(`[addComment] ${err}`);
+        void showErrorWithLog(vscode.l10n.t('Failed to add review comment: {0}', err));
       });
     }),
 
@@ -93,7 +110,8 @@ export function registerCommands(
       }
       pullReviewCommentController.deleteComment(context).catch((error: unknown) => {
         const err = userFacingErrorMessage(error);
-        vscode.window.showErrorMessage(vscode.l10n.t('Failed to delete review comment: {0}', err));
+        logger.error(`[deletePullReviewComment] ${err}`);
+        void showErrorWithLog(vscode.l10n.t('Failed to delete review comment: {0}', err));
       });
     }),
 
@@ -103,7 +121,7 @@ export function registerCommands(
         createIssueFromComment(config, viewProvider, args ?? {}).catch((error: unknown) => {
           const err = userFacingErrorMessage(error);
           logger.error(`[createIssueFromComment] ${err}`);
-          vscode.window.showErrorMessage(vscode.l10n.t('Failed to create issue from comment: {0}', err));
+          void showErrorWithLog(vscode.l10n.t('Failed to create issue from comment: {0}', err));
         });
       },
     ),

@@ -15,6 +15,7 @@ import { buildRepoFileUri } from '../repoFileProvider';
 import { WorktreeManager, WorktreeInfo, validateCacheDirectory } from '../worktree/worktreeManager';
 import { InFlightTasks } from '../worktree/inFlightTasks';
 import {
+  clearLinkedRepositoryCache,
   cloneRepository,
   createWorktreeFromBranch,
   createWorktreeWithNewBranch,
@@ -38,6 +39,7 @@ import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webv
 import { computeTokenConflicts, readExportDataFromUri, sanitizeImportedInstances } from './instanceImport';
 import { userFacingErrorMessage } from '../api/errors';
 import { probeServerVersion } from '../api/versionProbe';
+import { clearServerVersion } from '../api/serverVersion';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { resolveLocale } from '../utils/resolveLocale';
 
@@ -213,6 +215,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   private readonly _worktreeManager: WorktreeManager;
   /** Guards against concurrent openPrWorktree runs for the same PR (double-click). */
   private readonly _worktreeInFlight = new InFlightTasks();
+  /** Guards against concurrent merge/revert mutations for the same PR (double-click). */
+  private readonly _prMutationInFlight = new InFlightTasks();
   /**
    * Dedupes concurrent bare clones into the same cache path: two PRs of the
    * same repository opened at once would otherwise race `git clone --bare`
@@ -479,6 +483,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           };
 
           await this._config.addInstance(instance);
+          // Drop stale per-URL caches before re-probing/re-detecting: the
+          // server version may predate an upgrade (Actions gate) and the
+          // linked-repository scan may hold a negative entry from before the
+          // instance was configured.
+          clearServerVersion(normalizedUrl);
+          clearLinkedRepositoryCache();
           void probeServerVersion(normalizedUrl, token, logger, syncApiUrlsToInstanceUrl);
           this._sendInstances();
           this._detectAndSendLinkedRepository();
@@ -527,6 +537,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             username: user.login,
             syncApiUrlsToInstanceUrl,
           });
+          // Drop stale per-URL caches (old and new URL) before re-probing:
+          // the cached server version never expires on its own, so an
+          // upgraded server would otherwise stay behind the Actions gate.
+          clearServerVersion(normalizedUrl);
+          clearServerVersion(existing.url);
+          clearLinkedRepositoryCache();
           void probeServerVersion(normalizedUrl, effectiveToken, logger, syncApiUrlsToInstanceUrl);
           this._sendInstances();
           this._detectAndSendLinkedRepository();
@@ -1766,27 +1782,35 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         ) {
           return;
         }
-        try {
-          const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          await client.mergePullRequest(owner, repo, index, strategy);
-          this._reply('pullRequestMerged', {
-            instanceId: instance.id,
-            owner,
-            repo,
-            index,
-          });
-          this.onPullRequestsChanged?.();
-        } catch (error) {
-          const err = userFacingErrorMessage(error);
-          logger.error(`mergePullRequest failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
-          this._reply('pullRequestMerged', {
-            instanceId: message.instanceId,
-            owner,
-            repo,
-            index,
-            error: err,
-          });
-        }
+        // Double-click/double-submit guard: a rapid second merge for the same
+        // PR reuses the in-flight run instead of issuing the merge API call
+        // twice (the second call would fail or merge twice). The reused run
+        // replies only once, but the reply is keyed by PR coordinates, which
+        // is exactly the webview's loading key, so the late trigger's spinner
+        // clears with it.
+        await this._prMutationInFlight.run(`merge:${instance.id}:${owner}/${repo}#${index}`, async () => {
+          try {
+            const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+            await client.mergePullRequest(owner, repo, index, strategy);
+            this._reply('pullRequestMerged', {
+              instanceId: instance.id,
+              owner,
+              repo,
+              index,
+            });
+            this.onPullRequestsChanged?.();
+          } catch (error) {
+            const err = userFacingErrorMessage(error);
+            logger.error(`mergePullRequest failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+            this._reply('pullRequestMerged', {
+              instanceId: message.instanceId,
+              owner,
+              repo,
+              index,
+              error: err,
+            });
+          }
+        });
         return;
       }
       case 'revertMergeCommit': {
@@ -1798,43 +1822,48 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
           return;
         }
-        try {
-          const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const pr = await client.getPullRequestDetail(owner, repo, index);
-          if (!pr.merged) {
-            throw new Error(vscode.l10n.t('Pull request {0}/{1}#{2} is not merged', owner, repo, index));
+        // Same double-click guard as mergePullRequest (see above): the `revert:`
+        // prefix keeps it a separate in-flight entry so a revert racing a merge
+        // of the same PR is not silently dropped.
+        await this._prMutationInFlight.run(`revert:${instance.id}:${owner}/${repo}#${index}`, async () => {
+          try {
+            const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+            const pr = await client.getPullRequestDetail(owner, repo, index);
+            if (!pr.merged) {
+              throw new Error(vscode.l10n.t('Pull request {0}/{1}#{2} is not merged', owner, repo, index));
+            }
+            if (!pr.merge_commit_sha) {
+              throw new Error(
+                vscode.l10n.t('Pull request {0}/{1}#{2} does not have a recorded merge commit', owner, repo, index),
+              );
+            }
+            const localRepo = await findLocalRepo(instance.url, owner, repo);
+            if (!localRepo) {
+              throw new Error(vscode.l10n.t('No local repository found for {0}/{1}', owner, repo));
+            }
+            await revertMergeCommit(localRepo, pr.merge_commit_sha, pr.base?.ref, instance.token, instance.url, {
+              owner,
+              repo,
+            });
+            this._reply('revertMergeCommitResult', {
+              instanceId: instance.id,
+              owner,
+              repo,
+              index,
+              success: true,
+            });
+          } catch (error) {
+            const err = userFacingErrorMessage(error);
+            logger.error(`revertMergeCommit failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+            this._reply('revertMergeCommitResult', {
+              instanceId: message.instanceId,
+              owner,
+              repo,
+              index,
+              error: err,
+            });
           }
-          if (!pr.merge_commit_sha) {
-            throw new Error(
-              vscode.l10n.t('Pull request {0}/{1}#{2} does not have a recorded merge commit', owner, repo, index),
-            );
-          }
-          const localRepo = await findLocalRepo(instance.url, owner, repo);
-          if (!localRepo) {
-            throw new Error(vscode.l10n.t('No local repository found for {0}/{1}', owner, repo));
-          }
-          await revertMergeCommit(localRepo, pr.merge_commit_sha, pr.base?.ref, instance.token, instance.url, {
-            owner,
-            repo,
-          });
-          this._reply('revertMergeCommitResult', {
-            instanceId: instance.id,
-            owner,
-            repo,
-            index,
-            success: true,
-          });
-        } catch (error) {
-          const err = userFacingErrorMessage(error);
-          logger.error(`revertMergeCommit failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
-          this._reply('revertMergeCommitResult', {
-            instanceId: message.instanceId,
-            owner,
-            repo,
-            index,
-            error: err,
-          });
-        }
+        });
         return;
       }
       case 'createIssueAttachment': {

@@ -60,6 +60,8 @@ export async function activate(context: vscode.ExtensionContext) {
   // configured yet; never auto-opens again after the first activation.
   void maybeShowWelcomeOnboarding(context, config.getInstances().length > 0, () => {
     OnboardingWebviewPanel.createOrShow(context, context.extensionUri, config, readmeProvider);
+  }).catch((error: unknown) => {
+    logger.error(`Welcome onboarding failed: ${error instanceof Error ? error.message : String(error)}`);
   });
   registerRepoFileProvider(context, config);
   const prFileSystemProvider = new ForgejoPRFileSystemProvider(config);

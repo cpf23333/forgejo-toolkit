@@ -10,9 +10,16 @@ vi.mock('../../api/client', () => ({
   }),
 }));
 
+vi.mock('../../worktree/gitOperations', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../worktree/gitOperations')>();
+  return { ...original, clearLinkedRepositoryCache: vi.fn() };
+});
+
 import { OnboardingWebviewPanel } from '../onboardingPanel';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
+import { clearServerVersions, getServerVersion, setServerVersion } from '../../api/serverVersion';
+import { clearLinkedRepositoryCache } from '../../worktree/gitOperations';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 type MessageListener = (message: unknown) => void;
@@ -97,6 +104,8 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     context = createFakeContext();
     config = new ConfigManager(context as never);
     fake = createFakePanel();
+    vi.mocked(clearLinkedRepositoryCache).mockReset();
+    clearServerVersions();
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fake.panel as never);
     OnboardingWebviewPanel.currentPanel = undefined;
     OnboardingWebviewPanel.createOrShow(
@@ -163,5 +172,17 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     fake.send('not-an-object');
     await flushDispatches();
     expect(fake.posted).toHaveLength(0);
+  });
+
+  it('saveInstance clears the cached server version and linked-repository scan', async () => {
+    setServerVersion('https://new.example.com', '1.18.0');
+
+    fake.send({ command: 'saveInstance', url: 'https://new.example.com/', token: 'tok' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result).toMatchObject({ success: true });
+    expect(getServerVersion('https://new.example.com')).toBeUndefined();
+    expect(vi.mocked(clearLinkedRepositoryCache)).toHaveBeenCalled();
   });
 });

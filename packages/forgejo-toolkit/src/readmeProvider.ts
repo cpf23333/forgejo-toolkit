@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { logger } from './logger';
 
 const README_SCHEME = 'cpf23333-forgejo-toolkit-readme';
 // Bound the in-memory cache: evict the oldest entry (Maps iterate in
@@ -42,7 +43,11 @@ export function registerReadmeProvider(context: vscode.ExtensionContext): Readme
 
 export function openReadmePreview(provider: ReadmeContentProvider, owner: string, repo: string, content: string) {
   const uri = provider.setReadme(owner, repo, content);
-  void vscode.commands.executeCommand('markdown.showPreviewToSide', uri);
+  void vscode.commands.executeCommand('markdown.showPreviewToSide', uri).then(undefined, (error: unknown) => {
+    logger.error(
+      `Failed to open README preview for ${owner}/${repo}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
 }
 
 export { README_SCHEME };

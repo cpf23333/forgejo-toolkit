@@ -11,6 +11,7 @@ const clientMocks = vi.hoisted(() => ({
   getPullRequestDetail: vi.fn(),
   getUserIssues: vi.fn(),
   getUserPullRequests: vi.fn(),
+  mergePullRequest: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
@@ -25,6 +26,7 @@ vi.mock('../../api/client', () => ({
       getPullRequestDetail: clientMocks.getPullRequestDetail,
       getUserIssues: clientMocks.getUserIssues,
       getUserPullRequests: clientMocks.getUserPullRequests,
+      mergePullRequest: clientMocks.mergePullRequest,
     };
   }),
 }));
@@ -54,15 +56,19 @@ vi.mock('../../worktree/gitOperations', () => ({
 
 import { ForgejoToolkitViewProvider, clearResolvedAvatarCache } from '../viewProvider';
 import { ForgejoClient } from '../../api/client';
+import { clearServerVersions, getServerVersion, setServerVersion } from '../../api/serverVersion';
 import {
+  clearLinkedRepositoryCache,
   cloneRepository,
   createWorktreeWithNewBranch,
   fetchBranch,
+  findLocalRepo,
   getRefCommitSha,
   isCurrentWorkspaceBaseRepo,
   openWorktree,
   removeWorktreeAndPrune,
   resolveRemoteForRepo,
+  revertMergeCommit,
 } from '../../worktree/gitOperations';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
@@ -167,6 +173,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clientMocks.getPullRequestDetail.mockReset();
     clientMocks.getUserIssues.mockReset();
     clientMocks.getUserPullRequests.mockReset();
+    clientMocks.mergePullRequest.mockReset();
     vi.mocked(fetchBranch).mockReset();
     vi.mocked(createWorktreeWithNewBranch).mockReset();
     vi.mocked(isCurrentWorkspaceBaseRepo).mockReset();
@@ -175,6 +182,10 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     vi.mocked(removeWorktreeAndPrune).mockReset();
     vi.mocked(openWorktree).mockReset().mockResolvedValue(true);
     vi.mocked(resolveRemoteForRepo).mockReset().mockResolvedValue('origin');
+    vi.mocked(clearLinkedRepositoryCache).mockReset();
+    vi.mocked(findLocalRepo).mockReset();
+    vi.mocked(revertMergeCommit).mockReset();
+    clearServerVersions();
     vi.mocked(vscode.window.showQuickPick).mockReset();
     context = createFakeContext();
     config = new ConfigManager(context as never);
@@ -432,6 +443,95 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(client).toHaveBeenCalledWith('https://other.example.com', 'new-token', expect.anything());
     const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
     expect(result).toMatchObject({ success: true });
+  });
+
+  it('saveInstance clears the cached server version and linked-repository scan', async () => {
+    // A stale version recorded before a server upgrade must not keep gating
+    // the Actions API after the instance is saved again.
+    setServerVersion('https://new.example.com', '1.18.0');
+
+    fake.send({ command: 'saveInstance', url: 'https://new.example.com/', token: 'tok' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result).toMatchObject({ success: true });
+    expect(getServerVersion('https://new.example.com')).toBeUndefined();
+    expect(vi.mocked(clearLinkedRepositoryCache)).toHaveBeenCalled();
+  });
+
+  it('editInstance clears the cached server version for both the old and new URL', async () => {
+    setServerVersion(testInstance.url, '1.18.0');
+    setServerVersion('https://other.example.com', '1.18.0');
+
+    fake.send({ command: 'editInstance', id: testInstance.id, url: 'https://other.example.com', token: 'new-token' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result).toMatchObject({ success: true });
+    expect(getServerVersion(testInstance.url)).toBeUndefined();
+    expect(getServerVersion('https://other.example.com')).toBeUndefined();
+    expect(vi.mocked(clearLinkedRepositoryCache)).toHaveBeenCalled();
+  });
+
+  it('dedupes a double-submitted mergePullRequest for the same PR', async () => {
+    let finishMerge!: () => void;
+    clientMocks.mergePullRequest.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishMerge = resolve;
+        }),
+    );
+
+    const message = {
+      command: 'mergePullRequest',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+      strategy: 'merge',
+    };
+    fake.send(message);
+    fake.send(message);
+    await flushUntil(() => clientMocks.mergePullRequest.mock.calls.length > 0);
+    finishMerge();
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'pullRequestMerged'));
+
+    // The second click reuses the in-flight merge instead of issuing the API
+    // call twice; the single coordinate-keyed reply clears both spinners.
+    expect(clientMocks.mergePullRequest).toHaveBeenCalledTimes(1);
+    expect(postedMessages(fake.posted).filter((m) => m.command === 'pullRequestMerged')).toHaveLength(1);
+  });
+
+  it('dedupes a double-submitted revertMergeCommit for the same PR', async () => {
+    clientMocks.getPullRequestDetail.mockResolvedValue({
+      merged: true,
+      merge_commit_sha: 'abc123',
+      base: { ref: 'main' },
+    });
+    vi.mocked(findLocalRepo).mockResolvedValue('/src/repo');
+    let finishRevert!: () => void;
+    vi.mocked(revertMergeCommit).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRevert = resolve;
+        }),
+    );
+
+    const message = {
+      command: 'revertMergeCommit',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+    };
+    fake.send(message);
+    fake.send(message);
+    await flushUntil(() => vi.mocked(revertMergeCommit).mock.calls.length > 0);
+    finishRevert();
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'revertMergeCommitResult'));
+
+    expect(vi.mocked(revertMergeCommit)).toHaveBeenCalledTimes(1);
+    expect(postedMessages(fake.posted).filter((m) => m.command === 'revertMergeCommitResult')).toHaveLength(1);
   });
 
   it('answers previewImportInstances with cancelled when the file picker is dismissed', async () => {

@@ -64,4 +64,17 @@ describe('maybeShowWelcomeOnboarding', () => {
     expect(shown).toBe(false);
     expect(laterShow).not.toHaveBeenCalled();
   });
+
+  it('still shows onboarding when recording the flag fails', async () => {
+    const { context } = createContext();
+    vi.mocked(context.globalState.update).mockRejectedValue(new Error('storage gone'));
+    const show = vi.fn();
+
+    const shown = await maybeShowWelcomeOnboarding(context, false, show);
+
+    // The failure is logged, not propagated: a storage hiccup must not
+    // suppress the first-run guide (nor reject the activation promise).
+    expect(shown).toBe(true);
+    expect(show).toHaveBeenCalledTimes(1);
+  });
 });

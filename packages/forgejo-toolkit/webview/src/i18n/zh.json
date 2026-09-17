@@ -1,13 +1,9 @@
 {
   "app": {
-    "title": "Forgejo Toolkit",
-    "openOnboarding": "打开引导设置",
-    "back": "← 返回",
-    "home": "主页"
+    "back": "← 返回"
   },
   "common": {
     "confirm": "确定",
-    "cancel": "取消",
     "discardChangesConfirm": "有未保存的更改，确定要放弃吗？",
     "requestTimeout": "请求超时，请重试。",
     "requestFailed": "请求失败，请重试。",
@@ -75,13 +71,9 @@
     "finish": "进入仪表盘"
   },
   "dashboard": {
-    "title": "Forgejo Toolkit",
-    "settings": "设置",
     "emptyTitle": "尚未配置 Forgejo 实例。",
     "emptyHint": "点击 {button} 连接到你的 Forgejo 服务器。",
     "openOnboarding": "打开引导设置",
-    "connectedInstances": "已连接实例 ({count})",
-    "viewTitle": "仪表盘",
     "tabs": {
       "repositories": "仓库",
       "issues": "Issues",
@@ -128,7 +120,6 @@
       "clearSearch": "清除搜索",
       "history": "文件历史",
       "historyTitle": "历史：{path}",
-      "viewVersion": "查看该版本",
       "noHistory": "未找到该文件的历史记录。"
     },
     "search": {
@@ -182,24 +173,20 @@
       "emptyReleases": "没有 Release。",
       "createBranch": "新建分支",
       "deleteBranch": "删除分支",
-      "createBranchPrompt": "新分支名称：",
       "createBranchFromPrompt": "基于哪个分支/标签/commit 创建：",
       "deleteBranchConfirm": "确定删除分支 \"{name}\" 吗？",
       "createTag": "新建标签",
       "deleteTag": "删除标签",
-      "createTagPrompt": "新标签名称：",
       "createTagTargetPrompt": "目标（分支/标签/commit）：",
       "createTagMessagePrompt": "标签信息（可选）：",
       "deleteTagConfirm": "确定删除标签 \"{name}\" 吗？",
       "createRelease": "新建 Release",
       "editRelease": "编辑 Release",
       "deleteRelease": "删除 Release",
-      "createReleaseTagPrompt": "Release 标签名称：",
       "createReleaseNamePrompt": "Release 标题：",
       "deleteReleaseConfirm": "确定删除 Release #{id} 吗？",
       "nameLabel": "名称",
       "releaseTagNameLabel": "标签名称",
-      "releaseTargetCommitishLabel": "目标 commit/分支",
       "releaseBodyLabel": "Release 说明",
       "selectTarget": "-- 选择目标 --",
       "hideArchiveLinks": "隐藏自动生成的存档",
@@ -211,8 +198,6 @@
     },
     "branches": "分支",
     "defaultBranch": "默认",
-    "readme": "README",
-    "noReadme": "没有 README",
     "remove": "移除",
     "state": {
       "open": "打开",
@@ -244,7 +229,6 @@
     "actionRun": {
       "jobs": "任务",
       "artifacts": "制品",
-      "logs": "日志",
       "download": "下载",
       "workflowFile": "Workflow 文件",
       "selectWorkflow": "选择 workflow 文件",
@@ -255,7 +239,6 @@
       "inputKey": "输入键",
       "inputValue": "输入值",
       "addInput": "添加输入",
-      "triggerWorkflow": "触发 workflow",
       "untitledJob": "未命名任务",
       "noLogs": "暂无日志。",
       "cancelRun": "取消运行",
@@ -297,13 +280,9 @@
       "openedBy": "由"
     },
     "detail": {
-      "status": "状态",
       "deleteIssueConfirm": "确定删除 issue #{number} 吗？此操作无法撤销。",
       "deleteTimeConfirm": "确定删除这条工时记录吗？",
       "removeDependencyConfirm": "确定移除对 #{number} 的依赖吗？",
-      "author": "作者",
-      "createdAt": "创建于",
-      "updatedAt": "更新于",
       "closedAt": "关闭于",
       "mergedAt": "合并于",
       "labels": "标签",
@@ -369,7 +348,6 @@
       "addCommentPlaceholder": "写下你的评论...",
       "postComment": "发表评论",
       "editComment": "编辑评论",
-      "deleteComment": "删除评论",
       "confirmDeleteComment": "确定要删除这条评论吗？",
       "mergePullRequest": "合并 Pull Request",
       "merge": "合并",
@@ -390,7 +368,6 @@
         }
       },
       "checks": "状态检查",
-      "checksEmpty": "没有状态检查",
       "noStatusChecks": "没有状态检查",
       "checksState": {
         "success": "通过",
@@ -405,8 +382,6 @@
         "squash": "压缩后合并",
         "rebase": "变基后合并"
       },
-      "commitFilesChanged": "{count} 个文件变更",
-      "viewCommitDiff": "查看 diff",
       "timelineEvent": {
         "comment": "评论",
         "code": "评论了代码",
@@ -490,7 +465,6 @@
     "username": "用户名"
   },
   "settings": {
-    "title": "设置",
     "language": "语言",
     "languageDescription": "选择 Forgejo Toolkit 面板的显示语言。",
     "addInstanceTitle": "添加 Forgejo 实例",
@@ -527,8 +501,6 @@
     "noSavedInstances": "还没有保存的实例。",
     "remove": "移除",
     "removeConfirm": "确定移除实例 \"{name}\" 吗？",
-    "backToDashboard": "← 返回仪表盘",
-    "backToRepoDetail": "← 返回仓库",
     "debug": {
       "title": "调试日志",
       "description": "启用后将在 Forgejo Toolkit 输出通道中记录请求和响应。",

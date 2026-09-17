@@ -51,6 +51,15 @@ export function getServerVersion(url: string): string | undefined {
   return serverVersions.get(versionKey(url));
 }
 
+/**
+ * Drops the cached version for one instance. Call before re-probing on
+ * instance save/edit: a stale entry (e.g. recorded before a server upgrade)
+ * would otherwise keep gating features until the session ends.
+ */
+export function clearServerVersion(url: string): void {
+  serverVersions.delete(versionKey(url));
+}
+
 /** Drops every cached version (tests). */
 export function clearServerVersions(): void {
   serverVersions.clear();

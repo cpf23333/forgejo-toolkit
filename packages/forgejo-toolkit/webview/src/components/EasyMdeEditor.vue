@@ -108,12 +108,17 @@ function schedulePreviewRender() {
   previewRenderTimer = setTimeout(() => {
     previewRenderTimer = undefined;
     const markdown = easyMDE?.value() ?? '';
-    void renderPreviewHtml(markdown).then(() => {
-      const previewEl = getActivePreviewElement();
-      if (previewEl) {
-        previewEl.innerHTML = renderedHtml.value;
-      }
-    });
+    void renderPreviewHtml(markdown)
+      .then(() => {
+        const previewEl = getActivePreviewElement();
+        if (previewEl) {
+          previewEl.innerHTML = renderedHtml.value;
+        }
+      })
+      .catch(() => {
+        // Render request failed (e.g. host renderMarkdown rejected); keep the
+        // previous preview instead of surfacing an unhandled rejection.
+      });
   }, 300);
 }
 

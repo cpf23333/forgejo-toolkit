@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { logger } from './logger';
 
 const WELCOME_SHOWN_KEY = 'forgejoToolkit.hasShownWelcome';
 
@@ -16,7 +17,15 @@ export async function maybeShowWelcomeOnboarding(
   if (context.globalState.get<boolean>(WELCOME_SHOWN_KEY, false)) {
     return false;
   }
-  await context.globalState.update(WELCOME_SHOWN_KEY, true);
+  try {
+    await context.globalState.update(WELCOME_SHOWN_KEY, true);
+  } catch (error) {
+    // A failed flag write must not suppress the guide; the worst case is the
+    // panel appearing once more on the next activation.
+    logger.error(
+      `Failed to record welcome onboarding state: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   if (hasInstances) {
     return false;
   }
