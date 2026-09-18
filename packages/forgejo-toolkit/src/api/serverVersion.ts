@@ -35,6 +35,29 @@ export const MIN_ACTIONS_VERSION: ServerVersion = { major: 1, minor: 19, patch: 
 
 const MIN_ACTIONS_VERSION_TEXT = `${MIN_ACTIONS_VERSION.major}.${MIN_ACTIONS_VERSION.minor}.${MIN_ACTIONS_VERSION.patch}`;
 
+// The oldest Forgejo release the extension supports as a whole. Instances
+// below it get a soft per-session warning; nothing is blocked. Forgejo's
+// 1.x line (1.21 and earlier, long predating the v7+ renumbering) compares
+// below 15 naturally with plain semver ordering.
+export const MIN_SUPPORTED_VERSION: ServerVersion = { major: 15, minor: 0, patch: 0 };
+
+export const MIN_SUPPORTED_VERSION_TEXT = `${MIN_SUPPORTED_VERSION.major}.${MIN_SUPPORTED_VERSION.minor}.${MIN_SUPPORTED_VERSION.patch}`;
+
+/**
+ * Whether a probed server version meets the supported floor. Unknown or
+ * unparseable versions pass — a failed probe must never trigger a warning.
+ */
+export function isVersionSupported(version: string | undefined): boolean {
+  if (!version) {
+    return true;
+  }
+  const parsed = parseServerVersion(version);
+  if (!parsed) {
+    return true;
+  }
+  return isVersionAtLeast(parsed, MIN_SUPPORTED_VERSION);
+}
+
 // Per-session cache keyed by normalized instance URL. Populated on extension
 // activation and after a successful connection test / instance save.
 const serverVersions = new Map<string, string>();

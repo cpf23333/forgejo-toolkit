@@ -21,12 +21,15 @@ export interface ForgejoClientHost {
   notifyInvalidCredentials(instanceUrl: string): void;
   /** 403 where Forgejo says the token lacks a required scope. */
   notifyInsufficientScope(instanceUrl: string, details: InsufficientScopeDetails): void;
+  /** The probed server version is below the supported floor (soft warning, never blocks). */
+  notifyUnsupportedInstance(url: string, requiredVersion: string): void;
 }
 
 const headlessHost: ForgejoClientHost = {
   t: passthroughTranslate,
   notifyInvalidCredentials: () => undefined,
   notifyInsufficientScope: () => undefined,
+  notifyUnsupportedInstance: () => undefined,
 };
 
 let currentHost: ForgejoClientHost = headlessHost;

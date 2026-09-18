@@ -46,6 +46,13 @@ pnpm --filter forgejo-toolkit package
 4. 在 Issue / PR 详情页可以评论、编辑、关闭 / 重新打开。
 5. 在 PR 详情页点击「在 Worktree 中打开」可检出到本地 worktree。
 
+## 兼容性
+
+- **Forgejo ≥ 15.0** —— 低于 15.0.0 的实例可能部分可用，但不受支持；扩展每会话提示一次温和警告，不阻断任何功能。
+- **VS Code ≥ 1.102** —— 通过扩展的 `engines.vscode` 字段强制约束。
+- **Actions 功能需要 Forgejo ≥ 1.19** —— 按特性闸门处理：更老的实例只会隐藏 Actions 相关界面，不抬升整体最低版本。
+- 未来依赖更新 Forgejo 版本的新端点（如 v17 的 rerun API）同样按特性闸门处理，不会抬升整体最低版本。
+
 ## 截图
 
 > 以下截图占位符对应 `docs/screenshots/` 目录下的图片，发布前请补充实际截图。

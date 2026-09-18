@@ -1,11 +1,16 @@
 import * as vscode from 'vscode';
 import type { ForgejoClientHost, InsufficientScopeDetails } from './clientHost';
+import { getServerVersion } from './serverVersion';
 import type { Logger } from '../logger';
 
 // 401/403 scope toasts are deduped per instance+reason for the whole session:
 // pollers and manual refreshes would otherwise re-toast the same failure on
 // every request.
 const shownPermissionErrorKeys = new Set<string>();
+
+// Unsupported-version warnings fire at most once per instance per session:
+// the probe re-runs on every activation, save, and connection test.
+const shownUnsupportedVersionUrls = new Set<string>();
 
 /**
  * Extension-host implementation of the ForgejoClient host hooks: auth
@@ -62,6 +67,28 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
             details.body,
           );
       notify(`${instanceUrl}|${details.body}`, instanceUrl, message);
+    },
+    notifyUnsupportedInstance(url: string, requiredVersion: string): void {
+      if (shownUnsupportedVersionUrls.has(url)) {
+        return;
+      }
+      shownUnsupportedVersionUrls.add(url);
+      const serverVersion = getServerVersion(url);
+      const message = serverVersion
+        ? vscode.l10n.t(
+            'This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.',
+            serverVersion,
+            requiredVersion,
+          )
+        : vscode.l10n.t(
+            'This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work.',
+            requiredVersion,
+          );
+      void vscode.window.showWarningMessage(message).then(undefined, (error: unknown) => {
+        logger?.error(
+          `Failed to show unsupported version notification: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
     },
   };
 }

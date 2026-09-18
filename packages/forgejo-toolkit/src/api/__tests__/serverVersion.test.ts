@@ -5,7 +5,10 @@ import {
   clearServerVersions,
   getServerVersion,
   isVersionAtLeast,
+  isVersionSupported,
   MIN_ACTIONS_VERSION,
+  MIN_SUPPORTED_VERSION,
+  MIN_SUPPORTED_VERSION_TEXT,
   parseServerVersion,
   setServerVersion,
 } from '../serverVersion';
@@ -103,5 +106,29 @@ describe('assertActionsSupported', () => {
 
   it('uses 1.19.0 as the Actions threshold', () => {
     expect(MIN_ACTIONS_VERSION).toEqual({ major: 1, minor: 19, patch: 0 });
+  });
+});
+
+describe('isVersionSupported', () => {
+  it('pins the supported floor to 15.0.0', () => {
+    expect(MIN_SUPPORTED_VERSION).toEqual({ major: 15, minor: 0, patch: 0 });
+    expect(MIN_SUPPORTED_VERSION_TEXT).toBe('15.0.0');
+  });
+
+  it('accepts the floor itself and newer versions', () => {
+    expect(isVersionSupported('15.0.0')).toBe(true);
+    expect(isVersionSupported('15.0.1')).toBe(true);
+    expect(isVersionSupported('16.2.0')).toBe(true);
+  });
+
+  it('rejects older versions, including the legacy 1.x and v7 lines', () => {
+    expect(isVersionSupported('14.9.9')).toBe(false);
+    expect(isVersionSupported('7.0.0')).toBe(false);
+    expect(isVersionSupported('1.21.0')).toBe(false);
+  });
+
+  it('fails open for unknown or unparseable versions', () => {
+    expect(isVersionSupported(undefined)).toBe(true);
+    expect(isVersionSupported('devel')).toBe(true);
   });
 });

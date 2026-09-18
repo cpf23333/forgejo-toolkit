@@ -174,5 +174,7 @@
   "Delete branch \"{0}\"?": "Delete branch \"{0}\"?",
   "Delete tag \"{0}\"?": "Delete tag \"{0}\"?",
   "Delete release #{0}?": "Delete release #{0}?",
-  "Delete this worktree? The local directory will be permanently deleted (not moved to the recycle bin) and any uncommitted changes will be lost.": "Delete this worktree? The local directory will be permanently deleted (not moved to the recycle bin) and any uncommitted changes will be lost."
+  "Delete this worktree? The local directory will be permanently deleted (not moved to the recycle bin) and any uncommitted changes will be lost.": "Delete this worktree? The local directory will be permanently deleted (not moved to the recycle bin) and any uncommitted changes will be lost.",
+  "This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.": "This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.",
+  "This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work.": "This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work."
 }
