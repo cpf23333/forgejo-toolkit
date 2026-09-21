@@ -18,6 +18,20 @@ A VS Code extension for [Forgejo](https://forgejo.org/) (and Codeberg) with a ri
 - **Publish & clone**: publish a local repository to your instance, or clone through VS Code's Git: Clone with server-side search.
 - **Localization**: English and 中文.
 
+## Screenshots
+
+| Onboarding | Dashboard |
+| --- | --- |
+| ![Onboarding](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/onboarding.png) | ![Dashboard](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/dashboard.png) |
+
+| Repository overview | Pull request |
+| --- | --- |
+| ![Repository overview](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/repo-overview.png) | ![Pull request](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/pull-request.png) |
+
+| Issue |
+| --- |
+| ![Issue](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/issue.png) |
+
 ## Notes
 
 - The extension communicates with Forgejo via the REST API (`/api/v1`).
