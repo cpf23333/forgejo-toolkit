@@ -25,6 +25,20 @@ A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-
 - **Internationalization**: supports switching between Chinese and English.
 - **Debug logs**: optional API request logging to the `Forgejo Toolkit` Output Channel.
 
+## Screenshots
+
+| Onboarding | Dashboard |
+| --- | --- |
+| ![Onboarding](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/onboarding.png) | ![Dashboard](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/dashboard.png) |
+
+| Repository overview | Pull request |
+| --- | --- |
+| ![Repository overview](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/repo-overview.png) | ![Pull request](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/pull-request.png) |
+
+| Issue |
+| --- |
+| ![Issue](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/issue.png) |
+
 ## Installation
 
 ### From VSIX
@@ -73,50 +87,6 @@ The extension ships a built-in MCP server that lets AI assistants — such as Co
   - VS Code asks for your confirmation before every tool call, so a human stays in the loop.
   - Large response fields are truncated to protect the agent's context window.
   - Adding or removing instances re-resolves the exposed server automatically.
-
-## Screenshots
-
-> The following screenshot placeholders correspond to images in the `docs/screenshots/` directory. Replace them with real screenshots before release.
-
-### Dashboard
-
-![Dashboard](./docs/screenshots/dashboard.png)
-
-### Repository Details - Overview
-
-![Repository Overview](./docs/screenshots/repo-overview.png)
-
-### Repository Details - File Browser
-
-![Repository File Browser](./docs/screenshots/repo-file-browser.png)
-
-### Repository Details - Branches / Tags / Releases
-
-![Repository Refs](./docs/screenshots/repo-refs.png)
-
-### Issue List and Detail
-
-![Issue List and Detail](./docs/screenshots/issue-list-and-detail.png)
-
-### Pull Request List and Detail
-
-![Pull Request List and Detail](./docs/screenshots/pr-list-and-detail.png)
-
-### PR Diff
-
-![PR Diff](./docs/screenshots/pr-diff.png)
-
-### Issue / PR Edit Dialog
-
-![Issue PR Edit Dialog](./docs/screenshots/issue-pr-edit-dialog.png)
-
-### PR Worktree
-
-![PR Worktree](./docs/screenshots/pr-worktree.png)
-
-### Settings
-
-![Settings](./docs/screenshots/settings.png)
 
 ## Known Limitations
 
@@ -189,21 +159,6 @@ pnpm run version-packages
 ```
 
 `pnpm run release` is used for npm package publishing; the VS Code extension itself is packaged into a `.vsix` via `pnpm --filter forgejo-toolkit package`.
-
-## Screenshot Checklist (to be added before release)
-
-Place the following screenshots in the `docs/screenshots/` directory, keeping the filenames consistent with the README references:
-
-1. `dashboard.png` — Dashboard panel showing repository / Issue / PR lists and instance collapse behavior.
-2. `repo-overview.png` — Repository "Overview" tab showing README, recent commits, and default branch info.
-3. `repo-file-browser.png` — Repository "Files" tab showing directory tree, file search, or file history dialog.
-4. `repo-refs.png` — Repository "Refs" tab showing branch / tag / release lists.
-5. `issue-list-and-detail.png` — Issue list + Issue detail page.
-6. `pr-list-and-detail.png` — PR list + PR detail page.
-7. `pr-diff.png` — Changed file list on the PR detail page, or the VS Code diff editor.
-8. `issue-pr-edit-dialog.png` — Issue / PR edit dialog showing Markdown editor and attachment area.
-9. `pr-worktree.png` — PR detail page "Open in Worktree" flow, or worktree settings panel.
-10. `settings.png` — Settings page showing instance list, worktree config, and language switch.
 
 ## Project Status
 

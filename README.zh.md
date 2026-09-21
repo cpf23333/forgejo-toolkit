@@ -76,47 +76,17 @@ pnpm --filter forgejo-toolkit package
 
 ## 截图
 
-> 以下截图占位符对应 `docs/screenshots/` 目录下的图片，发布前请补充实际截图。
+| 引导设置 | Dashboard |
+| --- | --- |
+| ![引导设置](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/onboarding.png) | ![Dashboard](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/dashboard.png) |
 
-### Dashboard
+| 仓库概览 | Pull Request |
+| --- | --- |
+| ![仓库概览](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/repo-overview.png) | ![Pull Request](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/pull-request.png) |
 
-![Dashboard](./docs/screenshots/dashboard.png)
-
-### 仓库详情 - 概览
-
-![Repository Overview](./docs/screenshots/repo-overview.png)
-
-### 仓库详情 - 文件浏览器
-
-![Repository File Browser](./docs/screenshots/repo-file-browser.png)
-
-### 仓库详情 - 分支 / 标签 / Release
-
-![Repository Refs](./docs/screenshots/repo-refs.png)
-
-### Issue 列表与详情
-
-![Issue List and Detail](./docs/screenshots/issue-list-and-detail.png)
-
-### Pull Request 列表与详情
-
-![Pull Request List and Detail](./docs/screenshots/pr-list-and-detail.png)
-
-### PR diff
-
-![PR Diff](./docs/screenshots/pr-diff.png)
-
-### Issue / PR 编辑弹窗
-
-![Issue PR Edit Dialog](./docs/screenshots/issue-pr-edit-dialog.png)
-
-### PR Worktree
-
-![PR Worktree](./docs/screenshots/pr-worktree.png)
-
-### 设置页
-
-![Settings](./docs/screenshots/settings.png)
+| Issue |
+| --- |
+| ![Issue](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/issue.png) |
 
 ## 已知限制
 
@@ -189,21 +159,6 @@ pnpm run version-packages
 ```
 
 `pnpm run release` 用于 npm 包发布；VS Code 扩展本身通过 `pnpm --filter forgejo-toolkit package` 打包成 `.vsix`。
-
-## 截图清单（发布前补充）
-
-请在 `docs/screenshots/` 目录下放置以下截图，文件名与 README 中引用保持一致：
-
-1. `dashboard.png` — Dashboard 面板，展示仓库 / Issue / PR 列表和实例折叠效果。
-2. `repo-overview.png` — 仓库详情「概览」标签页，展示 README、最近提交、默认分支信息。
-3. `repo-file-browser.png` — 仓库详情「文件」标签页，展示目录树、文件搜索或文件历史弹窗。
-4. `repo-refs.png` — 仓库详情「引用」标签页，展示分支 / 标签 / Release 列表。
-5. `issue-list-and-detail.png` — Issue 列表 + Issue 详情页。
-6. `pr-list-and-detail.png` — PR 列表 + PR 详情页。
-7. `pr-diff.png` — PR 详情页的变更文件列表，或 VS Code diff 编辑器。
-8. `issue-pr-edit-dialog.png` — Issue / PR 编辑弹窗，展示 Markdown 编辑器与附件区域。
-9. `pr-worktree.png` — PR 详情页「在 Worktree 中打开」流程，或 worktree 设置面板。
-10. `settings.png` — 设置页，展示实例列表、worktree 配置、语言切换。
 
 ## 项目状态
 

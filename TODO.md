@@ -4,10 +4,6 @@
 
 ## 待开始
 
-### 发布前
-
-- [ ] 根 README 引用 `docs/screenshots/` 10 张图片，目录不存在（发布前补截图或移除引用）
-
 ### 规划中的功能
 
 - [ ] MCP Server Phase 2 写工具（需单独批准，方案已定调）——`create_issue`、`create_comment`、`create_pull_request`、`submit_pull_review`、`merge_pull_request`、`mark_notification_read`；默认关 + 设置逐项开启 + VS Code 逐次确认
