@@ -20,6 +20,7 @@
 - **通知中心**：未读角标、后台轮询与消息提醒、状态 / 类型筛选、标记已读。
 - **全局搜索**：跨实例搜索仓库、Issue、PR。
 - **CI / Actions**：运行历史、job 日志、制品下载、取消运行、带输入参数的 workflow 触发。
+- **MCP Server**：零配置将 Forgejo 实例暴露给 Copilot agent mode 等 MCP 客户端，提供 Issue、PR、Actions、代码浏览等只读工具（需 VS Code ≥ 1.102）。
 - **设置导出 / 导入**：将实例（可选加密）与设置导出为 JSON，导入前提供冲突预览。
 - **国际化**：支持中文 / 英文切换。
 - **调试日志**：可选开启 API 请求日志到 `Forgejo Toolkit` Output Channel。
@@ -52,6 +53,25 @@ pnpm --filter forgejo-toolkit package
 - **VS Code ≥ 1.102** —— 通过扩展的 `engines.vscode` 字段强制约束。
 - **Actions 功能需要 Forgejo ≥ 1.19** —— 按特性闸门处理：更老的实例只会隐藏 Actions 相关界面，不抬升整体最低版本。
 - 未来依赖更新 Forgejo 版本的新端点（如 v17 的 rerun API）同样按特性闸门处理，不会抬升整体最低版本。
+
+## MCP Server（AI Agent 集成）
+
+扩展内置 MCP Server，让 Copilot agent mode 等 AI 助手可以用自然语言查询你的 Forgejo 实例。
+
+- **零配置**：首个已配置的 Forgejo 实例会通过 VS Code 的 `contributes.mcpServerDefinitionProviders` API 自动暴露给 MCP 客户端，无需任何额外设置，也不用单独启动服务。
+- **要求**：VS Code ≥ 1.102，且至少配置了一个带 access token 的实例；不满足时静默不注册。
+- **使用方式**：在 Copilot 聊天中切换到 agent mode，直接用自然语言提问，例如「list my issues」或「看一下这个仓库最近一次失败运行的 CI 日志」。
+- **工具概览**：约 27 个工具，分为四组——
+  - **基础**：Issue、PR、时间线、通知、仓库信息与搜索（如 `list_issues`、`get_pull_request`）。
+  - **Actions**：运行历史、job 日志与制品（如 `list_action_runs`、`get_action_job_log`）。
+  - **代码读取**：文件内容、分支、标签、提交、文件历史与 PR diff（如 `get_file_content`、`get_pr_diff`）。
+  - **Review 与元数据**：PR 评审、Release、标签、里程碑与自己的仓库（如 `list_pull_reviews`、`whoami`）。
+- **安全说明**：
+  - 全部工具均为只读（`readOnlyHint`），agent 无法修改实例上的任何数据。
+  - token 从 SecretStorage 经进程环境变量注入 stdio 子进程，不会出现在工具 schema、工具结果或日志中。
+  - VS Code 会在每次工具调用前向你确认，始终有人在审环节。
+  - 过大的响应字段会被截断，保护 agent 的上下文窗口。
+  - 增删实例后会自动重新解析暴露的 server。
 
 ## 截图
 

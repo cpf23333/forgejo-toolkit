@@ -47,6 +47,22 @@ Yes. Pick the files in the create-release dialog; the extension creates the rele
 
 PR worktrees are checked out into a cache directory so they can be reused. You can change the directory in the settings if the default location is inconvenient.
 
+## MCP Server
+
+### Why can't I see the Forgejo instance in "MCP: List Servers"?
+
+The MCP server is only registered when all of the following are true:
+
+- You are running VS Code 1.102 or newer.
+- At least one Forgejo instance is configured in the extension.
+- That instance has an access token stored.
+
+If any condition is missing, the extension silently skips registration — check these three points first.
+
+### Can the AI agent modify my repository through this extension?
+
+No. All MCP tools are currently read-only (`readOnlyHint`), so the agent can query issues, PRs, Actions runs, and code, but cannot change anything. Write tools may be added in the future as opt-in features — disabled by default and enabled one by one. In addition, VS Code asks for your confirmation before every tool call, so nothing happens without your approval.
+
 ## Troubleshooting
 
 ### Nothing happens when I click a repository

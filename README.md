@@ -20,6 +20,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-
 - **Notifications**: unread badge, background polling with toast alerts, filters, and mark-as-read.
 - **Global search**: search repositories, Issues, and PRs across instances.
 - **CI / Actions**: run history, job logs, artifact downloads, run cancellation, and workflow dispatch with inputs.
+- **MCP Server**: exposes your Forgejo instance to Copilot agent mode and other MCP clients with zero configuration — read-only tools for issues, PRs, Actions, and code browsing (VS Code ≥ 1.102).
 - **Settings export / import**: export instances (optionally encrypted) and settings to JSON, and import them back with a conflict preview.
 - **Internationalization**: supports switching between Chinese and English.
 - **Debug logs**: optional API request logging to the `Forgejo Toolkit` Output Channel.
@@ -52,6 +53,25 @@ Then in VS Code click **Extensions → ... → Install from VSIX** and select th
 - **VS Code ≥ 1.102** — enforced via the extension's `engines.vscode` field.
 - **Actions features require Forgejo ≥ 1.19** — handled as a feature gate: older instances simply hide Actions-related UI instead of raising the overall minimum version.
 - Future endpoints from newer Forgejo releases (e.g. the v17 rerun API) are gated per feature the same way and do not raise the overall minimum version either.
+
+## MCP Server (AI Agent Integration)
+
+The extension ships a built-in MCP server that lets AI assistants — such as Copilot agent mode — query your Forgejo instance in natural language.
+
+- **Zero configuration**: the first configured Forgejo instance is automatically exposed to MCP clients via VS Code's `contributes.mcpServerDefinitionProviders` API. No extra setup, no separate server to run.
+- **Requirements**: VS Code ≥ 1.102 and at least one configured instance with an access token. If neither is available, the server is simply not registered.
+- **Usage**: open Copilot chat in agent mode and ask in natural language, e.g. "list my issues" or "show the CI log of the latest failed run in this repo".
+- **Tool overview**: about 27 tools in four groups —
+  - **Core**: issues, pull requests, timelines, notifications, repository info, and search (e.g. `list_issues`, `get_pull_request`).
+  - **Actions**: run history, job logs, and artifacts (e.g. `list_action_runs`, `get_action_job_log`).
+  - **Code reading**: file contents, branches, tags, commits, file history, and PR diffs (e.g. `get_file_content`, `get_pr_diff`).
+  - **Review & metadata**: PR reviews, releases, labels, milestones, and your own repositories (e.g. `list_pull_reviews`, `whoami`).
+- **Security**:
+  - All tools are strictly read-only (`readOnlyHint`) — the agent cannot modify anything on your instance.
+  - Your token is injected from SecretStorage into the stdio subprocess via a process environment variable; it never appears in tool schemas, tool results, or logs.
+  - VS Code asks for your confirmation before every tool call, so a human stays in the loop.
+  - Large response fields are truncated to protect the agent's context window.
+  - Adding or removing instances re-resolves the exposed server automatically.
 
 ## Screenshots
 

@@ -161,6 +161,16 @@
 - Actions 运行详情页支持取消正在运行的记录。
 - Actions 远程触发 workflow，支持输入参数，并轮询展示运行状态。
 
+### MCP Server
+
+- 通过 VS Code `contributes.mcpServerDefinitionProviders` 将首个已配置的 Forgejo 实例暴露给 Copilot agent mode 等 MCP 客户端，零配置（VS Code ≥ 1.102）。
+- token 从 SecretStorage 经进程环境变量注入 stdio 子进程，不出现在工具 schema / 结果 / 日志中；无实例或无 token 时静默不注册，实例增删后自动重解析。
+- Phase 1 只读工具集（全部标记 `readOnlyHint`，大字段截断保护上下文）：
+  - 基础工具：Issue / PR / 时间线 / 通知 / 仓库信息 / 全局搜索。
+  - Actions 扩展：运行历史、job 列表、job 日志、制品列表。
+  - 代码读取扩展：文件内容、目录列表、分支、标签、提交、文件历史、仓库内文件搜索、PR diff。
+  - Review 与元数据扩展：PR 评审、whoami、Release、标签、里程碑、当前用户仓库列表。
+
 ## 后续迭代
 
 ### 设置与数据
@@ -176,5 +186,6 @@
 ## 长期可能
 
 - 多账号权限管理：区分只读 / 读写 token。
+- MCP Server Phase 2：写操作工具（默认关闭、逐项开启）；多实例同时暴露（当前仅暴露首个已配置实例）。
 - 文件浏览器增强：文件重命名 / 删除（目前更推荐本地 clone 后操作）。
 - 构建工具统一：将 extension host 打包从 esbuild 迁移到 Rolldown。已评估：可行但收益有限，暂缓实施；需验证 Node builtins 处理、CJS 输出、sourcemap、minify、watch 模式等能力。
