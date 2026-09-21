@@ -13,6 +13,15 @@ import {
   mockTimelineComment,
   mockNotifications,
   mockRepository,
+  mockUser,
+  mockActionRun,
+  mockActionRunJob,
+  mockActionArtifact,
+  mockPullReview,
+  mockPullReviewComment,
+  mockLabel,
+  mockMilestone,
+  mockHistoryCommit,
 } from '../../src/test/mocks/data';
 
 describe('MCP tool handlers with MSW', () => {
@@ -161,6 +170,195 @@ describe('MCP tool handlers with MSW', () => {
       .catch((error: unknown) => error);
     expect(rejection).toBeInstanceOf(ApiError);
     expect((rejection as ApiError).status).toBe(500);
+  });
+
+  it('list_action_runs returns the workflow run list', async () => {
+    const handlers = createHandlers();
+    const runs = (await handlers.list_action_runs({ owner: 'demo-user', repo: 'demo-repo' })) as {
+      total_count?: number;
+      workflow_runs: { id?: number }[];
+    };
+    expect(runs.total_count).toBe(1);
+    expect(runs.workflow_runs[0].id).toBe(mockActionRun.id);
+  });
+
+  it('get_action_run_jobs returns the jobs of a run', async () => {
+    const handlers = createHandlers();
+    const jobs = (await handlers.get_action_run_jobs({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      runId: 42,
+    })) as (typeof mockActionRunJob)[];
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].name).toBe(mockActionRunJob.name);
+  });
+
+  it('get_action_job_log returns the raw log text', async () => {
+    const handlers = createHandlers();
+    const log = await handlers.get_action_job_log({ owner: 'demo-user', repo: 'demo-repo', jobId: 101 });
+    expect(log).toBe('build log output');
+  });
+
+  it('get_action_run_artifacts returns the artifacts of a run', async () => {
+    const handlers = createHandlers();
+    const artifacts = (await handlers.get_action_run_artifacts({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      runId: 42,
+    })) as (typeof mockActionArtifact)[];
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].name).toBe(mockActionArtifact.name);
+  });
+
+  it('get_file_content decodes the file content', async () => {
+    const handlers = createHandlers();
+    const content = await handlers.get_file_content({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      path: 'src/index.ts',
+      ref: 'main',
+    });
+    expect(content).toContain('export function greet');
+  });
+
+  it('get_file_content without a ref reads the default branch', async () => {
+    const handlers = createHandlers();
+    const content = await handlers.get_file_content({ owner: 'demo-user', repo: 'demo-repo', path: 'docs/any.md' });
+    // The catch-all mock echoes the requested ref; no ref means default branch.
+    expect(content).toContain('ref: default branch');
+  });
+
+  it('list_repo_contents lists the root and a subdirectory', async () => {
+    const handlers = createHandlers();
+    const root = (await handlers.list_repo_contents({ owner: 'demo-user', repo: 'demo-repo' })) as {
+      name?: string;
+    }[];
+    expect(root.map((entry) => entry.name)).toEqual(['README.md', 'src', 'package.json']);
+    const src = (await handlers.list_repo_contents({ owner: 'demo-user', repo: 'demo-repo', path: 'src' })) as {
+      path?: string;
+    }[];
+    expect(src.map((entry) => entry.path)).toEqual(['src/index.ts', 'src/utils']);
+  });
+
+  it('list_branches returns the repository branches', async () => {
+    const handlers = createHandlers();
+    const branches = (await handlers.list_branches({ owner: 'demo-user', repo: 'demo-repo' })) as {
+      name?: string;
+    }[];
+    expect(branches.map((branch) => branch.name)).toEqual(['main', 'dev']);
+  });
+
+  it('list_tags returns the repository tags', async () => {
+    const handlers = createHandlers();
+    const tags = (await handlers.list_tags({ owner: 'demo-user', repo: 'demo-repo' })) as { name?: string }[];
+    expect(tags.map((tag) => tag.name)).toEqual(['v1.0.0']);
+  });
+
+  it('list_commits returns the latest branch commits', async () => {
+    const handlers = createHandlers();
+    const commits = (await handlers.list_commits({ owner: 'demo-user', repo: 'demo-repo', branch: 'main' })) as {
+      sha?: string;
+    }[];
+    expect(commits).toHaveLength(1);
+    expect(commits[0].sha).toBe('abc123');
+  });
+
+  it('get_file_history returns the commits that touched a file', async () => {
+    const handlers = createHandlers();
+    const commits = (await handlers.get_file_history({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      path: 'README.md',
+      ref: 'main',
+    })) as { sha?: string }[];
+    expect(commits).toHaveLength(1);
+    expect(commits[0].sha).toBe(mockHistoryCommit.sha);
+  });
+
+  it('search_repo_files matches paths by keyword', async () => {
+    const handlers = createHandlers();
+    const files = (await handlers.search_repo_files({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      query: 'index',
+      ref: 'main',
+    })) as { path?: string }[];
+    expect(files.map((file) => file.path)).toEqual(['src/index.ts']);
+  });
+
+  it('search_repo_files without a ref resolves the default branch', async () => {
+    const handlers = createHandlers();
+    const files = (await handlers.search_repo_files({ owner: 'demo-user', repo: 'demo-repo', query: 'utils' })) as {
+      path?: string;
+    }[];
+    expect(files.map((file) => file.path)).toEqual(['src/utils.ts']);
+  });
+
+  it('get_pr_diff returns the unified diff text', async () => {
+    const handlers = createHandlers();
+    const diff = await handlers.get_pr_diff({ owner: 'demo-user', repo: 'demo-repo', index: 2 });
+    expect(diff).toContain('diff --git a/src/index.ts');
+  });
+
+  it('get_pull_review_comments returns inline comments with path and position', async () => {
+    const handlers = createHandlers();
+    const comments = (await handlers.get_pull_review_comments({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 2,
+      reviewId: 100,
+    })) as (typeof mockPullReviewComment)[];
+    expect(comments).toHaveLength(1);
+    expect(comments[0].path).toBe(mockPullReviewComment.path);
+    expect(comments[0].position).toBe(mockPullReviewComment.position);
+  });
+
+  it('list_pull_reviews returns the review conclusions', async () => {
+    const handlers = createHandlers();
+    const reviews = (await handlers.list_pull_reviews({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 2,
+    })) as (typeof mockPullReview)[];
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0].id).toBe(mockPullReview.id);
+    expect(reviews[0].state).toBe(mockPullReview.state);
+  });
+
+  it('whoami returns the authenticated user', async () => {
+    const handlers = createHandlers();
+    const user = (await handlers.whoami()) as typeof mockUser;
+    expect(user.login).toBe(mockUser.login);
+  });
+
+  it('list_releases returns the repository releases', async () => {
+    const handlers = createHandlers();
+    const releases = (await handlers.list_releases({ owner: 'demo-user', repo: 'demo-repo' })) as unknown[];
+    expect(releases).toHaveLength(0);
+  });
+
+  it('list_labels returns the repository labels', async () => {
+    const handlers = createHandlers();
+    const labels = (await handlers.list_labels({ owner: 'demo-user', repo: 'demo-repo' })) as (typeof mockLabel)[];
+    expect(labels).toHaveLength(1);
+    expect(labels[0].name).toBe(mockLabel.name);
+  });
+
+  it('list_milestones returns the repository milestones', async () => {
+    const handlers = createHandlers();
+    const milestones = (await handlers.list_milestones({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+    })) as (typeof mockMilestone)[];
+    expect(milestones).toHaveLength(1);
+    expect(milestones[0].title).toBe(mockMilestone.title);
+  });
+
+  it('list_my_repos returns the authenticated user repositories', async () => {
+    const handlers = createHandlers();
+    const repos = (await handlers.list_my_repos()) as (typeof mockRepository)[];
+    expect(repos).toHaveLength(3);
+    expect(repos[0].full_name).toBe(mockRepository.full_name);
   });
 });
 

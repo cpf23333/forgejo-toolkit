@@ -4,7 +4,7 @@ import { registerTools } from './tools';
 import packageJson from '../package.json';
 
 /**
- * Builds the MCP server with the phase-1 (read-only) tool surface. Kept
+ * Builds the MCP server with the read-only tool surface. Kept
  * separate from server.ts so tests can connect it over InMemoryTransport
  * instead of stdio.
  */

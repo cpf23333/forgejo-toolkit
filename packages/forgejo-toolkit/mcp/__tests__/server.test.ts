@@ -52,7 +52,7 @@ describe('MCP server over InMemoryTransport', () => {
     resetMockServer();
   });
 
-  it('lists exactly the phase-1 read-only tools', async () => {
+  it('lists exactly the read-only tool surface', async () => {
     const server = createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
@@ -61,14 +61,33 @@ describe('MCP server over InMemoryTransport', () => {
     try {
       const { tools } = await client.listTools();
       expect(tools.map((tool) => tool.name).sort()).toEqual([
+        'get_action_job_log',
+        'get_action_run_artifacts',
+        'get_action_run_jobs',
+        'get_file_content',
+        'get_file_history',
         'get_issue',
+        'get_pr_diff',
         'get_pr_timeline',
         'get_pull_request',
+        'get_pull_review_comments',
         'get_repo',
+        'list_action_runs',
+        'list_branches',
+        'list_commits',
         'list_issues',
+        'list_labels',
+        'list_milestones',
+        'list_my_repos',
         'list_notifications',
         'list_pull_requests',
+        'list_pull_reviews',
+        'list_releases',
+        'list_repo_contents',
+        'list_tags',
         'search',
+        'search_repo_files',
+        'whoami',
       ]);
       for (const tool of tools) {
         expect(tool.description).toBeTruthy();
@@ -136,6 +155,47 @@ describe('MCP server over InMemoryTransport', () => {
     const repos = resultJson(result) as { full_name?: string }[];
     expect(repos).toHaveLength(1);
     expect(repos[0].full_name).toBe('demo-user/another-repo');
+  });
+
+  it('round-trips list_action_runs', async () => {
+    const result = await callTool('list_action_runs', { owner: 'demo-user', repo: 'demo-repo' });
+    const runs = resultJson(result) as { workflow_runs: { id?: number }[] };
+    expect(runs.workflow_runs).toHaveLength(1);
+    expect(runs.workflow_runs[0].id).toBe(42);
+  });
+
+  it('round-trips get_action_job_log as a plain string', async () => {
+    const result = await callTool('get_action_job_log', { owner: 'demo-user', repo: 'demo-repo', jobId: 101 });
+    expect(resultJson(result)).toBe('build log output');
+  });
+
+  it('round-trips get_file_content', async () => {
+    const result = await callTool('get_file_content', {
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      path: 'src/index.ts',
+      ref: 'main',
+    });
+    expect(resultJson(result)).toContain('export function greet');
+  });
+
+  it('round-trips search_repo_files with the default-branch fallback', async () => {
+    const result = await callTool('search_repo_files', { owner: 'demo-user', repo: 'demo-repo', query: 'index' });
+    const files = resultJson(result) as { path?: string }[];
+    expect(files.map((file) => file.path)).toEqual(['src/index.ts']);
+  });
+
+  it('round-trips list_pull_reviews', async () => {
+    const result = await callTool('list_pull_reviews', { owner: 'demo-user', repo: 'demo-repo', index: 2 });
+    const reviews = resultJson(result) as { id?: number; state?: string }[];
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0].state).toBe('COMMENT');
+  });
+
+  it('round-trips whoami', async () => {
+    const result = await callTool('whoami', {});
+    const user = resultJson(result) as { login?: string };
+    expect(user.login).toBe('demo-user');
   });
 
   it('renders API failures as tool errors without leaking the token', async () => {

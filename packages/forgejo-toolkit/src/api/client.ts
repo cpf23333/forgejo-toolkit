@@ -690,8 +690,16 @@ export class ForgejoClient {
     };
   }
 
-  async getRepoBranchCommits(owner: string, repo: string, branch: string): Promise<ForgejoCommit[]> {
-    const commits = await repoGetAllCommits(owner, repo, { sha: branch, limit: 10 }, { client: this._client() });
+  /** Default branch of a repository, for tool calls that omit an explicit ref. */
+  async getRepoDefaultBranch(owner: string, repo: string): Promise<string> {
+    const repository = await repoGet(owner, repo, { client: this._client() });
+    return (repository as ForgejoRepository).default_branch ?? 'main';
+  }
+
+  async getRepoBranchCommits(owner: string, repo: string, branch?: string): Promise<ForgejoCommit[]> {
+    const commits = await repoGetAllCommits(owner, repo, branch ? { sha: branch, limit: 10 } : { limit: 10 }, {
+      client: this._client(),
+    });
     return (commits ?? []).map(
       (commit) =>
         ({
@@ -710,11 +718,11 @@ export class ForgejoClient {
     );
   }
 
-  async getFileHistory(owner: string, repo: string, filepath: string, ref: string): Promise<ForgejoCommit[]> {
+  async getFileHistory(owner: string, repo: string, filepath: string, ref?: string): Promise<ForgejoCommit[]> {
     const commits = await repoGetAllCommits(
       owner,
       repo,
-      { sha: ref, path: filepath, limit: 50 },
+      ref ? { sha: ref, path: filepath, limit: 50 } : { path: filepath, limit: 50 },
       { client: this._client() },
     );
     return (commits ?? []).map(
@@ -1319,8 +1327,9 @@ export class ForgejoClient {
     return repoEditPullRequest(owner, repo, index, data, { client: this._client() }) as Promise<ForgejoPullRequest>;
   }
 
-  async getFileContent(owner: string, repo: string, filepath: string, ref: string): Promise<string> {
-    const response = await repoGetContents(owner, repo, encodeFilePath(filepath), { ref }, { client: this._client() });
+  async getFileContent(owner: string, repo: string, filepath: string, ref?: string): Promise<string> {
+    const params = ref ? { ref } : undefined;
+    const response = await repoGetContents(owner, repo, encodeFilePath(filepath), params, { client: this._client() });
     const content = (response as { content?: string }).content;
     if (!content) {
       return '';
