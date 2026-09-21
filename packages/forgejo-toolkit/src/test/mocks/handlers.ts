@@ -85,7 +85,7 @@ export const handlers = [
 
   // Server version probe (feature gates); a modern version keeps every
   // feature enabled in the mock environment.
-  http.get('https://*/api/v1/version', () => json({ version: '1.21.5' })),
+  http.get('https://*/api/v1/version', () => json({ version: '16.0.5' })),
 
   http.get('https://*/api/v1/user/repos', ({ request }) =>
     json(paginate(request, [mockRepository, mockRepository2, mockRepositoryFail])),

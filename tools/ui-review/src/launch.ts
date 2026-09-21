@@ -15,6 +15,9 @@ const EXTS = path.join(HERE, 'extensions');
 const EXTENSION_DEV = path.join(ROOT, 'packages', 'forgejo-toolkit');
 const WORKSPACE = process.argv[2] || 'D:\\code\\test';
 const PORT = Number(process.env.CDP_PORT || 9222);
+// Optional UI locale for screenshot runs (e.g. UI_LOCALE=zh-cn). Requires the
+// matching language pack in the isolated extensions dir.
+const LOCALE = process.env.UI_LOCALE;
 
 fs.mkdirSync(path.join(PROFILE, 'User'), { recursive: true });
 fs.mkdirSync(EXTS, { recursive: true });
@@ -35,6 +38,7 @@ const args = [
   '--new-window',
   '--skip-welcome',
   '--skip-release-notes',
+  ...(LOCALE ? [`--locale=${LOCALE}`] : []),
   WORKSPACE,
 ];
 

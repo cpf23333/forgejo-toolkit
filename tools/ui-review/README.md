@@ -29,6 +29,19 @@ pnpm ui type <text> [name]           # types into the focused element
 pnpm ui key <key> [name]             # e.g. Escape, Enter, Tab
 ```
 
+`UI_LOCALE=<locale> pnpm launch` passes `--locale` to VS Code (e.g. for
+localized screenshot runs). Note: `--locale` alone may not stick — write
+`{ "locale": "zh-cn" }` into `profile/argv.json` and install the matching
+language pack into the isolated extensions dir instead:
+
+```bash
+code --extensions-dir="$PWD/extensions" --install-extension MS-CEINTL.vscode-language-pack-zh-hans
+```
+
+A throwaway git repo under `workspace/` (gitignored) with its `origin` set to
+`https://forgejo.example.com/demo-user/demo-repo.git` gives the linked-repo
+card clean, mock-backed data for screenshots.
+
 Coordinates are read off the previous CDP screenshot (viewport, e.g. 1440x900).
 
 ## Known blind spots
