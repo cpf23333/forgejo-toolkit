@@ -18,6 +18,20 @@
 - **发布与克隆**：把本地仓库发布到实例；通过 VS Code 的 Git: Clone 按关键字在服务端搜索并克隆仓库。
 - **本地化**：English 与中文。
 
+## 截图
+
+| 引导设置 | 仪表盘 |
+| --- | --- |
+| ![引导设置](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/onboarding.png) | ![仪表盘](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/dashboard.png) |
+
+| 仓库概览 | Pull Request |
+| --- | --- |
+| ![仓库概览](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/repo-overview.png) | ![Pull Request](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/pull-request.png) |
+
+| Issue |
+| --- |
+| ![Issue](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/issue.png) |
+
 ## 说明
 
 - 扩展通过 REST API（`/api/v1`）与 Forgejo 通信。
