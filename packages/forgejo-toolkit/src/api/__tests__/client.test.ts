@@ -605,9 +605,11 @@ describe('ForgejoClient with MSW', () => {
   it('fetches action runs', async () => {
     const client = createClient();
     const runs = await client.listActionRuns('demo-user', 'demo-repo');
-    expect(runs.workflow_runs).toHaveLength(1);
+    // The fixture holds more runs than one page, so the first page is full and
+    // the total tells the view another page exists.
+    expect(runs.workflow_runs).toHaveLength(30);
     expect(runs.workflow_runs?.[0]?.id).toBe(mockActionRun.id);
-    expect(runs.total_count).toBe(1);
+    expect(runs.total_count).toBe(35);
   });
 
   it('renders markdown', async () => {

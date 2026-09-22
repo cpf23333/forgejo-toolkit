@@ -160,7 +160,8 @@ describe('MCP server over InMemoryTransport', () => {
   it('round-trips list_action_runs', async () => {
     const result = await callTool('list_action_runs', { owner: 'demo-user', repo: 'demo-repo' });
     const runs = resultJson(result) as { workflow_runs: { id?: number }[] };
-    expect(runs.workflow_runs).toHaveLength(1);
+    // The fixture has 35 runs; the tool's page holds the first 30.
+    expect(runs.workflow_runs).toHaveLength(30);
     expect(runs.workflow_runs[0].id).toBe(42);
   });
 

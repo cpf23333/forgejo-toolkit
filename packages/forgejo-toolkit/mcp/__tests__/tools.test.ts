@@ -184,7 +184,7 @@ describe('MCP tool handlers with MSW', () => {
       total_count?: number;
       workflow_runs: { id?: number }[];
     };
-    expect(runs.total_count).toBe(1);
+    expect(runs.total_count).toBe(35);
     expect(runs.workflow_runs[0].id).toBe(mockActionRun.id);
   });
 

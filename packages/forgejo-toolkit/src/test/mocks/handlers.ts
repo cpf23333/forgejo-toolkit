@@ -14,6 +14,7 @@ import {
   mockReadmeContent,
   mockIndexTsContent,
   mockActionRun,
+  mockActionRuns,
   mockActionRunJob,
   mockActionArtifact,
   mockDispatchWorkflowRun,
@@ -641,9 +642,18 @@ export const handlers = [
     });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs', () =>
-    json({ total_count: 1, workflow_runs: [mockActionRun] }),
-  ),
+  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs', ({ request }) => {
+    // Paginated with an exact total, like the real endpoint: the webview uses
+    // `total_count` to decide whether "Load more" is offered and the page's row
+    // count to detect the last page.
+    const url = new URL(request.url);
+    const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+    const limit = Number(url.searchParams.get('limit')) || 30;
+    return json({
+      total_count: mockActionRuns.length,
+      workflow_runs: mockActionRuns.slice((page - 1) * limit, page * limit),
+    });
+  }),
 
   http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id', () => json(mockActionRun)),
 
