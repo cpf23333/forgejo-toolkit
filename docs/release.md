@@ -146,3 +146,16 @@ Then install it in VS Code:
 - Always run `pnpm check` and `pnpm test` before publishing.
 - Do not store release artifacts in git; attach them to Codeberg Releases.
 - Keep the git repository small by not committing build outputs or dependencies.
+
+## Troubleshooting
+
+- **`ERR_AMBIGUOUS_MODULE_SYNTAX` from the release step.** The step feeds its
+  script to `node` on stdin (`node <<'NODE'`), and Node ≥ 22 refuses to guess the
+  module format for a snippet that mixes `require()` with top-level `await`. Keep
+  that script CommonJS: everything inside an `async function` called from a
+  `.catch()` handler, no top-level `await`. A dry run does not exercise this step,
+  so the failure only shows up when a release is actually created — reproduce it
+  locally with `node -` and the same body before changing the step.
+- **A tag lookup or an API call fails with 401/403.** Forgejo ignores the
+  `permissions:` field, so the job's token may lack the scope the call needs; use
+  the `FORGEJO_TOKEN` secret (with `write:repository`) as the release step does.
