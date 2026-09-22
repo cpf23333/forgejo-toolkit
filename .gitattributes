@@ -1,0 +1,20 @@
+# Line endings: text files are stored and checked out as LF on every platform.
+# Without this, `core.autocrlf` (the default on Windows checkouts) rewrites every
+# file git touches as CRLF in the working tree, while the committed blobs stay LF
+# — which makes those files show up as modified with an empty diff and makes
+# `pnpm format` (oxfmt, which normalizes to LF) report them as unformatted.
+* text=auto eol=lf
+
+# Windows command scripts are the exception: cmd.exe requires CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets: never normalize, diff or merge them as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.vsix binary
