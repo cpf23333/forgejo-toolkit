@@ -65,6 +65,10 @@ let pullEdits: { title?: string; body?: string; state?: string } | undefined;
 let trackedTimes: (typeof mockTrackedTime)[] = [mockTrackedTime];
 let dependencies: typeof mockDependencies = [...mockDependencies];
 let commentAttachments: (typeof mockCommentAttachment)[] = [mockCommentAttachment];
+// The release list serves the fixture release, so the release edit dialog (and
+// the attachment delete it contains) is reachable in a walkthrough. Without it
+// the refs view showed "no releases" and that confirmation had nothing to click.
+let releases: (typeof mockRelease)[] = [mockRelease];
 
 // Restores every piece of mutable session state above. resetMockServer()
 // calls this so each test starts from a clean slate.
@@ -77,6 +81,7 @@ export function resetMockState(): void {
   trackedTimes = [mockTrackedTime];
   dependencies = [...mockDependencies];
   commentAttachments = [mockCommentAttachment];
+  releases = [mockRelease];
 }
 
 // Slices a list response the way the real API does: `page`/`limit` query
@@ -554,7 +559,7 @@ export const handlers = [
 
   http.delete('https://*/api/v1/repos/:owner/:repo/tags/:tag', () => new HttpResponse(null, { status: 204 })),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/releases', () => json([])),
+  http.get('https://*/api/v1/repos/:owner/:repo/releases', ({ request }) => json(paginate(request, releases))),
 
   http.post('https://*/api/v1/repos/:owner/:repo/releases', async ({ request }) => {
     const body = (await request.json()) as { tag_name?: string; name?: string };

@@ -342,8 +342,11 @@ describe('MCP tool handlers with MSW', () => {
 
   it('list_releases returns the repository releases', async () => {
     const handlers = createHandlers();
-    const releases = (await handlers.list_releases({ owner: 'demo-user', repo: 'demo-repo' })) as unknown[];
-    expect(releases).toHaveLength(0);
+    const releases = (await handlers.list_releases({ owner: 'demo-user', repo: 'demo-repo' })) as {
+      tag_name?: string;
+    }[];
+    expect(releases).toHaveLength(1);
+    expect(releases[0].tag_name).toBe('v2.0.0');
   });
 
   it('list_labels returns the repository labels', async () => {

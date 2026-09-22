@@ -342,7 +342,10 @@ describe('ForgejoClient with MSW', () => {
   it('fetches repository releases', async () => {
     const client = createClient();
     const releases = await client.getRepoReleases('demo-user', 'demo-repo');
-    expect(releases).toEqual([]);
+    expect(releases).toHaveLength(1);
+    expect(releases[0].tag_name).toBe('v2.0.0');
+    // The release carries an attachment so the delete flow is walkthrough-able.
+    expect(releases[0].assets).toHaveLength(1);
   });
 
   it('fetches repository issues', async () => {
