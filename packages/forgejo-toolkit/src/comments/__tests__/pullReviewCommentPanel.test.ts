@@ -404,6 +404,49 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
       expect.objectContaining({ command: 'requestError', _requestId: 'req-9' }),
     );
   });
+
+  it('rejects an attachment upload carrying a hostile repository name', async () => {
+    const { fakePanel, send } = openPanel();
+    clientMocks.searchMentions.mockClear();
+    await send({
+      command: 'createIssueAttachment',
+      instanceId: 'demo',
+      owner: 'demo-user',
+      repo: 'x/../../admin/users',
+      index: 2,
+      name: 'shot.png',
+      data: [1, 2, 3],
+      _requestId: 'req-att',
+    });
+
+    // The guard runs before the handler, so no API client work happens and the
+    // waiting request is answered instead of left pending.
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'requestError', _requestId: 'req-att' }),
+    );
+    expect(fakePanel.webview.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'issueAttachmentCreated' }),
+    );
+  });
+
+  it('rejects a mention search carrying a hostile owner', async () => {
+    const { fakePanel, send } = openPanel();
+    clientMocks.searchMentions.mockClear();
+    await send({
+      command: 'searchMentions',
+      instanceId: 'demo',
+      owner: '..',
+      repo: 'demo-repo',
+      query: 'al',
+      type: 'all',
+      _requestId: 'req-mention',
+    });
+
+    expect(clientMocks.searchMentions).not.toHaveBeenCalled();
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'requestError', _requestId: 'req-mention' }),
+    );
+  });
 });
 
 describe('PullReviewCommentPanel multi-line comments', () => {

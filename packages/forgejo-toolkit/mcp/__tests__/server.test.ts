@@ -223,4 +223,80 @@ describe('MCP server over InMemoryTransport', () => {
     expect(data.issue.body).toContain('truncated');
     expect(data.issue.body!.length).toBeLessThan(hugeBody.length);
   });
+
+  it('rejects a hostile repository name in every tool that takes one', async () => {
+    const server = createMcpServer(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: 'mcp-test-client', version: '0.0.0' });
+    await client.connect(clientTransport);
+    try {
+      const { tools } = await client.listTools();
+      const allProperties = (tool: (typeof tools)[number]) =>
+        ((tool.inputSchema as { properties?: Record<string, JsonSchemaProperty> }).properties ?? {}) as Record<
+          string,
+          JsonSchemaProperty
+        >;
+      const repoTools = tools.filter((tool) => 'repo' in allProperties(tool));
+      // Every repository-scoped tool must be covered; the generated client
+      // interpolates these values straight into the request path, so an
+      // unguarded tool is an arbitrary same-origin GET.
+      expect(repoTools.length).toBeGreaterThanOrEqual(20);
+
+      for (const tool of repoTools) {
+        const result = await callTool(tool.name, hostileArgs(tool.inputSchema, allProperties(tool)));
+        // A schema rejection carries the guard's message; an API error would
+        // not, so this also proves the request never reached the network.
+        expect(result.isError, tool.name).toBe(true);
+        expect(result.content[0].text ?? '', tool.name).toContain('single path segment');
+      }
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
 });
+
+interface JsonSchemaProperty {
+  type?: string;
+  enum?: unknown[];
+  anyOf?: { type?: string }[];
+}
+
+/** Minimal valid arguments for a tool, with `repo` forced to a hostile value. */
+function hostileArgs(inputSchema: unknown, properties: Record<string, JsonSchemaProperty>): Record<string, unknown> {
+  const required = ((inputSchema as { required?: string[] }).required ?? []) as string[];
+  const args: Record<string, unknown> = {};
+  for (const [key, property] of Object.entries(properties)) {
+    if (key === 'owner') {
+      args.owner = 'demo-user';
+      continue;
+    }
+    if (key === 'repo') {
+      args.repo = 'x/../../admin/users';
+      continue;
+    }
+    if (!required.includes(key)) {
+      continue;
+    }
+    if (key === 'path') {
+      args.path = 'src/index.ts';
+      continue;
+    }
+    if (Array.isArray(property.enum)) {
+      args[key] = property.enum[0];
+      continue;
+    }
+    const type = property.anyOf?.find((option) => option.type && option.type !== 'null')?.type ?? property.type;
+    if (type === 'number' || type === 'integer') {
+      args[key] = 1;
+    } else if (type === 'boolean') {
+      args[key] = true;
+    } else if (type === 'array') {
+      args[key] = [];
+    } else {
+      args[key] = 'x';
+    }
+  }
+  return args;
+}

@@ -91,11 +91,14 @@ export class ConfigManager {
       await this.context.secrets.store(this._tokenSecretKey(instance.id), instance.token);
       this._tokens.set(instance.id, instance.token);
     } else if (stored && !isSameOriginUrl(stored.url, instance.url)) {
-      // Different origin: the secret still belongs to the original URL, so
-      // leave the SecretStorage entry untouched and only drop it from the
-      // in-memory table. This entry then surfaces token-less and the UI asks
-      // for a fresh one.
+      // Different origin: the stored secret belongs to the original URL, so it
+      // must not survive under this id at all. `init()` rehydrates tokens by
+      // instance id, so merely dropping the in-memory copy would re-attach the
+      // old token to the new URL (and thus send it to that host) at the next
+      // activation. Deleting it leaves this entry token-less, so the UI asks
+      // for a fresh credential.
       this._tokens.delete(instance.id);
+      await this.context.secrets.delete(this._tokenSecretKey(instance.id));
     }
     const instances = this._getStoredInstances().filter((i) => i.id !== instance.id);
     instances.push({ ...instance, token: '' });

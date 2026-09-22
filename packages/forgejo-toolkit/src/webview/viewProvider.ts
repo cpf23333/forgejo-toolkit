@@ -45,6 +45,7 @@ import { probeServerVersion } from '../api/versionProbe';
 import { clearServerVersion } from '../api/serverVersion';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { resolveLocale } from '../utils/resolveLocale';
+import { isSafeRepoIdentity, isSafeRepoNameSegment } from './repoIdentity';
 
 /**
  * Load-type webview requests whose handlers reply with a result message the
@@ -148,24 +149,6 @@ function mergeStrategyLabel(strategy: 'merge' | 'rebase' | 'squash'): string {
     default:
       return vscode.l10n.t('Create a merge commit');
   }
-}
-
-/**
- * Owner/repository names as they may be used verbatim in an API path *and* in
- * a cache directory name. Forgejo restricts both to letters, digits, `-`, `_`
- * and `.`, so anything else — path separators, `..`, query/fragment
- * characters, control characters — is rejected instead of escaped: the value
- * is interpolated into `path.join(...)`, where escaping would not help.
- */
-function isSafeRepoNameSegment(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.length > 0 &&
-    value.length <= 255 &&
-    /^[A-Za-z0-9._-]+$/.test(value) &&
-    value !== '.' &&
-    value !== '..'
-  );
 }
 
 /**
@@ -435,6 +418,24 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   private async _dispatchMessage(message: any): Promise<void> {
     if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
       logger.error('Ignoring malformed message from webview');
+      return;
+    }
+    // Repository identity from the webview is interpolated verbatim into API
+    // paths (`/repos/${owner}/${repo}/…`), where the URL parser resolves dot
+    // segments and splits on `?`/`#`: an unvalidated value turns a
+    // repository-scoped command into an arbitrary same-origin request. Every
+    // command carrying this pair is rejected here, before any handler runs.
+    if (!isSafeRepoIdentity(message.owner, message.repo)) {
+      logger.error(
+        `Ignoring webview message "${message.command}" with an unsafe owner/repo identity: ${String(message.owner)}/${String(message.repo)}`,
+      );
+      const requestId = typeof message._requestId === 'string' ? (message._requestId as string) : undefined;
+      if (requestId) {
+        this._reply('requestError', {
+          _requestId: requestId,
+          error: vscode.l10n.t('The request could not be completed'),
+        });
+      }
       return;
     }
     const requestId = typeof message._requestId === 'string' ? (message._requestId as string) : undefined;

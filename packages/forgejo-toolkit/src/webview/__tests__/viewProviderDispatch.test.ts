@@ -233,6 +233,39 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(messages.some((m) => m.command === 'issueCreated')).toBe(false);
   });
 
+  describe('repository identity guard', () => {
+    // owner/repo are interpolated straight into API paths, so a forged pair
+    // must never reach a handler (nor construct an API client).
+    const hostilePairs = [
+      { owner: 'owner', repo: 'x/../../admin/users' },
+      { owner: 'owner', repo: '..' },
+      { owner: '..', repo: 'repo' },
+      { owner: 'owner', repo: 'repo%2F..' },
+      { owner: 'owner', repo: 'repo?state=all' },
+      { owner: 42, repo: 'repo' },
+    ];
+
+    it.each(hostilePairs)('ignores commands carrying %j', async (pair) => {
+      vi.mocked(ForgejoClient).mockClear();
+      fake.send({ command: 'deleteIssue', instanceId: testInstance.id, index: 1, ...pair, _requestId: 'req-unsafe' });
+      await flushDispatches();
+
+      expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+      // The webview's pending promise is answered so its spinner clears.
+      expect(postedMessages(fake.posted)).toContainEqual(
+        expect.objectContaining({ command: 'requestError', _requestId: 'req-unsafe' }),
+      );
+    });
+
+    it('still dispatches a repository-scoped command with ordinary names', async () => {
+      clientMocks.getRepoDetail.mockResolvedValue({ repository: { name: 'repo' } });
+      fake.send({ command: 'getRepoDetail', instanceId: testInstance.id, owner: 'demo-user', repo: 'demo.repo_1' });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      expect(clientMocks.getRepoDetail).toHaveBeenCalledWith('demo-user', 'demo.repo_1');
+    });
+  });
+
   it('replies with requestError when a request handler throws', async () => {
     vi.spyOn(config, 'getInstances').mockImplementation(() => {
       throw new Error('storage exploded');

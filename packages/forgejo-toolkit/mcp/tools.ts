@@ -353,8 +353,8 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     {
       description: 'Get a single issue by number, including its comments.',
       inputSchema: {
-        owner: z.string().describe('Repository owner (user or organization).'),
-        repo: z.string().describe('Repository name.'),
+        owner: ownerRequiredSchema,
+        repo: repoRequiredSchema,
         index: z.number().int().positive().describe('Issue number.'),
       },
       annotations: readOnly,
@@ -384,8 +384,8 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       description:
         'Get a single pull request by number, including changed files, commits, merge blockers, and status checks.',
       inputSchema: {
-        owner: z.string().describe('Repository owner (user or organization).'),
-        repo: z.string().describe('Repository name.'),
+        owner: ownerRequiredSchema,
+        repo: repoRequiredSchema,
         index: z.number().int().positive().describe('Pull request number.'),
       },
       annotations: readOnly,
@@ -398,8 +398,8 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     {
       description: 'Get the comment and event timeline of a pull request (review comments, status changes, etc.).',
       inputSchema: {
-        owner: z.string().describe('Repository owner (user or organization).'),
-        repo: z.string().describe('Repository name.'),
+        owner: ownerRequiredSchema,
+        repo: repoRequiredSchema,
         index: z.number().int().positive().describe('Pull request number.'),
       },
       annotations: readOnly,
@@ -434,8 +434,8 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     {
       description: 'Get repository details, including README, branches, and recent commits.',
       inputSchema: {
-        owner: z.string().describe('Repository owner (user or organization).'),
-        repo: z.string().describe('Repository name.'),
+        owner: ownerRequiredSchema,
+        repo: repoRequiredSchema,
       },
       annotations: readOnly,
     },

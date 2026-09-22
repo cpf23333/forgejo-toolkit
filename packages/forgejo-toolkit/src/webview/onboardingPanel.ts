@@ -10,6 +10,7 @@ import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-too
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { computeImportTokenConflicts, readExportDataFromUri, stripInstanceTokens } from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
+import { isSafeRepoIdentity } from './repoIdentity';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { userFacingErrorMessage } from '../api/errors';
 import { probeServerVersion } from '../api/versionProbe';
@@ -99,6 +100,24 @@ export class OnboardingWebviewPanel {
           this._unansweredRequests.add(requestId);
         }
         try {
+          // The README preview command carries a repository identity that ends
+          // up in a virtual document URI; the same guard the sidebar applies is
+          // repeated here because this panel has its own dispatcher. It sits
+          // inside the try so a non-object message is handled by the catch
+          // below instead of becoming an unhandled rejection.
+          if (message && typeof message === 'object' && !isSafeRepoIdentity(message.owner, message.repo)) {
+            logger.error(
+              `Ignoring onboarding message with an unsafe owner/repo identity: ${String(message.owner)}/${String(message.repo)}`,
+            );
+            if (requestId) {
+              this._unansweredRequests.delete(requestId);
+              this._reply('requestError', {
+                _requestId: requestId,
+                error: vscode.l10n.t('The request could not be completed'),
+              });
+            }
+            return;
+          }
           switch (message.command) {
             case 'getInitialState': {
               const configured = vscode.workspace

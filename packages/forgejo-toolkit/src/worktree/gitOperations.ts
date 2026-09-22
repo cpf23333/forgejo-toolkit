@@ -492,9 +492,15 @@ async function isWorktreeDirty(worktreePath: string): Promise<boolean> {
     const { stdout } = await runGit(['status', '--porcelain'], worktreePath);
     return stdout.trim().length > 0;
   } catch {
-    // Not a usable worktree (or git refused to run): treat it as clean, since
-    // there is no user work to detect and the leftover is a broken directory.
-    return false;
+    // `git status` failed, so dirt cannot be ruled out by inspection. A
+    // directory without a `.git` entry is a broken leftover with nothing
+    // tracked in it, which stays deletable without a prompt; one that does
+    // claim to be a worktree but cannot be read (repository on an unavailable
+    // drive, corrupt gitdir) must fail closed and let the caller confirm.
+    return await fs.promises.access(path.join(worktreePath, '.git')).then(
+      () => true,
+      () => false,
+    );
   }
 }
 

@@ -205,6 +205,54 @@ describe('inspectPrWorktree', () => {
     const result = await inspectPrWorktree(worktreePath, 'abc1234');
     expect(result).toEqual({ state: 'stale', info: { branch: undefined, dirty: false, commitsAhead: 0 } });
   });
+
+  it('fails closed when a worktree cannot be inspected but claims to be a repo', async () => {
+    const worktreePath = path.join(tempRoot, 'unreadable');
+    fs.mkdirSync(worktreePath);
+    // A worktree checkout has a `.git` *file* pointing at the real gitdir.
+    fs.writeFileSync(path.join(worktreePath, '.git'), 'gitdir: /repo/.git/worktrees/x\n');
+    currentHeadSha = 'old-sha';
+    currentBranch = 'pr-1-abc1234';
+    mocks.execFile.mockImplementation((_file: string, args: string[], _options: unknown, callback: ExecCallback) => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        callback(null, { stdout: 'old-sha\n', stderr: '' } as unknown as string, '');
+        return;
+      }
+      if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
+        callback(null, { stdout: 'pr-1-abc1234\n', stderr: '' } as unknown as string, '');
+        return;
+      }
+      // Everything else (including `status --porcelain`) fails: the repository
+      // is unavailable, so the dirt cannot be determined.
+      const error = new Error('Command failed') as Error & { stderr: string };
+      error.stderr = 'fatal: not a git repository';
+      callback(error, '', error.stderr);
+    });
+
+    const result = await inspectPrWorktree(worktreePath, 'abc1234');
+    expect(result.state).toBe('stale');
+    expect(result.state === 'stale' ? result.info.dirty : undefined).toBe(true);
+  });
+
+  it('treats an unreadable leftover without a .git entry as clean', async () => {
+    const worktreePath = path.join(tempRoot, 'broken-leftover');
+    fs.mkdirSync(worktreePath);
+    currentHeadSha = 'old-sha';
+    currentBranch = 'pr-1-abc1234';
+    mocks.execFile.mockImplementation((_file: string, args: string[], _options: unknown, callback: ExecCallback) => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        callback(null, { stdout: 'old-sha\n', stderr: '' } as unknown as string, '');
+        return;
+      }
+      const error = new Error('Command failed') as Error & { stderr: string };
+      error.stderr = 'fatal: not a git repository';
+      callback(error, '', error.stderr);
+    });
+
+    const result = await inspectPrWorktree(worktreePath, 'abc1234');
+    expect(result.state).toBe('stale');
+    expect(result.state === 'stale' ? result.info.dirty : undefined).toBe(false);
+  });
 });
 
 describe('discardStalePrWorktree', () => {

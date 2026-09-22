@@ -88,8 +88,24 @@ describe('ConfigManager', () => {
     const [stored] = config.getInstances();
     expect(stored.url).toBe('https://evil.example');
     expect(stored.token).toBe('');
-    // The SecretStorage entry is left alone (only the exposure is removed).
-    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
+    // The secret must be removed, not merely hidden: tokens are rehydrated by
+    // instance id, so a surviving entry would be attached to the new URL again
+    // at the next activation.
+    expect(fake.secretStore.has('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe(false);
+  });
+
+  it('does not rehydrate the old secret for the new origin after a reload', async () => {
+    await config.addInstance(instance);
+    await config.addInstance({ ...instance, token: '', url: 'https://evil.example', name: 'x', username: 'x' });
+
+    // Simulate the next activation over the same storage: init() reads the
+    // secret by id, so this is where a surviving entry would leak the token.
+    const reloaded = new ConfigManager(fake.context as never);
+    await reloaded.init();
+
+    const [stored] = reloaded.getInstances();
+    expect(stored.url).toBe('https://evil.example');
+    expect(stored.token).toBe('');
   });
 
   it('still accepts a new token on a different-origin re-add', async () => {

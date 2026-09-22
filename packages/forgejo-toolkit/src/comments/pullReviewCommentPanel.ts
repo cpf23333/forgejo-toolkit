@@ -13,6 +13,7 @@ import {
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import { resolveLocale } from '../utils/resolveLocale';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
+import { isSafeRepoIdentity } from '../webview/repoIdentity';
 import { userFacingErrorMessage } from '../api/errors';
 
 export interface PullReviewCommentContext {
@@ -108,6 +109,24 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     this._panel.webview.onDidReceiveMessage(
       async (message) => {
         logger.debug(`Received message from pull review comment webview: ${(message as WebviewToHostMessage).command}`);
+        // Repository identity from the webview is interpolated verbatim into
+        // API paths (`/repos/${owner}/${repo}/…`), where the URL parser
+        // resolves dot segments and splits on `?`/`#`. This panel has its own
+        // dispatcher, so the same guard the sidebar applies is repeated here
+        // before any handler runs.
+        const identity = message as { owner?: unknown; repo?: unknown; _requestId?: unknown };
+        if (!isSafeRepoIdentity(identity.owner, identity.repo)) {
+          logger.error(
+            `Ignoring message from the review comment webview with an unsafe owner/repo identity: ${String(identity.owner)}/${String(identity.repo)}`,
+          );
+          if (typeof identity._requestId === 'string') {
+            this._reply('requestError', {
+              _requestId: identity._requestId,
+              error: vscode.l10n.t('The request could not be completed'),
+            });
+          }
+          return;
+        }
         switch ((message as WebviewToHostMessage).command) {
           case 'getInitialState': {
             this._sendInitialState();
