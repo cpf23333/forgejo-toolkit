@@ -180,19 +180,51 @@ jobs:
 
       - name: Generate release notes
         id: notes
+        env:
+          VERSION: ${{ steps.vars.outputs.version }}
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            RANGE="${PREV_TAG}..HEAD"
-          else
-            RANGE="HEAD"
+          NOTES_FILE=/tmp/release-notes.md
+          # Curated notes win: the CHANGELOG.md section for this version (or
+          # [Unreleased]) is what the release body should contain, so preparing
+          # that section is part of the release checklist. `index(...) == 1` is a
+          # prefix test on purpose — it needs no escaping for the dots and
+          # brackets in the heading, and including the closing bracket keeps
+          # 0.0.1 from matching a 0.0.10 section.
+          extract() {
+            awk -v heading="$1" '
+              index($0, heading) == 1 { capture=1; next }
+              capture && /^## \[/ { exit }
+              capture { print }
+            ' CHANGELOG.md
+          }
+          extract "## [${VERSION}]" > "$NOTES_FILE"
+          if ! grep -q '[^[:space:]]' "$NOTES_FILE"; then
+            extract '## [Unreleased]' > "$NOTES_FILE"
           fi
-          {
-            echo "Changes since ${PREV_TAG:-the beginning}:"
-            echo ""
-            git log --pretty=format:"- %s (%h)" "$RANGE"
-          } > /tmp/release-notes.md
-          cat /tmp/release-notes.md
+          if ! grep -q '[^[:space:]]' "$NOTES_FILE"; then
+            echo "No CHANGELOG section for ${VERSION} or [Unreleased]; falling back to the commit log." >&2
+            # `git describe` only finds tags that are ancestors, which is exactly
+            # what breaks after a history rewrite; look the newest release tag up
+            # by name instead, and cap the fallback so a repository without any
+            # tag never dumps its whole history into the release body.
+            PREV_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+            if [ -n "$PREV_TAG" ]; then
+              {
+                echo "Changes since ${PREV_TAG}:"
+                echo ""
+                git log --no-merges --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD"
+              } >> "$NOTES_FILE"
+            else
+              {
+                echo "Recent changes (up to 40):"
+                echo ""
+                git log --no-merges -n 40 --pretty=format:"- %s (%h)" HEAD
+              } >> "$NOTES_FILE"
+            fi
+            echo "" >> "$NOTES_FILE"
+          fi
+          echo "Release notes for ${VERSION}:"
+          cat "$NOTES_FILE"
 
       - name: Upload the .vsix as a workflow artifact
         uses: forgejo/upload-artifact@v5

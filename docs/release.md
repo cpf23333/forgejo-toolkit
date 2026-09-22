@@ -30,6 +30,11 @@ pnpm run version-packages
 
 This updates `package.json` versions and generates `CHANGELOG.md` entries automatically.
 
+Then make sure `CHANGELOG.md` has a section for the version being released
+(`## [<version>] - <date>`): the release workflow uses that section verbatim as
+the Codeberg release body, so what is written there is what users read. Writing it
+by hand is fine — Changesets only automates the mechanical part.
+
 ### 3. Build and package the VSIX
 
 ```bash
@@ -86,6 +91,12 @@ run — it never triggers on a push, tag or schedule:
    set to `false`. The release tag defaults to `v<version>` taken from
    `packages/forgejo-toolkit/package.json`, and the tag is pinned to the
    dispatched commit rather than the branch head.
+
+The release body comes from `CHANGELOG.md`: the section matching the released
+version (`## [<version>]`), falling back to `## [Unreleased]`, and only if both
+are empty to a capped commit log (40 commits, or everything since the newest
+`v*` tag). That is why step 2 of this document insists on the changelog section
+being written — an empty section silently degrades the release notes.
 
 Inputs: `tag` (override the tag), `prerelease` (mark the release as a
 prerelease), `dry_run` (defaults to `true`, so the first run only builds).
