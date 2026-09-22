@@ -188,7 +188,7 @@ function parseWorktreeTarget(message: {
  * instances cannot share one clone; the raw host is not used because it may
  * contain characters that are invalid in a path segment.
  */
-function instanceCacheSuffix(instance: { id: string; url: string }): string {
+export function instanceCacheSuffix(instance: { id: string; url: string }): string {
   return crypto.createHash('sha256').update(`${instance.id}|${instance.url}`).digest('hex').slice(0, 8);
 }
 
@@ -4254,6 +4254,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._reply('openNotifications', {});
   }
 
+  /**
+   * Worktree directory for a PR/issue: the record of an existing worktree wins
+   * so a worktree created before the instance discriminator existed keeps its
+   * directory (and cannot be orphaned by the new naming below). Otherwise the
+   * name carries an instance-derived suffix, because `worktrees/` is shared by
+   * every instance and the same `owner/repo` slug on two instances must not
+   * resolve to one directory: the second open would reuse - and
+   * `discardStalePrWorktree` could delete - the other instance's checkout.
+   */
+  private _resolveWorktreePath(worktreesDir: string, defaultName: string, worktreeId: string): string {
+    const recorded = this._worktreeManager.getWorktree(worktreeId);
+    if (recorded?.worktreePath && isPathInsideFolder(worktreesDir, recorded.worktreePath)) {
+      return recorded.worktreePath;
+    }
+    return path.join(worktreesDir, defaultName);
+  }
+
   private async _handleOpenPrWorktree(message: { instanceId: string; owner: string; repo: string; index: number }) {
     // A rapid second invocation for the same PR reuses the in-flight run
     // instead of fetching the same branch or adding the same path twice.
@@ -4463,7 +4480,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const slugSuffix = slug ? `-${slug}` : '';
       const branch = `issue-${index}${slugSuffix}`;
       const worktreesDir = path.join(cacheDir, 'worktrees');
-      const worktreePath = path.join(worktreesDir, `${owner}-${repo}-issue-${index}${slugSuffix}`);
+      const worktreeId = `${instanceId}:${owner}/${repo}#issue-${index}`;
+      const worktreePath = this._resolveWorktreePath(
+        worktreesDir,
+        `${owner}-${repo}-${instanceCacheSuffix(instance)}-issue-${index}${slugSuffix}`,
+        worktreeId,
+      );
       assertInsideWorktreeCache(worktreesDir, worktreePath);
 
       // A leftover directory from an earlier start-work run is reopened as
@@ -4485,7 +4507,6 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           existsOnDisk = false;
         }
       }
-      const worktreeId = `${instanceId}:${owner}/${repo}#issue-${index}`;
       let defaultBranch = 'main';
       if (!existsOnDisk) {
         const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
@@ -4723,7 +4744,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const sanitizedTitle = sanitizeForPath(prTitle);
       const titleSuffix = sanitizedTitle ? `-${sanitizedTitle}` : '';
       const worktreesDir = path.join(cacheDir, 'worktrees');
-      const worktreePath = path.join(worktreesDir, `${owner}-${repo}-pr-${index}${titleSuffix}`);
+      const worktreePath = this._resolveWorktreePath(
+        worktreesDir,
+        `${owner}-${repo}-${instanceCacheSuffix(instance)}-pr-${index}${titleSuffix}`,
+        `${instanceId}:${owner}/${repo}#pr-${index}`,
+      );
       assertInsideWorktreeCache(worktreesDir, worktreePath);
 
       // A leftover directory is only reused when it is actually checked out at

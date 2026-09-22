@@ -27,7 +27,7 @@
 - [ ] P2 静默截断：`_getRepoTree` 上限 50 页 × 100 条、`_fetchAllPages` 上限 500 条，文件搜索/列表被截断时不返回任何标记。方向：结果携带 `truncated` 标记，并按 `X-Total-Count` 推导上限
 - [ ] P2 通知列表只取一页（`getNotifications` 无分页，>50 条静默丢失）
 - [ ] P2 无代理支持：所有请求走全局 `fetch`，不读 `HTTP(S)_PROXY` / VS Code `http.proxy`。方向：按设置接入 undici `ProxyAgent`，或至少在文档中声明限制
-- [ ] P2 PR worktree 目录名不含实例标识（`worktrees/<owner>-<repo>-pr-<n>`）：两个实例的同名仓库会共用同一路径。裸仓库缓存已按实例加后缀（2026-09-22 修复），worktree 目录尚未处理
+- [x] P2 PR worktree 目录名不含实例标识（`worktrees/<owner>-<repo>-pr-<n>`）：两个实例的同名仓库会共用同一路径。裸仓库缓存已按实例加后缀（2026-09-22 修复），worktree 目录尚未处理 → 2026-09-22 修复：PR 与 issue worktree 目录名都改为 `worktrees/<owner>-<repo>-<实例后缀>-pr|issue-<n>…`（复用裸仓库缓存的 `instanceCacheSuffix`，并导出供测试使用）；新增 `_resolveWorktreePath`：若已有该 worktree 记录且记录路径仍在当前 worktree 缓存目录内则沿用旧路径，因此升级前创建的 worktree 不会被改名孤立（旧记录路径继续可用，无需迁移）；新增用例「两个实例的同名仓库落到不同目录」，并更新 startWorkOnIssue 既有断言
 - [ ] P2 MCP 子进程里的版本闸门是死代码（`serverVersions` 表只在扩展宿主进程填充）；工具调用也不支持取消（未把 SDK 的 signal 透传到 client）
 - [ ] P3 缓存治理：`timedCache` 只在该 key 被再次读取时清理过期项（过期后不再读的条目会留到会话结束）；`mentionCache` 无上限；`resolveAttachmentImages` 的 key 未包含实例标识
 - [ ] P3 提交 `pnpm-lock.yaml`（已从 `.gitignore` 移除，需人工 `git add`）——此前 lockfile 未入库，全新 clone 会解析 `^` 浮动版本，安装不可复现

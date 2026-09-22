@@ -64,7 +64,7 @@ vi.mock('../../worktree/gitOperations', async () => {
   };
 });
 
-import { ForgejoToolkitViewProvider, clearResolvedAvatarCache } from '../viewProvider';
+import { ForgejoToolkitViewProvider, clearResolvedAvatarCache, instanceCacheSuffix } from '../viewProvider';
 import { ForgejoClient } from '../../api/client';
 import { clearServerVersions, getServerVersion, setServerVersion } from '../../api/serverVersion';
 import {
@@ -1409,6 +1409,40 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(vi.mocked(cloneRepository)).toHaveBeenCalledTimes(1);
       expect(postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened')).toHaveLength(2);
     });
+
+    it('gives the same owner/repo on two instances different worktree directories', async () => {
+      primeClonePath();
+      vi.mocked(cloneRepository).mockImplementation(async (_url: string, target: string) => {
+        await fs.promises.mkdir(target, { recursive: true });
+      });
+      const otherInstance = {
+        id: 'other.example.com-user',
+        url: 'https://other.example.com',
+        token: 'other-token',
+        name: 'user@other.example.com',
+        username: 'user',
+      };
+      await config.addInstance(otherInstance);
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
+      fake.send({ command: 'openPrWorktree', instanceId: otherInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened').length === 2);
+
+      // A shared `worktrees/owner-repo-pr-1` would let the second instance open
+      // - and the stale-worktree cleanup delete - the first instance's checkout.
+      const openedPaths = vi
+        .mocked(openWorktree)
+        .mock.calls.map((call) => String(call[0]))
+        .slice(-2);
+      expect(openedPaths).toHaveLength(2);
+      expect(openedPaths[0]).not.toBe(openedPaths[1]);
+      for (const openedPath of openedPaths) {
+        expect(path.dirname(openedPath)).toBe(path.join(cacheDir, 'worktrees'));
+      }
+      expect(openedPaths[0]).toContain(instanceCacheSuffix(testInstance));
+      expect(openedPaths[1]).toContain(instanceCacheSuffix(otherInstance));
+    });
   });
 
   describe('openPrWorktree recorded worktree revalidation', () => {
@@ -1758,14 +1792,18 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(reply?.error).toBeUndefined();
       expect(reply?.cancelled).toBeUndefined();
       expect(vi.mocked(fetchBranch)).toHaveBeenCalledWith('/src/repo', 'origin', 'main', 'secret-token');
+      // The directory name carries the instance discriminator: `worktrees/` is
+      // shared by every instance, so the same owner/repo on two instances must
+      // not resolve to one directory.
+      const expectedDirName = `owner-repo-${instanceCacheSuffix(testInstance)}-issue-5-fix-bug`;
       expect(vi.mocked(createWorktreeWithNewBranch)).toHaveBeenCalledWith(
         '/src/repo',
-        expect.stringContaining('owner-repo-issue-5-fix-bug'),
+        expect.stringContaining(expectedDirName),
         'issue-5-fix-bug',
         'FETCH_HEAD',
       );
       expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(
-        expect.stringContaining('owner-repo-issue-5-fix-bug'),
+        expect.stringContaining(expectedDirName),
         true,
         expect.any(Function),
       );
@@ -1860,7 +1898,11 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
       beforeEach(() => {
         cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-worktree-leftover-'));
-        worktreePath = path.join(cacheDir, 'worktrees', 'owner-repo-issue-5-fix-bug');
+        worktreePath = path.join(
+          cacheDir,
+          'worktrees',
+          `owner-repo-${instanceCacheSuffix(testInstance)}-issue-5-fix-bug`,
+        );
         fs.mkdirSync(worktreePath, { recursive: true });
         // A `.git` entry marks the leftover as a valid worktree (reopened
         // as-is instead of being removed and recreated).
