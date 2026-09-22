@@ -59,6 +59,13 @@ let prMerged = false;
 let issueEdits: { title?: string; body?: string; state?: string } | undefined;
 let pullEdits: { title?: string; body?: string; state?: string } | undefined;
 
+// Entries removed through the delete endpoints disappear from later GETs. The
+// fixtures are static, so without this a confirmed delete and a cancelled one
+// looked identical in the dev host: the row came back on the next fetch.
+let trackedTimes: (typeof mockTrackedTime)[] = [mockTrackedTime];
+let dependencies: typeof mockDependencies = [...mockDependencies];
+let commentAttachments: (typeof mockCommentAttachment)[] = [mockCommentAttachment];
+
 // Restores every piece of mutable session state above. resetMockServer()
 // calls this so each test starts from a clean slate.
 export function resetMockState(): void {
@@ -67,6 +74,9 @@ export function resetMockState(): void {
   prMerged = false;
   issueEdits = undefined;
   pullEdits = undefined;
+  trackedTimes = [mockTrackedTime];
+  dependencies = [...mockDependencies];
+  commentAttachments = [mockCommentAttachment];
 }
 
 // Slices a list response the way the real API does: `page`/`limit` query
@@ -256,7 +266,7 @@ export const handlers = [
 
   http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/times', ({ request }) => {
     const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
-    return json(page > 1 ? [] : [mockTrackedTime]);
+    return json(page > 1 ? [] : trackedTimes);
   }),
 
   http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/times', async ({ request }) => {
@@ -266,14 +276,19 @@ export const handlers = [
 
   http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index/times', () => new HttpResponse(null, { status: 204 })),
 
-  http.delete(
-    'https://*/api/v1/repos/:owner/:repo/issues/:index/times/:id',
-    () => new HttpResponse(null, { status: 204 }),
-  ),
+  http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index/times/:id', ({ params }) => {
+    trackedTimes = trackedTimes.filter((entry) => String(entry.id) !== String(params.id));
+    return new HttpResponse(null, { status: 204 });
+  }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies', () => json(mockDependencies)),
+  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies', () => json(dependencies)),
 
   http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies', () => json({})),
+
+  http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies/:id', ({ params }) => {
+    dependencies = dependencies.filter((entry) => String(entry.id) !== String(params.id));
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   http.delete(
     'https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies',
@@ -671,12 +686,12 @@ export const handlers = [
 
   http.delete('https://*/api/v1/repos/:owner/:repo/issues/comments/:id', () => new HttpResponse(null, { status: 204 })),
 
-  http.delete(
-    'https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets/:attachment_id',
-    () => new HttpResponse(null, { status: 204 }),
-  ),
+  http.delete('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets/:attachment_id', ({ params }) => {
+    commentAttachments = commentAttachments.filter((entry) => String(entry.id) !== String(params.attachment_id));
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   http.post('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => json(mockCommentAttachment)),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => json([mockCommentAttachment])),
+  http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => json(commentAttachments)),
 ];
