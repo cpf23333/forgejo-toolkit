@@ -36,7 +36,8 @@ public class Win32Enum {
   }
 }
 '@
-$proc = Get-Process Code -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'Extension Development Host' } | Select-Object -First 1
+. (Join-Path $PSScriptRoot 'devhost.ps1')
+$proc = Find-DevHostProcess
 if (-not $proc) { Write-Output 'dev host not found'; exit 1 }
 $dialogs = [Win32Enum]::FindDialogs($proc.Id)
 Write-Output ("dialogs found: " + $dialogs.Count)

@@ -15,7 +15,8 @@ public class Win32 {
   [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
 }
 '@
-$proc = Get-Process Code -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'Extension Development Host' } | Select-Object -First 1
+. (Join-Path $PSScriptRoot 'devhost.ps1')
+$proc = Find-DevHostProcess
 if (-not $proc) { Write-Output 'dev host window not found'; exit 1 }
 $h = $proc.MainWindowHandle
 $fg = [Win32]::GetForegroundWindow()

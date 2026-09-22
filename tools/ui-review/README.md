@@ -60,6 +60,10 @@ powershell -File src/win/dialog.ps1 -Keys '{ENTER}'   # Confirm (default)
 powershell -File src/win/dialog.ps1 -Keys '{ESC}'     # Cancel
 ```
 
+Both helpers locate the dev-host window by the isolated `--user-data-dir` of this
+harness (`src/win/devhost.ps1`), not by window title, so they also work with a
+localized UI (e.g. `UI_LOCALE=zh-cn`, where the title is `[扩展开发宿主] …`).
+
 ## Runtime state
 
 `profile/` (persisted dev-host settings, incl. the onboarded mock instance),
