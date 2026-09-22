@@ -36,10 +36,14 @@ export const MIN_ACTIONS_VERSION: ServerVersion = { major: 1, minor: 19, patch: 
 const MIN_ACTIONS_VERSION_TEXT = `${MIN_ACTIONS_VERSION.major}.${MIN_ACTIONS_VERSION.minor}.${MIN_ACTIONS_VERSION.patch}`;
 
 // The oldest Forgejo release the extension supports as a whole. Instances
-// below it get a soft per-session warning; nothing is blocked. Forgejo's
-// 1.x line (1.21 and earlier, long predating the v7+ renumbering) compares
-// below 15 naturally with plain semver ordering.
-export const MIN_SUPPORTED_VERSION: ServerVersion = { major: 15, minor: 0, patch: 0 };
+// below it get a soft per-session warning; nothing is blocked. The floor is
+// v16 because several features the extension ships rely on endpoints that
+// first appeared in v16 (the Actions run jobs/artifacts/job-log/cancel/delete
+// endpoints and multi-line review comments); older instances would hit 404s on
+// them instead of degrading gracefully. Forgejo's 1.x line (1.21 and earlier,
+// long predating the v7+ renumbering) compares below 16 naturally with plain
+// semver ordering.
+export const MIN_SUPPORTED_VERSION: ServerVersion = { major: 16, minor: 0, patch: 0 };
 
 export const MIN_SUPPORTED_VERSION_TEXT = `${MIN_SUPPORTED_VERSION.major}.${MIN_SUPPORTED_VERSION.minor}.${MIN_SUPPORTED_VERSION.patch}`;
 

@@ -110,18 +110,21 @@ describe('assertActionsSupported', () => {
 });
 
 describe('isVersionSupported', () => {
-  it('pins the supported floor to 15.0.0', () => {
-    expect(MIN_SUPPORTED_VERSION).toEqual({ major: 15, minor: 0, patch: 0 });
-    expect(MIN_SUPPORTED_VERSION_TEXT).toBe('15.0.0');
+  it('pins the supported floor to 16.0.0', () => {
+    expect(MIN_SUPPORTED_VERSION).toEqual({ major: 16, minor: 0, patch: 0 });
+    expect(MIN_SUPPORTED_VERSION_TEXT).toBe('16.0.0');
   });
 
   it('accepts the floor itself and newer versions', () => {
-    expect(isVersionSupported('15.0.0')).toBe(true);
-    expect(isVersionSupported('15.0.1')).toBe(true);
+    expect(isVersionSupported('16.0.0')).toBe(true);
+    expect(isVersionSupported('16.0.1')).toBe(true);
     expect(isVersionSupported('16.2.0')).toBe(true);
+    expect(isVersionSupported('17.0.0')).toBe(true);
   });
 
-  it('rejects older versions, including the legacy 1.x and v7 lines', () => {
+  it('rejects older versions, including the v15, legacy 1.x and v7 lines', () => {
+    expect(isVersionSupported('15.0.0')).toBe(false);
+    expect(isVersionSupported('15.9.9')).toBe(false);
     expect(isVersionSupported('14.9.9')).toBe(false);
     expect(isVersionSupported('7.0.0')).toBe(false);
     expect(isVersionSupported('1.21.0')).toBe(false);

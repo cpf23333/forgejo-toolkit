@@ -155,13 +155,13 @@ PR 级别的变更文件列表来自 `GET /repos/{owner}/{repo}/compare/{basehea
 
 规避方法：在 Forgejo 网页界面查看该重命名文件的 diff，或在本地检出 PR（`$ git diff -M` 可识别重命名）。按 commit 的对比以及 `/pulls/{index}/files` 路径会返回 `previous_filename`，不受影响。
 
-## Actions 的 jobs/artifacts/日志/取消/删除接口需要 Forgejo 16
+## Forgejo 15（低于支持下限）缺少 Actions 子端点
 
-扩展会读取 workflow 运行、job、job 日志与 artifacts，并支持取消或删除运行记录。Forgejo 15 只有 `GET /actions/runs` 与 `GET /actions/runs/{run_id}`；其余功能对应的接口（`/actions/runs/{run_id}/jobs`、`/artifacts`、`/actions/jobs/{job_id}/logs`、`/actions/runs/{run_id}/cancel`、`DELETE /actions/runs/{run_id}`）是 Forgejo 16 才加入的。
+支持下限是 Forgejo 16.0（见 README 兼容性一节）。扩展会读取 workflow 运行、job、job 日志与 artifacts，并支持取消或删除运行记录。Forgejo 15 只有 `GET /actions/runs` 与 `GET /actions/runs/{run_id}`；其余功能对应的接口（`/actions/runs/{run_id}/jobs`、`/artifacts`、`/actions/jobs/{job_id}/logs`、`/actions/runs/{run_id}/cancel`、`DELETE /actions/runs/{run_id}`）是 Forgejo 16 才加入的。
 
-因此在 Forgejo 15 实例上，运行详情页不显示 job 和 artifact，日志查看、取消与删除操作都会返回 404。版本闸门只会拒绝低于 1.19 的服务器，所以不会提前给出提示。
+因此在 Forgejo 15 实例上，运行详情页不显示 job 和 artifact，日志查看、取消与删除操作都会返回 404。由于最低版本只是温和警告而非硬性阻断，这些功能仍会显示，只是在请求时失败。
 
-规避方法：无，需要将实例升级到 Forgejo 16 或更高版本才能使用这些面板。
+规避方法：把实例升级到 Forgejo 16 或更高版本——这也是扩展实际验证的版本。
 
 ## 配置了 url.insteadOf 的仓库无法关联
 

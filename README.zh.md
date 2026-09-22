@@ -49,10 +49,10 @@ pnpm --filter forgejo-toolkit package
 
 ## 兼容性
 
-- **Forgejo ≥ 15.0** —— 低于 15.0.0 的实例可能部分可用，但不受支持；扩展每会话提示一次温和警告，不阻断任何功能。
-- **主要目标版本：Forgejo v16.x** —— 扩展基于最新的 Forgejo 稳定版（当前为 v16 系列）开发和验证。其他受支持版本的实例表现一致；目标版本只说明人工验证落在哪个版本上。
+- **Forgejo ≥ 16.0** —— 最低版本定为 v16：多个已交付功能依赖 v16 才出现的接口（Actions 的 job/artifact/job 日志/取消/删除，以及多行 review 评论）。更老的实例可能部分可用，但不受支持：扩展每会话提示一次温和警告，且不阻断功能，因此 v15 用户会在这些面板上看到 404（见 KNOWN_ISSUES）。
+- **主要目标版本：Forgejo v16.x** —— 扩展基于最新的 Forgejo 稳定版（当前为 v16 系列）开发和验证，最低版本与验证目标为同一系列。
 - **VS Code ≥ 1.102** —— 通过扩展的 `engines.vscode` 字段强制约束。
-- **Actions 功能需要 Forgejo ≥ 1.19** —— 按特性闸门处理：更老的实例只会隐藏 Actions 相关界面，不抬升整体最低版本。
+- **Actions 功能需要 Forgejo ≥ 1.19** —— 在最低版本之上按特性闸门处理：早于 Actions API 的实例只会隐藏 Actions 相关界面，而不是直接报错。
 - 未来依赖更新 Forgejo 版本的新端点（如 v17 的 rerun API）同样按特性闸门处理，不会抬升整体最低版本。
 
 ## MCP Server（AI Agent 集成）

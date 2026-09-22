@@ -155,13 +155,13 @@ A rename therefore arrives as an unrelated `removed` + `added` pair with no link
 
 Workaround: use the Forgejo web UI for the diff of a renamed file, or check out the PR locally (`$ git diff -M` detects the rename). The per-commit and `/pulls/{index}/files` code paths do return `previous_filename` and are unaffected.
 
-## Action run jobs, artifacts, logs, cancel and delete require Forgejo 16
+## Forgejo 15 (below the supported minimum) lacks the Actions sub-endpoints
 
-The extension reads workflow runs, jobs, job logs and artifacts, and can cancel or delete a run. Only `GET /actions/runs` and `GET /actions/runs/{run_id}` exist in Forgejo 15; the endpoints behind the other features (`/actions/runs/{run_id}/jobs`, `/artifacts`, `/actions/jobs/{job_id}/logs`, `/actions/runs/{run_id}/cancel`, `DELETE /actions/runs/{run_id}`) were added in Forgejo 16.
+The supported minimum is Forgejo 16.0 (see the README compatibility section). The extension reads workflow runs, jobs, job logs and artifacts, and can cancel or delete a run. Only `GET /actions/runs` and `GET /actions/runs/{run_id}` exist in Forgejo 15; the endpoints behind the other features (`/actions/runs/{run_id}/jobs`, `/artifacts`, `/actions/jobs/{job_id}/logs`, `/actions/runs/{run_id}/cancel`, `DELETE /actions/runs/{run_id}`) were added in Forgejo 16.
 
-On a Forgejo 15 instance the run detail page therefore shows no jobs and no artifacts, and the log viewer, cancel and delete actions fail with a 404. The version gate only rejects servers older than 1.19, so no proactive warning is shown.
+On a Forgejo 15 instance the run detail page therefore shows no jobs and no artifacts, and the log viewer, cancel and delete actions fail with a 404. Because the minimum is a soft warning rather than a hard block, those features stay visible and fail per request.
 
-Workaround: none — upgrade the instance to Forgejo 16 or newer to use those panels.
+Workaround: upgrade the instance to Forgejo 16 or newer — that is also the version the extension is validated against.
 
 ## Repositories configured with url.insteadOf cannot be linked
 
