@@ -1,0 +1,203 @@
+name: Release (manual)
+
+# Publishing is a deliberate human action. This workflow has a manual trigger
+# only — there is no tag/push/schedule trigger, so nothing in this repository
+# releases on its own. It validates the commit, builds the .vsix and (unless
+# `dry_run` is turned off) creates the Codeberg release with that asset
+# attached. It never commits, pushes branches, or merges; the release's own tag
+# is created by the Codeberg API at the validated commit.
+#
+# Marketplace / Open VSX publishing stays manual (it needs publisher
+# credentials) — see docs/release.md.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (default: v<version from packages/forgejo-toolkit/package.json>)'
+        required: false
+        type: string
+        default: ''
+      prerelease:
+        description: 'Mark the Codeberg release as a prerelease'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Build and package only, without creating the Codeberg release'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: docker
+    container:
+      image: node:22
+    timeout-minutes: 45
+    env:
+      # Registry and native-download mirrors are environment-specific, so they
+      # come from repository variables and fall back to the upstream defaults.
+      NPM_CONFIG_REGISTRY: ${{ vars.NPM_CONFIG_REGISTRY || 'https://registry.npmjs.org' }}
+      npm_config_disturl: ${{ vars.NPM_DIST_URL || 'https://nodejs.org/dist' }}
+      npm_config_prebuild_install_mirror: ${{ vars.NPM_PREBUILD_MIRROR || 'https://github.com/prebuild/prebuild-install/releases/download' }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Release notes are generated from the history between the previous
+          # tag and HEAD, so the default shallow clone is not enough.
+          fetch-depth: 0
+
+      - name: Install pnpm
+        run: npm install -g pnpm@11.18.0
+
+      - name: Install build tools
+        run: apt-get update && apt-get install -y --no-install-recommends build-essential python3 unzip
+
+      - name: Setup pnpm store
+        run: pnpm config set store-dir /root/.pnpm-store
+
+      - name: Cache pnpm store and node-gyp
+        uses: actions/cache@v6
+        with:
+          path: |
+            /root/.pnpm-store
+            /root/.cache/node-gyp
+          key: ${{ runner.os }}-pnpm-release-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-release-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # A release is only cut from a commit that validates: the same checks the
+      # manual verify workflow runs, repeated here so the release does not
+      # depend on someone having run it first.
+      - name: Typecheck
+        run: pnpm run check
+
+      - name: Test
+        run: pnpm --filter forgejo-toolkit test
+
+      - name: Resolve version and tag
+        id: vars
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          VERSION=$(node -p "require('./packages/forgejo-toolkit/package.json').version")
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="v${VERSION}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Releasing version ${VERSION} as ${TAG}"
+
+      # `pnpm run package` builds the extension bundle (esbuild + webview) and
+      # then runs `vsce package --no-dependencies`, which writes the .vsix into
+      # the package directory (gitignored).
+      - name: Build and package the extension
+        run: pnpm --filter forgejo-toolkit run package
+
+      - name: Check the packaged .vsix
+        id: vsix
+        run: |
+          VSIX=$(ls -t packages/forgejo-toolkit/*.vsix | head -1)
+          if [ -z "$VSIX" ]; then
+            echo "No .vsix was produced"; exit 1
+          fi
+          echo "Checking ${VSIX}"
+          unzip -l "$VSIX" > /tmp/vsix-contents.txt
+          for entry in extension/out/extension.js extension/out/mcp-server.js extension/package.json; do
+            grep -q "$entry" /tmp/vsix-contents.txt || { echo "MISSING: $entry"; cat /tmp/vsix-contents.txt; exit 1; }
+            echo "OK: $entry"
+          done
+          echo "vsix=${VSIX}" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+          {
+            echo "Changes since ${PREV_TAG:-the beginning}:"
+            echo ""
+            git log --pretty=format:"- %s (%h)" "$RANGE"
+          } > /tmp/release-notes.md
+          cat /tmp/release-notes.md
+
+      - name: Upload the .vsix as a workflow artifact
+        uses: forgejo/upload-artifact@v5
+        with:
+          name: forgejo-toolkit-${{ steps.vars.outputs.version }}
+          path: ${{ steps.vsix.outputs.vsix }}
+
+      - name: Create the Codeberg release and attach the .vsix
+        # `inputs.dry_run` evaluates as a boolean on current Forgejo runners and
+        # as a string on older ones; both spellings are accepted so publishing
+        # only happens when it was explicitly turned off.
+        if: ${{ inputs.dry_run == false || inputs.dry_run == 'false' }}
+        env:
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN || secrets.GITEA_TOKEN }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ steps.vars.outputs.tag }}
+          TARGET: ${{ github.sha }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          NOTES_FILE: /tmp/release-notes.md
+          VSIX: ${{ steps.vsix.outputs.vsix }}
+        run: |
+          node <<'NODE'
+          const { readFile } = require('node:fs/promises');
+
+          const { FORGEJO_TOKEN, SERVER_URL, REPOSITORY, TAG, TARGET, PRERELEASE, NOTES_FILE, VSIX } = process.env;
+          if (!FORGEJO_TOKEN) {
+            console.error('The FORGEJO_TOKEN (or GITEA_TOKEN) secret is required to create a release.');
+            process.exit(1);
+          }
+          const base = `${SERVER_URL}/api/v1/repos/${REPOSITORY}`;
+          const headers = { Authorization: `token ${FORGEJO_TOKEN}`, 'Content-Type': 'application/json' };
+
+          const created = await fetch(`${base}/releases`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              tag_name: TAG,
+              // Pin the tag to the validated commit instead of the branch head,
+              // which may have moved since the workflow started.
+              target_commitish: TARGET,
+              name: TAG,
+              body: await readFile(NOTES_FILE, 'utf8'),
+              draft: false,
+              prerelease: PRERELEASE === 'true',
+            }),
+          });
+          const release = await created.json().catch(() => ({}));
+          if (!created.ok) {
+            console.error(`Creating the release failed (HTTP ${created.status})`, release);
+            process.exit(1);
+          }
+          console.log(`Created release ${release.id} for ${TAG}`);
+
+          const name = VSIX.split('/').pop();
+          const form = new FormData();
+          form.append('attachment', new Blob([await readFile(VSIX)]), name);
+          const uploaded = await fetch(`${base}/releases/${release.id}/assets?name=${encodeURIComponent(name)}`, {
+            method: 'POST',
+            headers: { Authorization: `token ${FORGEJO_TOKEN}` },
+            body: form,
+          });
+          if (!uploaded.ok) {
+            console.error(`Uploading ${name} failed (HTTP ${uploaded.status})`, await uploaded.text());
+            process.exit(1);
+          }
+          console.log(`Attached ${name} to ${TAG}`);
+          NODE

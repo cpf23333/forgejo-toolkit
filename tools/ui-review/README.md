@@ -66,3 +66,37 @@ powershell -File src/win/dialog.ps1 -Keys '{ESC}'     # Cancel
 `extensions/` and `shots/` are gitignored. The launcher pre-seeds
 `forgejoToolkit.useMockApi: true`, so all data comes from the MSW handlers in
 `packages/forgejo-toolkit/src/test/mocks/`.
+
+## Release walkthrough checklist
+
+Rebuild first (`pnpm --filter forgejo-toolkit build`) — the dev host loads
+`out/`, so a walkthrough against a stale build verifies the wrong code. Then
+run through the flows below; each one covers behaviour that unit tests cannot
+observe (native modals, real git, real MCP clients).
+
+1. **Dirty PR worktree confirmation.** In an opened PR worktree leave an
+   uncommitted edit (or make a local commit), then click "Open in Worktree" for
+   the same PR again. Expect a modal naming the local work; `{ESC}` must keep
+   both the directory and the `pr-<n>-<sha7>` branch. A clean but outdated
+   worktree must be recreated without a prompt.
+2. **Delete confirmations.** Release attachment (`×` in the release dialog),
+   issue attachment, review-comment attachment and tracked time each ask for a
+   host-side confirm before the API call, and `{ESC}` leaves the item in place.
+3. **Review comment editor.** Markdown preview renders (no permanent spinner)
+   and `@`/`#` complete against the mock instance.
+4. **Push-target guard (needs a real git repo).** Add
+   `git config remote.origin.pushurl https://mirror.example.com/x.git` to the
+   test workspace and trigger the publish / create-PR push: it must abort with
+   the "push target does not belong" message and send no request.
+5. **Notification actions.** With `forgejoToolkit.notificationPollingEnabled`
+   off, "Mark all as read" is enabled once the list has loaded and disables
+   itself after the reply.
+6. **Actions pagination.** A repository with more than one page of runs appends
+   on "Load more", keeps the loaded runs, and hides the button on the last page.
+7. **Import errors.** Importing a corrupt JSON file shows the error in the
+   preview instead of an empty list.
+8. **MCP tools (needs a real instance + token).** In agent mode call
+   `get_file_content` with `path: "../../../../notifications"`: expect a
+   validation error, not a request to that endpoint; a large PR result must
+   carry the truncation marker.
+

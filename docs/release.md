@@ -71,6 +71,35 @@ pnpm exec ovsx publish packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix
 
 Create a new release on Codeberg and attach the `.vsix` file. Do not commit `.vsix` files to git.
 
+## Automated release workflow (optional)
+
+`.forgejo/workflows/release.yml` performs steps 3 and 6 above from a manual
+run — it never triggers on a push, tag or schedule:
+
+1. Typecheck and run the test suites on the dispatched commit.
+2. Build and package the extension (`pnpm --filter forgejo-toolkit package`),
+   then check that `out/extension.js`, `out/mcp-server.js` and `package.json`
+   are inside the `.vsix`.
+3. Upload the `.vsix` as a workflow artifact (so it can be downloaded without
+   creating a release).
+4. Create the Codeberg release and attach the `.vsix` — only when `dry_run` is
+   set to `false`. The release tag defaults to `v<version>` taken from
+   `packages/forgejo-toolkit/package.json`, and the tag is pinned to the
+   dispatched commit rather than the branch head.
+
+Inputs: `tag` (override the tag), `prerelease` (mark the release as a
+prerelease), `dry_run` (defaults to `true`, so the first run only builds).
+
+Requirements:
+
+- A repository secret named `FORGEJO_TOKEN` (or `GITEA_TOKEN`) holding a token
+  with `write:repository` scope, used for the release API calls.
+- Optional repository variables when the runner cannot reach the public hosts:
+  `NPM_CONFIG_REGISTRY`, `NPM_DIST_URL`, `NPM_PREBUILD_MIRROR`.
+
+Steps 4 and 5 (VS Code Marketplace / Open VSX) stay manual: they need publisher
+credentials and are not performed by CI.
+
 ## Manual packaging for testing
 
 To create a local `.vsix` without publishing:
