@@ -178,3 +178,13 @@ Two harness limits worth knowing before planning a flow:
   also holds a real instance (e.g. because a walkthrough needed one), that action
   changes real data. Prefer mock-only instances while walking bulk or destructive
   flows and remove a real instance again once the flow needing it is done.
+- **Only the sidebar webview receives input.** Editor-area panels ignore the
+  driver's clicks and keystrokes, so a flow that exists only in one cannot be
+  walked — instance removal, for instance, lives only in the setup wizard. The
+  checklist's flows are all in the view container, so this only bites when an
+  extension command opens a panel.
+- **`src/mcpCheck.mjs` runs the MCP server headless.** It spawns
+  `out/mcp-server.js` with an instance URL/token read from an instances export and
+  drives it over stdio JSON-RPC, which is how the checklist's MCP items are
+  covered without agent mode: tool surface, hostile-input validation and the
+  truncation marker on large results. The token is never printed.
