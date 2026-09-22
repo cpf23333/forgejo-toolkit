@@ -189,6 +189,17 @@ describe('readExportDataFromUri', () => {
     // The message goes through l10n.t, so the bundle provides the translation.
     expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('No valid instances found in file');
   });
+
+  it('rejects a file that is not valid JSON instead of previewing an empty import', async () => {
+    // A truncated/corrupt export (e.g. an interrupted download) must surface as
+    // an error in the preview; resolving with `instances: []` would render an
+    // empty list and look like a file that simply holds nothing.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'instance-import-'));
+    const file = path.join(dir, 'export.json');
+    fs.writeFileSync(file, '{ "version": 1, "instances": [');
+
+    await expect(readExportDataFromUri(vscode.Uri.file(file))).rejects.toThrow(SyntaxError);
+  });
 });
 
 describe('sanitizeImportedInstances', () => {

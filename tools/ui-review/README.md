@@ -150,3 +150,21 @@ Two behaviours that are easy to misread while driving the flows above:
   release attachments) report back on the next GET, so `{ESC}` and `{ENTER}`
   look identical. `src/test/mocks/handlers.ts` keeps that state and
   `resetMockState()` restores it; starting the dev host fresh resets it too.
+
+Two harness limits worth knowing before planning a flow:
+
+- **The file picker (`showOpenDialog`) cannot be driven.** It is the modern
+  Common Item Dialog: keystrokes sent to its window are ignored (`{ESC}` does not
+  even close it), so `src/win/dialog.ps1` does not work on it.
+  `src/win/fileDialog.ps1` writes the path into the file-name control with
+  `SetWindowText` plus the `EN_CHANGE` notification, which does land, but pressing
+  "Open" still needs a real mouse click on the button and tends to leave stray
+  dialogs behind. Flows behind a picker (import preview, anything using
+  `showOpenDialog`) are better verified at the unit level — see
+  `src/webview/__tests__/instanceImport.test.ts` — and leftover dialogs closed
+  with `WM_CLOSE` on every visible `#32770` window of the dev host.
+- **Some UI actions are instance-wide.** "Mark all notifications read" sends its
+  `PUT …/notifications?all=true` to _every_ configured instance. If the profile
+  also holds a real instance (e.g. because a walkthrough needed one), that action
+  changes real data. Prefer mock-only instances while walking bulk or destructive
+  flows and remove a real instance again once the flow needing it is done.

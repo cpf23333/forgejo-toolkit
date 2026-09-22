@@ -52,12 +52,17 @@
 
 ### 走查方向
 
-- 发布前走查清单见 `tools/ui-review/README.md` 的「Release walkthrough checklist」（脏 worktree 确认、四个 delete 确认、评论面板预览/提及、pushurl 拦截、通知已读、Actions 分页、导入错误、MCP 入参校验），需先 `pnpm --filter forgejo-toolkit build` 再跑 harness。
+- 发布前走查清单见 `tools/ui-review/README.md` 的「Release walkthrough checklist」（脏 worktree 确认、四个 delete 确认、评论面板预览/提及、pushurl 拦截、通知已读、Actions 分页、导入错误、MCP 入参校验）。跑 mock 走查要用 `pnpm --filter forgejo-toolkit build:extension`（不带 `--production`，否则 mock 被剥掉），清单里需真实例的条目另见 README 的构建说明。
 - [x] 动态端到端走查：多 remote 关联、关联仓库切换器、中文详情页、Publish 按钮新行为（创建仓库流程 + 中间态报错文案正确；推送成功路径受 insteadOf 测试环境限制未覆盖）、评论 thread 清理（见上方发现）
 - [x] 2026-09-22 走查续跑（隔离 dev host，zh-cn + mock）：Dashboard/Issues/Settings/Notifications 均正常渲染；通知「全部已读」清空未读列表 ✔；delete 确认双向验证——tracked time 取消（`{ESC}`）条目仍在、确认（`{ENTER}`）条目消失且摘要 `1 小时 → 0 秒` ✔，依赖议题确认框文案「确定移除对 #1 的依赖吗?」正确。为此把 mock 的 `times`/`dependencies`/`comments/:id/assets` 三个 DELETE 改成有状态（`resetMockState()` 重置），否则确认与取消在界面上无法区分；harness 的窗口匹配改为按 profile 定位（本地化 UI 下原本失效）
 - [x] 走查 ① release 附件删除确认（双向）：`{ESC}` 后附件仍在（`crop-l10.png`），`{ENTER}` 后附件行消失（`crop-k10.png`），debug 日志 `DELETE .../releases/5/assets/10 → 204`。前置修复：release 列表返回 fixture、`mockRelease.assets` 带一条附件、删除端点改为有状态
 - [x] 走查 ③ 通知轮询报错根因：**mock 启动时序**——`mockServer.listen()` 只把拦截器异步装上，而版本探测与轮询首跳在同一 tick 就发出请求，于是绕过 mock 走真实网络并失败（日志里 `Polling …` 早于 `Mock API server started`）。修法：`startMockServer()` 改为 async 并在 `listen()` 后 await 一个 macrotask，`activate` 里把 mock 启动块移到版本探测之前并 await。修后启动日志为 `Mock API server started → /version 200 {"version":"16.0.5"} → Polling notifications`，无失败；通知视图不再显示红色「刷新通知失败」
 - [x] 走查 ② 评论附件删除确认：在 Issue #1 的评论上「编辑 → 附件 log.txt → 删除 → 保存」后按 `{ESC}`，时间线出现本地化提示「有 1 个附件未删除：已取消确认。」且附件仍在（`crop-x3.png`），正是 2026-09-22 那条「取消删除要有反馈」修复的实测。前置修复：mock 时间线评论补 `type: 'comment'`（否则不显示编辑菜单）、`assets` 引用与真实 uuid（客户端只在 body 引用 `/attachments/<uuid>` 时才拉附件列表），并调整了那条依赖「评论无附件引用」的用例改为自带 stub
+- [x] 走查 ④ pushurl 拦截：在测试工作区给 `origin` 设 `pushurl=https://mirror.example.com/...`（fetch 保持真实服务器），用真实实例跑「从当前分支创建 PR」——日志 `[createPrFromCurrentBranch] a push target of remote "origin" does not belong to instance …; push aborted to avoid leaking the access token`，界面弹出本地化错误「上游远端 "origin" 不属于当前关联的 Forgejo 实例。已中止推送…」（`crop-bl1.png`），且**无任何推送/请求**。注意：仅当当前分支没有 upstream 且仓库没有已存在的 open PR 时该命令才会走到推送；跑完已还原 pushurl 与分支
+- [x] 走查 ⑤ 通知「全部已读」：点击 ✓ 后未读列表清空（「没有符合当前筛选条件的通知。」）且按钮变为**禁用态**（`crop-bm5.png` → `crop-bn1.png`）。注意：该动作是**实例级**的，会把 dev host 里配置的**所有**实例一起标记已读（本次误伤了真实实例的通知，已向用户说明）
+- [x] 走查 ⑥ Actions 分页：给 mock 造 35 条 run（`mockActionRuns`，`total_count` 为真实总数并按 `page`/`limit` 切片），页 1 满 30 条 + 显示「加载更多」，点击后日志 `GET …/actions/runs?page=2&limit=30`、追加 #31–#35 且按钮消失（`crop-bs1.png` → `crop-bu2.png`）
+- [x] 走查 ⑦ 导入损坏 JSON（**部分**）：harness 无法驱动 Windows 原生文件选择框——SendKeys 完全到不了它（连 `{ESC}` 都不会关闭），新加的 `tools/ui-review/src/win/fileDialog.ps1` 能通过窗口消息把路径写进文件名框（`SetWindowText` + `EN_CHANGE`），但确认「打开」仍不生效（需真实鼠标点击 + 回车，且容易留下多个残留对话框）。改为在用例层验证同一关注点：新增 `readExportDataFromUri` 对非法 JSON **reject**（不会退化成空列表预览），配合既有的「空实例列表报本地化错误」用例；动态侧留待 harness 支持 UIA 后再补
+- [ ] 走查 ⑧ MCP 入参校验（已拿到真实 token，未跑）：计划绕过 GUI，直接用 env 配置启动 `out/mcp-server.js`，以 stdio 调 `get_file_content` 传 `../../../../notifications` 期望校验错误，并查大结果是否带截断标记
 - [ ] `prFileSystemProvider` 大文件行为实测：contents API 对 >10 MiB 文件返回空 `content`（已确认，见 KNOWN_ISSUES），PR diff 里会显示为空，值得确认提示文案的落点
 - [ ] 性能实测：激活耗时、懒加载后 bundle 实测体积（静态部分已完成并修复 P1-P4）
 
