@@ -9,7 +9,7 @@
 
 ### Dashboard 面板
 
-- 标签页切换：Repositories / Issues / Pull Requests。
+- 标签页切换：Repositories / Issues / Pull Requests；Issues / Pull Requests 页签按当前账号筛选（本人创建、被指派、被提及、待评审），不返回实例全量数据。
 - 按实例折叠展示数据，折叠面板标题显示服务器地址和当前账号。
 - 仓库卡片：名称、描述、默认分支、star/fork、右侧图标支持在浏览器打开和复制克隆地址。
 - Issue / PR 卡片：编号、标题、状态、仓库名、复制链接图标。
@@ -27,6 +27,7 @@
 - 未配置打开方式时弹窗询问（新窗口 / 当前窗口），并支持记住选择。
 - 本地没有源仓库时支持：clone 到缓存目录、选择已有本地仓库、取消。
 - worktree 目录命名包含 sanitized PR title。
+- 打开已存在的 worktree 前校验 PR head：过期时重新创建，本地有未提交改动或本地提交时必须确认后才丢弃，避免静默删除本地工作。
 
 ### 设置页
 
@@ -123,6 +124,7 @@
 - 在 Dashboard 顶部显示关联仓库卡片，支持快捷打开仓库、Issues、Pull Requests。
 - workspace 文件夹变化或实例增删时自动重新检测。
 - 发布本地仓库到 Forgejo：「Publish to Forgejo」命令引导选择实例、仓库名与可见性，自动创建远程仓库、添加 origin 并推送当前分支；已关联 Forgejo 仓库时该命令直接推送当前分支。
+- 推送前校验 git 实际使用的推送目标（含 `remote.<name>.pushurl` 与 `url.<base>.pushInsteadOf`）属于目标实例，不一致则中止，token 不会被发往其他主机。
 - 作为 VS Code Git clone 源：已配置实例注册为 `RemoteSourceProvider`，「Git: Clone」快速选择中按关键字在服务端搜索仓库克隆，无关键字时列出当前用户仓库。
 - 多仓库 / 嵌套仓库 workspace：workspace folder 一层子目录中的独立 git 仓库（含 repo 内嵌套 repo）参与关联检测，按当前文件/活动编辑器归属仓库，多仓库歧义时交互命令弹 QuickPick 消歧。
 - 多 remote 仓库：一个仓库配置多个 git remote 时，任一 remote 匹配已配置实例即参与关联（origin 优先）；Publish 命令可选择推送到匹配的 remote。
@@ -148,6 +150,7 @@
 - 实例配置导出 / 导入：支持将已保存实例（含 access token）和设置导出为 JSON 文件，或从 JSON 文件导入。
   - 导出时可选择具体实例、复制到剪贴板、使用密码加密。
   - 导入前预览，显示「已存在」实例的差异和 Token 冲突检测。
+  - 导入条目复用了已存在的实例 id 但 origin 不同时，不接受原 token（需重新输入），避免凭据被带到其他主机。
   - 导入后自动恢复语言、调试开关、worktree 配置，并自动跳转到 Dashboard。
 - 移除实例前二次确认。
 - onboarding 面板与侧栏主视图通过事件同步实例变更。
@@ -155,6 +158,7 @@
 ### CI / Actions
 
 - 读取仓库 Actions 运行状态和历史。
+- 运行列表分页累加加载（Load more），翻到末页后保留已加载内容。
 - 在 PR 详情页展示状态检查（status checks）列表，帮助判断是否可以合并。
 - Actions 运行详情页：展示 job 列表、job 日志、制品列表。
 - Actions 制品本地下载：通过 API 获取 ZIP 并调用系统 save dialog。
@@ -172,28 +176,6 @@
   - Review 与元数据扩展：PR 评审、whoami、Release、标签、里程碑、当前用户仓库列表。
 - 工具入参校验：`owner`/`repo`/文件路径拒绝路径分隔符与 `..`（生成客户端会原样拼接 URL），并限制单次结果总量（64 KB，带截断标记）。
 - 只读工具不弹确认框（`readOnlyHint` 的既定行为），保证来自工具面本身：全部映射到 `GET`，路径类入参均校验。
-
-### 2026-09-22 复审修复
-
-- push 前的 token 归属校验改为解析**推送目标**（`git remote get-url --push --all`），修掉 `remote.<name>.pushurl` / `url.<base>.pushInsteadOf` 绕过白名单把 token 发往第三方主机的问题；`createPrFromCurrentBranch` 同步使用同一判定。
-- 过期的 PR worktree 不再被静默 `--force` 删除：先检查未提交改动与本地提交，脏 worktree 必须经模态确认才丢弃，干净的直接重建。
-- worktree 请求的 `owner`/`repo`/`index` 先校验再拼路径，并使用 `path.relative` 断言结果落在 `<cache>/worktrees` 内（防目录穿越导致递归删除）。
-- 导入实例不再能把已有 id 的 token 重绑到其他 origin（`addInstance` 同源校验）。
-- 裸仓库缓存路径加入实例摘要后缀，避免不同实例的同名仓库互相复用。
-- Import 预览、导入错误不再被 webview 丢弃；评论编辑面板补齐 `getInitialState`/`renderMarkdown`/`searchMentions` 处理与未知命令兜底回复。
-- 四个 `delete*`（release/issue/comment 附件、工时）补齐 host 侧确认，回复新增 `cancelled` 语义，webview 不再把「用户取消」当作删除成功。
-- Dashboard 的 Issues / PRs 页签补上用户维度过滤（`created`/`assigned`/`mentioned`/`review_requested`），不再返回实例全量数据。
-- `/compare` 不再伪造 `previous_filename`（该接口只返回 added/removed/modified），重命名限制记入 KNOWN_ISSUES；`/pulls/{index}/files` 路径保持不变。
-- 发布到 Forgejo 成功后清空关联仓库检测缓存，SCM 按钮与 `hasLinkedRepo` 立即更新。
-- 修复 mock 版本升级后遗留的 2 个失败测试（改用共享的 `MOCK_SERVER_VERSION` 常量）。
-- 权限探测失败不再被当成「没有 push 权限」：仅在 permissions 已知且确实缺少 admin/push 时才产生 `no_permission` blocker，避免一次超时/5xx 就让合并按钮变灰。
-- 通知轮询改为单飞（相同时间的多轮请求合并为一轮），seen-id 的读改写收进同一串行队列，导入多实例不再产生 N 倍请求风暴与重复「新通知」提示。
-- 通知页「全部标为已读」的未读数改从当前列表派生，关闭轮询（或首次轮询尚未返回）时不再永久置灰。
-- Actions 运行列表「加载更多」改为按仓库累加分页，翻到末页后保留已加载内容并隐藏按钮，不再出现假空态。
-- 状态栏缓存只在刷新仍为最新时写入，被取代的旧请求不会用过期结果覆盖新值（最长 60s 的「Create PR」回退已消除）。
-- `listRemotes` 支持含空格的 remote URL（本地路径 remote），不再把这类仓库误判为未发布。
-- `parseDiff` 不再为 diff 的最后一个文件多造一行 context，「行是否在 PR diff 内」的判断不再越界。
-- 文档同步：README/FAQ 修正 MCP 确认说明，`docs/api-verification-checklist.md` 修正 4 处事实错误并重写无法执行的维护流程；TODO/KNOWN_ISSUES（中英）与 ROADMAP 随本轮修复更新，`.gitignore` 不再忽略 `pnpm-lock.yaml`。
 
 ## 后续迭代
 
