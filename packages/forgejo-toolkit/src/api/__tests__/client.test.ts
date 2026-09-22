@@ -1257,12 +1257,16 @@ describe('ForgejoClient with MSW', () => {
       const client = createClient();
       let assetRequests = 0;
       mockServer.use(
+        // The shared fixture comment does reference an attachment (so the dev
+        // host can walk through that flow), so stub one without a reference.
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', () =>
+          HttpResponse.json([{ ...mockTimelineComment, body: 'No attachment here' }]),
+        ),
         http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => {
           assetRequests += 1;
           return HttpResponse.json([mockCommentAttachment]);
         }),
       );
-      // mockTimelineComment.body has no /attachments/<uuid> reference.
       const comments = await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2);
       expect(comments).toHaveLength(1);
       expect((comments[0] as { assets?: unknown[] }).assets).toEqual([]);

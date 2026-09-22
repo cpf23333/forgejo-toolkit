@@ -1,5 +1,6 @@
 import type { Commit, PullReview, PullReviewComment, TimelineComment } from '@cpf23333-forgejo-toolkit/api';
 import { mockUser } from './users';
+import { mockCommentAttachment } from './issueExtras';
 
 export const mockPullReview: PullReview = {
   id: 100,
@@ -47,7 +48,13 @@ index 1111111..2222222 100644
 export const mockTimelineComment: TimelineComment = {
   id: 50,
   user: mockUser,
-  body: 'Thanks for the report',
+  body: 'Thanks for the report\n\n![log](/attachments/33333333-4444-5555-6666-777777777777)',
+  // Without a type the view renders the entry as a bare event and hides the
+  // edit/delete menu (it only offers them for own comments), which made the
+  // comment-edit attachment flow unreachable in a walkthrough. The asset makes
+  // the edit dialog's attachment list (and its delete toggle) reachable.
+  type: 'comment',
+  assets: [mockCommentAttachment],
   created_at: '2026-08-17T09:00:00Z',
   updated_at: '2026-08-17T09:00:00Z',
 } as TimelineComment;

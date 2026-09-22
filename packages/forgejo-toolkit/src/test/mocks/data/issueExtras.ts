@@ -53,8 +53,12 @@ export const mockIssueAttachment = {
 
 export const mockCommentAttachment = {
   id: 21,
-  uuid: 'comment-attachment-uuid',
+  // A real-looking uuid on purpose: the client only asks for a comment's
+  // attachment list when the body references `/attachments/<uuid>`, so the
+  // walkthrough's comment-attachment flow needs a matchable reference.
+  uuid: '33333333-4444-5555-6666-777777777777',
   name: 'log.txt',
   size: 512,
-  browser_download_url: 'https://forgejo.example.com/demo-user/demo-repo/attachments/comment-attachment-uuid',
+  browser_download_url:
+    'https://forgejo.example.com/demo-user/demo-repo/attachments/33333333-4444-5555-6666-777777777777',
 };
