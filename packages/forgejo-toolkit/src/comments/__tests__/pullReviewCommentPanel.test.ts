@@ -438,6 +438,26 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     );
   });
 
+  it('ignores a fire-and-forget command without logging an error', async () => {
+    const { logger } = await import('../../logger');
+    const errorSpy = vi.spyOn(logger, 'error');
+    try {
+      const { fakePanel, send } = openPanel();
+      fakePanel.webview.postMessage.mockClear();
+
+      // A shared-composable broadcast this panel does not implement: nobody is
+      // waiting for an answer, so it must not be reported as a failure.
+      await send({ command: 'getNotifications', instanceId: 'demo' });
+
+      expect(errorSpy).not.toHaveBeenCalled();
+      expect(fakePanel.webview.postMessage).not.toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'requestError' }),
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it('rejects an attachment upload carrying a hostile repository name', async () => {
     const { fakePanel, send } = openPanel();
     clientMocks.searchMentions.mockClear();

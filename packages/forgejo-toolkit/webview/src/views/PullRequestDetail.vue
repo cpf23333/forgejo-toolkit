@@ -12,6 +12,7 @@ import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import { stateLabel } from '../utils/stateLabel';
+import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import ReactionBar from '../components/ReactionBar.vue';
 import { CollapsibleSection } from '../vscode-controls';
 import DateTimePicker from '../components/DateTimePicker.vue';
@@ -218,6 +219,9 @@ const uploadingAttachmentCount = ref(0);
 const deletingAttachmentId = ref<number | undefined>(undefined);
 const isDeletingAttachments = ref(false);
 const pendingDeleteAttachmentIds = ref<number[]>([]);
+// Feedback for attachments that survived the save: the host asks for a
+// confirmation per attachment, so a declined one must not disappear silently.
+const attachmentDeleteNotice = ref<string | undefined>(undefined);
 const editFormKey = computed(() => pullRequestFormKey(instanceId.value, owner.value, repo.value, index.value));
 const editLoading = computed(() => state.loading.get(editFormKey.value) ?? false);
 const editError = computed(() => state.errors.get(editFormKey.value));
@@ -387,6 +391,7 @@ const branches = computed(() => repoDetail.value?.branches ?? []);
 function openEdit() {
   state.loadRepoDetail(instanceId.value, owner.value, repo.value);
   state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
+  attachmentDeleteNotice.value = undefined;
   isEditing.value = true;
 }
 
@@ -415,24 +420,38 @@ function handleEditSubmit(data: {
   });
 }
 
-async function deletePendingAttachments() {
+async function deletePendingAttachments(): Promise<{ declined: number; failed: number }> {
   const ids = pendingDeleteAttachmentIds.value;
   if (ids.length === 0) {
-    return;
+    return { declined: 0, failed: 0 };
   }
   isDeletingAttachments.value = true;
   deletingAttachmentId.value = ids[0];
   try {
-    const results = await Promise.all(
+    // allSettled: one declined confirmation (resolves false) or one failed
+    // delete must not hide the outcome of the others.
+    const results = await Promise.allSettled(
       ids.map((id) => state.deleteIssueAttachment(instanceId.value, owner.value, repo.value, index.value, id)),
     );
     // A declined host-side confirmation resolves to false: that attachment
     // still exists, so it must stay in the local list.
-    const deletedIds = ids.filter((_id, position) => results[position]);
+    const deletedIds: number[] = [];
+    let declined = 0;
+    let failed = 0;
+    results.forEach((result, position) => {
+      if (result.status === 'rejected') {
+        failed += 1;
+      } else if (result.value) {
+        deletedIds.push(ids[position]);
+      } else {
+        declined += 1;
+      }
+    });
     const current = detail.value;
     if (current?.assets && deletedIds.length > 0) {
       current.assets = current.assets.filter((a) => a.id === undefined || !deletedIds.includes(a.id));
     }
+    return { declined, failed };
   } finally {
     isDeletingAttachments.value = false;
     deletingAttachmentId.value = undefined;
@@ -588,10 +607,16 @@ watch(
       saved.index === index.value
     ) {
       try {
-        await deletePendingAttachments();
+        const outcome = await deletePendingAttachments();
         state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value, true);
         pendingDeleteAttachmentIds.value = [];
         isEditing.value = false;
+        // The pull request was saved; tell the user why a marked attachment is
+        // still there instead of closing the dialog without a word.
+        const notice = attachmentDeleteNoticeFor(outcome);
+        attachmentDeleteNotice.value = notice
+          ? t(`dashboard.detail.${notice.key}`, { count: notice.count })
+          : undefined;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         state.errors.set(editFormKey.value, t('dashboard.form.error', { message }));
@@ -955,6 +980,9 @@ function reloadPullRequest() {
 
         <div v-if="stateToggleError" class="state-toggle-error">
           {{ t('dashboard.error', { message: stateToggleError }) }}
+        </div>
+        <div v-if="attachmentDeleteNotice" class="detail-notice">
+          {{ attachmentDeleteNotice }}
         </div>
 
         <div class="detail-meta">
@@ -1543,6 +1571,14 @@ function reloadPullRequest() {
 
 .state-toggle-error {
   color: var(--vscode-testing-iconFailed);
+  font-size: 0.9em;
+  margin-bottom: 8px;
+}
+
+/* Neutral feedback (e.g. an attachment that survived a declined confirmation):
+   informative, not an error. */
+.detail-notice {
+  color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
   margin-bottom: 8px;
 }

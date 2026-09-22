@@ -309,6 +309,8 @@
       "copyLink": "复制链接",
       "renderingBody": "正在渲染描述...",
       "attachments": "附件",
+      "attachmentsNotDeleted": "有 {count} 个附件未删除：已取消确认。",
+      "attachmentsDeleteFailed": "有 {count} 个附件删除失败。",
       "subscription": "通知",
       "subscribe": "订阅",
       "unsubscribe": "取消订阅",

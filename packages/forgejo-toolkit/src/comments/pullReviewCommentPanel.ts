@@ -173,18 +173,23 @@ export class PullReviewCommentPanel implements vscode.Disposable {
             // so a command this panel does not implement used to be dropped
             // silently: the caller's promise then only settled on its 60 s
             // timeout (markdown preview) or produced an empty result (mention
-            // completion). Log it and answer request/response messages so the
-            // failure is visible instead of hanging.
+            // completion). Answer request/response messages so the failure is
+            // visible instead of hanging.
             const requestId = (message as { _requestId?: unknown })._requestId;
-            logger.error(
-              `Unhandled message from the pull review comment webview: ${String((message as { command?: unknown }).command)}`,
-            );
+            const command = String((message as { command?: unknown }).command);
             if (typeof requestId === 'string') {
+              logger.error(`Unhandled message from the pull review comment webview: ${command}`);
               this._reply('requestError', {
                 _requestId: requestId,
                 error: vscode.l10n.t('This action is not available in the review comment editor.'),
               });
+              return;
             }
+            // A fire-and-forget broadcast from the shared composable (mount-time
+            // state requests and the like): nobody is waiting for an answer and
+            // the panel is not broken, so this is not an error. It stays visible
+            // when the user turns on debug logging.
+            logger.debug(`Ignored fire-and-forget message in the review comment webview: ${command}`);
             return;
           }
         }

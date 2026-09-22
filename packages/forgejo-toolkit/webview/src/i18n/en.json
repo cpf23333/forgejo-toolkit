@@ -309,6 +309,8 @@
       "copyLink": "Copy Link",
       "renderingBody": "Rendering description...",
       "attachments": "Attachments",
+      "attachmentsNotDeleted": "{count} attachment(s) were not deleted: the confirmation was declined.",
+      "attachmentsDeleteFailed": "{count} attachment(s) could not be deleted.",
       "subscription": "Notifications",
       "subscribe": "Subscribe",
       "unsubscribe": "Unsubscribe",

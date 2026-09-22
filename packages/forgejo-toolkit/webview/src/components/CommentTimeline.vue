@@ -9,6 +9,7 @@ import ReactionBar from './ReactionBar.vue';
 import IconActionButton from './IconActionButton.vue';
 import type { ForgejoTimelineComment, ForgejoIssueAttachment } from '../types/api';
 import { useAppState, issueCommentEditFormKey, commentReactionsKey } from '../composables/useAppState';
+import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -38,6 +39,9 @@ const editDirty = computed(
 const pendingDeleteAttachmentIds = ref<number[]>([]);
 const deletingAttachmentIds = ref<Set<number>>(new Set());
 const isSavingEdit = ref(false);
+// Feedback for attachments that survived the comment edit: the host asks for a
+// confirmation per attachment, so a declined one must not vanish silently.
+const attachmentDeleteNotice = ref<string | undefined>(undefined);
 
 const currentUsername = computed(() => {
   return state.instances.value.find((i) => i.id === props.instanceId)?.username;
@@ -256,6 +260,7 @@ function openEdit(comment: ForgejoTimelineComment) {
   editingComment.value = comment;
   editBody.value = comment.body ?? '';
   pendingDeleteAttachmentIds.value = [];
+  attachmentDeleteNotice.value = undefined;
 }
 
 function closeEdit() {
@@ -294,18 +299,27 @@ watch(
       for (const attachmentId of idsToDelete) {
         deletingAttachmentIds.value.add(attachmentId);
       }
-      try {
-        await Promise.all(
-          idsToDelete.map((attachmentId) =>
-            state
-              .deleteIssueCommentAttachment(props.instanceId, props.owner, props.repo, commentId, attachmentId)
-              .finally(() => deletingAttachmentIds.value.delete(attachmentId)),
-          ),
-        );
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to delete comment attachments', error);
+      // A declined confirmation resolves to false and a failure rejects; both
+      // leave the attachment in place, so collect them instead of dropping the
+      // edit form without a word (previously the results were ignored).
+      let declined = 0;
+      let failed = 0;
+      const results = await Promise.allSettled(
+        idsToDelete.map((attachmentId) =>
+          state
+            .deleteIssueCommentAttachment(props.instanceId, props.owner, props.repo, commentId, attachmentId)
+            .finally(() => deletingAttachmentIds.value.delete(attachmentId)),
+        ),
+      );
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          failed += 1;
+        } else if (!result.value) {
+          declined += 1;
+        }
       }
+      const notice = attachmentDeleteNoticeFor({ declined, failed });
+      attachmentDeleteNotice.value = notice ? t(`dashboard.detail.${notice.key}`, { count: notice.count }) : undefined;
     }
     closeEdit();
   },
@@ -373,6 +387,9 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
 
 <template>
   <div class="comment-timeline">
+    <div v-if="attachmentDeleteNotice" class="timeline-notice">
+      {{ attachmentDeleteNotice }}
+    </div>
     <div v-if="comments.length > 0" class="timeline-sort">
       <vscode-button secondary icon="sort-precedence" @click="toggleSortOrder">
         {{ sortOrder === 'asc' ? t('dashboard.detail.sortOldestFirst') : t('dashboard.detail.sortNewestFirst') }}
@@ -513,6 +530,13 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
 .timeline-sort {
   display: flex;
   justify-content: flex-end;
+}
+
+/* Neutral feedback (e.g. an attachment that survived a declined confirmation):
+   informative, not an error. */
+.timeline-notice {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
 }
 
 .empty {
