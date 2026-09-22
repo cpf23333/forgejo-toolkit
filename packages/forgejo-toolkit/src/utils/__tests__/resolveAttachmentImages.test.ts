@@ -103,6 +103,24 @@ describe('resolveAttachmentImages', () => {
     expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
   });
 
+  it('does not serve a cached image to a different instance on the same origin', async () => {
+    const html = '<p><img src="/attachments/shared-uuid" alt="screenshot"></p>';
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+
+    await resolveAttachmentImages(html, createInstance());
+    expect(fetchMock.mock.calls.length).toBe(1);
+
+    // Same server, different account: attachment visibility is token-scoped, so
+    // the first instance's resolved data must not be reused.
+    const otherInstance = { ...createInstance(), id: 'other', token: 'other-token' };
+    await resolveAttachmentImages(html, otherInstance);
+
+    expect(fetchMock.mock.calls.length).toBe(2);
+    expect((fetchMock.mock.calls[1][1] as { headers: { Authorization: string } }).headers.Authorization).toBe(
+      'token other-token',
+    );
+  });
+
   it('evicts the oldest resolved image when the cache exceeds 100 entries', async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     const instance = createInstance();

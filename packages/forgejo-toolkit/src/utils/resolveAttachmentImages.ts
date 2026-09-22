@@ -10,23 +10,35 @@ import { API_REQUEST_TIMEOUT_MS } from '../api/client';
 const MAX_RESOLVED_IMAGES = 100;
 const resolvedImageCache = new Map<string, string>();
 
-function cacheResolvedImage(url: string, dataUrl: string): void {
-  if (!resolvedImageCache.has(url) && resolvedImageCache.size >= MAX_RESOLVED_IMAGES) {
+/**
+ * Cache key for a resolved attachment. The instance id is part of it because
+ * attachment visibility is scoped to the token: two instances can point at the
+ * same origin (two accounts on one server, or a public and an internal URL), and
+ * one instance's resolved image must never be served for the other's request.
+ */
+function resolvedImageKey(instanceId: string, url: string): string {
+  return `${instanceId}|${url}`;
+}
+
+function cacheResolvedImage(instanceId: string, url: string, dataUrl: string): void {
+  const key = resolvedImageKey(instanceId, url);
+  if (!resolvedImageCache.has(key) && resolvedImageCache.size >= MAX_RESOLVED_IMAGES) {
     // Map iteration order is insertion order: the first key is the oldest.
     const oldest = resolvedImageCache.keys().next().value;
     if (oldest !== undefined) {
       resolvedImageCache.delete(oldest);
     }
   }
-  resolvedImageCache.set(url, dataUrl);
+  resolvedImageCache.set(key, dataUrl);
 }
 
-function getCachedImage(url: string): string | undefined {
-  const dataUrl = resolvedImageCache.get(url);
+function getCachedImage(instanceId: string, url: string): string | undefined {
+  const key = resolvedImageKey(instanceId, url);
+  const dataUrl = resolvedImageCache.get(key);
   if (dataUrl !== undefined) {
     // Refresh recency: re-insert so frequently used images are evicted last.
-    resolvedImageCache.delete(url);
-    resolvedImageCache.set(url, dataUrl);
+    resolvedImageCache.delete(key);
+    resolvedImageCache.set(key, dataUrl);
   }
   return dataUrl;
 }
@@ -52,7 +64,7 @@ export async function resolveAttachmentImages(text: string, instance: ForgejoIns
   const dataUrlMap = new Map<string, string>();
   await Promise.all(
     Array.from(imageUrls).map(async (url) => {
-      const cached = getCachedImage(url);
+      const cached = getCachedImage(instance.id, url);
       if (cached) {
         dataUrlMap.set(url, cached);
         return;
@@ -71,7 +83,7 @@ export async function resolveAttachmentImages(text: string, instance: ForgejoIns
         const base64 = Buffer.from(buffer).toString('base64');
         const contentType = response.headers.get('content-type') ?? guessMimeType(url);
         const dataUrl = `data:${contentType};base64,${base64}`;
-        cacheResolvedImage(url, dataUrl);
+        cacheResolvedImage(instance.id, url, dataUrl);
         dataUrlMap.set(url, dataUrl);
       } catch {
         // Keep the original URL on failure.

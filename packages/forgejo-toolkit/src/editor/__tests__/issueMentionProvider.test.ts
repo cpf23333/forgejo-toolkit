@@ -257,6 +257,32 @@ describe('completion trigger context', () => {
   });
 });
 
+describe('completion cache bound', () => {
+  it('keeps the cache bounded when the user visits many repositories', async () => {
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-cache']));
+    const internals = provider as unknown as {
+      getCachedList: (
+        kind: string,
+        context: { instanceId: string; owner: string; repo: string },
+        fetcher: () => Promise<unknown[]>,
+      ) => Promise<unknown[]>;
+      mentionCache: Map<string, unknown>;
+    };
+
+    for (let index = 0; index < 60; index += 1) {
+      await internals.getCachedList(
+        'issues',
+        { instanceId: 'inst-cache', owner: 'owner', repo: `repo-${index}` },
+        async () => [],
+      );
+    }
+
+    // Lists are only dropped when their key is read again after expiry, so the
+    // cache must cap itself instead of growing for the whole session.
+    expect(internals.mentionCache.size).toBeLessThanOrEqual(50);
+  });
+});
+
 describe('document link trigger context', () => {
   beforeEach(() => {
     detectMock.mockReset();

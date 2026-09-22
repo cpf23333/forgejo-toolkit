@@ -29,10 +29,10 @@
 - [ ] P2 无代理支持：所有请求走全局 `fetch`，不读 `HTTP(S)_PROXY` / VS Code `http.proxy`。方向：按设置接入 undici `ProxyAgent`，或至少在文档中声明限制
 - [x] P2 PR worktree 目录名不含实例标识（`worktrees/<owner>-<repo>-pr-<n>`）：两个实例的同名仓库会共用同一路径。裸仓库缓存已按实例加后缀（2026-09-22 修复），worktree 目录尚未处理 → 2026-09-22 修复：PR 与 issue worktree 目录名都改为 `worktrees/<owner>-<repo>-<实例后缀>-pr|issue-<n>…`（复用裸仓库缓存的 `instanceCacheSuffix`，并导出供测试使用）；新增 `_resolveWorktreePath`：若已有该 worktree 记录且记录路径仍在当前 worktree 缓存目录内则沿用旧路径，因此升级前创建的 worktree 不会被改名孤立（旧记录路径继续可用，无需迁移）；新增用例「两个实例的同名仓库落到不同目录」，并更新 startWorkOnIssue 既有断言
 - [ ] P2 MCP 子进程里的版本闸门是死代码（`serverVersions` 表只在扩展宿主进程填充）；工具调用也不支持取消（未把 SDK 的 signal 透传到 client）
-- [ ] P3 缓存治理：`timedCache` 只在该 key 被再次读取时清理过期项（过期后不再读的条目会留到会话结束）；`mentionCache` 无上限；`resolveAttachmentImages` 的 key 未包含实例标识
+- [x] P3 缓存治理：`timedCache` 只在该 key 被再次读取时清理过期项（过期后不再读的条目会留到会话结束）；`mentionCache` 无上限；`resolveAttachmentImages` 的 key 未包含实例标识 → 2026-09-22 修复：`createTimedCache` 在插入新 key 前先扫掉已过期条目再按插入顺序淘汰（未显式传 `maxEntries` 时默认上限 64，避免「不再被读取的 key 永久驻留」）；`issueMentionProvider` 的 `mentionCache` 同样加 50 条上限（先清过期再淘汰最旧）；`resolveAttachmentImages` 的缓存 key 改为 `instanceId|url`（同一 origin 上两个账号的附件可见性不同，不能互相复用已解析的 data URL）；三处都补了用例
 - [x] P3 提交 `pnpm-lock.yaml`（已从 `.gitignore` 移除，需人工 `git add`）——此前 lockfile 未入库，全新 clone 会解析 `^` 浮动版本，安装不可复现 → 已入库（`290d875`，271 KB，CI 的 `--frozen-lockfile` 依赖它），工作区无未提交改动
 - [ ] P3 `packages/forgejo-api` 的代码生成源未固定（`kubb.config.ts` 直接读 `https://codeberg.org/swagger.v1.json`）——建议 pin 到上游 tag 并记录版本；`src/generated/client|mocks` 目前无任何 value 导入，可考虑只保留 types
-- [ ] P3 确认「未打开 Dashboard 时 MCP server 是否会被 VS Code 发现」——`package.json` 的 `activationEvents` 只有 view/fileSystem（+隐式 command），官方激活事件列表里没有 `onMcpServerDefinitionProvider`；若确实不会自动激活，需要补 `onStartupFinished` 或接受「首次打开 Dashboard 后才可用」
+- [ ] P3 确认「未打开 Dashboard 时 MCP server 是否会被 VS Code 发现」——`package.json` 的 `activationEvents` 只有 view/fileSystem（+隐式 command），官方激活事件列表（2026-09-16 版本）里确实没有 `onMcpServerDefinitionProvider`。**文档核对结论**：MCP 指南只要求 `contributes.mcpServerDefinitionProviders` + `lm.registerMcpServerDefinitionProvider`，且 VS Code 仓库 issue #266221 的标题即「MCP Server results in extension always activating in all workspaces」——说明贡献该扩展点的扩展会被自动激活（与 1.74 起 command/view/customEditor 的隐式激活一致），因此暂不添加 `onStartupFinished`（避免每次开窗都激活）。**待验证**：发版走查时确认「未打开 Dashboard 的全新窗口里 Chat 的工具选择器能看到 forgejo 工具」；若看不到，再补 `onStartupFinished`
 
 ### 2026-09-22 工作区改动复审新发现（四方向子代理审查）
 

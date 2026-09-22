@@ -16,6 +16,10 @@ const ISSUE_MENTION_REGEX = /#(\d+)/g;
 const USER_MENTION_REGEX = /@([a-zA-Z0-9_.-]+)/g;
 
 const MENTION_CACHE_TTL_MS = 60_000;
+// Completion lists are only dropped from the cache when their key is read again
+// after expiry, so a user visiting many repositories would keep every list for
+// the rest of the session. Bound it, evicting expired entries first.
+const MENTION_CACHE_MAX_ENTRIES = 50;
 
 /**
  * Line-local heuristic deciding whether a `#`/`@` can start a mention, used by
@@ -130,9 +134,33 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
     try {
       const value = await fetcher();
       this.mentionCache.set(key, { value, expiresAt: Date.now() + MENTION_CACHE_TTL_MS });
+      this._enforceMentionCacheBound();
       return value;
     } catch {
       return [];
+    }
+  }
+
+  /**
+   * Keep the completion cache bounded: drop everything already expired, then
+   * the oldest entries (Map iteration is insertion-ordered) until it fits.
+   */
+  private _enforceMentionCacheBound(): void {
+    if (this.mentionCache.size <= MENTION_CACHE_MAX_ENTRIES) {
+      return;
+    }
+    const now = Date.now();
+    for (const [key, entry] of this.mentionCache) {
+      if (entry.expiresAt <= now) {
+        this.mentionCache.delete(key);
+      }
+    }
+    while (this.mentionCache.size > MENTION_CACHE_MAX_ENTRIES) {
+      const oldest = this.mentionCache.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      this.mentionCache.delete(oldest);
     }
   }
 

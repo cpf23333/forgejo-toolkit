@@ -6,11 +6,44 @@ export interface TimedCache<T> {
   clear(): void;
 }
 
+/**
+ * Entry count at which a cache without an explicit `maxEntries` starts dropping
+ * its oldest entries. Reading a key is what normally removes it once expired,
+ * so keys that are never read again would otherwise hold their value (and, for
+ * response caches, its memory) until the window reloads.
+ */
+const DEFAULT_MAX_ENTRIES = 64;
+
 export function createTimedCache<T>(ttlMs: number, maxEntries?: number): TimedCache<T> {
   const cache = new Map<string, { value: T; timestamp: number }>();
 
   function isExpired(entry: { value: T; timestamp: number }): boolean {
     return Date.now() - entry.timestamp > ttlMs;
+  }
+
+  /**
+   * Called before inserting a new key: expire stale entries first (a live entry
+   * is more valuable than an already-dead one), then evict oldest-first down to
+   * the bound. Map iteration order is insertion order.
+   */
+  function enforceBound(): void {
+    const limit = maxEntries ?? DEFAULT_MAX_ENTRIES;
+    if (cache.size < limit) {
+      return;
+    }
+    const now = Date.now();
+    for (const [key, entry] of cache) {
+      if (now - entry.timestamp > ttlMs) {
+        cache.delete(key);
+      }
+    }
+    while (cache.size >= limit) {
+      const oldest = cache.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      cache.delete(oldest);
+    }
   }
 
   return {
@@ -26,13 +59,9 @@ export function createTimedCache<T>(ttlMs: number, maxEntries?: number): TimedCa
       return entry.value;
     },
     set(key, value) {
-      // Map iteration order is insertion order: evict the oldest entry once
-      // the cap is reached (only for brand-new keys; updates keep their slot).
-      if (maxEntries !== undefined && !cache.has(key) && cache.size >= maxEntries) {
-        const oldest = cache.keys().next().value;
-        if (oldest !== undefined) {
-          cache.delete(oldest);
-        }
+      // Updates keep their slot and must not evict a live sibling.
+      if (!cache.has(key)) {
+        enforceBound();
       }
       cache.set(key, { value, timestamp: Date.now() });
     },
