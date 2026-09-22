@@ -9,7 +9,8 @@
 - [ ] 重建并跑完发布前走查：`pnpm --filter forgejo-toolkit build` 后按 `tools/ui-review/README.md` 的 Release walkthrough checklist 逐条过（① – ⑧ 已在隔离 dev host 上跑过；仍需真实例/真 git 的两条见清单说明）
 - [x] 打包产物核对：2026-09-23 两次覆盖——本地 production `vsce package` 的 `.vsix` 逐个核对过内容（66 文件，含 `out/extension.js`、`out/mcp-server.js`、webview 资源、`l10n/`、`walkthrough/`，不含 mock），Codeberg Actions 手动跑 `release.yml`（`dry_run` 勾选）产出的 `.vsix` 也通过了 workflow 自带的清单检查（`out/extension.js`、`out/mcp-server.js`、`package.json`）
 - [x] CI 与手动触发验证：2026-09-23 首次手动派发 `.forgejo/workflows/ci.yml` 与 `release.yml` 一次通过——`Verify (manual)` 全绿、`release.yml`（`dry_run: true`）成功构建并打包出 `.vsix` 作为 workflow artifact。`permissions:` 移除后运行日志不再出现「字段会被忽略」警告（如仍出现请回报）
-- [ ] 发布（需你执行，构建/发布需要凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，并把 `.vsix` 附到 Codeberg Release。Codeberg 那一步由 `release.yml` 完成——把「Build and package only」取消勾选（`dry_run: false`）、确认 `FORGEJO_TOKEN`（或 `GITEA_TOKEN`）仓库 secret 已配、`tag` 留空即用 `v<package.json 版本>`，其余步骤见 `docs/release.md`
+- [x] `release.yml` 端到端发布验证：2026-09-23 取消勾选 `dry_run` 实跑一次成功——`Create the Codeberg release` 真正建出 Release 并附上 `.vsix`，验证后已把测试用 release/tag 删除。过程中修掉一个真实缺陷：该步用 `node <<'NODE'` 从 stdin 喂脚本，`require()` 与顶层 `await` 混用会被 Node ≥ 22 以 `ERR_AMBIGUOUS_MODULE_SYNTAX` 拒绝（dry run 不经过这一步，所以先前没暴露），现已改为 CommonJS（`async function` + `.catch()`），并把这条坑写进 `docs/release.md` 的 Troubleshooting。同批还补了 dispatch 输入回显（`tag`/`prerelease`/`dry_run` 写进日志与 run summary）与 `.gitattributes`（`* text=auto eol=lf`，消除 Windows 下 CRLF 造成的假 `M` 与 `pnpm format` 误报）
+- [ ] 发布（需你执行，凭据相关）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX 发布，并按需重建 Codeberg Release（由 `release.yml` 完成：`dry_run` 取消勾选、`tag` 留空即 `v<package.json 版本>`、`FORGEJO_TOKEN` secret 已配）。本地 `main`（含上述修复）已推送到 `origin`（自建 Forgejo，CI 运行处）与 `codeberg`，测试分支已删除
 - [ ] 发布后回填：README 安装/版本表述与 `docs/release.md` 对齐实际发布渠道；确认 `KNOWN_ISSUES` 中与版本相关的条目在发版后仍成立
 
 ### 规划中的功能
