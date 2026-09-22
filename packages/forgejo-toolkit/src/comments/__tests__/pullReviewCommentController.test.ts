@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   closeHandlers: [] as Array<(doc: unknown) => unknown>,
   editorHandlers: [] as Array<(editor: unknown) => unknown>,
   visibleRangesHandlers: [] as Array<() => unknown>,
+  visibleEditorHandlers: [] as Array<() => unknown>,
   visibleEditors: [] as Array<{ document: unknown; setDecorations: ReturnType<typeof vi.fn> }>,
   diffFetches: 0,
   comments: null as unknown[] | null,
@@ -68,7 +69,10 @@ vi.mock('vscode', () => {
         state.editorHandlers.push(cb);
         return { dispose: vi.fn() };
       }),
-      onDidChangeVisibleTextEditors: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidChangeVisibleTextEditors: vi.fn((cb: () => unknown) => {
+        state.visibleEditorHandlers.push(cb);
+        return { dispose: vi.fn() };
+      }),
       onDidChangeTextEditorVisibleRanges: vi.fn((cb: () => unknown) => {
         state.visibleRangesHandlers.push(cb);
         return { dispose: vi.fn() };
@@ -209,6 +213,9 @@ describe('PullReviewCommentController thread cleanup', () => {
     state.createdThreads.length = 0;
     state.openHandlers.length = 0;
     state.closeHandlers.length = 0;
+    state.editorHandlers.length = 0;
+    state.visibleEditorHandlers.length = 0;
+    state.visibleEditors.length = 0;
   });
 
   it('keeps base-side threads alive when the head-side document renders, and vice versa', async () => {
@@ -316,6 +323,61 @@ describe('PullReviewCommentController thread cleanup', () => {
     expect(state.createdThreads).toHaveLength(0);
     expect(threadCount(controller)).toBe(0);
     controller.dispose();
+  });
+
+  it('sweeps threads whose document is no longer visible when no close event arrives', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
+
+      const headDocument = makeDocument(false);
+      const baseDocument = makeDocument(true);
+      state.visibleEditors.push({ document: headDocument, setDecorations: vi.fn() });
+      state.visibleEditors.push({ document: baseDocument, setDecorations: vi.fn() });
+      await openDocument(headDocument);
+      await openDocument(baseDocument);
+      expect(threadCount(controller)).toBe(2);
+      const [headThread, baseThread] = state.createdThreads;
+      state.visibleEditors.length = 0;
+
+      // Closing the diff editor removes both documents from the visible
+      // editors, but VS Code may never fire onDidCloseTextDocument for the
+      // virtual PR documents; the visible-editor fallback must clean up.
+      state.visibleEditorHandlers[0]();
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(headThread.dispose).toHaveBeenCalledTimes(1);
+      expect(baseThread.dispose).toHaveBeenCalledTimes(1);
+      expect(threadCount(controller)).toBe(0);
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps threads of documents that are still visible', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
+
+      const headDocument = makeDocument(false);
+      state.visibleEditors.push({ document: headDocument, setDecorations: vi.fn() });
+      await openDocument(headDocument);
+      const headThread = state.createdThreads[0];
+
+      // Another document becoming visible must not touch this side's threads.
+      state.visibleEditors.push({ document: makeDocument(true), setDecorations: vi.fn() });
+      state.visibleEditorHandlers[0]();
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(headThread.dispose).not.toHaveBeenCalled();
+      expect(threadCount(controller)).toBe(1);
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -53,6 +53,12 @@ const REVIEW_DATA_CACHE_TTL_MS = 15_000;
 // controller maintains its own key instead.
 const CONTEXT_IN_PR_DIFF = 'forgejoToolkit.inPullRequestDiff';
 
+// Debounce for the fallback cleanup of threads whose document is no longer
+// visible (see _scheduleInvisibleThreadSweep). Long enough to coalesce the
+// events of a closing diff editor, short enough that leftover threads do not
+// sit in the Comments panel.
+const INVISIBLE_THREAD_SWEEP_DELAY_MS = 250;
+
 export class PullReviewCommentController implements vscode.Disposable {
   private readonly _controller: vscode.CommentController;
   private readonly _threads = new Map<string, vscode.CommentThread>();
@@ -106,8 +112,13 @@ export class PullReviewCommentController implements vscode.Disposable {
         this._applyThreadRangeDecorations();
       }),
       // Threads outlive editor visibility changes; re-apply the range
-      // decorations when a document becomes visible in a (new) editor.
-      vscode.window.onDidChangeVisibleTextEditors(() => this._applyThreadRangeDecorations()),
+      // decorations when a document becomes visible in a (new) editor, and
+      // sweep threads whose document is not shown anywhere any more (VS Code
+      // does not fire the close event for every virtual PR document).
+      vscode.window.onDidChangeVisibleTextEditors(() => {
+        this._applyThreadRangeDecorations();
+        this._scheduleInvisibleThreadSweep();
+      }),
       // The extension host learns about user-initiated comment-thread
       // collapse/expand only through a silent thread update — no event is
       // fired (verified against the shipped extension-host bundle). But the
@@ -140,10 +151,55 @@ export class PullReviewCommentController implements vscode.Disposable {
     );
   }
 
+  private _invisibleThreadSweepTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * Schedule the fallback cleanup for threads of documents that are no longer
+   * visible in any editor. `onDidCloseTextDocument` is the primary signal, but
+   * VS Code does not reliably fire it for the virtual PR documents: closing a
+   * diff editor can leave its threads in the Comments panel for a long time.
+   * Debounced because a diff editor closing fires the visible-editor event
+   * more than once, and a document that is merely no longer active is
+   * re-rendered by the active-editor handler when the user returns to it.
+   */
+  private _scheduleInvisibleThreadSweep(): void {
+    if (this._invisibleThreadSweepTimer !== undefined) {
+      clearTimeout(this._invisibleThreadSweepTimer);
+    }
+    this._invisibleThreadSweepTimer = setTimeout(() => {
+      this._invisibleThreadSweepTimer = undefined;
+      this._dropThreadsOfInvisibleDocuments();
+    }, INVISIBLE_THREAD_SWEEP_DELAY_MS);
+  }
+
+  private _dropThreadsOfInvisibleDocuments(): void {
+    if (this._threads.size === 0) {
+      return;
+    }
+    const visibleUris = new Set(vscode.window.visibleTextEditors.map((editor) => editor.document.uri.toString()));
+    let dropped = false;
+    for (const [key, thread] of this._threads.entries()) {
+      if (visibleUris.has(thread.uri.toString())) {
+        continue;
+      }
+      this._dropCommentContexts(thread);
+      thread.dispose();
+      this._threads.delete(key);
+      dropped = true;
+    }
+    if (dropped) {
+      this._applyThreadRangeDecorations();
+    }
+  }
+
   dispose(): void {
     if (this._threadRangeDecorationSyncTimer !== undefined) {
       clearTimeout(this._threadRangeDecorationSyncTimer);
       this._threadRangeDecorationSyncTimer = undefined;
+    }
+    if (this._invisibleThreadSweepTimer !== undefined) {
+      clearTimeout(this._invisibleThreadSweepTimer);
+      this._invisibleThreadSweepTimer = undefined;
     }
     for (const thread of this._threads.values()) {
       thread.dispose();
