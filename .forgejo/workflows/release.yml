@@ -11,19 +11,22 @@ name: Release (manual)
 # credentials) — see docs/release.md.
 on:
   workflow_dispatch:
+    # Forgejo's dispatch form labels each field with its `description` and never
+    # shows the input name, so every description names its input: without that,
+    # "dry_run" is invisible in the UI and the form looks like it has two options.
     inputs:
       tag:
-        description: 'Release tag (default: v<version from packages/forgejo-toolkit/package.json>)'
+        description: 'Release tag (input: tag; default: v<version from packages/forgejo-toolkit/package.json>)'
         required: false
         type: string
         default: ''
       prerelease:
-        description: 'Mark the Codeberg release as a prerelease'
+        description: 'Mark the Codeberg release as a prerelease (input: prerelease)'
         required: false
         type: boolean
         default: false
       dry_run:
-        description: 'Build and package only, without creating the Codeberg release'
+        description: 'Dry run (input: dry_run) — build and package only, without creating the Codeberg release'
         required: false
         type: boolean
         default: true
@@ -128,10 +131,16 @@ jobs:
       - name: Test
         run: pnpm --filter forgejo-toolkit test
 
+      # The dispatch inputs are echoed here on purpose: `tag` and `prerelease`
+      # only change what the release step creates, which is skipped in a dry run,
+      # so without this an input that never arrived would look like an input that
+      # had no effect.
       - name: Resolve version and tag
         id: vars
         env:
           INPUT_TAG: ${{ inputs.tag }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
         run: |
           VERSION=$(node -p "require('./packages/forgejo-toolkit/package.json').version")
           if [ -n "$INPUT_TAG" ]; then
@@ -141,7 +150,12 @@ jobs:
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG} prerelease=${INPUT_PRERELEASE:-unset} dry_run=${INPUT_DRY_RUN:-unset}" >> $GITHUB_STEP_SUMMARY
+          echo "Dispatch inputs: tag='${INPUT_TAG:-<empty>}' prerelease='${INPUT_PRERELEASE:-<empty>}' dry_run='${INPUT_DRY_RUN:-<empty>}'"
           echo "Releasing version ${VERSION} as ${TAG}"
+          if [ "${INPUT_DRY_RUN}" = "true" ] || [ "${INPUT_DRY_RUN}" = "True" ]; then
+            echo "Dry run: the Codeberg release step is skipped, so 'prerelease' and 'tag' only affect the log above. Uncheck 'Build and package only' to publish." >> $GITHUB_STEP_SUMMARY
+          fi
 
       # `pnpm run package` builds the extension bundle (esbuild + webview) and
       # then runs `vsce package --no-dependencies`, which writes the .vsix into
@@ -189,8 +203,9 @@ jobs:
       - name: Create the Codeberg release and attach the .vsix
         # `inputs.dry_run` evaluates as a boolean on current Forgejo runners and
         # as a string on older ones; both spellings are accepted so publishing
-        # only happens when it was explicitly turned off.
-        if: ${{ inputs.dry_run == false || inputs.dry_run == 'false' }}
+        # only happens when it was explicitly turned off. Anything else —
+        # including an input that never arrived — keeps the release untouched.
+        if: ${{ inputs.dry_run == false || inputs.dry_run == 'false' || inputs.dry_run == 'False' }}
         env:
           FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN || secrets.GITEA_TOKEN }}
           SERVER_URL: ${{ github.server_url }}

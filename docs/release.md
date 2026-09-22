@@ -90,6 +90,15 @@ run — it never triggers on a push, tag or schedule:
 Inputs: `tag` (override the tag), `prerelease` (mark the release as a
 prerelease), `dry_run` (defaults to `true`, so the first run only builds).
 
+`tag` and `prerelease` only change what the release step creates, and that step
+is skipped during a dry run — so in a dry run they appear to do nothing. The
+"Resolve version and tag" step therefore echoes every input it received (`tag`,
+`prerelease`, `dry_run`) and writes the resolved tag plus a dry-run note to the
+run summary, which also tells apart an input that had no effect from one that
+never arrived. Publishing happens only when `dry_run` is explicitly false
+(uncheck "Build and package only"); any other value — including an input that was
+not delivered — leaves the release untouched.
+
 Requirements:
 
 - A repository secret named `FORGEJO_TOKEN` (or `GITEA_TOKEN`) holding a token
