@@ -576,12 +576,19 @@ export const handlers = [
 
   http.post('https://*/api/v1/repos/:owner/:repo/releases/:id/assets', () => json(mockReleaseAttachment)),
 
-  http.delete(
-    'https://*/api/v1/repos/:owner/:repo/releases/:id/assets/:attachment_id',
-    () => new HttpResponse(null, { status: 204 }),
-  ),
+  http.delete('https://*/api/v1/repos/:owner/:repo/releases/:id/assets/:attachment_id', ({ params }) => {
+    releases = releases.map((release) =>
+      String(release.id) === String(params.id)
+        ? { ...release, assets: release.assets?.filter((asset) => String(asset.id) !== String(params.attachment_id)) }
+        : release,
+    );
+    return new HttpResponse(null, { status: 204 });
+  }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/releases/:id', () => new HttpResponse(null, { status: 204 })),
+  http.delete('https://*/api/v1/repos/:owner/:repo/releases/:id', ({ params }) => {
+    releases = releases.filter((release) => String(release.id) !== String(params.id));
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   http.get('https://*/api/v1/repos/:owner/:repo/commits', ({ request }) => {
     const url = new URL(request.url);
