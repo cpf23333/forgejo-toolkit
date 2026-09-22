@@ -4,6 +4,13 @@
 
 ## 待开始
 
+### 发布 0.0.1（下一个动作）
+
+- [ ] 重建并跑完发布前走查：`pnpm --filter forgejo-toolkit build` 后按 `tools/ui-review/README.md` 的 Release walkthrough checklist 逐条过（其中 pushurl 拦截与 MCP 入参校验需要真实实例 + token，mock 环境覆盖不到）
+- [ ] 打包产物核对：`pnpm --filter forgejo-toolkit package`，确认 `.vsix` 内含 `out/extension.js`、`out/mcp-server.js`、webview 资源、`l10n/` 与 `walkthrough/`（`.vscodeignore` 已排除源码与 `mcp/` 源文件）
+- [ ] 发布（需你执行，构建/发布需要凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，并把 `.vsix` 附到 Codeberg Release。Codeberg 那一步可用 `.forgejo/workflows/release.yml`（手动触发，`dry_run` 默认 true，先跑一次只打包；需配 `FORGEJO_TOKEN` 仓库 secret），其余步骤见 `docs/release.md`
+- [ ] 发布后回填：README 安装/版本表述与 `docs/release.md` 对齐实际发布渠道；确认 `KNOWN_ISSUES` 中与版本相关的条目在发版后仍成立
+
 ### 规划中的功能
 
 - [ ] MCP Server Phase 2 写工具（需单独批准，方案已定调）——`create_issue`、`create_comment`、`create_pull_request`、`submit_pull_review`、`merge_pull_request`、`mark_notification_read`；默认关 + 设置逐项开启 + 不标记 `readOnlyHint`（让 VS Code 逐次确认）
@@ -17,7 +24,6 @@
 - [ ] P1 创建成功但附件上传失败时表单不清空 → 重试会产生重复 issue/PR/评论——`RepoIssues.vue` / `RepoPullRequests.vue` / `IssueDetail.vue` / `PullRequestDetail.vue` 的创建与评论流程：catch 里写了错误却没清 `isCreating`/正文/待上传附件。方向：创建成功后先关闭表单，附件上传单独 try
 - [ ] P1 关闭 PR diff 编辑器后，评论面板（Comments panel）仍残留该文件的 review thread——`_onCloseDocument` 依赖 `onDidCloseTextDocument`，但虚拟文档的 close 事件未及时触发（等 20s+ 仍在）。方向：改用 `onDidChangeVisibleTextEditors`（去抖）兜底清理不可见文档的 thread
 - [ ] P2 非管理员看不到保护规则：`GET /branch_protections/{name}` 是 repo-admin-only（上游 `api.go` 整组 `reqAdmin()`），403 被 `_probe` 吞掉后等同于「没有保护规则」。2026-09-22 已修掉「探测失败被当成无 push 权限而禁用合并」，剩余方向：仅在 `permissions.admin` 为真时探测，否则显式提示「保护规则未知」
-- [ ] P2 Actions 子端点需要 v16：jobs/artifacts/job logs/cancel/delete 在 v15 上 404，而 `_assertActions` 只挡 <1.19。方向：按端点把闸门提到 16.0，或在 UI 上提前提示（当前行为已记入 KNOWN_ISSUES）
 - [ ] P2 静默截断：`_getRepoTree` 上限 50 页 × 100 条、`_fetchAllPages` 上限 500 条，文件搜索/列表被截断时不返回任何标记。方向：结果携带 `truncated` 标记，并按 `X-Total-Count` 推导上限
 - [ ] P2 通知列表只取一页（`getNotifications` 无分页，>50 条静默丢失）
 - [ ] P2 无代理支持：所有请求走全局 `fetch`，不读 `HTTP(S)_PROXY` / VS Code `http.proxy`。方向：按设置接入 undici `ProxyAgent`，或至少在文档中声明限制
@@ -48,6 +54,7 @@
 
 ### 走查方向
 
+- 发布前走查清单见 `tools/ui-review/README.md` 的「Release walkthrough checklist」（脏 worktree 确认、四个 delete 确认、评论面板预览/提及、pushurl 拦截、通知已读、Actions 分页、导入错误、MCP 入参校验），需先 `pnpm --filter forgejo-toolkit build` 再跑 harness。
 - [x] 动态端到端走查：多 remote 关联、关联仓库切换器、中文详情页、Publish 按钮新行为（创建仓库流程 + 中间态报错文案正确；推送成功路径受 insteadOf 测试环境限制未覆盖）、评论 thread 清理（见上方发现）
 - [ ] `prFileSystemProvider` 大文件行为实测：contents API 对 >10 MiB 文件返回空 `content`（已确认，见 KNOWN_ISSUES），PR diff 里会显示为空，值得确认提示文案的落点
 - [ ] 性能实测：激活耗时、懒加载后 bundle 实测体积（静态部分已完成并修复 P1-P4）
