@@ -353,6 +353,7 @@
       "mergeableStatus": {
         "mergeable": "Ready to merge",
         "unknown": "Merge status unknown",
+        "protectionUnknown": "Branch protection rules could not be read (they require repository admin rights), so this status may be incomplete.",
         "blocker": {
           "draft": "This pull request is a draft",
           "closed": "This pull request is closed",

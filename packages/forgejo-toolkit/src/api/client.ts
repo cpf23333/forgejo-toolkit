@@ -1004,22 +1004,22 @@ export class ForgejoClient {
     const prDetail = pr as ForgejoPullRequestDetail;
     const baseRef = prDetail.base?.ref;
     const headSha = prDetail.head?.sha;
-    const [protection, combinedStatus] = await Promise.all([
-      baseRef
-        ? this._probe(
-            repoGetBranchProtection(owner, repo, encodePathSegment(baseRef), { client: this._client() }),
-            `branch protection ${owner}/${repo}@${baseRef}`,
-          )
-        : undefined,
-      headSha
-        ? this._probe(
-            repoGetCombinedStatusByRef(owner, repo, encodePathSegment(headSha), undefined, {
-              client: this._client(),
-            }),
-            `combined status ${owner}/${repo}@${headSha}`,
-          )
-        : undefined,
-    ]);
+    const combinedStatusPromise = headSha
+      ? this._probe(
+          repoGetCombinedStatusByRef(owner, repo, encodePathSegment(headSha), undefined, {
+            client: this._client(),
+          }),
+          `combined status ${owner}/${repo}@${headSha}`,
+        )
+      : undefined;
+    // Branch protection rules are repo-admin-only upstream, so asking as a
+    // regular user only yields a 403 that must not be read as "this branch has
+    // no rules". Ask only when the user administers the repository and report
+    // the rules as unknown otherwise, so the view can say the merge status may
+    // be incomplete instead of claiming the PR is ready.
+    const protectionRead = await this._readBranchProtection(owner, repo, baseRef, permissions?.admin === true);
+    const protection = protectionRead.protection;
+    const combinedStatus = await combinedStatusPromise;
     // When the base branch requires approving reviews, count how many the PR
     // already has so the blocker clears once enough approvals are in.
     // Approximation: counts every official, non-stale, non-dismissed APPROVED
@@ -1054,9 +1054,53 @@ export class ForgejoClient {
       ...prDetail,
       assets: (issue as ForgejoIssueDetail | undefined)?.assets,
       repoPermissions: permissions,
+      protectionUnknown: protectionRead.unknown,
       mergeBlockers,
       statusChecks,
     };
+  }
+
+  /**
+   * Branch protection rules for `branch`, read only when the user administers
+   * the repository (the endpoint is admin-only upstream). `unknown` means the
+   * rules could not be read, so the caller must not present the merge status as
+   * complete; a 404 is a real answer ("this branch has no rules").
+   */
+  private async _readBranchProtection(
+    owner: string,
+    repo: string,
+    branch: string | undefined,
+    canRead: boolean,
+  ): Promise<{
+    protection?: {
+      apply_to_admins?: boolean;
+      required_approvals?: number;
+      enable_status_check?: boolean;
+      status_check_contexts?: string[];
+    };
+    unknown: boolean;
+  }> {
+    if (!canRead || !branch) {
+      return { unknown: true };
+    }
+    try {
+      const protection = (await repoGetBranchProtection(owner, repo, encodePathSegment(branch), {
+        client: this._client(),
+      })) as {
+        apply_to_admins?: boolean;
+        required_approvals?: number;
+        enable_status_check?: boolean;
+        status_check_contexts?: string[];
+      };
+      return { protection, unknown: false };
+    } catch (error) {
+      const apiError = toApiError(error);
+      if (apiError.kind === 'http' && apiError.status === 404) {
+        return { unknown: false };
+      }
+      this.logger?.debug(`[branchProtection] unreadable for ${owner}/${repo}@${branch}: ${apiError.rawMessage}`);
+      return { unknown: true };
+    }
   }
 
   private _buildMergeBlockers(

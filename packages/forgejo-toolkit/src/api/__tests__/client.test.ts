@@ -546,6 +546,59 @@ describe('ForgejoClient with MSW', () => {
     expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'no_permission')).toBe(false);
   });
 
+  it('reports branch protection as unknown for a non-admin instead of assuming none', async () => {
+    const client = createClient();
+    const protectionRequests: string[] = [];
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo', () =>
+        HttpResponse.json({ ...mockRepository, permissions: { admin: false, push: true, pull: true } }),
+      ),
+      http.get('https://*/api/v1/repos/:owner/:repo/branch_protections/:name', ({ request }) => {
+        protectionRequests.push(request.url);
+        return new HttpResponse(null, { status: 403 });
+      }),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    // The endpoint is admin-only: asking would only ever 403, and treating that
+    // as "no rules" hides the approval/status requirements from the user.
+    expect(protectionRequests).toEqual([]);
+    expect(pr.protectionUnknown).toBe(true);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_approvals')).toBe(false);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'no_permission')).toBe(false);
+  });
+
+  it('treats a missing branch protection as a known answer for an admin', async () => {
+    const client = createClient();
+    mockServer.use(
+      http.get(
+        'https://*/api/v1/repos/:owner/:repo/branch_protections/:name',
+        () => new HttpResponse(null, { status: 404 }),
+      ),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    // 404 means the branch has no protection rules; that is not "unknown".
+    expect(pr.protectionUnknown).toBe(false);
+  });
+
+  it('reports branch protection as unknown when the admin request fails', async () => {
+    const client = createClient();
+    mockServer.use(
+      http.get(
+        'https://*/api/v1/repos/:owner/:repo/branch_protections/:name',
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    expect(pr.protectionUnknown).toBe(true);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_approvals')).toBe(false);
+  });
+
   it('fetches action runs', async () => {
     const client = createClient();
     const runs = await client.listActionRuns('demo-user', 'demo-repo');

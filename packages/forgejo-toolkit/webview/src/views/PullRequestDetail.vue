@@ -348,6 +348,9 @@ const canMerge = computed(() => detail.value?.state === 'open' && !detail.value?
 const isMergeable = computed(() => detail.value?.mergeable === true);
 const mergeBlockers = computed(() => detail.value?.mergeBlockers ?? []);
 const hasMergeBlockers = computed(() => mergeBlockers.value.length > 0);
+// The base branch's rules are admin-only upstream: when they could not be read
+// the status above cannot claim the PR is ready to merge.
+const protectionUnknown = computed(() => detail.value?.protectionUnknown === true);
 
 function blockerText(blocker: MergeBlocker): string {
   switch (blocker.type) {
@@ -1243,6 +1246,10 @@ function reloadPullRequest() {
             <div v-if="!hasMergeBlockers && !isMergeable" class="merge-status unknown">
               <vscode-icon name="question" />
               <span>{{ t('dashboard.detail.mergeableStatus.unknown') }}</span>
+            </div>
+            <div v-if="protectionUnknown" class="merge-status unknown">
+              <vscode-icon name="info" />
+              <span>{{ t('dashboard.detail.mergeableStatus.protectionUnknown') }}</span>
             </div>
           </div>
           <div class="merge-form">

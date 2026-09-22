@@ -129,6 +129,11 @@ export interface ForgejoPullRequestDetail extends ForgejoIssueDetail {
   mergeable?: boolean;
   draft?: boolean;
   mergeBlockers?: MergeBlocker[];
+  /**
+   * True when the base branch's protection rules could not be read (they need
+   * repository admin rights), so the merge status may be incomplete.
+   */
+  protectionUnknown?: boolean;
   statusChecks?: ForgejoStatusChecks;
 }
 

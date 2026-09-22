@@ -353,6 +353,7 @@
       "mergeableStatus": {
         "mergeable": "可以合并",
         "unknown": "合并状态未知",
+        "protectionUnknown": "无法读取分支保护规则（需要仓库管理员权限），此合并状态可能不完整。",
         "blocker": {
           "draft": "当前 PR 为草稿",
           "closed": "PR 已关闭",
