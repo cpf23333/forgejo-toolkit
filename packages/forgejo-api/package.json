@@ -31,10 +31,10 @@
   "devDependencies": {
     "@kubb/cli": "4.39.2",
     "@kubb/core": "4.39.2",
-    "@kubb/plugin-client": "^4.39.2",
-    "@kubb/plugin-msw": "^4.39.2",
-    "@kubb/plugin-oas": "^4.39.2",
-    "@kubb/plugin-ts": "^4.39.2",
+    "@kubb/plugin-client": "4.39.2",
+    "@kubb/plugin-msw": "4.39.2",
+    "@kubb/plugin-oas": "4.39.2",
+    "@kubb/plugin-ts": "4.39.2",
     "msw": "^2.14.6",
     "prettier": "^3.9.3",
     "typescript": "^6.0.3"
