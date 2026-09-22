@@ -1,7 +1,6 @@
-import { ForgejoClient } from './client';
+import { ForgejoClient, type ClientLogger } from './client';
 import { getForgejoClientHost } from './clientHost';
 import { isVersionSupported, MIN_SUPPORTED_VERSION_TEXT, setServerVersion } from './serverVersion';
-import type { Logger } from '../logger';
 
 /**
  * Best-effort server version probe: the result feeds the feature gates in
@@ -9,11 +8,15 @@ import type { Logger } from '../logger';
  * an instance that cannot be probed simply keeps every feature enabled
  * (the gates fail open for unknown versions). A probed version below the
  * supported floor triggers a soft host notification; nothing is blocked.
+ *
+ * The logger is the client-facing interface on purpose: the MCP server process
+ * runs this too, and it only has the console-backed `ClientLogger` (the editor's
+ * `Logger` implements it, so both callers work).
  */
 export async function probeServerVersion(
   url: string,
   token: string,
-  logger?: Logger,
+  logger?: ClientLogger,
   syncApiUrlsToInstanceUrl?: boolean,
 ): Promise<void> {
   try {

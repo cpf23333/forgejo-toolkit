@@ -1,6 +1,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ForgejoClient, type ClientLogger } from '../src/api/client';
 import { userFacingErrorMessage } from '../src/api/errors-core';
+import { probeServerVersion } from '../src/api/versionProbe';
 import { createMcpServer } from './mcpServer';
 
 // A stdio MCP server must keep stdout clean for the protocol framing, so all
@@ -26,17 +27,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const client = new ForgejoClient(
-    url,
-    token,
-    logger,
-    // The headless process cannot read the extension's settings, so the
-    // per-instance URL-sync flag arrives through the launch environment.
-    // Anything other than 'false' (including unset) keeps the client default,
-    // which is syncing enabled.
-    process.env.FORGEJO_MCP_SYNC_API_URLS === 'false' ? false : undefined,
-  );
+  const syncApiUrls = process.env.FORGEJO_MCP_SYNC_API_URLS === 'false' ? false : undefined;
+  const client = new ForgejoClient(url, token, logger, syncApiUrls);
   const server = createMcpServer(client);
+  // The extension host probes the server version on activation and caches it per
+  // instance URL, but this process has its own module state and never runs
+  // activation — without a probe here the Actions version gate
+  // (`assertActionsSupported`) would always see "unknown" and pass, making the
+  // gate dead code on the MCP side. The probe runs in the background: the server
+  // starts serving immediately, and the gate fails open until the version is
+  // known, which is exactly how it behaves in the editor.
+  void probeServerVersion(url, token, logger, syncApiUrls);
   await server.connect(new StdioServerTransport());
   logger.info(`MCP server ready for ${url}`);
 }
