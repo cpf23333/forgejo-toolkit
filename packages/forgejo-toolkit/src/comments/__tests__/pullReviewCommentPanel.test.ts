@@ -10,6 +10,10 @@ const clientMocks = vi.hoisted(() => ({
   searchMentions: vi.fn(async () => ({ users: [{ value: 'alice' }], issues: [{ value: '#1' }] })),
 }));
 vi.mock('../../api/client', () => ({
+  // resolveAttachmentImages reads this constant, and the panel renders markdown
+  // through it: without the export the attachment fetch would build
+  // `AbortSignal.timeout(undefined)` and silently skip inlining.
+  API_REQUEST_TIMEOUT_MS: 30_000,
   ForgejoClient: class {
     createPendingPullReview = clientMocks.createPendingPullReview;
     addPullReviewComment = clientMocks.addPullReviewComment;
@@ -381,6 +385,35 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ command: 'renderedMarkdown', _requestId: 'render-2', error: 'boom' }),
     );
+  });
+
+  it('inlines instance attachment images returned by the markdown API', async () => {
+    const attachmentUrl = 'https://forgejo.example.com/attachments/11111111-2222-3333-4444-555555555555';
+    clientMocks.renderMarkdown.mockResolvedValueOnce(`<p><img src="${attachmentUrl}"></p>`);
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      headers: new Headers({ 'content-type': 'image/png' }),
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { fakePanel, send } = openPanel();
+      await send({ command: 'renderMarkdown', instanceId: 'demo', text: 'hi', _requestId: 'render-img' });
+
+      // Fetched with the instance token, then inlined so the sandboxed webview
+      // can render it without ever seeing the token.
+      expect(fetchMock).toHaveBeenCalledWith(
+        attachmentUrl,
+        expect.objectContaining({ headers: { Authorization: 'token secret-token' } }),
+      );
+      const reply = fakePanel.webview.postMessage.mock.calls
+        .map((call) => call[0] as Record<string, unknown>)
+        .find((message) => message.command === 'renderedMarkdown' && message._requestId === 'render-img');
+      expect(reply?.html).toContain('data:image/png;base64,');
+      expect(reply?.html).not.toContain(attachmentUrl);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('searches mentions for the panel context', async () => {

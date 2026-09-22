@@ -135,6 +135,8 @@ const COMMENTS = [
 ];
 
 vi.mock('../../api/client', () => ({
+  // resolveAttachmentImages (used when submitting a comment) imports this.
+  API_REQUEST_TIMEOUT_MS: 30_000,
   ForgejoClient: vi.fn().mockImplementation(function () {
     return {
       getPullRequestDiff: vi.fn(async () => {

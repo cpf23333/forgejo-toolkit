@@ -6,6 +6,8 @@ import * as os from 'os';
 import * as path from 'path';
 
 vi.mock('../../api/client', () => ({
+  // resolveAttachmentImages (used when rendering markdown) imports this.
+  API_REQUEST_TIMEOUT_MS: 30_000,
   ForgejoClient: vi.fn().mockImplementation(function () {
     return {
       getCurrentUser: vi.fn().mockResolvedValue({ login: 'user' }),
