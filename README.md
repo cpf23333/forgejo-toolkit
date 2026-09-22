@@ -27,16 +27,16 @@ A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-
 
 ## Screenshots
 
-| Onboarding | Dashboard |
-| --- | --- |
+| Onboarding                                                                                                      | Dashboard                                                                                                     |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | ![Onboarding](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/onboarding.png) | ![Dashboard](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/dashboard.png) |
 
-| Repository overview | Pull request |
-| --- | --- |
+| Repository overview                                                                                                         | Pull request                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | ![Repository overview](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/repo-overview.png) | ![Pull request](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/pull-request.png) |
 
-| Issue |
-| --- |
+| Issue                                                                                                 |
+| ----------------------------------------------------------------------------------------------------- |
 | ![Issue](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/en/issue.png) |
 
 ## Installation

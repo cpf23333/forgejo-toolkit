@@ -76,16 +76,16 @@ pnpm --filter forgejo-toolkit package
 
 ## 截图
 
-| 引导设置 | Dashboard |
-| --- | --- |
+| 引导设置                                                                                                      | Dashboard                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | ![引导设置](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/onboarding.png) | ![Dashboard](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/dashboard.png) |
 
-| 仓库概览 | Pull Request |
-| --- | --- |
+| 仓库概览                                                                                                         | Pull Request                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | ![仓库概览](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/repo-overview.png) | ![Pull Request](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/pull-request.png) |
 
-| Issue |
-| --- |
+| Issue                                                                                                 |
+| ----------------------------------------------------------------------------------------------------- |
 | ![Issue](https://codeberg.org/cpf23333/forgejo-toolkit/raw/branch/main/docs/screenshots/zh/issue.png) |
 
 ## 已知限制

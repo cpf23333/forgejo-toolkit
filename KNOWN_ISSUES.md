@@ -165,7 +165,7 @@ Workaround: upgrade the instance to Forgejo 16 or newer — that is also the ver
 
 ## Repositories configured with url.insteadOf cannot be linked
 
-`git remote -v` and `git remote get-url` print the URL *after* applying `url.<base>.insteadOf` rewriting, so a repository whose remote is configured as a shorthand (for example `work:owner/repo.git` rewritten to a different host) reports a host that does not match any configured instance.
+`git remote -v` and `git remote get-url` print the URL _after_ applying `url.<base>.insteadOf` rewriting, so a repository whose remote is configured as a shorthand (for example `work:owner/repo.git` rewritten to a different host) reports a host that does not match any configured instance.
 
 As a result the repository is not detected as linked: the dashboard shows no linked repository, the "Publish to Forgejo" button is offered again, and pushes are blocked because the extension refuses to send the access token to a host it cannot verify.
 
