@@ -6,9 +6,10 @@
 
 ### 发布 0.0.1（下一个动作）
 
-- [ ] 重建并跑完发布前走查：`pnpm --filter forgejo-toolkit build` 后按 `tools/ui-review/README.md` 的 Release walkthrough checklist 逐条过（其中 pushurl 拦截与 MCP 入参校验需要真实实例 + token，mock 环境覆盖不到）
-- [ ] 打包产物核对：`pnpm --filter forgejo-toolkit package`，确认 `.vsix` 内含 `out/extension.js`、`out/mcp-server.js`、webview 资源、`l10n/` 与 `walkthrough/`（`.vscodeignore` 已排除源码与 `mcp/` 源文件）
-- [ ] 发布（需你执行，构建/发布需要凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，并把 `.vsix` 附到 Codeberg Release。Codeberg 那一步可用 `.forgejo/workflows/release.yml`（手动触发，`dry_run` 默认 true，先跑一次只打包；需配 `FORGEJO_TOKEN` 仓库 secret），其余步骤见 `docs/release.md`
+- [ ] 重建并跑完发布前走查：`pnpm --filter forgejo-toolkit build` 后按 `tools/ui-review/README.md` 的 Release walkthrough checklist 逐条过（① – ⑧ 已在隔离 dev host 上跑过；仍需真实例/真 git 的两条见清单说明）
+- [x] 打包产物核对：2026-09-23 两次覆盖——本地 production `vsce package` 的 `.vsix` 逐个核对过内容（66 文件，含 `out/extension.js`、`out/mcp-server.js`、webview 资源、`l10n/`、`walkthrough/`，不含 mock），Codeberg Actions 手动跑 `release.yml`（`dry_run` 勾选）产出的 `.vsix` 也通过了 workflow 自带的清单检查（`out/extension.js`、`out/mcp-server.js`、`package.json`）
+- [x] CI 与手动触发验证：2026-09-23 首次手动派发 `.forgejo/workflows/ci.yml` 与 `release.yml` 一次通过——`Verify (manual)` 全绿、`release.yml`（`dry_run: true`）成功构建并打包出 `.vsix` 作为 workflow artifact。`permissions:` 移除后运行日志不再出现「字段会被忽略」警告（如仍出现请回报）
+- [ ] 发布（需你执行，构建/发布需要凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，并把 `.vsix` 附到 Codeberg Release。Codeberg 那一步由 `release.yml` 完成——把「Build and package only」取消勾选（`dry_run: false`）、确认 `FORGEJO_TOKEN`（或 `GITEA_TOKEN`）仓库 secret 已配、`tag` 留空即用 `v<package.json 版本>`，其余步骤见 `docs/release.md`
 - [ ] 发布后回填：README 安装/版本表述与 `docs/release.md` 对齐实际发布渠道；确认 `KNOWN_ISSUES` 中与版本相关的条目在发版后仍成立
 
 ### 规划中的功能
