@@ -177,6 +177,18 @@ Forgejo's contents API omits the payload of files above `[api] DEFAULT_MAX_BLOB_
 
 Workaround: open the file through the Forgejo web UI or a local checkout.
 
+## Lists are capped at 500 items without a truncation notice
+
+Paged list endpoints (issues, pull requests, commits, comments, tracked times, reactions, branches, tags, releases, labels, milestones, repositories, artifacts) stop after 500 items, and only the repository file search reports that its result was cut off. A repository or account with more matching entries therefore shows a silently incomplete list.
+
+Workaround: narrow the list with the extension's filters or keyword search, or use the Forgejo web UI for a complete view.
+
+## HTTP proxy settings are not honored
+
+Requests use the Node `fetch` implementation, which ignores `HTTP_PROXY`/`HTTPS_PROXY` and the editor's `http.proxy` setting. On a network that only reaches the internet through a proxy, every request fails with a connection error even though the editor itself can reach the instance.
+
+Workaround: point the instance URL at a host that is reachable directly — a reverse proxy or tunnel in front of the Forgejo server — or run the editor on a network with direct access.
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._

@@ -177,6 +177,18 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 
 规避方法：通过 Forgejo 网页界面或本地检出打开该文件。
 
+## 列表最多返回 500 条，且没有截断提示
+
+分页列表接口（Issue、Pull Request、提交、评论、时间追踪、表情回应、分支、标签、Release、标签分类、里程碑、仓库、制品）在 500 条处停止，目前只有仓库内文件搜索会提示结果被截断。因此匹配项超过 500 条的仓库或账号会静默显示不完整的列表。
+
+规避方法：用扩展提供的筛选条件或关键词搜索缩小范围，或改用 Forgejo 网页界面查看完整列表。
+
+## 不支持 HTTP 代理设置
+
+请求使用 Node 的 `fetch` 实现，它既不看 `HTTP_PROXY`/`HTTPS_PROXY`，也不看编辑器的 `http.proxy` 设置。在只能通过代理访问外网的环境里，即使编辑器本身能连通实例，扩展的每个请求都会以连接错误失败。
+
+规避方法：把实例地址指向可直连的主机——例如在 Forgejo 前面放一个反向代理或隧道——或在具备直连网络的环境中运行编辑器。
+
 ---
 
 _各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_
