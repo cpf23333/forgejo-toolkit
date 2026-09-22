@@ -41,24 +41,28 @@ export async function activate(context: vscode.ExtensionContext) {
     logger.error(`Failed to initialize stored instance tokens: ${err}`);
   }
 
+  // The mock module (msw + all fixtures) is stripped from production builds:
+  // esbuild defines this flag and dead-code-eliminates the guarded branch.
+  //
+  // Started before anything else in activation that issues a request, and
+  // awaited: `startMockServer` resolves once the interceptor is installed, so
+  // the version probes below and the notification poller's first round are
+  // served by the mocks instead of going to the real network.
+  if (process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS === 'true' && config.isMockApiEnabled()) {
+    try {
+      const { startMockServer } = await import('./test/mocks/server');
+      await startMockServer();
+      logger.info('Mock API server started for offline development');
+    } catch (error) {
+      const err = userFacingErrorMessage(error);
+      logger.error(`Failed to start mock API server: ${err}`);
+    }
+  }
+
   // Best-effort version probes feed the feature gates (e.g. the Actions API
   // requires ≥ 1.19); failures fail open and are logged at debug level.
   for (const instance of config.getInstances()) {
     void probeServerVersion(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-  }
-
-  // The mock module (msw + all fixtures) is stripped from production builds:
-  // esbuild defines this flag and dead-code-eliminates the guarded branch.
-  if (process.env.FORGEJO_TOOLKIT_INCLUDE_MOCKS === 'true' && config.isMockApiEnabled()) {
-    import('./test/mocks/server')
-      .then(({ startMockServer }) => {
-        startMockServer();
-        logger.info('Mock API server started for offline development');
-      })
-      .catch((error: unknown) => {
-        const err = userFacingErrorMessage(error);
-        logger.error(`Failed to start mock API server: ${err}`);
-      });
   }
 
   const readmeProvider = registerReadmeProvider(context);
