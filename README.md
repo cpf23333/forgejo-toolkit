@@ -41,17 +41,26 @@ A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-
 
 ## Installation
 
-### From VSIX
+### From the Marketplace
+
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=cpf23333.forgejo-toolkit)
+(search for "Forgejo Toolkit"), or from [Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit)
+for editors that use it, such as VSCodium. If a store does not carry the current
+release yet, use the `.vsix` below.
+
+### From a VSIX
+
+Every release attaches the packaged `.vsix` to its
+[Codeberg release](https://codeberg.org/cpf23333/forgejo-toolkit/releases).
+Download it there and click **Extensions → ... → Install from VSIX**.
+
+To build the `.vsix` yourself:
 
 ```bash
 pnpm --filter forgejo-toolkit package
 ```
 
-Then in VS Code click **Extensions → ... → Install from VSIX** and select the generated `forgejo-toolkit-0.0.1.vsix`.
-
-### From Marketplace
-
-> Not yet published. It will be available on the VS Code Marketplace later.
+The file is written to `packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix`.
 
 ## Usage
 

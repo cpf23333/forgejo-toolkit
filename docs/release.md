@@ -2,6 +2,33 @@
 
 This document describes how to publish Forgejo Toolkit.
 
+## Checklist
+
+The order below is what the 0.0.1 release actually used; the sections after it
+explain each step.
+
+1. **Write the changelog section.** `CHANGELOG.md` carries `## [<version>] - <date>`
+   for the version being released — the release workflow uses it verbatim as the
+   Codeberg release body.
+2. **Validate the commit.** `pnpm check`, `pnpm lint`, `pnpm format` and
+   `pnpm --filter forgejo-toolkit test` locally, or dispatch the manual
+   `Verify (manual)` workflow on the self-hosted Forgejo (`origin`).
+3. **Ensure the prerequisites exist** on the repository that runs the release:
+   the `FORGEJO_TOKEN` secret (or `GITEA_TOKEN`) with `write:repository`, and
+   optional variables (`NPM_CONFIG_REGISTRY`, `NPM_DIST_URL`,
+   `NPM_PREBUILD_MIRROR`, `DEBIAN_URI`, `DEBIAN_SECURITY_URI`).
+4. **Dry run the release workflow.** Dispatch `.forgejo/workflows/release.yml`
+   with `dry_run` on (the default) and check the echoed inputs plus the packaged
+   `.vsix` artifact.
+5. **Publish the Codeberg release.** Dispatch the same workflow with `dry_run`
+   off; it validates, packages, creates the release for `v<version>` at the
+   dispatched commit and attaches the `.vsix`.
+6. **Publish to the stores.** VS Code Marketplace and Open VSX, both manual (they
+   need publisher credentials) — see sections 4 and 5.
+7. **Backfill the docs.** Align the README installation section and this document
+   with the channels actually used, and re-check the version-related entries in
+   `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`.
+
 ## Prerequisites
 
 - A [Codeberg](https://codeberg.org) account with push access to `https://codeberg.org/cpf23333/forgejo-toolkit`.
