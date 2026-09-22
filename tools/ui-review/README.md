@@ -153,16 +153,26 @@ Two behaviours that are easy to misread while driving the flows above:
 
 Two harness limits worth knowing before planning a flow:
 
-- **The file picker (`showOpenDialog`) cannot be driven.** It is the modern
-  Common Item Dialog: keystrokes sent to its window are ignored (`{ESC}` does not
-  even close it), so `src/win/dialog.ps1` does not work on it.
-  `src/win/fileDialog.ps1` writes the path into the file-name control with
-  `SetWindowText` plus the `EN_CHANGE` notification, which does land, but pressing
-  "Open" still needs a real mouse click on the button and tends to leave stray
-  dialogs behind. Flows behind a picker (import preview, anything using
-  `showOpenDialog`) are better verified at the unit level — see
-  `src/webview/__tests__/instanceImport.test.ts` — and leftover dialogs closed
-  with `WM_CLOSE` on every visible `#32770` window of the dev host.
+- **The file picker (`showOpenDialog`) needs real mouse input.** It is the modern
+  Common Item Dialog, and almost nothing else works on it: window messages
+  (`WM_COMMAND`/`IDOK`, `BM_CLICK`) are ignored, and neither the file-name box nor
+  the buttons exist in its UI Automation subtree. Beware the classic `Edit` with
+  control id 1148: it is a hidden legacy proxy — `SetWindowText` writes to it and
+  reading it back confirms the text, while the box on screen stays empty, so Open
+  reports "file not found" and it looks like the dialog accepted the path.
+  `dialog.ps1`'s SendKeys _can_ land once the dialog has been activated, but two
+  traps remain: the last character of a typed path can be dropped (seen with
+  `.json` arriving as `.jso`, which the dialog only reports as "file not found"),
+  and `PrintWindow` may render the DirectUI file-name box empty even when it holds
+  text — so never judge the typed value from a capture; read it back from the
+  proxy control with `GetWindowText`.
+  What works reliably (`src/win/fileDialog.ps1`): flash the dialog TOPMOST and
+  attach to the foreground thread so it can be activated, then click and
+  double-click the file's row. Two consequences: the file must be in the folder
+  the dialog already shows, and the row position has to be read from a capture —
+  `src/win/shot.ps1 -Dialog` prints the geometry and saves a PNG via
+  `PrintWindow`, which is the most reliable way to see this dialog's state.
+  Leftover dialogs are closed with `WM_CLOSE` on every visible `#32770` window.
 - **Some UI actions are instance-wide.** "Mark all notifications read" sends its
   `PUT …/notifications?all=true` to _every_ configured instance. If the profile
   also holds a real instance (e.g. because a walkthrough needed one), that action
