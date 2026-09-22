@@ -248,7 +248,7 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
           const item = new vscode.CompletionItem(`#${issue.number} ${issue.title}`, vscode.CompletionItemKind.Issue);
           item.insertText = `#${issue.number}`;
           item.range = range;
-          item.detail = 'Issue';
+          item.detail = vscode.l10n.t('Issue');
           items.push(item);
         }
         for (const pr of pullRequests) {
@@ -259,7 +259,7 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
           const item = new vscode.CompletionItem(`#${pr.number} ${pr.title}`, vscode.CompletionItemKind.Issue);
           item.insertText = `#${pr.number}`;
           item.range = range;
-          item.detail = 'Pull Request';
+          item.detail = vscode.l10n.t('Pull Request');
           items.push(item);
         }
       } else {

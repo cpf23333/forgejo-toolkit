@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -245,5 +246,45 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     const imported = config.getInstances().find((i) => i.id === 'imported-1');
     expect(imported?.token).toBe('file-token-1');
     expect(imported?.url).toBe('https://forgejo.example.com');
+  });
+
+  it('treats a dismissed password prompt as a cancel instead of an error', async () => {
+    const salt = crypto.randomBytes(16);
+    const iv = crypto.randomBytes(16);
+    const iterations = 1000;
+    const key = crypto.pbkdf2Sync('pw', salt, iterations, 32, 'sha256');
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const encrypted = Buffer.concat([
+      cipher.update(
+        JSON.stringify({
+          instances: [
+            { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'u' },
+          ],
+        }),
+        'utf8',
+      ),
+      cipher.final(),
+    ]);
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'onboarding-import-enc-')), 'export.json');
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        encrypted: true,
+        iterations,
+        salt: salt.toString('base64'),
+        iv: iv.toString('base64'),
+        authTag: cipher.getAuthTag().toString('base64'),
+        data: encrypted.toString('base64'),
+      }),
+    );
+    vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file(file)] as never);
+    vi.mocked(vscode.window.showInputBox).mockResolvedValueOnce(undefined as never);
+
+    fake.send({ command: 'previewImportInstances' });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'importInstancesPreview'));
+
+    const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+    expect(preview).toMatchObject({ cancelled: true, instances: [] });
+    expect(preview?.error).toBeUndefined();
   });
 });

@@ -1,11 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as vscode from 'vscode';
 import {
   computeImportTokenConflicts,
   computeTokenConflicts,
   decryptExportData,
+  ImportCancelledError,
   isSameOriginUrl,
   MAX_IMPORT_PBKDF2_ITERATIONS,
+  readExportDataFromUri,
   sanitizeImportedInstances,
   stripInstanceTokens,
 } from '../instanceImport';
@@ -121,6 +127,67 @@ describe('decryptExportData iteration count guard', () => {
   it.each([0, -1, 1.5, MAX_IMPORT_PBKDF2_ITERATIONS + 1])('rejects the iteration count %s', (iterations) => {
     const payload = { ...encryptPayload({}, 'pw'), iterations };
     expect(() => decryptExportData(payload, 'pw')).toThrow(RangeError);
+  });
+});
+
+function writeExportFile(payload: unknown): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'instance-import-'));
+  const file = path.join(dir, 'export.json');
+  fs.writeFileSync(file, JSON.stringify(payload));
+  return file;
+}
+
+describe('readExportDataFromUri', () => {
+  it('reads a plain export file', async () => {
+    const file = writeExportFile({
+      version: 1,
+      instances: [{ id: 'inst-1', url: 'https://forgejo.example.com', token: 'tok', name: 'one', username: 'user' }],
+    });
+
+    await expect(readExportDataFromUri(vscode.Uri.file(file))).resolves.toEqual({
+      instances: [{ id: 'inst-1', url: 'https://forgejo.example.com', token: 'tok', name: 'one', username: 'user' }],
+      settings: undefined,
+    });
+  });
+
+  it('treats a dismissed password prompt as a cancellation, not a failure', async () => {
+    const file = writeExportFile({
+      encrypted: true,
+      ...encryptPayload({ instances: [instance('inst-1', 'tok')] }, 'pw'),
+    });
+    vi.mocked(vscode.window.showInputBox).mockResolvedValue(undefined as never);
+
+    await expect(readExportDataFromUri(vscode.Uri.file(file))).rejects.toBeInstanceOf(ImportCancelledError);
+  });
+
+  it.each([undefined, ''])('treats the password prompt value %s as a cancellation', async (password) => {
+    const file = writeExportFile({
+      encrypted: true,
+      ...encryptPayload({ instances: [instance('inst-1', 'tok')] }, 'pw'),
+    });
+    vi.mocked(vscode.window.showInputBox).mockResolvedValue(password as never);
+
+    await expect(readExportDataFromUri(vscode.Uri.file(file))).rejects.toBeInstanceOf(ImportCancelledError);
+  });
+
+  it('decrypts the file when a password is provided', async () => {
+    const file = writeExportFile({
+      encrypted: true,
+      ...encryptPayload({ instances: [instance('inst-1', 'tok')] }, 'pw'),
+    });
+    vi.mocked(vscode.window.showInputBox).mockResolvedValue('pw' as never);
+
+    const data = await readExportDataFromUri(vscode.Uri.file(file));
+    expect(data.instances).toHaveLength(1);
+    expect(data.instances[0].token).toBe('tok');
+  });
+
+  it('localizes the empty-file failure instead of leaking a raw English literal', async () => {
+    const file = writeExportFile({ version: 1, instances: [] });
+
+    await expect(readExportDataFromUri(vscode.Uri.file(file))).rejects.toThrow('No valid instances found in file');
+    // The message goes through l10n.t, so the bundle provides the translation.
+    expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('No valid instances found in file');
   });
 });
 

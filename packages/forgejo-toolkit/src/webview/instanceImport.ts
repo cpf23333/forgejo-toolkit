@@ -5,6 +5,19 @@ import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/
 
 export const MAX_IMPORT_PBKDF2_ITERATIONS = 1_000_000;
 
+/**
+ * Signals that the user dismissed the password prompt. Callers answer with a
+ * cancelled reply instead of a failure message, so a deliberate cancel neither
+ * surfaces as an error nor leaks a raw English string into the localized UI.
+ * The message itself is diagnostic only and is never displayed.
+ */
+export class ImportCancelledError extends Error {
+  constructor() {
+    super('import cancelled by user');
+    this.name = 'ImportCancelledError';
+  }
+}
+
 export function decryptExportData(
   payload: { salt: string; iv: string; authTag: string; data: string; iterations?: number },
   password: string,
@@ -145,7 +158,7 @@ export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData
       ignoreFocusOut: true,
     });
     if (!password) {
-      throw new Error('Import cancelled');
+      throw new ImportCancelledError();
     }
     try {
       raw = decryptExportData(
@@ -169,7 +182,7 @@ export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData
   const instances = Array.isArray(data.instances) ? data.instances : [];
   const { valid: validInstances } = sanitizeImportedInstances(instances);
   if (validInstances.length === 0) {
-    throw new Error('No valid instances found in file');
+    throw new Error(vscode.l10n.t('No valid instances found in file'));
   }
   const settings = data.settings as ExportSettings | undefined;
   return { instances: validInstances, settings };

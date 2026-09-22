@@ -1367,7 +1367,12 @@ function createAppState() {
         exportInstancesResult.value = message;
         break;
       case 'instancesImported':
-        importInstancesResult.value = message;
+        // A cancel (dismissed file picker or password prompt) is not a result:
+        // storing it would make every view report a failed import. Leave the
+        // state untouched so the views stay quiet.
+        if (!(message as { cancelled?: boolean }).cancelled) {
+          importInstancesResult.value = message;
+        }
         break;
       case 'importInstancesPreview': {
         if (importPreviewInFlightToken !== importPreviewToken) {

@@ -633,6 +633,8 @@ export type HostToWebviewMessage =
       success: boolean;
       count?: number;
       error?: string;
+      /** True when the user dismissed the file picker or the password prompt; the webview drops the result instead of reporting a failure. */
+      cancelled?: boolean;
     }
   | {
       command: 'importInstancesPreview';

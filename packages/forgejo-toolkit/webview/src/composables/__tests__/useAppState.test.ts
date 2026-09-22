@@ -2336,6 +2336,21 @@ describe('single-slot request/response pairs', () => {
     state.previewImportInstances();
     expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
   });
+
+  it('drops a cancelled import result instead of reporting a failure', async () => {
+    const { state } = await createState();
+
+    dispatchMessage({ command: 'instancesImported', success: false, cancelled: true });
+    await nextTick();
+
+    // Views watch this ref to show success/error status; a cancel is neither.
+    expect(state.importInstancesResult.value).toBeUndefined();
+
+    // A real result afterwards still lands.
+    dispatchMessage({ command: 'instancesImported', success: true, count: 2 });
+    await nextTick();
+    expect(state.importInstancesResult.value).toMatchObject({ success: true, count: 2 });
+  });
 });
 
 describe('worktreeError message', () => {

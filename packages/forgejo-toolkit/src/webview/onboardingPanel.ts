@@ -8,7 +8,12 @@ import type { ReadmeContentProvider } from '../readmeProvider';
 import { openReadmePreview } from '../readmeProvider';
 import type { ExportSettings, HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { computeImportTokenConflicts, readExportDataFromUri, stripInstanceTokens } from './instanceImport';
+import {
+  computeImportTokenConflicts,
+  ImportCancelledError,
+  readExportDataFromUri,
+  stripInstanceTokens,
+} from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity } from './repoIdentity';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
@@ -451,6 +456,18 @@ export class OnboardingWebviewPanel {
       });
     } catch (error) {
       this._pendingImportInstances = undefined;
+      if (error instanceof ImportCancelledError) {
+        // The user dismissed the password prompt: answer like the file-picker
+        // cancel above so the preview slot frees without an error banner.
+        this._reply('importInstancesPreview', {
+          instances: [],
+          existingIds: [],
+          tokenConflicts: [],
+          settings: undefined,
+          cancelled: true,
+        });
+        return;
+      }
       const err = userFacingErrorMessage(error);
       logger.error(`onboarding previewImportInstances failed: ${err}`);
       this._reply('importInstancesPreview', {
@@ -475,7 +492,7 @@ export class OnboardingWebviewPanel {
         filters: { JSON: ['json'] },
       });
       if (!uris || uris.length === 0) {
-        this._reply('instancesImported', { success: false });
+        this._reply('instancesImported', { success: false, cancelled: true });
         return;
       }
       try {
@@ -485,6 +502,12 @@ export class OnboardingWebviewPanel {
           settings = data.settings;
         }
       } catch (error) {
+        if (error instanceof ImportCancelledError) {
+          // Dismissing the password prompt is a cancel, not a failure (same
+          // reply as the file-picker cancel above).
+          this._reply('instancesImported', { success: false, cancelled: true });
+          return;
+        }
         const err = userFacingErrorMessage(error);
         logger.error(`onboarding importInstances failed: ${err}`);
         this._reply('instancesImported', { success: false, error: err });

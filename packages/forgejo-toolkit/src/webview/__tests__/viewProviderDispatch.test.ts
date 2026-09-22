@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -784,10 +785,45 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(preview).toMatchObject({ cancelled: true, instances: [] });
   });
 
+  it('answers instancesImported with cancelled when the file picker is dismissed', async () => {
+    vi.mocked(vscode.window.showOpenDialog).mockResolvedValue(undefined as never);
+
+    fake.send({ command: 'importInstances' });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesImported'));
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+    // A dismissed picker is not a failure: no error text, so the webview does
+    // not show an "import failed" status for a deliberate cancel.
+    expect(reply).toMatchObject({ success: false, cancelled: true });
+    expect(reply?.error).toBeUndefined();
+  });
+
   describe('import instances preview/confirm', () => {
     function writeExportFile(instances: unknown[]): string {
       const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'import-export-')), 'export.json');
       fs.writeFileSync(file, JSON.stringify({ version: 1, instances }));
+      return file;
+    }
+
+    function writeEncryptedExportFile(instances: unknown[], password = 'pw'): string {
+      const salt = crypto.randomBytes(16);
+      const iv = crypto.randomBytes(16);
+      const iterations = 1000;
+      const key = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256');
+      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+      const encrypted = Buffer.concat([cipher.update(JSON.stringify({ instances }), 'utf8'), cipher.final()]);
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'import-export-enc-')), 'export.json');
+      fs.writeFileSync(
+        file,
+        JSON.stringify({
+          encrypted: true,
+          iterations,
+          salt: salt.toString('base64'),
+          iv: iv.toString('base64'),
+          authTag: cipher.getAuthTag().toString('base64'),
+          data: encrypted.toString('base64'),
+        }),
+      );
       return file;
     }
 
@@ -904,6 +940,31 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
       const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
       expect(reply?.success).toBe(false);
+    });
+
+    it('treats a dismissed password prompt as a cancel instead of an error', async () => {
+      const file = writeEncryptedExportFile([
+        { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'user' },
+      ]);
+      vi.mocked(vscode.window.showInputBox).mockResolvedValueOnce(undefined as never);
+
+      await previewExportFile(file);
+
+      const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+      expect(preview).toMatchObject({ cancelled: true, instances: [] });
+      expect(preview?.error).toBeUndefined();
+    });
+
+    it('reports a file without valid instances through the localized message', async () => {
+      const file = writeExportFile([]);
+
+      await previewExportFile(file);
+
+      const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+      expect(preview?.cancelled).toBeUndefined();
+      expect(typeof preview?.error).toBe('string');
+      // Translated through l10n.t, so zh users do not see a raw English literal.
+      expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('No valid instances found in file');
     });
   });
 
