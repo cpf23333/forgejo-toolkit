@@ -153,7 +153,7 @@
       "markAsRead": "Mark as read",
       "markAllAsRead": "Mark all as read",
       "untitled": "Untitled",
-      "truncated": "Only the first {limit} notifications are shown. Mark some as read or adjust the filters to see more.",
+      "loadMore": "Load more",
       "types": {
         "issue": "Issue",
         "pullRequest": "Pull Request",

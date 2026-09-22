@@ -1981,6 +1981,131 @@ describe('useAppState', () => {
     });
   });
 
+  describe('notification paging', () => {
+    const LIMIT = 50;
+    const base = Date.UTC(2026, 8, 20, 12, 0, 0);
+
+    // `offset` keeps a later page's timestamps older than the previous page's,
+    // like the server's descending order.
+    function page(count: number, firstId = 1, offset = 0) {
+      return Array.from({ length: count }, (_, index) => ({
+        id: firstId + index,
+        unread: true,
+        updated_at: new Date(base - (offset + index) * 60_000).toISOString(),
+      }));
+    }
+
+    it('sends the next-page cursor instead of a page number', async () => {
+      const { state, mod } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.loadNotifications('inst-1', ['unread', 'pinned'], undefined, '2026-09-20T11:59:00.000Z');
+
+      expect(vscodePostMessage()).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          command: 'getNotifications',
+          limit: mod.NOTIFICATIONS_LIMIT,
+          before: '2026-09-20T11:59:00.000Z',
+        }),
+      );
+    });
+
+    it('keeps the cursor of the loaded page and appends the next one', async () => {
+      const { state, mod } = await createState();
+      const key = mod.notificationsKey('inst-1');
+      const first = page(LIMIT);
+      const cursor = first[LIMIT - 1].updated_at;
+
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: first });
+      await nextTick();
+
+      expect(state.notifications.value.get(key)).toHaveLength(LIMIT);
+      expect(state.notificationsHasMore.value.get(key)).toBe(true);
+      expect(state.notificationsBefore.value.get(key)).toBe(cursor);
+
+      dispatchMessage({
+        command: 'notifications',
+        instanceId: 'inst-1',
+        notifications: page(2, LIMIT + 1, LIMIT),
+        before: cursor,
+      });
+      await nextTick();
+
+      const list = state.notifications.value.get(key) ?? [];
+      expect(list).toHaveLength(LIMIT + 2);
+      expect(list[0].id).toBe(1);
+      expect(list[LIMIT + 1].id).toBe(LIMIT + 2);
+      // A short page is the end of the list, and the cursor moves to the oldest
+      // entry so a later refresh/load-more cannot re-request the same range.
+      expect(state.notificationsHasMore.value.get(key)).toBe(false);
+      expect(state.notificationsBefore.value.get(key)).toBe(page(2, LIMIT + 1, LIMIT)[1].updated_at);
+    });
+
+    it('drops entries that are already shown when appending', async () => {
+      const { state, mod } = await createState();
+      const key = mod.notificationsKey('inst-1');
+      const first = page(LIMIT);
+      const cursor = first[LIMIT - 1].updated_at;
+
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: first });
+      await nextTick();
+      // Overlapping page (a thread was resurrected between requests).
+      dispatchMessage({
+        command: 'notifications',
+        instanceId: 'inst-1',
+        notifications: [first[LIMIT - 1], ...page(2, LIMIT + 1, LIMIT)],
+        before: cursor,
+      });
+      await nextTick();
+
+      expect(state.notifications.value.get(key)).toHaveLength(LIMIT + 2);
+    });
+
+    it('replaces the list and resets paging state on a fresh reply', async () => {
+      const { state, mod } = await createState();
+      const key = mod.notificationsKey('inst-1');
+
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: page(LIMIT) });
+      await nextTick();
+      expect(state.notificationsHasMore.value.get(key)).toBe(true);
+
+      // A filter reload carries no cursor: it starts the list over.
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: page(1, 99) });
+      await nextTick();
+
+      expect(state.notifications.value.get(key)).toHaveLength(1);
+      expect(state.notificationsHasMore.value.get(key)).toBe(false);
+    });
+  });
+
+  describe('notification page helpers', () => {
+    it('merges pages without duplicating a thread id', async () => {
+      const { mod } = await createState();
+      const existing = [{ id: 1 }, { id: 2 }] as never;
+      expect(mod.mergeNotificationPages(existing, [{ id: 2 }, { id: 3 }] as never).map((n) => n.id)).toEqual([1, 2, 3]);
+      // Nothing new: the same array comes back so the view does not re-render.
+      expect(mod.mergeNotificationPages(existing, [{ id: 1 }] as never)).toBe(existing);
+    });
+
+    it('takes the oldest timestamp as the cursor, whatever the server offset', async () => {
+      const { mod } = await createState();
+      expect(
+        mod.oldestNotificationTimestamp([
+          { id: 1, updated_at: '2026-09-20T14:00:00+02:00' },
+          { id: 2, updated_at: '2026-09-20T11:30:00Z' },
+          { id: 3, updated_at: 'not-a-date' },
+          { id: 4 },
+        ] as never),
+      ).toBe('2026-09-20T11:30:00.000Z');
+    });
+
+    it('reports no cursor when nothing carries a usable timestamp', async () => {
+      const { mod } = await createState();
+      expect(mod.oldestNotificationTimestamp([{ id: 1 }] as never)).toBeUndefined();
+      expect(mod.oldestNotificationTimestamp([])).toBeUndefined();
+    });
+  });
+
   describe('notification slots', () => {
     const instance = { id: 'inst-1', url: 'https://forgejo.example.com', token: 'token' };
 

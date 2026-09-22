@@ -601,6 +601,12 @@ export type HostToWebviewMessage =
       command: 'notifications';
       instanceId: string;
       notifications?: unknown[];
+      /**
+       * Echoes the `before` cursor of the answered request. Absent for a fresh
+       * page-1 list (the view replaces what it shows), present for a "load
+       * more" reply (the view appends).
+       */
+      before?: string;
       error?: string;
     }
   | {
@@ -1252,6 +1258,13 @@ export type WebviewToHostMessage =
       statusTypes?: string[];
       subjectType?: string[];
       limit?: number;
+      /**
+       * Only notifications updated before this RFC 3339 instant, i.e. the
+       * cursor for the next page. A cursor instead of a page number because
+       * marking notifications read removes them from the filtered server list
+       * and would shift every later offset.
+       */
+      before?: string;
     }
   | {
       command: 'markNotificationRead';

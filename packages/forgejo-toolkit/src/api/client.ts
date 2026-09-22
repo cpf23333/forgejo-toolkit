@@ -608,16 +608,23 @@ export class ForgejoClient {
     await deleteActionRun(owner, repo, runId, { client: this._client() });
   }
 
+  /**
+   * One page of notification threads. `before` is the page cursor (only
+   * notifications updated before that instant), which keeps paging stable when
+   * marking notifications read removes them from the filtered list.
+   */
   async getNotifications(
     statusTypes: string[] = ['unread', 'pinned'],
     subjectType?: ('issue' | 'pull' | 'repository')[],
     limit: number = 50,
+    before?: string,
   ): Promise<ForgejoNotification[]> {
     const notifications = await notifyGetList(
       {
         'status-types': statusTypes,
         ...(subjectType ? { 'subject-type': subjectType } : {}),
         limit,
+        ...(before ? { before } : {}),
       },
       { client: this._client() },
     );

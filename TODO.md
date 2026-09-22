@@ -25,12 +25,12 @@
 - [x] P1 关闭 PR diff 编辑器后，评论面板（Comments panel）仍残留该文件的 review thread——`_onCloseDocument` 依赖 `onDidCloseTextDocument`，但虚拟文档的 close 事件未及时触发（等 20s+ 仍在）。方向：改用 `onDidChangeVisibleTextEditors`（去抖）兜底清理不可见文档的 thread → 2026-09-22 修复：保留 close 事件为主路径，新增 `onDidChangeVisibleTextEditors` 兜底（250ms 去抖）——凡是不再出现在任何可见编辑器里的 thread 一律 dispose，并清理其 comment context；该事件里本来就要重算范围装饰，数据源与装饰逻辑同源（装饰在实机上已被验证可用）；新增两条用例（不可见即清理 / 仍可见则保留）
 - [ ] P2 非管理员看不到保护规则：`GET /branch_protections/{name}` 是 repo-admin-only（上游 `api.go` 整组 `reqAdmin()`），403 被 `_probe` 吞掉后等同于「没有保护规则」。2026-09-22 已修掉「探测失败被当成无 push 权限而禁用合并」，剩余方向：仅在 `permissions.admin` 为真时探测，否则显式提示「保护规则未知」
 - [ ] P2 静默截断：`_getRepoTree` 上限 50 页 × 100 条、`_fetchAllPages` 上限 500 条，文件搜索/列表被截断时不返回任何标记。方向：结果携带 `truncated` 标记，并按 `X-Total-Count` 推导上限
-- [ ] P2 通知列表只取一页（`getNotifications` 无分页，>50 条静默丢失）
+- [x] P2 通知列表只取一页（`getNotifications` 无分页，>50 条静默丢失） → 2026-09-22 修复：改用游标分页（`before=<已显示的最早 updated_at>`，RFC3339）而非页码——把通知标记为已读会把它移出服务端过滤结果，页码会整体位移并漏条；host 回包回显 `before` 以区分「追加」与「整列替换」，webview 按 id 去重追加，满页（≥ `NOTIFICATIONS_LIMIT`）才显示「加载更多」，全部加载完自动消失；新增 `mergeNotificationPages` / `oldestNotificationTimestamp` 纯函数（时间戳按 `Date.parse` 比较，避免服务端时区偏移破坏字典序）；原「仅显示前 N 条」提示改为真实分页。已知限制：服务端无 body 内总数，若管理员把 `[api] MaxResponseItems` 调到 50 以下则短页会提前判定结束（总数只在响应头里，生成的 client 不透出）
 - [ ] P2 无代理支持：所有请求走全局 `fetch`，不读 `HTTP(S)_PROXY` / VS Code `http.proxy`。方向：按设置接入 undici `ProxyAgent`，或至少在文档中声明限制
 - [x] P2 PR worktree 目录名不含实例标识（`worktrees/<owner>-<repo>-pr-<n>`）：两个实例的同名仓库会共用同一路径。裸仓库缓存已按实例加后缀（2026-09-22 修复），worktree 目录尚未处理 → 2026-09-22 修复：PR 与 issue worktree 目录名都改为 `worktrees/<owner>-<repo>-<实例后缀>-pr|issue-<n>…`（复用裸仓库缓存的 `instanceCacheSuffix`，并导出供测试使用）；新增 `_resolveWorktreePath`：若已有该 worktree 记录且记录路径仍在当前 worktree 缓存目录内则沿用旧路径，因此升级前创建的 worktree 不会被改名孤立（旧记录路径继续可用，无需迁移）；新增用例「两个实例的同名仓库落到不同目录」，并更新 startWorkOnIssue 既有断言
 - [ ] P2 MCP 子进程里的版本闸门是死代码（`serverVersions` 表只在扩展宿主进程填充）；工具调用也不支持取消（未把 SDK 的 signal 透传到 client）
 - [ ] P3 缓存治理：`timedCache` 只在该 key 被再次读取时清理过期项（过期后不再读的条目会留到会话结束）；`mentionCache` 无上限；`resolveAttachmentImages` 的 key 未包含实例标识
-- [ ] P3 提交 `pnpm-lock.yaml`（已从 `.gitignore` 移除，需人工 `git add`）——此前 lockfile 未入库，全新 clone 会解析 `^` 浮动版本，安装不可复现
+- [x] P3 提交 `pnpm-lock.yaml`（已从 `.gitignore` 移除，需人工 `git add`）——此前 lockfile 未入库，全新 clone 会解析 `^` 浮动版本，安装不可复现 → 已入库（`290d875`，271 KB，CI 的 `--frozen-lockfile` 依赖它），工作区无未提交改动
 - [ ] P3 `packages/forgejo-api` 的代码生成源未固定（`kubb.config.ts` 直接读 `https://codeberg.org/swagger.v1.json`）——建议 pin 到上游 tag 并记录版本；`src/generated/client|mocks` 目前无任何 value 导入，可考虑只保留 types
 - [ ] P3 确认「未打开 Dashboard 时 MCP server 是否会被 VS Code 发现」——`package.json` 的 `activationEvents` 只有 view/fileSystem（+隐式 command），官方激活事件列表里没有 `onMcpServerDefinitionProvider`；若确实不会自动激活，需要补 `onStartupFinished` 或接受「首次打开 Dashboard 后才可用」
 

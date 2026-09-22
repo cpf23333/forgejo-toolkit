@@ -153,7 +153,7 @@
       "markAsRead": "标记为已读",
       "markAllAsRead": "全部已读",
       "untitled": "无标题",
-      "truncated": "仅显示前 {limit} 条通知，将部分标记为已读或调整筛选以查看更多。",
+      "loadMore": "加载更多",
       "types": {
         "issue": "Issue",
         "pullRequest": "Pull Request",

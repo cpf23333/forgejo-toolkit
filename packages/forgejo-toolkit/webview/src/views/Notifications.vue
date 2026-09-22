@@ -2,7 +2,7 @@
 import { computed, onActivated, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { useAppState, notificationsKey, NOTIFICATIONS_LIMIT } from '../composables/useAppState';
+import { useAppState, notificationsKey } from '../composables/useAppState';
 import type { ForgejoNotification } from '../types/api';
 import type { ForgejoInstance } from '../types/instance';
 import IconActionButton from '../components/IconActionButton.vue';
@@ -61,10 +61,27 @@ function filteredList(instanceId: string): ForgejoNotification[] {
   });
 }
 
-// The server caps the list at NOTIFICATIONS_LIMIT; a full page likely hides
-// older notifications, so surface that instead of dropping them silently.
-function isTruncated(instanceId: string): boolean {
-  return listFor(instanceId).length >= NOTIFICATIONS_LIMIT;
+// The endpoint returns one page at a time and no total, so a full page is the
+// only signal that older notifications exist; the hint tells the user why the
+// list stops there, and the button loads the next page.
+function hasMore(instanceId: string): boolean {
+  return state.notificationsHasMore.value.get(key(instanceId)) ?? false;
+}
+
+function nextCursor(instanceId: string): string | undefined {
+  return state.notificationsBefore.value.get(key(instanceId));
+}
+
+function canLoadMore(instanceId: string): boolean {
+  return hasMore(instanceId) && nextCursor(instanceId) !== undefined;
+}
+
+function loadMore(instanceId: string) {
+  const cursor = nextCursor(instanceId);
+  if (!cursor) {
+    return;
+  }
+  state.loadNotifications(instanceId, statusTypes.value, subjectType.value, cursor);
 }
 
 function isLoading(): boolean {
@@ -365,9 +382,15 @@ onActivated(() => {
               />
             </span>
           </vscode-tree-item>
-          <vscode-tree-item v-if="isTruncated(instance.id)">
-            <span class="truncation-hint">
-              {{ t('dashboard.notifications.truncated', { limit: NOTIFICATIONS_LIMIT }) }}
+          <vscode-tree-item v-if="canLoadMore(instance.id)">
+            <span class="load-more">
+              <vscode-button
+                secondary
+                :disabled="loading.get(key(instance.id))"
+                @click.stop.prevent="loadMore(instance.id)"
+              >
+                {{ loading.get(key(instance.id)) ? t('dashboard.loading') : t('dashboard.notifications.loadMore') }}
+              </vscode-button>
             </span>
           </vscode-tree-item>
           <vscode-tree-item v-if="errors.get(key(instance.id)) || pollErrors.get(instance.id)">
@@ -496,9 +519,10 @@ onActivated(() => {
   flex-shrink: 0;
 }
 
-.truncation-hint {
-  font-size: 0.85em;
-  color: var(--vscode-descriptionForeground);
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
 }
 
 .notification-type-icon {

@@ -157,6 +157,13 @@ function createAppState() {
   const globalSearchActiveScope = ref<'all' | 'repositories' | 'issues' | 'pullRequests'>('all');
   const globalSearchQuery = ref<string>('');
   const notifications = ref<Map<string, ForgejoNotification[]>>(new Map());
+  // Cursor for the next "load more" (the oldest notification already shown) and
+  // whether another page may exist. The endpoint returns no total, so a full
+  // page is the only signal. A cursor rather than a page number: marking
+  // notifications read removes them from the filtered server list, which would
+  // shift every later offset and silently skip entries.
+  const notificationsBefore = ref<Map<string, string>>(new Map());
+  const notificationsHasMore = ref<Map<string, boolean>>(new Map());
   const polledNotifications = ref<Map<string, ForgejoNotification[]>>(new Map());
   // Per-instance poll failures (expired token, unreachable instance) so the
   // notifications view can show an error instead of a misleading empty state.
@@ -2791,7 +2798,12 @@ function createAppState() {
     );
   }
 
-  function handleNotifications(data: { instanceId: string; notifications?: ForgejoNotification[]; error?: string }) {
+  function handleNotifications(data: {
+    instanceId: string;
+    notifications?: ForgejoNotification[];
+    before?: string;
+    error?: string;
+  }) {
     const key = notificationsKey(data.instanceId);
     loading.set(key, false);
     // Replay the latest intent if filters changed while this request was in
@@ -2811,7 +2823,25 @@ function createAppState() {
       return;
     }
     errors.delete(key);
-    notifications.value.set(key, data.notifications ?? []);
+    const incoming = data.notifications ?? [];
+    // A reply that echoes a cursor answers a "load more" request: append to
+    // what is shown. Without one it is a fresh list and replaces it.
+    const isMore = typeof data.before === 'string' && data.before.length > 0;
+    const merged = isMore ? mergeNotificationPages(notifications.value.get(key) ?? [], incoming) : incoming;
+    notifications.value.set(key, merged);
+    // A list without a usable timestamp has no cursor: "load more" stays off
+    // rather than requesting an unbounded page.
+    const cursor = oldestNotificationTimestamp(merged);
+    if (cursor === undefined) {
+      notificationsBefore.value.delete(key);
+    } else {
+      notificationsBefore.value.set(key, cursor);
+    }
+    // A full page means there may be more; a short page is the end. A server
+    // that clamps the page size below NOTIFICATIONS_LIMIT reports the end
+    // early — the endpoint's total only exists in a response header the
+    // generated client does not expose.
+    notificationsHasMore.value.set(key, incoming.length >= NOTIFICATIONS_LIMIT);
   }
 
   function handleNotificationMarkedRead(data: { instanceId: string; id: number; error?: string }) {
@@ -4424,15 +4454,32 @@ function createAppState() {
     globalSearchQuery.value = query;
   }
 
-  function loadNotifications(instanceId: string, statusTypes: string[] = ['unread', 'pinned'], subjectType?: string[]) {
+  function loadNotifications(
+    instanceId: string,
+    statusTypes: string[] = ['unread', 'pinned'],
+    subjectType?: string[],
+    before?: string,
+  ) {
     const key = notificationsKey(instanceId);
     if (loading.get(key)) {
-      pendingNotificationIntents.set(instanceId, { statusTypes, subjectType });
+      // Only a filter reload is worth queueing: it must win over the request in
+      // flight, while a dropped "load more" click is harmless (the button is
+      // disabled while loading).
+      if (!before) {
+        pendingNotificationIntents.set(instanceId, { statusTypes, subjectType });
+      }
       return;
     }
     beginLoading(key);
     inFlightNotificationArgs.set(instanceId, JSON.stringify({ statusTypes, subjectType }));
-    postMessage({ command: 'getNotifications', instanceId, statusTypes, subjectType, limit: NOTIFICATIONS_LIMIT });
+    postMessage({
+      command: 'getNotifications',
+      instanceId,
+      statusTypes,
+      subjectType,
+      limit: NOTIFICATIONS_LIMIT,
+      ...(before ? { before } : {}),
+    });
   }
 
   function markNotificationRead(instanceId: string, id: number) {
@@ -4499,6 +4546,8 @@ function createAppState() {
     globalSearchActiveScope,
     globalSearchQuery,
     notifications,
+    notificationsBefore,
+    notificationsHasMore,
     polledNotifications,
     notificationPollErrors,
     unreadNotificationCount,
@@ -4884,6 +4933,47 @@ export const ACTION_RUNS_PAGE_LIMIT = 30;
 
 export function notificationsKey(instanceId: string): string {
   return `${instanceId}:notifications`;
+}
+
+/**
+ * Append `incoming` to `existing`, dropping notifications that are already
+ * shown (`id` is the thread id and stable across pages). A duplicate can only
+ * come from a repeated or out-of-order reply; one copy is better than showing
+ * the same thread twice, and a reply that added nothing keeps the old array so
+ * the view does not re-render.
+ */
+export function mergeNotificationPages(
+  existing: ForgejoNotification[],
+  incoming: ForgejoNotification[],
+): ForgejoNotification[] {
+  const seen = new Set(existing.map((notification) => notification.id));
+  const appended = incoming.filter((notification) => !seen.has(notification.id));
+  return appended.length === 0 ? existing : [...existing, ...appended];
+}
+
+/**
+ * Cursor for the next page: the oldest `updated_at` among the notifications
+ * shown, as ISO 8601 (the `before` filter). Timestamps are parsed rather than
+ * compared as strings because the API serializes them with the server's UTC
+ * offset, which breaks lexicographic ordering. Returns `undefined` when no
+ * entry carries a usable timestamp, which disables "load more".
+ */
+export function oldestNotificationTimestamp(notifications: ForgejoNotification[]): string | undefined {
+  let oldest: number | undefined;
+  for (const notification of notifications) {
+    const updated = notification.updated_at;
+    if (typeof updated !== 'string') {
+      continue;
+    }
+    const parsed = Date.parse(updated);
+    if (Number.isNaN(parsed)) {
+      continue;
+    }
+    if (oldest === undefined || parsed < oldest) {
+      oldest = parsed;
+    }
+  }
+  return oldest === undefined ? undefined : new Date(oldest).toISOString();
 }
 
 function isVersionAtLeast(version: string, minimum: string): boolean {

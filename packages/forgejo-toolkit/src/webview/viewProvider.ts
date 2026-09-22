@@ -890,9 +890,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!instance) {
           return;
         }
-        const { statusTypes, subjectType, limit } = message;
+        const { statusTypes, subjectType, limit, before } = message;
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+          const cursor = typeof before === 'string' && before ? before : undefined;
           const notifications = await client.getNotifications(
             Array.isArray(statusTypes) ? statusTypes : undefined,
             Array.isArray(subjectType)
@@ -901,11 +902,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
                 ) as ('issue' | 'pull' | 'repository')[])
               : undefined,
             typeof limit === 'number' ? limit : 50,
+            cursor,
           );
-          logger.info(`getNotifications returned ${notifications.length} items for ${instance.name}`);
+          logger.info(
+            `getNotifications returned ${notifications.length} items for ${instance.name}${cursor ? ` before ${cursor}` : ''}`,
+          );
           this._reply('notifications', {
             instanceId: instance.id,
             notifications,
+            ...(cursor ? { before: cursor } : {}),
           });
         } catch (error) {
           const err = userFacingErrorMessage(error);

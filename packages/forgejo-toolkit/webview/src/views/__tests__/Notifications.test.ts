@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import Notifications from '../Notifications.vue';
-import { useAppState } from '../../composables/useAppState';
+import { useAppState, NOTIFICATIONS_LIMIT, notificationsKey } from '../../composables/useAppState';
 import { vscode } from '../../composables/vscode';
 import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-utils';
 
@@ -110,5 +110,82 @@ describe('Notifications mark all as read', () => {
     await flushPromises();
 
     expect(markAllDisabled(wrapper)).toBe(true);
+  });
+});
+
+describe('Notifications paging', () => {
+  // Distinct, descending timestamps: the oldest one is the next-page cursor.
+  function page(count: number, firstId = 1): Array<Record<string, unknown>> {
+    const base = Date.UTC(2026, 8, 20, 12, 0, 0);
+    return Array.from({ length: count }, (_, index) => ({
+      id: firstId + index,
+      unread: true,
+      updated_at: new Date(base - index * 60_000).toISOString(),
+      subject: { title: `Notification ${firstId + index}` },
+    }));
+  }
+
+  function loadMoreButton(wrapper: ReturnType<typeof mountNotifications>) {
+    return wrapper.findAll('vscode-button').find((candidate) => candidate.text().includes('Load more'));
+  }
+
+  function lastGetNotifications() {
+    return [...postedMessages()].reverse().find((message) => message.command === 'getNotifications');
+  }
+
+  it('offers Load more only while a full page came back', async () => {
+    const wrapper = mountNotifications();
+    await dispatchNotifications(page(NOTIFICATIONS_LIMIT));
+    expect(loadMoreButton(wrapper)).toBeTruthy();
+
+    // Filter reload: a short page is the end of the list.
+    dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: page(3) });
+    await flushPromises();
+    expect(loadMoreButton(wrapper)).toBeUndefined();
+  });
+
+  it('requests the next page from the oldest loaded notification', async () => {
+    const wrapper = mountNotifications();
+    const first = page(NOTIFICATIONS_LIMIT);
+    await dispatchNotifications(first);
+
+    postMessageMock.mockClear();
+    await loadMoreButton(wrapper)!.trigger('click');
+
+    expect(lastGetNotifications()).toMatchObject({
+      instanceId: 'inst-1',
+      limit: NOTIFICATIONS_LIMIT,
+      before: first[NOTIFICATIONS_LIMIT - 1].updated_at,
+    });
+  });
+
+  it('appends the next page and hides Load more when it comes back short', async () => {
+    const wrapper = mountNotifications();
+    const first = page(NOTIFICATIONS_LIMIT);
+    await dispatchNotifications(first);
+
+    const cursor = first[NOTIFICATIONS_LIMIT - 1].updated_at as string;
+    dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: page(2, 51), before: cursor });
+    await flushPromises();
+
+    expect(useAppState().notifications.value.get(notificationsKey('inst-1'))).toHaveLength(NOTIFICATIONS_LIMIT + 2);
+    expect(loadMoreButton(wrapper)).toBeUndefined();
+  });
+
+  it('keeps the cursor of the loaded page after marking a notification read', async () => {
+    const wrapper = mountNotifications();
+    const first = page(NOTIFICATIONS_LIMIT);
+    await dispatchNotifications(first);
+
+    // Marking read removes the entry locally; the cursor must not move to the
+    // next-oldest notification, or the page boundary would skip entries.
+    const oldestId = first[NOTIFICATIONS_LIMIT - 1].id as number;
+    dispatchMessage({ command: 'notificationMarkedRead', instanceId: 'inst-1', id: oldestId });
+    await flushPromises();
+
+    postMessageMock.mockClear();
+    await loadMoreButton(wrapper)!.trigger('click');
+
+    expect(lastGetNotifications()).toMatchObject({ before: first[NOTIFICATIONS_LIMIT - 1].updated_at });
   });
 });
