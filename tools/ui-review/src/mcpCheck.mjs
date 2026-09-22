@@ -46,6 +46,8 @@ const child = spawn(process.execPath, [serverPath], {
     FORGEJO_MCP_INSTANCE_URL: String(instance.url),
     FORGEJO_MCP_TOKEN: String(instance.token),
     FORGEJO_MCP_SYNC_API_URLS: 'true',
+    // The version probe is only visible in the debug log.
+    FORGEJO_MCP_DEBUG: 'true',
   },
 });
 
@@ -128,6 +130,20 @@ try {
     /^(create|update|delete|merge|submit|mark|close|reopen|add|remove)_/.test(name),
   );
   check('read-only surface (no write tools registered)', writeTools.length === 0, writeTools.join(', '));
+
+  // The Actions tools are gated on the probed server version. That probe used to
+  // run only in the extension host, so in this process the gate always saw
+  // "unknown" and passed — assert the child probes for itself.
+  const probeDeadline = Date.now() + 10000;
+  while (Date.now() < probeDeadline && !/Server version for/.test(serverStderr.join(''))) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  const probeLog = serverStderr.join('');
+  check(
+    'probes the server version (the Actions gate is not dead code here)',
+    /Server version for/.test(probeLog),
+    (probeLog.match(/Server version for [^\n]*/) ?? ['no probe seen'])[0].slice(0, 90),
+  );
 
   // 1. Hostile path: must be rejected by the schema, not turned into a request.
   const hostile = await request('tools/call', {
