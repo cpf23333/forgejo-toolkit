@@ -95,7 +95,25 @@ Requirements:
 - A repository secret named `FORGEJO_TOKEN` (or `GITEA_TOKEN`) holding a token
   with `write:repository` scope, used for the release API calls.
 - Optional repository variables when the runner cannot reach the public hosts:
-  `NPM_CONFIG_REGISTRY`, `NPM_DIST_URL`, `NPM_PREBUILD_MIRROR`.
+  `NPM_CONFIG_REGISTRY`, `NPM_DIST_URL`, `NPM_PREBUILD_MIRROR`, and the two APT
+  mirrors `DEBIAN_URI` / `DEBIAN_SECURITY_URI`.
+- The APT mirrors are configured **separately**, because a mirror may serve the
+  main archive and the security archive from different hosts or paths, and each
+  variable holds a full base URI (e.g. `https://mirrors.example.org/debian` and
+  `https://mirrors.example.org/debian-security`). On bookworm both suites come
+  from `deb.debian.org` (`/debian` and `/debian-security`; `security.debian.org`
+  only appears in pre-bookworm source lists); setting only one variable mirrors
+  only that suite. If `apt-get update` fails through the mirrors, the step
+  restores the image's own sources and updates from those instead of failing the
+  job.
+
+Both workflows deliberately carry **no `permissions:` block**. Forgejo does not
+implement GitHub's permission model: it ignores the field and warns about it in
+the run log ("the value of this field will be ignored"), telling you to grant
+permissions through its integration authorization instead. A job's token
+permissions therefore come from the repository's Actions/integration settings;
+for anything the workflow token cannot do (creating the release here), use a
+token secret such as `FORGEJO_TOKEN`.
 
 Steps 4 and 5 (VS Code Marketplace / Open VSX) stay manual: they need publisher
 credentials and are not performed by CI.

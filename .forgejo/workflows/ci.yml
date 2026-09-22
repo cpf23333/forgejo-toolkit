@@ -8,9 +8,9 @@ name: Verify (manual)
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
+# No `permissions:` block on purpose: Forgejo does not implement GitHub's
+# permission model, ignores the field and warns about it in the run log. A job's
+# token permissions come from the repository's Actions/integration settings.
 jobs:
   verify:
     runs-on: docker
@@ -42,7 +42,52 @@ jobs:
       # matching prebuild (keytar is pulled in by @vscode/vsce) would otherwise
       # fall back to node-gyp and fail the install step.
       - name: Install build tools
-        run: apt-get update && apt-get install -y --no-install-recommends build-essential python3
+        env:
+          # Optional repository variables: point APT at closer mirrors when the
+          # runner cannot reach deb.debian.org. The two suites are configured
+          # separately because a mirror may serve them from different hosts or
+          # paths; each value is a full base URI (bookworm's security suite lives
+          # under /debian-security, and pre-bookworm lists use security.debian.org).
+          DEBIAN_URI: ${{ vars.DEBIAN_URI }}
+          DEBIAN_SECURITY_URI: ${{ vars.DEBIAN_SECURITY_URI }}
+        run: |
+          if [ -n "$DEBIAN_URI" ] || [ -n "$DEBIAN_SECURITY_URI" ]; then
+            escape() { printf '%s' "$1" | sed 's/[&|]/\\&/g'; }
+            DEBIAN=''
+            SECURITY=''
+            if [ -n "$DEBIAN_URI" ]; then DEBIAN=$(escape "$DEBIAN_URI"); fi
+            if [ -n "$DEBIAN_SECURITY_URI" ]; then SECURITY=$(escape "$DEBIAN_SECURITY_URI"); fi
+            for file in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources; do
+              [ -f "$file" ] || continue
+              cp "$file" "$file.mirror-backup"
+              # The security suite is rewritten first, so the main rewrite below
+              # cannot touch /debian-security lines any more.
+              if [ -n "$SECURITY" ]; then
+                sed -i -E \
+                  -e "s|https?://deb\.debian\.org/debian-security|$SECURITY|g" \
+                  -e "s|https?://security\.debian\.org/debian-security|$SECURITY|g" "$file"
+              fi
+              if [ -n "$DEBIAN" ]; then
+                # `([^-])` keeps a still-unmirrored /debian-security line intact.
+                sed -i -E \
+                  -e "s|https?://deb\.debian\.org/debian([^-])|$DEBIAN\1|g" \
+                  -e "s|https?://deb\.debian\.org/debian$|$DEBIAN|" "$file"
+              fi
+            done
+            # A mirror that does not carry both suites must not fail the job:
+            # restore the image's own sources and update from those.
+            if ! apt-get update; then
+              echo "APT update through the configured mirrors failed; restoring the image's sources"
+              for backup in /etc/apt/sources.list.mirror-backup /etc/apt/sources.list.d/*.sources.mirror-backup; do
+                [ -f "$backup" ] || continue
+                mv "$backup" "${backup%.mirror-backup}"
+              done
+              apt-get update
+            fi
+          else
+            apt-get update
+          fi
+          apt-get install -y --no-install-recommends build-essential python3
 
       - name: Setup pnpm store
         run: pnpm config set store-dir /root/.pnpm-store
