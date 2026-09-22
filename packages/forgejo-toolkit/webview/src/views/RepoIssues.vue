@@ -18,6 +18,7 @@ import {
 } from '../composables/useAppState';
 import type { ForgejoIssue } from '../types/api';
 import { stateLabel } from '../utils/stateLabel';
+import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -63,6 +64,13 @@ const pendingIssueAttachments = ref<File[]>([]);
 const pendingImageObjectUrls = ref<Map<string, File>>(new Map());
 const uploadingIssueAttachmentCount = ref(0);
 const createDialogLoading = computed(() => createLoading.value || uploadingIssueAttachmentCount.value > 0);
+// Number of the issue this form already created. Creation and attachment
+// upload are separate steps, so a failed upload must not lead to a second
+// issue when the user submits again.
+const createdIssueNumber = ref<number | undefined>(undefined);
+// Object URL -> attachment URL for uploads that already succeeded. Accumulated
+// across retries so the body is rewritten once, when every file is uploaded.
+const uploadedImageReplacements = ref<Map<string, string>>(new Map());
 
 const labelsKey = computed(() => repoLabelsKey(instanceId.value, owner.value, repo.value));
 const assigneesKey = computed(() => repoAssigneesKey(instanceId.value, owner.value, repo.value));
@@ -197,6 +205,9 @@ function openCreateIssue(prefill?: { title?: string; body?: string }) {
   createInitialTitle.value = prefill?.title ?? '';
   createInitialBody.value = prefill?.body ?? '';
   createFormResetKey.value += 1;
+  // A fresh form creates a fresh issue.
+  createdIssueNumber.value = undefined;
+  uploadedImageReplacements.value.clear();
   state.errors.delete(createFormKey.value);
   isCreating.value = true;
 }
@@ -225,6 +236,9 @@ function closeCreateIssue() {
   }
   pendingImageObjectUrls.value.clear();
   pendingIssueAttachments.value = [];
+  uploadedImageReplacements.value.clear();
+  // The form is abandoned; a later create must start from a fresh issue.
+  createdIssueNumber.value = undefined;
   state.errors.delete(createFormKey.value);
   isCreating.value = false;
 }
@@ -254,41 +268,51 @@ async function handleCreateSubmit(data: {
   dueDate?: string;
 }) {
   try {
-    const issue = await state.createIssue(instanceId.value, owner.value, repo.value, data);
-    const files = pendingIssueAttachments.value;
-    const replacements = new Map<string, string>();
-    if (files.length > 0) {
-      await Promise.all(
-        files.map(async (file) => {
-          uploadingIssueAttachmentCount.value += 1;
-          try {
-            const attachment = await state.uploadIssueAttachment(
-              instanceId.value,
-              owner.value,
-              repo.value,
-              issue.number,
-              file,
-            );
-            if (attachment.uuid) {
-              for (const [objectUrl, pendingFile] of pendingImageObjectUrls.value) {
-                if (pendingFile === file) {
-                  replacements.set(objectUrl, `/attachments/${attachment.uuid}`);
-                  break;
-                }
-              }
+    let issueNumber = createdIssueNumber.value;
+    if (issueNumber === undefined) {
+      const issue = await state.createIssue(instanceId.value, owner.value, repo.value, data);
+      issueNumber = issue.number;
+      createdIssueNumber.value = issueNumber;
+    }
+    // The issue exists from here on: upload what is still pending and keep only
+    // the failures queued, so a resubmit retries the uploads instead of
+    // creating a duplicate issue (and never re-uploads a finished file).
+    const remaining = await uploadFilesKeepingFailures(pendingIssueAttachments.value, async (file) => {
+      uploadingIssueAttachmentCount.value += 1;
+      try {
+        const attachment = await state.uploadIssueAttachment(
+          instanceId.value,
+          owner.value,
+          repo.value,
+          issueNumber,
+          file,
+        );
+        if (attachment.uuid) {
+          for (const [objectUrl, pendingFile] of pendingImageObjectUrls.value) {
+            if (pendingFile === file) {
+              uploadedImageReplacements.value.set(objectUrl, `/attachments/${attachment.uuid}`);
+              break;
             }
-          } finally {
-            uploadingIssueAttachmentCount.value -= 1;
           }
-        }),
+        }
+      } finally {
+        uploadingIssueAttachmentCount.value -= 1;
+      }
+    });
+    if (remaining.length > 0) {
+      pendingIssueAttachments.value = remaining;
+      state.errors.set(
+        createFormKey.value,
+        t('dashboard.repoIssues.attachmentUploadFailed', { count: remaining.length }),
       );
+      return;
     }
     let updatedBody = data.body;
-    for (const [objectUrl, attachmentUrl] of replacements) {
+    for (const [objectUrl, attachmentUrl] of uploadedImageReplacements.value) {
       updatedBody = updatedBody.replaceAll(objectUrl, attachmentUrl);
     }
     if (updatedBody !== data.body) {
-      state.editIssue(instanceId.value, owner.value, repo.value, issue.number, {
+      state.editIssue(instanceId.value, owner.value, repo.value, issueNumber, {
         title: data.title,
         body: updatedBody,
       });
@@ -298,9 +322,12 @@ async function handleCreateSubmit(data: {
     }
     pendingImageObjectUrls.value.clear();
     pendingIssueAttachments.value = [];
+    uploadedImageReplacements.value.clear();
+    createdIssueNumber.value = undefined;
     isCreating.value = false;
-    state.openIssueDetail(instanceId.value, owner.value, repo.value, issue.number);
+    state.openIssueDetail(instanceId.value, owner.value, repo.value, issueNumber);
   } catch (error) {
+    // Creating the issue itself failed: the form stays as it is for a retry.
     const message = error instanceof Error ? error.message : String(error);
     state.errors.set(createFormKey.value, message);
   }

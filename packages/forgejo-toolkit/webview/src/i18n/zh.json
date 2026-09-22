@@ -206,13 +206,15 @@
       "title": "Issues · {repo}",
       "empty": "没有符合当前状态的 Issues。",
       "disabled": "该仓库未启用 Issues。",
-      "searchPlaceholder": "搜索 Issues…"
+      "searchPlaceholder": "搜索 Issues…",
+      "attachmentUploadFailed": "有 {count} 个附件上传失败。Issue 已创建，再次提交只会补传剩余附件。"
     },
     "repoPullRequests": {
       "title": "Pull Requests · {repo}",
       "empty": "没有符合当前状态的 Pull Requests。",
       "disabled": "该仓库未启用 Pull Requests。",
-      "searchPlaceholder": "搜索 Pull Requests…"
+      "searchPlaceholder": "搜索 Pull Requests…",
+      "attachmentUploadFailed": "有 {count} 个附件上传失败。Pull Request 已创建，再次提交只会补传剩余附件。"
     },
     "repoActions": {
       "empty": "没有运行记录。",
@@ -311,6 +313,7 @@
       "attachments": "附件",
       "attachmentsNotDeleted": "有 {count} 个附件未删除：已取消确认。",
       "attachmentsDeleteFailed": "有 {count} 个附件删除失败。",
+      "commentAttachmentUploadFailed": "有 {count} 个附件上传失败。评论已发布，再次提交只会补传剩余附件。",
       "subscription": "通知",
       "subscribe": "订阅",
       "unsubscribe": "取消订阅",

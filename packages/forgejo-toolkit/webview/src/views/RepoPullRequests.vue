@@ -17,6 +17,7 @@ import {
 } from '../composables/useAppState';
 import type { ForgejoPullRequest } from '../types/api';
 import { stateLabel } from '../utils/stateLabel';
+import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -61,6 +62,13 @@ const pendingIssueAttachments = ref<File[]>([]);
 const pendingImageObjectUrls = ref<Map<string, File>>(new Map());
 const uploadingIssueAttachmentCount = ref(0);
 const createDialogLoading = computed(() => createLoading.value || uploadingIssueAttachmentCount.value > 0);
+// Number of the pull request this form already created. Creation and
+// attachment upload are separate steps, so a failed upload must not lead to a
+// second pull request when the user submits again.
+const createdPullRequestNumber = ref<number | undefined>(undefined);
+// Object URL -> attachment URL for uploads that already succeeded. Accumulated
+// across retries so the body is rewritten once, when every file is uploaded.
+const uploadedImageReplacements = ref<Map<string, string>>(new Map());
 const repoKey = computed(() => repoDetailKey(instanceId.value, owner.value, repo.value));
 const repoDetail = computed(() => state.repoDetails.value.get(repoKey.value));
 const hasPullRequests = computed(
@@ -190,6 +198,9 @@ function changeState(newState: string) {
 function openCreatePullRequest(head = '') {
   createInitialHead.value = head;
   createFormResetKey.value += 1;
+  // A fresh form creates a fresh pull request.
+  createdPullRequestNumber.value = undefined;
+  uploadedImageReplacements.value.clear();
   state.errors.delete(createFormKey.value);
   state.loadRepoDetail(instanceId.value, owner.value, repo.value);
   state.loadRepoLabels(instanceId.value, owner.value, repo.value);
@@ -222,6 +233,9 @@ function closeCreatePullRequest() {
   }
   pendingImageObjectUrls.value.clear();
   pendingIssueAttachments.value = [];
+  uploadedImageReplacements.value.clear();
+  // The form is abandoned; a later create must start from a fresh pull request.
+  createdPullRequestNumber.value = undefined;
   state.errors.delete(createFormKey.value);
   isCreating.value = false;
 }
@@ -252,41 +266,46 @@ async function handleCreateSubmit(data: {
   dueDate?: string;
 }) {
   try {
-    const pr = await state.createPullRequest(instanceId.value, owner.value, repo.value, data);
-    const files = pendingIssueAttachments.value;
-    const replacements = new Map<string, string>();
-    if (files.length > 0) {
-      await Promise.all(
-        files.map(async (file) => {
-          uploadingIssueAttachmentCount.value += 1;
-          try {
-            const attachment = await state.uploadIssueAttachment(
-              instanceId.value,
-              owner.value,
-              repo.value,
-              pr.number,
-              file,
-            );
-            if (attachment.uuid) {
-              for (const [objectUrl, pendingFile] of pendingImageObjectUrls.value) {
-                if (pendingFile === file) {
-                  replacements.set(objectUrl, `/attachments/${attachment.uuid}`);
-                  break;
-                }
-              }
+    let prNumber = createdPullRequestNumber.value;
+    if (prNumber === undefined) {
+      const pr = await state.createPullRequest(instanceId.value, owner.value, repo.value, data);
+      prNumber = pr.number;
+      createdPullRequestNumber.value = prNumber;
+    }
+    // The pull request exists from here on: upload what is still pending and
+    // keep only the failures queued, so a resubmit retries the uploads instead
+    // of creating a duplicate pull request (and never re-uploads a finished
+    // file).
+    const remaining = await uploadFilesKeepingFailures(pendingIssueAttachments.value, async (file) => {
+      uploadingIssueAttachmentCount.value += 1;
+      try {
+        const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, prNumber, file);
+        if (attachment.uuid) {
+          for (const [objectUrl, pendingFile] of pendingImageObjectUrls.value) {
+            if (pendingFile === file) {
+              uploadedImageReplacements.value.set(objectUrl, `/attachments/${attachment.uuid}`);
+              break;
             }
-          } finally {
-            uploadingIssueAttachmentCount.value -= 1;
           }
-        }),
+        }
+      } finally {
+        uploadingIssueAttachmentCount.value -= 1;
+      }
+    });
+    if (remaining.length > 0) {
+      pendingIssueAttachments.value = remaining;
+      state.errors.set(
+        createFormKey.value,
+        t('dashboard.repoPullRequests.attachmentUploadFailed', { count: remaining.length }),
       );
+      return;
     }
     let updatedBody = data.body;
-    for (const [objectUrl, attachmentUrl] of replacements) {
+    for (const [objectUrl, attachmentUrl] of uploadedImageReplacements.value) {
       updatedBody = updatedBody.replaceAll(objectUrl, attachmentUrl);
     }
     if (updatedBody !== data.body) {
-      state.editPullRequest(instanceId.value, owner.value, repo.value, pr.number, {
+      state.editPullRequest(instanceId.value, owner.value, repo.value, prNumber, {
         title: data.title,
         body: updatedBody,
       });
@@ -296,9 +315,12 @@ async function handleCreateSubmit(data: {
     }
     pendingImageObjectUrls.value.clear();
     pendingIssueAttachments.value = [];
+    uploadedImageReplacements.value.clear();
+    createdPullRequestNumber.value = undefined;
     isCreating.value = false;
-    state.openPullRequestDetail(instanceId.value, owner.value, repo.value, pr.number);
+    state.openPullRequestDetail(instanceId.value, owner.value, repo.value, prNumber);
   } catch (error) {
+    // Creating the pull request itself failed: the form stays as it is.
     const message = error instanceof Error ? error.message : String(error);
     state.errors.set(createFormKey.value, message);
   }

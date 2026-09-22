@@ -206,13 +206,15 @@
       "title": "Issues · {repo}",
       "empty": "No issues match the selected state.",
       "disabled": "Issues are disabled for this repository.",
-      "searchPlaceholder": "Search issues…"
+      "searchPlaceholder": "Search issues…",
+      "attachmentUploadFailed": "{count} attachment(s) failed to upload. The issue was created; submit again to upload only the remaining attachments."
     },
     "repoPullRequests": {
       "title": "Pull Requests · {repo}",
       "empty": "No pull requests match the selected state.",
       "disabled": "Pull requests are disabled for this repository.",
-      "searchPlaceholder": "Search pull requests…"
+      "searchPlaceholder": "Search pull requests…",
+      "attachmentUploadFailed": "{count} attachment(s) failed to upload. The pull request was created; submit again to upload only the remaining attachments."
     },
     "repoActions": {
       "empty": "No action runs.",
@@ -311,6 +313,7 @@
       "attachments": "Attachments",
       "attachmentsNotDeleted": "{count} attachment(s) were not deleted: the confirmation was declined.",
       "attachmentsDeleteFailed": "{count} attachment(s) could not be deleted.",
+      "commentAttachmentUploadFailed": "{count} attachment(s) failed to upload. The comment was posted; submit again to upload only the remaining attachments.",
       "subscription": "Notifications",
       "subscribe": "Subscribe",
       "unsubscribe": "Unsubscribe",

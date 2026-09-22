@@ -21,7 +21,7 @@
 
 ### 2026-09-22 复审未修项（按优先级）
 
-- [ ] P1 创建成功但附件上传失败时表单不清空 → 重试会产生重复 issue/PR/评论——`RepoIssues.vue` / `RepoPullRequests.vue` / `IssueDetail.vue` / `PullRequestDetail.vue` 的创建与评论流程：catch 里写了错误却没清 `isCreating`/正文/待上传附件。方向：创建成功后先关闭表单，附件上传单独 try
+- [x] P1 创建成功但附件上传失败时表单不清空 → 重试会产生重复 issue/PR/评论——`RepoIssues.vue` / `RepoPullRequests.vue` / `IssueDetail.vue` / `PullRequestDetail.vue` 的创建与评论流程：catch 里写了错误却没清 `isCreating`/正文/待上传附件。方向：创建成功后先关闭表单，附件上传单独 try → 2026-09-22 修复：采用与 release 附件上传一致的「记住已创建资源 + 只重试剩余文件」方案——issue/PR 表单记录 `createdIssueNumber`/`createdPullRequestNumber`，评论表单记录 `createdCommentId` + 创建时的正文（正文被改动视为新评论，避免静默丢弃），重试时不再重复创建；新增 `utils/uploadFilesKeepingFailures.ts`（并发上传、只返回失败项、不 reject，配单测）替换四处重复循环；失败的附件留在待上传列表并给出本地化提示（`dashboard.repoIssues/repoPullRequests.attachmentUploadFailed`、`dashboard.detail.commentAttachmentUploadFailed`），全部成功后才用累计的 blob→附件 URL 映射改写正文并关闭表单
 - [ ] P1 关闭 PR diff 编辑器后，评论面板（Comments panel）仍残留该文件的 review thread——`_onCloseDocument` 依赖 `onDidCloseTextDocument`，但虚拟文档的 close 事件未及时触发（等 20s+ 仍在）。方向：改用 `onDidChangeVisibleTextEditors`（去抖）兜底清理不可见文档的 thread
 - [ ] P2 非管理员看不到保护规则：`GET /branch_protections/{name}` 是 repo-admin-only（上游 `api.go` 整组 `reqAdmin()`），403 被 `_probe` 吞掉后等同于「没有保护规则」。2026-09-22 已修掉「探测失败被当成无 push 权限而禁用合并」，剩余方向：仅在 `permissions.admin` 为真时探测，否则显式提示「保护规则未知」
 - [ ] P2 静默截断：`_getRepoTree` 上限 50 页 × 100 条、`_fetchAllPages` 上限 500 条，文件搜索/列表被截断时不返回任何标记。方向：结果携带 `truncated` 标记，并按 `X-Total-Count` 推导上限

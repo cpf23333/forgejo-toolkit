@@ -13,6 +13,7 @@ import PullRequestForm from '../components/PullRequestForm.vue';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import { stateLabel } from '../utils/stateLabel';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
+import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
 import ReactionBar from '../components/ReactionBar.vue';
 import { CollapsibleSection } from '../vscode-controls';
 import DateTimePicker from '../components/DateTimePicker.vue';
@@ -233,6 +234,11 @@ const commentError = computed(() => state.errors.get(commentFormKey.value));
 const commentBody = ref('');
 const pendingCommentAttachments = ref<File[]>([]);
 const uploadingCommentAttachmentCount = ref(0);
+// Comment this form already posted, with the body it was posted with. A failed
+// attachment upload must only retry the uploads, never post the comment twice;
+// editing the body afterwards means a new comment is intended.
+const createdCommentId = ref<number | undefined>(undefined);
+const createdCommentBody = ref<string | undefined>(undefined);
 
 const manualTimeHours = ref(0);
 const manualTimeMinutes = ref(0);
@@ -272,33 +278,51 @@ async function handleCommentSubmit() {
     return;
   }
   try {
-    const comment = await state.createIssueComment(instanceId.value, owner.value, repo.value, index.value, body);
-    if (comment.id === undefined) {
-      throw new Error('Created comment missing id');
+    let commentId = createdCommentId.value;
+    // Retry mode: this exact body was already posted and the remaining
+    // attachments are still queued. An edited body means a new comment.
+    if (commentId === undefined || createdCommentBody.value !== body) {
+      commentId = undefined;
     }
-    const commentId = comment.id;
-    const files = pendingCommentAttachments.value;
-    if (files.length > 0) {
-      await Promise.all(
-        files.map(async (file) => {
-          uploadingCommentAttachmentCount.value += 1;
-          try {
-            await state.uploadIssueCommentAttachment(
-              instanceId.value,
-              owner.value,
-              repo.value,
-              index.value,
-              commentId,
-              file,
-            );
-          } finally {
-            uploadingCommentAttachmentCount.value -= 1;
-          }
-        }),
+    if (commentId === undefined) {
+      const comment = await state.createIssueComment(instanceId.value, owner.value, repo.value, index.value, body);
+      if (comment.id === undefined) {
+        throw new Error(t('common.commentCreationFailed'));
+      }
+      commentId = comment.id;
+      createdCommentId.value = commentId;
+      createdCommentBody.value = body;
+    }
+    // The comment exists from here on: upload the files that are still pending
+    // and keep only the failures queued, so a resubmit adds the missing
+    // attachments to that comment instead of posting a duplicate comment.
+    const remaining = await uploadFilesKeepingFailures(pendingCommentAttachments.value, async (file) => {
+      uploadingCommentAttachmentCount.value += 1;
+      try {
+        await state.uploadIssueCommentAttachment(
+          instanceId.value,
+          owner.value,
+          repo.value,
+          index.value,
+          commentId,
+          file,
+        );
+      } finally {
+        uploadingCommentAttachmentCount.value -= 1;
+      }
+    });
+    if (remaining.length > 0) {
+      pendingCommentAttachments.value = remaining;
+      state.errors.set(
+        commentFormKey.value,
+        t('dashboard.detail.commentAttachmentUploadFailed', { count: remaining.length }),
       );
+      return;
     }
     commentBody.value = '';
     pendingCommentAttachments.value = [];
+    createdCommentId.value = undefined;
+    createdCommentBody.value = undefined;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     state.errors.set(commentFormKey.value, message);
