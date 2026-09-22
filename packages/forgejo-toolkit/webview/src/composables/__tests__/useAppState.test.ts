@@ -2237,6 +2237,37 @@ describe('useAppState', () => {
       ).toBe(false);
     });
 
+    it('repoFilesSearchResult records an incomplete tree for its own query', async () => {
+      const { state, mod } = await createState();
+      const truncatedKey = mod.repoFileSearchKey('inst-1', 'owner', 'repo', 'main', 'foo');
+      const completeKey = mod.repoFileSearchKey('inst-1', 'owner', 'repo', 'main', 'bar');
+
+      dispatchMessage({
+        command: 'repoFilesSearchResult',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        ref: 'main',
+        query: 'foo',
+        files: [{ path: 'src/foo.ts' }],
+        truncated: true,
+      });
+      dispatchMessage({
+        command: 'repoFilesSearchResult',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        ref: 'main',
+        query: 'bar',
+        files: [],
+      });
+      await nextTick();
+
+      expect(state.repoFileSearchTruncated.value.get(truncatedKey)).toBe(true);
+      // A reply without the flag is a complete tree, not a stale "truncated".
+      expect(state.repoFileSearchTruncated.value.get(completeKey)).toBe(false);
+    });
+
     it('errors evicts the oldest entry beyond 500 entries', async () => {
       const { state, mod } = await createState();
 

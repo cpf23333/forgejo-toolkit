@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { defineComponent, h, KeepAlive } from 'vue';
+import { defineComponent, h, KeepAlive, nextTick } from 'vue';
 import RepoFileBrowser from '../RepoFileBrowser.vue';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
 
@@ -10,6 +10,7 @@ const { stateMock } = vi.hoisted(() => ({
     errors: new Map<string, string>(),
     repoContents: { value: new Map<string, unknown[]>() },
     repoFileSearchResults: { value: new Map<string, unknown[]>() },
+    repoFileSearchTruncated: { value: new Map<string, boolean>() },
     loadRepoContents: vi.fn(),
     loadRepoFileSearch: vi.fn(),
     openRepoFile: vi.fn(),
@@ -30,6 +31,8 @@ vi.mock('../../composables/useAppState', async () => {
       `${instanceId}:${owner}/${repo}:${ref}:search:${query}`,
   };
 });
+
+import { useAppState } from '../../composables/useAppState';
 
 // RepoFileBrowser lives inside RepoDetail, which App.vue renders under
 // keep-alive. Simulate that: toggling `show` deactivates/activates the
@@ -104,5 +107,37 @@ describe('RepoFileBrowser debounced search under keep-alive', () => {
     // Returning re-applies the dropped query with the current route's params.
     await wrapper.setProps({ show: true });
     expect(stateMock.loadRepoFileSearch).toHaveBeenCalledWith('inst-2', 'owner', 'repo', 'main', 'foo');
+  });
+});
+
+describe('RepoFileBrowser truncated search', () => {
+  beforeEach(() => {
+    stateMock.loadRepoFileSearch.mockClear();
+    stateMock.repoFileSearchResults.value.clear();
+    stateMock.repoFileSearchTruncated.value.clear();
+  });
+
+  it('warns that matches may be missing when the tree could not be read fully', async () => {
+    const wrapper = mountHost();
+    await typeSearch(wrapper, 'foo');
+    const key = 'inst-1:owner/repo:main:search:foo';
+
+    // Write through the reactive state the component reads: mutating the raw
+    // Map behind it would not invalidate the already-evaluated computed.
+    const state = useAppState() as unknown as {
+      repoFileSearchResults: { value: Map<string, unknown[]> };
+      repoFileSearchTruncated: { value: Map<string, boolean> };
+    };
+    state.repoFileSearchResults.value.set(key, [{ path: 'src/foo.ts', sha: 'sha-1' }]);
+    state.repoFileSearchTruncated.value.set(key, true);
+    await nextTick();
+
+    expect(wrapper.text()).toContain('src/foo.ts');
+    expect(wrapper.text()).toContain('dashboard.fileBrowser.searchTruncated');
+
+    // A complete tree (or a fresh search) shows no hint.
+    state.repoFileSearchTruncated.value.set(key, false);
+    await nextTick();
+    expect(wrapper.text()).not.toContain('dashboard.fileBrowser.searchTruncated');
   });
 });

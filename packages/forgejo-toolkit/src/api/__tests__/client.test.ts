@@ -718,9 +718,10 @@ describe('ForgejoClient with MSW', () => {
 
     it('searches repository files', async () => {
       const client = createClient();
-      const files = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'index');
+      const { files, truncated } = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'index');
       expect(files.length).toBeGreaterThan(0);
       expect(files[0].path).toContain('index');
+      expect(truncated).toBe(false);
     });
 
     it('caches the git tree across searches on the same ref', async () => {
@@ -742,8 +743,8 @@ describe('ForgejoClient with MSW', () => {
       );
       const indexFiles = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'index');
       const utilsFiles = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'utils');
-      expect(indexFiles.map((f) => f.path)).toEqual(['src/index.ts']);
-      expect(utilsFiles.map((f) => f.path)).toEqual(['src/utils.ts']);
+      expect(indexFiles.files.map((f) => f.path)).toEqual(['src/index.ts']);
+      expect(utilsFiles.files.map((f) => f.path)).toEqual(['src/utils.ts']);
       expect(treeRequests).toBe(1);
     });
 
@@ -763,8 +764,8 @@ describe('ForgejoClient with MSW', () => {
       // must hit the shared cache instead of refetching the whole tree.
       const first = await createClient().searchRepoFiles('demo-user', 'demo-repo', 'main', 'index');
       const second = await createClient().searchRepoFiles('demo-user', 'demo-repo', 'main', 'index');
-      expect(first.map((f) => f.path)).toEqual(['src/index.ts']);
-      expect(second.map((f) => f.path)).toEqual(['src/index.ts']);
+      expect(first.files.map((f) => f.path)).toEqual(['src/index.ts']);
+      expect(second.files.map((f) => f.path)).toEqual(['src/index.ts']);
       expect(treeRequests).toBe(1);
     });
 
@@ -1532,9 +1533,37 @@ describe('ForgejoClient with MSW', () => {
           });
         }),
       );
-      const files = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'a.ts');
-      expect(files).toHaveLength(1);
+      const result = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'a.ts');
+      expect(result.files).toHaveLength(1);
+      // The server kept claiming truncation without advancing: the reader stops
+      // and reports that the tree may be incomplete rather than looping.
+      expect(result.truncated).toBe(true);
       expect(requests).toBe(2);
+    });
+
+    it('reports truncation when the paging bound is reached', async () => {
+      const client = createClient();
+      let requests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', ({ request }) => {
+          requests += 1;
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          // Every page is full and claims more entries until the reader gives
+          // up at MAX_TREE_PAGES: the results cannot be complete.
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [{ path: `file-${page}.ts`, type: 'blob', sha: `sha-${page}` }],
+            truncated: true,
+          });
+        }),
+      );
+
+      const result = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', '.ts');
+
+      expect(result.truncated).toBe(true);
+      expect(result.files).toHaveLength(requests);
+      // The bound, not the server, ends the loop.
+      expect(requests).toBe(50);
     });
 
     it('follows pagination until the tree is no longer truncated', async () => {
@@ -1556,8 +1585,9 @@ describe('ForgejoClient with MSW', () => {
           });
         }),
       );
-      const files = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', '.ts');
-      expect(files.map((f) => f.path).sort()).toEqual(['first.ts', 'second.ts']);
+      const result = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', '.ts');
+      expect(result.files.map((f) => f.path).sort()).toEqual(['first.ts', 'second.ts']);
+      expect(result.truncated).toBe(false);
     });
   });
 

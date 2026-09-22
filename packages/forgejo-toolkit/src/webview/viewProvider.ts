@@ -3144,7 +3144,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const files = await client.searchRepoFiles(owner, repo, ref, query);
+          const { files, truncated } = await client.searchRepoFiles(owner, repo, ref, query);
+          if (truncated) {
+            // The tree could not be read completely, so the search may be
+            // missing matches: the webview says so instead of implying that a
+            // file does not exist.
+            logger.info(`searchRepoFiles for ${owner}/${repo}@${ref} ran over a truncated tree`);
+          }
           this._reply('repoFilesSearchResult', {
             instanceId: instance.id,
             owner,
@@ -3152,6 +3158,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             ref,
             query,
             files,
+            truncated,
           });
         } catch (error) {
           const err = userFacingErrorMessage(error);

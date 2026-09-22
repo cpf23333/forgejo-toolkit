@@ -283,21 +283,24 @@ describe('MCP tool handlers with MSW', () => {
 
   it('search_repo_files matches paths by keyword', async () => {
     const handlers = createHandlers();
-    const files = (await handlers.search_repo_files({
+    const result = (await handlers.search_repo_files({
       owner: 'demo-user',
       repo: 'demo-repo',
       query: 'index',
       ref: 'main',
-    })) as { path?: string }[];
-    expect(files.map((file) => file.path)).toEqual(['src/index.ts']);
+    })) as { files: { path?: string }[]; truncated: boolean };
+    expect(result.files.map((file) => file.path)).toEqual(['src/index.ts']);
+    expect(result.truncated).toBe(false);
   });
 
   it('search_repo_files without a ref resolves the default branch', async () => {
     const handlers = createHandlers();
-    const files = (await handlers.search_repo_files({ owner: 'demo-user', repo: 'demo-repo', query: 'utils' })) as {
-      path?: string;
-    }[];
-    expect(files.map((file) => file.path)).toEqual(['src/utils.ts']);
+    const result = (await handlers.search_repo_files({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      query: 'utils',
+    })) as { files: { path?: string }[] };
+    expect(result.files.map((file) => file.path)).toEqual(['src/utils.ts']);
   });
 
   it('get_pr_diff returns the unified diff text', async () => {

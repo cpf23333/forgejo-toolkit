@@ -785,18 +785,29 @@ export class ForgejoClient {
     return entries as ForgejoContentEntry[];
   }
 
-  async searchRepoFiles(owner: string, repo: string, ref: string, query: string): Promise<GitEntry[]> {
+  /**
+   * File paths in `owner/repo@ref` matching `query`, plus whether the response
+   * may be incomplete: the git tree endpoint truncates large trees and paging
+   * it has a bound, so a search over an incomplete tree can miss matches. The
+   * caller shows that instead of implying the file does not exist.
+   */
+  async searchRepoFiles(
+    owner: string,
+    repo: string,
+    ref: string,
+    query: string,
+  ): Promise<{ files: GitEntry[]; truncated: boolean }> {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) {
-      return [];
+      return { files: [], truncated: false };
     }
 
     const tree = await this._getRepoTree(owner, repo, ref);
-    const allFiles = tree.filter(
+    const allFiles = tree.entries.filter(
       (entry) => typeof entry.path === 'string' && entry.path.toLowerCase().includes(normalizedQuery),
     );
 
-    return allFiles.sort((a, b) => {
+    const files = allFiles.sort((a, b) => {
       const pathA = a.path?.toLowerCase() ?? '';
       const pathB = b.path?.toLowerCase() ?? '';
       const nameA = pathA.split('/').pop() ?? '';
@@ -809,17 +820,26 @@ export class ForgejoClient {
       }
       return pathA.localeCompare(pathB);
     });
+
+    return { files, truncated: tree.truncated };
   }
 
   /**
-   * Fetches the full recursive git tree (blob entries only) for a ref,
-   * serving it from the shared short-lived cache when possible.
+   * Fetches the recursive git tree (blob entries only) for a ref, serving it
+   * from the shared short-lived cache when possible. `truncated` reports that
+   * the tree could not be read completely (the server truncates large trees and
+   * the paging loop is bounded), so callers can say that results may be
+   * incomplete instead of treating them as exhaustive.
    */
-  private async _getRepoTree(owner: string, repo: string, ref: string): Promise<GitEntry[]> {
+  private async _getRepoTree(
+    owner: string,
+    repo: string,
+    ref: string,
+  ): Promise<{ entries: GitEntry[]; truncated: boolean }> {
     const key = `${this.configuredOrigin}|${this.tokenCacheKey}|${owner}/${repo}@${ref}`;
     const cached = treeCache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
+      return { entries: cached.value, truncated: false };
     }
     treeCache.delete(key);
 
@@ -835,11 +855,17 @@ export class ForgejoClient {
         { client: this._client() },
       );
       const entries = response?.tree ?? [];
-      truncated = response?.truncated ?? false;
-      // Guard against servers that ignore the pagination params and keep
-      // returning the same page with truncated=true forever.
       const firstSha = entries[0]?.sha;
-      if (entries.length === 0 || (firstSha !== undefined && firstSha === previousFirstSha)) {
+      if (entries.length === 0) {
+        // Nothing at this page: the tree ends here, whatever the previous page
+        // claimed about truncation.
+        truncated = false;
+        break;
+      }
+      // Guard against servers that ignore the pagination params and keep
+      // returning the same page with truncated=true forever. Keep the flag of
+      // the last real page: what was read is all the server will hand over.
+      if (firstSha !== undefined && firstSha === previousFirstSha) {
         break;
       }
       previousFirstSha = firstSha;
@@ -847,6 +873,7 @@ export class ForgejoClient {
         (entry): entry is GitEntry => entry.type === 'blob' && typeof entry.path === 'string',
       );
       allFiles.push(...files);
+      truncated = response?.truncated ?? false;
       if (!truncated) {
         break;
       }
@@ -865,7 +892,7 @@ export class ForgejoClient {
       }
       treeCache.set(key, { value: allFiles, expiresAt: Date.now() + TREE_CACHE_TTL_MS });
     }
-    return allFiles;
+    return { entries: allFiles, truncated };
   }
 
   async getRepoBranches(owner: string, repo: string): Promise<ForgejoBranch[]> {

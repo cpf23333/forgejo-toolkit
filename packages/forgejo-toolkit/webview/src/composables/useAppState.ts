@@ -152,6 +152,9 @@ function createAppState() {
     new Map(),
   );
   const repoFileSearchResults = ref<Map<string, GitEntry[]>>(new Map());
+  // Per search: the host could not read the whole repository tree, so matches
+  // may be missing. Keyed like the results so a new query starts clean.
+  const repoFileSearchTruncated = ref<Map<string, boolean>>(new Map());
   const fileHistories = ref<Map<string, ForgejoCommit[]>>(new Map());
   const globalSearchResults = ref<Map<string, GlobalSearchResult>>(new Map());
   const globalSearchActiveScope = ref<'all' | 'repositories' | 'issues' | 'pullRequests'>('all');
@@ -2752,15 +2755,20 @@ function createAppState() {
     ref: string;
     query: string;
     files?: GitEntry[];
+    truncated?: boolean;
     error?: string;
   }) {
     const key = repoFileSearchKey(data.instanceId, data.owner, data.repo, data.ref, data.query);
     loading.set(key, false);
     if (data.error) {
       setError(key, data.error);
+      repoFileSearchTruncated.value.delete(key);
     } else {
       errors.delete(key);
       setBoundedEntry(repoFileSearchResults.value, key, data.files ?? [], MAX_SEARCH_ENTRIES);
+      // The host reports an incomplete repository tree; the view says the
+      // results may be missing matches instead of showing them as exhaustive.
+      repoFileSearchTruncated.value.set(key, data.truncated === true);
     }
   }
 
@@ -4541,6 +4549,7 @@ function createAppState() {
     repoContents,
     repoRefs,
     repoFileSearchResults,
+    repoFileSearchTruncated,
     fileHistories,
     globalSearchResults,
     globalSearchActiveScope,

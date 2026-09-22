@@ -598,7 +598,8 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
   server.registerTool(
     'search_repo_files',
     {
-      description: 'Search file paths in a repository by keyword (case-insensitive substring match over the git tree).',
+      description:
+        'Search file paths in a repository by keyword (case-insensitive substring match over the git tree). Returns the matching paths and `truncated`, which is true when the repository tree was too large to read completely, so matches may be missing.',
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,

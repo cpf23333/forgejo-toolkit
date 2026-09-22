@@ -445,6 +445,8 @@ export type HostToWebviewMessage =
       ref: string;
       query: string;
       files?: unknown[];
+      /** True when the repository tree could not be read completely, so matches may be missing. */
+      truncated?: boolean;
       error?: string;
     }
   | {

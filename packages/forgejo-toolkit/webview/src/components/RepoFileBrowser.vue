@@ -41,6 +41,7 @@ const searchKey = computed(() =>
   repoFileSearchKey(props.instanceId, props.owner, props.repo, selectedRef.value, searchQuery.value.trim()),
 );
 const searchResults = computed(() => state.repoFileSearchResults.value.get(searchKey.value) ?? []);
+const searchTruncated = computed(() => state.repoFileSearchTruncated.value.get(searchKey.value) === true);
 const searchLoading = computed(() => state.loading.get(searchKey.value) ?? false);
 const searchError = computed(() => state.errors.get(searchKey.value));
 const hasSearchQuery = computed(() => searchQuery.value.trim().length > 0);
@@ -264,20 +265,25 @@ onUnmounted(() => {
           <div v-else-if="!searchResults.length" class="tree-status">
             {{ state.t('dashboard.fileBrowser.searchNoResults') }}
           </div>
-          <ul v-else class="search-results">
-            <li
-              v-for="file in searchResults"
-              :key="file.sha ?? file.path"
-              class="search-result-item"
-              tabindex="0"
-              @click="openSearchResult(file)"
-              @keydown.enter="openSearchResult(file)"
-              @keydown.space.prevent="openSearchResult(file)"
-            >
-              <i class="codicon" :class="isImageFile(file.path ?? '') ? 'codicon-file-media' : 'codicon-file'"></i>
-              <span class="search-result-path">{{ file.path }}</span>
-            </li>
-          </ul>
+          <template v-else>
+            <ul class="search-results">
+              <li
+                v-for="file in searchResults"
+                :key="file.sha ?? file.path"
+                class="search-result-item"
+                tabindex="0"
+                @click="openSearchResult(file)"
+                @keydown.enter="openSearchResult(file)"
+                @keydown.space.prevent="openSearchResult(file)"
+              >
+                <i class="codicon" :class="isImageFile(file.path ?? '') ? 'codicon-file-media' : 'codicon-file'"></i>
+                <span class="search-result-path">{{ file.path }}</span>
+              </li>
+            </ul>
+            <div v-if="searchTruncated" class="tree-status">
+              {{ state.t('dashboard.fileBrowser.searchTruncated') }}
+            </div>
+          </template>
         </template>
         <template v-else>
           <div v-if="rootLoading" class="tree-status">{{ state.t('dashboard.loading') }}</div>

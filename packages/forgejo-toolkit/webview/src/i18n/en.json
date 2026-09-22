@@ -117,6 +117,7 @@
       "refresh": "Refresh",
       "searchPlaceholder": "Search files by name",
       "searchNoResults": "No matching files.",
+      "searchTruncated": "The repository tree is too large to read completely, so matches may be missing. Narrow the search.",
       "clearSearch": "Clear search",
       "history": "File history",
       "historyTitle": "History: {path}",

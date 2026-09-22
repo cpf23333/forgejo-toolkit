@@ -181,8 +181,10 @@ describe('MCP server over InMemoryTransport', () => {
 
   it('round-trips search_repo_files with the default-branch fallback', async () => {
     const result = await callTool('search_repo_files', { owner: 'demo-user', repo: 'demo-repo', query: 'index' });
-    const files = resultJson(result) as { path?: string }[];
-    expect(files.map((file) => file.path)).toEqual(['src/index.ts']);
+    // The tool reports the matches plus whether the tree was read completely.
+    const payload = resultJson(result) as { files: { path?: string }[]; truncated: boolean };
+    expect(payload.files.map((file) => file.path)).toEqual(['src/index.ts']);
+    expect(payload.truncated).toBe(false);
   });
 
   it('round-trips list_pull_reviews', async () => {
