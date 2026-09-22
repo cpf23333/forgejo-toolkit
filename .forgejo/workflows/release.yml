@@ -216,49 +216,61 @@ jobs:
           NOTES_FILE: /tmp/release-notes.md
           VSIX: ${{ steps.vsix.outputs.vsix }}
         run: |
+          # The script goes to `node` on stdin. Node ≥ 22 refuses to guess the
+          # module format for a snippet that mixes require() with top-level await
+          # (ERR_AMBIGUOUS_MODULE_SYNTAX), which broke this step on the runner, so
+          # everything lives in an async function and the snippet stays plain
+          # CommonJS.
           node <<'NODE'
           const { readFile } = require('node:fs/promises');
 
-          const { FORGEJO_TOKEN, SERVER_URL, REPOSITORY, TAG, TARGET, PRERELEASE, NOTES_FILE, VSIX } = process.env;
-          if (!FORGEJO_TOKEN) {
-            console.error('The FORGEJO_TOKEN (or GITEA_TOKEN) secret is required to create a release.');
-            process.exit(1);
-          }
-          const base = `${SERVER_URL}/api/v1/repos/${REPOSITORY}`;
-          const headers = { Authorization: `token ${FORGEJO_TOKEN}`, 'Content-Type': 'application/json' };
+          async function main() {
+            const { FORGEJO_TOKEN, SERVER_URL, REPOSITORY, TAG, TARGET, PRERELEASE, NOTES_FILE, VSIX } = process.env;
+            if (!FORGEJO_TOKEN) {
+              console.error('The FORGEJO_TOKEN (or GITEA_TOKEN) secret is required to create a release.');
+              process.exit(1);
+            }
+            const base = `${SERVER_URL}/api/v1/repos/${REPOSITORY}`;
+            const headers = { Authorization: `token ${FORGEJO_TOKEN}`, 'Content-Type': 'application/json' };
 
-          const created = await fetch(`${base}/releases`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              tag_name: TAG,
-              // Pin the tag to the validated commit instead of the branch head,
-              // which may have moved since the workflow started.
-              target_commitish: TARGET,
-              name: TAG,
-              body: await readFile(NOTES_FILE, 'utf8'),
-              draft: false,
-              prerelease: PRERELEASE === 'true',
-            }),
-          });
-          const release = await created.json().catch(() => ({}));
-          if (!created.ok) {
-            console.error(`Creating the release failed (HTTP ${created.status})`, release);
-            process.exit(1);
-          }
-          console.log(`Created release ${release.id} for ${TAG}`);
+            const created = await fetch(`${base}/releases`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                tag_name: TAG,
+                // Pin the tag to the validated commit instead of the branch head,
+                // which may have moved since the workflow started.
+                target_commitish: TARGET,
+                name: TAG,
+                body: await readFile(NOTES_FILE, 'utf8'),
+                draft: false,
+                prerelease: PRERELEASE === 'true',
+              }),
+            });
+            const release = await created.json().catch(() => ({}));
+            if (!created.ok) {
+              console.error(`Creating the release failed (HTTP ${created.status})`, release);
+              process.exit(1);
+            }
+            console.log(`Created release ${release.id} for ${TAG}`);
 
-          const name = VSIX.split('/').pop();
-          const form = new FormData();
-          form.append('attachment', new Blob([await readFile(VSIX)]), name);
-          const uploaded = await fetch(`${base}/releases/${release.id}/assets?name=${encodeURIComponent(name)}`, {
-            method: 'POST',
-            headers: { Authorization: `token ${FORGEJO_TOKEN}` },
-            body: form,
-          });
-          if (!uploaded.ok) {
-            console.error(`Uploading ${name} failed (HTTP ${uploaded.status})`, await uploaded.text());
-            process.exit(1);
+            const name = VSIX.split('/').pop();
+            const form = new FormData();
+            form.append('attachment', new Blob([await readFile(VSIX)]), name);
+            const uploaded = await fetch(`${base}/releases/${release.id}/assets?name=${encodeURIComponent(name)}`, {
+              method: 'POST',
+              headers: { Authorization: `token ${FORGEJO_TOKEN}` },
+              body: form,
+            });
+            if (!uploaded.ok) {
+              console.error(`Uploading ${name} failed (HTTP ${uploaded.status})`, await uploaded.text());
+              process.exit(1);
+            }
+            console.log(`Attached ${name} to ${TAG}`);
           }
-          console.log(`Attached ${name} to ${TAG}`);
+
+          main().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
           NODE
