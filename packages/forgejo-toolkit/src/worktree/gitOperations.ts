@@ -637,16 +637,21 @@ export async function revertMergeCommit(
   if (expectedRepo) {
     // remoteMatchesInstance (in pushBranch) only proves the remote is on the
     // same host; a fork or any other repository on the same instance would
-    // pass that check and receive the revert push. Require the push remote to
-    // point at the pull request's own repository (Forgejo owner/repo names
+    // pass that check and receive the revert push. Compare the URLs git will
+    // actually push to — `remote.<name>.pushurl` and `url.<base>.pushInsteadOf`
+    // change the target without changing the fetch URL — and require every one
+    // of them to be the pull request's own repository (Forgejo owner/repo names
     // are case-insensitive).
-    const remoteUrl = await getRemoteUrl(repoPath, remote);
-    const remoteInfo = remoteUrl ? normalizeGitRemote(remoteUrl) : undefined;
-    if (
-      !remoteInfo ||
-      remoteInfo.owner.toLowerCase() !== expectedRepo.owner.toLowerCase() ||
-      remoteInfo.repo.toLowerCase() !== expectedRepo.repo.toLowerCase()
-    ) {
+    const isExpectedRepo = (url: string): boolean => {
+      const info = normalizeGitRemote(url);
+      return (
+        info !== undefined &&
+        info.owner.toLowerCase() === expectedRepo.owner.toLowerCase() &&
+        info.repo.toLowerCase() === expectedRepo.repo.toLowerCase()
+      );
+    };
+    const pushUrls = await getRemotePushUrls(repoPath, remote);
+    if (!pushUrls || pushUrls.length === 0 || !pushUrls.every(isExpectedRepo)) {
       throw new Error(
         vscode.l10n.t(
           'Revert aborted: the {0} remote does not point at {1}/{2}',

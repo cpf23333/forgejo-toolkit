@@ -38,7 +38,6 @@
 ### 2026-09-22 工作区改动复审新发现（四方向子代理审查）
 
 - [ ] P2 ImportPreview 错误态把未本地化英文裸串直接渲染进 UI——`viewProvider.ts:4064` 把 `userFacingErrorMessage(error)` 放进 `error` 字段，`ImportPreview.vue:113` 原样渲染；对 `'No valid instances found in file'`（`instanceImport.ts:172`）这类裸英文 Error，中文 UI 出现英文句子。与上面 P3 未本地化项同源，但本轮改动让它从日志可见变成 UI 可见，建议随 P3 一起优先处理
-- [ ] P2 `revertMergeCommit` 的 `expectedRepo` 校验仍用 fetch URL（`gitOperations.ts:637`）——`remote.<name>.pushurl` 指向**同实例另一个仓库**时，host 级 push 检查和 owner/repo 级检查都会通过，revert 会被推到错误仓库。与 2026-09-22 已修的 push token 防泄漏同源，应对 `getRemotePushUrls` 的每个 URL 做 `normalizeGitRemote` 比对
 - [ ] P3 `pullReviewCommentPanel.test.ts` 的 `../../api/client` 全量工厂 mock 缺 `API_REQUEST_TIMEOUT_MS` 等导出——panel 新引入的 `resolveAttachmentImages.ts` 从该模块 import 此常量，当前测试渲染的 html 无图片、靠空集合短路恰好不触发；一旦有测试渲染含实例附件 URL 的 html，会走到 `AbortSignal.timeout(undefined)`
 - [ ] P3 Actions 分页边界：`RepoActions.vue:34` 按页大小恒 30 推导下一页，服务端 `[api] MaxResponseItems` 钳到 30 以下时会重请求已加载页并重复追加（`useAppState.ts:2465` 对 page>1 无条件 append）；`actionRunTotalCount` 回退值 `?? incoming.length` 在无 total 时后续页总数缩水（`useAppState.ts:2474`）
 - [ ] P3 UX 小问题：①取消删除附件的 host 确认后，编辑弹窗仍静默关闭、删除标记被丢弃且无「未删除」反馈（`IssueDetail.vue:515`、`CommentTimeline.vue:297`，PR 侧同构）；②`pullReviewCommentPanel.ts` 的 default 分支对无 `_requestId` 的 fire-and-forget 消息也记 `logger.error`，共享 composable mount 广播会刷错误日志，建议降为 debug

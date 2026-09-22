@@ -553,6 +553,77 @@ describe('revertMergeCommit branch guard and token push', () => {
       expect.any(Function),
     );
   });
+
+  it('aborts when the push target is another repository on the same instance', async () => {
+    mockGitSequence([
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      // The fetch URL is the pull request's repository, but git would push to a
+      // mirror of another repository on the same instance: only the push
+      // targets may be trusted here.
+      ['remote get-url origin', 'https://forgejo.example.com/owner/repo.git\n'],
+      ['remote get-url --push --all origin', 'https://forgejo.example.com/other-owner/other-repo.git\n'],
+    ]);
+
+    await expect(
+      revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl, { owner: 'owner', repo: 'repo' }),
+    ).rejects.toThrow('does not point at');
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['push']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('aborts when only one of several push targets is the pull request repository', async () => {
+    mockGitSequence([
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      [
+        'remote get-url --push --all origin',
+        'https://forgejo.example.com/owner/repo.git\nhttps://forgejo.example.com/owner/other-repo.git\n',
+      ],
+    ]);
+
+    await expect(
+      revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl, { owner: 'owner', repo: 'repo' }),
+    ).rejects.toThrow('does not point at');
+  });
+
+  it('aborts when the push target cannot be resolved', async () => {
+    mockGitSequence([
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+    ]);
+
+    await expect(
+      revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl, { owner: 'owner', repo: 'repo' }),
+    ).rejects.toThrow('does not point at');
+  });
+
+  it('pushes when every push target is the pull request repository', async () => {
+    mockGitSequence([
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      // Owner/repo names are case-insensitive, and ssh targets are supported.
+      [
+        'remote get-url --push --all origin',
+        'https://forgejo.example.com/Owner/Repo.git\nssh://git@forgejo.example.com:2222/owner/repo.git\n',
+      ],
+    ]);
+
+    await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl, { owner: 'owner', repo: 'repo' });
+
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['push', 'origin', 'HEAD:main'],
+      expect.objectContaining({
+        env: expect.objectContaining({ GIT_CONFIG_VALUE_0: `Authorization: token ${token}` }),
+      }),
+      expect.any(Function),
+    );
+  });
 });
 
 describe('openWorktree', () => {
