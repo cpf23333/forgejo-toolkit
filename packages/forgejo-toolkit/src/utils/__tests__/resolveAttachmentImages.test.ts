@@ -80,10 +80,10 @@ describe('resolveAttachmentImages', () => {
 
   it('normalizes attachment URL origin to the configured instance URL', async () => {
     const html =
-      '<p><img src="https://100.101.108.106:3004/demo-user/demo-repo/attachments/baf821ef-3e07-4a4b-9db7-4de3442b0d4c" alt="screenshot"></p>';
+      '<p><img src="https://mirror.example.com/demo-user/demo-repo/attachments/baf821ef-3e07-4a4b-9db7-4de3442b0d4c" alt="screenshot"></p>';
     const result = await resolveAttachmentImages(html, createInstance());
     expect(result).toContain('data:image/png;base64,');
-    expect(result).not.toContain('100.101.108.106:3004');
+    expect(result).not.toContain('mirror.example.com');
     // fetch should have been called against the configured instance origin.
     const fetchCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls as string[][];
     expect(fetchCalls.some(([url]) => url.startsWith('https://forgejo.example.com'))).toBe(true);
