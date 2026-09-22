@@ -493,7 +493,7 @@ describe('useAppState', () => {
       expect(state.actionRunsHasMore.value.get(key)).toBe(false);
     });
 
-    it('actionRuns offers another page only while a full page came back short of the total', async () => {
+    it('actionRuns trusts the server total instead of treating a short page as the end', async () => {
       const { state, mod } = await createState();
       const key = mod.actionRunsKey('inst-1', 'owner', 'repo');
       const limit = mod.ACTION_RUNS_PAGE_LIMIT;
@@ -515,8 +515,11 @@ describe('useAppState', () => {
 
       expect(state.actionRuns.value.get(key)).toHaveLength(limit);
       expect(state.actionRunsHasMore.value.get(key)).toBe(true);
+      expect(state.actionRunsPage.value.get(key)).toBe(1);
 
-      // A short page ends the list, so the view stops offering "Load more".
+      // A short page is not proof of the end: a server that clamps the page
+      // size (`[api] MaxResponseItems`) returns short pages while its total
+      // still reports more runs, so "Load more" must stay available.
       dispatchMessage({
         command: 'actionRuns',
         instanceId: 'inst-1',
@@ -529,7 +532,92 @@ describe('useAppState', () => {
       await nextTick();
 
       expect(state.actionRuns.value.get(key)).toHaveLength(limit + 1);
+      expect(state.actionRunsPage.value.get(key)).toBe(2);
+      expect(state.actionRunsHasMore.value.get(key)).toBe(true);
+
+      // An empty page ends the list even though the total disagrees, and the
+      // rows already loaded stay on screen.
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 3,
+        actionRuns: [],
+        totalCount: limit + 2,
+      });
+      await nextTick();
+
+      expect(state.actionRuns.value.get(key)).toHaveLength(limit + 1);
       expect(state.actionRunsHasMore.value.get(key)).toBe(false);
+    });
+
+    it('actionRuns ignores a page that does not follow the loaded ones', async () => {
+      const { state, mod } = await createState();
+      const key = mod.actionRunsKey('inst-1', 'owner', 'repo');
+      const limit = mod.ACTION_RUNS_PAGE_LIMIT;
+      const fullPage = Array.from({ length: limit }, (_, index) => ({ ...fakeActionRun, id: index + 1 }));
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 1,
+        actionRuns: fullPage,
+        totalCount: limit * 3,
+      });
+      await nextTick();
+
+      // A late page-3 reply while page 2 is still missing must not append, or
+      // page 2 would be skipped in the list.
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 3,
+        actionRuns: Array.from({ length: limit }, (_, index) => ({ ...fakeActionRun, id: limit * 2 + index + 1 })),
+        totalCount: limit * 3,
+      });
+      await nextTick();
+
+      expect(state.actionRuns.value.get(key)).toHaveLength(limit);
+      expect(state.actionRunsPage.value.get(key)).toBe(1);
+      expect(state.actionRunsHasMore.value.get(key)).toBe(true);
+    });
+
+    it('actionRuns keeps the total of a page that does not report one', async () => {
+      const { state, mod } = await createState();
+      const key = mod.actionRunsKey('inst-1', 'owner', 'repo');
+      const totalKey = 'inst-1:owner/repo';
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 1,
+        actionRuns: [fakeActionRun],
+        totalCount: 5,
+      });
+      await nextTick();
+      expect(state.actionRunTotalCount.value.get(totalKey)).toBe(5);
+
+      // A host build that omits the total on later pages must not shrink it to
+      // the size of that page.
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 2,
+        actionRuns: [{ ...fakeActionRun, id: 2 }],
+      });
+      await nextTick();
+
+      expect(state.actionRunTotalCount.value.get(totalKey)).toBe(5);
+      expect(state.actionRuns.value.get(key)).toHaveLength(2);
     });
 
     it('actionRuns starts the list over on a page-1 refresh', async () => {

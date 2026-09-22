@@ -148,4 +148,59 @@ describe('RepoActions pagination', () => {
     await nextTick();
     expect(wrapper.findAll('.action-run-item')).toHaveLength(3);
   });
+
+  it('advances the page counter when the server returns fewer rows than requested', async () => {
+    // A server-side `[api] MaxResponseItems` below 30 returns short pages that
+    // are not the end of the list: the next page must come from the loaded-page
+    // counter, not from `rows / pageSize` (which would re-request page 1).
+    const repo = 'clamped';
+    const wrapper = mountActions(repo);
+    await flushPromises();
+
+    dispatchMessage(pageReply(repo, 1, runPage(1, 10), 25));
+    await nextTick();
+    expect(wrapper.findAll('.action-run-item')).toHaveLength(10);
+
+    postMessageMock.mockClear();
+    await loadMoreButton(wrapper)!.trigger('click');
+    expect(lastRequestOf('getActionRuns')).toMatchObject({ page: 2 });
+
+    dispatchMessage(pageReply(repo, 2, runPage(11, 10), 25));
+    await nextTick();
+    expect(wrapper.findAll('.action-run-item')).toHaveLength(20);
+
+    postMessageMock.mockClear();
+    await loadMoreButton(wrapper)!.trigger('click');
+    expect(lastRequestOf('getActionRuns')).toMatchObject({ page: 3 });
+
+    // The last page is short but the counter keeps the list complete.
+    dispatchMessage(pageReply(repo, 3, runPage(21, 5), 25));
+    await nextTick();
+    expect(wrapper.findAll('.action-run-item')).toHaveLength(25);
+    expect(loadMoreButton(wrapper)).toBeUndefined();
+  });
+
+  it('drops a late reply for a page that no longer follows the loaded ones', async () => {
+    const repo = 'out-of-order';
+    const wrapper = mountActions(repo);
+    await flushPromises();
+
+    dispatchMessage(pageReply(repo, 1, runPage(1, 30), 90));
+    await nextTick();
+    await loadMoreButton(wrapper)!.trigger('click');
+    expect(lastRequestOf('getActionRuns')).toMatchObject({ page: 2 });
+
+    // A page-3 reply arrives before page 2 (duplicate/late response): its rows
+    // must not be appended, or page 2 would be skipped.
+    dispatchMessage(pageReply(repo, 3, runPage(61, 30), 90));
+    await nextTick();
+    expect(wrapper.findAll('.action-run-item')).toHaveLength(30);
+
+    // The following page still loads, and the gap is filled in order.
+    dispatchMessage(pageReply(repo, 2, runPage(31, 30), 90));
+    await nextTick();
+    const items = wrapper.findAll('.action-run-item');
+    expect(items).toHaveLength(60);
+    expect(items[30].text()).toContain('Run 31');
+  });
 });

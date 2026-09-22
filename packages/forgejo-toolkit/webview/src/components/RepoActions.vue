@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useAppState, actionRunsKey, dispatchWorkflowKey, ACTION_RUNS_PAGE_LIMIT } from '../composables/useAppState';
+import { useAppState, actionRunsKey, dispatchWorkflowKey } from '../composables/useAppState';
 
 const props = defineProps<{
   instanceId: string;
@@ -41,7 +41,10 @@ const runs = computed(() => state.actionRuns.value.get(key.value) ?? []);
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
 const hasMore = computed(() => state.actionRunsHasMore.value.get(key.value) ?? false);
-const nextPage = computed(() => Math.floor(runs.value.length / ACTION_RUNS_PAGE_LIMIT) + 1);
+// The next page comes from the loaded-page counter, not from the row count: a
+// server that clamps the page size below ACTION_RUNS_PAGE_LIMIT would otherwise
+// make the row-count estimate re-request a page that is already loaded.
+const nextPage = computed(() => (state.actionRunsPage.value.get(key.value) ?? 0) + 1);
 
 // RepoActions lives inside RepoDetail, which is kept alive: while deactivated
 // the parent's props track the global route, not this repo. Guard route-driven

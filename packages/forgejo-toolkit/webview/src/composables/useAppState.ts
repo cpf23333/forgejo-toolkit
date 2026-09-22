@@ -129,9 +129,14 @@ function createAppState() {
   // Runs accumulate per repo (server order) instead of one page replacing the
   // previous one; `actionRunsKey` is the repo's list slot regardless of page.
   const actionRuns = ref<Map<string, ForgejoActionRun[]>>(new Map());
-  // Whether another page of runs may exist for a repo. Cleared by a short or
-  // empty page so the view stops offering "Load more" instead of paging past
-  // the end of the list.
+  // Highest page appended so far, per repo. The next page to request comes from
+  // this counter rather than from the row count: when the server clamps the
+  // page size (`[api] MaxResponseItems`) a row-count estimate re-requests a page
+  // that is already loaded and the list never advances.
+  const actionRunsPage = ref<Map<string, number>>(new Map());
+  // Whether another page of runs may exist for a repo, decided by the server's
+  // total (an empty page ends the list too). The view offers "Load more" only
+  // while this is true.
   const actionRunsHasMore = ref<Map<string, boolean>>(new Map());
   const actionRunTotalCount = ref<Map<string, number>>(new Map());
   const actionRunDetails = ref<Map<string, ForgejoActionRun>>(new Map());
@@ -2467,21 +2472,47 @@ function createAppState() {
     errors.delete(key);
     const incoming = data.actionRuns ?? [];
     const page = data.page > 0 ? data.page : 1;
+    const loadedPage = actionRunsPage.value.get(key) ?? 0;
+    // Explicit end of the list: the server returned nothing for the page that
+    // directly follows the loaded ones.
+    let ended = false;
     if (page === 1) {
       // The first page starts the list over: a refresh/retry resets whatever
       // earlier pages had accumulated.
       actionRuns.value.set(key, incoming);
-    } else if (incoming.length > 0) {
-      actionRuns.value.set(key, [...(actionRuns.value.get(key) ?? []), ...incoming]);
+      actionRunsPage.value.set(key, 1);
+    } else if (page === loadedPage + 1) {
+      if (incoming.length > 0) {
+        actionRuns.value.set(key, [...(actionRuns.value.get(key) ?? []), ...incoming]);
+        actionRunsPage.value.set(key, page);
+      } else {
+        // A page past the end ends the list even if the server total disagrees
+        // (stale or filtered count), and stops "Load more" from re-requesting it.
+        ended = true;
+        actionRunsPage.value.set(key, page);
+      }
+    } else {
+      // A late or duplicated reply for a page that no longer follows the
+      // loaded ones (e.g. after a refresh): drop its rows instead of
+      // duplicating or skipping entries.
     }
-    // A page past the end (or a short page) ends the list. A full page may
-    // have more, unless the server total already accounts for every run
-    // loaded so far. The host does not echo the requested limit, so the
-    // webview's own constant is the page size to compare against.
+    const totalKey = `${data.instanceId}:${data.owner}/${data.repo}`;
+    if (typeof data.totalCount === 'number') {
+      actionRunTotalCount.value.set(totalKey, data.totalCount);
+    } else if (page === 1) {
+      // Host builds that predate the total: seed it from the first page.
+      actionRunTotalCount.value.set(totalKey, incoming.length);
+    }
+    // The total is exact, so it decides whether more runs exist; without one,
+    // fall back to asking whether the requested page was filled.
     const loadedCount = actionRuns.value.get(key)?.length ?? 0;
-    const fullPage = incoming.length >= ACTION_RUNS_PAGE_LIMIT;
-    actionRunTotalCount.value.set(`${data.instanceId}:${data.owner}/${data.repo}`, data.totalCount ?? incoming.length);
-    actionRunsHasMore.value.set(key, fullPage && (data.totalCount === undefined || data.totalCount > loadedCount));
+    actionRunsHasMore.value.set(
+      key,
+      !ended &&
+        (typeof data.totalCount === 'number'
+          ? loadedCount < data.totalCount
+          : incoming.length >= ACTION_RUNS_PAGE_LIMIT),
+    );
   }
 
   function handleActionRun(data: {
@@ -2641,8 +2672,13 @@ function createAppState() {
           actionJobLogs.value.delete(actionJobLogKey(data.instanceId, data.owner, data.repo, job.id));
         }
       }
-      actionRuns.value.clear();
-      actionRunsHasMore.value.clear();
+      // Drop only this repo's list state: deleting one run must not wipe the
+      // accumulated pages of every other repo. The list reloads when the view
+      // becomes active again.
+      const listKey = actionRunsKey(data.instanceId, data.owner, data.repo);
+      actionRuns.value.delete(listKey);
+      actionRunsPage.value.delete(listKey);
+      actionRunsHasMore.value.delete(listKey);
       actionRunTotalCount.value.delete(`${data.instanceId}:${data.owner}/${data.repo}`);
       // There is no standalone "actions" route (actions live inside RepoDetail),
       // so return to the repo detail page. Only navigate if the user is still
@@ -4444,6 +4480,7 @@ function createAppState() {
     repoIssues,
     repoPullRequests,
     actionRuns,
+    actionRunsPage,
     actionRunsHasMore,
     actionRunTotalCount,
     actionRunDetails,
