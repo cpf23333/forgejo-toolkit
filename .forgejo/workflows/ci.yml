@@ -1,0 +1,85 @@
+name: Verify (manual)
+
+# Manual trigger only, on purpose: this project is hosted on Codeberg, whose
+# Terms of Use discourage autonomous CI agents and push-triggered pipelines.
+# A human starts the run from the Actions tab (or the `forgejo` CLI) whenever a
+# change needs validating; the workflow only reads the code and never commits,
+# pushes, releases, merges or publishes anything.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: docker
+    container:
+      # Node 22 LTS: the toolchain (TypeScript 6, Vite 8, Vitest 4) requires
+      # Node ≥ 20.19/22.12, and the local development runtime is newer.
+      image: node:22
+    # A hung install (registry trouble, a stuck native build) must not pin the
+    # runner forever.
+    timeout-minutes: 30
+    env:
+      # Registry and native-download mirrors are environment-specific, so they
+      # come from repository variables and fall back to the upstream defaults.
+      # Set `NPM_CONFIG_REGISTRY` / `NPM_DIST_URL` / `NPM_PREBUILD_MIRROR` when
+      # the runner cannot reach the public hosts directly.
+      NPM_CONFIG_REGISTRY: ${{ vars.NPM_CONFIG_REGISTRY || 'https://registry.npmjs.org' }}
+      npm_config_disturl: ${{ vars.NPM_DIST_URL || 'https://nodejs.org/dist' }}
+      npm_config_prebuild_install_mirror: ${{ vars.NPM_PREBUILD_MIRROR || 'https://github.com/prebuild/prebuild-install/releases/download' }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The lockfile is tracked, so pin the package manager to the version it
+      # was generated with instead of whatever the runner image ships.
+      - name: Install pnpm
+        run: npm install -g pnpm@11.18.0
+
+      # Bare node images carry no compiler; native dependencies without a
+      # matching prebuild (keytar is pulled in by @vscode/vsce) would otherwise
+      # fall back to node-gyp and fail the install step.
+      - name: Install build tools
+        run: apt-get update && apt-get install -y --no-install-recommends build-essential python3
+
+      - name: Setup pnpm store
+        run: pnpm config set store-dir /root/.pnpm-store
+
+      # The store is content-addressed, so one cache keyed on the lockfile
+      # serves every run; node-gyp's headers cache is keyed the same way.
+      - name: Cache pnpm store and node-gyp
+        uses: actions/cache@v6
+        with:
+          path: |
+            /root/.pnpm-store
+            /root/.cache/node-gyp
+          key: ${{ runner.os }}-pnpm-verify-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-verify-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      # Markdown is deliberately out of scope (the pre-commit hook formats only
+      # js/ts/vue, and several tracked markdown files predate oxfmt), so the
+      # glob keeps this check green while still covering every hand-written
+      # source file.
+      - name: Format check
+        run: pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"
+
+      - name: Typecheck
+        run: pnpm run check
+
+      - name: Test
+        run: pnpm --filter forgejo-toolkit test
+
+      # A build failure is a release blocker, so it is validated here as well;
+      # the resulting bundle is not uploaded (release artifacts belong to the
+      # release process, not to git or CI storage).
+      - name: Build extension bundle
+        run: pnpm --filter forgejo-toolkit run build
