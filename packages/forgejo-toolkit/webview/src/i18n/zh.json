@@ -520,6 +520,7 @@
       "selectAll": "全选",
       "deselectAll": "取消全选",
       "empty": "没有可导入的实例。",
+      "error": "无法读取导入文件：{message}",
       "existing": "已存在",
       "new": "新增",
       "cancel": "取消",

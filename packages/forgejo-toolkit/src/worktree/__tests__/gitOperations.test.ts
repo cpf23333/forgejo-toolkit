@@ -39,10 +39,13 @@ import {
   createWorktreeWithNewBranch,
   detectLinkedRepositories,
   detectLinkedRepository,
+  discardStalePrWorktree,
   fetchBranch,
   fetchPullRequestHead,
   getRemoteUrl,
   getRefCommitSha,
+  inspectPrWorktree,
+  listRemotes,
   listWorkspaceRepositories,
   openWorktree,
   preferOwnNamespaceInstance,
@@ -50,7 +53,6 @@ import {
   remoteMatchesInstance,
   resolveRemoteForRepo,
   revertMergeCommit,
-  validatePrWorktree,
 } from '../gitOperations';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -214,6 +216,69 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
       }),
       expect.any(Function),
     );
+  });
+
+  it('aborts when a pushurl target belongs to another host (fetch URL still matches)', async () => {
+    // `git remote -v` / `remote get-url` report the Forgejo fetch URL here, so
+    // only resolving the push targets exposes the mirror that git pushes to.
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'remote' && args[1] === 'get-url') {
+          callback(
+            null,
+            {
+              stdout: 'https://forgejo.example.com/owner/repo.git\nhttps://mirror.example.com/owner/repo.git\n',
+              stderr: '',
+            } as unknown as string,
+            '',
+          );
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+
+    const failure = await pushBranch('/repo', 'origin', 'main', token, false, instanceUrl).catch(
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain('does not belong to the expected Forgejo instance');
+    expect((failure as Error).message).not.toContain(token);
+    expect((failure as Error).message).not.toContain('mirror.example.com');
+    for (const call of mocks.execFile.mock.calls) {
+      expect(call[1]).not.toContain('push');
+    }
+    // The check must ask git for the push targets rather than the fetch URL.
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['remote', 'get-url', '--push', '--all', 'origin'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('pushes with the token when every push target belongs to the instance', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'remote' && args[1] === 'get-url') {
+          callback(
+            null,
+            {
+              stdout: 'https://forgejo.example.com/owner/repo.git\nssh://git@forgejo.example.com:2222/owner/repo.git\n',
+              stderr: '',
+            } as unknown as string,
+            '',
+          );
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+
+    await pushBranch('/repo', 'origin', 'main', token, false, instanceUrl);
+    const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
+    expect(pushCall![1]).toEqual(['push', 'origin', 'main']);
+    expect((pushCall![2] as { env?: NodeJS.ProcessEnv }).env?.GIT_CONFIG_VALUE_0).toBe(`Authorization: token ${token}`);
   });
 });
 
@@ -453,7 +518,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
-      ['remote get-url origin', 'https://forgejo.example.com/owner/repo.git\n'],
+      ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
     ]);
     await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl);
     expect(mocks.execFile).toHaveBeenCalledWith(
@@ -478,7 +543,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
-      ['remote get-url origin', 'https://github.example.com/owner/repo.git\n'],
+      ['remote get-url --push --all origin', 'https://github.example.com/owner/repo.git\n'],
     ]);
     await expect(revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl)).rejects.toThrow('does not belong');
     expect(mocks.execFile).not.toHaveBeenCalledWith(
@@ -1074,7 +1139,7 @@ describe('detectLinkedRepository', () => {
   });
 });
 
-describe('validatePrWorktree stale branch cleanup', () => {
+describe('stale PR worktree inspection and discard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // The leftover worktree directory exists on disk.
@@ -1082,10 +1147,10 @@ describe('validatePrWorktree stale branch cleanup', () => {
   });
 
   /**
-   * Mock the three git reads/writes involved in the stale path: HEAD lookup
-   * in the worktree (an old sha, so the directory is stale), the branch
-   * checked out there, and success for everything else (worktree removal,
-   * branch deletion).
+   * Mock the git reads involved in the stale path: HEAD lookup in the
+   * worktree (an old sha, so the directory is stale), the branch checked out
+   * there, and success for everything else (worktree removal, branch
+   * deletion).
    */
   function mockStaleWorktree(checkedOutBranch: string | undefined) {
     mocks.execFile.mockImplementation(
@@ -1109,11 +1174,29 @@ describe('validatePrWorktree stale branch cleanup', () => {
     );
   }
 
-  it('deletes the throwaway pr-<n>-<sha7> branch after removing a stale worktree', async () => {
+  it('inspects a stale worktree without removing it', async () => {
     mockStaleWorktree('pr-1-abc1234');
 
-    await expect(validatePrWorktree('/repo', '/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).resolves.toBe(
-      'stale',
+    await expect(inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).resolves.toEqual({
+      state: 'stale',
+      info: { branch: 'pr-1-abc1234', dirty: false, commitsAhead: 0 },
+    });
+    // The caller decides whether to discard, so inspection must never delete.
+    for (const call of mocks.execFile.mock.calls) {
+      expect(call[1]).not.toContain('remove');
+      expect(call[1]).not.toContain('branch');
+    }
+  });
+
+  it('deletes the throwaway pr-<n>-<sha7> branch when the stale worktree is discarded', async () => {
+    mockStaleWorktree('pr-1-abc1234');
+    const inspection = await inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe');
+    expect(inspection.state).toBe('stale');
+
+    await discardStalePrWorktree(
+      '/repo',
+      '/cache/worktrees/owner-repo-pr-1',
+      inspection.state === 'stale' ? inspection.info.branch : undefined,
     );
 
     expect(mocks.execFile).toHaveBeenCalledWith(
@@ -1132,9 +1215,12 @@ describe('validatePrWorktree stale branch cleanup', () => {
 
   it('never deletes a non-throwaway branch checked out in a stale worktree', async () => {
     mockStaleWorktree('feature-user-work');
+    const inspection = await inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe');
 
-    await expect(validatePrWorktree('/repo', '/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).resolves.toBe(
-      'stale',
+    await discardStalePrWorktree(
+      '/repo',
+      '/cache/worktrees/owner-repo-pr-1',
+      inspection.state === 'stale' ? inspection.info.branch : undefined,
     );
 
     expect(mocks.execFile).not.toHaveBeenCalledWith(
@@ -1147,9 +1233,13 @@ describe('validatePrWorktree stale branch cleanup', () => {
 
   it('skips branch cleanup when the stale directory is detached', async () => {
     mockStaleWorktree(undefined);
+    const inspection = await inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe');
+    expect(inspection.state === 'stale' ? inspection.info.branch : 'unset').toBeUndefined();
 
-    await expect(validatePrWorktree('/repo', '/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).resolves.toBe(
-      'stale',
+    await discardStalePrWorktree(
+      '/repo',
+      '/cache/worktrees/owner-repo-pr-1',
+      inspection.state === 'stale' ? inspection.info.branch : undefined,
     );
 
     expect(mocks.execFile).not.toHaveBeenCalledWith(
@@ -1177,7 +1267,7 @@ describe('validatePrWorktree stale branch cleanup', () => {
       },
     );
 
-    await expect(validatePrWorktree('/repo', '/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).rejects.toThrow(
+    await expect(discardStalePrWorktree('/repo', '/cache/worktrees/owner-repo-pr-1', 'pr-1-old0000')).rejects.toThrow(
       'fatal: removal failed',
     );
     expect(mocks.execFile).not.toHaveBeenCalledWith(
@@ -1239,6 +1329,54 @@ describe('preferOwnNamespaceInstance', () => {
 
   it('falls back to the first match when no username matches', () => {
     expect(preferOwnNamespaceInstance([alice, bob], 'carol').id).toBe('a');
+  });
+});
+
+describe('listRemotes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function mockRemoteV(lines: string[]) {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'remote' && args[1] === '-v') {
+          const stdout = lines.length > 0 ? `${lines.join('\n')}\n` : '';
+          callback(null, { stdout, stderr: '' } as unknown as string, '');
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+  }
+
+  it('keeps a spaced remote URL reported on the fetch and push lines', async () => {
+    // git prints remote URLs verbatim, so a local-path remote containing a
+    // space (e.g. "D:\repos\my repo") must still be recognized; both the fetch
+    // and the push line are the same pair and stay deduplicated.
+    mockRemoteV([
+      'upstream\thttps://forgejo.example.com/alice/repo.git (fetch)',
+      'upstream\thttps://forgejo.example.com/alice/repo.git (push)',
+      'origin\tD:\\repos\\my repo (fetch)',
+      'origin\tD:\\repos\\my repo (push)',
+    ]);
+
+    await expect(listRemotes('/repo')).resolves.toEqual([
+      { name: 'origin', url: 'D:\\repos\\my repo' },
+      { name: 'upstream', url: 'https://forgejo.example.com/alice/repo.git' },
+    ]);
+  });
+
+  it('parses a spaced URL on the fetch line and on the push line separately', async () => {
+    mockRemoteV([
+      'origin\t/home/me/My Repos/x.git (fetch)',
+      'origin\thttps://forgejo.example.com/alice/repo.git (push)',
+    ]);
+
+    await expect(listRemotes('/repo')).resolves.toEqual([
+      { name: 'origin', url: '/home/me/My Repos/x.git' },
+      { name: 'origin', url: 'https://forgejo.example.com/alice/repo.git' },
+    ]);
   });
 });
 

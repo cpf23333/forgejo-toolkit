@@ -7,6 +7,7 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../worktree/gitOperations')>();
   return {
     addRemote: vi.fn(),
+    clearLinkedRepositoryCache: vi.fn(),
     getCurrentBranch: vi.fn(),
     getCurrentCommitSha: vi.fn(),
     getUpstreamBranch: vi.fn(),
@@ -30,6 +31,7 @@ import { extractApiErrorMessage, publishToForgejo, validateRemoteName, validateR
 import { ApiError } from '../../api/errors';
 import {
   addRemote,
+  clearLinkedRepositoryCache,
   getCurrentBranch,
   getCurrentCommitSha,
   getUpstreamBranch,
@@ -186,7 +188,30 @@ describe('publishToForgejo', () => {
     await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]), provider);
 
     expect(pushBranch).toHaveBeenCalled();
+    // The 10s linked-repository scan cache only keys on folders and instances,
+    // so the new remote must invalidate it before the refresh reads it.
+    expect(clearLinkedRepositoryCache).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(clearLinkedRepositoryCache).mock.invocationCallOrder[0]).toBeLessThan(
+      refresh.mock.invocationCallOrder[0],
+    );
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the linked-repository cache when the remote was added but no branch is checked out', async () => {
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    vi.mocked(getCurrentBranch).mockResolvedValue(undefined);
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockResolvedValue({ clone_url: `${INSTANCE_URL}/alice/my-repo.git`, full_name: 'alice/my-repo' });
+    const { provider, refresh } = createViewProvider();
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]), provider);
+
+    expect(addRemote).toHaveBeenCalled();
+    expect(pushBranch).not.toHaveBeenCalled();
+    expect(clearLinkedRepositoryCache).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it('opens the published repository in the browser when html_url is http(s)', async () => {

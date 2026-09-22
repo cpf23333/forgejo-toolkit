@@ -4,5 +4,4 @@ dist
 *.vsix
 .DS_Store
 *.log
-pnpm-lock.yaml
 .impeccable/

@@ -126,7 +126,13 @@ function createAppState() {
   const pullRequestDetails = ref<Map<string, ForgejoPullRequestDetail>>(new Map());
   const repoIssues = ref<Map<string, ForgejoIssue[]>>(new Map());
   const repoPullRequests = ref<Map<string, ForgejoPullRequest[]>>(new Map());
+  // Runs accumulate per repo (server order) instead of one page replacing the
+  // previous one; `actionRunsKey` is the repo's list slot regardless of page.
   const actionRuns = ref<Map<string, ForgejoActionRun[]>>(new Map());
+  // Whether another page of runs may exist for a repo. Cleared by a short or
+  // empty page so the view stops offering "Load more" instead of paging past
+  // the end of the list.
+  const actionRunsHasMore = ref<Map<string, boolean>>(new Map());
   const actionRunTotalCount = ref<Map<string, number>>(new Map());
   const actionRunDetails = ref<Map<string, ForgejoActionRun>>(new Map());
   const actionRunJobs = ref<Map<string, ForgejoActionRunJob[]>>(new Map());
@@ -193,7 +199,13 @@ function createAppState() {
     string,
     { resolve: (value: ForgejoReleaseAttachment) => void; reject: (error: string) => void }
   >();
-  const releaseAttachmentDeletePromises = new Map<string, { resolve: () => void; reject: (error: string) => void }>();
+  // Resolves `true` when the attachment was actually deleted and `false` when
+  // the user declined the host-side confirmation, so callers only drop the
+  // attachment from local state when the server really removed it.
+  const releaseAttachmentDeletePromises = new Map<
+    string,
+    { resolve: (deleted: boolean) => void; reject: (error: string) => void }
+  >();
 
   const debug = ref<boolean>(false);
   const worktrees = ref<ForgejoPullRequestWorktreeInfo[]>([]);
@@ -230,13 +242,17 @@ function createAppState() {
   const importInstancesResult = ref<{ success: boolean; count?: number; error?: string } | undefined>(undefined);
   // Preview data from the host: token fields are stripped to '' host-side
   // (conflict flags travel in `tokenConflicts`); confirmation goes back as
-  // ids only (see confirmImportInstances).
+  // ids only (see confirmImportInstances). `error` is set when the host could
+  // not read the file (corrupt JSON, wrong password, no valid instances): the
+  // preview is then empty and the views must show the failure instead of an
+  // empty-list success state.
   const importPreview = ref<
     | {
         instances: ExportedForgejoInstance[];
         existingIds: string[];
         tokenConflicts?: boolean[];
         settings?: ExportSettings;
+        error?: string;
       }
     | undefined
   >(undefined);
@@ -295,7 +311,10 @@ function createAppState() {
     { resolve: (attachment: ForgejoIssueAttachment) => void; reject: (error: Error) => void }
   >();
   let attachmentDeleteRequestId = 0;
-  const pendingAttachmentDeletes = new Map<string, { resolve: () => void; reject: (error: Error) => void }>();
+  const pendingAttachmentDeletes = new Map<
+    string,
+    { resolve: (deleted: boolean) => void; reject: (error: Error) => void }
+  >();
   let issueCommentCreationRequestId = 0;
   const pendingIssueCommentCreations = new Map<
     string,
@@ -1260,14 +1279,18 @@ function createAppState() {
         break;
       }
       case 'releaseAttachmentDeleted': {
-        const { _requestId, error } = message as { _requestId: string; error?: string };
+        const { _requestId, error, cancelled } = message as {
+          _requestId: string;
+          error?: string;
+          cancelled?: boolean;
+        };
         const pending = releaseAttachmentDeletePromises.get(_requestId);
         if (pending) {
           releaseAttachmentDeletePromises.delete(_requestId);
           if (error) {
             pending.reject(error);
           } else {
-            pending.resolve();
+            pending.resolve(!cancelled);
           }
         }
         break;
@@ -1357,11 +1380,21 @@ function createAppState() {
           // The user dismissed the file picker; free the slot without navigating.
           break;
         }
+        const previewMessage = message as {
+          instances?: ExportedForgejoInstance[];
+          existingIds?: string[];
+          tokenConflicts?: boolean[];
+          settings?: ExportSettings;
+          error?: string;
+        };
         importPreview.value = {
-          instances: (message as { instances?: ExportedForgejoInstance[] }).instances ?? [],
-          existingIds: (message as { existingIds?: string[] }).existingIds ?? [],
-          tokenConflicts: (message as { tokenConflicts?: boolean[] }).tokenConflicts ?? [],
-          settings: (message as { settings?: ExportSettings }).settings,
+          instances: previewMessage.instances ?? [],
+          existingIds: previewMessage.existingIds ?? [],
+          tokenConflicts: previewMessage.tokenConflicts ?? [],
+          settings: previewMessage.settings,
+          // A failed read arrives with empty arrays; keep the error so the
+          // preview view can explain the failure instead of looking empty.
+          error: previewMessage.error,
         };
         break;
       }
@@ -1573,10 +1606,17 @@ function createAppState() {
     repo: string;
     index: number;
     action: 'start' | 'stop' | 'delete';
+    cancelled?: boolean;
     error?: string;
   }) {
     const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
+    if (data.cancelled) {
+      // Declined host-side confirmation: nothing changed, so keep the current
+      // tracked-time / stopwatch state untouched.
+      errors.delete(key);
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -1896,6 +1936,7 @@ function createAppState() {
     repo: string;
     index: number;
     attachmentId: number;
+    cancelled?: boolean;
     error?: string;
     _requestId: string;
   }) {
@@ -1907,7 +1948,7 @@ function createAppState() {
     if (data.error) {
       pending.reject(new Error(data.error));
     } else {
-      pending.resolve();
+      pending.resolve(!data.cancelled);
     }
   }
 
@@ -2117,6 +2158,7 @@ function createAppState() {
     repo: string;
     commentId: number;
     attachmentId: number;
+    cancelled?: boolean;
     error?: string;
     _requestId: string;
   }) {
@@ -2129,8 +2171,14 @@ function createAppState() {
       pendingAttachmentDeletes.delete(data._requestId);
       return;
     }
-    promise.resolve();
+    promise.resolve(!data.cancelled);
     pendingAttachmentDeletes.delete(data._requestId);
+
+    if (data.cancelled) {
+      // Declined host-side confirmation: the attachment still exists, so local
+      // state must not drop it.
+      return;
+    }
 
     for (const comments of pullRequestComments.value.values()) {
       const comment = comments.find((c) => c.id === data.commentId);
@@ -2402,18 +2450,33 @@ function createAppState() {
     totalCount?: number;
     error?: string;
   }) {
-    const key = actionRunsKey(data.instanceId, data.owner, data.repo, data.page);
+    // One list slot per repo: pages are appended in server order instead of
+    // overwriting each other, so "Load more" can never replace the runs the
+    // user already sees.
+    const key = actionRunsKey(data.instanceId, data.owner, data.repo);
     loading.set(key, false);
     if (data.error) {
       setError(key, data.error);
-    } else {
-      errors.delete(key);
-      actionRuns.value.set(key, data.actionRuns ?? []);
-      actionRunTotalCount.value.set(
-        `${data.instanceId}:${data.owner}/${data.repo}`,
-        data.totalCount ?? data.actionRuns?.length ?? 0,
-      );
+      return;
     }
+    errors.delete(key);
+    const incoming = data.actionRuns ?? [];
+    const page = data.page > 0 ? data.page : 1;
+    if (page === 1) {
+      // The first page starts the list over: a refresh/retry resets whatever
+      // earlier pages had accumulated.
+      actionRuns.value.set(key, incoming);
+    } else if (incoming.length > 0) {
+      actionRuns.value.set(key, [...(actionRuns.value.get(key) ?? []), ...incoming]);
+    }
+    // A page past the end (or a short page) ends the list. A full page may
+    // have more, unless the server total already accounts for every run
+    // loaded so far. The host does not echo the requested limit, so the
+    // webview's own constant is the page size to compare against.
+    const loadedCount = actionRuns.value.get(key)?.length ?? 0;
+    const fullPage = incoming.length >= ACTION_RUNS_PAGE_LIMIT;
+    actionRunTotalCount.value.set(`${data.instanceId}:${data.owner}/${data.repo}`, data.totalCount ?? incoming.length);
+    actionRunsHasMore.value.set(key, fullPage && (data.totalCount === undefined || data.totalCount > loadedCount));
   }
 
   function handleActionRun(data: {
@@ -2574,6 +2637,7 @@ function createAppState() {
         }
       }
       actionRuns.value.clear();
+      actionRunsHasMore.value.clear();
       actionRunTotalCount.value.delete(`${data.instanceId}:${data.owner}/${data.repo}`);
       // There is no standalone "actions" route (actions live inside RepoDetail),
       // so return to the repo detail page. Only navigate if the user is still
@@ -3161,13 +3225,17 @@ function createAppState() {
     });
   }
 
+  /**
+   * Resolves `true` when the release attachment was deleted and `false` when
+   * the user declined the host-side confirmation.
+   */
   function deleteReleaseAttachment(
     instanceId: string,
     owner: string,
     repo: string,
     id: number,
     attachmentId: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const _requestId = `release-attachment-delete-${++inputRequestId}`;
     return new Promise((resolve, reject) => {
       registerPending(
@@ -3375,13 +3443,17 @@ function createAppState() {
     postMessage({ command: 'deleteIssueComment', instanceId, owner, repo, commentId });
   }
 
+  /**
+   * Resolves `true` when the attachment was deleted and `false` when the user
+   * declined the host-side confirmation.
+   */
   function deleteIssueCommentAttachment(
     instanceId: string,
     owner: string,
     repo: string,
     commentId: number,
     attachmentId: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}:comment-${commentId}:attachment-delete:${++attachmentDeleteRequestId}`;
       registerPending(pendingAttachmentDeletes, id, { resolve, reject });
@@ -3475,13 +3547,17 @@ function createAppState() {
     });
   }
 
+  /**
+   * Resolves `true` when the attachment was deleted and `false` when the user
+   * declined the host-side confirmation.
+   */
   function deleteIssueAttachment(
     instanceId: string,
     owner: string,
     repo: string,
     index: number,
     attachmentId: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}#issue-${index}:attachment-delete:${++attachmentDeleteRequestId}`;
       registerPending(pendingAttachmentDeletes, id, { resolve, reject });
@@ -4007,12 +4083,15 @@ function createAppState() {
   }
 
   function loadActionRuns(instanceId: string, owner: string, repo: string, page = 1, _force = false) {
-    const key = actionRunsKey(instanceId, owner, repo, page);
+    // Requesting page 1 reloads the list from the start; higher pages append
+    // to it. Loading state is per repo, so a second page request while the
+    // first is in flight is dropped rather than queued.
+    const key = actionRunsKey(instanceId, owner, repo);
     if (loading.get(key)) {
       return;
     }
     beginLoading(key);
-    postMessage({ command: 'getActionRuns', instanceId, owner, repo, page, limit: 30 });
+    postMessage({ command: 'getActionRuns', instanceId, owner, repo, page, limit: ACTION_RUNS_PAGE_LIMIT });
   }
 
   function openActionRunDetail(instanceId: string, owner: string, repo: string, runId: number) {
@@ -4332,6 +4411,18 @@ function createAppState() {
     return count;
   });
 
+  // Unread count over the notifications the view is actually showing. The
+  // poller slot above is only written while notification polling is enabled,
+  // so it is empty (and stale for up to a poll interval) when polling is off;
+  // the view's own list must drive its actions instead.
+  const unreadViewNotificationCount = computed(() => {
+    let count = 0;
+    for (const list of notifications.value.values()) {
+      count += list.filter((notification) => notification.unread).length;
+    }
+    return count;
+  });
+
   return {
     t,
     locale,
@@ -4348,6 +4439,7 @@ function createAppState() {
     repoIssues,
     repoPullRequests,
     actionRuns,
+    actionRunsHasMore,
     actionRunTotalCount,
     actionRunDetails,
     actionRunJobs,
@@ -4368,6 +4460,7 @@ function createAppState() {
     polledNotifications,
     notificationPollErrors,
     unreadNotificationCount,
+    unreadViewNotificationCount,
     repoLabels,
     repoAssignees,
     repoMilestones,
@@ -4676,8 +4769,9 @@ export function repoPullRequestsKey(
   return q ? `${base}:q=${q}` : base;
 }
 
-export function actionRunsKey(instanceId: string, owner: string, repo: string, page: number): string {
-  return `${instanceId}:${owner}/${repo}:actions:page-${page}`;
+export function actionRunsKey(instanceId: string, owner: string, repo: string): string {
+  // One slot per repo: every page of runs accumulates here in server order.
+  return `${instanceId}:${owner}/${repo}:actions`;
 }
 
 export function actionRunKey(instanceId: string, owner: string, repo: string, runId: number): string {
@@ -4741,6 +4835,10 @@ export function globalSearchKey(
 // against these to show a "only the first N" truncation hint.
 export const GLOBAL_SEARCH_LIMIT = 20;
 export const NOTIFICATIONS_LIMIT = 50;
+// Page size requested for action runs. A response with fewer runs than this is
+// the last page; the host does not echo the limit, so the webview compares
+// against its own constant.
+export const ACTION_RUNS_PAGE_LIMIT = 30;
 
 export function notificationsKey(instanceId: string): string {
   return `${instanceId}:notifications`;

@@ -3,10 +3,16 @@ import { ForgejoClient } from '../api/client';
 import { ConfigManager } from '../config';
 import { getWebviewContent } from '../webview/content';
 import { logger } from '../logger';
-import type { HostToWebviewMessage, WebviewToHostMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import type { ForgejoInstance, PullReviewSubmitEvent } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import {
+  toPublicInstance,
+  type ForgejoInstance,
+  type HostToWebviewMessage,
+  type PullReviewSubmitEvent,
+  type WebviewToHostMessage,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import { resolveLocale } from '../utils/resolveLocale';
+import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { userFacingErrorMessage } from '../api/errors';
 
 export interface PullReviewCommentContext {
@@ -103,6 +109,26 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       async (message) => {
         logger.debug(`Received message from pull review comment webview: ${(message as WebviewToHostMessage).command}`);
         switch ((message as WebviewToHostMessage).command) {
+          case 'getInitialState': {
+            this._sendInitialState();
+            return;
+          }
+          case 'getLinkedRepository': {
+            // The editor webview shares the sidebar composable, which asks for
+            // the linked repository on mount. This panel is not repository
+            // -scoped UI, so answer with "none" instead of leaving the request
+            // unanswered.
+            this._reply('linkedRepository', {});
+            return;
+          }
+          case 'renderMarkdown': {
+            await this._handleRenderMarkdown(message);
+            return;
+          }
+          case 'searchMentions': {
+            await this._handleSearchMentions(message);
+            return;
+          }
           case 'closePullReviewCommentPanel': {
             this._panel.dispose();
             return;
@@ -121,6 +147,25 @@ export class PullReviewCommentPanel implements vscode.Disposable {
           }
           case 'createIssueAttachment': {
             await this._handleCreateIssueAttachment(message);
+            return;
+          }
+          default: {
+            // The editor webview posts through the shared sidebar composable,
+            // so a command this panel does not implement used to be dropped
+            // silently: the caller's promise then only settled on its 60 s
+            // timeout (markdown preview) or produced an empty result (mention
+            // completion). Log it and answer request/response messages so the
+            // failure is visible instead of hanging.
+            const requestId = (message as { _requestId?: unknown })._requestId;
+            logger.error(
+              `Unhandled message from the pull review comment webview: ${String((message as { command?: unknown }).command)}`,
+            );
+            if (typeof requestId === 'string') {
+              this._reply('requestError', {
+                _requestId: requestId,
+                error: vscode.l10n.t('This action is not available in the review comment editor.'),
+              });
+            }
             return;
           }
         }
@@ -469,6 +514,90 @@ export class PullReviewCommentPanel implements vscode.Disposable {
         error: err,
         _requestId: requestId,
       });
+    }
+  }
+
+  /**
+   * Answer the shared composable's mount request. The editor webview runs the
+   * same `useAppState()` as the sidebar, so it asks for the full initial state;
+   * this panel is not the dashboard and has no worktree manager, so the
+   * worktree fields are answered with inert defaults (the editor only uses
+   * `instances` for markdown image base URLs and `locale`).
+   */
+  private _sendInitialState(): void {
+    const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
+    const locale: 'en' | 'zh' = resolveLocale(configured);
+    const debug = vscode.workspace.getConfiguration('forgejoToolkit').get<boolean>('debug', false);
+    this._reply('initialState', {
+      instances: this._config.getInstances().map(toPublicInstance),
+      locale,
+      debug,
+      worktrees: [],
+      worktreeOpenMode: 'ask',
+      worktreeCacheDirectory: '',
+      worktreeCacheDirectoryDefault: '',
+    });
+  }
+
+  private async _handleRenderMarkdown(message: unknown): Promise<void> {
+    const data = message as { instanceId?: string; text?: string; context?: string; _requestId?: string };
+    const requestId = data._requestId;
+    if (typeof requestId !== 'string') {
+      return;
+    }
+    const instance = this._findInstance(data.instanceId ?? this._context.instanceId);
+    if (!instance || typeof data.text !== 'string') {
+      this._reply('renderedMarkdown', {
+        _requestId: requestId,
+        error: vscode.l10n.t('The Forgejo instance is no longer configured'),
+      });
+      return;
+    }
+    try {
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+      const html = await client.renderMarkdown(data.text, data.context);
+      // Attachments render as instance URLs that the webview cannot fetch with
+      // the token, so they are inlined the same way the sidebar does it.
+      const htmlWithResolvedImages = await resolveAttachmentImages(html, instance);
+      this._reply('renderedMarkdown', { _requestId: requestId, html: htmlWithResolvedImages });
+    } catch (error) {
+      const err = userFacingErrorMessage(error);
+      logger.error(`renderMarkdown failed for ${instance.name}: ${err}`);
+      this._reply('renderedMarkdown', { _requestId: requestId, error: err });
+    }
+  }
+
+  private async _handleSearchMentions(message: unknown): Promise<void> {
+    const data = message as {
+      instanceId?: string;
+      owner?: string;
+      repo?: string;
+      query?: string;
+      type?: string;
+      _requestId?: string;
+    };
+    const requestId = data._requestId;
+    if (typeof requestId !== 'string') {
+      return;
+    }
+    const instance = this._findInstance(data.instanceId ?? this._context.instanceId);
+    const owner = data.owner ?? this._context.owner;
+    const repo = data.repo ?? this._context.repo;
+    if (!instance || typeof data.query !== 'string') {
+      this._reply('mentionSearchResult', {
+        _requestId: requestId,
+        error: vscode.l10n.t('The Forgejo instance is no longer configured'),
+      });
+      return;
+    }
+    try {
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
+      const result = await client.searchMentions(owner, repo, data.query, data.type as 'user' | 'issue' | 'all');
+      this._reply('mentionSearchResult', { _requestId: requestId, users: result.users, issues: result.issues });
+    } catch (error) {
+      const err = userFacingErrorMessage(error);
+      logger.error(`searchMentions failed for ${instance.name}/${owner}/${repo}: ${err}`);
+      this._reply('mentionSearchResult', { _requestId: requestId, error: err });
     }
   }
 

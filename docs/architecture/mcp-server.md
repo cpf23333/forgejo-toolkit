@@ -51,7 +51,7 @@ VS Code (agent mode)
   │  spawns via McpStdioServerDefinition
   ▼
 mcp-server process (Node, bundled: out/mcp-server.js)
-  │  reads FORGEJO_MCP_INSTANCE_URL / FORGEJO_MCP_TOKEN from env
+  │  reads FORGEJO_MCP_INSTANCE_URL / FORGEJO_MCP_TOKEN / FORGEJO_MCP_SYNC_API_URLS from env
   ▼
 @cpf23333-forgejo-toolkit/api + shared request layer
   │
@@ -69,12 +69,17 @@ Forgejo instance REST API
   through the `ForgejoClientHost` hooks; the MCP process keeps the default
   headless host, where those hooks are no-ops / English passthrough.
 - **Instance selection:** exactly one instance is exposed per server
-  process — the one marked default / first configured. The definition
+  process — the first configured instance (insertion order). The definition
   provider re-resolves on `onDidChangeMcpServerDefinitions` when instances
   change. Multi-instance fan-out remains a future direction (see below).
 - **Token flow:** `activate()` reads the token from SecretStorage and passes
   it as `env` in `McpStdioServerDefinition`. Tokens never appear in tool
   schemas, results, or log output.
+- **Settings flow:** the headless process cannot read the extension's
+  settings, so the per-instance `syncApiUrlsToInstanceUrl` flag travels as
+  `FORGEJO_MCP_SYNC_API_URLS` in the same launch environment. There is no
+  way to launch this stdio server from an external MCP client: the URL and
+  token are injected by VS Code at spawn time.
 
 ## Minimum VS Code version
 
@@ -163,17 +168,27 @@ same endpoint for exactly this reason.
 - Tokens are injected via process env only; the server scrubs them from any
   error it returns (`userFacingErrorMessage` never includes headers).
 - Tool results truncate large bodies (comments, diffs, logs) to a fixed
-  budget (~10 KB per field) to protect the agent's context window and avoid
-  exfiltrating repository content through unexpected channels.
-- The human-in-the-loop story stays explicit: every mutating call will be
-  initiated by the user's own agent and confirmed in VS Code UI (also to
-  stay aligned with the Codeberg hosting rules: no autonomous agents acting
-  on the user's behalf without per-action confirmation).
+  budget (~10 KB per field) and cap the whole serialized result (64 KB), with
+  an explicit marker when either cap fires, to protect the agent's context
+  window and avoid exfiltrating repository content through unexpected
+  channels.
+- Inputs that become part of a request path (`owner`, `repo`, file paths) are
+  validated against path-segment traversal, so a forged tool argument cannot
+  turn a repository-scoped read into an arbitrary same-origin request.
+- Read-only tools are annotated `readOnlyHint`, which means VS Code runs them
+  **without** a per-call confirmation prompt. The human-in-the-loop guarantee
+  therefore rests on the tool surface: every tool maps to a `GET` endpoint.
+  Phase 2 write tools will not carry `readOnlyHint`, so each mutating call is
+  confirmed in the VS Code UI (also to stay aligned with the Codeberg hosting
+  rules: no autonomous agents acting on the user's behalf without per-action
+  confirmation).
 
 ## Testing
 
 - Unit: tool handlers against the MSW mock server (same fixtures as
-  `client.test.ts`) — `mcp/__tests__/tools.test.ts`.
+  `client.test.ts`) — `mcp/__tests__/tools.test.ts`. That file also covers the
+  path-segment / repository-path guards (`isSafePathSegment`, `isSafeRepoPath`)
+  directly, since the handlers are called without MCP schema validation.
 - Integration: the server connected over the MCP SDK's `InMemoryTransport`,
   asserting the tool listing and a round trip per tool group —
   `mcp/__tests__/server.test.ts`.
@@ -184,9 +199,9 @@ same endpoint for exactly this reason.
 
 - **Phase 2 write tools (gated, separately approved):** `create_issue`,
   `create_comment`, `create_pull_request`, `submit_pull_review`,
-  `merge_pull_request`, `mark_notification_read`. VS Code agent mode already
-  asks the user to confirm each tool call; write tools will additionally
-  require individual opt-in in extension settings (default off).
+  `merge_pull_request`, `mark_notification_read`. Omitting `readOnlyHint` on
+  these makes VS Code ask the user to confirm each tool call; they will
+  additionally require individual opt-in in extension settings (default off).
 - **Multi-instance fan-out:** one server per configured instance, or an
   `instance` tool parameter, instead of the single default instance.
 - **MCP prompts:** preset prompt templates (e.g. "review this PR") on top of

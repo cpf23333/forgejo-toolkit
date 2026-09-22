@@ -20,6 +20,7 @@ import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
 import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
+import { MOCK_SERVER_VERSION } from '../../test/mocks/handlers';
 import {
   mockUser,
   mockRepository,
@@ -202,6 +203,36 @@ describe('ForgejoClient with MSW', () => {
     expect(Array.isArray(pulls)).toBe(true);
     expect(pulls).toHaveLength(mockPullRequests.length);
     expect(pulls[0].title).toBe(mockPullRequests[0].title);
+  });
+
+  it('scopes the user issue/PR search to the authenticated user', async () => {
+    const client = createClient();
+    // The shared mock handler ignores the user-scoping params, so capture the
+    // query string with an override. Empty pages keep the request count at 1.
+    const captured: URLSearchParams[] = [];
+    mockServer.use(
+      http.get('https://*/api/v1/repos/issues/search', ({ request }) => {
+        captured.push(new URL(request.url).searchParams);
+        return HttpResponse.json([]);
+      }),
+    );
+
+    await client.getUserIssues('open');
+    await client.getUserPullRequests('all');
+
+    expect(captured).toHaveLength(2);
+    // Without these four flags /repos/issues/search returns every issue in
+    // every visible repository (default is false for all of them).
+    for (const params of captured) {
+      expect(params.get('created')).toBe('true');
+      expect(params.get('assigned')).toBe('true');
+      expect(params.get('mentioned')).toBe('true');
+      expect(params.get('review_requested')).toBe('true');
+    }
+    expect(captured[0].get('type')).toBe('issues');
+    expect(captured[0].get('state')).toBe('open');
+    expect(captured[1].get('type')).toBe('pulls');
+    expect(captured[1].get('state')).toBe('all');
   });
 
   it('searches repositories', async () => {
@@ -501,6 +532,20 @@ describe('ForgejoClient with MSW', () => {
     expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_approvals')).toBe(false);
   });
 
+  it('does not report a no_permission blocker when the permissions are unknown', async () => {
+    const client = createClient();
+    // The best-effort repo enrichment probe fails (offline / 5xx / timeout).
+    mockServer.use(http.get('https://*/api/v1/repos/:owner/:repo', () => new HttpResponse(null, { status: 503 })));
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    // Unknown permissions must not be mistaken for "denied": the webview
+    // disables merging for any blocker, so a transient failure would tell the
+    // user they may not merge.
+    expect(pr.repoPermissions).toBeUndefined();
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'no_permission')).toBe(false);
+  });
+
   it('fetches action runs', async () => {
     const client = createClient();
     const runs = await client.listActionRuns('demo-user', 'demo-repo');
@@ -576,7 +621,7 @@ describe('ForgejoClient with MSW', () => {
 
     it('fetches the server version', async () => {
       const client = createClient();
-      await expect(client.getServerVersion()).resolves.toBe('1.21.5');
+      await expect(client.getServerVersion()).resolves.toBe(MOCK_SERVER_VERSION);
     });
 
     it('rejects Actions calls with a clear message on servers older than 1.19', async () => {
@@ -1066,19 +1111,44 @@ describe('ForgejoClient with MSW', () => {
       expect(files.length).toBeGreaterThan(0);
     });
 
-    it('keeps previous_filename for renamed files from compare', async () => {
+    it('does not fabricate previous_filename for compare-based renames', async () => {
       const client = createClient();
+      // The real /compare endpoint has no previous_filename field and reports
+      // a rename as an unrelated removed+added pair; even if a server sent the
+      // field, the client must not pass it through as if it were linked.
       mockServer.use(
         http.get('https://*/api/v1/repos/:owner/:repo/compare/:basehead', () =>
           HttpResponse.json({
             total_commits: 1,
             commits: [mockPullRequestCommit],
-            files: [{ filename: 'src/new-name.ts', status: 'renamed', previous_filename: 'src/old-name.ts' }],
+            files: [
+              { filename: 'src/old-name.ts', status: 'removed' },
+              { filename: 'src/new-name.ts', status: 'added', previous_filename: 'src/old-name.ts' },
+            ],
           }),
         ),
       );
       const files = await client.getPullRequestFilesFromCompare('demo-user', 'demo-repo', 'base', 'head');
-      expect(files).toHaveLength(1);
+      expect(files.map((file) => [file.filename, file.status])).toEqual([
+        ['src/old-name.ts', 'removed'],
+        ['src/new-name.ts', 'added'],
+      ]);
+      expect(files.every((file) => file.previous_filename === undefined)).toBe(true);
+    });
+
+    it('keeps previous_filename from the pull-request files endpoint', async () => {
+      const client = createClient();
+      // /pulls/{index}/files does return previous_filename; only the compare
+      // path is unable to supply it.
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index/files', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page')) || 1;
+          return HttpResponse.json(
+            page > 1 ? [] : [{ filename: 'src/new-name.ts', status: 'renamed', previous_filename: 'src/old-name.ts' }],
+          );
+        }),
+      );
+      const files = await client.getPullRequestFiles('demo-user', 'demo-repo', 2);
       expect(files[0].status).toBe('renamed');
       expect(files[0].previous_filename).toBe('src/old-name.ts');
     });

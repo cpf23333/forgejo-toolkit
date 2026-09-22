@@ -2,7 +2,13 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { ForgejoClient } from '../../src/api/client';
 import { ApiError } from '../../src/api/errors-core';
-import { buildToolHandlers, truncateLargeStrings, MAX_TOOL_TEXT_LENGTH } from '../tools';
+import {
+  buildToolHandlers,
+  isSafePathSegment,
+  isSafeRepoPath,
+  truncateLargeStrings,
+  MAX_TOOL_TEXT_LENGTH,
+} from '../tools';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../src/test/mocks/server';
 import {
   mockIssues,
@@ -387,5 +393,54 @@ describe('truncateLargeStrings', () => {
     expect(truncateLargeStrings(42)).toBe(42);
     expect(truncateLargeStrings(null)).toBe(null);
     expect(truncateLargeStrings(undefined)).toBe(undefined);
+  });
+});
+
+describe('tool input path validation', () => {
+  it('accepts ordinary owner and repository names', () => {
+    expect(isSafePathSegment('demo-user')).toBe(true);
+    expect(isSafePathSegment('cpf23333')).toBe(true);
+    expect(isSafePathSegment('repo.name_1')).toBe(true);
+    expect(isSafePathSegment('组织')).toBe(true);
+  });
+
+  it('rejects values that would leave the intended endpoint', () => {
+    // The generated client interpolates these raw into `/repos/${owner}/${repo}/…`,
+    // and the URL parser resolves dot segments and splits on '?'/'#'.
+    for (const value of [
+      'x/../../admin/users',
+      '..',
+      '.',
+      'repo#',
+      'repo?state=all',
+      're%2Fpo',
+      '',
+      ' repo',
+      'repo ',
+    ]) {
+      expect(isSafePathSegment(value), value).toBe(false);
+    }
+  });
+
+  it('rejects control characters and backslashes', () => {
+    expect(isSafePathSegment('repo\\name')).toBe(false);
+    expect(isSafePathSegment('repo\nname')).toBe(false);
+    expect(isSafePathSegment('repo\u0000name')).toBe(false);
+  });
+
+  it('accepts repository-relative file paths', () => {
+    expect(isSafeRepoPath('src/index.ts')).toBe(true);
+    expect(isSafeRepoPath('docs/a b/说明.md')).toBe(true);
+  });
+
+  it('rejects file paths with traversal or empty segments', () => {
+    for (const value of ['../../etc/passwd', 'src/../../x', 'src//index.ts', './src', 'src/./x', 'src\\index.ts']) {
+      expect(isSafeRepoPath(value), value).toBe(false);
+    }
+  });
+
+  it('only allows the empty path where the caller opts in', () => {
+    expect(isSafeRepoPath('')).toBe(false);
+    expect(isSafeRepoPath('', { allowEmpty: true })).toBe(true);
   });
 });

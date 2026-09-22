@@ -31,28 +31,37 @@ vi.mock('../../api/client', () => ({
   }),
 }));
 
-vi.mock('../../worktree/gitOperations', () => ({
-  clearLinkedRepositoryCache: vi.fn(),
-  cloneRepository: vi.fn(),
-  createWorktreeFromBranch: vi.fn(),
-  createWorktreeWithNewBranch: vi.fn(),
-  deleteBranch: vi.fn(async () => undefined),
-  detectLinkedRepository: vi.fn(),
-  detectLinkedRepositories: vi.fn(async () => ({ linked: undefined, all: [], unpublished: [] })),
-  fetchBranch: vi.fn(),
-  fetchPullRequestHead: vi.fn(),
-  findLocalRepo: vi.fn(),
-  getRefCommitSha: vi.fn(),
-  isCurrentWorkspaceBaseRepo: vi.fn(),
-  isGitRepository: vi.fn(),
-  listRemotes: vi.fn(async () => []),
-  openWorktree: vi.fn(async () => true),
-  resolveRemoteForRepo: vi.fn(async () => 'origin'),
-  revertMergeCommit: vi.fn(),
-  sanitizeForPath: vi.fn((value: string) => value),
-  validatePrWorktree: vi.fn(),
-  removeWorktreeAndPrune: vi.fn(),
-}));
+vi.mock('../../worktree/gitOperations', async () => {
+  const path = await import('node:path');
+  return {
+    clearLinkedRepositoryCache: vi.fn(),
+    cloneRepository: vi.fn(),
+    createWorktreeFromBranch: vi.fn(),
+    createWorktreeWithNewBranch: vi.fn(),
+    deleteBranch: vi.fn(async () => undefined),
+    detectLinkedRepository: vi.fn(),
+    detectLinkedRepositories: vi.fn(async () => ({ linked: undefined, all: [], unpublished: [] })),
+    discardStalePrWorktree: vi.fn(async () => undefined),
+    fetchBranch: vi.fn(),
+    fetchPullRequestHead: vi.fn(),
+    findLocalRepo: vi.fn(),
+    getRefCommitSha: vi.fn(),
+    inspectPrWorktree: vi.fn(),
+    isCurrentWorkspaceBaseRepo: vi.fn(),
+    isGitRepository: vi.fn(),
+    // Used by the worktree-path containment guard; keep the real semantics.
+    isPathInsideFolder: (folderPath: string, filePath: string) => {
+      const relative = path.relative(folderPath, filePath);
+      return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+    },
+    listRemotes: vi.fn(async () => []),
+    openWorktree: vi.fn(async () => true),
+    resolveRemoteForRepo: vi.fn(async () => 'origin'),
+    revertMergeCommit: vi.fn(),
+    sanitizeForPath: vi.fn((value: string) => value),
+    removeWorktreeAndPrune: vi.fn(),
+  };
+});
 
 import { ForgejoToolkitViewProvider, clearResolvedAvatarCache } from '../viewProvider';
 import { ForgejoClient } from '../../api/client';
@@ -63,16 +72,17 @@ import {
   createWorktreeFromBranch,
   createWorktreeWithNewBranch,
   deleteBranch,
+  discardStalePrWorktree,
   fetchBranch,
   fetchPullRequestHead,
   findLocalRepo,
   getRefCommitSha,
+  inspectPrWorktree,
   isCurrentWorkspaceBaseRepo,
   openWorktree,
   removeWorktreeAndPrune,
   resolveRemoteForRepo,
   revertMergeCommit,
-  validatePrWorktree,
 } from '../../worktree/gitOperations';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
@@ -642,6 +652,30 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         message: { owner: 'owner', repo: 'repo', id: 2 },
         echo: { owner: 'owner', repo: 'repo', release: '2' },
       },
+      {
+        command: 'deleteIssueAttachment',
+        result: 'issueAttachmentDeleted',
+        message: { owner: 'owner', repo: 'repo', index: 2, attachmentId: 7, _requestId: 'req-issue-att' },
+        echo: { owner: 'owner', repo: 'repo', index: 2, attachmentId: 7, _requestId: 'req-issue-att' },
+      },
+      {
+        command: 'deleteIssueCommentAttachment',
+        result: 'issueCommentAttachmentDeleted',
+        message: { owner: 'owner', repo: 'repo', commentId: 5, attachmentId: 7, _requestId: 'req-comment-att' },
+        echo: { owner: 'owner', repo: 'repo', commentId: 5, attachmentId: 7, _requestId: 'req-comment-att' },
+      },
+      {
+        command: 'deleteReleaseAttachment',
+        result: 'releaseAttachmentDeleted',
+        message: { owner: 'owner', repo: 'repo', id: 3, attachmentId: 7, _requestId: 'req-release-att' },
+        echo: { owner: 'owner', repo: 'repo', id: 3, attachmentId: 7, _requestId: 'req-release-att' },
+      },
+      {
+        command: 'deleteIssueStopwatch',
+        result: 'issueStopwatchChanged',
+        message: { owner: 'owner', repo: 'repo', index: 2 },
+        echo: { owner: 'owner', repo: 'repo', index: 2, action: 'delete' },
+      },
     ];
 
     for (const { command, result, message, echo } of declineCases) {
@@ -1157,11 +1191,68 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     });
   });
 
+  describe('worktree request field validation', () => {
+    // The webview is untrusted and these fields end up in `path.join(cacheDir,
+    // 'worktrees', ...)`, which the flow later deletes recursively.
+    const hostileTargets = [
+      { owner: 'owner', repo: 'repo', index: '1/../../../../tmp/pwned' },
+      { owner: 'owner', repo: 'x/../../repo', index: 1 },
+      { owner: '..', repo: 'repo', index: 1 },
+      { owner: 'owner', repo: '..', index: 1 },
+      { owner: 'owner', repo: 'repo', index: -1 },
+      { owner: 'owner', repo: 'repo', index: 1.5 },
+    ];
+
+    it.each(hostileTargets)('ignores openPrWorktree with %j', async (target) => {
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, ...target });
+      await flushDispatches();
+
+      expect(clientMocks.getPullRequestDetail).not.toHaveBeenCalled();
+      expect(vi.mocked(cloneRepository)).not.toHaveBeenCalled();
+      expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
+      expect(postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened')).toHaveLength(0);
+    });
+
+    it.each(hostileTargets)('ignores startWorkOnIssue with %j', async (target) => {
+      fake.send({ command: 'startWorkOnIssue', instanceId: testInstance.id, ...target });
+      await flushDispatches();
+
+      expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
+      expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+      expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
+      expect(postedMessages(fake.posted).filter((m) => m.command === 'startWorkResult')).toHaveLength(0);
+    });
+
+    it('still accepts an ordinary repository identity', async () => {
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo' as never);
+      vi.mocked(inspectPrWorktree).mockResolvedValue({ state: 'missing' });
+      vi.mocked(fetchPullRequestHead).mockResolvedValue(undefined);
+      vi.mocked(getRefCommitSha).mockResolvedValue('abcdef1234567890');
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'abcdef1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
+
+      expect(clientMocks.getPullRequestDetail).toHaveBeenCalledWith('owner', 'repo', 1);
+    });
+  });
+
   describe('openPrWorktree bare clone dedup', () => {
     let cacheDir: string;
 
     beforeEach(() => {
       cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-cache-dedup-'));
+      // Fresh cache directory: the leftover path never exists, so inspection
+      // reports it as missing and the flow continues to the clone.
+      vi.mocked(inspectPrWorktree).mockReset();
+      vi.mocked(inspectPrWorktree).mockResolvedValue({ state: 'missing' });
+      vi.mocked(discardStalePrWorktree).mockReset();
+      vi.mocked(discardStalePrWorktree).mockResolvedValue(undefined);
     });
 
     afterEach(() => {
@@ -1231,10 +1322,15 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
     beforeEach(() => {
       worktreeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorded-worktree-'));
-      vi.mocked(validatePrWorktree).mockReset();
+      vi.mocked(inspectPrWorktree).mockReset();
+      vi.mocked(discardStalePrWorktree).mockReset();
+      vi.mocked(discardStalePrWorktree).mockResolvedValue(undefined);
       vi.mocked(fetchPullRequestHead).mockReset();
       vi.mocked(createWorktreeFromBranch).mockReset();
       vi.mocked(deleteBranch).mockClear();
+      // Confirmation dialogs are shared across tests in this file; start every
+      // case with a clean call history so "no prompt" assertions are sound.
+      vi.mocked(vscode.window.showWarningMessage).mockClear();
       vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
     });
 
@@ -1276,7 +1372,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(worktreeDir, true);
       // No rebuild: the head sha matched the record, so nothing was fetched or recreated.
       expect(clientMocks.getPullRequestDetail).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(validatePrWorktree)).not.toHaveBeenCalled();
+      expect(vi.mocked(inspectPrWorktree)).not.toHaveBeenCalled();
       expect(vi.mocked(fetchPullRequestHead)).not.toHaveBeenCalled();
       expect(vi.mocked(createWorktreeFromBranch)).not.toHaveBeenCalled();
     });
@@ -1289,15 +1385,19 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         base: { ref: 'main' },
       });
       vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo' as never);
-      vi.mocked(validatePrWorktree).mockResolvedValue('stale');
+      vi.mocked(inspectPrWorktree).mockResolvedValue({
+        state: 'stale',
+        info: { branch: 'pr-1-oldsha0', dirty: false, commitsAhead: 0 },
+      });
       vi.mocked(getRefCommitSha).mockResolvedValue('newsha1234567890');
 
       fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
       await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
 
-      // The recorded directory went through the same stale validation as a
-      // leftover directory (which removes it and its throwaway branch).
-      expect(vi.mocked(validatePrWorktree)).toHaveBeenCalledWith('/src/repo', worktreeDir, 'newsha1234567890');
+      // The recorded directory went through the same stale inspection as a
+      // leftover directory, then had its throwaway branch cleaned up.
+      expect(vi.mocked(inspectPrWorktree)).toHaveBeenCalledWith(worktreeDir, 'newsha1234567890');
+      expect(vi.mocked(discardStalePrWorktree)).toHaveBeenCalledWith('/src/repo', worktreeDir, 'pr-1-oldsha0');
       // The rebuild fetched the new head onto a new throwaway branch.
       expect(vi.mocked(fetchPullRequestHead)).toHaveBeenCalledWith(
         '/src/repo',
@@ -1315,6 +1415,55 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const records = context.globalState.get('forgejoToolkit.worktrees') as Array<Record<string, unknown>>;
       expect(records).toHaveLength(1);
       expect(records[0].headSha).toBe('newsha1234567890');
+    });
+
+    it('keeps a stale worktree holding local work when the user declines the discard', async () => {
+      await seedRecordedPrWorktree('old-sha-0000001');
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'newsha1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(inspectPrWorktree).mockResolvedValue({
+        state: 'stale',
+        info: { branch: 'pr-1-oldsha0', dirty: true, commitsAhead: 2 },
+      });
+      vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeCancelled'));
+
+      // The prompt must name the work that a forced removal would drop, and
+      // declining it must leave both the directory and the branch alone.
+      expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+      const message = vi.mocked(vscode.window.showWarningMessage).mock.calls.at(-1)?.[0] as string;
+      expect(message).toContain('uncommitted changes');
+      expect(message).toContain('local commit(s)');
+      expect(message).toContain('2');
+      expect(vi.mocked(discardStalePrWorktree)).not.toHaveBeenCalled();
+      expect(vi.mocked(createWorktreeFromBranch)).not.toHaveBeenCalled();
+      expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
+    });
+
+    it('discards a stale worktree without prompting when no local work would be lost', async () => {
+      await seedRecordedPrWorktree('old-sha-0000001');
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'newsha1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(inspectPrWorktree).mockResolvedValue({
+        state: 'stale',
+        info: { branch: 'pr-1-oldsha0', dirty: false, commitsAhead: 0 },
+      });
+      vi.mocked(createWorktreeFromBranch).mockResolvedValue(undefined);
+      vi.mocked(fetchPullRequestHead).mockResolvedValue(undefined);
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => vi.mocked(discardStalePrWorktree).mock.calls.length > 0);
+
+      expect(vi.mocked(discardStalePrWorktree)).toHaveBeenCalledWith('/src/repo', worktreeDir, 'pr-1-oldsha0');
+      expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
     });
 
     it('reports an error instead of opening when the current head cannot be fetched', async () => {
@@ -1359,7 +1508,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         base: { ref: 'main' },
       });
       vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo' as never);
-      vi.mocked(validatePrWorktree).mockResolvedValue('missing');
+      vi.mocked(inspectPrWorktree).mockResolvedValue({ state: 'missing' });
       vi.mocked(getRefCommitSha).mockResolvedValue('abc1234567890');
 
       fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
@@ -1368,7 +1517,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       // The issue record is invisible to the PR reopen flow: its directory was
       // never opened or revalidated and the record stays untouched.
       expect(vi.mocked(openWorktree)).not.toHaveBeenCalledWith(worktreeDir, true);
-      expect(vi.mocked(validatePrWorktree)).not.toHaveBeenCalledWith('/src/repo', worktreeDir, expect.anything());
+      expect(vi.mocked(inspectPrWorktree)).not.toHaveBeenCalledWith(worktreeDir, expect.anything());
       const records = context.globalState.get('forgejoToolkit.worktrees') as Array<Record<string, unknown>>;
       const issueRecord = records.find((r) => r.id === issueWorktree.id);
       expect(issueRecord).toMatchObject({ kind: 'issue', headBranch: 'issue-5-fix-bug' });

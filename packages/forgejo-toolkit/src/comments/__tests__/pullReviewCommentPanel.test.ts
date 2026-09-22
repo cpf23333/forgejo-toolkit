@@ -6,11 +6,15 @@ const clientMocks = vi.hoisted(() => ({
     async (_owner: string, _repo: string, _index: number, _comment: Record<string, unknown>) => ({ id: 42 }),
   ),
   addPullReviewComment: vi.fn(async () => ({})),
+  renderMarkdown: vi.fn(async (text: string) => `<p>${text}</p>`),
+  searchMentions: vi.fn(async () => ({ users: [{ value: 'alice' }], issues: [{ value: '#1' }] })),
 }));
 vi.mock('../../api/client', () => ({
   ForgejoClient: class {
     createPendingPullReview = clientMocks.createPendingPullReview;
     addPullReviewComment = clientMocks.addPullReviewComment;
+    renderMarkdown = clientMocks.renderMarkdown;
+    searchMentions = clientMocks.searchMentions;
   },
 }));
 
@@ -297,6 +301,107 @@ describe('PullReviewCommentPanel.createOrShow', () => {
     // a declined confirm would wedge the cancel button forever.
     expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ command: 'pullReviewDeleted', cancelled: true }),
+    );
+  });
+});
+
+describe('PullReviewCommentPanel shared-composable requests', () => {
+  afterEach(() => {
+    PullReviewCommentPanel.currentPanel = undefined;
+    vi.clearAllMocks();
+  });
+
+  function configWithInstance(): ConfigManager {
+    return {
+      getInstances: () => [
+        {
+          id: 'demo',
+          url: 'https://forgejo.example.com',
+          token: 'secret-token',
+          name: 'Demo',
+          username: 'demo-user',
+        },
+      ],
+    } as unknown as ConfigManager;
+  }
+
+  function openPanel() {
+    const fakePanel = createFakePanel();
+    let messageHandler: ((message: unknown) => Promise<void>) | undefined;
+    fakePanel.webview.onDidReceiveMessage = vi.fn((...args: unknown[]) => {
+      messageHandler = args[0] as (message: unknown) => Promise<void>;
+      return { dispose: vi.fn() };
+    });
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+    PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, configWithInstance(), createContext());
+    return { fakePanel, send: (message: unknown) => messageHandler?.(message) };
+  }
+
+  it('answers getInitialState so the shared composable can mount', async () => {
+    const { fakePanel, send } = openPanel();
+    await send({ command: 'getInitialState' });
+
+    const reply = fakePanel.webview.postMessage.mock.calls
+      .map((call) => call[0] as Record<string, unknown>)
+      .find((message) => message.command === 'initialState');
+    expect(reply).toBeDefined();
+    // Tokens must never reach a webview.
+    expect(reply?.instances).toEqual([
+      { id: 'demo', url: 'https://forgejo.example.com', name: 'Demo', username: 'demo-user' },
+    ]);
+    expect(reply?.locale).toBe('en');
+    // The editor panel has no worktree manager; inert defaults keep the
+    // composable's state shape valid.
+    expect(reply?.worktrees).toEqual([]);
+  });
+
+  it('answers getLinkedRepository with an empty result', async () => {
+    const { fakePanel, send } = openPanel();
+    await send({ command: 'getLinkedRepository' });
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith({ command: 'linkedRepository' });
+  });
+
+  it('renders markdown through the instance client', async () => {
+    const { fakePanel, send } = openPanel();
+    await send({ command: 'renderMarkdown', instanceId: 'demo', text: 'hi', _requestId: 'render-1' });
+
+    expect(clientMocks.renderMarkdown).toHaveBeenCalledWith('hi', undefined);
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith({
+      command: 'renderedMarkdown',
+      _requestId: 'render-1',
+      html: '<p>hi</p>',
+    });
+  });
+
+  it('reports a renderMarkdown failure to the waiting request', async () => {
+    clientMocks.renderMarkdown.mockRejectedValueOnce(new Error('boom'));
+    const { fakePanel, send } = openPanel();
+    await send({ command: 'renderMarkdown', instanceId: 'demo', text: 'hi', _requestId: 'render-2' });
+
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'renderedMarkdown', _requestId: 'render-2', error: 'boom' }),
+    );
+  });
+
+  it('searches mentions for the panel context', async () => {
+    const { fakePanel, send } = openPanel();
+    await send({ command: 'searchMentions', instanceId: 'demo', query: 'al', type: 'all', _requestId: 'mention-1' });
+
+    expect(clientMocks.searchMentions).toHaveBeenCalledWith('demo-user', 'demo-repo', 'al', 'all');
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith({
+      command: 'mentionSearchResult',
+      _requestId: 'mention-1',
+      users: [{ value: 'alice' }],
+      issues: [{ value: '#1' }],
+    });
+  });
+
+  it('answers unhandled request/response commands instead of dropping them', async () => {
+    const { fakePanel, send } = openPanel();
+    await send({ command: 'getRepoContents', instanceId: 'demo', _requestId: 'req-9' });
+
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'requestError', _requestId: 'req-9' }),
     );
   });
 });

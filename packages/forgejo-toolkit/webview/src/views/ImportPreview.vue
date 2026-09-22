@@ -20,6 +20,9 @@ const existingIds = computed(() => new Set(preview.value?.existingIds ?? []));
 // the webview, so the check cannot run here.
 const tokenConflicts = computed(() => preview.value?.tokenConflicts ?? []);
 const settings = computed(() => preview.value?.settings);
+// The host answers a corrupt/wrong-password file with `error` and empty
+// arrays: that is a failure, not an empty import.
+const previewError = computed(() => preview.value?.error);
 
 const currentInstancesById = computed(() => {
   const map = new Map<string, CurrentForgejoInstance>();
@@ -97,7 +100,7 @@ watch(
   <div class="import-preview">
     <div class="import-preview-header">
       <h1 class="import-preview-title">{{ t('settings.importPreview.title') }}</h1>
-      <div class="import-preview-actions">
+      <div v-if="!previewError" class="import-preview-actions">
         <vscode-button :disabled="instances.length === 0" @click="selectAll" secondary>
           {{ t('settings.importPreview.selectAll') }}
         </vscode-button>
@@ -107,7 +110,12 @@ watch(
       </div>
     </div>
 
-    <div v-if="instances.length === 0" class="empty-state">
+    <div v-if="previewError" class="error-state">
+      <vscode-icon name="error" />
+      <span>{{ t('settings.importPreview.error', { message: previewError }) }}</span>
+    </div>
+
+    <div v-else-if="instances.length === 0" class="empty-state">
       {{ t('settings.importPreview.empty') }}
     </div>
 
@@ -203,6 +211,15 @@ watch(
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
   padding: 20px 0;
+}
+
+.error-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 0;
+  font-size: 0.9em;
+  color: var(--vscode-errorForeground, var(--vscode-foreground));
 }
 
 .instance-list {

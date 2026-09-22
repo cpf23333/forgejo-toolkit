@@ -1,4 +1,6 @@
 {
+  "Delete this attachment?": "确定删除此附件吗？",
+  "Delete the tracked time recorded for issue #{0}?": "确定删除 Issue #{0} 上记录的工时吗？",
   "How would you like to open the PR worktree?": "你希望如何打开 PR worktree？",
   "How would you like to open the issue worktree?": "你希望如何打开 Issue worktree？",
   "Started work on issue #{0}: created branch {1}": "已开始处理 Issue #{0}：已创建分支 {1}",
@@ -39,6 +41,7 @@
   "Unable to parse Forgejo PR file URI": "无法解析 Forgejo PR 文件 URI",
   "Forgejo instance not found": "未找到 Forgejo 实例",
   "The Forgejo instance is no longer configured": "该 Forgejo 实例已被删除",
+  "This action is not available in the review comment editor.": "该操作在评论编辑面板中不可用。",
   "No linked Forgejo repository found for the current workspace": "当前工作区没有关联的 Forgejo 仓库",
   "Unable to determine current commit SHA": "无法确定当前 commit SHA",
   "The current file is outside the linked repository": "当前文件不在关联仓库内",
@@ -175,6 +178,9 @@
   "Delete tag \"{0}\"?": "确定删除标签 \"{0}\" 吗？",
   "Delete release #{0}?": "确定删除 Release #{0} 吗？",
   "Delete this worktree? The local directory will be permanently deleted (not moved to the recycle bin) and any uncommitted changes will be lost.": "确定要删除此 worktree 吗？本地目录将被永久删除（不会进入回收站），未提交的改动将丢失。",
+  "uncommitted changes": "未提交的改动",
+  "{0} local commit(s)": "{0} 个本地提交",
+  "The local worktree for PR #{0} is out of date and holds {1}. Delete it and check out the current PR head? That local work will be lost.": "PR #{0} 的本地 worktree 已过期，其中包含{1}。要删除它并重新检出当前的 PR head 吗？这些本地改动将会丢失。",
   "This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.": "该实例的 Forgejo 版本（{0}）低于受支持的最低版本 {1}，部分功能可能不可用。",
   "This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work.": "该实例的 Forgejo 版本低于受支持的最低版本 {0}，部分功能可能不可用。"
 }

@@ -72,10 +72,11 @@ export function getWebviewContent(
   // configured instances; private attachments are additionally inlined as
   // data URLs by the host (see resolveAttachmentImages). Third-party https
   // images must also load: Forgejo returns gravatar URLs for users without
-  // an uploaded avatar, and issue/PR bodies hot-link images. Plain http
-  // stays blocked (cleartext). The webview never fetches directly —
-  // everything goes through postMessage — so connect-src stays limited to
-  // webview resources.
+  // an uploaded avatar, and issue/PR bodies hot-link images. Plain http from
+  // *other* hosts stays blocked (cleartext); the configured instances' own
+  // origins are allowlisted below, so an http:// instance still renders its
+  // own images. The webview never fetches directly — everything goes through
+  // postMessage — so connect-src stays limited to webview resources.
   // script-src pairs the nonce with 'strict-dynamic' so the trust of the
   // nonce'd entry script propagates to its module graph — the code-split
   // chunks (rolldown runtime, lazy views) are plain URL fetches that carry no

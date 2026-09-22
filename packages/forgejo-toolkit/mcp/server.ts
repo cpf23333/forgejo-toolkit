@@ -26,7 +26,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const client = new ForgejoClient(url, token, logger);
+  const client = new ForgejoClient(
+    url,
+    token,
+    logger,
+    // The headless process cannot read the extension's settings, so the
+    // per-instance URL-sync flag arrives through the launch environment.
+    // Anything other than 'false' (including unset) keeps the client default,
+    // which is syncing enabled.
+    process.env.FORGEJO_MCP_SYNC_API_URLS === 'false' ? false : undefined,
+  );
   const server = createMcpServer(client);
   await server.connect(new StdioServerTransport());
   logger.info(`MCP server ready for ${url}`);

@@ -19,7 +19,10 @@ const loading = computed(() => state.loading);
 const errors = computed(() => state.errors);
 const pollErrors = computed(() => state.notificationPollErrors.value);
 const notifications = computed(() => state.notifications.value);
-const unreadCount = computed(() => state.unreadNotificationCount.value);
+// Counted over the notifications this view is displaying, not over the poller
+// slot: the poller only runs while notification polling is enabled, so its
+// count is empty (and stale) after a manual load when polling is off.
+const unreadCount = computed(() => state.unreadViewNotificationCount.value);
 
 const statusTypes = computed<string[]>(() => {
   if (statusFilter.value === 'unread') {

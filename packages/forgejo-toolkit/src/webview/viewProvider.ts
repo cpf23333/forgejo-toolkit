@@ -21,19 +21,22 @@ import {
   createWorktreeWithNewBranch,
   deleteBranch,
   detectLinkedRepositories,
+  discardStalePrWorktree,
   fetchBranch,
   fetchPullRequestHead,
   findLocalRepo,
   getRefCommitSha,
+  inspectPrWorktree,
   isCurrentWorkspaceBaseRepo,
   isGitRepository,
+  isPathInsideFolder,
   listRemotes,
   openWorktree,
   resolveRemoteForRepo,
   revertMergeCommit,
   sanitizeForPath,
-  validatePrWorktree,
 } from '../worktree/gitOperations';
+import type { StalePrWorktreeInfo } from '../worktree/gitOperations';
 import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { computeImportTokenConflicts, readExportDataFromUri, stripInstanceTokens } from './instanceImport';
@@ -144,6 +147,72 @@ function mergeStrategyLabel(strategy: 'merge' | 'rebase' | 'squash'): string {
       return vscode.l10n.t('Rebase and merge');
     default:
       return vscode.l10n.t('Create a merge commit');
+  }
+}
+
+/**
+ * Owner/repository names as they may be used verbatim in an API path *and* in
+ * a cache directory name. Forgejo restricts both to letters, digits, `-`, `_`
+ * and `.`, so anything else — path separators, `..`, query/fragment
+ * characters, control characters — is rejected instead of escaped: the value
+ * is interpolated into `path.join(...)`, where escaping would not help.
+ */
+function isSafeRepoNameSegment(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 255 &&
+    /^[A-Za-z0-9._-]+$/.test(value) &&
+    value !== '.' &&
+    value !== '..'
+  );
+}
+
+/**
+ * Validate the repository identity carried by a webview worktree message
+ * before it is used. The webview is untrusted and these fields end up in both
+ * the API URL and `path.join(cacheDir, 'worktrees', ...)`; `path.join`
+ * normalises `..`, so an unvalidated `index` or `repo` could point the later
+ * `fs.rm(..., { recursive: true })` / `git worktree add` outside the cache.
+ */
+function parseWorktreeTarget(message: {
+  instanceId?: unknown;
+  owner?: unknown;
+  repo?: unknown;
+  index?: unknown;
+}): { instanceId: string; owner: string; repo: string; index: number } | undefined {
+  const { instanceId, owner, repo, index } = message;
+  if (typeof instanceId !== 'string' || instanceId.length === 0) {
+    return undefined;
+  }
+  if (!isSafeRepoNameSegment(owner) || !isSafeRepoNameSegment(repo)) {
+    return undefined;
+  }
+  if (typeof index !== 'number' || !Number.isInteger(index) || index <= 0) {
+    return undefined;
+  }
+  return { instanceId, owner, repo, index };
+}
+
+/**
+ * Short, filesystem-safe discriminator for the shared bare-clone cache paths.
+ * Derived from the instance id + URL so the same `owner/repo` slug on two
+ * instances cannot share one clone; the raw host is not used because it may
+ * contain characters that are invalid in a path segment.
+ */
+function instanceCacheSuffix(instance: { id: string; url: string }): string {
+  return crypto.createHash('sha256').update(`${instance.id}|${instance.url}`).digest('hex').slice(0, 8);
+}
+
+/**
+ * Defense in depth for every worktree path derived from a request: the caller
+ * later deletes that directory recursively (`fs.rm(..., { recursive: true })`
+ * or `git worktree remove --force`), so a path that escapes the worktree cache
+ * must never be used, whatever produced it.
+ */
+function assertInsideWorktreeCache(worktreesDir: string, worktreePath: string): void {
+  if (!isPathInsideFolder(worktreesDir, worktreePath)) {
+    throw new Error(`Refusing a worktree path outside the worktree cache: ${worktreePath}`);
   }
 }
 
@@ -1178,6 +1247,26 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
           return;
         }
+        // Confirmed before the client is built: a declined confirmation must not
+        // even construct a request. Start/stop are not destructive, so only the
+        // delete action prompts.
+        if (message.command === 'deleteIssueStopwatch') {
+          if (
+            !(await this._confirmDestructive(vscode.l10n.t('Delete the tracked time recorded for issue #{0}?', index)))
+          ) {
+            // Answer with `cancelled` so the webview clears its pending state
+            // without treating the decline as a failure.
+            this._reply('issueStopwatchChanged', {
+              instanceId: instance.id,
+              owner,
+              repo,
+              index,
+              action: 'delete',
+              cancelled: true,
+            });
+            return;
+          }
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           let action: 'start' | 'stop' | 'delete';
@@ -1806,6 +1895,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         ) {
           return;
         }
+        if (!(await this._confirmDestructive(vscode.l10n.t('Delete this attachment?')))) {
+          this._reply('issueCommentAttachmentDeleted', {
+            instanceId: instance.id,
+            owner,
+            repo,
+            commentId,
+            attachmentId,
+            cancelled: true,
+            _requestId: message._requestId,
+          });
+          return;
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           await client.deleteIssueCommentAttachment(owner, repo, commentId, attachmentId);
@@ -2011,6 +2112,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           typeof index !== 'number' ||
           typeof attachmentId !== 'number'
         ) {
+          return;
+        }
+        if (!(await this._confirmDestructive(vscode.l10n.t('Delete this attachment?')))) {
+          this._reply('issueAttachmentDeleted', {
+            instanceId: instance.id,
+            owner,
+            repo,
+            index,
+            attachmentId,
+            cancelled: true,
+            _requestId: message._requestId,
+          });
           return;
         }
         try {
@@ -3425,6 +3538,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!instance) {
           return;
         }
+        if (!(await this._confirmDestructive(vscode.l10n.t('Delete this attachment?')))) {
+          this._reply('releaseAttachmentDeleted', {
+            instanceId,
+            owner,
+            repo,
+            id,
+            attachmentId,
+            cancelled: true,
+            _requestId,
+          });
+          return;
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           await client.deleteReleaseAttachment(owner, repo, id, attachmentId);
@@ -3721,6 +3846,34 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const confirmLabel = vscode.l10n.t('Confirm');
     const choice = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
     return choice === confirmLabel;
+  }
+
+  /**
+   * Ask before discarding a leftover PR worktree that is no longer checked out
+   * at the PR head. `git worktree remove --force` (plus the throwaway branch
+   * delete) drops uncommitted changes and local commits, so those cases need
+   * an explicit confirmation; a clean leftover is refreshed silently, since
+   * recreating it is the only way to get the updated head and prompting every
+   * time would be noise.
+   */
+  private async _confirmDiscardStaleWorktree(info: StalePrWorktreeInfo, index: number): Promise<boolean> {
+    if (!info.dirty && info.commitsAhead === 0) {
+      return true;
+    }
+    const holds: string[] = [];
+    if (info.dirty) {
+      holds.push(vscode.l10n.t('uncommitted changes'));
+    }
+    if (info.commitsAhead > 0) {
+      holds.push(vscode.l10n.t('{0} local commit(s)', info.commitsAhead));
+    }
+    return this._confirmDestructive(
+      vscode.l10n.t(
+        'The local worktree for PR #{0} is out of date and holds {1}. Delete it and check out the current PR head? That local work will be lost.',
+        index,
+        holds.join(', '),
+      ),
+    );
   }
 
   private async _exportInstances(ids?: string[]) {
@@ -4100,7 +4253,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     | { kind: 'cancelled' }
     | { kind: 'error'; message: string }
   > {
-    const cloneUrl = `${instance.url}/${owner}/${repo}.git`;
+    // Trailing slashes are stripped like everywhere else the instance URL is
+    // joined with a path: `https://host//owner/repo.git` makes git/Forgejo
+    // answer a redirect or 404 that the user cannot correct from the UI.
+    const cloneUrl = `${instance.url.replace(/\/+$/, '')}/${owner}/${repo}.git`;
     const cacheDir = this._worktreeManager.getCacheDirectory();
 
     let sourceRepoPath = await isCurrentWorkspaceBaseRepo(instance.url, owner, repo);
@@ -4109,7 +4265,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
 
     if (!sourceRepoPath) {
-      const cacheRepoPath = path.join(cacheDir, 'repos', `${owner}-${repo}.git`);
+      // The shared bare clone is keyed by repository *and* instance: two
+      // configured instances commonly host the same `owner/repo` slug, and a
+      // single-instance path would make the second instance silently reuse the
+      // first one's clone (its remotes point at the other host, so the
+      // subsequent "which remote belongs to this repo" lookup fails).
+      const cacheRepoPath = path.join(cacheDir, 'repos', `${owner}-${repo}-${instanceCacheSuffix(instance)}.git`);
       const cacheRepoExisted = await fs.promises
         .access(cacheRepoPath)
         .then(() => true)
@@ -4227,7 +4388,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     index: number;
     title?: string;
   }) {
-    const { instanceId, owner, repo, index } = message;
+    const target = parseWorktreeTarget(message);
+    if (!target) {
+      logger.error(`startWorkOnIssue ignored: invalid repository identity in the webview message`);
+      return;
+    }
+    const { instanceId, owner, repo, index } = target;
     const reply = (data: { cancelled?: boolean; error?: string }) =>
       this._reply('startWorkResult', { instanceId, owner, repo, index, ...data });
 
@@ -4272,7 +4438,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const slug = sanitizeForPath(message.title ?? '');
       const slugSuffix = slug ? `-${slug}` : '';
       const branch = `issue-${index}${slugSuffix}`;
-      const worktreePath = path.join(cacheDir, 'worktrees', `${owner}-${repo}-issue-${index}${slugSuffix}`);
+      const worktreesDir = path.join(cacheDir, 'worktrees');
+      const worktreePath = path.join(worktreesDir, `${owner}-${repo}-issue-${index}${slugSuffix}`);
+      assertInsideWorktreeCache(worktreesDir, worktreePath);
 
       // A leftover directory from an earlier start-work run is reopened as
       // is; the branch inside is already the issue branch. A directory that
@@ -4374,7 +4542,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _doOpenPrWorktree(message: { instanceId: string; owner: string; repo: string; index: number }) {
-    const { instanceId, owner, repo, index } = message;
+    const target = parseWorktreeTarget(message);
+    if (!target) {
+      logger.error(`openPrWorktree ignored: invalid repository identity in the webview message`);
+      return;
+    }
+    const { instanceId, owner, repo, index } = target;
     const instance = this._findInstance(instanceId);
     if (!instance) {
       this._reply('worktreeError', {
@@ -4459,14 +4632,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           }
           return;
         }
-        // Stale record: remove the outdated directory and its throwaway
+        // Stale record: discard the outdated directory and its throwaway
         // branch through the same stale semantics as a leftover directory,
         // then fall through to the create path with the record kept;
         // addWorktree overwrites it with the new head. The recorded path is
         // revalidated explicitly because a renamed PR title changes the path
         // the create path computes, which would otherwise orphan this one.
         try {
-          await validatePrWorktree(existing.sourceRepoPath, existing.worktreePath, currentHeadSha);
+          const inspection = await inspectPrWorktree(existing.worktreePath, currentHeadSha);
+          if (inspection.state === 'stale') {
+            if (!(await this._confirmDiscardStaleWorktree(inspection.info, index))) {
+              this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+              return;
+            }
+            await discardStalePrWorktree(existing.sourceRepoPath, existing.worktreePath, inspection.info.branch);
+          }
         } catch (error) {
           const err = userFacingErrorMessage(error);
           this._reply('worktreeError', { error: err, operation: 'open', instanceId, owner, repo, index });
@@ -4518,12 +4698,24 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
 
       const sanitizedTitle = sanitizeForPath(prTitle);
       const titleSuffix = sanitizedTitle ? `-${sanitizedTitle}` : '';
-      const worktreePath = path.join(cacheDir, 'worktrees', `${owner}-${repo}-pr-${index}${titleSuffix}`);
+      const worktreesDir = path.join(cacheDir, 'worktrees');
+      const worktreePath = path.join(worktreesDir, `${owner}-${repo}-pr-${index}${titleSuffix}`);
+      assertInsideWorktreeCache(worktreesDir, worktreePath);
 
       // A leftover directory is only reused when it is actually checked out at
       // the current PR head sha; a stale one (PR was updated, or the directory
-      // is not a valid worktree) is removed and recreated below.
-      const worktreeState = await validatePrWorktree(sourceRepoPath, worktreePath, headSha);
+      // is not a valid worktree) is discarded and recreated below — after
+      // confirming when it still holds uncommitted changes or local commits,
+      // because the forced removal discards both.
+      const inspection = await inspectPrWorktree(worktreePath, headSha);
+      if (inspection.state === 'stale') {
+        if (!(await this._confirmDiscardStaleWorktree(inspection.info, index))) {
+          this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+          return;
+        }
+        await discardStalePrWorktree(sourceRepoPath, worktreePath, inspection.info.branch);
+      }
+      const worktreeState = inspection.state;
 
       if (worktreeState === 'current') {
         const worktree: WorktreeInfo = {

@@ -83,9 +83,9 @@ The extension ships a built-in MCP server that lets AI assistants — such as Co
   - **Review & metadata**: PR reviews, releases, labels, milestones, and your own repositories (e.g. `list_pull_reviews`, `whoami`).
 - **Security**:
   - All tools are strictly read-only (`readOnlyHint`) — the agent cannot modify anything on your instance.
+  - Because they are read-only, VS Code runs them without a per-call confirmation prompt. The tool surface is what keeps the agent in bounds: every tool maps to a `GET` endpoint, and every input that becomes part of a request path is validated (`owner`, `repo`, file paths) so a crafted argument cannot reach another endpoint.
   - Your token is injected from SecretStorage into the stdio subprocess via a process environment variable; it never appears in tool schemas, tool results, or logs.
-  - VS Code asks for your confirmation before every tool call, so a human stays in the loop.
-  - Large response fields are truncated to protect the agent's context window.
+  - Large response fields and oversized results are truncated to protect the agent's context window.
   - Adding or removing instances re-resolves the exposed server automatically.
 
 ## Known Limitations

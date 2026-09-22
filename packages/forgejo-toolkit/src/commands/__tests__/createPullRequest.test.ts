@@ -12,7 +12,7 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
   return {
     detectLinkedRepository: vi.fn(),
     getCurrentBranch: vi.fn(),
-    getRemoteUrl: vi.fn(),
+    getRemotePushUrls: vi.fn(),
     getUpstreamBranch: vi.fn(),
     getAheadCount: vi.fn(),
     pushBranch: vi.fn(),
@@ -33,7 +33,7 @@ import {
   detectLinkedRepository,
   getAheadCount,
   getCurrentBranch,
-  getRemoteUrl,
+  getRemotePushUrls,
   getUpstreamBranch,
   pushBranch,
 } from '../../worktree/gitOperations';
@@ -79,7 +79,7 @@ describe('createPrFromCurrentBranch', () => {
     vi.mocked(getAheadCount).mockResolvedValue(undefined);
     // Default: the push remote belongs to the linked instance, so pushes
     // keep authenticating with the instance token.
-    vi.mocked(getRemoteUrl).mockResolvedValue('https://forgejo.example.com/owner/repo.git');
+    vi.mocked(getRemotePushUrls).mockResolvedValue(['https://forgejo.example.com/owner/repo.git']);
     vi.mocked(pushBranch).mockResolvedValue(undefined);
     getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
   });
@@ -156,11 +156,11 @@ describe('createPrFromCurrentBranch', () => {
   it('pushes with the instance token when the upstream remote belongs to the linked instance', async () => {
     vi.mocked(getUpstreamBranch).mockResolvedValue('origin/feature');
     vi.mocked(getAheadCount).mockResolvedValue(1);
-    vi.mocked(getRemoteUrl).mockResolvedValue('git@forgejo.example.com:owner/repo.git');
+    vi.mocked(getRemotePushUrls).mockResolvedValue(['git@forgejo.example.com:owner/repo.git']);
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);
-    expect(getRemoteUrl).toHaveBeenCalledWith('/workspace/repo', 'origin');
+    expect(getRemotePushUrls).toHaveBeenCalledWith('/workspace/repo', 'origin');
     expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', false, instance.url);
     expect(viewProvider.openCreatePullRequest).toHaveBeenCalled();
   });
@@ -168,7 +168,7 @@ describe('createPrFromCurrentBranch', () => {
   it('aborts without pushing when the upstream remote belongs to another host', async () => {
     vi.mocked(getUpstreamBranch).mockResolvedValue('mirror/feature');
     vi.mocked(getAheadCount).mockResolvedValue(1);
-    vi.mocked(getRemoteUrl).mockResolvedValue('https://github.example.com/owner/repo.git');
+    vi.mocked(getRemotePushUrls).mockResolvedValue(['https://github.example.com/owner/repo.git']);
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);
     expect(vscode.window.showErrorMessage).toHaveBeenCalled();
@@ -177,10 +177,26 @@ describe('createPrFromCurrentBranch', () => {
     expect(viewProvider.openCreatePullRequest).not.toHaveBeenCalled();
   });
 
+  it('aborts without pushing when only one of the push targets belongs to the instance', async () => {
+    vi.mocked(getUpstreamBranch).mockResolvedValue('origin/feature');
+    vi.mocked(getAheadCount).mockResolvedValue(1);
+    // A mirror configured through remote.<name>.pushurl: the Forgejo URL is
+    // still there, but git would also push to the mirror with the token.
+    vi.mocked(getRemotePushUrls).mockResolvedValue([
+      'https://forgejo.example.com/owner/repo.git',
+      'https://mirror.example.com/owner/repo.git',
+    ]);
+    const viewProvider = createViewProvider();
+    await createPrFromCurrentBranch(createConfig(), viewProvider);
+    expect(vscode.window.showErrorMessage).toHaveBeenCalled();
+    expect(pushBranch).not.toHaveBeenCalled();
+    expect(viewProvider.openCreatePullRequest).not.toHaveBeenCalled();
+  });
+
   it('pushes without the token when the upstream remote URL cannot be resolved', async () => {
     vi.mocked(getUpstreamBranch).mockResolvedValue('origin/feature');
     vi.mocked(getAheadCount).mockResolvedValue(1);
-    vi.mocked(getRemoteUrl).mockResolvedValue(undefined);
+    vi.mocked(getRemotePushUrls).mockResolvedValue(undefined);
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);

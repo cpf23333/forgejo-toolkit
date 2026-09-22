@@ -90,6 +90,20 @@ describe('parsePullDiff', () => {
     expect(files.get('src/c.ts')?.headLines.get(0)).toBe('added');
   });
 
+  it('does not fabricate a trailing context line for the last file', () => {
+    // git always terminates the diff with a newline; the resulting trailing
+    // empty element must not become a context entry one line past the last
+    // hunk line (a comment on it is rejected by the server).
+    const { files } = parsePullDiff(MULTI_FILE_DIFF);
+    const last = files.get('src/b.ts');
+    expect(last?.baseLines.get(0)).toBe('deleted');
+    expect(last?.headLines.get(0)).toBe('added');
+    expect(last?.baseLines.size).toBe(1);
+    expect(last?.headLines.size).toBe(1);
+    expect(last?.baseLines.has(1)).toBe(false);
+    expect(last?.headLines.has(1)).toBe(false);
+  });
+
   it('treats empty lines inside a hunk as context', () => {
     const diff = `diff --git a/src/d.ts b/src/d.ts
 --- a/src/d.ts
@@ -102,5 +116,9 @@ describe('parsePullDiff', () => {
     const fileMap = files.get('src/d.ts');
     expect(fileMap?.baseLines.get(0)).toBe('context');
     expect(fileMap?.headLines.get(0)).toBe('context');
+    // The genuine empty line inside the hunk is kept as context; the diff's
+    // trailing newline does not add a third entry past it.
+    expect(fileMap?.baseLines.size).toBe(2);
+    expect(fileMap?.headLines.size).toBe(2);
   });
 });

@@ -178,8 +178,18 @@ async function removeAttachment(attachment: ForgejoReleaseAttachment) {
   }
   attachmentError.value = '';
   try {
-    await state.deleteReleaseAttachment(props.instanceId, props.owner, props.repo, props.release.id, attachment.id);
-    attachments.value = attachments.value.filter((a) => a.id !== attachment.id);
+    const deleted = await state.deleteReleaseAttachment(
+      props.instanceId,
+      props.owner,
+      props.repo,
+      props.release.id,
+      attachment.id,
+    );
+    // A declined host-side confirmation resolves to false: the attachment is
+    // still on the server, so it stays listed.
+    if (deleted) {
+      attachments.value = attachments.value.filter((a) => a.id !== attachment.id);
+    }
   } catch (err) {
     attachmentError.value = err instanceof Error ? err.message : String(err);
   }

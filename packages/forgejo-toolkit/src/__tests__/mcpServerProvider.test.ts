@@ -4,6 +4,7 @@ import {
   registerMcpServerProvider,
   MCP_SERVER_DEFINITION_PROVIDER_ID,
   MCP_ENV_INSTANCE_URL,
+  MCP_ENV_SYNC_API_URLS,
   MCP_ENV_TOKEN,
 } from '../mcpServerProvider';
 import type { ConfigManager } from '../config';
@@ -105,6 +106,30 @@ describe('registerMcpServerProvider', () => {
     instances.push(makeInstance({ token: '' }));
     const definitions = await provider.provideMcpServerDefinitions(new AbortController().signal as never);
     expect(definitions).toEqual([]);
+  });
+
+  it('passes the per-instance API URL sync flag to the child process', async () => {
+    const { provider, instances } = setup();
+    instances.push(makeInstance({ syncApiUrlsToInstanceUrl: false }));
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    // Without the flag the headless client would default to rewriting the
+    // URLs it returns, contradicting the user's per-instance setting.
+    expect(definitions[0].env[MCP_ENV_SYNC_API_URLS]).toBe('false');
+  });
+
+  it('defaults the API URL sync flag to enabled', async () => {
+    const { provider, instances } = setup();
+    instances.push(makeInstance());
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    expect(definitions[0].env[MCP_ENV_SYNC_API_URLS]).toBe('true');
   });
 
   it('re-resolves when the instance list changes', () => {

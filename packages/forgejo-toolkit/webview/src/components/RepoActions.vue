@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useAppState, actionRunsKey, dispatchWorkflowKey } from '../composables/useAppState';
+import { useAppState, actionRunsKey, dispatchWorkflowKey, ACTION_RUNS_PAGE_LIMIT } from '../composables/useAppState';
 
 const props = defineProps<{
   instanceId: string;
@@ -14,7 +14,6 @@ const props = defineProps<{
 const { t } = useI18n();
 const state = useAppState();
 
-const page = ref(1);
 const showTrigger = ref(false);
 const triggerWorkflow = ref('');
 const triggerRef = ref(props.defaultBranch ?? '');
@@ -24,7 +23,11 @@ const dispatchKey = computed(() =>
 );
 const dispatchLoading = computed(() => state.loading.get(dispatchKey.value) ?? false);
 const dispatchError = computed(() => state.errors.get(dispatchKey.value));
-const key = computed(() => actionRunsKey(props.instanceId, props.owner, props.repo, page.value));
+// One accumulated list per repo: pages append to it, so "Load more" never
+// replaces the runs already on screen. The next page is derived from how many
+// runs are loaded rather than from a page counter, which keeps a concurrent
+// page-1 refresh from leaving a gap in the list.
+const key = computed(() => actionRunsKey(props.instanceId, props.owner, props.repo));
 
 let listPollTimer: ReturnType<typeof setInterval> | undefined;
 const POLL_INTERVAL_MS = 4000;
@@ -34,11 +37,11 @@ const pollingAfterIndex = ref<number | undefined>(undefined);
 // Feedback for the dispatch flow: 'waiting' while polling for the new run,
 // 'timeout' when the poll gives up without seeing it.
 const dispatchStatus = ref<'idle' | 'waiting' | 'timeout'>('idle');
-const totalKey = computed(() => `${props.instanceId}:${props.owner}/${props.repo}`);
 const runs = computed(() => state.actionRuns.value.get(key.value) ?? []);
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
-const totalCount = computed(() => state.actionRunTotalCount.value.get(totalKey.value) ?? 0);
+const hasMore = computed(() => state.actionRunsHasMore.value.get(key.value) ?? false);
+const nextPage = computed(() => Math.floor(runs.value.length / ACTION_RUNS_PAGE_LIMIT) + 1);
 
 // RepoActions lives inside RepoDetail, which is kept alive: while deactivated
 // the parent's props track the global route, not this repo. Guard route-driven
@@ -51,8 +54,7 @@ watch(
     if (!isActive.value) {
       return;
     }
-    page.value = 1;
-    state.loadActionRuns(props.instanceId, props.owner, props.repo, page.value);
+    state.loadActionRuns(props.instanceId, props.owner, props.repo, 1);
   },
   { immediate: true },
 );
@@ -75,7 +77,13 @@ watch(
 );
 
 function reload() {
-  state.loadActionRuns(props.instanceId, props.owner, props.repo, page.value, true);
+  // Page 1 replaces the accumulated list: a refresh/retry starts the list over
+  // rather than appending to stale pages.
+  state.loadActionRuns(props.instanceId, props.owner, props.repo, 1, true);
+}
+
+function loadMore() {
+  state.loadActionRuns(props.instanceId, props.owner, props.repo, nextPage.value);
 }
 
 function statusIcon(status?: string): string {
@@ -206,7 +214,6 @@ function startListPolling(afterIndex: number) {
     if (currentLatest > afterIndex) {
       stopListPolling();
       dispatchStatus.value = 'idle';
-      page.value = 1;
     }
   }, POLL_INTERVAL_MS);
 }
@@ -255,8 +262,9 @@ function resetTrigger() {
 onActivated(() => {
   isActive.value = true;
   // Props may have changed back before this hook ran; make sure the list for
-  // the current repo is loaded (the loader dedups in-flight requests).
-  state.loadActionRuns(props.instanceId, props.owner, props.repo, page.value);
+  // the current repo is loaded (the loader dedups in-flight requests). Page 1
+  // refreshes the accumulated list when the view is re-entered.
+  state.loadActionRuns(props.instanceId, props.owner, props.repo, 1);
 });
 
 onDeactivated(() => {
@@ -418,15 +426,8 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-      <div v-if="totalCount > runs.length" class="actions-footer">
-        <vscode-button
-          secondary
-          :disabled="loading"
-          @click="
-            page++;
-            reload();
-          "
-        >
+      <div v-if="hasMore" class="actions-footer">
+        <vscode-button secondary :disabled="loading" @click="loadMore">
           {{ loading ? t('dashboard.loading') : t('dashboard.repoActions.loadMore') }}
         </vscode-button>
       </div>

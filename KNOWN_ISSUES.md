@@ -147,6 +147,36 @@ Only `http://` images from other hosts (cleartext third-party links) are refused
 
 The same CSP also restricts `connect-src` to webview resources, but this has no user-visible effect: the webview never makes direct network requests — everything goes through the extension host via postMessage.
 
+## PR diffs cannot show the old path of a renamed file
+
+The PR-level changed-file list is built from `GET /repos/{owner}/{repo}/compare/{basehead}` (see the deleted-files entry above). That endpoint returns Forgejo's `CommitAffectedFiles` struct, which carries only `filename` and `status`, and its status values are limited to `added`, `removed` and `modified` — it has no `previous_filename` and never reports `renamed`.
+
+A rename therefore arrives as an unrelated `removed` + `added` pair with no linkage between the two paths, and the extension cannot tell which removed file corresponds to which added one when several files changed in the same range. The base side of such a file is fetched under the new path, so the diff editor shows an empty left-hand side.
+
+Workaround: use the Forgejo web UI for the diff of a renamed file, or check out the PR locally (`$ git diff -M` detects the rename). The per-commit and `/pulls/{index}/files` code paths do return `previous_filename` and are unaffected.
+
+## Action run jobs, artifacts, logs, cancel and delete require Forgejo 16
+
+The extension reads workflow runs, jobs, job logs and artifacts, and can cancel or delete a run. Only `GET /actions/runs` and `GET /actions/runs/{run_id}` exist in Forgejo 15; the endpoints behind the other features (`/actions/runs/{run_id}/jobs`, `/artifacts`, `/actions/jobs/{job_id}/logs`, `/actions/runs/{run_id}/cancel`, `DELETE /actions/runs/{run_id}`) were added in Forgejo 16.
+
+On a Forgejo 15 instance the run detail page therefore shows no jobs and no artifacts, and the log viewer, cancel and delete actions fail with a 404. The version gate only rejects servers older than 1.19, so no proactive warning is shown.
+
+Workaround: none — upgrade the instance to Forgejo 16 or newer to use those panels.
+
+## Repositories configured with url.insteadOf cannot be linked
+
+`git remote -v` and `git remote get-url` print the URL *after* applying `url.<base>.insteadOf` rewriting, so a repository whose remote is configured as a shorthand (for example `work:owner/repo.git` rewritten to a different host) reports a host that does not match any configured instance.
+
+As a result the repository is not detected as linked: the dashboard shows no linked repository, the "Publish to Forgejo" button is offered again, and pushes are blocked because the extension refuses to send the access token to a host it cannot verify.
+
+Workaround: add a remote whose URL contains the instance host verbatim, or configure the rewrite the other way around (put the full instance URL in the remote and rewrite it for other tools).
+
+## Files larger than 10 MiB render as empty
+
+Forgejo's contents API omits the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE` (10 MiB by default): it returns `content: ""` together with the real `size` instead of failing. The extension renders that as an empty document (repository browser and PR diff alike), and the repository dashboard shows no README for a large `README.md`.
+
+Workaround: open the file through the Forgejo web UI or a local checkout.
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._

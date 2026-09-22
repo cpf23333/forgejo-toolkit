@@ -31,12 +31,18 @@ function notification(id: number): ForgejoNotification {
   return { id } as ForgejoNotification;
 }
 
-function createFakeConfig(instances: ForgejoInstance[]) {
+function createFakeConfig(
+  instances: ForgejoInstance[],
+  onInstancesChanged: (listener: () => void) => void = () => undefined,
+) {
   return {
     getInstances: () => instances,
     isNotificationPollingEnabled: () => true,
     getNotificationPollingInterval: () => 300,
-    onInstancesChanged: () => ({ dispose: vi.fn() }),
+    onInstancesChanged: (listener: () => void) => {
+      onInstancesChanged(listener);
+      return { dispose: vi.fn() };
+    },
   };
 }
 
@@ -172,6 +178,84 @@ describe('NotificationPoller', () => {
     const seen = context.store.get('forgejoToolkit.seenNotificationIds') as Record<string, number[]>;
     expect(seen.a).toEqual([7]);
     expect(seen.b).toEqual([7]);
+    poller.dispose();
+  });
+
+  it('coalesces overlapping immediate poll rounds into a single round', async () => {
+    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
+    const pending = new Promise<ForgejoNotification[]>((resolve) => {
+      resolveRequests = resolve;
+    });
+    mockGetNotifications.mockReturnValue(pending);
+
+    let listener: (() => void) | undefined;
+    const config = createFakeConfig([instanceA, instanceB], (l) => {
+      listener = l;
+    });
+    const context = createFakeContext();
+    // Both instances already have a persisted baseline, so the notification
+    // returned by the round counts as new.
+    context.store.set('forgejoToolkit.seenNotificationIds', { a: [1], b: [1] });
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    // One request per instance in the first round.
+    expect(mockGetNotifications).toHaveBeenCalledTimes(2);
+
+    // Importing instances fires onInstancesChanged once per instance while the
+    // first round is still in flight: each restart must join that round
+    // instead of starting another burst of requests.
+    listener!();
+    listener!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockGetNotifications).toHaveBeenCalledTimes(2);
+
+    // The overlapping restarts must not report the same notification again.
+    resolveRequests([notification(1), notification(2)]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+
+    // Once the round settles, a scheduled tick polls normally again and finds
+    // nothing new.
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(mockGetNotifications).toHaveBeenCalledTimes(4);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+    poller.dispose();
+  });
+
+  it('does not report the same notification twice when a tick lands mid-round', async () => {
+    let resolveFirst: (notifications: ForgejoNotification[]) => void = () => undefined;
+    mockGetNotifications.mockImplementationOnce(
+      () =>
+        new Promise<ForgejoNotification[]>((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    const config = createFakeConfig([instanceA]);
+    const context = createFakeContext();
+    // A persisted baseline already contains notification 1.
+    context.store.set('forgejoToolkit.seenNotificationIds', { a: [1] });
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+
+    // The interval tick lands while the first round is still in flight: it
+    // joins the round instead of issuing its own request.
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+
+    resolveFirst([notification(1), notification(2)]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+
+    // The next tick polls again and finds nothing new: notification 2 was
+    // recorded as seen by the round that reported it.
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
     poller.dispose();
   });
 

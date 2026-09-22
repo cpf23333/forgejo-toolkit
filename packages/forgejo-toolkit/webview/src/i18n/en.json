@@ -520,6 +520,7 @@
       "selectAll": "Select all",
       "deselectAll": "Deselect all",
       "empty": "No instances to import.",
+      "error": "Could not read the import file: {message}",
       "existing": "Existing",
       "new": "New",
       "cancel": "Cancel",

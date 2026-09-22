@@ -7,6 +7,8 @@ export const MCP_SERVER_DEFINITION_PROVIDER_ID = 'forgejo-toolkit.instances';
 
 export const MCP_ENV_INSTANCE_URL = 'FORGEJO_MCP_INSTANCE_URL';
 export const MCP_ENV_TOKEN = 'FORGEJO_MCP_TOKEN';
+/** 'false' disables rewriting API-provided URLs to the configured instance URL. */
+export const MCP_ENV_SYNC_API_URLS = 'FORGEJO_MCP_SYNC_API_URLS';
 
 /**
  * Exposes the first configured Forgejo instance to VS Code agent mode as a
@@ -41,6 +43,11 @@ export function registerMcpServerProvider(
       const env: Record<string, string> = {
         [MCP_ENV_INSTANCE_URL]: instance.url,
         [MCP_ENV_TOKEN]: instance.token,
+        // The headless process cannot read the extension's settings, so the
+        // per-instance URL-sync flag travels with the launch environment:
+        // otherwise a user who disabled syncing (reverse proxy, split
+        // hostnames) would get rewritten links from the tools.
+        [MCP_ENV_SYNC_API_URLS]: String(instance.syncApiUrlsToInstanceUrl ?? true),
       };
       const label = instance.name ? `Forgejo: ${instance.name}` : `Forgejo: ${instance.url}`;
       return [new vscode.McpStdioServerDefinition(label, process.execPath, [serverPath], env)];

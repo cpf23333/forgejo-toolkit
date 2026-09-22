@@ -170,6 +170,30 @@
   - Actions 扩展：运行历史、job 列表、job 日志、制品列表。
   - 代码读取扩展：文件内容、目录列表、分支、标签、提交、文件历史、仓库内文件搜索、PR diff。
   - Review 与元数据扩展：PR 评审、whoami、Release、标签、里程碑、当前用户仓库列表。
+- 工具入参校验：`owner`/`repo`/文件路径拒绝路径分隔符与 `..`（生成客户端会原样拼接 URL），并限制单次结果总量（64 KB，带截断标记）。
+- 只读工具不弹确认框（`readOnlyHint` 的既定行为），保证来自工具面本身：全部映射到 `GET`，路径类入参均校验。
+
+### 2026-09-22 复审修复
+
+- push 前的 token 归属校验改为解析**推送目标**（`git remote get-url --push --all`），修掉 `remote.<name>.pushurl` / `url.<base>.pushInsteadOf` 绕过白名单把 token 发往第三方主机的问题；`createPrFromCurrentBranch` 同步使用同一判定。
+- 过期的 PR worktree 不再被静默 `--force` 删除：先检查未提交改动与本地提交，脏 worktree 必须经模态确认才丢弃，干净的直接重建。
+- worktree 请求的 `owner`/`repo`/`index` 先校验再拼路径，并使用 `path.relative` 断言结果落在 `<cache>/worktrees` 内（防目录穿越导致递归删除）。
+- 导入实例不再能把已有 id 的 token 重绑到其他 origin（`addInstance` 同源校验）。
+- 裸仓库缓存路径加入实例摘要后缀，避免不同实例的同名仓库互相复用。
+- Import 预览、导入错误不再被 webview 丢弃；评论编辑面板补齐 `getInitialState`/`renderMarkdown`/`searchMentions` 处理与未知命令兜底回复。
+- 四个 `delete*`（release/issue/comment 附件、工时）补齐 host 侧确认，回复新增 `cancelled` 语义，webview 不再把「用户取消」当作删除成功。
+- Dashboard 的 Issues / PRs 页签补上用户维度过滤（`created`/`assigned`/`mentioned`/`review_requested`），不再返回实例全量数据。
+- `/compare` 不再伪造 `previous_filename`（该接口只返回 added/removed/modified），重命名限制记入 KNOWN_ISSUES；`/pulls/{index}/files` 路径保持不变。
+- 发布到 Forgejo 成功后清空关联仓库检测缓存，SCM 按钮与 `hasLinkedRepo` 立即更新。
+- 修复 mock 版本升级后遗留的 2 个失败测试（改用共享的 `MOCK_SERVER_VERSION` 常量）。
+- 权限探测失败不再被当成「没有 push 权限」：仅在 permissions 已知且确实缺少 admin/push 时才产生 `no_permission` blocker，避免一次超时/5xx 就让合并按钮变灰。
+- 通知轮询改为单飞（相同时间的多轮请求合并为一轮），seen-id 的读改写收进同一串行队列，导入多实例不再产生 N 倍请求风暴与重复「新通知」提示。
+- 通知页「全部标为已读」的未读数改从当前列表派生，关闭轮询（或首次轮询尚未返回）时不再永久置灰。
+- Actions 运行列表「加载更多」改为按仓库累加分页，翻到末页后保留已加载内容并隐藏按钮，不再出现假空态。
+- 状态栏缓存只在刷新仍为最新时写入，被取代的旧请求不会用过期结果覆盖新值（最长 60s 的「Create PR」回退已消除）。
+- `listRemotes` 支持含空格的 remote URL（本地路径 remote），不再把这类仓库误判为未发布。
+- `parseDiff` 不再为 diff 的最后一个文件多造一行 context，「行是否在 PR diff 内」的判断不再越界。
+- 文档同步：README/FAQ 修正 MCP 确认说明，`docs/api-verification-checklist.md` 修正 4 处事实错误并重写无法执行的维护流程；TODO/KNOWN_ISSUES（中英）与 ROADMAP 随本轮修复更新，`.gitignore` 不再忽略 `pnpm-lock.yaml`。
 
 ## 后续迭代
 

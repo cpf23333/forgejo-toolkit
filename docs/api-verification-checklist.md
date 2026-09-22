@@ -22,6 +22,7 @@
 - Git commit：`62c6d1c782720308d0a973435c62ce50fdebd99f`
 - 本地源码路径：由用户环境决定，后续核对前请提供当前使用的 Forgejo 仓库路径
 - 最近一次核对结论：当前清单中所有端点与该版本 Forgejo 源码一致；上一次 diff 复核（`b4d03e7..62c6d1c`）仅涉及代码格式化、webhook 内部事件调整以及当前未使用的新类型（`IssueSuggestion`、`RepoFundingEntry`），不影响已记录端点的行为。
+- 生成客户端规格来源：`packages/forgejo-api/kubb.config.ts:10` 直接读取 `https://codeberg.org/swagger.v1.json`（未固定 commit 或版本），因此 `packages/forgejo-api/src/generated` 中的类型只反映生成时的规格，可能落后于本清单核对的源码版本。例如 `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs` 的 `step` 查询参数已存在于上游（`routers/api/v1/repo/action.go:1657-1666`），但生成类型 `RepoGetActionJobLogsQueryParams` 只有 `attempt`（`packages/forgejo-api/src/generated/types/RepoGetActionJobLogs.ts:28-34`）。生成目录首次提交于 2026-06-30（`52e21e8`），最近一次更新于 2026-08-11（`8d67aa5`，更新 Forgejo API 至 16）。
 
 > 历史核对记录由本文件的 git 日志保存，无需在正文中保留。
 
@@ -73,10 +74,11 @@
 ### `GET /repos/{owner}/{repo}/compare/{basehead}` (`repoCompareDiff`)
 
 - [x] `basehead` 支持 `base...head`（merge base 到 head）和 `base..head`（base 直接到 head）两种分隔符
-- [x] 响应 `files` 是每个 commit 的 `CommitAffectedFiles` 简单合并，不计算净变更；status 仅 `added`/`removed`/`modified`/`renamed`/`copied` 中的简化值
-- [x] 重命名文件返回 `previous_filename`
+- [x] 响应 `files` 是每个 commit 的 `CommitAffectedFiles` 简单合并，不计算净变更
+- [x] `CommitAffectedFiles` 只有 `filename` 和 `status` 两个字段（`modules/structs/repo_commit.go:70-72`），status 只可能是 `added`/`removed`/`modified`（`services/convert/git_commit.go:197-205`），因此 compare 端点无法报告重命名或复制
+- [x] compare 响应不含 `previous_filename`；`previous_filename` 只在 `GET /repos/{owner}/{repo}/pulls/{index}/files` 的 `api.ChangedFile` 上返回（`modules/structs/pull.go:110-113`）
 - [x] 源码位置：`routers/api/v1/repo/compare.go:17-100`
-- [x] 差异记录：与 `repoGetPullRequestFiles` 的 `status` 枚举不完全一致（compare 可能返回 `modified`，files 端点返回 `changed`），当前 `getPullRequestFilesFromCompare` 已做兼容映射，基本正确
+- [x] 差异记录：与 `repoGetPullRequestFiles` 的 `status` 枚举不完全一致（compare 只返回 `added`/`removed`/`modified`，files 端点返回 `added`/`deleted`/`changed`/`renamed`/`copied` 等），当前 `getPullRequestFilesFromCompare` 已做兼容映射，基本正确；compare 不提供重命名信息，重命名在其中表现为不相关的 removed 与 added 两条，需要旧路径时必须走 `/pulls/{index}/files`
 
 ### `GET /repos/{owner}/{repo}/pulls/{index}.{diffType}` (`repoDownloadPullDiffOrPatch`)
 
@@ -309,7 +311,7 @@
 
 - [x] 参数：`sha`（默认默认分支）、`path`、`not`、`limit`、`page`、`stat`/`verification`/`files`（默认 true）
 - [x] `path` 非空时返回该路径的历史提交
-- [x] `files` 为 true 时返回 `CommitAffectedFiles`，`status` 取值同 diff status
+- [x] `files` 为 true 时返回 `CommitAffectedFiles`，`status` 取值为 `added`/`removed`/`modified`（`services/convert/git_commit.go:197-205`）
 - [x] `limit` 超过 `setting.Git.CommitsRangeSize` 会被截断
 - [x] 源码位置：`routers/api/v1/repo/commits.go:94-377`
 - [x] 差异记录：无
@@ -370,13 +372,13 @@
 - [x] 源码位置：`routers/api/v1/notify/user.go:17-91`
 - [x] 差异记录：无
 
-### `PATCH /notifications`
+### `PUT /notifications`
 
 - [x] 参数：`all`（boolean）、`status-types`（multi，默认 unread）、`to-status`（默认 read）、`last_read_at`
 - [x] 仅标记 `updated_at <= last_read_at` 的通知
 - [x] 响应 205 返回被修改的线程数组
 - [x] 源码位置：`routers/api/v1/notify/user.go:93-175`
-- [x] 差异记录：当前 `markAllNotificationsRead` 传 `all: true, to-status: read`，与源码一致
+- [x] 差异记录：源码路由组是 `m.Combo("").Get(notify.ListNotifications).Put(notify.ReadNotifications)`（`routers/api/v1/api.go:582-584`），即 `PUT /notifications`，不存在 `PATCH /notifications`；当前 `markAllNotificationsRead` 经生成的 `notifyReadList` 发 `PUT /notifications`，传 `all: true, to-status: read`，与源码一致
 
 ### `PATCH /notifications/threads/{id}`
 
@@ -389,7 +391,7 @@
 ### `GET /repos/search`
 
 - [x] 参数：`q`、`limit`、`page`、`uid`、`topic`、`includeDesc`、`sort`、`order` 等
-- [x] 响应结构：`{ ok: true, data: Repository[], total_count: N }`（通过 link/total 头）
+- [x] 响应结构：`{ ok: true, data: Repository[] }`；总条数不在 JSON 体内，由 `X-Total-Count` 响应头返回（`routers/api/v1/repo/repo.go:248-253`）
 - [x] 源码位置：`routers/api/v1/repo/repo.go:44-260`
 - [x] 差异记录：当前 `searchRepositories` 取 `result.data`，与源码一致
 
@@ -414,6 +416,8 @@
 ---
 
 ## Actions / CI
+
+> 版本提示：本节中的 `/actions/runs/{run_id}/jobs`、`/actions/runs/{run_id}/artifacts`、`/actions/jobs/{job_id}/logs`、`/actions/runs/{run_id}/cancel`、`DELETE /actions/runs/{run_id}` 与 `/actions/artifacts/{artifact_id}/zip` 六个端点都不存在于 Forgejo v15.0.0：v15.0.0 的仓库 actions 路由组只有 `tasks`、`runs`、`runs/{run_id}` 与 `workflows/{workflowfilename}/dispatches`（对照 v15.0.0 tag 的 `routers/api/v1/api.go`；本地 main 检出中该路由组为 `routers/api/v1/api.go:893-920`）。因此这六个端点要求 Forgejo v16+，对 v15 实例调用会返回 404。
 
 ### `GET /repos/{owner}/{repo}/actions/runs`
 
@@ -527,8 +531,8 @@
 
 - [x] 上传使用 `multipart/form-data`，文件字段名 `attachment`
 - [x] 查询参数 `name` 可覆盖原始文件名
-- [x] 返回 `api.Attachment`，字段：`id`、`name`、`size`、`uuid`、`download_url`、`created`
-- [x] `download_url` 实际为 `{appURL}/attachments/{uuid}`（由模型 `DownloadURL()` 生成）
+- [x] 返回 `api.Attachment`，字段：`id`、`name`、`size`、`download_count`、`created_at`、`uuid`、`browser_download_url`、`type`（`modules/structs/attachment.go:12-23`；下载地址的 JSON 字段名是 `browser_download_url`，不是 `download_url`；时间字段是 `created_at`，不是 `created`）
+- [x] `browser_download_url` 实际为 `{appURL}/attachments/{uuid}`（由模型 `DownloadURL()` 生成，经 `APIAssetDownloadURL` 写入；`services/convert/attachment.go:36-57`）
 - [x] 创建 issue/comment 附件后，服务端会同步更新 issue/content 的更新时间
 - [x] 删除附件需要是附件所属 issue/comment 的作者或具有写入权限
 - [x] 源码位置：`routers/api/v1/repo/issue_attachment.go`、`issue_comment_attachment.go`；`models/repo/attachment.go:78-88`；`services/convert/attachment.go:36-58`
@@ -593,14 +597,15 @@
   - Issue/PR 搜索：`limit` 默认 `setting.UI.IssuePagingNum`，最大被 `setting.API.MaxResponseItems` 截断
   - Commit 列表：`limit` 超过 `setting.Git.CommitsRangeSize` 会被截断
   - 其余列表默认多为 30/50，同样受 `setting.API.MaxResponseItems` 限制
-- [x] 所有列表接口的响应类型（直接数组 vs `{ data: [], total: N }` vs `{ xxx: [] }`）
+- [x] 所有列表接口的响应类型（直接数组 vs `{ ok: true, data: [] }` vs `{ xxx: [] }`）
   - 直接数组：`/notifications`、`/repos/{owner}/{repo}/actions/runs/{runId}/jobs`、分支/tag、评论等
-  - `{ data: [], total_count: N }`：`/repos/search`、`/issues/search`、`/users/search`
+  - 直接返回数组 + `X-Total-Count` 响应头：`/repos/issues/search`（`routers/api/v1/repo/issue.go:337-338`）
+  - `{ ok: true, data: [] }` + `X-Total-Count` 响应头：`/repos/search`、`/users/search`（`routers/api/v1/repo/repo.go:248-253`、`routers/api/v1/user/user.go:101-107`）
   - `{ total_count, workflow_runs: [...] }`：`/repos/{owner}/{repo}/actions/runs`
 - [x] 所有 `status` / `state` 枚举值的一致性
   - PR 文件接口：`added`/`deleted`/`changed`/`renamed`/`copied`
-  - Compare diff：`added`/`removed`/`modified`/`renamed`/`copied`
-  - Commit affected files：`added`/`removed`/`modified`/`renamed`
+  - Compare diff：`added`/`removed`/`modified`（`CommitAffectedFiles` 不携带重命名/复制信息）
+  - Commit affected files：`added`/`removed`/`modified`（`services/convert/git_commit.go:197-205`）
   - Combined status：`pending`/`success`/`error`/`failure`/`warning`
   - Issue/PR state：`open`/`closed`
 - [x] 附件 URL 是否需要 token 鉴权（Cookie vs Header）
@@ -613,12 +618,13 @@
 
 ## 后续维护策略
 
-当本地 Forgejo 源码拉取到新提交时，按以下方式更新本清单：
+当上游有新的 Forgejo 版本时，按以下方式更新本清单：
 
-1. **小版本 / 日常更新：diff 驱动**
-   - 记录旧 commit ID（即本清单当前记录的版本）与新 commit ID。
-   - 在 Forgejo 仓库执行 `git diff <old>..<new> -- routers/api/v1/ services/convert/ modules/structs/` 等目录，查看是否有影响已记录端点的变更。
-   - 仅对 diff 中涉及的端点重新核对，更新对应条目的 `[x]` 时间戳或补充说明。
+1. **日常更新：以固定的上游版本为基准复核**
+   - 本地参考检出是 shallow clone（存在 `.git/shallow`）、`git tag` 为空、且不含上游完整历史：`git diff <old>..<new>` 只能比较本地已经存在的提交，无法对比尚未拉取的上游版本。不要为了比较而 `git fetch` / `git pull`，参考检出必须保持只读、不被改动。
+   - 选定一个固定的上游 tag/release 或 commit（例如 `v15.0.0`，或本清单顶部记录的 `62c6d1c782720308d0a973435c62ce50fdebd99f`），以只读方式取得该版本的源码：另建一个该 tag 的 shallow clone，或直接读 Codeberg 上该 tag 的 raw 文件。
+   - 逐目录比对 `routers/api/v1/`、`services/convert/`、`modules/structs/`，查看是否有影响已记录端点的变更；需要机器可读的完整规格时读取 `templates/swagger/v1_json.tmpl`（仓库中不存在 `templates/swagger/v1.json`）。
+   - 只对受影响的端点重新核对并补充说明；完成后把「核对方法」中记录的 Git commit 换成本次实际对比的上游 commit 或 tag，未固定版本就不要声称「已复核」。
    - 如果相关改动导致现有 workaround 失效，同步更新 `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`。
 
 2. **大版本升级：全量重新核对**

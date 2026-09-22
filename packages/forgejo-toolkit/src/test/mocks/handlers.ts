@@ -80,16 +80,41 @@ function paginate<T>(request: Request, items: T[]): T[] {
   return items.slice(start, start + limit);
 }
 
+/**
+ * Version the mocked `/api/v1/version` reports. Tests that assert the probed
+ * version import this constant instead of hardcoding a literal, so bumping the
+ * mock server version cannot leave stale assertions behind.
+ */
+export const MOCK_SERVER_VERSION = '16.0.5';
+
 export const handlers = [
   http.get('https://*/api/v1/user', () => json(mockUser)),
 
   // Server version probe (feature gates); a modern version keeps every
   // feature enabled in the mock environment.
-  http.get('https://*/api/v1/version', () => json({ version: '16.0.5' })),
+  http.get('https://*/api/v1/version', () => json({ version: MOCK_SERVER_VERSION })),
 
   http.get('https://*/api/v1/user/repos', ({ request }) =>
     json(paginate(request, [mockRepository, mockRepository2, mockRepositoryFail])),
   ),
+
+  // Publish flow: creating a repository echoes the requested name back with
+  // the clone URL the publish command needs to add the remote.
+  http.post('https://*/api/v1/user/repos', async ({ request }) => {
+    const body = (await request.json()) as { name?: string; private?: boolean };
+    const name = body.name ?? 'new-repo';
+    return json(
+      {
+        ...mockRepository,
+        name,
+        full_name: `demo-user/${name}`,
+        html_url: `https://forgejo.example.com/demo-user/${name}`,
+        clone_url: `https://forgejo.example.com/demo-user/${name}.git`,
+        private: Boolean(body.private),
+      },
+      201,
+    );
+  }),
 
   http.get('https://*/api/v1/user/stopwatches', () => json([])),
 

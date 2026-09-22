@@ -69,9 +69,9 @@ pnpm --filter forgejo-toolkit package
   - **Review 与元数据**：PR 评审、Release、标签、里程碑与自己的仓库（如 `list_pull_reviews`、`whoami`）。
 - **安全说明**：
   - 全部工具均为只读（`readOnlyHint`），agent 无法修改实例上的任何数据。
+  - 由于是只读工具，VS Code 不会在每次调用前弹确认框。约束来自工具面本身：每个工具都只映射到 `GET` 接口，且所有会进入请求路径的输入（`owner`、`repo`、文件路径）都做了校验，构造参数无法跳到其他接口。
   - token 从 SecretStorage 经进程环境变量注入 stdio 子进程，不会出现在工具 schema、工具结果或日志中。
-  - VS Code 会在每次工具调用前向你确认，始终有人在审环节。
-  - 过大的响应字段会被截断，保护 agent 的上下文窗口。
+  - 过大的响应字段与超长结果会被截断，保护 agent 的上下文窗口。
   - 增删实例后会自动重新解析暴露的 server。
 
 ## 截图

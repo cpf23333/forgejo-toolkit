@@ -13,6 +13,7 @@ export { extractApiErrorMessage };
 import type { ForgejoToolkitViewProvider } from '../webview/viewProvider';
 import {
   addRemote,
+  clearLinkedRepositoryCache,
   getCurrentBranch,
   getCurrentCommitSha,
   getUpstreamBranch,
@@ -250,6 +251,13 @@ async function publishNewRepository(
       ),
     );
   }
+  // The linked-repository scan is cached for 10s and its key covers only the
+  // workspace folders and the instance list — not the git remotes it reads — so
+  // the new remote must invalidate it explicitly. Otherwise the SCM title keeps
+  // offering "Publish to Forgejo" and hasLinkedRepo-gated actions stay disabled
+  // until the TTL lapses. Cleared on the remote change rather than after the
+  // push, so the no-branch and push-failure paths are covered too.
+  clearLinkedRepositoryCache();
 
   const branch = await getCurrentBranch(folder);
   if (!branch) {

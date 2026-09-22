@@ -147,6 +147,36 @@ webview 的 Content-Security-Policy 允许任意 origin 的 `https:` 图片，�
 
 该 CSP 同时将 `connect-src` 限制为 webview 资源，但这没有用户可见影响：webview 不直接发起网络请求，一切都通过 postMessage 走扩展宿主。
 
+## PR diff 无法显示重命名文件的旧路径
+
+PR 级别的变更文件列表来自 `GET /repos/{owner}/{repo}/compare/{basehead}`（见上文「删除文件」条目）。该接口返回 Forgejo 的 `CommitAffectedFiles` 结构，只有 `filename` 与 `status` 两个字段，且 status 只有 `added`、`removed`、`modified` 三种取值——既没有 `previous_filename`，也从不报告 `renamed`。
+
+因此重命名会表现为一对互不关联的 `removed` + `added` 记录；当同一区间内有多个文件增删时，扩展无法判断哪个删除项对应哪个新增项。这类文件的 base 侧会按新路径获取，diff 编辑器左侧因此显示为空。
+
+规避方法：在 Forgejo 网页界面查看该重命名文件的 diff，或在本地检出 PR（`$ git diff -M` 可识别重命名）。按 commit 的对比以及 `/pulls/{index}/files` 路径会返回 `previous_filename`，不受影响。
+
+## Actions 的 jobs/artifacts/日志/取消/删除接口需要 Forgejo 16
+
+扩展会读取 workflow 运行、job、job 日志与 artifacts，并支持取消或删除运行记录。Forgejo 15 只有 `GET /actions/runs` 与 `GET /actions/runs/{run_id}`；其余功能对应的接口（`/actions/runs/{run_id}/jobs`、`/artifacts`、`/actions/jobs/{job_id}/logs`、`/actions/runs/{run_id}/cancel`、`DELETE /actions/runs/{run_id}`）是 Forgejo 16 才加入的。
+
+因此在 Forgejo 15 实例上，运行详情页不显示 job 和 artifact，日志查看、取消与删除操作都会返回 404。版本闸门只会拒绝低于 1.19 的服务器，所以不会提前给出提示。
+
+规避方法：无，需要将实例升级到 Forgejo 16 或更高版本才能使用这些面板。
+
+## 配置了 url.insteadOf 的仓库无法关联
+
+`git remote -v` 与 `git remote get-url` 输出的是**应用 `url.<base>.insteadOf` 重写之后**的 URL。如果仓库的 remote 使用简写（例如把 `work:owner/repo.git` 重写到另一台主机），打印出来的主机就与任何已配置实例都不匹配。
+
+结果是仓库无法被识别为已关联：Dashboard 不显示关联仓库、「发布到 Forgejo」按钮重新出现，且推送会被拦截——因为扩展拒绝把 access token 发往无法校验的主机。
+
+规避方法：添加一个 URL 中原样包含实例主机的 remote，或反向配置重写（remote 中写完整的实例 URL，再为其他工具配置重写）。
+
+## 大于 10 MiB 的文件显示为空
+
+Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（默认 10 MiB）的文件的正文：它会返回 `content: ""` 以及真实的 `size`，而不是报错。扩展会把它渲染为空文档（仓库浏览与 PR diff 均是），仓库概览中的大型 `README.md` 也会因此不显示。
+
+规避方法：通过 Forgejo 网页界面或本地检出打开该文件。
+
 ---
 
 _各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_

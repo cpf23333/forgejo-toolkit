@@ -179,6 +179,8 @@ export type HostToWebviewMessage =
       repo: string;
       commentId: number;
       attachmentId: number;
+      /** Set when the user declined the host-side confirmation: nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
       _requestId: string;
     }
@@ -546,6 +548,8 @@ export type HostToWebviewMessage =
       repo: string;
       id: number;
       attachmentId: number;
+      /** Set when the user declined the host-side confirmation: nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
       _requestId: string;
     }
@@ -572,6 +576,8 @@ export type HostToWebviewMessage =
       repo: string;
       index: number;
       attachmentId: number;
+      /** Set when the user declined the host-side confirmation: nothing was deleted. */
+      cancelled?: boolean;
       error?: string;
       _requestId: string;
     }
@@ -673,6 +679,8 @@ export type HostToWebviewMessage =
       repo: string;
       index: number;
       action: 'start' | 'stop' | 'delete';
+      /** Set when the user declined the host-side confirmation: nothing changed. */
+      cancelled?: boolean;
       error?: string;
     }
   | {

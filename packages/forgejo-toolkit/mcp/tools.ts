@@ -150,6 +150,10 @@ export function buildToolHandlers(client: ForgejoClient) {
           return client.searchPullRequests(args.query, args.state ?? 'open', args.limit ?? 20);
         case 'repositories':
           return client.searchRepositories(args.query, args.limit ?? 20);
+        default:
+          // Exhaustive over the declared enum; the default keeps a forged or
+          // future value from returning `undefined` as the tool result.
+          throw new Error(`Unknown search type: ${String(args.type)}`);
       }
     },
 
@@ -211,27 +215,107 @@ export function buildToolHandlers(client: ForgejoClient) {
 
 export type ToolName = keyof ReturnType<typeof buildToolHandlers>;
 
-const ownerSchema = z
-  .string()
+/**
+ * A single owner/repository path segment supplied by the model.
+ *
+ * The generated API client interpolates path parameters verbatim into the
+ * request path (`/repos/${owner}/${repo}/…`) and the URL parser resolves dot
+ * segments and splits the path on `?`/`#`, so an unvalidated value can leave
+ * the intended endpoint entirely — `repo: 'x/../../admin/users'` turns a
+ * repository-scoped read into an arbitrary same-origin request. Forgejo's own
+ * username and repository names contain none of the rejected characters, so
+ * this only rules out values that could not name a repository anyway.
+ */
+export function isSafePathSegment(value: string): boolean {
+  return (
+    value.length > 0 &&
+    value.trim() === value &&
+    !/[/\\?#%]/.test(value) &&
+    value !== '.' &&
+    value !== '..' &&
+    !CONTROL_CHARACTER_PATTERN.test(value)
+  );
+}
+
+/**
+ * Control characters (C0 and C1) have no place in a URL path or a repository
+ * name and would be silently dropped or rejected by the server; `\p{Cc}` is
+ * used instead of a code-point range so the check stays lint-clean and also
+ * covers the C1 block.
+ */
+const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
+
+/**
+ * A repository-relative file path supplied by the model. Each segment is
+ * URL-encoded by the client, but `..` survives encoding, so dot segments (and
+ * empty ones, which the API treats as a different route) are rejected here.
+ * The empty path is only acceptable where the API treats it as "repository
+ * root" (see `allowEmpty`).
+ */
+export function isSafeRepoPath(value: string, options: { allowEmpty?: boolean } = {}): boolean {
+  if (value === '') {
+    return options.allowEmpty === true;
+  }
+  return (
+    value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..') &&
+    !value.includes('\\') &&
+    !CONTROL_CHARACTER_PATTERN.test(value)
+  );
+}
+
+function pathSegmentSchema(description: string) {
+  return z
+    .string()
+    .refine(isSafePathSegment, {
+      message: `${description} must be a single path segment (no '/', '\\', '?', '#', '%', control characters, or '.'/'..')`,
+    })
+    .describe(description);
+}
+
+function repoPathSchema(description: string, options: { allowEmpty?: boolean } = {}) {
+  return z
+    .string()
+    .refine((value) => isSafeRepoPath(value, options), {
+      message: `${description} must be a repository-relative path without empty, '.' or '..' segments, backslashes or control characters`,
+    })
+    .describe(description);
+}
+
+// Shared fields for the repository-scoped tools below. The owner/repo pair is
+// optional for the two listing tools that fall back to the instance-wide user
+// listing; every other repository-scoped tool requires both.
+const ownerSchema = pathSegmentSchema('Repository owner (user or organization).')
   .optional()
   .describe('Repository owner (user or organization). Required together with repo for a repository listing.');
-const repoSchema = z.string().optional().describe('Repository name.');
+const repoSchema = pathSegmentSchema('Repository name.').optional().describe('Repository name.');
 const stateSchema = z.enum(['open', 'closed', 'all']).optional().describe('State filter (default: open).');
-
-// Shared fields for the repository-scoped tools below.
-const ownerRequiredSchema = z.string().describe('Repository owner (user or organization).');
-const repoRequiredSchema = z.string().describe('Repository name.');
+const ownerRequiredSchema = pathSegmentSchema('Repository owner (user or organization).');
+const repoRequiredSchema = pathSegmentSchema('Repository name.');
 const pullIndexSchema = z.number().int().positive().describe('Pull request number.');
 const refSchema = z
   .string()
   .optional()
   .describe('Branch, tag, or commit SHA (default: the repository default branch).');
 
+/**
+ * Whole-result budget. `MAX_TOOL_TEXT_LENGTH` bounds each individual string,
+ * but a paginated list (the client caps lists at 500 items) can still serialize
+ * to megabytes across many fields, which would blow up the agent's context
+ * window. The serialized result is therefore capped as a whole and the cut is
+ * announced, so the agent can tell a complete answer from a truncated one.
+ */
+export const MAX_TOOL_RESULT_LENGTH = 64 * 1024;
+
 /** Wraps a handler run into an MCP tool result: truncation + error rendering. */
 async function callTool(run: () => Promise<unknown>) {
   try {
     const result = truncateLargeStrings(await run());
-    return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    const serialized = JSON.stringify(result, null, 2) ?? 'null';
+    const text =
+      serialized.length > MAX_TOOL_RESULT_LENGTH
+        ? `${serialized.slice(0, MAX_TOOL_RESULT_LENGTH)}\n... (truncated: the result exceeded ${Math.round(MAX_TOOL_RESULT_LENGTH / 1024)} KB and was cut off)`
+        : serialized;
+    return { content: [{ type: 'text' as const, text }] };
   } catch (error) {
     // userFacingErrorMessage never includes request headers, so the token
     // cannot leak into tool output.
@@ -439,7 +523,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
-        path: z.string().describe('File path within the repository.'),
+        path: repoPathSchema('File path within the repository.'),
         ref: refSchema,
       },
       annotations: readOnly,
@@ -454,7 +538,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
-        path: z.string().optional().describe('Directory path within the repository (default: root).'),
+        path: repoPathSchema('Directory path within the repository (default: root).', { allowEmpty: true }).optional(),
         ref: refSchema,
       },
       annotations: readOnly,
@@ -503,7 +587,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
-        path: z.string().describe('File path within the repository.'),
+        path: repoPathSchema('File path within the repository.'),
         ref: refSchema,
       },
       annotations: readOnly,

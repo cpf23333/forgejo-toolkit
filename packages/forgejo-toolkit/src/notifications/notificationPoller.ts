@@ -29,6 +29,13 @@ export class NotificationPoller implements vscode.Disposable {
   // Serializes read-modify-write updates of the persisted seen-id map so
   // concurrent polls for different instances cannot overwrite each other.
   private _seenIdsWriteQueue: Promise<void> = Promise.resolve();
+  // Single-flight guard for a full poll round: ConfigManager.addInstance fires
+  // onInstancesChanged once per instance, and each restart would otherwise
+  // start its own round (one GET per instance each).
+  private _pollInFlight: Promise<void> | undefined;
+  // Identifies the current round so a settling round only clears the guard
+  // when it is still the one being tracked.
+  private _pollRoundId = 0;
 
   constructor(
     private readonly _config: ConfigManager,
@@ -87,15 +94,33 @@ export class NotificationPoller implements vscode.Disposable {
     const intervalMs = this._config.getNotificationPollingInterval() * 1000;
 
     if (immediate) {
-      this._pollAll().catch(() => {
-        // per-instance failures are already handled inside _pollAll
-      });
+      void this._pollOnce();
     }
     this._timer = setInterval(() => {
-      this._pollAll().catch(() => {
-        // per-instance failures are already handled inside _pollAll
-      });
+      void this._pollOnce();
     }, intervalMs);
+  }
+
+  /**
+   * One poll round, single-flighted. A round requested while another is still
+   * in flight (an immediate round per imported instance, or an interval tick
+   * landing mid-round) joins the in-flight one instead of firing a second
+   * burst of requests; a scheduled tick after it settles still runs normally.
+   */
+  private _pollOnce(): Promise<void> {
+    if (this._pollInFlight) {
+      return this._pollInFlight;
+    }
+    const roundId = ++this._pollRoundId;
+    const round = this._pollAll().catch(() => {
+      // per-instance failures are already handled inside _pollAll
+    });
+    this._pollInFlight = round.finally(() => {
+      if (this._pollRoundId === roundId) {
+        this._pollInFlight = undefined;
+      }
+    });
+    return this._pollInFlight;
   }
 
   /**
@@ -158,39 +183,40 @@ export class NotificationPoller implements vscode.Disposable {
 
     this._sender.pushNotifications(instance.id, notifications);
 
-    // Without a persisted baseline (fresh install) every unread notification
-    // would be reported as "new" on the first poll; the first poll only
-    // establishes the baseline.
-    const hadBaseline = this._getAllSeenIds().has(instance.id);
-    const newNotifications = hadBaseline ? this._filterNewNotifications(instance.id, notifications) : [];
-
-    await this._updateSeenIds(instance.id, notifications);
+    const newNotifications = await this._reconcileSeenIds(instance.id, notifications);
     return { instance, notifications: newNotifications };
   }
 
-  private _filterNewNotifications(instanceId: string, notifications: ForgejoNotification[]): ForgejoNotification[] {
-    const seenIds = this._getSeenIds(instanceId);
-    return notifications.filter((notification) => {
-      const id = notification.id;
-      return typeof id === 'number' && !seenIds.has(id);
-    });
-  }
-
-  private _updateSeenIds(instanceId: string, notifications: ForgejoNotification[]): Promise<void> {
+  /**
+   * Compare the instance's unread list against the persisted seen ids and
+   * record the new state, both inside the same serialized queue as the write.
+   * Reading outside the queue would let an overlapping round observe the state
+   * from before the previous round's write and report the same notification as
+   * new twice.
+   */
+  private _reconcileSeenIds(instanceId: string, notifications: ForgejoNotification[]): Promise<ForgejoNotification[]> {
     const ids = notifications
       .map((notification) => notification.id)
       .filter((id): id is number => typeof id === 'number');
-    // Queue the write so concurrent polls merge onto the latest persisted
-    // state instead of racing a read-modify-write cycle. Serialize as plain
-    // arrays: globalState JSON-persists values and a Set would degrade to {}.
+    // Queue the read-modify-write so concurrent polls merge onto the latest
+    // persisted state instead of racing. Serialize as plain arrays:
+    // globalState JSON-persists values and a Set would degrade to {}.
     // A failed write must not poison the queue: without the catch, one
     // rejection would skip every subsequent queued write forever.
-    this._seenIdsWriteQueue = this._seenIdsWriteQueue
+    const reconcile = this._seenIdsWriteQueue
       .catch(() => {
         // keep the queue alive after a failed write
       })
       .then(async () => {
         const allSeen = this._getAllSeenIds();
+        // Without a persisted baseline (fresh install) every unread
+        // notification would be reported as "new" on the first poll; the first
+        // poll for an instance only establishes the baseline.
+        const hadBaseline = allSeen.has(instanceId);
+        const seenIds = allSeen.get(instanceId) ?? new Set<number>();
+        const newNotifications = hadBaseline
+          ? notifications.filter((notification) => typeof notification.id === 'number' && !seenIds.has(notification.id))
+          : [];
         allSeen.set(instanceId, new Set(ids));
         try {
           const serialized = Object.fromEntries([...allSeen].map(([key, value]) => [key, [...value]]));
@@ -198,12 +224,15 @@ export class NotificationPoller implements vscode.Disposable {
         } catch {
           // ignore persistence errors
         }
+        return newNotifications;
       });
-    return this._seenIdsWriteQueue;
-  }
-
-  private _getSeenIds(instanceId: string): Set<number> {
-    return this._getAllSeenIds().get(instanceId) ?? new Set();
+    // The queue stays void-typed and never rejects, so the next writer always
+    // chains onto it; this round's new notifications are returned separately.
+    this._seenIdsWriteQueue = reconcile.then(
+      () => undefined,
+      () => undefined,
+    );
+    return reconcile;
   }
 
   private _getAllSeenIds(): Map<string, Set<number>> {

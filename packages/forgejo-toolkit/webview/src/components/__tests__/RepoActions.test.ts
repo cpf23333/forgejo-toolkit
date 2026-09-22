@@ -9,6 +9,7 @@ const { stateMock } = vi.hoisted(() => ({
     loading: new Map<string, boolean>(),
     errors: new Map<string, string>(),
     actionRuns: { value: new Map<string, unknown[]>() },
+    actionRunsHasMore: { value: new Map<string, boolean>() },
     actionRunTotalCount: { value: new Map<string, number>() },
     loadActionRuns: vi.fn(),
     dispatchWorkflow: vi.fn(),
@@ -24,8 +25,8 @@ vi.mock('../../composables/useAppState', async () => {
   const state = reactive(stateMock);
   return {
     useAppState: () => state,
-    actionRunsKey: (instanceId: string, owner: string, repo: string, page: number) =>
-      `${instanceId}:${owner}/${repo}:actions:page-${page}`,
+    ACTION_RUNS_PAGE_LIMIT: 30,
+    actionRunsKey: (instanceId: string, owner: string, repo: string) => `${instanceId}:${owner}/${repo}:actions`,
     dispatchWorkflowKey: (instanceId: string, owner: string, repo: string, workflow: string) =>
       `${instanceId}:${owner}/${repo}:actions:dispatch:${workflow}`,
   };

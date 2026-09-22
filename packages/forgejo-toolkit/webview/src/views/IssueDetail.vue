@@ -401,12 +401,15 @@ async function deletePendingAttachments() {
   isDeletingAttachments.value = true;
   deletingAttachmentId.value = ids[0];
   try {
-    await Promise.all(
+    const results = await Promise.all(
       ids.map((id) => state.deleteIssueAttachment(instanceId.value, owner.value, repo.value, index.value, id)),
     );
+    // A declined host-side confirmation resolves to false: that attachment
+    // still exists, so it must stay in the local list.
+    const deletedIds = ids.filter((_id, position) => results[position]);
     const current = detail.value;
-    if (current?.assets) {
-      current.assets = current.assets.filter((a) => a.id === undefined || !ids.includes(a.id));
+    if (current?.assets && deletedIds.length > 0) {
+      current.assets = current.assets.filter((a) => a.id === undefined || !deletedIds.includes(a.id));
     }
   } finally {
     isDeletingAttachments.value = false;

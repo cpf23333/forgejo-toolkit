@@ -428,9 +428,177 @@ describe('useAppState', () => {
       });
       await nextTick();
 
-      const key = mod.actionRunsKey('inst-1', 'owner', 'repo', 1);
+      const key = mod.actionRunsKey('inst-1', 'owner', 'repo');
       expect(state.actionRuns.value.get(key)).toEqual([fakeActionRun]);
       expect(state.actionRunTotalCount.value.get('inst-1:owner/repo')).toBe(5);
+    });
+
+    it('actionRuns appends later pages to the repo list instead of replacing it', async () => {
+      const { state, mod } = await createState();
+      const key = mod.actionRunsKey('inst-1', 'owner', 'repo');
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 1,
+        actionRuns: [fakeActionRun],
+        totalCount: 2,
+      });
+      await nextTick();
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 2,
+        actionRuns: [{ ...fakeActionRun, id: 2, title: 'Test' }],
+        totalCount: 2,
+      });
+      await nextTick();
+
+      // Server order is preserved: page 1 first, then page 2.
+      expect(state.actionRuns.value.get(key)).toEqual([fakeActionRun, { ...fakeActionRun, id: 2, title: 'Test' }]);
+    });
+
+    it('actionRuns keeps the loaded runs when a page past the end comes back empty', async () => {
+      const { state, mod } = await createState();
+      const key = mod.actionRunsKey('inst-1', 'owner', 'repo');
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 1,
+        actionRuns: [fakeActionRun],
+        totalCount: 1,
+      });
+      await nextTick();
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 2,
+        actionRuns: [],
+        totalCount: 1,
+      });
+      await nextTick();
+
+      expect(state.actionRuns.value.get(key)).toEqual([fakeActionRun]);
+      expect(state.actionRunsHasMore.value.get(key)).toBe(false);
+    });
+
+    it('actionRuns offers another page only while a full page came back short of the total', async () => {
+      const { state, mod } = await createState();
+      const key = mod.actionRunsKey('inst-1', 'owner', 'repo');
+      const limit = mod.ACTION_RUNS_PAGE_LIMIT;
+      const fullPage = Array.from({ length: limit }, (_, index) => ({
+        ...fakeActionRun,
+        id: index + 1,
+      }));
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 1,
+        actionRuns: fullPage,
+        totalCount: limit + 2,
+      });
+      await nextTick();
+
+      expect(state.actionRuns.value.get(key)).toHaveLength(limit);
+      expect(state.actionRunsHasMore.value.get(key)).toBe(true);
+
+      // A short page ends the list, so the view stops offering "Load more".
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 2,
+        actionRuns: [{ ...fakeActionRun, id: 99 }],
+        totalCount: limit + 2,
+      });
+      await nextTick();
+
+      expect(state.actionRuns.value.get(key)).toHaveLength(limit + 1);
+      expect(state.actionRunsHasMore.value.get(key)).toBe(false);
+    });
+
+    it('actionRuns starts the list over on a page-1 refresh', async () => {
+      const { state, mod } = await createState();
+      const key = mod.actionRunsKey('inst-1', 'owner', 'repo');
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 1,
+        actionRuns: [fakeActionRun],
+        totalCount: 2,
+      });
+      await nextTick();
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 2,
+        actionRuns: [{ ...fakeActionRun, id: 2 }],
+        totalCount: 2,
+      });
+      await nextTick();
+      expect(state.actionRuns.value.get(key)).toHaveLength(2);
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 1,
+        actionRuns: [{ ...fakeActionRun, id: 3 }],
+        totalCount: 1,
+      });
+      await nextTick();
+
+      expect(state.actionRuns.value.get(key)).toEqual([{ ...fakeActionRun, id: 3 }]);
+    });
+
+    it('actionRuns keeps repos apart so switching repos never mixes lists', async () => {
+      const { state, mod } = await createState();
+
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        page: 1,
+        actionRuns: [fakeActionRun],
+        totalCount: 1,
+      });
+      dispatchMessage({
+        command: 'actionRuns',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'other',
+        page: 1,
+        actionRuns: [{ ...fakeActionRun, id: 7 }],
+        totalCount: 1,
+      });
+      await nextTick();
+
+      expect(state.actionRuns.value.get(mod.actionRunsKey('inst-1', 'owner', 'repo'))).toEqual([fakeActionRun]);
+      expect(state.actionRuns.value.get(mod.actionRunsKey('inst-1', 'owner', 'other'))).toEqual([
+        { ...fakeActionRun, id: 7 },
+      ]);
     });
 
     it('notifications updates notifications Map', async () => {
@@ -1647,6 +1815,42 @@ describe('useAppState', () => {
       expect(state.importPreview.value?.instances).toHaveLength(1);
       expect(state.importPreview.value?.tokenConflicts).toEqual([true]);
     });
+
+    it('keeps the host error when the import preview file could not be read', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.previewImportInstances();
+      dispatchMessage({
+        command: 'importInstancesPreview',
+        instances: [],
+        existingIds: [],
+        tokenConflicts: [],
+        error: 'invalid password',
+      });
+      await nextTick();
+
+      // The preview is empty because the read failed: the error must reach the
+      // view so it cannot present an empty import as a success.
+      expect(state.importPreview.value?.error).toBe('invalid password');
+      expect(state.importPreview.value?.instances).toEqual([]);
+    });
+
+    it('leaves the preview error unset for a successful import preview', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      state.previewImportInstances();
+      dispatchMessage({
+        command: 'importInstancesPreview',
+        instances: [{ id: 'inst-2', url: 'https://forgejo.example.com', token: '' }],
+        existingIds: [],
+      });
+      await nextTick();
+
+      expect(state.importPreview.value?.error).toBeUndefined();
+      expect(state.importPreview.value?.instances).toHaveLength(1);
+    });
   });
 
   describe('loadNotifications intent replay', () => {
@@ -1746,6 +1950,30 @@ describe('useAppState', () => {
       dispatchMessage({ command: 'notificationMarkedRead', instanceId: 'inst-1', id: fakeNotification.id });
       await nextTick();
       expect(state.unreadNotificationCount.value).toBe(0);
+    });
+
+    it('the view unread count follows the loaded list while polling is off', async () => {
+      const { state, mod } = await createStateWithInstance();
+
+      // Polling disabled: the poller slot is empty, only the view list loaded.
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+      await nextTick();
+
+      expect(state.notifications.value.get(mod.notificationsKey('inst-1'))).toEqual([fakeNotification]);
+      expect(state.unreadNotificationCount.value).toBe(0);
+      expect(state.unreadViewNotificationCount.value).toBe(1);
+    });
+
+    it('the view unread count drops when the list is marked read', async () => {
+      const { state } = await createStateWithInstance();
+
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+      await nextTick();
+      expect(state.unreadViewNotificationCount.value).toBe(1);
+
+      dispatchMessage({ command: 'allNotificationsMarkedRead', instanceId: 'inst-1' });
+      await nextTick();
+      expect(state.unreadViewNotificationCount.value).toBe(0);
     });
   });
 
@@ -2390,5 +2618,116 @@ describe('startWorkOnIssue', () => {
 
     expect(state.loading.get(key)).toBe(false);
     expect(state.errors.get(key)).toBeUndefined();
+  });
+});
+
+describe('delete requests answered with cancelled', () => {
+  /** Request id of the last message of the given command posted to the host. */
+  function lastRequestId(command: string): string {
+    const calls = vscodePostMessage().mock.calls.map((call) => call[0] as { command: string; _requestId: string });
+    const match = [...calls].reverse().find((message) => message.command === command);
+    if (!match) {
+      throw new Error(`no ${command} message was posted`);
+    }
+    return match._requestId;
+  }
+
+  it('reports a declined issue attachment delete as not deleted', async () => {
+    const { state } = await createState();
+    const pending = state.deleteIssueAttachment('inst-1', 'owner', 'repo', 2, 7);
+    const requestId = lastRequestId('deleteIssueAttachment');
+
+    dispatchMessage({
+      command: 'issueAttachmentDeleted',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+      attachmentId: 7,
+      cancelled: true,
+      _requestId: requestId,
+    });
+
+    await expect(pending).resolves.toBe(false);
+  });
+
+  it('reports a completed issue attachment delete as deleted', async () => {
+    const { state } = await createState();
+    const pending = state.deleteIssueAttachment('inst-1', 'owner', 'repo', 2, 7);
+    const requestId = lastRequestId('deleteIssueAttachment');
+
+    dispatchMessage({
+      command: 'issueAttachmentDeleted',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+      attachmentId: 7,
+      _requestId: requestId,
+    });
+
+    await expect(pending).resolves.toBe(true);
+  });
+
+  it('reports a declined release attachment delete as not deleted', async () => {
+    const { state } = await createState();
+    const pending = state.deleteReleaseAttachment('inst-1', 'owner', 'repo', 3, 7);
+    const requestId = lastRequestId('deleteReleaseAttachment');
+
+    dispatchMessage({
+      command: 'releaseAttachmentDeleted',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      id: 3,
+      attachmentId: 7,
+      cancelled: true,
+      _requestId: requestId,
+    });
+
+    await expect(pending).resolves.toBe(false);
+  });
+
+  it('keeps an existing comment attachment when the delete was declined', async () => {
+    const { state } = await createState();
+    const key = 'inst-1:owner/repo#2';
+    state.pullRequestComments.value.set(key, [{ id: 5, body: 'hi', assets: [{ id: 7, name: 'shot.png' }] } as never]);
+
+    const pending = state.deleteIssueCommentAttachment('inst-1', 'owner', 'repo', 5, 7);
+    const requestId = lastRequestId('deleteIssueCommentAttachment');
+    dispatchMessage({
+      command: 'issueCommentAttachmentDeleted',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      commentId: 5,
+      attachmentId: 7,
+      cancelled: true,
+      _requestId: requestId,
+    });
+
+    await expect(pending).resolves.toBe(false);
+    expect(state.pullRequestComments.value.get(key)?.[0].assets).toHaveLength(1);
+  });
+
+  it('clears the pending state of a declined stopwatch delete without reloading', async () => {
+    const { state, mod } = await createState();
+    const key = mod.issueTrackedTimesKey('inst-1', 'owner', 'repo', 2);
+    state.loading.set(key, true);
+
+    dispatchMessage({
+      command: 'issueStopwatchChanged',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+      action: 'delete',
+      cancelled: true,
+    });
+    await nextTick();
+
+    expect(state.loading.get(key)).toBe(false);
+    expect(state.errors.get(key)).toBeUndefined();
+    expect(vscodePostMessage()).not.toHaveBeenCalledWith(expect.objectContaining({ command: 'getIssueTrackedTimes' }));
   });
 });

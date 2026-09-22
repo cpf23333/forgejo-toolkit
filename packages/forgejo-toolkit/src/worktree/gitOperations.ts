@@ -98,6 +98,31 @@ export async function getRemoteUrl(dirPath: string, remote = 'origin'): Promise<
   }
 }
 
+/**
+ * Every URL git would actually push to for `remote`, in git's own order.
+ *
+ * A remote configured with `remote.<name>.pushurl` (or rewritten by
+ * `url.<base>.pushInsteadOf`) pushes to those URLs while `git remote get-url`
+ * keeps reporting the *fetch* URL. Resolving the push targets explicitly is
+ * what makes the token-host guard in pushBranch meaningful: validating the
+ * fetch URL alone would let a mirror push receive the access token.
+ *
+ * `undefined` means the push target could not be resolved at all (unknown
+ * remote, missing git); callers must treat that as "do not send the token".
+ */
+export async function getRemotePushUrls(dirPath: string, remote: string): Promise<string[] | undefined> {
+  try {
+    const { stdout } = await runGit(['remote', 'get-url', '--push', '--all', remote], dirPath);
+    const urls = stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    return urls.length > 0 ? urls : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface GitRemoteEntry {
   name: string;
   url: string;
@@ -120,16 +145,28 @@ export async function listRemotes(dirPath: string): Promise<GitRemoteEntry[]> {
   const seen = new Set<string>();
   const entries: GitRemoteEntry[] = [];
   for (const line of stdout.split('\n')) {
-    const match = /^(\S+)\t(\S+) \((?:fetch|push)\)$/.exec(line.trim());
-    if (!match) {
+    // `git remote -v` prints "<name>\t<url> (fetch)" / " (push)" and quotes
+    // nothing, so a URL may contain spaces (local-path remotes such as
+    // "/home/me/My Repos/x.git" or "D:\repos\my repo"): split off the name at
+    // the first tab and strip the trailing operation suffix instead of
+    // requiring a whitespace-free URL.
+    const trimmed = line.trim();
+    const tabIndex = trimmed.indexOf('\t');
+    if (tabIndex <= 0) {
       continue;
     }
-    const key = `${match[1]}\0${match[2]}`;
+    const name = trimmed.slice(0, tabIndex);
+    const urlMatch = /^(.*) \((?:fetch|push)\)$/.exec(trimmed.slice(tabIndex + 1));
+    if (!urlMatch || urlMatch[1].length === 0) {
+      continue;
+    }
+    const url = urlMatch[1];
+    const key = `${name}\0${url}`;
     if (seen.has(key)) {
       continue;
     }
     seen.add(key);
-    entries.push({ name: match[1], url: match[2] });
+    entries.push({ name, url });
   }
   entries.sort((a, b) => Number(b.name === 'origin') - Number(a.name === 'origin'));
   return entries;
@@ -215,11 +252,14 @@ export async function getUpstreamBranch(dirPath: string): Promise<string | undef
  * `local:remote` refspec pushes the local branch to a differently-named remote
  * branch (used when the upstream branch was renamed on the remote).
  *
- * When both `token` and `tokenInstanceUrl` are given, the remote URL is
- * re-resolved immediately before the push (it may have changed since the
- * caller checked — TOCTOU) and must belong to that instance; a mismatch
- * aborts the push so the token is never sent to another host, and an
- * unresolvable URL degrades to a tokenless push.
+ * When both `token` and `tokenInstanceUrl` are given, the *push* targets are
+ * re-resolved immediately before the push (they may have changed since the
+ * caller checked — TOCTOU) and every one of them must belong to that instance;
+ * a mismatch aborts the push so the token is never sent to another host, and
+ * an unresolvable target degrades to a tokenless push. `git remote get-url`
+ * alone is not enough here: `remote.<name>.pushurl` and
+ * `url.<base>.pushInsteadOf` make git push somewhere the fetch URL does not
+ * mention.
  */
 export async function pushBranch(
   dirPath: string,
@@ -230,12 +270,14 @@ export async function pushBranch(
   tokenInstanceUrl?: string,
 ): Promise<void> {
   if (token && tokenInstanceUrl) {
-    const remoteUrl = await getRemoteUrl(dirPath, remote);
-    if (remoteUrl === undefined) {
+    const pushUrls = await getRemotePushUrls(dirPath, remote);
+    if (pushUrls === undefined) {
       token = undefined;
-    } else if (!remoteMatchesInstance(remoteUrl, tokenInstanceUrl)) {
+    } else if (!pushUrls.every((url) => remoteMatchesInstance(url, tokenInstanceUrl))) {
       // Do not include the URL in the message: it may embed credentials.
-      throw new Error(`Push aborted: remote "${remote}" does not belong to the expected Forgejo instance`);
+      throw new Error(
+        `Push aborted: the push target of remote "${remote}" does not belong to the expected Forgejo instance (check remote.<name>.pushurl)`,
+      );
     }
   }
   const args = ['push'];
@@ -390,8 +432,6 @@ export async function removeWorktreeAndPrune(repoPath: string, worktreePath: str
   }
 }
 
-export type PrWorktreeState = 'current' | 'stale' | 'missing';
-
 /**
  * Throwaway branch naming used for PR worktrees (`pr-<n>-<sha7>`, the same
  * name WorktreeManager.removeWorktree deletes). The pattern guard keeps a
@@ -399,41 +439,97 @@ export type PrWorktreeState = 'current' | 'stale' | 'missing';
  */
 const PR_THROWAWAY_BRANCH_PATTERN = /^pr-\d+-[0-9a-f]{7}$/;
 
+/** Local work a forced stale-worktree removal would destroy. */
+export interface StalePrWorktreeInfo {
+  /** Branch checked out in the leftover worktree (undefined when detached). */
+  branch?: string;
+  /** Uncommitted changes (tracked or untracked) in the leftover worktree. */
+  dirty: boolean;
+  /** Commits reachable from its HEAD but not from the expected PR head sha. */
+  commitsAhead: number;
+}
+
+export type PrWorktreeInspection =
+  | { state: 'missing' }
+  | { state: 'current' }
+  | { state: 'stale'; info: StalePrWorktreeInfo };
+
 /**
- * Validate a leftover worktree directory against the expected PR head sha.
+ * Inspect a leftover worktree directory against the expected PR head sha.
  * 'current' means the directory is checked out at expectedSha and can be
- * reused; 'stale' means it did not match and has been removed so the caller
- * can recreate it from scratch; 'missing' means there is nothing on disk.
+ * reused; 'missing' means there is nothing on disk; 'stale' means it does not
+ * match and carries what a discard would destroy.
  *
- * The stale path also deletes the throwaway branch the removed worktree had
- * checked out (`pr-<n>-<sha7>`): `git worktree remove` never removes
- * branches, and once the caller overwrites the worktree record with the new
- * head sha, the old branch name is no longer derivable and would leak
- * forever. The branch is resolved from the stale worktree itself before
- * removal and deleted best-effort, mirroring WorktreeManager.removeWorktree.
+ * Inspection deliberately does not touch the filesystem: `git worktree remove
+ * --force` deletes dirty worktrees and the throwaway branch delete drops local
+ * commits, so the decision to discard belongs to the caller, which can confirm
+ * with the user first (see discardStalePrWorktree).
  */
-export async function validatePrWorktree(
-  repoPath: string,
-  worktreePath: string,
-  expectedSha: string,
-): Promise<PrWorktreeState> {
+export async function inspectPrWorktree(worktreePath: string, expectedSha: string): Promise<PrWorktreeInspection> {
   const exists = await fs.promises.access(worktreePath).then(
     () => true,
     () => false,
   );
   if (!exists) {
-    return 'missing';
+    return { state: 'missing' };
   }
   const sha = await getCurrentCommitSha(worktreePath);
   if (sha && sha === expectedSha) {
-    return 'current';
+    return { state: 'current' };
   }
-  const staleBranch = await getCurrentBranch(worktreePath);
+
+  const [branch, dirty, commitsAhead] = await Promise.all([
+    getCurrentBranch(worktreePath),
+    isWorktreeDirty(worktreePath),
+    countCommitsAhead(worktreePath, expectedSha),
+  ]);
+  return { state: 'stale', info: { branch, dirty, commitsAhead } };
+}
+
+/** Uncommitted (tracked or untracked) changes in a leftover worktree. */
+async function isWorktreeDirty(worktreePath: string): Promise<boolean> {
+  try {
+    const { stdout } = await runGit(['status', '--porcelain'], worktreePath);
+    return stdout.trim().length > 0;
+  } catch {
+    // Not a usable worktree (or git refused to run): treat it as clean, since
+    // there is no user work to detect and the leftover is a broken directory.
+    return false;
+  }
+}
+
+/**
+ * Commits reachable from the worktree's HEAD but not from the expected sha.
+ * An unresolvable expected sha (unknown ref, non-sha value) counts as zero:
+ * blocking every discard on an unrelated git failure would strand the flow.
+ */
+async function countCommitsAhead(worktreePath: string, expectedSha: string): Promise<number> {
+  if (!/^[0-9a-f]{7,40}$/i.test(expectedSha)) {
+    return 0;
+  }
+  try {
+    const { stdout } = await runGit(['rev-list', '--count', `${expectedSha}..HEAD`], worktreePath);
+    const count = Number.parseInt(stdout.trim(), 10);
+    return Number.isNaN(count) || count < 0 ? 0 : count;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Destructive: remove a leftover PR worktree and, when it is the throwaway
+ * `pr-<n>-<sha7>` branch, delete that branch too. `git worktree remove` never
+ * removes branches, and once the caller overwrites the worktree record with
+ * the new head sha the old branch name is no longer derivable and would leak
+ * forever. Callers must confirm with the user first whenever
+ * inspectPrWorktree reported `dirty` work or local commits
+ * (see StalePrWorktreeInfo): the forced removal discards both.
+ */
+export async function discardStalePrWorktree(repoPath: string, worktreePath: string, branch?: string): Promise<void> {
   await removeWorktreeAndPrune(repoPath, worktreePath);
-  if (staleBranch && PR_THROWAWAY_BRANCH_PATTERN.test(staleBranch)) {
-    await deleteBranch(repoPath, staleBranch).catch(() => undefined);
+  if (branch && PR_THROWAWAY_BRANCH_PATTERN.test(branch)) {
+    await deleteBranch(repoPath, branch).catch(() => undefined);
   }
-  return 'stale';
 }
 
 export async function isCurrentWorkspaceBaseRepo(

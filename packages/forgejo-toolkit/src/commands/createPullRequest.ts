@@ -8,7 +8,7 @@ import {
   detectLinkedRepository,
   getAheadCount,
   getCurrentBranch,
-  getRemoteUrl,
+  getRemotePushUrls,
   getUpstreamBranch,
   pushBranch,
 } from '../worktree/gitOperations';
@@ -97,17 +97,21 @@ export async function createPrFromCurrentBranch(
 
   if (needsPush) {
     // The push authenticates with the instance token via an Authorization
-    // header, so it must only go to a remote owned by the linked instance.
-    // An upstream pointing at another host (e.g. a mirror) would leak it.
-    const remoteUrl = await getRemoteUrl(linked.localPath, pushRemote);
+    // header, so it must only go to remotes owned by the linked instance. An
+    // upstream pointing at another host (e.g. a mirror) would leak it. The
+    // *push* targets are resolved here because `git remote get-url` reports
+    // only the fetch URL and would miss `remote.<name>.pushurl` /
+    // `url.<base>.pushInsteadOf` rewrites; pushBranch re-checks immediately
+    // before pushing as well.
+    const pushUrls = await getRemotePushUrls(linked.localPath, pushRemote);
     let pushToken: string | undefined = instance.token;
-    if (remoteUrl === undefined) {
-      // The URL cannot be resolved, so ownership cannot be verified — push
-      // without the token and let git fail naturally if auth is required.
+    if (pushUrls === undefined) {
+      // The push target cannot be resolved, so ownership cannot be verified —
+      // push without the token and let git fail naturally if auth is required.
       pushToken = undefined;
-    } else if (!findInstanceForRemote(remoteUrl, [instance])) {
+    } else if (pushUrls.some((url) => !findInstanceForRemote(url, [instance]))) {
       logger.error(
-        `[createPrFromCurrentBranch] upstream remote "${pushRemote}" does not belong to instance ${instance.url}; push aborted to avoid leaking the access token`,
+        `[createPrFromCurrentBranch] a push target of remote "${pushRemote}" does not belong to instance ${instance.url}; push aborted to avoid leaking the access token`,
       );
       vscode.window.showErrorMessage(
         vscode.l10n.t(

@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { probeServerVersion } from '../versionProbe';
 import { clearServerVersions, getServerVersion } from '../serverVersion';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
+import { MOCK_SERVER_VERSION } from '../../test/mocks/handlers';
 
 const showWarningMessage = vi.mocked(vscode.window.showWarningMessage);
 
@@ -28,7 +29,7 @@ describe('probeServerVersion', () => {
 
   it('caches the probed version in the registry', async () => {
     await probeServerVersion('https://forgejo.example.com', 'mock-token');
-    expect(getServerVersion('https://forgejo.example.com')).toBe('1.21.5');
+    expect(getServerVersion('https://forgejo.example.com')).toBe(MOCK_SERVER_VERSION);
   });
 
   it('swallows probe failures and leaves the registry empty', async () => {

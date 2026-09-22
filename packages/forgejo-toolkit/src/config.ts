@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { isSameOriginUrl } from './webview/instanceImport';
 import { logger } from './logger';
 
 export type { ForgejoInstance };
@@ -81,10 +82,20 @@ export class ConfigManager {
     // stored in SecretStorage; an empty token means "keep the existing
     // credential". Re-adding an instance id without re-entering its token
     // (e.g. re-import) therefore preserves the stored secret instead of
-    // wiping it.
+    // wiping it — but only when the URL stays on the same origin. An import
+    // file can name a known id with a different URL, and silently rebinding
+    // the stored secret to that host would hand the token over (editInstance
+    // refuses the same move).
+    const stored = this._getStoredInstances().find((i) => i.id === instance.id);
     if (instance.token) {
       await this.context.secrets.store(this._tokenSecretKey(instance.id), instance.token);
       this._tokens.set(instance.id, instance.token);
+    } else if (stored && !isSameOriginUrl(stored.url, instance.url)) {
+      // Different origin: the secret still belongs to the original URL, so
+      // leave the SecretStorage entry untouched and only drop it from the
+      // in-memory table. This entry then surfaces token-less and the UI asks
+      // for a fresh one.
+      this._tokens.delete(instance.id);
     }
     const instances = this._getStoredInstances().filter((i) => i.id !== instance.id);
     instances.push({ ...instance, token: '' });

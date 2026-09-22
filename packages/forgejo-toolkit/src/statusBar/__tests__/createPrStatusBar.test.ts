@@ -222,6 +222,84 @@ describe('CreatePrStatusBarController', () => {
     expect(getRepoPullRequests).toHaveBeenCalledTimes(2);
   });
 
+  it('does not let a superseded refresh overwrite the open-PR cache', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveSlow: (pulls: unknown[]) => void = () => undefined;
+      getRepoPullRequests.mockImplementationOnce(
+        () =>
+          new Promise<unknown[]>((resolve) => {
+            resolveSlow = resolve;
+          }),
+      );
+      getRepoPullRequests.mockResolvedValue([
+        { number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } },
+      ]);
+
+      const item = createController();
+      const refreshA = controller!.refresh();
+      // Let refresh A reach its still-pending pull-request lookup.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(getRepoPullRequests).toHaveBeenCalledTimes(1);
+
+      // Refresh B supersedes A and finds the PR that was just created.
+      const refreshB = controller!.refresh();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(item.text).toBe('$(git-pull-request) PR #7');
+
+      // A completes late with its older "no PR" answer. It must not repopulate
+      // the cache that notifyPullRequestsChanged cleared.
+      resolveSlow([]);
+      await refreshA;
+      await refreshB;
+
+      getRepoPullRequests.mockClear();
+      await controller!.refresh();
+      expect(getRepoPullRequests).not.toHaveBeenCalled();
+      expect(item.text).toBe('$(git-pull-request) PR #7');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not let a superseded refresh overwrite the default-branch cache', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveSlow: (detail: unknown) => void = () => undefined;
+      getRepoDetail.mockImplementationOnce(
+        () =>
+          new Promise<unknown>((resolve) => {
+            resolveSlow = resolve;
+          }),
+      );
+      getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+      getRepoPullRequests.mockResolvedValue([
+        { number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } },
+      ]);
+
+      const item = createController();
+      const refreshA = controller!.refresh();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(getRepoDetail).toHaveBeenCalledTimes(1);
+
+      const refreshB = controller!.refresh();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(item.text).toBe('$(git-pull-request) PR #7');
+
+      // A's older answer (the current branch as the default) would make every
+      // later refresh treat the branch as the default and hide the button.
+      resolveSlow({ repository: { default_branch: 'feature' } });
+      await refreshA;
+      await refreshB;
+
+      await controller!.refresh();
+      expect(item.hide).not.toHaveBeenCalled();
+      expect(item.text).toBe('$(git-pull-request) PR #7');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('watches the resolved gitdir HEAD instead of <folder>/.git/HEAD', async () => {
     // Linked worktrees keep HEAD in the main repository's gitdir.
     vi.mocked(getGitHeadPath).mockResolvedValue('/main-repo/.git/worktrees/wt/HEAD');

@@ -149,6 +149,11 @@ export class CreatePrStatusBarController implements vscode.Disposable {
       const repoKey = `${linked.instanceId}/${linked.owner}/${linked.repo}`;
       if (!this._defaultBranchCache.has(repoKey)) {
         const detail = await client.getRepoDetail(linked.owner, linked.repo);
+        // A refresh superseded while the request was in flight must not write
+        // its older result over the newer refresh's value.
+        if (isStale()) {
+          return;
+        }
         this._defaultBranchCache.set(repoKey, detail.repository.default_branch);
       }
       if (isStale()) {
@@ -164,6 +169,13 @@ export class CreatePrStatusBarController implements vscode.Disposable {
       const cachedPr = this._openPrCache.get(prKey);
       if (!cachedPr || cachedPr.expiresAt <= Date.now()) {
         const pulls = await client.getRepoPullRequests(linked.owner, linked.repo, 'open');
+        // A superseded refresh must not repopulate the cache with its older
+        // "no PR for this branch" answer: notifyPullRequestsChanged clears the
+        // cache so a just-created PR is picked up, and this stale write would
+        // otherwise flip the status bar back to "Create PR" for the whole TTL.
+        if (isStale()) {
+          return;
+        }
         // Only the first page of open pull requests is checked; a PR for this
         // branch beyond the default page size will not be detected.
         const match = pulls.find((pr) => isOpenPrForBranch(pr, branch, linked.owner, linked.repo));

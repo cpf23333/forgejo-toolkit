@@ -4,6 +4,7 @@ import {
   computeImportTokenConflicts,
   computeTokenConflicts,
   decryptExportData,
+  isSameOriginUrl,
   MAX_IMPORT_PBKDF2_ITERATIONS,
   sanitizeImportedInstances,
   stripInstanceTokens,
@@ -76,6 +77,23 @@ describe('stripInstanceTokens', () => {
     expect(stripped[1]).toEqual({ ...imported[1], token: '' });
     // The stash keeps the real tokens; stripping must not mutate it.
     expect(imported[0].token).toBe('tok-a');
+  });
+});
+
+describe('isSameOriginUrl', () => {
+  it('treats different paths on one host as the same origin', () => {
+    expect(isSameOriginUrl('https://forgejo.example.com', 'https://forgejo.example.com/a/b')).toBe(true);
+  });
+
+  it('separates hosts, ports and schemes', () => {
+    expect(isSameOriginUrl('https://forgejo.example.com', 'https://evil.example')).toBe(false);
+    expect(isSameOriginUrl('https://forgejo.example.com', 'https://forgejo.example.com:8443')).toBe(false);
+    expect(isSameOriginUrl('https://forgejo.example.com', 'http://forgejo.example.com')).toBe(false);
+  });
+
+  it('fails closed on an unparseable URL on either side', () => {
+    expect(isSameOriginUrl('not a url', 'https://forgejo.example.com')).toBe(false);
+    expect(isSameOriginUrl('https://forgejo.example.com', 'not a url')).toBe(false);
   });
 });
 

@@ -87,6 +87,14 @@ function parseFileDiff(block: string): FileDiffMap {
   const headLines = new Map<number, DiffLineType>();
 
   const lines = block.split(/\r?\n/);
+  // git always terminates the diff with a newline, so the final block carries
+  // one trailing empty element. Counting it as a context line would map a line
+  // one past the last hunk line (a comment there is rejected by the server);
+  // only that final element is dropped, so genuinely empty lines inside a hunk
+  // stay context lines.
+  if (lines[lines.length - 1] === '') {
+    lines.pop();
+  }
   let baseLine = 0;
   let headLine = 0;
   let inHunk = false;

@@ -33,6 +33,21 @@ export interface ExportData {
 }
 
 /**
+ * True when both URLs resolve to the same origin. Imported entries may reuse a
+ * stored instance id with an attacker-chosen URL, so callers use this to
+ * decide whether a stored token may stay bound to that id. Unparseable URLs
+ * fail closed (treated as different origins) rather than accidentally
+ * authorizing the reuse.
+ */
+export function isSameOriginUrl(a: string, b: string): boolean {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Per imported instance, true when its token matches a stored instance with a
  * different id. Computed host-side so stored tokens are never sent to the
  * webview. Mirrors the previous webview-side check exactly: re-importing the
@@ -78,6 +93,11 @@ export function stripInstanceTokens(instances: ForgejoInstance[]): ForgejoInstan
  * plain objects carrying only the known fields. Invalid entries are dropped
  * and counted. `syncApiUrlsToInstanceUrl` is kept only when it is actually
  * a boolean, so older exports without it round-trip to `undefined`.
+ *
+ * `id` is forwarded as-is: the file may name an id that is already stored,
+ * and this function has no view of the stored list. ConfigManager.addInstance
+ * enforces the id/url origin consistency that makes reusing a stored id safe
+ * (see isSameOriginUrl), so no check belongs here.
  */
 export function sanitizeImportedInstances(items: unknown[]): { valid: ForgejoInstance[]; dropped: number } {
   const valid: ForgejoInstance[] = [];

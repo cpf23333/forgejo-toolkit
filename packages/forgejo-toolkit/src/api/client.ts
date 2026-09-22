@@ -230,7 +230,9 @@ export function clearTreeCache(): void {
  * exists at both ends with different content. A file that is gone at the head
  * of the range is a removal no matter what happened earlier (e.g. modified
  * then removed) — otherwise the diff editor tries to fetch the head side and
- * shows an empty file on the 404.
+ * shows an empty file on the 404. Only used for /compare output, which never
+ * reports 'renamed'/'copied' (see getPullRequestFilesFromCompare), so neither
+ * needs a branch here.
  */
 function mergeCompareStatuses(existing: string, next: string): string | undefined {
   if (existing === 'added' && next === 'removed') {
@@ -244,9 +246,6 @@ function mergeCompareStatuses(existing: string, next: string): string | undefine
   }
   if (existing === 'added' || existing === 'removed') {
     return existing;
-  }
-  if (next === 'renamed') {
-    return 'renamed';
   }
   // Prefer a specific status over the generic 'changed'.
   if (existing === 'changed') {
@@ -370,7 +369,20 @@ export class ForgejoClient {
   async getUserIssues(state: string = 'open'): Promise<ForgejoIssue[]> {
     const issues = await this._fetchAllPages((page) =>
       issueSearchIssues(
-        { state: state as 'open' | 'closed' | 'all', type: 'issues', page, limit: PAGE_SIZE },
+        {
+          state: state as 'open' | 'closed' | 'all',
+          type: 'issues',
+          // /repos/issues/search is unfiltered by default: without these flags
+          // the server returns every issue in every repository the token can
+          // see. The dashboard tab promises the user's own items ("assigned to
+          // you" / "related to you"), so scope the query explicitly.
+          created: true,
+          assigned: true,
+          mentioned: true,
+          review_requested: true,
+          page,
+          limit: PAGE_SIZE,
+        },
         { client: this._client() },
       ),
     );
@@ -380,7 +392,17 @@ export class ForgejoClient {
   async getUserPullRequests(state: string = 'open'): Promise<ForgejoPullRequest[]> {
     const pulls = await this._fetchAllPages((page) =>
       issueSearchIssues(
-        { state: state as 'open' | 'closed' | 'all', type: 'pulls', page, limit: PAGE_SIZE },
+        {
+          state: state as 'open' | 'closed' | 'all',
+          type: 'pulls',
+          // Same default-unfiltered caveat as getUserIssues.
+          created: true,
+          assigned: true,
+          mentioned: true,
+          review_requested: true,
+          page,
+          limit: PAGE_SIZE,
+        },
         { client: this._client() },
       ),
     );
@@ -1023,8 +1045,15 @@ export class ForgejoClient {
     if (pr.state !== 'open') {
       blockers.push({ type: 'closed' });
     }
-    if (!permissions?.admin && !permissions?.push) {
+    // Only a known permissions object can prove the user lacks push rights:
+    // when the repo enrichment probe failed (timeout/5xx/offline) the
+    // permissions are unknown, not denied. The webview disables merging for
+    // any blocker, so reporting "no permission" here would tell the user they
+    // may not merge because of a transient failure.
+    if (permissions !== undefined && !permissions.admin && !permissions.push) {
       blockers.push({ type: 'no_permission' });
+    } else if (permissions === undefined) {
+      this.logger?.debug(`[mergeBlockers] permissions unknown for PR #${pr.number}; not blocking`);
     }
 
     const canBypassProtection = permissions?.admin === true && protection?.apply_to_admins !== true;
@@ -1348,6 +1377,17 @@ export class ForgejoClient {
     );
   }
 
+  /**
+   * Changed files for a commit range, derived from /compare. That endpoint
+   * reports only the net added/removed/modified statuses (upstream builds them
+   * from a CommitAffectedFiles list of {filename, status}) and carries no
+   * linkage between the two halves of a rename: a rename arrives as an
+   * unrelated removed+added pair. Inventing a mapping from that pair would
+   * guess wrong whenever several files were removed/added in the range, so
+   * `previous_filename` is never set here. Callers that need the old path of a
+   * rename must use getPullRequestFiles (/pulls/{index}/files), which does
+   * return it.
+   */
   async getPullRequestFilesFromCompare(
     owner: string,
     repo: string,
@@ -1356,22 +1396,11 @@ export class ForgejoClient {
   ): Promise<ForgejoChangedFile[]> {
     const compare = await repoCompareDiff(owner, repo, `${baseSha}..${headSha}`, { client: this._client() });
     const statusMap = new Map<string, string>();
-    const previousNameMap = new Map<string, string>();
-    // The generated CommitAffectedFiles type predates the field; the compare
-    // endpoint does return previous_filename for renamed files.
-    const compareFiles = (compare.files ?? []) as Array<{
-      filename?: string;
-      status?: string;
-      previous_filename?: string;
-    }>;
+    const compareFiles = (compare.files ?? []) as Array<{ filename?: string; status?: string }>;
     for (const file of compareFiles) {
       const filename = file.filename ?? '';
       if (!filename) {
         continue;
-      }
-      // Renamed files need their old path to fetch the base-side content.
-      if (file.previous_filename) {
-        previousNameMap.set(filename, file.previous_filename);
       }
       const existing = statusMap.get(filename);
       const status = file.status ?? 'changed';
@@ -1386,17 +1415,13 @@ export class ForgejoClient {
         statusMap.set(filename, status);
       }
     }
-    return Array.from(statusMap.entries()).map(
-      ([filename, status]) =>
-        ({
-          filename,
-          status,
-          previous_filename: previousNameMap.get(filename),
-          additions: 0,
-          deletions: 0,
-          changes: 0,
-        }) as ForgejoChangedFile,
-    );
+    return Array.from(statusMap.entries()).map(([filename, status]) => ({
+      filename,
+      status,
+      additions: 0,
+      deletions: 0,
+      changes: 0,
+    }));
   }
 
   async getPullRequestCommentsAndTimeline(owner: string, repo: string, index: number): Promise<TimelineComment[]> {

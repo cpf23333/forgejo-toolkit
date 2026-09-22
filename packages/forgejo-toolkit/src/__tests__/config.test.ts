@@ -72,6 +72,48 @@ describe('ConfigManager', () => {
     expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
   });
 
+  it('keeps the stored secret on an empty-token same-origin re-add with another path', async () => {
+    await config.addInstance(instance);
+    await config.addInstance({ ...instance, token: '', url: 'https://forgejo.example.com/other/mount' });
+    expect(config.getInstances()[0].url).toBe('https://forgejo.example.com/other/mount');
+    expect(config.getInstances()[0].token).toBe('token-1');
+  });
+
+  it('does not expose the stored secret when an empty-token re-add switches origin', async () => {
+    await config.addInstance(instance);
+    // An import file can carry a known id with an attacker-chosen URL; the
+    // stored token must not follow it to the new host.
+    await config.addInstance({ ...instance, token: '', url: 'https://evil.example', name: 'x', username: 'x' });
+
+    const [stored] = config.getInstances();
+    expect(stored.url).toBe('https://evil.example');
+    expect(stored.token).toBe('');
+    // The SecretStorage entry is left alone (only the exposure is removed).
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
+  });
+
+  it('still accepts a new token on a different-origin re-add', async () => {
+    await config.addInstance(instance);
+    await config.addInstance({ ...instance, token: 'token-2', url: 'https://evil.example' });
+
+    expect(config.getInstances()[0].token).toBe('token-2');
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-2');
+  });
+
+  it('fails closed on an unparseable URL instead of reusing the stored secret', async () => {
+    await config.addInstance(instance);
+    await config.addInstance({ ...instance, token: '', url: 'not a valid url' });
+
+    expect(config.getInstances()[0].token).toBe('');
+
+    // The same must hold when the *stored* URL is the unparseable side.
+    const broken = createFakeContext();
+    const brokenConfig = new ConfigManager(broken.context as never);
+    await brokenConfig.addInstance({ ...instance, url: 'not a valid url' });
+    await brokenConfig.addInstance({ ...instance, token: '' });
+    expect(brokenConfig.getInstances()[0].token).toBe('');
+  });
+
   it('keeps the stored secret on an empty-token update and replaces it on a non-empty one', async () => {
     await config.addInstance(instance);
     await config.updateInstance(instance.id, { token: '', name: 'renamed' });
