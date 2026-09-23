@@ -120,6 +120,13 @@ jobs:
       - name: Typecheck
         run: pnpm run check
 
+      # `docs/api-verification-checklist.md` has to keep up with the client: the
+      # audit resolves every generated operation the client calls and fails when
+      # one has no entry in the document (see its "后续维护策略" section). It needs
+      # no dependencies, so it runs before the slower suites.
+      - name: API checklist coverage
+        run: node tools/api-audit/check.mjs
+
       - name: Test
         run: pnpm --filter forgejo-toolkit test
 
