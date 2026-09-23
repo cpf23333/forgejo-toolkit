@@ -17,11 +17,12 @@
   - [x] `GET .../issues/{index}/dependencies` 分页：改为经 `_fetchAllPages(page/limit)` 取全量，不再默认只取 30 条且无总数头
   - [x] timeline 短页提前结束：`_fetchAllPages` 新增 `shortPageMarksEnd` 选项，timeline 调用关闭该启发式（持续翻页到空页，因为过滤发生在分页之后）
   - [x] `stopwatch/delete` 的确认文案改为「取消正在运行的计时器」（en/zh，l10n 187/187 对齐）；删除冗余的 `artifactDownloadUrl`；修正 `serverVersion.ts` 注释里的 `gitea-1.22` → `gitea-1.22.0`
-- [ ] P2 API 核对发现的**待处理项**（需要产品取舍或额外信息）：
-  - [ ] 时间追踪的「汇总」语义：非 issue 写入者的 `GET .../times` 只返回本人记录，UI 却当作该 issue 时间汇总（`IssueDetail.vue:970-975`、`PullRequestDetail.vue:1418-1423`）→ 需要决定是标注「我的时间」还是按权限区分
-  - [ ] 他人计时条目的删除按钮：服务端只允许记录本人或 site admin，而 webview 无法判断是否 site admin，当前按钮照常显示且必然 403。修法已设计：`canDeleteTrackedTime(user_name, currentUsername)` 守卫 + 在 `KNOWN_ISSUES`（en/zh）记一条「site admin 无法从扩展删除他人计时」（实现时注意 UI 一致性：两个详情页一起改）
-  - [ ] stopwatch 是每用户全局唯一：`isStopwatchRunning` 只按当前 issue 判断（`IssueDetail.vue:86-90`），在别的 issue 正计时时点启动会静默结束另一条并为其记账 → 可用 `GET /user/stopwatches` 提前提示
-  - [ ] 生成的 `IssueAddTime` 错误类型缺少服务端实际会返回的 422；`isNameConflictError` 的 422 注释可更精确（同「规格源未固定」那条）
+- [x] P2 API 核对发现的**其余偏差**——已全部修（2026-09-23，`3fe67b9`）：
+  - [x] 时间追踪「汇总」语义：新增 `webview/src/utils/trackedTime.ts` 的 `isTrackedTimeTotal`，两个详情页把合计标注为「记录的总工时 / 我的工时」——仅当调用者是 issue 作者、或列表里已出现他人条目时才声称是总计（绝不夸大）
+  - [x] 他人计时条目的删除按钮：`canDeleteTrackedTime` 只在本人（或名字未知）的行上渲染；`KNOWN_ISSUES`（en/zh）记录「站点管理员无法从扩展删除他人计时」与走网页端的规避方法
+  - [x] stopwatch 每用户全局唯一：`findStopwatchElsewhere` + 面板提示「{issue} 上已有计时，在这里启动会结束它并记入工时」，按钮不再是静默暗算
+  - [x] `stopwatch/delete` 的确认文案改为「取消正在运行的计时器」（en/zh）；`isNameConflictError` 注释说明 409 与 422 各自对应的场景
+- [ ] P3 生成的 `IssueAddTime` 错误类型缺少服务端实际会返回的 422（`client.ts` 已加注说明）——随「kubb 规格源未固定」那条一起，重新生成时补齐
 
 - [ ] P2 `_fetchAllPages` 截断标记：issue / PR / commit / 评论 / 分支 / 标签 / Release / 仓库等 18 个调用点的 500 条上限没有任何提示（仓库内文件搜索已改为 `{ files, truncated }`）。需要逐消息契约改 client → host → webview → MCP；`X-Total-Count` 仍不可用（请求层不透出响应头）。当前限制与规避方法见 `KNOWN_ISSUES`
 - [ ] P2 代理支持：请求走全局 `fetch`，不读 `HTTP(S)_PROXY` / VS Code `http.proxy`。方向：按设置接入 undici `ProxyAgent`——需要新增依赖，且代理行为无法在 CI 覆盖；当前限制见 `KNOWN_ISSUES`
