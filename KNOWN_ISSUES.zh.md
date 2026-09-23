@@ -143,7 +143,9 @@ API 中唯一与项目相关的字段只有：
 
 webview 的 Content-Security-Policy 允许任意 origin 的 `https:` 图片，因此 Issue/PR 正文里的第三方 https 图片——包括 Forgejo 为未上传头像的用户返回的 gravatar 头像——都能正常显示。已配置实例的 origin 也会单独加入白名单，所以 `http://` 实例自身提供的图片同样正常。
 
-只有来自其他主机的 `http://` 明文图片会被浏览器拒绝，显示为裂图。规避方法：在浏览器中打开对应 Issue/PR 查看这些图片。
+设置向导是例外：它要为「已输入但尚未保存」的实例渲染 markdown 预览，因此该面板直接允许 `http:` 图片，而不是在面板 HTML 构建时白名单一个当时还不知道的 origin（表单不做持久化，为了套用 origin 重建面板会把输入清空）。
+
+只有来自其他主机的 `http://` 明文图片（向导之外）会被浏览器拒绝，显示为裂图。规避方法：在浏览器中打开对应 Issue/PR 查看这些图片。
 
 该 CSP 同时将 `connect-src` 限制为 webview 资源，但这没有用户可见影响：webview 不直接发起网络请求，一切都通过 postMessage 走扩展宿主。
 

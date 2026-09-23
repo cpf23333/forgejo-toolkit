@@ -620,6 +620,9 @@ export class OnboardingWebviewPanel {
       panelMode: 'onboarding',
       locale,
       instanceUrls,
+      // Markdown previews in the wizard point at the instance being configured,
+      // which may be plain http and is not saved yet (see allowInsecureImages).
+      allowInsecureImages: true,
     });
   }
 

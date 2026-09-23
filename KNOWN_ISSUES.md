@@ -143,7 +143,9 @@ Workaround: configure the proxy to forward the escaped path unchanged (for nginx
 
 The webview Content-Security-Policy allows `https:` images from any origin, so third-party https images in issue/PR bodies — including gravatar avatars, which Forgejo returns for users without an uploaded avatar — render normally. The origins of the configured instances are additionally allowlisted explicitly, so images served by an `http://` instance itself also load.
 
-Only `http://` images from other hosts (cleartext third-party links) are refused by the browser and show as broken images. Workaround: open the issue/PR in the browser to see them.
+The setup wizard is the exception: it renders markdown previews for an instance that is typed but not saved yet, so its panel allows `http:` images outright rather than allowlisting an origin it does not know when the panel is built (the form is not persisted, so regenerating the panel to apply the origin would reset it).
+
+Only `http://` images from other hosts (cleartext third-party links, outside the wizard) are refused by the browser and show as broken images. Workaround: open the issue/PR in the browser to see them.
 
 The same CSP also restricts `connect-src` to webview resources, but this has no user-visible effect: the webview never makes direct network requests — everything goes through the extension host via postMessage.
 

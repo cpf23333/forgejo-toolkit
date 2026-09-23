@@ -7,6 +7,14 @@ export interface WebviewContentOptions {
   locale?: 'en' | 'zh';
   /** URLs of the configured Forgejo instances; their origins are added to CSP img-src. */
   instanceUrls?: string[];
+  /**
+   * Allow `http:` image sources. The setup wizard previews markdown from an instance
+   * the user has typed but not saved yet, and its HTML (and therefore its CSP) is
+   * built before that URL is known; regenerating the panel to apply the origin would
+   * reset the form, which the webview does not persist. Only that panel opts in — the
+   * dashboard keeps https-only and proxies instance images through the extension host.
+   */
+  allowInsecureImages?: boolean;
   pullReviewComment?: {
     instanceId: string;
     owner: string;
@@ -22,6 +30,36 @@ export interface WebviewContentOptions {
   };
 }
 
+/**
+ * The document CSP. Exported so its rules — in particular which image origins are
+ * allowed for which panel — can be asserted without building the webview bundle.
+ */
+export function buildContentSecurityPolicy(
+  webview: { cspSource: string },
+  nonce: string,
+  options?: WebviewContentOptions,
+): string {
+  const instanceOrigins = toInstanceOrigins(options?.instanceUrls ?? []);
+  const imgSrc = [
+    `'self'`,
+    'blob:',
+    'data:',
+    'https:',
+    ...(options?.allowInsecureImages ? ['http:'] : []),
+    webview.cspSource,
+    ...instanceOrigins,
+  ].join(' ');
+  return (
+    [
+      "default-src 'none'",
+      `style-src ${webview.cspSource} 'unsafe-inline'`,
+      `font-src 'self' data: ${webview.cspSource}`,
+      `script-src 'nonce-${nonce}' 'strict-dynamic' ${webview.cspSource}`,
+      `img-src ${imgSrc}`,
+      `connect-src 'self' ${webview.cspSource}`,
+    ].join('; ') + ';'
+  );
+}
 export function getWebviewContent(
   webview: vscode.Webview,
   extensionPath: string,
@@ -83,9 +121,7 @@ export function getWebviewContent(
   // nonce and would otherwise be blocked. webview.cspSource is the CSP2
   // fallback for engines without strict-dynamic support (ignored where
   // strict-dynamic is honored).
-  const instanceOrigins = toInstanceOrigins(options?.instanceUrls ?? []);
-  const imgSrc = [`'self'`, 'blob:', 'data:', 'https:', webview.cspSource, ...instanceOrigins].join(' ');
-  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src 'self' data: ${webview.cspSource}; script-src 'nonce-${nonce}' 'strict-dynamic' ${webview.cspSource}; img-src ${imgSrc}; connect-src 'self' ${webview.cspSource};">`;
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="${buildContentSecurityPolicy(webview, nonce, options)}">`;
 
   html = html.replace(/(src|href)="([^"]*)"/g, (match, attr, value) => {
     if (value.startsWith('http') || value.startsWith('data:')) {
