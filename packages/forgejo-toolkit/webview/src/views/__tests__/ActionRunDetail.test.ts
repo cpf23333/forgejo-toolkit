@@ -194,3 +194,65 @@ describe('ActionRunDetail job log collapsing', () => {
     wrapper.unmount();
   });
 });
+
+describe('ActionRunDetail run actions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stateMock.loading.clear();
+    stateMock.errors.clear();
+    stateMock.actionRunDetails.value.clear();
+    stateMock.actionRunJobs.value.clear();
+    stateMock.actionRunArtifacts.value.clear();
+    stateMock.actionJobLogs.value.clear();
+  });
+
+  function cancelButtons(wrapper: ReturnType<typeof mountDetail>) {
+    return wrapper.findAll('[icon="circle-slash"]');
+  }
+
+  function deleteButtons(wrapper: ReturnType<typeof mountDetail>) {
+    return wrapper.findAll('[icon="trash"]');
+  }
+
+  it('offers cancel for exactly the statuses the API accepts', async () => {
+    // blocked (waiting for approval) is a real state the API cancels; the views
+    // used to list GitHub's pending/requested instead and hid the button for it.
+    for (const status of ['unknown', 'waiting', 'running', 'blocked']) {
+      const wrapper = mountDetail();
+      setRun(status);
+      await nextTick();
+      expect(cancelButtons(wrapper), status).toHaveLength(1);
+      wrapper.unmount();
+      stateMock.actionRunDetails.value.clear();
+    }
+    for (const status of ['success', 'failure', 'cancelled', 'skipped', 'pending', 'requested']) {
+      const wrapper = mountDetail();
+      setRun(status);
+      await nextTick();
+      expect(cancelButtons(wrapper), status).toHaveLength(0);
+      wrapper.unmount();
+      stateMock.actionRunDetails.value.clear();
+    }
+  });
+
+  it('offers delete only once the run is finished', async () => {
+    // DELETE on a queued, running or blocked run answers 500, so the button must
+    // not be offered for those states.
+    for (const status of ['running', 'blocked', 'waiting', 'unknown']) {
+      const wrapper = mountDetail();
+      setRun(status);
+      await nextTick();
+      expect(deleteButtons(wrapper), status).toHaveLength(0);
+      wrapper.unmount();
+      stateMock.actionRunDetails.value.clear();
+    }
+    for (const status of ['success', 'failure', 'cancelled', 'skipped']) {
+      const wrapper = mountDetail();
+      setRun(status);
+      await nextTick();
+      expect(deleteButtons(wrapper), status).toHaveLength(1);
+      wrapper.unmount();
+      stateMock.actionRunDetails.value.clear();
+    }
+  });
+});
