@@ -34,6 +34,7 @@ import {
   issueDueDateKey,
   startWorkKey,
 } from '../composables/useAppState';
+import { canDeleteTrackedTime, findStopwatchElsewhere, isTrackedTimeTotal } from '../utils/trackedTime';
 import type { ForgejoIssueAttachment } from '../types/api';
 
 const { t } = useI18n();
@@ -88,6 +89,16 @@ const isStopwatchRunning = computed(() =>
     (sw) => sw.repo_owner_name === owner.value && sw.repo_name === repo.value && sw.issue_index === index.value,
   ),
 );
+const canSeeAllTrackedTimes = computed(() =>
+  isTrackedTimeTotal(trackedTimes.value, currentUsername.value, isIssueAuthor.value),
+);
+const stopwatchElsewhere = computed(() =>
+  findStopwatchElsewhere(stopwatches.value, { owner: owner.value, repo: repo.value, index: index.value }),
+);
+const stopwatchElsewhereLabel = computed(() => {
+  const stopwatch = stopwatchElsewhere.value;
+  return stopwatch ? [stopwatch.repo_name, stopwatch.issue_index].filter((part) => part !== undefined).join('#') : '';
+});
 const dependencies = computed(() => state.issueDependencies.value.get(dependenciesKey.value) ?? []);
 const repoIssues = computed(() => state.repoIssues.value.get(repoIssuesKeyValue.value) ?? []);
 const repoIssuesLoading = computed(() => state.loading.get(repoIssuesKeyValue.value) ?? false);
@@ -972,7 +983,13 @@ function reloadIssue() {
             <span class="tracked-time">{{
               formatDuration(trackedTimes.reduce((sum, t) => sum + (t.time ?? 0), 0))
             }}</span>
+            <span class="tracked-time-scope">{{
+              t(canSeeAllTrackedTimes ? 'dashboard.detail.trackedTimeTotal' : 'dashboard.detail.trackedTimeMine')
+            }}</span>
           </div>
+          <p v-if="stopwatchElsewhere && !isStopwatchRunning" class="time-tracking-hint">
+            {{ t('dashboard.detail.stopwatchRunningElsewhere', { issue: stopwatchElsewhereLabel }) }}
+          </p>
           <div class="time-tracking-actions">
             <vscode-button
               v-if="!isStopwatchRunning"
@@ -1016,6 +1033,7 @@ function reloadIssue() {
               <span>{{ formatDuration(time.time ?? 0) }}</span>
               <span v-if="time.user_name" class="tracked-time-user">{{ time.user_name }}</span>
               <button
+                v-if="canDeleteTrackedTime(time.user_name, currentUsername)"
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.delete')"
@@ -1516,5 +1534,15 @@ function reloadIssue() {
 
 .issue-reactions {
   margin-top: 12px;
+}
+.tracked-time-scope {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.time-tracking-hint {
+  margin: 0 0 8px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
 }
 </style>

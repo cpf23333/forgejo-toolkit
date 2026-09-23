@@ -420,7 +420,10 @@
         "removed_deadline": "移除了截止日期",
         "add_dependency": "添加了依赖",
         "remove_dependency": "移除了依赖"
-      }
+      },
+      "trackedTimeTotal": "记录的总工时",
+      "trackedTimeMine": "我的工时",
+      "stopwatchRunningElsewhere": "{issue} 上已有计时在进行：在这里启动会结束它，并把那段时间记入工时。"
     },
     "worktree": {
       "openInWorktree": "在 Worktree 中打开",

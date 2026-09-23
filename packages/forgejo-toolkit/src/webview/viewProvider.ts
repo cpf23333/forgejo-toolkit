@@ -1262,9 +1262,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // even construct a request. Start/stop are not destructive, so only the
         // delete action prompts.
         if (message.command === 'deleteIssueStopwatch') {
-          if (
-            !(await this._confirmDestructive(vscode.l10n.t('Delete the tracked time recorded for issue #{0}?', index)))
-          ) {
+          if (!(await this._confirmDestructive(vscode.l10n.t('Cancel the running timer for issue #{0}?', index)))) {
             // Answer with `cancelled` so the webview clears its pending state
             // without treating the decline as a failure.
             this._reply('issueStopwatchChanged', {

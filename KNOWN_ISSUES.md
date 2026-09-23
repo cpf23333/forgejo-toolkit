@@ -189,6 +189,10 @@ Requests use the Node `fetch` implementation, which ignores `HTTP_PROXY`/`HTTPS_
 
 Workaround: point the instance URL at a host that is reachable directly — a reverse proxy or tunnel in front of the Forgejo server — or run the editor on a network with direct access.
 
----
+## Deleting another user's tracked time is not offered
+
+`DELETE /repos/{owner}/{repo}/issues/{index}/times/{id}` accepts the record's owner or a site administrator — a repository administrator is not enough. The tracked-time panel keeps its delete button for entries it can tell are the signed-in user's and hides it for the rest, because those rows could only ever answer 403. A site administrator therefore cannot remove somebody else's entry from the extension even though the API would allow it.
+
+## Workaround: remove the entry through the Forgejo web UI, which knows the account's administrator flag.
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._

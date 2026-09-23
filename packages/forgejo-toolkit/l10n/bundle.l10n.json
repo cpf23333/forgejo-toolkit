@@ -1,6 +1,6 @@
 {
   "Delete this attachment?": "Delete this attachment?",
-  "Delete the tracked time recorded for issue #{0}?": "Delete the tracked time recorded for issue #{0}?",
+  "Cancel the running timer for issue #{0}?": "Cancel the running timer for issue #{0}?",
   "How would you like to open the PR worktree?": "How would you like to open the PR worktree?",
   "How would you like to open the issue worktree?": "How would you like to open the issue worktree?",
   "Started work on issue #{0}: created branch {1}": "Started work on issue #{0}: created branch {1}",

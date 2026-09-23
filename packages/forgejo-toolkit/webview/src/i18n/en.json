@@ -420,7 +420,10 @@
         "removed_deadline": "removed deadline",
         "add_dependency": "added dependency",
         "remove_dependency": "removed dependency"
-      }
+      },
+      "trackedTimeTotal": "Total tracked time",
+      "trackedTimeMine": "My tracked time",
+      "stopwatchRunningElsewhere": "A timer is already running on {issue}; starting one here ends it and records that time."
     },
     "worktree": {
       "openInWorktree": "Open in Worktree",
