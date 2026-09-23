@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { ForgejoClient } from '../../src/api/client';
 import { ApiError } from '../../src/api/errors-core';
 import {
   buildToolHandlers,
+  registerTools,
   isSafePathSegment,
   isSafeRepoPath,
   truncateLargeStrings,
@@ -448,5 +449,46 @@ describe('tool input path validation', () => {
   it('only allows the empty path where the caller opts in', () => {
     expect(isSafeRepoPath('')).toBe(false);
     expect(isSafeRepoPath('', { allowEmpty: true })).toBe(true);
+  });
+});
+
+describe('registerTools cancellation', () => {
+  it('scopes the client to the signal of the tool call', async () => {
+    // A cancelled tool call must abort its HTTP requests, so the dispatch has to
+    // hand the SDK's signal to the client it builds the handlers with.
+    const scoped = { getCurrentUser: async () => ({ login: 'demo-user' }) } as never;
+    const withSignal = vi.fn(() => scoped);
+    const client = { withSignal } as never;
+    const registered = new Map<string, (args: unknown, extra?: { signal?: AbortSignal }) => Promise<unknown>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const controller = new AbortController();
+    await registered.get('whoami')?.(undefined, { signal: controller.signal });
+
+    expect(withSignal).toHaveBeenCalledWith(controller.signal);
+  });
+
+  it('keeps the shared handlers when the call carries no signal', async () => {
+    const scoped = {} as never;
+    const withSignal = vi.fn(() => scoped);
+    const client = { withSignal } as never;
+    const registered = new Map<string, (args: unknown, extra?: { signal?: AbortSignal }) => Promise<unknown>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    await registered
+      .get('whoami')?.(undefined, {})
+      .catch(() => undefined);
+
+    expect(withSignal).not.toHaveBeenCalled();
   });
 });

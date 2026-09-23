@@ -277,8 +277,21 @@ export interface MentionSearchResult {
   issues: MentionIssueItem[];
 }
 
+/**
+ * Adds an abort signal to a request config. Exported so the merge can be asserted
+ * directly: a mocked HTTP layer rebuilds the Request and drops the caller signal,
+ * which hides this from an end-to-end test.
+ */
+export function withAbortSignal<TRequestData>(
+  config: RequestConfig<TRequestData>,
+  signal?: AbortSignal,
+): RequestConfig<TRequestData> {
+  return signal ? { ...config, signal } : config;
+}
 export class ForgejoClient {
   private readonly configuredOrigin: string;
+  /** Abort signal for this client's requests; set by `withSignal` (MCP tool calls). */
+  private readonly abortSignal?: AbortSignal;
   private detectedServerOrigin: string | undefined;
   private readonly syncApiUrlsToInstanceUrl: boolean;
   // Distinguishes same-origin accounts in the shared tree cache without
@@ -290,7 +303,9 @@ export class ForgejoClient {
     private token: string,
     private logger?: ClientLogger,
     syncApiUrlsToInstanceUrl?: boolean,
+    options?: { signal?: AbortSignal },
   ) {
+    this.abortSignal = options?.signal;
     this.configuredOrigin = new URL(this.url.replace(/\/$/, '')).origin;
     this.syncApiUrlsToInstanceUrl = syncApiUrlsToInstanceUrl ?? true;
     this.tokenCacheKey = createHash('sha256').update(token).digest('hex').slice(0, 16);
@@ -1892,6 +1907,16 @@ export class ForgejoClient {
     }
   }
 
+  /**
+   * The same client, with an abort signal attached to every request it makes.
+   *
+   * The MCP SDK hands each tool call an AbortSignal; building a per-call client
+   * (rather than mutating a shared one) keeps concurrent tool calls independent.
+   */
+  withSignal(signal?: AbortSignal): ForgejoClient {
+    return new ForgejoClient(this.url, this.token, this.logger, this.syncApiUrlsToInstanceUrl, { signal });
+  }
+
   private _client(): Client {
     const baseURL = `${this.url.replace(/\/$/, '')}/api/v1`;
 
@@ -1908,7 +1933,9 @@ export class ForgejoClient {
 
       try {
         const response = await baseClient<TResponseData>({
-          ...config,
+          // A cancelled MCP tool call aborts its requests; the shared request layer
+          // forwards the signal to fetch.
+          ...withAbortSignal(config, this.abortSignal),
           baseURL,
           // A reachable-but-unresponsive instance must not hang the request
           // forever; callers may still pass their own signal.

@@ -26,7 +26,7 @@
 
 - [ ] P2 `_fetchAllPages` 截断标记：issue / PR / commit / 评论 / 分支 / 标签 / Release / 仓库等 18 个调用点的 500 条上限没有任何提示（仓库内文件搜索已改为 `{ files, truncated }`）。需要逐消息契约改 client → host → webview → MCP；`X-Total-Count` 仍不可用（请求层不透出响应头）。当前限制与规避方法见 `KNOWN_ISSUES`
 - [ ] P2 代理支持：请求走全局 `fetch`，不读 `HTTP(S)_PROXY` / VS Code `http.proxy`。方向：按设置接入 undici `ProxyAgent`——需要新增依赖，且代理行为无法在 CI 覆盖；当前限制见 `KNOWN_ISSUES`
-- [ ] P2 MCP 工具调用取消：未把 SDK 的 `extra.signal` 透传到 client，需要给请求链加 `AbortSignal` 透传并按工具取舍
+- [x] P2 MCP 工具调用取消：`ForgejoClient.withSignal(signal)` 会为该客户端的**每个**请求带上信号（`withAbortSignal` 合并进请求配置，共享请求层本来就把它转给 fetch），MCP 侧在派发时用 `handlersFor(extra)` 以带信号的客户端重建处理器（不改 27 个处理器签名）。测试：`mcp/__tests__/tools.test.ts` 断言派发把信号交给 `withSignal`、无信号时不重建；`src/api/__tests__/clientSignal.test.ts` 断言合并本身。（MSW 会重建 Request 丢掉调用方信号，所以端到端断言放在请求层与合并两步上。）
 - [ ] P3 `packages/forgejo-api` 规格源固定：`kubb.config.ts` 仍直接读上游 swagger（生成器包已钉到 `4.39.2`），建议 pin 到上游 tag 并记录版本；`src/generated/client|mocks` 目前无 value 导入，可考虑只保留 types
 - [x] P3 通知分页的边界：不再把「短页」当作列表结束——只有空页才结束（服务端可能把页大小压到 50 以下，而总数只在生成的 client 不透出的响应头里）。代价是最末尾多一次「加载更多」请求/点击；`useAppState.ts` 的规则 + `Notifications.test.ts`/`useAppState.test.ts` 共 5 条断言已同步。
 - [ ] P3 确认「未打开 Dashboard 时 MCP server 是否会被 VS Code 发现」：文档结论是贡献该扩展点的扩展会被自动激活（故暂不加 `onStartupFinished`，避免每次开窗都激活）。发版走查时用全新窗口确认 Chat 的工具选择器能看到 forgejo 工具，看不到再补

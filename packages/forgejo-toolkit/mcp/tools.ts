@@ -330,6 +330,12 @@ async function callTool(run: () => Promise<unknown>) {
  */
 export function registerTools(server: McpServer, client: ForgejoClient): void {
   const handlers = buildToolHandlers(client);
+  // A cancelled tool call should abort its HTTP requests. The SDK passes the signal
+  // in the tool callback's second argument, and `withSignal` is cheap, so the
+  // handlers are rebuilt around a signalling client instead of threading a
+  // parameter through all of them.
+  const handlersFor = (extra?: { signal?: AbortSignal }) =>
+    extra?.signal ? buildToolHandlers(client.withSignal(extra.signal)) : handlers;
   const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
 
   server.registerTool(
@@ -345,7 +351,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_issues(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_issues(args)),
   );
 
   server.registerTool(
@@ -359,7 +365,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_issue(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_issue(args)),
   );
 
   server.registerTool(
@@ -375,7 +381,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_pull_requests(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_pull_requests(args)),
   );
 
   server.registerTool(
@@ -390,7 +396,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_pull_request(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_pull_request(args)),
   );
 
   server.registerTool(
@@ -404,7 +410,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_pr_timeline(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_pr_timeline(args)),
   );
 
   server.registerTool(
@@ -426,7 +432,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_notifications(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_notifications(args)),
   );
 
   server.registerTool(
@@ -439,7 +445,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_repo(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_repo(args)),
   );
 
   server.registerTool(
@@ -454,7 +460,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.search(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).search(args)),
   );
 
   server.registerTool(
@@ -469,7 +475,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_action_runs(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_action_runs(args)),
   );
 
   server.registerTool(
@@ -483,7 +489,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_action_run_jobs(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_action_run_jobs(args)),
   );
 
   server.registerTool(
@@ -498,7 +504,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_action_job_log(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_action_job_log(args)),
   );
 
   server.registerTool(
@@ -512,7 +518,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_action_run_artifacts(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_action_run_artifacts(args)),
   );
 
   server.registerTool(
@@ -528,7 +534,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_file_content(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_file_content(args)),
   );
 
   server.registerTool(
@@ -543,7 +549,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_repo_contents(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_repo_contents(args)),
   );
 
   server.registerTool(
@@ -553,7 +559,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_branches(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_branches(args)),
   );
 
   server.registerTool(
@@ -563,7 +569,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_tags(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_tags(args)),
   );
 
   server.registerTool(
@@ -577,7 +583,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_commits(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_commits(args)),
   );
 
   server.registerTool(
@@ -592,7 +598,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_file_history(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_file_history(args)),
   );
 
   server.registerTool(
@@ -608,7 +614,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.search_repo_files(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).search_repo_files(args)),
   );
 
   server.registerTool(
@@ -623,7 +629,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_pr_diff(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_pr_diff(args)),
   );
 
   server.registerTool(
@@ -639,7 +645,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.get_pull_review_comments(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).get_pull_review_comments(args)),
   );
 
   server.registerTool(
@@ -653,7 +659,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_pull_reviews(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_pull_reviews(args)),
   );
 
   server.registerTool(
@@ -663,7 +669,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: {},
       annotations: readOnly,
     },
-    async () => callTool(() => handlers.whoami()),
+    async (_args, extra) => callTool(() => handlersFor(extra).whoami()),
   );
 
   server.registerTool(
@@ -673,7 +679,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_releases(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_releases(args)),
   );
 
   server.registerTool(
@@ -683,7 +689,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_labels(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_labels(args)),
   );
 
   server.registerTool(
@@ -693,7 +699,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
-    async (args) => callTool(() => handlers.list_milestones(args)),
+    async (args, extra) => callTool(() => handlersFor(extra).list_milestones(args)),
   );
 
   server.registerTool(
@@ -703,6 +709,6 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
       inputSchema: {},
       annotations: readOnly,
     },
-    async () => callTool(() => handlers.list_my_repos()),
+    async (_args, extra) => callTool(() => handlersFor(extra).list_my_repos()),
   );
 }
