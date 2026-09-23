@@ -127,8 +127,10 @@ jobs:
       - name: API checklist coverage
         run: node tools/api-audit/check.mjs
 
+      # packages/shared has its own suite (URL helpers, the request wrapper) that the
+      # toolkit configs do not include, so it is run explicitly.
       - name: Test
-        run: pnpm --filter forgejo-toolkit test
+        run: pnpm --filter forgejo-toolkit test && pnpm --filter @cpf23333-forgejo-toolkit/shared test
 
       # A build failure is a release blocker, so it is validated here as well;
       # the resulting bundle is not uploaded (release artifacts belong to the
