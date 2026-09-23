@@ -193,6 +193,8 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 
 `DELETE /repos/{owner}/{repo}/issues/{index}/times/{id}` 只接受该记录的本人或站点管理员——仓库管理员不够。计时面板只在能确认属于当前登录用户的行上保留删除按钮，其余行隐藏，因为这些请求只会得到 403。因此站点管理员也无法从扩展删除他人的计时记录，尽管 API 允许。
 
-## 规避方法：通过 Forgejo 网页界面删除，网页端知道当前账号是否站点管理员。
+规避方法：通过 Forgejo 网页界面删除，网页端知道当前账号是否站点管理员。
+
+---
 
 _各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_

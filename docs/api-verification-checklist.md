@@ -850,6 +850,21 @@
 
 ---
 
+## 2026-09-23 代码审查后的状态更新
+
+本清单的逐端点「差异记录」写于代码审查之前；审查（含交叉核对）确认的问题已全部修复，因此下面这些条目不再代表当前代码，遇到冲突时以本节为准：
+
+- 依赖列表不再「静默截断 30 条」：`listIssueDependencies` 改为经 `_fetchAllPages(page/limit)` 取全量（`e1bbc40`）。
+- timeline 的分页收尾改为有界前瞻：`_fetchAllPages` 的 `shortPageMarksEnd: false` 现在容忍一个被过滤空的整页（连续两页为空才停），不再因过滤发生在取页之后而少取（`e1bbc40` + 本轮修复）。
+- `GET /pulls` 的 `null` 元素已在 client 层过滤（`_definedPullRequests`），状态栏不再可能解引用崩溃（`e1bbc40`）。
+- Actions 取消规则由 `webview/src/utils/actionStatus.ts` 的 `isActionRunCancellable` 实现（含服务端真实状态 `blocked`），`canCancelRun` 与其 `pending`/`requested` 白名单已删除；删除按钮另有 `isActionRunDeletable` 闸门（只允许 success/failure/cancelled/skipped）（`ad02973` + 本轮修复）。
+- 计时面板：合计会按「总计／我的工时」标注（`isTrackedTimeTotal`）、他人条目的删除按钮不再显示（`canDeleteTrackedTime`）、在别的 issue 有计时时给出提示（`findStopwatchElsewhere`）；`stopwatch/delete` 的确认文案已改为「取消正在运行的计时器」（`3fe67b9`）。
+- issue 附件上传的回复已带上 `id`，编辑框内删除不再静默无效；评论编辑/删除的作用域已限定到当前实例与仓库（本轮修复）。
+- 子路径实例（`https://host/a` 与 `https://host/b`）不再共用 id 与 token secret（`instanceIdFor`，本轮修复）。
+- 上表中形如 `client.ts:1338-1342` 的行号引用写于 `e1bbc40` 之前，已随该提交失效；以方法名（`listIssueDependencies`、`getPullRequestCommentsAndTimeline` 等）为准。
+
+---
+
 ## 后续维护策略
 
 当上游有新的 Forgejo 版本时，按以下方式更新本清单：
@@ -890,7 +905,7 @@
   - `GET .../issues/{index}/dependencies` 在扩展未传 `page`/`limit` 时只返回前 30 条且无总数头 → 依赖超过 30 个会被静默截断；`GET .../issues/{index}/timeline` 的过滤发生在分页之后，配合 `_fetchAllPages` 的「短页即结束」判定，大量行级评论时可能少取。
   - 时间追踪：非 issue 写入者的 `GET .../times` 只返回本人记录，而 UI 把它当作该 issue 的时间汇总；`DELETE .../times/{id}` 只允许记录本人或 site admin，UI 未按作者隐藏按钮；stopwatch 是**每用户全局唯一**，扩展按单个 issue 判断导致「在别的 issue 正计时时启动会静默结束另一条」；`stopwatch/delete` 只取消计时、不记时间，但 host 确认文案写成了「删除已记录的时间」。
   - Actions：`canCancelRun` 的状态白名单漏了服务端真实状态 `blocked`，并包含并非 Forgejo 状态的 `pending`/`requested`；`GET /pulls` 的响应可能含 `null` 元素，而 `createPrStatusBar.ts:30-31` 未判空。
-  - 这些偏差都是「不报错但语义/展示不对」或「需要配套 UI 修正」，已逐条写入对应端点的「差异记录」，未在本清单中改动代码。
+  - 这些偏差都是「不报错但语义/展示不对」或「需要配套 UI 修正」，已逐条写入对应端点的「差异记录」，并已全部修复——见下方「2026-09-23 代码审查后的状态更新」。
 - 全局发现中的 limit 限制、响应类型、认证方式、URL 编码等结论已汇总到「全局发现」一节。
 
 如后续新增 API 调用，应先在本地 Forgejo 源码中定位对应 handler，然后将该端点补充到本清单并重新核对。
