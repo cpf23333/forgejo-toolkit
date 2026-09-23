@@ -16,6 +16,7 @@ import {
   actionStatusClass as statusClass,
   actionStatusIcon as statusIcon,
   isActionRunCancellable,
+  isActionRunDeletable,
   isActionStatusFailed,
 } from '../utils/actionStatus';
 
@@ -337,6 +338,10 @@ function cancelRun() {
 }
 
 function deleteRun() {
+  // A non-finished run can only answer 500 from the server.
+  if (!isActionRunDeletable(run.value?.status)) {
+    return;
+  }
   if (deleteLoading.value) {
     return;
   }
@@ -400,7 +405,13 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
 <template>
   <div class="action-run-detail">
     <div class="run-header">
-      <vscode-button v-if="run" secondary icon="trash" :disabled="deleteLoading" @click="deleteRun">
+      <vscode-button
+        v-if="run && isActionRunDeletable(run.status)"
+        secondary
+        icon="trash"
+        :disabled="deleteLoading"
+        @click="deleteRun"
+      >
         {{ deleteLoading ? t('dashboard.loading') : t('dashboard.actionRun.deleteRun') }}
       </vscode-button>
       <vscode-button

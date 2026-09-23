@@ -12,6 +12,10 @@ const errors = reactive(new Map<string, string>());
 // `?? false` / `undefined`.
 const MAX_TRACKING_ENTRIES = 500;
 const MAX_SEARCH_ENTRIES = 50;
+// The host caps a single CI job log at 10 MB but not how many are kept, so a
+// session that browses runs in several repositories would hold every log in
+// memory (retainContextWhenHidden keeps this state alive for the window).
+const MAX_JOB_LOG_ENTRIES = 10;
 
 // How long a request/response round-trip to the extension host may take
 // before the pending promise is rejected as timed out.
@@ -1379,7 +1383,11 @@ function createAppState() {
         handleSaveInstanceResult(message);
         break;
       case 'instancesExported':
-        exportInstancesResult.value = message;
+        // A cancel (dismissed dialog or password prompt) is not a result: storing
+        // it would make Settings report "Failed to export instances".
+        if (!(message as { cancelled?: boolean }).cancelled) {
+          exportInstancesResult.value = message;
+        }
         break;
       case 'instancesImported':
         // A cancel (dismissed file picker or password prompt) is not a result:
@@ -1924,6 +1932,7 @@ function createAppState() {
     owner: string;
     repo: string;
     index: number;
+    id?: number;
     uuid?: string;
     name?: string;
     size?: number;
@@ -1940,6 +1949,7 @@ function createAppState() {
       pending.reject(new Error(data.error));
     } else if (data.uuid) {
       pending.resolve({
+        id: data.id,
         uuid: data.uuid,
         name: data.name ?? data.uuid,
         size: data.size,
@@ -2111,7 +2121,11 @@ function createAppState() {
     if (!data.comment) {
       return;
     }
+    const scopedPrefix = `${data.instanceId}:${data.owner}/${data.repo}`;
     for (const key of pullRequestComments.value.keys()) {
+      if (!key.startsWith(scopedPrefix)) {
+        continue;
+      }
       const comments = pullRequestComments.value.get(key);
       if (!comments) {
         continue;
@@ -2200,7 +2214,11 @@ function createAppState() {
       return;
     }
 
-    for (const comments of pullRequestComments.value.values()) {
+    const scopedPrefix = `${data.instanceId}:${data.owner}/${data.repo}`;
+    for (const [key, comments] of pullRequestComments.value.entries()) {
+      if (!key.startsWith(scopedPrefix)) {
+        continue;
+      }
       const comment = comments.find((c) => c.id === data.commentId);
       if (comment && comment.assets) {
         comment.assets = comment.assets.filter((a) => a.id !== data.attachmentId);
@@ -2227,7 +2245,11 @@ function createAppState() {
       return;
     }
     errors.delete(formKey);
+    const scopedPrefix = `${data.instanceId}:${data.owner}/${data.repo}`;
     for (const [key, comments] of pullRequestComments.value.entries()) {
+      if (!key.startsWith(scopedPrefix)) {
+        continue;
+      }
       const index = comments.findIndex((c) => c.id === data.commentId);
       if (index !== -1) {
         comments.splice(index, 1);
@@ -2594,6 +2616,14 @@ function createAppState() {
     } else {
       errors.delete(key);
       actionJobLogs.value.set(key, data.log ?? '');
+      // Map preserves insertion order, so the first key is the least recently stored.
+      while (actionJobLogs.value.size > MAX_JOB_LOG_ENTRIES) {
+        const oldest = actionJobLogs.value.keys().next().value;
+        if (oldest === undefined || oldest === key) {
+          break;
+        }
+        actionJobLogs.value.delete(oldest);
+      }
     }
   }
 
@@ -2858,6 +2888,8 @@ function createAppState() {
       setError(key, data.error);
       return;
     }
+    // A later success clears an earlier failure, the way handleNotifications does.
+    errors.delete(key);
     const list = notifications.value.get(key) ?? [];
     notifications.value.set(
       key,
@@ -2877,6 +2909,8 @@ function createAppState() {
       setError(key, data.error);
       return;
     }
+    // A later success clears an earlier failure, the way handleNotifications does.
+    errors.delete(key);
     const list = notifications.value.get(key) ?? [];
     notifications.value.set(
       key,

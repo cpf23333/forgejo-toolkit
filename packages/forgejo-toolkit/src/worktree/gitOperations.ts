@@ -284,6 +284,7 @@ export async function pushBranch(
   if (setUpstream) {
     args.push('-u');
   }
+  assertGitRevision(refspec, 'refspec');
   args.push(remote, refspec);
   const { stderr } = await runGit(args, dirPath, authEnv(token));
   if (stderr && stderr.toLowerCase().includes('error')) {
@@ -343,6 +344,27 @@ export async function cloneRepository(url: string, targetPath: string, token?: s
   }
 }
 
+/**
+ * Revisions reach git as argv entries, and a value starting with `-` is read as an
+ * option: the repository's `default_branch` or a pull request's head ref is
+ * server-controlled, so `--depth=1`, `--prune`, `--dry-run` or `--upload-pack=…`
+ * would otherwise be honoured (the last one executes a command on ssh remotes).
+ * Reject such values instead of trusting the caller; `--` is added where the git
+ * subcommand accepts it.
+ */
+function assertGitRevision(value: string, label: string): void {
+  // eslint-disable-next-line no-control-regex -- control characters cannot appear in a ref either
+  if (value.startsWith('-') || /[\s\u0000-\u001f]/.test(value)) {
+    throw new Error(`${label} "${value}" is not a valid git revision`);
+  }
+}
+
+/**`git` accepts an abbreviated SHA from 4 characters up; anything else is not a commit. */
+function assertCommitSha(value: string): void {
+  if (!/^[0-9a-f]{4,64}$/i.test(value)) {
+    throw new Error(`"${value}" is not a commit SHA`);
+  }
+}
 export async function fetchPullRequestHead(
   repoPath: string,
   remote: string,
@@ -351,7 +373,8 @@ export async function fetchPullRequestHead(
   token?: string,
 ): Promise<void> {
   const ref = `refs/pull/${prIndex}/head`;
-  const { stderr } = await runGit(['fetch', remote, `${ref}:${localBranch}`], repoPath, authEnv(token));
+  assertGitRevision(localBranch, 'branch');
+  const { stderr } = await runGit(['fetch', remote, '--', `${ref}:${localBranch}`], repoPath, authEnv(token));
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -363,7 +386,8 @@ export async function createWorktreeFromBranch(
   localBranch: string,
 ): Promise<void> {
   await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
-  const { stderr } = await runGit(['worktree', 'add', '-B', localBranch, worktreePath, localBranch], repoPath);
+  assertGitRevision(localBranch, 'branch');
+  const { stderr } = await runGit(['worktree', 'add', '-B', localBranch, '--', worktreePath, localBranch], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -371,7 +395,8 @@ export async function createWorktreeFromBranch(
 
 export async function createWorktree(repoPath: string, worktreePath: string, branch: string): Promise<void> {
   await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
-  const { stderr } = await runGit(['worktree', 'add', worktreePath, branch], repoPath);
+  assertGitRevision(branch, 'branch');
+  const { stderr } = await runGit(['worktree', 'add', '--', worktreePath, branch], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -383,7 +408,8 @@ export async function createWorktree(repoPath: string, worktreePath: string, bra
  * `refs/remotes/origin/<branch>` does not exist).
  */
 export async function fetchBranch(repoPath: string, remote: string, branch: string, token?: string): Promise<void> {
-  const { stderr } = await runGit(['fetch', remote, branch], repoPath, authEnv(token));
+  assertGitRevision(branch, 'branch');
+  const { stderr } = await runGit(['fetch', remote, '--', branch], repoPath, authEnv(token));
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -403,7 +429,9 @@ export async function createWorktreeWithNewBranch(
   startPoint: string,
 ): Promise<void> {
   await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
-  const { stderr } = await runGit(['worktree', 'add', '-B', newBranch, worktreePath, startPoint], repoPath);
+  assertGitRevision(newBranch, 'branch');
+  assertGitRevision(startPoint, 'start point');
+  const { stderr } = await runGit(['worktree', 'add', '-B', newBranch, '--', worktreePath, startPoint], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -587,6 +615,7 @@ export async function getCurrentCommitSha(repoPath: string): Promise<string | un
 
 /** Resolve an arbitrary ref (branch, tag, sha) to the commit sha it points at. */
 export async function getRefCommitSha(repoPath: string, ref: string): Promise<string | undefined> {
+  assertGitRevision(ref, 'ref');
   try {
     const { stdout } = await runGit(['rev-parse', '--verify', `${ref}^{commit}`], repoPath);
     const sha = stdout.trim();
@@ -597,6 +626,7 @@ export async function getRefCommitSha(repoPath: string, ref: string): Promise<st
 }
 
 export async function deleteBranch(repoPath: string, branch: string): Promise<void> {
+  assertGitRevision(branch, 'branch');
   const { stderr } = await runGit(['branch', '-D', branch], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
@@ -627,7 +657,10 @@ export async function revertMergeCommit(
       );
     }
   }
-  const revertResult = await runGit(['revert', '-m', '1', '--no-edit', mergeCommitSha], repoPath);
+  // The SHA comes from the API; a non-hex value would be parsed as an option
+  // (`-m`/`--strategy`…) rather than a commit.
+  assertCommitSha(mergeCommitSha);
+  const revertResult = await runGit(['revert', '-m', '1', '--no-edit', '--', mergeCommitSha], repoPath);
   if (revertResult.stderr && revertResult.stderr.toLowerCase().includes('error')) {
     throw new Error(revertResult.stderr);
   }

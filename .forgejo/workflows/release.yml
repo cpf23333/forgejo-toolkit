@@ -125,11 +125,20 @@ jobs:
       # A release is only cut from a commit that validates: the same checks the
       # manual verify workflow runs, repeated here so the release does not
       # depend on someone having run it first.
+      - name: Lint
+        run: pnpm run lint
+
       - name: Typecheck
         run: pnpm run check
 
+      # The audit resolves every generated operation the client calls and fails when
+      # one is missing from docs/api-verification-checklist.md; the verify workflow
+      # (ci.yml) runs the same step, and a release must not skip it.
+      - name: API checklist coverage
+        run: node tools/api-audit/check.mjs
+
       - name: Test
-        run: pnpm --filter forgejo-toolkit test
+        run: pnpm --filter forgejo-toolkit test && pnpm --filter @cpf23333-forgejo-toolkit/shared test
 
       # The dispatch inputs are echoed here on purpose: `tag` and `prerelease`
       # only change what the release step creates, which is skipped in a dry run,
@@ -177,16 +186,21 @@ jobs:
           # localized l10n/walkthrough files and the webview entry point (a
           # webview build that silently stopped running would otherwise ship as a
           # .vsix that opens to an empty panel).
+          # vsce writes the packaged copy as `extension/changelog.md` (its
+          # ChangelogProcessor hardcodes that lower-case name, regardless of the
+          # repository spelling), so match case-insensitively — the previous
+          # upper-case entry made every dispatch fail here, before the dry run
+          # could report anything.
           for entry in \
             extension/package.json \
             extension/out/extension.js \
             extension/out/mcp-server.js \
             extension/LICENSE.txt \
-            extension/CHANGELOG.md \
+            extension/changelog.md \
             extension/l10n/bundle.l10n.json \
             extension/walkthrough/addInstance.md \
             extension/out/webview/index.html; do
-            grep -q "$entry" /tmp/vsix-contents.txt || { echo "MISSING: $entry"; cat /tmp/vsix-contents.txt; exit 1; }
+            grep -qi "$entry" /tmp/vsix-contents.txt || { echo "MISSING: $entry"; cat /tmp/vsix-contents.txt; exit 1; }
             echo "OK: $entry"
           done
           echo "vsix=${VSIX}" >> $GITHUB_OUTPUT

@@ -356,7 +356,7 @@ describe('gitOperations argument passing', () => {
   });
 
   it('pushBranch passes the branch as a single argv entry (no shell interpolation)', async () => {
-    const branch = 'feature/$(touch pwned)';
+    const branch = 'feature/$(id)';
     await pushBranch('/repo', 'origin', branch);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
@@ -391,11 +391,12 @@ describe('gitOperations argument passing', () => {
   });
 
   it('fetchPullRequestHead passes the refspec as a single argv entry', async () => {
-    const localBranch = 'pr-1; rm -rf /';
+    // Shell-hostile but a valid ref (no space): proves there is no shell interpolation.
+    const localBranch = 'pr-1;id';
     await fetchPullRequestHead('/repo', 'origin', 1, localBranch);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['fetch', 'origin', `refs/pull/1/head:${localBranch}`],
+      ['fetch', 'origin', '--', `refs/pull/1/head:${localBranch}`],
       expect.anything(),
       expect.any(Function),
     );
@@ -425,23 +426,23 @@ describe('gitOperations argument passing', () => {
   });
 
   it('createWorktreeFromBranch passes branch and path as single argv entries', async () => {
-    const branch = 'pr-1$(touch pwned)';
+    const branch = 'pr-1$(id)';
     const worktreePath = '/cache/worktrees/evil" && pwned';
     await createWorktreeFromBranch('/repo', worktreePath, branch);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['worktree', 'add', '-B', branch, worktreePath, branch],
+      ['worktree', 'add', '-B', branch, '--', worktreePath, branch],
       expect.anything(),
       expect.any(Function),
     );
   });
 
   it('fetchBranch passes the branch as a single argv entry and the token via env config', async () => {
-    const branch = 'main$(touch pwned)';
+    const branch = 'main$(id)';
     await fetchBranch('/repo', 'origin', branch, 'tok');
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['fetch', 'origin', branch],
+      ['fetch', 'origin', '--', branch],
       expect.objectContaining({
         env: expect.objectContaining({
           GIT_CONFIG_VALUE_0: 'Authorization: token tok',
@@ -452,23 +453,43 @@ describe('gitOperations argument passing', () => {
   });
 
   it('createWorktreeWithNewBranch passes branch, path and start point as single argv entries', async () => {
-    const branch = 'issue-1-fix$(touch pwned)';
+    const branch = 'issue-1-fix$(id)';
     const worktreePath = '/cache/worktrees/evil" && pwned';
     await createWorktreeWithNewBranch('/repo', worktreePath, branch, 'FETCH_HEAD');
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['worktree', 'add', '-B', branch, worktreePath, 'FETCH_HEAD'],
+      ['worktree', 'add', '-B', branch, '--', worktreePath, 'FETCH_HEAD'],
       expect.anything(),
       expect.any(Function),
     );
   });
 
+  // The API supplies these values (repository default_branch, pull request head,
+  // merge commit), so a leading `-` must be rejected rather than handed to git as
+  // an option (`--depth=1`, `--prune`, `--upload-pack=…`).
+  it('rejects a revision that git would read as an option', async () => {
+    await expect(fetchBranch('/repo', 'origin', '--depth=1')).rejects.toThrow(/is not a valid git revision/);
+    await expect(createWorktreeFromBranch('/repo', '/cache/worktrees/x', '-B')).rejects.toThrow(
+      /is not a valid git revision/,
+    );
+    await expect(getRefCommitSha('/repo', '--no-verify')).rejects.toThrow(/is not a valid git revision/);
+  });
+
+  it('rejects a revision containing whitespace, which no ref may contain', async () => {
+    await expect(fetchBranch('/repo', 'origin', 'main extra')).rejects.toThrow(/is not a valid git revision/);
+  });
+
+  it('rejects a merge commit that is not a SHA', async () => {
+    await expect(revertMergeCommit('/repo', 'HEAD~1')).rejects.toThrow(/is not a commit SHA/);
+    await expect(revertMergeCommit('/repo', '--no-verify')).rejects.toThrow(/is not a commit SHA/);
+  });
+
   it('revertMergeCommit passes the merge sha as a single argv entry', async () => {
-    const sha = 'abc123$(touch pwned)';
+    const sha = 'abc1234';
     await revertMergeCommit('/repo', sha);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['revert', '-m', '1', '--no-edit', sha],
+      ['revert', '-m', '1', '--no-edit', '--', sha],
       expect.anything(),
       expect.any(Function),
     );
@@ -523,7 +544,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['revert', '-m', '1', '--no-edit', 'abc123'],
+      ['revert', '-m', '1', '--no-edit', '--', 'abc123'],
       expect.anything(),
       expect.any(Function),
     );

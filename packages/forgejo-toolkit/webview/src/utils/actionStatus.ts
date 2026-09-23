@@ -49,3 +49,12 @@ export function isActionStatusFailed(status?: string): boolean {
 export function isActionRunCancellable(status?: string): boolean {
   return status === 'unknown' || status === 'waiting' || status === 'running' || status === 'blocked';
 }
+
+/**
+ * Only a finished run may be deleted: `services/actions/run.go` rejects anything
+ * else and the handler maps that error to 500, so the button must not appear for
+ * a queued, running or blocked run (the statuses `IsDone()` excludes).
+ */
+export function isActionRunDeletable(status?: string): boolean {
+  return status === 'success' || status === 'failure' || status === 'cancelled' || status === 'skipped';
+}

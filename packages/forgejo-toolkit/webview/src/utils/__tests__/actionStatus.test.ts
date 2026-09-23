@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { actionStatusClass, actionStatusIcon, isActionRunCancellable, isActionStatusFailed } from '../actionStatus';
+import {
+  actionStatusClass,
+  actionStatusIcon,
+  isActionRunCancellable,
+  isActionRunDeletable,
+  isActionStatusFailed,
+} from '../actionStatus';
 
 /** `models/actions/status.go` is the source of this list. */
 const FORGEJO_STATUSES = ['unknown', 'waiting', 'running', 'success', 'failure', 'cancelled', 'skipped', 'blocked'];
@@ -51,6 +57,18 @@ describe('isActionRunCancellable', () => {
   it('hides cancel for final states and ignores non-Forgejo statuses', () => {
     for (const status of ['success', 'failure', 'cancelled', 'skipped', 'pending', 'requested', undefined]) {
       expect(isActionRunCancellable(status), String(status)).toBe(false);
+    }
+  });
+});
+
+describe('isActionRunDeletable', () => {
+  it('allows exactly the finished states the server accepts', () => {
+    for (const status of ['success', 'failure', 'cancelled', 'skipped']) {
+      expect(isActionRunDeletable(status), status).toBe(true);
+    }
+    // Anything else makes DELETE answer 500, so the button must stay hidden.
+    for (const status of ['unknown', 'waiting', 'running', 'blocked', 'pending', undefined]) {
+      expect(isActionRunDeletable(status), String(status)).toBe(false);
     }
   });
 });

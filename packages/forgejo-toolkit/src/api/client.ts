@@ -326,9 +326,17 @@ export class ForgejoClient {
     options: { shortPageMarksEnd?: boolean } = {},
   ): Promise<T[]> {
     const shortPageMarksEnd = options.shortPageMarksEnd ?? true;
+    // Endpoints that filter rows *after* the page was read from the database can
+    // return an empty page while later pages still hold rows (a whole page of
+    // code comments is dropped, for instance). Those callers pass
+    // `shortPageMarksEnd: false` and tolerate one such gap: paging stops only
+    // after this many consecutive empty pages, which keeps the look-ahead
+    // bounded (one extra request in the normal case).
+    const maxConsecutiveEmptyPages = shortPageMarksEnd ? 1 : 2;
     const all: T[] = [];
     let effectivePageSize: number | undefined;
     let page = 1;
+    let emptyPages = 0;
     // Guards against servers that ignore the page param and keep returning
     // the first page (same pattern as the git-tree loop below): without it,
     // duplicates would accumulate up to MAX_ITEMS.
@@ -344,10 +352,18 @@ export class ForgejoClient {
       if (page === 1) {
         effectivePageSize = items.length;
       }
-      // A short page normally means the last page. Endpoints that filter rows
-      // after paging can return a short page in the middle of the list, so those
-      // callers turn the heuristic off and paging runs until an empty page.
-      if (items.length === 0 || (shortPageMarksEnd && items.length < (effectivePageSize ?? PAGE_SIZE))) {
+      if (items.length === 0) {
+        emptyPages++;
+        if (emptyPages >= maxConsecutiveEmptyPages) {
+          break;
+        }
+        page++;
+        continue;
+      }
+      emptyPages = 0;
+      // A short page normally means the last page; callers that filter after
+      // paging turn that heuristic off and keep going.
+      if (shortPageMarksEnd && items.length < (effectivePageSize ?? PAGE_SIZE)) {
         break;
       }
       page++;
@@ -1343,7 +1359,7 @@ export class ForgejoClient {
     return times as TrackedTime[];
   }
 
-  // The server answers 422 when 	ime is missing or zero (the generated error type
+  // The server answers 422 when time is missing or zero (the generated error type
   // only declares 400/403/404; regenerating from a pinned spec would add it).
   addIssueTime(owner: string, repo: string, index: number, time: number): Promise<TrackedTime> {
     const data: AddTimeOption = { time };
