@@ -180,6 +180,9 @@ const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024 * 1024;
 // Guard for the recursive git tree loop against servers that ignore the
 // pagination params and keep returning the same page with truncated=true.
 const MAX_TREE_PAGES = 50;
+// A query like "e" matches thousands of paths; the browser renders plain rows, so
+// the response is capped and the truncation flag tells the user why the list stops.
+const MAX_SEARCH_RESULTS = 200;
 
 /** Per-request timeout: a reachable-but-unresponsive instance must not hang. */
 export const API_REQUEST_TIMEOUT_MS = 30_000;
@@ -844,7 +847,11 @@ export class ForgejoClient {
       return pathA.localeCompare(pathB);
     });
 
-    return { files, truncated: tree.truncated };
+    return {
+      files: files.slice(0, MAX_SEARCH_RESULTS),
+      // Either the tree itself was incomplete or the match list was capped.
+      truncated: tree.truncated || files.length > MAX_SEARCH_RESULTS,
+    };
   }
 
   /**
