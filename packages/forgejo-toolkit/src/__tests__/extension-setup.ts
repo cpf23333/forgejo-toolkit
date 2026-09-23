@@ -17,6 +17,7 @@ vi.mock('vscode', () => ({
       return args.find((arg) => typeof arg === 'string');
     }),
     showOpenDialog: vi.fn(),
+    showSaveDialog: vi.fn(),
     showInputBox: vi.fn(),
     showQuickPick: vi.fn(),
     withProgress: vi.fn((_options: unknown, task: (progress: unknown, token: unknown) => unknown) =>

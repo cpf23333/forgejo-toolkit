@@ -581,6 +581,29 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(vi.mocked(revertMergeCommit)).toHaveBeenCalledTimes(1);
     expect(postedMessages(fake.posted).filter((m) => m.command === 'revertMergeCommitResult')).toHaveLength(1);
   });
+  it('marks a cancelled instance export as cancelled rather than failed', async () => {
+    // Dismissing the export dialog is not a failure: without the flag the webview
+    // stores the reply and Settings reports "Failed to export instances".
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
+    fake.send({ command: 'exportInstances', ids: [testInstance.id] });
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesExported');
+    expect(reply).toMatchObject({ success: false, cancelled: true });
+  });
+
+  it('marks a dismissed export save dialog as cancelled as well', async () => {
+    // The encrypt choice is confirmed, the password typed, and only then is the
+    // save dialog dismissed — the last decline path.
+    // The prompt asks twice (password + confirmation) before the save dialog.
+    vi.mocked(vscode.window.showInputBox).mockResolvedValue('something' as never);
+    vi.mocked(vscode.window.showSaveDialog).mockResolvedValueOnce(undefined as never);
+    fake.send({ command: 'exportInstances', ids: [testInstance.id] });
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesExported');
+    expect(reply).toMatchObject({ success: false, cancelled: true });
+  });
 
   describe('host-enforced confirmations for destructive commands', () => {
     // The shared vscode mock resolves showWarningMessage with the first action

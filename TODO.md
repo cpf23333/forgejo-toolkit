@@ -4,7 +4,7 @@
 
 ## 发布 0.0.1（代码侧已完成，等待人工步骤）
 
-- [ ] 推送 `main`：本地领先 `codeberg` / `origin` 各 13 个提交
+- [ ] 推送 `main`：2026-09-23 复查为领先 `codeberg` 12 / `origin` 13 条（以 `git rev-list --count <remote>/main..main` 为准）
 - [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 8 项检查，再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`
 - [ ] 商店发布（需凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，见 `docs/release.md` 的 Checklist
 - [ ] 发布后回填：README 安装段与 `docs/release.md` 对齐实际发布渠道；复核 `KNOWN_ISSUES` 中与版本相关的条目
@@ -51,7 +51,8 @@
 
 8 个审查小组 + 8 个独立交叉核对小组（16 个 agent）覆盖：① 当日 6 条提交的 diff；② 高风险区域（`useAppState.ts` 的 pending/超时/竞态、`viewProvider.ts` 的消息分发与错误回传、安全面：token 流向 / MCP 路径校验 / 附件代理 / CSP / URL 重写 / worktree 与 git 副作用）；③ 全面复审（性能与打包、i18n 与可访问性、测试与文档一致性、AGENTS 合规）。共 61 条发现，53 条确认、4 条被反驳。
 
-- [x] 已修（15 项）：release 工作流 `.vsix` 检查的大小写（发版阻断）、timeline 空页翻页洞（两空页前瞻）、git 参数注入（`assertGitRevision`/`assertCommitSha`，9 个调用点）、Actions run 删除按钮缺状态闸门、通知错误不复位、评论编辑/删除跨实例误改（3 处）、附件上传回复缺 `id`、导出取消被报成失败、实例 id 冲突（`instanceIdFor`）、`KNOWN_ISSUES` 结构与 tab、`i18nParity` 覆盖 `translate()`、CI 补 Lint + API 审计 + shared 测试、API 清单的状态更新节、CI 日志缓存上限（10 条）。
-- [ ] 补强 8 处弱测试（审查确认「回退修复仍全绿」）：timeline 空页/短页、依赖 >50 的 mock 分页、`[null, pr]` 过滤、视图层 blocked 取消按钮、tracked-time 面板接线、导出取消被忽略。
-- [ ] T2 其余性能项：文件搜索加截断标记（>5,000 条匹配无提示）、依赖选择器懒加载（打开详情即预取整仓库 open issue）、reactions 懒发（每条时间线条目一个请求，主机侧无并发闸门）。
+- [x] 已修（18 项）：release 工作流 `.vsix` 检查的大小写（发版阻断）、timeline 空页翻页洞（两空页前瞻）、git 参数注入（`assertGitRevision`/`assertCommitSha`，9 个调用点）、Actions run 删除按钮缺状态闸门、通知错误不复位、评论编辑/删除跨实例误改（3 处）、附件上传回复缺 `id`、导出取消被报成失败、实例 id 冲突（`instanceIdFor`）、`KNOWN_ISSUES` 结构与 tab、`i18nParity` 覆盖 `translate()`、CI 补 Lint + API 审计 + shared 测试、API 清单的状态更新节、CI 日志缓存上限（10 条）、文件搜索截断标记（200 条上限，复用 `repoFileSearchTruncated`）、依赖选择器懒加载（`repoIssuesFetched` 判断是否已加载）、评论 reactions 撤回懒发并加 4 并发上限（`e75357c`）。
+- [x] 已补 6 处弱测试（审查确认「回退修复仍全绿」）：依赖 >50 的 mock 分页、`[null, pr]` 过滤、timeline 空页（`client.test.ts`）、视图层 blocked 取消按钮与删除闸门（`ActionRunDetail.test.ts`）、tracked-time 标签/删除按钮/计时提示（新建 `IssueDetail.test.ts` harness，4 条）、reactions 并发上限与队列放行（`useAppState.test.ts`）。
+- [x] 第 7 处也补上了：导出取消的 dispatch 用例（`viewProviderDispatch.test.ts` 断言「警告弹窗关闭」与「保存对话框取消」两条路径都回 `{ success: false, cancelled: true }`；顺带给共享 vscode mock 补了 `showSaveDialog`）。至此 8 处弱测试全部补齐。
+- [x] T2 已完成：文件搜索截断标记、依赖选择器懒加载（含「是否已加载」判断）、评论 reactions 预取 + 4 并发上限（原「懒发」方案已撤回：评论显示时就必须看到数字）。
 - [ ] 发版后再做：webview 入口拆分（三面板并集，441 KB JS + 208 KB CSS，三个 webview 共用一个 index.html）、codicon CSS/TTF 去重（入口 CSS 内联 168 KB base64）。
