@@ -23,7 +23,8 @@
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check .",
-    "format:fix": "oxfmt ."
+    "format:fix": "oxfmt .",
+    "spec:update": "node scripts/update-spec.mjs"
   },
   "dependencies": {
     "@cpf23333-forgejo-toolkit/shared": "workspace:*"

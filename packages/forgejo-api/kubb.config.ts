@@ -7,7 +7,11 @@ import { pluginMsw } from '@kubb/plugin-msw';
 export default defineConfig({
   root: '.',
   input: {
-    path: 'https://codeberg.org/swagger.v1.json',
+    // Pinned snapshot: the live endpoint tracks whatever version the server runs,
+    // so the generated client could change without a commit explaining why.
+    // Refresh deliberately with `pnpm --filter @cpf23333-forgejo-toolkit/api spec:update`
+    // and record the version in spec/README.md.
+    path: './spec/swagger.v1.json',
   },
   output: {
     path: './src/generated',
