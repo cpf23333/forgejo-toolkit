@@ -2877,11 +2877,13 @@ function createAppState() {
     } else {
       notificationsBefore.value.set(key, cursor);
     }
-    // A full page means there may be more; a short page is the end. A server
-    // that clamps the page size below NOTIFICATIONS_LIMIT reports the end
-    // early — the endpoint's total only exists in a response header the
-    // generated client does not expose.
-    notificationsHasMore.value.set(key, incoming.length >= NOTIFICATIONS_LIMIT);
+    // Only an empty page proves the end. A short page does not: the server may
+    // clamp the page size below NOTIFICATIONS_LIMIT, and the endpoint reports its
+    // total in a response header the generated client does not expose. A short
+    // page therefore keeps "load more" available, and the page after it (empty)
+    // turns the button off — one extra request instead of silently hiding
+    // notifications.
+    notificationsHasMore.value.set(key, incoming.length > 0);
   }
 
   function handleNotificationMarkedRead(data: { instanceId: string; id: number; error?: string }) {

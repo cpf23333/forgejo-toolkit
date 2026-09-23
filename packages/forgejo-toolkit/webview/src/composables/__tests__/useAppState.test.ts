@@ -2035,9 +2035,10 @@ describe('useAppState', () => {
       expect(list).toHaveLength(LIMIT + 2);
       expect(list[0].id).toBe(1);
       expect(list[LIMIT + 1].id).toBe(LIMIT + 2);
-      // A short page is the end of the list, and the cursor moves to the oldest
-      // entry so a later refresh/load-more cannot re-request the same range.
-      expect(state.notificationsHasMore.value.get(key)).toBe(false);
+      // A short page keeps Load more available (the server may have clamped its
+      // page size), while the cursor moves to the oldest entry so a later
+      // refresh/load-more cannot re-request the same range.
+      expect(state.notificationsHasMore.value.get(key)).toBe(true);
       expect(state.notificationsBefore.value.get(key)).toBe(page(2, LIMIT + 1, LIMIT)[1].updated_at);
     });
 
@@ -2074,6 +2075,12 @@ describe('useAppState', () => {
       await nextTick();
 
       expect(state.notifications.value.get(key)).toHaveLength(1);
+      // Still a non-empty page: only an empty reply ends the list.
+      expect(state.notificationsHasMore.value.get(key)).toBe(true);
+
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: [] });
+      await nextTick();
+      expect(state.notifications.value.get(key)).toHaveLength(0);
       expect(state.notificationsHasMore.value.get(key)).toBe(false);
     });
   });
@@ -3024,5 +3031,34 @@ describe('comment reaction request throttling', () => {
       error: 'boom',
     });
     expect(sentCommentIds()).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+});
+
+describe('notification paging boundary', () => {
+  it('does not treat a short notification page as the end', async () => {
+    const { state } = await createState();
+    const page = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        id: i + 1,
+        unread: true,
+        updated_at: `2026-01-0${(i % 9) + 1}T00:00:00Z`,
+        subject: { title: 'a notification', type: 'Issue' },
+      }));
+
+    // Three rows is a short page for the requested limit, but the server may have
+    // clamped its own page size: ending the list here would hide notifications.
+    dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: page(3) });
+    await flushPromises();
+    expect([...state.notificationsHasMore.value.values()]).toEqual([true]);
+
+    // An empty page is the only proof that the list ended.
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: 'inst-1',
+      notifications: [],
+      before: '2026-01-01T00:00:00Z',
+    });
+    await flushPromises();
+    expect([...state.notificationsHasMore.value.values()]).toEqual([false]);
   });
 });

@@ -133,13 +133,19 @@ describe('Notifications paging', () => {
     return [...postedMessages()].reverse().find((message) => message.command === 'getNotifications');
   }
 
-  it('offers Load more only while a full page came back', async () => {
+  it('offers Load more until an empty page proves the list ended', async () => {
     const wrapper = mountNotifications();
     await dispatchNotifications(page(NOTIFICATIONS_LIMIT));
     expect(loadMoreButton(wrapper)).toBeTruthy();
 
-    // Filter reload: a short page is the end of the list.
+    // A short page is not the end: the server may have clamped its own page size,
+    // and its total only exists in a response header the client does not expose.
     dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: page(3) });
+    await flushPromises();
+    expect(loadMoreButton(wrapper)).toBeTruthy();
+
+    // Only an empty page ends the list.
+    dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: [] });
     await flushPromises();
     expect(loadMoreButton(wrapper)).toBeUndefined();
   });
@@ -159,7 +165,7 @@ describe('Notifications paging', () => {
     });
   });
 
-  it('appends the next page and hides Load more when it comes back short', async () => {
+  it('appends the next page and keeps Load more when it comes back short', async () => {
     const wrapper = mountNotifications();
     const first = page(NOTIFICATIONS_LIMIT);
     await dispatchNotifications(first);
@@ -169,7 +175,7 @@ describe('Notifications paging', () => {
     await flushPromises();
 
     expect(useAppState().notifications.value.get(notificationsKey('inst-1'))).toHaveLength(NOTIFICATIONS_LIMIT + 2);
-    expect(loadMoreButton(wrapper)).toBeUndefined();
+    expect(loadMoreButton(wrapper)).toBeTruthy();
   });
 
   it('keeps the cursor of the loaded page after marking a notification read', async () => {

@@ -28,7 +28,7 @@
 - [ ] P2 代理支持：请求走全局 `fetch`，不读 `HTTP(S)_PROXY` / VS Code `http.proxy`。方向：按设置接入 undici `ProxyAgent`——需要新增依赖，且代理行为无法在 CI 覆盖；当前限制见 `KNOWN_ISSUES`
 - [ ] P2 MCP 工具调用取消：未把 SDK 的 `extra.signal` 透传到 client，需要给请求链加 `AbortSignal` 透传并按工具取舍
 - [ ] P3 `packages/forgejo-api` 规格源固定：`kubb.config.ts` 仍直接读上游 swagger（生成器包已钉到 `4.39.2`），建议 pin 到上游 tag 并记录版本；`src/generated/client|mocks` 目前无 value 导入，可考虑只保留 types
-- [ ] P3 通知分页的边界：服务端把 `[api] MaxResponseItems` 调到 50 以下时，短页会被提前判定为结束（总数只在响应头里，生成的 client 不透出）
+- [x] P3 通知分页的边界：不再把「短页」当作列表结束——只有空页才结束（服务端可能把页大小压到 50 以下，而总数只在生成的 client 不透出的响应头里）。代价是最末尾多一次「加载更多」请求/点击；`useAppState.ts` 的规则 + `Notifications.test.ts`/`useAppState.test.ts` 共 5 条断言已同步。
 - [ ] P3 确认「未打开 Dashboard 时 MCP server 是否会被 VS Code 发现」：文档结论是贡献该扩展点的扩展会被自动激活（故暂不加 `onStartupFinished`，避免每次开窗都激活）。发版走查时用全新窗口确认 Chat 的工具选择器能看到 forgejo 工具，看不到再补
 - [x] `prFileSystemProvider` 对 >10 MiB 文件的文案：contents API 返回 `content: ""` + 真实 `size` 时，PR diff 现在返回一条本地化说明（`missingPayloadNotice`，带 2 条单测）而不是空文档；`KNOWN_ISSUES` en/zh 已同步。
 - [ ] 同一提示还该落到仓库浏览（webview 文件查看器）与仓库概览的 `README.md`：它们仍把空 `content` 渲染成空文档。原条目：- [ ] 走查补充：`prFileSystemProvider` 对 >10 MiB 文件在 PR diff 里的文案落点（contents API 返回空 `content`，见 `KNOWN_ISSUES`）；性能实测（激活耗时、懒加载后体积）
