@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { instanceIdFor } from '../instanceIdentity';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -566,12 +567,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const user = await client.getCurrentUser();
 
           const normalizedUrl = url.replace(/\/$/, '');
-          const instanceHost = new URL(normalizedUrl).host;
+          const parsedInstanceUrl = new URL(normalizedUrl);
+          const instanceHost = parsedInstanceUrl.host;
           const instance: ForgejoInstance = {
-            id: `${instanceHost}-${user.login}`,
+            id: instanceIdFor(normalizedUrl, user.login),
             url: normalizedUrl,
             token,
-            name: `${user.login}@${instanceHost}`,
+            name: `${user.login}@${instanceHost}${parsedInstanceUrl.pathname.replace(/\/+$/, '')}`,
             username: user.login,
             syncApiUrlsToInstanceUrl,
           };
@@ -3907,14 +3909,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       plainTextLabel,
     );
     if (choice !== encryptLabel && choice !== plainTextLabel) {
-      this._reply('instancesExported', { success: false });
+      this._reply('instancesExported', { success: false, cancelled: true });
       return;
     }
     let password: string | undefined;
     if (choice === encryptLabel) {
       password = await this._promptExportPassword();
       if (!password) {
-        this._reply('instancesExported', { success: false });
+        this._reply('instancesExported', { success: false, cancelled: true });
         return;
       }
     }
@@ -3923,7 +3925,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       filters: { JSON: ['json'] },
     });
     if (!uri) {
-      this._reply('instancesExported', { success: false });
+      this._reply('instancesExported', { success: false, cancelled: true });
       return;
     }
     try {
@@ -3968,14 +3970,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       plainTextLabel,
     );
     if (choice !== encryptLabel && choice !== plainTextLabel) {
-      this._reply('instancesExported', { success: false });
+      this._reply('instancesExported', { success: false, cancelled: true });
       return;
     }
     let password: string | undefined;
     if (choice === encryptLabel) {
       password = await this._promptExportPassword();
       if (!password) {
-        this._reply('instancesExported', { success: false });
+        this._reply('instancesExported', { success: false, cancelled: true });
         return;
       }
     }

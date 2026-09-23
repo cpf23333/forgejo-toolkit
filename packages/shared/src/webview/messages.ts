@@ -233,6 +233,7 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       index: number;
+      id?: number;
       uuid?: string;
       name?: string;
       size?: number;
@@ -635,6 +636,8 @@ export type HostToWebviewMessage =
       success: boolean;
       path?: string;
       error?: string;
+      /** The user dismissed the export dialog; not a failure. */
+      cancelled?: boolean;
     }
   | {
       command: 'instancesImported';
