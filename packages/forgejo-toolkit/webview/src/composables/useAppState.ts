@@ -4567,6 +4567,7 @@ function createAppState() {
     issueDetails,
     pullRequestDetails,
     repoIssues,
+    repoIssuesFetchedAt,
     repoPullRequests,
     actionRuns,
     actionRunsPage,

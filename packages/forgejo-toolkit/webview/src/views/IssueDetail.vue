@@ -102,6 +102,17 @@ const stopwatchElsewhereLabel = computed(() => {
 const dependencies = computed(() => state.issueDependencies.value.get(dependenciesKey.value) ?? []);
 const repoIssues = computed(() => state.repoIssues.value.get(repoIssuesKeyValue.value) ?? []);
 const repoIssuesLoading = computed(() => state.loading.get(repoIssuesKeyValue.value) ?? false);
+
+// The dependency picker is the only consumer of the repository issue list, and that
+// list is paged (one request per 50 issues), so loading it for every opened issue or
+// pull request cost ten requests on a busy repository. It loads when the picker is
+// first used, and the empty state waits until then.
+const repoIssuesFetched = computed(() => state.repoIssuesFetchedAt.has(repoIssuesKeyValue.value));
+function ensureRepoIssuesLoaded() {
+  if (!repoIssuesFetched.value) {
+  }
+}
+
 const availableDependencies = computed(() =>
   repoIssues.value.filter(
     (issue) => issue.number !== index.value && !dependencies.value.some((dep) => dep.number === issue.number),
@@ -1072,6 +1083,7 @@ function reloadIssue() {
               <vscode-single-select
                 :value="selectedDependencyNumber === undefined ? '' : String(selectedDependencyNumber)"
                 class="dependency-select"
+                @click="ensureRepoIssuesLoaded"
                 @change="selectedDependencyNumber = Number(($event.target as HTMLSelectElement).value) || undefined"
               >
                 <vscode-option value="">{{ t('dashboard.detail.dependencyPlaceholder') }}</vscode-option>
@@ -1089,7 +1101,10 @@ function reloadIssue() {
               </vscode-button>
             </template>
           </div>
-          <div v-if="!repoIssuesLoading && availableDependencies.length === 0" class="dependency-status empty">
+          <div
+            v-if="repoIssuesFetched && !repoIssuesLoading && availableDependencies.length === 0"
+            class="dependency-status empty"
+          >
             {{ t('dashboard.detail.dependencyEmpty') }}
           </div>
         </CollapsibleSection>
