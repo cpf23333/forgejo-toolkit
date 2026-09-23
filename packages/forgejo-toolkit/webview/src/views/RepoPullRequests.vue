@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, ref, watch } from 'vue';
+import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import ModalDialog from '../components/ModalDialog.vue';
@@ -34,6 +35,9 @@ const key = computed(() =>
 );
 
 const items = computed(() => state.repoPullRequests.value.get(key.value) ?? []);
+// The host caps a paged list at LIST_ITEM_LIMIT and reports no total, so the list
+// says it may be incomplete instead of looking complete.
+const listTruncated = computed(() => isListTruncated(items.value));
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
 
@@ -389,6 +393,9 @@ async function handleCreateSubmit(data: {
     </div>
     <div v-else-if="loading" class="loading">{{ t('dashboard.loading') }}</div>
     <div v-else class="empty-list">{{ t('dashboard.repoPullRequests.empty') }}</div>
+    <div v-if="listTruncated" class="empty-list list-truncated">
+      {{ t('dashboard.repoPullRequests.truncated') }}
+    </div>
 
     <ModalDialog
       :open="isCreating"

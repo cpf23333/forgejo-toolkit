@@ -216,7 +216,8 @@
       "empty": "No pull requests match the selected state.",
       "disabled": "Pull requests are disabled for this repository.",
       "searchPlaceholder": "Search pull requests…",
-      "attachmentUploadFailed": "{count} attachment(s) failed to upload. The pull request was created; submit again to upload only the remaining attachments."
+      "attachmentUploadFailed": "{count} attachment(s) failed to upload. The pull request was created; submit again to upload only the remaining attachments.",
+      "truncated": "Only the first 500 pull requests are shown; narrow the filter to see the rest."
     },
     "repoActions": {
       "empty": "No action runs.",

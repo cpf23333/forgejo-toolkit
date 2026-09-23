@@ -216,7 +216,8 @@
       "empty": "没有符合当前状态的 Pull Requests。",
       "disabled": "该仓库未启用 Pull Requests。",
       "searchPlaceholder": "搜索 Pull Requests…",
-      "attachmentUploadFailed": "有 {count} 个附件上传失败。Pull Request 已创建，再次提交只会补传剩余附件。"
+      "attachmentUploadFailed": "有 {count} 个附件上传失败。Pull Request 已创建，再次提交只会补传剩余附件。",
+      "truncated": "这里只显示前 500 个 Pull Request；缩小筛选范围才能看到其余内容。"
     },
     "repoActions": {
       "empty": "没有运行记录。",
