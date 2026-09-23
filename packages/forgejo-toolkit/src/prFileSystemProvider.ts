@@ -19,6 +19,23 @@ export interface ForgejoPrUriParams {
 
 export const FORGEJO_PR_SCHEME = 'forgejo-pr';
 
+/**
+ * The notice served in place of a file whose payload Forgejo withheld.
+ *
+ * The contents API omits the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE`
+ * (10 MiB by default) and reports the real `size` instead of failing, so an empty
+ * buffer would render the diff as an empty file with no explanation.
+ */
+export function missingPayloadNotice(size: number | undefined): string | undefined {
+  if (!size || size <= 0) {
+    return undefined;
+  }
+  const mib = (size / (1024 * 1024)).toFixed(1);
+  return vscode.l10n.t(
+    'Forgejo did not return this file ({0} MiB): the contents API omits payloads above its size limit. Open the file in the browser to read it.',
+    mib,
+  );
+}
 export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
   private readonly _onDidChangeFile = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   public readonly onDidChangeFile = this._onDidChangeFile.event;
@@ -73,9 +90,13 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
       if (!entry || entry.type !== 'file') {
         throw new Error(`Unexpected contents response for ${params.path}@${ref}`);
       }
+      if (!entry.content) {
+        const notice = missingPayloadNotice(entry.size);
+        return notice ? new TextEncoder().encode(`${notice}\n`) : new Uint8Array(0);
+      }
       // Decode base64 straight to bytes: routing binary content through a
       // UTF-8 string would corrupt it.
-      return entry.content ? base64ToUint8Array(entry.content) : new Uint8Array(0);
+      return base64ToUint8Array(entry.content);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         return new Uint8Array(0);

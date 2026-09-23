@@ -185,5 +185,6 @@
   "{0} local commit(s)": "{0} local commit(s)",
   "The local worktree for PR #{0} is out of date and holds {1}. Delete it and check out the current PR head? That local work will be lost.": "The local worktree for PR #{0} is out of date and holds {1}. Delete it and check out the current PR head? That local work will be lost.",
   "This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.": "This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.",
-  "This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work.": "This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work."
+  "This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work.": "This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work.",
+  "Forgejo did not return this file ({0} MiB): the contents API omits payloads above its size limit. Open the file in the browser to read it.": "Forgejo did not return this file ({0} MiB): the contents API omits payloads above its size limit. Open the file in the browser to read it."
 }

@@ -185,5 +185,6 @@
   "The local worktree for PR #{0} is out of date and holds {1}. Delete it and check out the current PR head? That local work will be lost.": "PR #{0} 的本地 worktree 已过期，其中包含{1}。要删除它并重新检出当前的 PR head 吗？这些本地改动将会丢失。",
   "This instance runs Forgejo {0}, which is older than the minimum supported version {1}. Some features may not work.": "该实例的 Forgejo 版本（{0}）低于受支持的最低版本 {1}，部分功能可能不可用。",
   "This instance runs a Forgejo version older than the minimum supported version {0}. Some features may not work.": "该实例的 Forgejo 版本低于受支持的最低版本 {0}，部分功能可能不可用。",
-  "Cancel the running timer for issue #{0}?": "确定取消 Issue #{0} 上正在运行的计时器吗？"
+  "Cancel the running timer for issue #{0}?": "确定取消 Issue #{0} 上正在运行的计时器吗？",
+  "Forgejo did not return this file ({0} MiB): the contents API omits payloads above its size limit. Open the file in the browser to read it.": "Forgejo 没有返回这个文件（{0} MiB）：contents 接口不会返回超过其大小上限的文件正文。请在浏览器中打开该文件查看。"
 }

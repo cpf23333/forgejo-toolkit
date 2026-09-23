@@ -175,7 +175,7 @@ PR 级别的变更文件列表来自 `GET /repos/{owner}/{repo}/compare/{basehea
 
 ## 大于 10 MiB 的文件显示为空
 
-Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（默认 10 MiB）的文件的正文：它会返回 `content: ""` 以及真实的 `size`，而不是报错。扩展会把它渲染为空文档（仓库浏览与 PR diff 均是），仓库概览中的大型 `README.md` 也会因此不显示。
+Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（默认 10 MiB）的文件的正文：它会返回 `content: ""` 以及真实的 `size`，而不是报错。PR diff 现在会显示一条说明（写出文件大小并指向浏览器），而不是空文档；仓库浏览与仓库概览里的 `README.md` 仍显示为空（见 `TODO.md`）。
 
 规避方法：通过 Forgejo 网页界面或本地检出打开该文件。
 

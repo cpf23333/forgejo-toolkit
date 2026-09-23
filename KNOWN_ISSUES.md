@@ -175,7 +175,7 @@ Workaround: add a remote whose URL contains the instance host verbatim, or confi
 
 ## Files larger than 10 MiB render as empty
 
-Forgejo's contents API omits the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE` (10 MiB by default): it returns `content: ""` together with the real `size` instead of failing. The extension renders that as an empty document (repository browser and PR diff alike), and the repository dashboard shows no README for a large `README.md`.
+Forgejo's contents API omits the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE` (10 MiB by default): it returns `content: ""` together with the real `size` instead of failing. The pull request diff now shows a notice naming the size and pointing at the browser instead of an empty document; the repository browser and the dashboard README still render as empty (see `TODO.md`).
 
 Workaround: open the file through the Forgejo web UI or a local checkout.
 

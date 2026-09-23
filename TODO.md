@@ -30,7 +30,8 @@
 - [ ] P3 `packages/forgejo-api` 规格源固定：`kubb.config.ts` 仍直接读上游 swagger（生成器包已钉到 `4.39.2`），建议 pin 到上游 tag 并记录版本；`src/generated/client|mocks` 目前无 value 导入，可考虑只保留 types
 - [ ] P3 通知分页的边界：服务端把 `[api] MaxResponseItems` 调到 50 以下时，短页会被提前判定为结束（总数只在响应头里，生成的 client 不透出）
 - [ ] P3 确认「未打开 Dashboard 时 MCP server 是否会被 VS Code 发现」：文档结论是贡献该扩展点的扩展会被自动激活（故暂不加 `onStartupFinished`，避免每次开窗都激活）。发版走查时用全新窗口确认 Chat 的工具选择器能看到 forgejo 工具，看不到再补
-- [ ] 走查补充：`prFileSystemProvider` 对 >10 MiB 文件在 PR diff 里的文案落点（contents API 返回空 `content`，见 `KNOWN_ISSUES`）；性能实测（激活耗时、懒加载后体积）
+- [x] `prFileSystemProvider` 对 >10 MiB 文件的文案：contents API 返回 `content: ""` + 真实 `size` 时，PR diff 现在返回一条本地化说明（`missingPayloadNotice`，带 2 条单测）而不是空文档；`KNOWN_ISSUES` en/zh 已同步。
+- [ ] 同一提示还该落到仓库浏览（webview 文件查看器）与仓库概览的 `README.md`：它们仍把空 `content` 渲染成空文档。原条目：- [ ] 走查补充：`prFileSystemProvider` 对 >10 MiB 文件在 PR diff 里的文案落点（contents API 返回空 `content`，见 `KNOWN_ISSUES`）；性能实测（激活耗时、懒加载后体积）
 - [ ] 缓议 P5：500 条列表全量渲染、无虚拟化，待性能实测后决定
 - [ ] 低优先级（等上游）：`vscode-tree` 内按钮（IconActionButton）的 Enter/Space 被库自身 `keydown` 的 `preventDefault` 抑制（`@vscode-elements/elements` 2.5.1 既有行为）
 - [x] onboarding 面板的 CSP：改为该面板直接允许 `http:` 图片（`allowInsecureImages`，`content.ts` 的 `buildContentSecurityPolicy` 抽出并加了 3 条 CSP 断言；向导的表单不做持久化，重建面板会清空输入，所以不能靠重建套用 origin）。原条目：- [ ] 低优先级：onboarding 面板的 CSP 只在 HTML 重建时生效——`http://` 实例的 markdown 图片在下一次面板重建前仍被拦（https 实例不受影响），需在 `testConnection` 成功后按 origin 变化重建
