@@ -2,6 +2,7 @@
 import { computed, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState, actionRunsKey, dispatchWorkflowKey } from '../composables/useAppState';
+import { actionStatusClass as statusClass, actionStatusIcon as statusIcon } from '../utils/actionStatus';
 
 const props = defineProps<{
   instanceId: string;
@@ -87,32 +88,6 @@ function reload() {
 
 function loadMore() {
   state.loadActionRuns(props.instanceId, props.owner, props.repo, nextPage.value);
-}
-
-function statusIcon(status?: string): string {
-  switch (status) {
-    case 'success':
-      return 'check';
-    case 'failure':
-    case 'error':
-      return 'error';
-    case 'running':
-      return 'sync';
-    case 'pending':
-    case 'waiting':
-    case 'requested':
-      return 'watch';
-    case 'cancelled':
-      return 'circle-slash';
-    case 'skipped':
-      return 'debug-step-over';
-    default:
-      return 'question';
-  }
-}
-
-function statusClass(status?: string): string {
-  return status ?? 'unknown';
 }
 
 function formatDuration(nanoseconds?: number): string {
@@ -504,9 +479,8 @@ onUnmounted(() => {
   color: var(--vscode-descriptionForeground);
 }
 
-.run-status-icon.pending,
 .run-status-icon.waiting,
-.run-status-icon.requested {
+.run-status-icon.blocked {
   color: var(--vscode-descriptionForeground);
 }
 

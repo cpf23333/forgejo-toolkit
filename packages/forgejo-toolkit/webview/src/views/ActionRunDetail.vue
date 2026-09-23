@@ -12,6 +12,12 @@ import {
   actionRunDeleteKey,
   actionArtifactDownloadKey,
 } from '../composables/useAppState';
+import {
+  actionStatusClass as statusClass,
+  actionStatusIcon as statusIcon,
+  isActionRunCancellable,
+  isActionStatusFailed,
+} from '../utils/actionStatus';
 
 const route = useRoute();
 const { t } = useI18n();
@@ -294,32 +300,6 @@ function jobLogError(jobId: number | undefined): string | undefined {
   return state.errors.get(actionJobLogKey(instanceId.value, owner.value, repo.value, jobId));
 }
 
-function statusIcon(status?: string): string {
-  switch (status) {
-    case 'success':
-      return 'check';
-    case 'failure':
-    case 'error':
-      return 'error';
-    case 'running':
-      return 'sync';
-    case 'pending':
-    case 'waiting':
-    case 'requested':
-      return 'watch';
-    case 'cancelled':
-      return 'circle-slash';
-    case 'skipped':
-      return 'debug-step-over';
-    default:
-      return 'question';
-  }
-}
-
-function statusClass(status?: string): string {
-  return status ?? 'unknown';
-}
-
 function formatDuration(nanoseconds?: number): string {
   if (nanoseconds === undefined || nanoseconds === null || nanoseconds <= 0) {
     return '';
@@ -347,18 +327,10 @@ function formatDate(date?: string): string {
   }
 }
 
-function artifactDownloadUrl(artifact: { archive_download_url?: string }): string {
-  return artifact.archive_download_url ?? '';
-}
-
-function canCancelRun(status?: string): boolean {
-  return ['running', 'waiting', 'pending', 'requested'].includes(status ?? '');
-}
-
 // Destructive commands are confirmed host-side (viewProvider re-prompts
 // before executing); the webview must not add its own confirmation.
 function cancelRun() {
-  if (!canCancelRun(run.value?.status)) {
+  if (!isActionRunCancellable(run.value?.status)) {
     return;
   }
   state.cancelActionRun(instanceId.value, owner.value, repo.value, runId.value);
@@ -432,7 +404,7 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
         {{ deleteLoading ? t('dashboard.loading') : t('dashboard.actionRun.deleteRun') }}
       </vscode-button>
       <vscode-button
-        v-if="run && canCancelRun(run.status)"
+        v-if="run && isActionRunCancellable(run.status)"
         secondary
         icon="circle-slash"
         :disabled="cancelLoading"
@@ -502,11 +474,7 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
         <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
       </div>
       <div class="jobs-list">
-        <div
-          v-for="job in jobs"
-          :key="job.id"
-          :class="['job-item', { failed: job.status === 'failure' || job.status === 'error' }]"
-        >
+        <div v-for="job in jobs" :key="job.id" :class="['job-item', { failed: isActionStatusFailed(job.status) }]">
           <div class="job-header" @click="toggleJobCollapsed(job.id)">
             <vscode-icon
               v-if="job.id !== undefined"
