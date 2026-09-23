@@ -208,7 +208,8 @@
       "empty": "No issues match the selected state.",
       "disabled": "Issues are disabled for this repository.",
       "searchPlaceholder": "Search issues…",
-      "attachmentUploadFailed": "{count} attachment(s) failed to upload. The issue was created; submit again to upload only the remaining attachments."
+      "attachmentUploadFailed": "{count} attachment(s) failed to upload. The issue was created; submit again to upload only the remaining attachments.",
+      "truncated": "Only the first 500 issues are shown; narrow the filter to see the rest."
     },
     "repoPullRequests": {
       "title": "Pull Requests · {repo}",

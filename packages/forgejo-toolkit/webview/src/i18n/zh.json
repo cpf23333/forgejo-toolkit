@@ -208,7 +208,8 @@
       "empty": "没有符合当前状态的 Issues。",
       "disabled": "该仓库未启用 Issues。",
       "searchPlaceholder": "搜索 Issues…",
-      "attachmentUploadFailed": "有 {count} 个附件上传失败。Issue 已创建，再次提交只会补传剩余附件。"
+      "attachmentUploadFailed": "有 {count} 个附件上传失败。Issue 已创建，再次提交只会补传剩余附件。",
+      "truncated": "这里只显示前 500 个 Issue；缩小筛选范围才能看到其余内容。"
     },
     "repoPullRequests": {
       "title": "Pull Requests · {repo}",

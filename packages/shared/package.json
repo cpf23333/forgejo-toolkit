@@ -19,6 +19,10 @@
     "./git/url": {
       "types": "./src/git/url.ts",
       "default": "./src/git/url.ts"
+    },
+    "./limits": {
+      "types": "./src/limits.ts",
+      "default": "./src/limits.ts"
     }
   },
   "scripts": {
