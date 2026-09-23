@@ -76,6 +76,6 @@
 - [~] D⑬ 虚拟化决策：搜索列表已 200 条封顶，无需虚拟化；仪表盘 500 行待 D⑩ 的 DOM 数据再定
 - [ ] C② HTTP 代理：需 `pnpm add undici`（新增依赖 + lockfile，受网络约束）；实现方向：共享请求层透出 `dispatcher`、激活时按 `http.proxy` / `HTTP(S)_PROXY` 解析并设默认 dispatcher、改写 KNOWN_ISSUES 那条
 - [ ] C④ kubb 规格源固定 + 重新生成：需跑生成器（网络 + 工具链），顺带补 `IssueAddTime` 的 422
-- [ ] C⑥ 打包优化：入口拆分（三面板并集）+ codicon 去重，改 Vite 配置，**验证需要构建授权**
+- [x] C⑥ 打包优化（2026-09-23，构建验证）：入口**按面板拆分**（`main.ts` 里两个独立面板改动态 `import()`，产出 `OnboardingPanel` 8 KB / `PullReviewCommentPanel` 5 KB 独立块）并**去掉重复的 codicon 样式导入**（`@vscode/codicons/dist/codicon.css` 已由 `content.ts` 以 `<link id="vscode-codicon-stylesheet">` 注入、文件由 `copyCodicons` 拷进产物，vscode-elements 正是读该 link 的 href）。实测入口 **JS 432 → 327 KB**、入口 **CSS 204 → 1 KB**（不再内联 164 KB base64 TTF；`codicon.ttf` 仍以文件形式随包，123 KB），仪表盘首屏从 636 KB 降到 328 KB（约 −48%）。`vite build` 通过、全量测试/检查通过。
 - [ ] D⑧ MCP 激活核对：需要在全新窗口里确认 Chat 工具选择器能看到 forgejo 工具（需构建授权 + `pnpm launch`）
 - [ ] D⑫ vscode-tree 键盘：等上游库修复（`vscode-tree` 的 `IconActionButton` 在 `keydown` 里 `preventDefault`），当前仅在 KNOWN_ISSUES/待办里登记
