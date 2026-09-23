@@ -60,3 +60,19 @@
 - [x] 第 7 处也补上了：导出取消的 dispatch 用例（`viewProviderDispatch.test.ts` 断言「警告弹窗关闭」与「保存对话框取消」两条路径都回 `{ success: false, cancelled: true }`；顺带给共享 vscode mock 补了 `showSaveDialog`）。至此 8 处弱测试全部补齐。
 - [x] T2 已完成：文件搜索截断标记、依赖选择器懒加载（含「是否已加载」判断）、评论 reactions 预取 + 4 并发上限（原「懒发」方案已撤回：评论显示时就必须看到数字）。
 - [ ] 发版后再做：webview 入口拆分（三面板并集，441 KB JS + 208 KB CSS，三个 webview 共用一个 index.html）、codicon CSS/TTF 去重（入口 CSS 内联 168 KB base64）。
+
+## C/D 类收尾时的状态（2026-09-23，目标 12 轮用尽）
+
+- [x] C③ MCP 工具调用取消（`withSignal` + 派发重建处理器，2 条测试）
+- [x] C⑤ 通知分页边界（只有空页算结束，5 条断言同步）
+- [~] C① 截断标记：MCP（`listTruncationNote`，2 条测试）+ 共享上限（`shared/src/limits.ts`，2 条测试）+ Issues/PR 两个列表界面；其余视图（commit / 评论 / 分支 / 标签 / Release / 仓库浏览）照三行补即可
+- [x] D⑦ 导出取消 dispatch 测试（并给共享 vscode mock 补了 `showSaveDialog`）
+- [x] D⑨ >10 MiB 文案（PR diff 返回本地化说明 + 2 条测试）
+- [x] D⑪ onboarding CSP（`allowInsecureImages` + 3 条 CSP 断言 + KNOWN_ISSUES）
+- [~] D⑩ 性能实测：客户端与打包数字已拿到（500 条 = 10 次请求；入口 432 KB JS / 204 KB CSS / codicon TTF 内联；easymde 319 KB 懒加载）；**500 行列表的 DOM 实测仍缺**，需构建授权或生成式 harness
+- [~] D⑬ 虚拟化决策：搜索列表已 200 条封顶，无需虚拟化；仪表盘 500 行待 D⑩ 的 DOM 数据再定
+- [ ] C② HTTP 代理：需 `pnpm add undici`（新增依赖 + lockfile，受网络约束）；实现方向：共享请求层透出 `dispatcher`、激活时按 `http.proxy` / `HTTP(S)_PROXY` 解析并设默认 dispatcher、改写 KNOWN_ISSUES 那条
+- [ ] C④ kubb 规格源固定 + 重新生成：需跑生成器（网络 + 工具链），顺带补 `IssueAddTime` 的 422
+- [ ] C⑥ 打包优化：入口拆分（三面板并集）+ codicon 去重，改 Vite 配置，**验证需要构建授权**
+- [ ] D⑧ MCP 激活核对：需要在全新窗口里确认 Chat 工具选择器能看到 forgejo 工具（需构建授权 + `pnpm launch`）
+- [ ] D⑫ vscode-tree 键盘：等上游库修复（`vscode-tree` 的 `IconActionButton` 在 `keydown` 里 `preventDefault`），当前仅在 KNOWN_ISSUES/待办里登记
