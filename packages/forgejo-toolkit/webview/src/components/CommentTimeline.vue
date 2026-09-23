@@ -29,6 +29,21 @@ const renderedBodies = reactive<Record<string, string>>({});
 // edits, so the cache must re-render when the body changes.
 const renderedBodySources = reactive<Record<string, string>>({});
 const loadingIds = ref<Set<string>>(new Set());
+// Reactions are only fetched when the reader interacts with a comment: a busy pull
+// request has up to 500 timeline entries, and one request per entry was fired as
+// soon as the detail view opened.
+const requestedReactions = ref<Set<string>>(new Set());
+function ensureCommentReactions(comment: ForgejoTimelineComment) {
+  if (comment.id === undefined) {
+    return;
+  }
+  const key = getCommentReactionsKey(comment);
+  if (!key || requestedReactions.value.has(key)) {
+    return;
+  }
+  requestedReactions.value.add(key);
+  state.loadCommentReactions(props.instanceId, props.owner, props.repo, comment.id);
+}
 const uploadingCommentCount = ref(0);
 const uploadErrors = reactive<Record<number, string>>({});
 const editingComment = ref<ForgejoTimelineComment | undefined>(undefined);
@@ -86,9 +101,6 @@ watch(
     for (const comment of comments) {
       if (comment.body) {
         renderComment(comment);
-      }
-      if (comment.id !== undefined) {
-        state.loadCommentReactions(props.instanceId, props.owner, props.repo, comment.id);
       }
     }
   },
@@ -464,14 +476,19 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           @open-external="openExternal"
         />
       </div>
-      <ReactionBar
-        v-if="comment.id !== undefined"
+      <div
         class="comment-reactions"
-        :reactions="getCommentReactions(comment)"
-        :current-username="currentUsername"
-        :loading="getCommentReactionsLoading(comment)"
-        @toggle="(content, add) => handleCommentReactionToggle(comment, content, add)"
-      />
+        @mouseenter="ensureCommentReactions(comment)"
+        @focusin="ensureCommentReactions(comment)"
+      >
+        <ReactionBar
+          v-if="comment.id !== undefined"
+          :reactions="getCommentReactions(comment)"
+          :current-username="currentUsername"
+          :loading="getCommentReactionsLoading(comment)"
+          @toggle="(content, add) => handleCommentReactionToggle(comment, content, add)"
+        />
+      </div>
     </div>
 
     <ModalDialog
