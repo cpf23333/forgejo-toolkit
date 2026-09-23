@@ -1050,6 +1050,61 @@ describe('ForgejoClient with MSW', () => {
       expect(dependencies).toHaveLength(1);
     });
 
+    it('pages through issue dependencies instead of taking one 30-row page', async () => {
+      // The server pages this list (default 30, cap 50) and sends no total count, so
+      // a client that passed no page/limit silently truncated issues with many blockers.
+      const firstPage = Array.from({ length: 50 }, (_, i) => ({ id: i + 1, number: i + 1, title: `dep ${i + 1}` }));
+      const secondPage = [{ id: 51, number: 51, title: 'dep 51' }];
+      const requestedPages: string[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/dependencies', ({ request }) => {
+          const page = new URL(request.url).searchParams.get('page') ?? '1';
+          requestedPages.push(page);
+          return HttpResponse.json(page === '1' ? firstPage : secondPage);
+        }),
+      );
+      const dependencies = await createClient().listIssueDependencies('demo-user', 'demo-repo', 1);
+      expect(dependencies).toHaveLength(51);
+      expect(requestedPages).toEqual(['1', '2']);
+    });
+
+    it('drops null entries from the pull request list', async () => {
+      // `convert.ToAPIPullRequest` returns nil when a related row fails to load and
+      // the handler appends it as-is; consumers dereference `pr.head`.
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls', () =>
+          HttpResponse.json([
+            null,
+            { id: 1, number: 1, title: 'a pull request', head: { ref: 'feature' }, base: { ref: 'main' } },
+          ]),
+        ),
+      );
+      const pulls = await createClient().getRepoPullRequests('demo-user', 'demo-repo');
+      expect(pulls).toHaveLength(1);
+      expect(pulls[0]?.id).toBe(1);
+    });
+
+    it('keeps paging the timeline when a page is filtered down to nothing', async () => {
+      // The server drops code comments *after* taking the page, so an empty page is
+      // not necessarily the end of the timeline.
+      const requestedPages: string[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request }) => {
+          const page = new URL(request.url).searchParams.get('page') ?? '1';
+          requestedPages.push(page);
+          return HttpResponse.json(
+            page === '1' ? [] : [{ id: 7, type: 'comment', body: 'still here', created_at: '2026-01-01T00:00:00Z' }],
+          );
+        }),
+      );
+      const comments = await createClient().getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 1);
+      expect(comments).toHaveLength(1);
+      // The filtered-out first page must not end the timeline: paging continues
+      // (the following probe repeats what the page-2 duplicate guard needs).
+      expect(requestedPages[0]).toBe('1');
+      expect(requestedPages[1]).toBe('2');
+      expect(requestedPages.length).toBeGreaterThan(1);
+    });
     it('creates an issue dependency', async () => {
       const client = createClient();
       await expect(client.createIssueDependency('demo-user', 'demo-repo', 1, 2)).resolves.toBeDefined();

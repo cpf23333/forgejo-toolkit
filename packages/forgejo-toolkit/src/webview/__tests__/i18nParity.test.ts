@@ -128,7 +128,10 @@ describe('host l10n bundles', () => {
   });
 
   it('is reachable: every literal l10n.t() key exists in the bundle', () => {
-    const used = collectLiteralKeys(walk(path.join(packageRoot, 'src'), ['.ts']), /l10n\.t\(\s*'((?:[^'\\]|\\.)+)'/g);
+    const used = collectLiteralKeys(
+      walk(path.join(packageRoot, 'src'), ['.ts']),
+      /(?:l10n\.t|translate)\(\s*'((?:[^'\\]|\\.)+)'/g,
+    );
     const unknown = [...used].filter(([key]) => !en.has(key));
     expect(unknown).toEqual([]);
   });
