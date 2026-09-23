@@ -321,7 +321,11 @@ export class ForgejoClient {
    * (not the page count), so a clamped page size does not shrink the overall
    * result window.
    */
-  private async _fetchAllPages<T>(fetchPage: (page: number) => Promise<T[] | null | undefined>): Promise<T[]> {
+  private async _fetchAllPages<T>(
+    fetchPage: (page: number) => Promise<T[] | null | undefined>,
+    options: { shortPageMarksEnd?: boolean } = {},
+  ): Promise<T[]> {
+    const shortPageMarksEnd = options.shortPageMarksEnd ?? true;
     const all: T[] = [];
     let effectivePageSize: number | undefined;
     let page = 1;
@@ -340,7 +344,10 @@ export class ForgejoClient {
       if (page === 1) {
         effectivePageSize = items.length;
       }
-      if (items.length === 0 || items.length < (effectivePageSize ?? PAGE_SIZE)) {
+      // A short page normally means the last page. Endpoints that filter rows
+      // after paging can return a short page in the middle of the list, so those
+      // callers turn the heuristic off and paging runs until an empty page.
+      if (items.length === 0 || (shortPageMarksEnd && items.length < (effectivePageSize ?? PAGE_SIZE))) {
         break;
       }
       page++;
@@ -1260,7 +1267,9 @@ export class ForgejoClient {
           { client: this._client() },
         ),
       );
-      return pulls as ForgejoPullRequest[];
+      // The issues endpoint returns issue-shaped rows (the old code cast them the
+      // same way); drop any null entry first so consumers can dereference freely.
+      return this._definedPullRequests(pulls) as ForgejoPullRequest[];
     }
     const pulls = await this._fetchAllPages((page) =>
       repoListPullRequests(
@@ -1272,7 +1281,19 @@ export class ForgejoClient {
         },
       ),
     );
-    return pulls as ForgejoPullRequest[];
+    return this._definedPullRequests(pulls) as ForgejoPullRequest[];
+  }
+
+  /**
+   * `repoListPullRequests` puts a `null` in the array when the server cannot
+   * load a pull request's related rows (`convert.ToAPIPullRequest` returns nil
+   * and the handler appends it as-is). Consumers dereference `pr.head` and
+   * `pr.base` without checking the element itself, so drop those entries here
+   * instead of letting one broken row crash the pull request list or the status
+   * bar.
+   */
+  private _definedPullRequests<T>(pulls: (T | null | undefined)[]): T[] {
+    return pulls.filter((pull): pull is T => pull !== null && pull !== undefined);
   }
 
   createIssue(owner: string, repo: string, data: CreateIssueOption): Promise<ForgejoIssue> {
@@ -1322,6 +1343,8 @@ export class ForgejoClient {
     return times as TrackedTime[];
   }
 
+  // The server answers 422 when 	ime is missing or zero (the generated error type
+  // only declares 400/403/404; regenerating from a pinned spec would add it).
   addIssueTime(owner: string, repo: string, index: number, time: number): Promise<TrackedTime> {
     const data: AddTimeOption = { time };
     return issueAddTime(owner, repo, index, data, { client: this._client() }) as Promise<TrackedTime>;
@@ -1335,10 +1358,14 @@ export class ForgejoClient {
     return issueDeleteTime(owner, repo, index, id, { client: this._client() });
   }
 
-  listIssueDependencies(owner: string, repo: string, index: number): Promise<ForgejoIssue[]> {
-    return issueListIssueDependencies(owner, repo, index, undefined, { client: this._client() }) as Promise<
-      ForgejoIssue[]
-    >;
+  async listIssueDependencies(owner: string, repo: string, index: number): Promise<ForgejoIssue[]> {
+    // The endpoint pages like every other list (default 30, capped at
+    // MaxResponseItems) and sends no total count, so an unpaged call silently
+    // truncated issues with more than 30 dependencies. `_fetchAllPages` walks the
+    // pages until one comes back short.
+    return (await this._fetchAllPages((page) =>
+      issueListIssueDependencies(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    )) as ForgejoIssue[];
   }
 
   createIssueDependency(owner: string, repo: string, index: number, dependencyIndex: number): Promise<unknown> {
@@ -1512,6 +1539,11 @@ export class ForgejoClient {
           { page, limit: PAGE_SIZE },
           { client: this._client() },
         ) as Promise<TimelineComment[] | null | undefined>,
+      // The timeline drops some rows (code comments, unreadable cross-repository
+      // references) *after* the page has been read from the database, so a page
+      // that comes back shorter than the page size does not mean the timeline
+      // ended — keep paging until an empty page arrives.
+      { shortPageMarksEnd: false },
     );
     // Body-reference heuristic: only comments whose body links an attachment
     // (see ATTACHMENT_REFERENCE_REGEX) get an attachment-list request, instead

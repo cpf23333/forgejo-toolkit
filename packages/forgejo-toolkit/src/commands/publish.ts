@@ -83,7 +83,11 @@ export function validateRemoteName(value: string, existing: GitRemoteEntry[]): s
   return undefined;
 }
 
-/** True when the error is a 422 whose body reports a name conflict. */
+/**
+ * True for the two shapes the server uses when a repository name is taken: a plain
+ * 409, and a 422 whose body reports an existing name (the 422 branch also covers
+ * reserved names and rule violations, so the body check is what makes this safe).
+ */
 function isNameConflictError(message: string): boolean {
   if (/Forgejo API error 409\b/.test(message)) {
     return true;

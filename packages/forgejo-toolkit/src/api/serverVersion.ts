@@ -8,7 +8,7 @@ export interface ServerVersion {
 
 /**
  * Parses a `/api/v1/version` payload such as "1.21.5", "v1.19.2" or
- * "7.0.1+gitea-1.22". Returns undefined for anything unparseable — callers
+ * "7.0.1+gitea-1.22.0". Returns undefined for anything unparseable — callers
  * must fail open (an unknown version never blocks a feature).
  */
 export function parseServerVersion(raw: string): ServerVersion | undefined {
