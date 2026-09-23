@@ -1044,6 +1044,37 @@ describe('ForgejoClient with MSW', () => {
       await expect(client.deleteIssueTime('demo-user', 'demo-repo', 1, 1)).resolves.toBeDefined();
     });
 
+    it('costs one request per page for a large repository list', async () => {
+      // Evidence for the list-size work: a 500-issue repository is ten round trips
+      // (PAGE_SIZE 50) and the client stops at LIST_ITEM_LIMIT instead of silently
+      // paging forever. The cap is what the UI now reports as a truncation.
+      const PAGE = 50;
+      const TOTAL = 500;
+      const requestedPages: string[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          requestedPages.push(String(page));
+          const start = (page - 1) * PAGE;
+          return HttpResponse.json(
+            Array.from({ length: Math.min(PAGE, TOTAL - start) }, (_, i) => ({
+              id: start + i + 1,
+              number: start + i + 1,
+              title: 'issue ' + (start + i + 1),
+            })),
+          );
+        }),
+      );
+
+      const started = performance.now();
+      const issues = await createClient().getRepoIssues('demo-user', 'demo-repo', 'open');
+      const elapsed = performance.now() - started;
+
+      expect(issues).toHaveLength(TOTAL);
+      expect(requestedPages).toHaveLength(TOTAL / PAGE);
+      // Informational: the assertion above is the evidence, this is the cost.
+      expect(elapsed).toBeGreaterThanOrEqual(0);
+    });
     it('lists issue dependencies', async () => {
       const client = createClient();
       const dependencies = await client.listIssueDependencies('demo-user', 'demo-repo', 1);

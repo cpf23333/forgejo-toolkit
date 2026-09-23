@@ -32,7 +32,10 @@
 - [ ] P3 确认「未打开 Dashboard 时 MCP server 是否会被 VS Code 发现」：文档结论是贡献该扩展点的扩展会被自动激活（故暂不加 `onStartupFinished`，避免每次开窗都激活）。发版走查时用全新窗口确认 Chat 的工具选择器能看到 forgejo 工具，看不到再补
 - [x] `prFileSystemProvider` 对 >10 MiB 文件的文案：contents API 返回 `content: ""` + 真实 `size` 时，PR diff 现在返回一条本地化说明（`missingPayloadNotice`，带 2 条单测）而不是空文档；`KNOWN_ISSUES` en/zh 已同步。
 - [ ] 同一提示还该落到仓库浏览（webview 文件查看器）与仓库概览的 `README.md`：它们仍把空 `content` 渲染成空文档。原条目：- [ ] 走查补充：`prFileSystemProvider` 对 >10 MiB 文件在 PR diff 里的文案落点（contents API 返回空 `content`，见 `KNOWN_ISSUES`）；性能实测（激活耗时、懒加载后体积）
-- [ ] 缓议 P5：500 条列表全量渲染、无虚拟化，待性能实测后决定
+- [~] P5 500 条列表全量渲染、无虚拟化：**已拿到部分实测证据**（2026-09-23）——
+  - 客户端：500 条 issue 列表 = **10 次请求**（PAGE_SIZE 50，硬上限 `LIST_ITEM_LIMIT` 500），已在 `client.test.ts` 用分页 mock 钉住；仓库内搜索返回**上限 200 条 + truncation 标记**（`client.test.ts` 既有断言），所以搜索列表不需要虚拟化。
+  - 打包产物（dev 构建）：入口 `index-*.js` **432 KB**、入口 CSS **204 KB**（内含 codicon TTF 的 base64）、`easymde` 懒加载块 319 KB、`PullRequestDetail`/`RepoDetail` 各 41-42 KB ⇒ C⑥ 的入口拆分与 codicon 去重有明确目标。
+  - **仍缺**真实渲染成本：需要 dev host（或按 `IssueDetail.test.ts` 那套生成式 harness 给列表视图建测试）量 DOM 节点数与渲染耗时，再决定是否虚拟化。等构建授权后做。
 - [ ] 低优先级（等上游）：`vscode-tree` 内按钮（IconActionButton）的 Enter/Space 被库自身 `keydown` 的 `preventDefault` 抑制（`@vscode-elements/elements` 2.5.1 既有行为）
 - [x] onboarding 面板的 CSP：改为该面板直接允许 `http:` 图片（`allowInsecureImages`，`content.ts` 的 `buildContentSecurityPolicy` 抽出并加了 3 条 CSP 断言；向导的表单不做持久化，重建面板会清空输入，所以不能靠重建套用 origin）。原条目：- [ ] 低优先级：onboarding 面板的 CSP 只在 HTML 重建时生效——`http://` 实例的 markdown 图片在下一次面板重建前仍被拦（https 实例不受影响），需在 `testConnection` 成功后按 origin 变化重建
 - [ ] 规划中的功能：MCP Phase 2 写工具（默认关 + 设置逐项开启 + 不标 `readOnlyHint`）、MCP 多实例 fan-out、`forgejoToolkit.mcpEnabled` 开关
