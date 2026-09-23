@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
-import { ForgejoClient } from '../../src/api/client';
+import { ForgejoClient, LIST_ITEM_LIMIT } from '../../src/api/client';
 import { ApiError } from '../../src/api/errors-core';
 import {
   buildToolHandlers,
+  listTruncationNote,
   registerTools,
   isSafePathSegment,
   isSafeRepoPath,
@@ -490,5 +491,33 @@ describe('registerTools cancellation', () => {
       .catch(() => undefined);
 
     expect(withSignal).not.toHaveBeenCalled();
+  });
+});
+
+describe('list truncation reporting', () => {
+  it('names a list that hit the item cap and stays silent otherwise', () => {
+    // Every paged client method stops at LIST_ITEM_LIMIT; the note is what tells a
+    // caller that more rows exist.
+    expect(listTruncationNote(Array.from({ length: LIST_ITEM_LIMIT }, () => ({})))).toContain(
+      'truncated at ' + LIST_ITEM_LIMIT,
+    );
+    expect(listTruncationNote(Array.from({ length: LIST_ITEM_LIMIT - 1 }, () => ({})))).toBe('');
+    expect(listTruncationNote({ items: [] })).toBe('');
+  });
+
+  it('appends the note to a tool result that hit the cap', async () => {
+    const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ id: i + 1, title: 'issue' }));
+    const client = { getRepoIssues: async () => capped } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('list_issues')?.({ owner: 'demo-user', repo: 'demo-repo' });
+
+    expect(result?.content[0].text).toContain('truncated at ' + LIST_ITEM_LIMIT);
   });
 });

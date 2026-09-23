@@ -24,7 +24,7 @@
   - [x] `stopwatch/delete` 的确认文案改为「取消正在运行的计时器」（en/zh）；`isNameConflictError` 注释说明 409 与 422 各自对应的场景
 - [ ] P3 生成的 `IssueAddTime` 错误类型缺少服务端实际会返回的 422（`client.ts` 已加注说明）——随「kubb 规格源未固定」那条一起，重新生成时补齐
 
-- [ ] P2 `_fetchAllPages` 截断标记：issue / PR / commit / 评论 / 分支 / 标签 / Release / 仓库等 18 个调用点的 500 条上限没有任何提示（仓库内文件搜索已改为 `{ files, truncated }`）。需要逐消息契约改 client → host → webview → MCP；`X-Total-Count` 仍不可用（请求层不透出响应头）。当前限制与规避方法见 `KNOWN_ISSUES`
+- [~] P2 `_fetchAllPages` 截断标记：**MCP 侧已完成**——`client.ts` 导出 `LIST_ITEM_LIMIT`（=500），`mcp/tools.ts` 的 `callTool` 对达到上限的数组结果追加 `(list truncated at 500 items; narrow the query to see the rest)`（`listTruncationNote`，2 条测试：纯函数 + 经注册工具的端到端接线）。**仍待做**：host → webview 的列表界面（issue / PR / commit / 评论 / 分支 / 标签 / Release / 仓库浏览）还没有提示，文件搜索那套 `{ files, truncated }` 模式可以照搬；实现时无需改 client 契约（上限是公开常量，界面按 `length >= LIST_ITEM_LIMIT` 判断即可），`X-Total-Count` 仍不可用（请求层不透出响应头）。当前限制与规避方法见 `KNOWN_ISSUES`
 - [ ] P2 代理支持：请求走全局 `fetch`，不读 `HTTP(S)_PROXY` / VS Code `http.proxy`。方向：按设置接入 undici `ProxyAgent`——需要新增依赖，且代理行为无法在 CI 覆盖；当前限制见 `KNOWN_ISSUES`
 - [x] P2 MCP 工具调用取消：`ForgejoClient.withSignal(signal)` 会为该客户端的**每个**请求带上信号（`withAbortSignal` 合并进请求配置，共享请求层本来就把它转给 fetch），MCP 侧在派发时用 `handlersFor(extra)` 以带信号的客户端重建处理器（不改 27 个处理器签名）。测试：`mcp/__tests__/tools.test.ts` 断言派发把信号交给 `withSignal`、无信号时不重建；`src/api/__tests__/clientSignal.test.ts` 断言合并本身。（MSW 会重建 Request 丢掉调用方信号，所以端到端断言放在请求层与合并两步上。）
 - [ ] P3 `packages/forgejo-api` 规格源固定：`kubb.config.ts` 仍直接读上游 swagger（生成器包已钉到 `4.39.2`），建议 pin 到上游 tag 并记录版本；`src/generated/client|mocks` 目前无 value 导入，可考虑只保留 types

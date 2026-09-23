@@ -173,6 +173,12 @@ const PAGE_SIZE = 50;
 // clamps the page size cannot shrink the overall result window, and a
 // misbehaving server cannot keep us fetching forever.
 const MAX_ITEMS = 10 * PAGE_SIZE;
+/**
+ * How many items a paged list can return. A list at this length was cut off: the
+ * generated client does not expose the response headers a total would live in, so
+ * callers detect it from the length and the surfaces that show lists say so.
+ */
+export const LIST_ITEM_LIMIT = MAX_ITEMS;
 // Raw payload caps: CI logs are loaded fully into memory; artifacts stream to
 // disk and only carry a large defensive cap against unbounded writes.
 const MAX_JOB_LOG_LENGTH = 10 * 1024 * 1024;

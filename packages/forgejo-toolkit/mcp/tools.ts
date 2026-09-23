@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ForgejoClient } from '../src/api/client';
+import { LIST_ITEM_LIMIT, type ForgejoClient } from '../src/api/client';
 import { userFacingErrorMessage } from '../src/api/errors-core';
 
 /**
@@ -306,15 +306,26 @@ const refSchema = z
  */
 export const MAX_TOOL_RESULT_LENGTH = 64 * 1024;
 
+/**
+ * A note for a list that reached the client cap, or an empty string.
+ *
+ * Every paged client method stops at `LIST_ITEM_LIMIT`; without this the result
+ * looks complete and a caller cannot tell that more rows exist.
+ */
+export function listTruncationNote(value: unknown): string {
+  return Array.isArray(value) && value.length >= LIST_ITEM_LIMIT
+    ? `\n(list truncated at ${LIST_ITEM_LIMIT} items; narrow the query to see the rest)`
+    : '';
+}
 /** Wraps a handler run into an MCP tool result: truncation + error rendering. */
 async function callTool(run: () => Promise<unknown>) {
   try {
     const result = truncateLargeStrings(await run());
     const serialized = JSON.stringify(result, null, 2) ?? 'null';
     const text =
-      serialized.length > MAX_TOOL_RESULT_LENGTH
+      (serialized.length > MAX_TOOL_RESULT_LENGTH
         ? `${serialized.slice(0, MAX_TOOL_RESULT_LENGTH)}\n... (truncated: the result exceeded ${Math.round(MAX_TOOL_RESULT_LENGTH / 1024)} KB and was cut off)`
-        : serialized;
+        : serialized) + listTruncationNote(result);
     return { content: [{ type: 'text' as const, text }] };
   } catch (error) {
     // userFacingErrorMessage never includes request headers, so the token
