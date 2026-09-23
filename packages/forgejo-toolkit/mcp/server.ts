@@ -2,6 +2,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ForgejoClient, type ClientLogger } from '../src/api/client';
 import { userFacingErrorMessage } from '../src/api/errors-core';
 import { probeServerVersion } from '../src/api/versionProbe';
+import { setDefaultRequestDispatcher } from '../src/api/client';
+import { createProxyDispatcher, resolveProxyUrl } from '../src/api/proxy';
 import { createMcpServer } from './mcpServer';
 
 // A stdio MCP server must keep stdout clean for the protocol framing, so all
@@ -28,6 +30,8 @@ async function main(): Promise<void> {
   }
 
   const syncApiUrls = process.env.FORGEJO_MCP_SYNC_API_URLS === 'false' ? false : undefined;
+  // The MCP process reads the environment only: there is no editor setting here.
+  setDefaultRequestDispatcher(createProxyDispatcher(resolveProxyUrl(process.env)));
   const client = new ForgejoClient(url, token, logger, syncApiUrls);
   const server = createMcpServer(client);
   // The extension host probes the server version on activation and caches it per

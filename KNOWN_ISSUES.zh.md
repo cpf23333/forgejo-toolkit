@@ -187,7 +187,7 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 
 ## 不支持 HTTP 代理设置
 
-请求使用 Node 的 `fetch` 实现，它既不看 `HTTP_PROXY`/`HTTPS_PROXY`，也不看编辑器的 `http.proxy` 设置。在只能通过代理访问外网的环境里，即使编辑器本身能连通实例，扩展的每个请求都会以连接错误失败。
+请求会走代理：编辑器的 `http.proxy` 设置优先于环境变量 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`，代理 agent 每个会话只创建一次（MCP 进程只读环境变量，因为它在编辑器之外运行）。注意 `no_proxy` 不会被解释：列在其中的主机仍会走代理——扩展只与一个已配置的实例通信，静默绕过代理反而更难排查。
 
 规避方法：把实例地址指向可直连的主机——例如在 Forgejo 前面放一个反向代理或隧道——或在具备直连网络的环境中运行编辑器。
 

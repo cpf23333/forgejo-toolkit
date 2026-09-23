@@ -187,7 +187,7 @@ Workaround: narrow the list with the extension's filters or keyword search, or u
 
 ## HTTP proxy settings are not honored
 
-Requests use the Node `fetch` implementation, which ignores `HTTP_PROXY`/`HTTPS_PROXY` and the editor's `http.proxy` setting. On a network that only reaches the internet through a proxy, every request fails with a connection error even though the editor itself can reach the instance.
+Requests honour a proxy: the editor's `http.proxy` setting wins over `HTTPS_PROXY`/`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` from the environment, and the agent is created once per session (the MCP server reads the environment only, since it runs outside the editor). Note that `no_proxy` is not interpreted: a host listed there is still sent through the proxy, because the extension talks to a single configured instance and silently ignoring the proxy would be harder to diagnose.
 
 Workaround: point the instance URL at a host that is reachable directly — a reverse proxy or tunnel in front of the Forgejo server — or run the editor on a network with direct access.
 

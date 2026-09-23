@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { createProxyDispatcher, resolveProxyUrl } from './api/proxy';
+import { setDefaultRequestDispatcher } from './api/client';
 import { registerCommands } from './commands';
 import { ForgejoToolkitViewProvider } from './webview/viewProvider';
 import { OnboardingWebviewPanel } from './webview/onboardingPanel';
@@ -22,6 +24,11 @@ import { maybeShowWelcomeOnboarding } from './welcome';
 import { logger } from './logger';
 
 export async function activate(context: vscode.ExtensionContext) {
+  // Requests honour a proxy: the editor's http.proxy wins over the environment,
+  // and the agent is created once for the whole session.
+  setDefaultRequestDispatcher(
+    createProxyDispatcher(resolveProxyUrl(process.env, vscode.workspace.getConfiguration('http').get<string>('proxy'))),
+  );
   logger.watch();
   context.subscriptions.push({ dispose: () => logger.dispose() });
 

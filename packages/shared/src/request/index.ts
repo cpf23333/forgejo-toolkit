@@ -12,6 +12,8 @@ export type RequestConfig<TData = unknown> = {
   data?: TData | FormData;
   responseType?: 'arraybuffer' | 'blob' | 'document' | 'json' | 'text' | 'stream';
   signal?: AbortSignal;
+  /** Node fetch dispatcher (undici ProxyAgent) for hosts behind a proxy. */
+  dispatcher?: unknown;
   headers?: [string, string][] | Record<string, string>;
   credentials?: RequestCredentials;
 };
@@ -111,7 +113,8 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
     body,
     signal: paramsConfig.signal,
     headers,
-  });
+    ...(paramsConfig.dispatcher ? { dispatcher: paramsConfig.dispatcher } : {}),
+  } as RequestInit & { dispatcher?: unknown });
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');

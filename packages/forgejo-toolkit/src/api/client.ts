@@ -286,6 +286,23 @@ export interface MentionSearchResult {
  * directly: a mocked HTTP layer rebuilds the Request and drops the caller signal,
  * which hides this from an end-to-end test.
  */
+
+/** Adds a Node fetch dispatcher (proxy agent) to a request config. */
+export function withDispatcher<TRequestData>(
+  config: RequestConfig<TRequestData>,
+  dispatcher?: unknown,
+): RequestConfig<TRequestData> {
+  return dispatcher ? { ...config, dispatcher } : config;
+}
+
+// Set once at activation: the editor setting or environment, resolved to a proxy
+// agent. Per-client dispatchers (should they ever exist) win over this.
+let defaultRequestDispatcher: unknown;
+
+/** Installs the proxy dispatcher every client uses unless it has its own. */
+export function setDefaultRequestDispatcher(dispatcher?: unknown): void {
+  defaultRequestDispatcher = dispatcher;
+}
 export function withAbortSignal<TRequestData>(
   config: RequestConfig<TRequestData>,
   signal?: AbortSignal,
@@ -294,6 +311,8 @@ export function withAbortSignal<TRequestData>(
 }
 export class ForgejoClient {
   private readonly configuredOrigin: string;
+  /** Node fetch dispatcher (undici ProxyAgent) for hosts behind a proxy. */
+  private readonly requestDispatcher?: unknown;
   /** Abort signal for this client's requests; set by `withSignal` (MCP tool calls). */
   private readonly abortSignal?: AbortSignal;
   private detectedServerOrigin: string | undefined;
@@ -307,9 +326,10 @@ export class ForgejoClient {
     private token: string,
     private logger?: ClientLogger,
     syncApiUrlsToInstanceUrl?: boolean,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; dispatcher?: unknown },
   ) {
     this.abortSignal = options?.signal;
+    this.requestDispatcher = options?.dispatcher;
     this.configuredOrigin = new URL(this.url.replace(/\/$/, '')).origin;
     this.syncApiUrlsToInstanceUrl = syncApiUrlsToInstanceUrl ?? true;
     this.tokenCacheKey = createHash('sha256').update(token).digest('hex').slice(0, 16);
@@ -1937,9 +1957,12 @@ export class ForgejoClient {
 
       try {
         const response = await baseClient<TResponseData>({
-          // A cancelled MCP tool call aborts its requests; the shared request layer
-          // forwards the signal to fetch.
-          ...withAbortSignal(config, this.abortSignal),
+          // A cancelled MCP tool call aborts its requests, and a configured proxy is
+          // a Node fetch dispatcher; the shared request layer forwards both to fetch.
+          ...withDispatcher(
+            withAbortSignal(config, this.abortSignal),
+            this.requestDispatcher ?? defaultRequestDispatcher,
+          ),
           baseURL,
           // A reachable-but-unresponsive instance must not hang the request
           // forever; callers may still pass their own signal.
