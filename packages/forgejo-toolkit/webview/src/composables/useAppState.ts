@@ -1834,6 +1834,8 @@ function createAppState() {
   }) {
     const key = commentReactionsKey(data.instanceId, data.owner, data.repo, data.commentId);
     loading.set(key, false);
+    // Free the in-flight slot first, whichever way the request ended.
+    releaseReactionRequestSlot();
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -4128,6 +4130,19 @@ function createAppState() {
     postMessage({ command: 'changeIssueReaction', instanceId, owner, repo, index, content, add });
   }
 
+  // A rendered comment shows its reaction counts, so every timeline entry asks for
+  // them — up to MAX_ITEMS entries on a busy pull request. At most this many requests
+  // are in flight at once; the rest wait their turn so the host is not hit with
+  // hundreds of parallel requests (each reply releases the next one, error included).
+  const MAX_REACTION_REQUESTS_IN_FLIGHT = 4;
+  let reactionRequestsInFlight = 0;
+  const queuedReactionRequests: Array<() => void> = [];
+
+  function releaseReactionRequestSlot() {
+    reactionRequestsInFlight = Math.max(0, reactionRequestsInFlight - 1);
+    queuedReactionRequests.shift()?.();
+  }
+
   function loadCommentReactions(instanceId: string, owner: string, repo: string, commentId: number, force = false) {
     const key = commentReactionsKey(instanceId, owner, repo, commentId);
     if (!force && commentReactions.value.has(key)) {
@@ -4137,7 +4152,15 @@ function createAppState() {
       return;
     }
     beginLoading(key);
-    postMessage({ command: 'getCommentReactions', instanceId, owner, repo, commentId });
+    const send = () => {
+      reactionRequestsInFlight++;
+      postMessage({ command: 'getCommentReactions', instanceId, owner, repo, commentId });
+    };
+    if (reactionRequestsInFlight < MAX_REACTION_REQUESTS_IN_FLIGHT) {
+      send();
+    } else {
+      queuedReactionRequests.push(send);
+    }
   }
 
   function changeCommentReaction(

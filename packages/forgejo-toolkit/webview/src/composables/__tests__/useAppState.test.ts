@@ -2990,3 +2990,39 @@ describe('delete requests answered with cancelled', () => {
     expect(vscodePostMessage()).not.toHaveBeenCalledWith(expect.objectContaining({ command: 'getIssueTrackedTimes' }));
   });
 });
+
+describe('comment reaction request throttling', () => {
+  it('keeps at most four reaction requests in flight and releases the queue on reply', async () => {
+    const { state } = await createState();
+    for (const commentId of [1, 2, 3, 4, 5, 6]) {
+      state.loadCommentReactions('inst-1', 'owner', 'repo', commentId);
+    }
+    const sentCommentIds = () =>
+      vscodePostMessage()
+        .mock.calls.map(([message]) => message as { command?: string; commentId?: number })
+        .filter((message) => message.command === 'getCommentReactions')
+        .map((message) => message.commentId);
+    // Every rendered comment shows its counts, but a busy timeline must not fire one
+    // request per comment at once.
+    expect(sentCommentIds()).toEqual([1, 2, 3, 4]);
+    dispatchMessage({
+      command: 'commentReactions',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      commentId: 1,
+      reactions: [],
+    });
+    expect(sentCommentIds()).toEqual([1, 2, 3, 4, 5]);
+    // A failed request releases its slot too, or the queue would stall forever.
+    dispatchMessage({
+      command: 'commentReactions',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      commentId: 2,
+      error: 'boom',
+    });
+    expect(sentCommentIds()).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+});
