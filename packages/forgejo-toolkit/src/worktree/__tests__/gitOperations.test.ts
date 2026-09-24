@@ -45,11 +45,13 @@ import {
   getRemoteUrl,
   getRefCommitSha,
   inspectPrWorktree,
+  isSafeRemoteName,
   listRemotes,
   listWorkspaceRepositories,
   openWorktree,
   preferOwnNamespaceInstance,
   pushBranch,
+  redactRemoteUrl,
   remoteMatchesInstance,
   resolveRemoteForRepo,
   revertMergeCommit,
@@ -69,6 +71,23 @@ function failWithTokenInCommandLine() {
     const error = new Error(`Command failed: git ${args.join(' ')}`) as Error & { stderr: string };
     error.stderr = 'fatal: Authentication failed';
     callback(error, '', error.stderr);
+  });
+}
+
+/**
+ * Answers `git rev-parse --verify <ref>^{commit}` with the given shas and leaves
+ * every other command to succeed silently, which is what the worktree helpers
+ * need to run their pre-flight checks.
+ */
+function mockRevParseShas(shasByRef: Record<string, string>) {
+  mocks.execFile.mockImplementation((_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+    if (args[0] === 'rev-parse' && args[1] === '--verify') {
+      const ref = String(args[2] ?? '').replace(/\^\{commit\}$/, '');
+      const sha = shasByRef[ref];
+      callback(null, { stdout: sha ? `${sha}\n` : '', stderr: '' } as unknown as string, '');
+      return;
+    }
+    callback(null, '', '');
   });
 }
 
@@ -459,6 +478,37 @@ describe('gitOperations argument passing', () => {
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
       ['worktree', 'add', '-B', branch, '--', worktreePath, 'FETCH_HEAD'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('refuses to reset a leftover issue branch that has commits of its own', async () => {
+    // Removing a worktree keeps its branch on purpose, so `-B` would reset it to
+    // the freshly fetched tip and silently drop those commits.
+    mockRevParseShas({ 'refs/heads/issue-1': 'aaaaaaa1', FETCH_HEAD: 'bbbbbbb2' });
+
+    await expect(createWorktreeWithNewBranch('/repo', '/cache/worktrees/x', 'issue-1', 'FETCH_HEAD')).rejects.toThrow(
+      /commits of its own/,
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['worktree', 'add']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('still resets a leftover branch that points at the same commit', async () => {
+    // The retry path: a previous start-work attempt left the branch at the tip
+    // the fetch just produced, so re-creating the worktree is not destructive.
+    mockRevParseShas({ 'refs/heads/issue-1': 'aaaaaaa1', FETCH_HEAD: 'aaaaaaa1' });
+
+    await createWorktreeWithNewBranch('/repo', '/cache/worktrees/x', 'issue-1', 'FETCH_HEAD');
+
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['worktree', 'add', '-B', 'issue-1', '--', '/cache/worktrees/x', 'FETCH_HEAD'],
       expect.anything(),
       expect.any(Function),
     );
@@ -1469,6 +1519,52 @@ describe('listRemotes', () => {
       { name: 'origin', url: '/home/me/My Repos/x.git' },
       { name: 'origin', url: 'https://forgejo.example.com/alice/repo.git' },
     ]);
+  });
+
+  it('ignores a remote whose name would be read as a git option', async () => {
+    // `git remote add --force …` is legal, and `git fetch --force …` would then
+    // fetch from the default remote while the caller still passes the instance
+    // token; such a name is never handed to git.
+    mockRemoteV([
+      '--force\thttps://forgejo.example.com/alice/repo.git (fetch)',
+      'origin\thttps://forgejo.example.com/alice/repo.git (fetch)',
+    ]);
+
+    await expect(listRemotes('/repo')).resolves.toEqual([
+      { name: 'origin', url: 'https://forgejo.example.com/alice/repo.git' },
+    ]);
+  });
+});
+
+describe('isSafeRemoteName', () => {
+  it('accepts ordinary remote names and refuses option-like ones', () => {
+    expect(isSafeRemoteName('origin')).toBe(true);
+    expect(isSafeRemoteName('upstream-2')).toBe(true);
+    expect(isSafeRemoteName('my/fork')).toBe(true);
+    expect(isSafeRemoteName('--force')).toBe(false);
+    expect(isSafeRemoteName('-u')).toBe(false);
+    expect(isSafeRemoteName('')).toBe(false);
+    expect(isSafeRemoteName('remote with space')).toBe(false);
+  });
+});
+
+describe('redactRemoteUrl', () => {
+  it('strips credentials while keeping host and path recognisable', () => {
+    expect(redactRemoteUrl('https://alice:s3cret@forgejo.example.com/alice/repo.git')).toBe(
+      'https://***@forgejo.example.com/alice/repo.git',
+    );
+    // A token in the username position is a credential too.
+    expect(redactRemoteUrl('https://ghp_example@forgejo.example.com/alice/repo.git')).toBe(
+      'https://***@forgejo.example.com/alice/repo.git',
+    );
+  });
+
+  it('leaves credential-free and ssh remotes untouched', () => {
+    expect(redactRemoteUrl('https://forgejo.example.com/alice/repo.git')).toBe(
+      'https://forgejo.example.com/alice/repo.git',
+    );
+    expect(redactRemoteUrl('git@forgejo.example.com:alice/repo.git')).toBe('git@forgejo.example.com:alice/repo.git');
+    expect(redactRemoteUrl('D:\\repos\\my repo')).toBe('D:\\repos\\my repo');
   });
 });
 

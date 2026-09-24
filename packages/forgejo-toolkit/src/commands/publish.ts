@@ -20,6 +20,7 @@ import {
   listRemotes,
   listWorkspaceRepositories,
   pushBranch,
+  redactRemoteUrl,
   remoteMatchesInstance,
   type GitRemoteEntry,
 } from '../worktree/gitOperations';
@@ -356,7 +357,11 @@ async function pushToExistingRemote(
   const matched = config.getInstances().filter((instance) => remoteMatchesInstance(remote.url, instance.url));
   if (matched.length === 0) {
     vscode.window.showWarningMessage(
-      vscode.l10n.t('The {0} remote does not match any configured Forgejo instance: {1}', remote.name, remote.url),
+      vscode.l10n.t(
+        'The {0} remote does not match any configured Forgejo instance: {1}',
+        remote.name,
+        redactRemoteUrl(remote.url),
+      ),
     );
     return;
   }
@@ -395,7 +400,7 @@ async function pushToExistingRemote(
  */
 async function pickRemote(remotes: GitRemoteEntry[]): Promise<GitRemoteEntry | undefined> {
   const picked = await vscode.window.showQuickPick(
-    remotes.map((remote) => ({ label: remote.name, description: remote.url, remote })),
+    remotes.map((remote) => ({ label: remote.name, description: redactRemoteUrl(remote.url), remote })),
     { placeHolder: vscode.l10n.t('Multiple remotes match configured Forgejo instances. Select the remote to push to') },
   );
   return picked?.remote;

@@ -24,6 +24,7 @@ import {
   type GitApi,
   type RemoteSourceProvider,
 } from '../remoteSourceProvider';
+import { ForgejoClient } from '../../api/client';
 
 const testInstance: ForgejoInstance = {
   id: 'forgejo.example.com-user',
@@ -75,7 +76,7 @@ describe('ForgejoRemoteSourceProvider', () => {
   });
 
   it('is named after the instance and supports server-side queries', () => {
-    const provider = new ForgejoRemoteSourceProvider(testInstance);
+    const provider = new ForgejoRemoteSourceProvider(() => testInstance);
     expect(provider.name).toBe('user@forgejo.example.com');
     expect(provider.supportsQuery).toBe(true);
   });
@@ -87,7 +88,7 @@ describe('ForgejoRemoteSourceProvider', () => {
         ssh_url: 'git@forgejo.example.com:owner/demo.git',
       }),
     ]);
-    const provider = new ForgejoRemoteSourceProvider(testInstance);
+    const provider = new ForgejoRemoteSourceProvider(() => testInstance);
 
     const sources = await provider.getRemoteSources('  demo  ');
 
@@ -104,7 +105,7 @@ describe('ForgejoRemoteSourceProvider', () => {
 
   it("lists the user's own repositories when no query is given", async () => {
     clientMocks.getUserRepositories.mockResolvedValue([createRepo({ description: '' })]);
-    const provider = new ForgejoRemoteSourceProvider(testInstance);
+    const provider = new ForgejoRemoteSourceProvider(() => testInstance);
 
     const sources = await provider.getRemoteSources();
 
@@ -119,7 +120,7 @@ describe('ForgejoRemoteSourceProvider', () => {
 
   it('rethrows a user-facing error so the git quick pick can display it', async () => {
     clientMocks.searchRepositories.mockRejectedValue(new Error('network down'));
-    const provider = new ForgejoRemoteSourceProvider(testInstance);
+    const provider = new ForgejoRemoteSourceProvider(() => testInstance);
 
     await expect(provider.getRemoteSources('demo')).rejects.toThrow('network down');
   });
@@ -152,6 +153,40 @@ describe('syncRemoteSourceProviders', () => {
     expect(registrations.has('codeberg.org-user')).toBe(true);
     expect(disposables[0].dispose).toHaveBeenCalledTimes(1);
     expect(disposables[1].dispose).not.toHaveBeenCalled();
+  });
+
+  it('re-reads an edited instance instead of using the snapshot it was registered with', async () => {
+    // The registration is keyed by instance id, so an edit (new URL or token)
+    // keeps it: a captured snapshot made every query use the old token until the
+    // window reloaded.
+    const { api, providers } = createFakeGitApi();
+    const live: ForgejoInstance[] = [{ ...testInstance }];
+    const registrations = new Map<string, { dispose(): void }>();
+    vi.mocked(ForgejoClient).mockClear();
+    clientMocks.getUserRepositories.mockResolvedValue([]);
+
+    syncRemoteSourceProviders(api, live, registrations, (id) => live.find((instance) => instance.id === id));
+    live[0] = { ...testInstance, token: 'renewed-token' };
+
+    await providers[0].getRemoteSources();
+
+    expect(vi.mocked(ForgejoClient)).toHaveBeenLastCalledWith(
+      testInstance.url,
+      'renewed-token',
+      expect.anything(),
+      undefined,
+    );
+  });
+
+  it('returns no sources when the instance was removed after registration', async () => {
+    const { api, providers } = createFakeGitApi();
+    const live: ForgejoInstance[] = [{ ...testInstance }];
+    const registrations = new Map<string, { dispose(): void }>();
+
+    syncRemoteSourceProviders(api, live, registrations, (id) => live.find((instance) => instance.id === id));
+    live.length = 0;
+
+    await expect(providers[0].getRemoteSources()).resolves.toEqual([]);
   });
 });
 

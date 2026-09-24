@@ -157,7 +157,9 @@ describe('inspectPrWorktree', () => {
     });
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['status', '--porcelain'],
+      // `--ignored` counts a worktree whose only content is gitignored (a .env,
+      // build output) as dirty, so removing it still asks for confirmation.
+      ['status', '--porcelain', '--ignored'],
       expect.objectContaining({ cwd: worktreePath }),
       expect.any(Function),
     );

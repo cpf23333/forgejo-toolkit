@@ -129,6 +129,53 @@ export interface GitRemoteEntry {
 }
 
 /**
+ * Whether a remote name may be handed to `git` as an argument.
+ *
+ * `git` reads any argument starting with `-` as an option, and a repository can
+ * define a remote whose name looks like one (`git remote add --force …`). Such a
+ * name would turn a fetch into a different command while the caller still hands
+ * it the instance token, so only ordinary remote names are accepted: they are
+ * ignored by detection and refused by the fetch helpers.
+ */
+export function isSafeRemoteName(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value);
+}
+
+/** Refuses an unusable remote name instead of handing it to `git` as an option. */
+function assertRemoteName(value: string): void {
+  if (!isSafeRemoteName(value)) {
+    throw new Error(`"${value}" is not a usable git remote name`);
+  }
+}
+
+/**
+ * A remote URL with its credentials removed, for display and logging.
+ *
+ * `git remote -v` reports whatever the repository stores, including
+ * `https://user:token@host/owner/repo.git`; that value reaches the dashboard and
+ * the output channel, so the userinfo is replaced before either sees it. The
+ * host and path stay, which is what a user needs to recognise the remote.
+ */
+export function redactRemoteUrl(url: string): string {
+  if (!url.includes('@')) {
+    return url;
+  }
+  try {
+    const parsed = new URL(url);
+    if (!parsed.username && !parsed.password) {
+      return url;
+    }
+    parsed.username = '***';
+    parsed.password = '';
+    return parsed.toString();
+  } catch {
+    // Not a URL: scp-like syntax (`user@host:path`) carries no password, so
+    // there is nothing to strip.
+    return url;
+  }
+}
+
+/**
  * All remote URLs of the repository at dirPath, one entry per remote/URL pair
  * reported by `git remote -v` (fetch and push lines included). Repositories
  * often carry several remotes (e.g. an upstream mirror plus a Forgejo
@@ -156,6 +203,11 @@ export async function listRemotes(dirPath: string): Promise<GitRemoteEntry[]> {
       continue;
     }
     const name = trimmed.slice(0, tabIndex);
+    if (!isSafeRemoteName(name)) {
+      // An option-like or otherwise unusable name is never passed to git; the
+      // remote stays visible to the user in git itself.
+      continue;
+    }
     const urlMatch = /^(.*) \((?:fetch|push)\)$/.exec(trimmed.slice(tabIndex + 1));
     if (!urlMatch || urlMatch[1].length === 0) {
       continue;
@@ -374,6 +426,7 @@ export async function fetchPullRequestHead(
 ): Promise<void> {
   const ref = `refs/pull/${prIndex}/head`;
   assertGitRevision(localBranch, 'branch');
+  assertRemoteName(remote);
   const { stderr } = await runGit(['fetch', remote, '--', `${ref}:${localBranch}`], repoPath, authEnv(token));
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
@@ -409,6 +462,7 @@ export async function createWorktree(repoPath: string, worktreePath: string, bra
  */
 export async function fetchBranch(repoPath: string, remote: string, branch: string, token?: string): Promise<void> {
   assertGitRevision(branch, 'branch');
+  assertRemoteName(remote);
   const { stderr } = await runGit(['fetch', remote, '--', branch], repoPath, authEnv(token));
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
@@ -420,7 +474,10 @@ export async function fetchBranch(repoPath: string, remote: string, branch: stri
  * right after fetchBranch, which works in bare caches and regular checkouts
  * alike). `-B` also resets a leftover branch of the same name, so retrying a
  * previously failed start-work flow cannot get stuck on "branch already
- * exists".
+ * exists" — but only when that branch still points at the same commit. A
+ * leftover issue branch that has moved on carries work of its own (removing the
+ * worktree keeps the branch on purpose), and resetting it would discard those
+ * commits without a prompt, so that case fails loudly instead.
  */
 export async function createWorktreeWithNewBranch(
   repoPath: string,
@@ -431,6 +488,15 @@ export async function createWorktreeWithNewBranch(
   await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
   assertGitRevision(newBranch, 'branch');
   assertGitRevision(startPoint, 'start point');
+  const [existingSha, startSha] = await Promise.all([
+    getRefCommitSha(repoPath, `refs/heads/${newBranch}`),
+    getRefCommitSha(repoPath, startPoint),
+  ]);
+  if (existingSha && startSha && existingSha !== startSha) {
+    throw new Error(
+      `branch "${newBranch}" already exists at ${existingSha.slice(0, 7)} and has commits of its own; delete the branch before starting work on it again`,
+    );
+  }
   const { stderr } = await runGit(['worktree', 'add', '-B', newBranch, '--', worktreePath, startPoint], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
@@ -514,10 +580,14 @@ export async function inspectPrWorktree(worktreePath: string, expectedSha: strin
   return { state: 'stale', info: { branch, dirty, commitsAhead } };
 }
 
-/** Uncommitted (tracked or untracked) changes in a leftover worktree. */
+/** Uncommitted (tracked, untracked or ignored) changes in a leftover worktree. */
 async function isWorktreeDirty(worktreePath: string): Promise<boolean> {
   try {
-    const { stdout } = await runGit(['status', '--porcelain'], worktreePath);
+    // `--ignored` matters here: a worktree whose only content is a gitignored
+    // `.env` or a build output directory is not empty for its owner, and
+    // `git worktree remove --force` would delete exactly that. Counting ignored
+    // files as dirt makes the caller's confirmation prompt appear instead.
+    const { stdout } = await runGit(['status', '--porcelain', '--ignored'], worktreePath);
     return stdout.trim().length > 0;
   } catch {
     // `git status` failed, so dirt cannot be ruled out by inspection. A
@@ -987,7 +1057,7 @@ async function doScanLinkedRepositories(
     // with origin taking priority (listRemotes orders it first).
     const remotes = await listRemotes(dirPath);
     logger.debug(
-      `[detectLinkedRepository] remotes for ${dirPath}: ${remotes.map((r) => `${r.name}=${r.url}`).join(', ') || 'none'}`,
+      `[detectLinkedRepository] remotes for ${dirPath}: ${remotes.map((r) => `${r.name}=${redactRemoteUrl(r.url)}`).join(', ') || 'none'}`,
     );
     const remoteInfos: { entry: GitRemoteEntry; info: NonNullable<ReturnType<typeof normalizeGitRemote>> }[] = [];
     for (const entry of remotes) {
@@ -1022,11 +1092,20 @@ async function doScanLinkedRepositories(
       const chosen = preferOwnNamespaceInstance(matched, info.owner);
       if (matched.length > 1) {
         logger.info(
-          `[detectLinkedRepository] ${matched.length} accounts match ${entry.url}; bound to ${chosen.id} (owner: ${info.owner})`,
+          `[detectLinkedRepository] ${matched.length} accounts match ${redactRemoteUrl(entry.url)}; bound to ${chosen.id} (owner: ${info.owner})`,
         );
       }
       logger.debug(`[detectLinkedRepository] matched ${chosen.id}`);
-      linked = { instanceId: chosen.id, owner: info.owner, repo: info.repo, localPath: dirPath, remoteUrl: entry.url };
+      // The remote URL is stored for display (the dashboard shows which remote a
+      // repository is linked through); credentials in it are stripped, because
+      // the value also reaches the webview and the log.
+      linked = {
+        instanceId: chosen.id,
+        owner: info.owner,
+        repo: info.repo,
+        localPath: dirPath,
+        remoteUrl: redactRemoteUrl(entry.url),
+      };
       break;
     }
     // Pass 2: self-hosted servers are often reachable under several network
@@ -1044,7 +1123,8 @@ async function doScanLinkedRepositories(
           owner: info.owner,
           repo: info.repo,
           localPath: dirPath,
-          remoteUrl: entry.url,
+          // Credentials stripped: the value is displayed and logged.
+          remoteUrl: redactRemoteUrl(entry.url),
         };
         break;
       }

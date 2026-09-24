@@ -37,34 +37,40 @@ interface GitExtensionExports {
  * One RemoteSourceProvider per configured instance: the git clone quick pick
  * groups sources by provider name, so each instance shows up as its own
  * source entry and instance add/remove maps to register/dispose.
+ *
+ * The instance is resolved for every read instead of captured: registrations are
+ * keyed by instance id, so editing an instance (new URL or token) keeps the same
+ * registration and a captured snapshot would keep using the old credentials
+ * until the window reloaded.
  */
 export class ForgejoRemoteSourceProvider implements RemoteSourceProvider {
   readonly supportsQuery = true;
   readonly icon = 'repo-clone';
 
-  constructor(private readonly _instance: ForgejoInstance) {}
+  constructor(private readonly _resolveInstance: () => ForgejoInstance | undefined) {}
 
   get name(): string {
-    return this._instance.name;
+    return this._resolveInstance()?.name ?? 'Forgejo';
   }
 
   async getRemoteSources(query?: string): Promise<RemoteSource[]> {
-    const client = new ForgejoClient(
-      this._instance.url,
-      this._instance.token,
-      logger,
-      this._instance.syncApiUrlsToInstanceUrl,
-    );
+    const instance = this._resolveInstance();
+    if (!instance) {
+      // Removed between the sync and the query; the git extension shows an empty
+      // source list rather than an error for a provider it no longer has.
+      return [];
+    }
+    const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
     const trimmed = query?.trim();
     try {
       // Without a query the clone picker shows the user's own repositories
       // (same behavior as the built-in GitHub flow); a query is searched
       // server-side.
       const repos = trimmed ? await client.searchRepositories(trimmed) : await client.getUserRepositories();
-      return repos.map((repo) => toRemoteSource(this._instance, repo));
+      return repos.map((repo) => toRemoteSource(instance, repo));
     } catch (error) {
       const err = userFacingErrorMessage(error);
-      logger.error(`Failed to list clone sources for ${this._instance.name}: ${err}`);
+      logger.error(`Failed to list clone sources for ${instance.name}: ${err}`);
       // The git extension displays the thrown error in its quick pick.
       throw new Error(err);
     }
@@ -124,9 +130,15 @@ export async function registerForgejoRemoteSourceProviders(
       logger.error(`Git API is unavailable; Forgejo clone sources are unavailable: ${err}`);
       return;
     }
-    syncRemoteSourceProviders(api, config.getInstances(), registrations);
+    // The providers resolve their instance through the config manager, so an
+    // edited instance takes effect without re-registering (registrations are
+    // keyed by id) and without a window reload.
+    const resolveInstance = (id: string) => config.getInstances().find((instance) => instance.id === id);
+    syncRemoteSourceProviders(api, config.getInstances(), registrations, resolveInstance);
     context.subscriptions.push(
-      config.onInstancesChanged((instances) => syncRemoteSourceProviders(api, instances, registrations)),
+      config.onInstancesChanged((instances) =>
+        syncRemoteSourceProviders(api, instances, registrations, resolveInstance),
+      ),
     );
   };
 
@@ -149,12 +161,16 @@ export function syncRemoteSourceProviders(
   api: GitApi,
   instances: ForgejoInstance[],
   registrations: Map<string, vscode.Disposable>,
+  resolveInstance: (id: string) => ForgejoInstance | undefined = (id) => instances.find((i) => i.id === id),
 ): void {
   const seen = new Set<string>();
   for (const instance of instances) {
     seen.add(instance.id);
     if (!registrations.has(instance.id)) {
-      registrations.set(instance.id, api.registerRemoteSourceProvider(new ForgejoRemoteSourceProvider(instance)));
+      registrations.set(
+        instance.id,
+        api.registerRemoteSourceProvider(new ForgejoRemoteSourceProvider(() => resolveInstance(instance.id))),
+      );
     }
   }
   for (const [id, disposable] of registrations) {
