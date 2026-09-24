@@ -264,6 +264,27 @@ describe('WorktreeManager globalState write serialization', () => {
     expect(ids).toEqual(['inst:owner/repo#pr-2']);
   });
 
+  it('does not lose a record another window added while its git operations ran', async () => {
+    // Two VS Code windows are separate processes sharing the same globalState
+    // keys; the module write queue only serializes this host. A record written
+    // straight to the store while removeWorktree sits in `git worktree remove`
+    // stands in for the other window's addWorktree / touchCachedRepo / sweep —
+    // writing back the pre-operation snapshot silently dropped it.
+    const target = makeWorktree({ sourceRepoPath: sourceDir });
+    const foreign = makeWorktree({ id: 'inst:owner/repo#pr-9', prIndex: 9 });
+    const { context, store } = createContext([target]);
+    const manager = new WorktreeManager(context);
+
+    mocks.removeWorktreeAndPrune.mockImplementation(async () => {
+      store.set(WORKTREES_KEY, [...(store.get(WORKTREES_KEY) as WorktreeInfo[]), foreign]);
+    });
+
+    await manager.removeWorktree(target.id);
+
+    const ids = (store.get(WORKTREES_KEY) as WorktreeInfo[]).map((w) => w.id);
+    expect(ids).toEqual([foreign.id]);
+  });
+
   it('keeps the write queue alive after a failed write', async () => {
     const target = makeWorktree({ sourceRepoPath: sourceDir });
     const { context, store } = createContext([target]);

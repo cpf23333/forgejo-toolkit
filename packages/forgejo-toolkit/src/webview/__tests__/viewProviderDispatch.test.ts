@@ -81,6 +81,9 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
     },
     listRemotes: vi.fn(async () => []),
     openWorktree: vi.fn(async () => true),
+    // Used by the worktree create paths to ask before they create a checkout;
+    // keep the real semantics (the shared vscode mock's folder state).
+    requiresWorkspaceReplacement: actual.requiresWorkspaceReplacement,
     resolveRemoteForRepo: vi.fn(async () => 'origin'),
     revertMergeCommit: vi.fn(),
     sameRepositoryUrl: actual.sameRepositoryUrl,
@@ -205,6 +208,32 @@ async function flushUntil(predicate: () => boolean, attempts = 50) {
   for (let i = 0; i < attempts && !predicate(); i++) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
+}
+
+/**
+ * Make the mock editor report an open workspace folder for the duration of one
+ * test, and return the restore function. The shared vscode mock has an empty
+ * `workspaceFolders`; current-window worktree flows only ask the
+ * replace-the-workspace question when a different folder is open.
+ *
+ * The property is redefined (not assigned) so the restore puts it back to
+ * whatever the previous test left, including "absent".
+ */
+function withWorkspaceFolder(folderPath: string): () => void {
+  const workspace = vscode.workspace as unknown as Record<string, unknown>;
+  const had = Object.prototype.hasOwnProperty.call(workspace, 'workspaceFolders');
+  const previous = workspace.workspaceFolders;
+  Object.defineProperty(workspace, 'workspaceFolders', {
+    configurable: true,
+    value: [{ uri: { fsPath: folderPath, scheme: 'file' } }],
+  });
+  return () => {
+    if (had) {
+      Object.defineProperty(workspace, 'workspaceFolders', { configurable: true, value: previous });
+    } else {
+      delete workspace.workspaceFolders;
+    }
+  };
 }
 
 const testInstance: ForgejoInstance = {
@@ -915,6 +944,26 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(client).toHaveBeenCalledWith(`${testInstance.url}/`, 'secret-token', expect.anything());
     const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
     expect(result).toMatchObject({ success: true });
+  });
+
+  it('editInstance leaves the instance identity intact when nothing changed', async () => {
+    // `name` is part of the webview's instance cache identity
+    // (useAppState.instanceCacheIdentity). editInstance used to rebuild it from
+    // the host alone, so a sub-path instance was renamed by a no-op edit and the
+    // view dropped every payload cached for it.
+    fake.send({ command: 'saveInstance', url: 'https://forgejo.example.com/git', token: 'tok' });
+    await flushDispatches();
+    const saved = config.getInstances().find((instance) => instance.name === 'user@forgejo.example.com/git');
+    expect(saved).toBeDefined();
+
+    fake.send({ command: 'editInstance', id: saved!.id, url: saved!.url, token: '' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result).toMatchObject({ success: true });
+    const after = config.getInstances().find((instance) => instance.id === saved!.id);
+    expect(after?.name).toBe(saved!.name);
+    expect(after?.name).toBe('user@forgejo.example.com/git');
   });
 
   it('editInstance rejects a URL change to a different origin without a new token', async () => {
@@ -2706,6 +2755,40 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(records[0].headSha).toBe('newsha1234567890');
     });
 
+    it('creates no branch and records nothing when the user declines replacing the workspace', async () => {
+      // Current-window mode: opening the worktree would replace the open
+      // folder, so the flow asks *before* it creates anything. The old order
+      // created the checkout and its throwaway branch first and only then
+      // prompted; declining left both behind with no record, and once the
+      // directory was gone the stale registration blocked every retry.
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo' as never);
+      vi.mocked(inspectPrWorktree).mockResolvedValue({ state: 'missing' });
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'abcdef1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('currentWindow');
+      vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
+      const restoreFolder = withWorkspaceFolder(path.join(os.tmpdir(), 'some-other-workspace'));
+      try {
+        fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+        await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeCancelled'));
+
+        expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+        expect(String(vi.mocked(vscode.window.showWarningMessage).mock.calls.at(-1)?.[0])).toContain(
+          'replace the current workspace',
+        );
+        expect(vi.mocked(fetchPullRequestHead)).not.toHaveBeenCalled();
+        expect(vi.mocked(createWorktreeFromBranch)).not.toHaveBeenCalled();
+        expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
+        expect(vi.mocked(deleteBranch)).not.toHaveBeenCalled();
+        expect(context.globalState.get('forgejoToolkit.worktrees')).toBeUndefined();
+      } finally {
+        restoreFolder();
+      }
+    });
+
     it('keeps a stale worktree holding local work when the user declines the discard', async () => {
       await seedRecordedPrWorktree('old-sha-0000001');
       clientMocks.getPullRequestDetail.mockResolvedValue({
@@ -2967,6 +3050,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         expect.stringContaining(expectedDirName),
         true,
         expect.any(Function),
+        { confirmed: true },
       );
     });
 
@@ -3122,7 +3206,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         expect(clientMocks.getRepoDetail).not.toHaveBeenCalled();
         expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
         expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
-        expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(worktreePath, true, expect.any(Function));
+        expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(worktreePath, true, expect.any(Function), {
+          confirmed: true,
+        });
         expect(recordedBaseBranch()).toBe('develop');
       });
 
@@ -3147,7 +3233,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
         // The base branch is display-only: a failed lookup must not block the open.
         expect(reply?.error).toBeUndefined();
-        expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(worktreePath, true, expect.any(Function));
+        expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(worktreePath, true, expect.any(Function), {
+          confirmed: true,
+        });
         expect(recordedBaseBranch()).toBe('main');
       });
     });

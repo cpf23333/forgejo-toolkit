@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ConfigManager } from './config';
+import { redactUrlUserinfo } from './utils/redactUrlUserinfo';
 import type { Logger } from './logger';
 
 /** Contribution id; must match contributes.mcpServerDefinitionProviders in package.json. */
@@ -76,7 +77,10 @@ export function registerMcpServerProvider(
       if (typeof configuredProxy === 'string' && configuredProxy.trim()) {
         env[MCP_ENV_PROXY] = configuredProxy.trim();
       }
-      const label = instance.name ? `Forgejo: ${instance.name}` : `Forgejo: ${instance.url}`;
+      // The label is user-visible (the MCP server list), so the stored URL's
+      // userinfo never reaches it. The launch environment above keeps the real
+      // value, which the headless server needs to authenticate.
+      const label = instance.name ? `Forgejo: ${instance.name}` : `Forgejo: ${redactUrlUserinfo(instance.url)}`;
       return [new vscode.McpStdioServerDefinition(label, process.execPath, [serverPath], env)];
     },
   };

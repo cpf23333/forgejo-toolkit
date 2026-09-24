@@ -608,10 +608,103 @@ export async function fetchPullRequestHead(
   const ref = `refs/pull/${prIndex}/head`;
   assertGitRevision(localBranch, 'branch');
   assertRemoteName(remote);
+  try {
+    await runFetchPullRequestHead(repoPath, remote, ref, localBranch, token);
+  } catch (error) {
+    if (!(await recoverFromWorktreeCheckedOutBranch(repoPath, localBranch, error))) {
+      throw error;
+    }
+    // The leftover registration and the branch that was stuck in it are gone,
+    // so the refspec writes the branch now.
+    await runFetchPullRequestHead(repoPath, remote, ref, localBranch, token);
+  }
+}
+
+async function runFetchPullRequestHead(
+  repoPath: string,
+  remote: string,
+  ref: string,
+  localBranch: string,
+  token?: string,
+): Promise<void> {
   const { stderr } = await runGit(['fetch', remote, '--', `${ref}:${localBranch}`], repoPath, authEnv(token));
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
+}
+
+/**
+ * Clear a stale git worktree registration that a refused fetch is stuck on.
+ *
+ * `git fetch <remote> <ref>:<branch>` refuses when `<branch>` is checked out in
+ * any registered worktree (its own included), and the PR flow creates the
+ * throwaway `pr-<n>-<sha7>` branch in exactly that way. If the worktree
+ * directory is then deleted outside git (a cache-directory change, disk
+ * cleanup, or a manual delete), its registration survives: `git worktree remove`
+ * never ran, so `.git/worktrees/<name>` is still there and states the branch is
+ * checked out at a path that no longer exists. Every retry then fails forever
+ * with the same refusal, and the user only sees "the pull request may have been
+ * updated, please retry" — which never becomes true.
+ *
+ * Recovery is deliberately narrow. It acts only on a git refusal whose message
+ * names the branch being fetched, and only when no checkout of that branch is
+ * left on disk: the leftovers are the *missing* worktree directories, whose
+ * registration `git worktree prune` drops (prune only removes registrations
+ * whose directory is gone). An existing directory is left untouched, so a
+ * worktree holding the user's local work is never destroyed to unblock a fetch;
+ * its registration points at a path that exists and is pruned by nothing.
+ *
+ * Returns whether the caller may retry.
+ */
+async function recoverFromWorktreeCheckedOutBranch(
+  repoPath: string,
+  localBranch: string,
+  error: unknown,
+): Promise<boolean> {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!/refusing to fetch into branch/i.test(message) || !message.includes(localBranch)) {
+    return false;
+  }
+  let registeredDir: string | undefined;
+  try {
+    const { stdout } = await runGit(['worktree', 'list', '--porcelain'], repoPath);
+    // The block `git worktree list --porcelain` prints for the worktree holding
+    // the branch: a `worktree <path>` line followed by `branch refs/heads/<name>`
+    // (detached entries say `detached` instead). The path never contains a
+    // newline, so the first line of the block is the whole path.
+    for (const block of stdout.split(/\n\s*\n/)) {
+      const lines = block.split('\n');
+      const pathLine = lines.find((line) => line.startsWith('worktree '));
+      const holdsBranch = lines.some((line) => line.trim() === `branch refs/heads/${localBranch}`);
+      if (holdsBranch && pathLine) {
+        registeredDir = pathLine.slice('worktree '.length).trim();
+        break;
+      }
+    }
+  } catch {
+    return false;
+  }
+  if (!registeredDir) {
+    return false;
+  }
+  if (
+    await fs.promises.access(registeredDir).then(
+      () => true,
+      () => false,
+    )
+  ) {
+    // The checkout is still on disk, so somebody may be working in it; the
+    // caller's refusal stands and the flow's own stale-worktree handling takes
+    // it from here.
+    return false;
+  }
+  await runGit(['worktree', 'prune'], repoPath);
+  // The throwaway branch the missing checkout pinned: dropping it frees the
+  // branch for the refspec. A real user branch is never named this way, and the
+  // delete is best-effort — a leftover branch that survives still cannot block
+  // the fetch once its registration is gone.
+  await deleteBranch(repoPath, localBranch).catch(() => undefined);
+  return true;
 }
 
 export async function createWorktreeFromBranch(
@@ -1207,27 +1300,57 @@ export async function revertMergeCommit(
   return { status: 'pushed' };
 }
 
+/**
+ * Whether `worktreePath` is the folder the window already has open. Only then is
+ * opening it a no-op; "no folder open at all" is not this case (there is still a
+ * workspace to replace, and `openWorktree` prompts for it).
+ */
+function isOpenWorkspaceFolder(worktreePath: string): boolean {
+  const currentFolder = vscode.workspace.workspaceFolders?.[0];
+  return currentFolder !== undefined && pathsEqual(currentFolder.uri.fsPath, worktreePath);
+}
+
+/**
+ * Whether opening `worktreePath` in the current window would replace the folder
+ * that is open right now. False for a new window (nothing is replaced).
+ *
+ * The callers that create the checkout ask this *before* creating it: the
+ * "replace the current workspace" confirmation is the last point at which the
+ * user can still decline, and a checkout created before that prompt is left
+ * behind with no record when the window is not replaced (see onward in
+ * `openWorktree`, which asks the same question through this function).
+ */
+export function requiresWorkspaceReplacement(worktreePath: string, openInNewWindow: boolean): boolean {
+  return !openInNewWindow && !isOpenWorkspaceFolder(worktreePath);
+}
+
 export async function openWorktree(
   worktreePath: string,
   openInNewWindow: boolean,
   beforeOpenInCurrentWindow?: () => Promise<void>,
+  options?: { confirmed?: boolean },
 ): Promise<boolean> {
   const currentFolder = vscode.workspace.workspaceFolders?.[0];
   const uri = worktreeFolderUri(worktreePath, currentFolder?.uri);
   if (openInNewWindow) {
     return openFolderInWindow(uri, true);
   }
-  if (currentFolder && pathsEqual(currentFolder.uri.fsPath, worktreePath)) {
+  if (isOpenWorkspaceFolder(worktreePath)) {
+    // Already the open folder: nothing is replaced, so there is nothing to ask.
     return true;
   }
-  const openLabel = vscode.l10n.t('Open');
-  const choice = await vscode.window.showWarningMessage(
-    vscode.l10n.t('This will replace the current workspace with the worktree. Continue?'),
-    { modal: true },
-    openLabel,
-  );
-  if (choice !== openLabel) {
-    return false;
+  // A caller that already asked (because it had to decide whether to create the
+  // checkout at all) sets `confirmed`, so the user is prompted once.
+  if (!options?.confirmed) {
+    const openLabel = vscode.l10n.t('Open');
+    const choice = await vscode.window.showWarningMessage(
+      vscode.l10n.t('This will replace the current workspace with the worktree. Continue?'),
+      { modal: true },
+      openLabel,
+    );
+    if (choice !== openLabel) {
+      return false;
+    }
   }
   // vscode.openFolder with forceNewWindow=false reloads the window and tears
   // down this extension host, so anything that must still happen (persisting

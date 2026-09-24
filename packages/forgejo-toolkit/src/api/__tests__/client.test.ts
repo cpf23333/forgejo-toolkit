@@ -24,6 +24,7 @@ import {
   REPO_CONTENTS_CACHE_MAX_BYTES,
   REPO_DETAIL_LIST_LIMIT,
   repoContentsCacheBytesForTest,
+  setDefaultRequestDispatcher,
 } from '../client';
 import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
@@ -671,6 +672,34 @@ describe('ForgejoClient with MSW', () => {
     expect(error?.kind).toBe('proxy');
     expect(error?.userMessage).toContain('proxy');
   });
+
+  it('classifies a connection failure as a proxy problem when the proxy came from the module-level install', async () => {
+    // The extension installs the configured proxy once through
+    // setDefaultRequestDispatcher, not per client: no client it constructs ever
+    // passes the `dispatcher` option. Reading only the per-client field left
+    // every sidebar/panel error saying "Cannot connect to the instance" for a
+    // refused proxy, so the module-level dispatcher has to count too.
+    const cause = Object.assign(new Error('connect ECONNREFUSED proxy.example.com:3128'), {
+      code: 'ECONNREFUSED',
+    });
+    const proxyFetch = (() => Promise.reject(new TypeError('fetch failed', { cause }))) as never;
+    setDefaultRequestDispatcher({}, proxyFetch);
+    try {
+      const client = new ForgejoClient('https://forgejo.example.com', 'mock-token');
+
+      const error = await client
+        .getCurrentUser()
+        .then(() => undefined)
+        .catch((failure: unknown) => failure as ApiError);
+
+      expect(error?.kind).toBe('proxy');
+      expect(error?.userMessage).toContain('proxy');
+      expect(error?.userMessage).not.toContain('Cannot connect to the instance');
+    } finally {
+      setDefaultRequestDispatcher(undefined, undefined);
+    }
+  });
+
   it('serves placeholder content for paths without a fixture, echoing the requested ref', async () => {
     const client = createClient();
     const content = await client.getFileContent('demo-user', 'demo-repo', 'docs/guide.md', 'dev');
@@ -1125,6 +1154,39 @@ describe('ForgejoClient with MSW', () => {
       const commits = await client.getFileHistory('demo-user', 'demo-repo', 'README.md', 'main');
       expect(commits).toHaveLength(1);
       expect(commits[0].sha).toBe(mockHistoryCommit.sha);
+    });
+
+    it('pages the file history past the first 50 commits', async () => {
+      // A single `limit: 50` request presented the newest 50 commits as the
+      // whole history of a busier file; the endpoint takes page/limit, so the
+      // history is paged like every other capped list.
+      const client = createClient();
+      const requestedPages: number[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/commits', ({ request }) => {
+          const url = new URL(request.url);
+          if (!url.searchParams.get('path')) {
+            return HttpResponse.json([]);
+          }
+          const page = Number(url.searchParams.get('page')) || 1;
+          requestedPages.push(page);
+          if (page > 2) {
+            return HttpResponse.json([]);
+          }
+          return HttpResponse.json(
+            Array.from({ length: 50 }, (_, index) => ({
+              ...mockHistoryCommit,
+              sha: `page-${page}-commit-${index}`,
+            })),
+          );
+        }),
+      );
+
+      const commits = await client.getFileHistory('demo-user', 'demo-repo', 'README.md', 'main');
+
+      expect(requestedPages).toEqual([1, 2, 3]);
+      expect(commits).toHaveLength(100);
+      expect(commits[99].sha).toBe('page-2-commit-49');
     });
 
     it('searches repository files', async () => {
@@ -1767,6 +1829,91 @@ describe('ForgejoClient with MSW', () => {
       expect(assets).toHaveLength(1);
       expect(assets?.[0].uuid).toBe(mockCommentAttachment.uuid);
       expect(assetRequests).toBe(1);
+    });
+
+    it('bounds the attachment fetches of a large comment list', async () => {
+      // One request per attachment-linking comment, and the comment list can
+      // reach the list cap. An unbounded Promise.all fired them all at once at
+      // a self-hosted instance; the batch must stay capped instead.
+      const client = createClient();
+      const commentCount = 24;
+      let inFlight = 0;
+      let peak = 0;
+      let assetRequests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page')) || 1;
+          return HttpResponse.json(
+            page > 1
+              ? []
+              : Array.from({ length: commentCount }, (_, index) => ({
+                  ...mockTimelineComment,
+                  id: 1000 + index,
+                  body: `See ![log](/attachments/123e4567-e89b-42d3-a456-42661417400${index % 10})`,
+                })),
+          );
+        }),
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', async () => {
+          assetRequests += 1;
+          inFlight += 1;
+          peak = Math.max(peak, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          inFlight -= 1;
+          return HttpResponse.json([mockCommentAttachment]);
+        }),
+      );
+
+      const comments = await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2);
+
+      expect(comments).toHaveLength(commentCount);
+      expect(assetRequests).toBe(commentCount);
+      expect(peak).toBeGreaterThan(1);
+      expect(peak).toBeLessThanOrEqual(4);
+    });
+
+    it('marks a failed attachment lookup instead of reporting no attachments', async () => {
+      // Rendering the failure as an empty list told the user their attachment
+      // was gone; the flag lets the view say the list could not be loaded.
+      const client = createClient();
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page')) || 1;
+          return HttpResponse.json(
+            page > 1
+              ? []
+              : [{ ...mockTimelineComment, body: 'See ![log](/attachments/123e4567-e89b-42d3-a456-426614174000)' }],
+          );
+        }),
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () =>
+          HttpResponse.json({ message: 'server exploded' }, { status: 500 }),
+        ),
+      );
+
+      const comments = await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2);
+
+      expect(comments).toHaveLength(1);
+      expect((comments[0] as { assets?: unknown[] }).assets).toEqual([]);
+      expect((comments[0] as { attachmentsUnavailable?: boolean }).attachmentsUnavailable).toBe(true);
+    });
+
+    it('does not mark a comment whose attachment list is simply empty', async () => {
+      const client = createClient();
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/timeline', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page')) || 1;
+          return HttpResponse.json(
+            page > 1
+              ? []
+              : [{ ...mockTimelineComment, body: 'See ![log](/attachments/123e4567-e89b-42d3-a456-426614174000)' }],
+          );
+        }),
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () => HttpResponse.json([])),
+      );
+
+      const comments = await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2);
+
+      expect((comments[0] as { assets?: unknown[] }).assets).toEqual([]);
+      expect((comments[0] as { attachmentsUnavailable?: boolean }).attachmentsUnavailable).toBeUndefined();
     });
 
     it('fetches pull request commits', async () => {

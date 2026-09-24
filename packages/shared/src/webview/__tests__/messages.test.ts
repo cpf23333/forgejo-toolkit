@@ -1,0 +1,44 @@
+import { describe, expect, it } from 'vitest';
+import { toPublicInstance } from '../messages';
+import type { ForgejoInstance } from '../messages';
+
+function makeInstance(overrides: Partial<ForgejoInstance> = {}): ForgejoInstance {
+  return {
+    id: 'instance-1',
+    url: 'https://forgejo.example.com',
+    token: 'secret-token',
+    name: 'Example',
+    username: 'demo-user',
+    ...overrides,
+  };
+}
+
+describe('toPublicInstance', () => {
+  it('replaces credential userinfo before the URL reaches the webview', () => {
+    // The webview is a sandboxed page; a configured instance URL may embed the
+    // access token (`https://user:token@host`), so it must never see it.
+    const publicInstance = toPublicInstance(
+      makeInstance({ url: 'https://demo-user:secret-token@forgejo.example.com' }),
+    );
+
+    expect(publicInstance.url).toContain('forgejo.example.com');
+    expect(publicInstance.url).not.toContain('secret-token');
+    expect(publicInstance.url).toContain('***');
+  });
+
+  it('replaces a token written in the username position', () => {
+    const publicInstance = toPublicInstance(makeInstance({ url: 'https://secret-token@forgejo.example.com' }));
+
+    expect(publicInstance.url).toBe('https://***@forgejo.example.com/');
+  });
+
+  it('leaves a credential-free URL untouched', () => {
+    expect(toPublicInstance(makeInstance()).url).toBe('https://forgejo.example.com');
+  });
+
+  it('keeps an ssh login visible (it names the account, not a secret)', () => {
+    expect(toPublicInstance(makeInstance({ url: 'ssh://git@forgejo.example.com' })).url).toBe(
+      'ssh://git@forgejo.example.com',
+    );
+  });
+});

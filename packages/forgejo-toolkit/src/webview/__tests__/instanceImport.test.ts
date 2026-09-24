@@ -13,6 +13,7 @@ import {
   MAX_IMPORT_PBKDF2_ITERATIONS,
   readExportDataFromUri,
   sanitizeImportedInstances,
+  sanitizeImportedSettings,
   stripInstanceTokens,
 } from '../instanceImport';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -182,6 +183,17 @@ describe('readExportDataFromUri', () => {
     expect(data.instances[0].token).toBe('tok');
   });
 
+  it('drops unshipped settings values so the preview cannot render a raw i18n key', async () => {
+    const file = writeExportFile({
+      version: 2,
+      instances: [{ id: 'inst-1', url: 'https://forgejo.example.com', token: 'tok', name: 'one', username: 'user' }],
+      settings: { locale: 'ja', debug: false, worktreeOpenMode: 'newWindow' },
+    });
+
+    const data = await readExportDataFromUri(vscode.Uri.file(file));
+    expect(data.settings).toEqual({ debug: false, worktreeOpenMode: 'newWindow' });
+  });
+
   it('localizes the empty-file failure instead of leaking a raw English literal', async () => {
     const file = writeExportFile({ version: 1, instances: [] });
 
@@ -240,5 +252,44 @@ describe('sanitizeImportedInstances', () => {
     expect(valid).toHaveLength(1);
     expect(valid[0].id).toBe('a');
     expect(dropped).toBe(5);
+  });
+});
+
+describe('sanitizeImportedSettings', () => {
+  it('keeps only the fields the extension can apply', () => {
+    expect(
+      sanitizeImportedSettings({
+        locale: 'zh',
+        debug: true,
+        worktreeOpenMode: 'newWindow',
+        worktreeCacheDirectory: '/tmp/worktrees',
+        unknown: 'dropped',
+      }),
+    ).toEqual({
+      locale: 'zh',
+      debug: true,
+      worktreeOpenMode: 'newWindow',
+      worktreeCacheDirectory: '/tmp/worktrees',
+    });
+  });
+
+  // The preview renders `locales.<value>`; an unshipped locale would show the
+  // raw key instead of a language name.
+  it('drops an unshipped locale instead of forwarding it to the preview', () => {
+    expect(sanitizeImportedSettings({ locale: 'ja', debug: false })).toEqual({ debug: false });
+    expect(sanitizeImportedSettings({ locale: 'ZH' })).toBeUndefined();
+  });
+
+  it('drops wrongly typed fields rather than guessing', () => {
+    expect(sanitizeImportedSettings({ debug: 'true', worktreeOpenMode: 'reuse' })).toBeUndefined();
+    expect(sanitizeImportedSettings({ worktreeCacheDirectory: 42 })).toBeUndefined();
+  });
+
+  it('returns undefined for a settings block that is missing or not an object', () => {
+    expect(sanitizeImportedSettings(undefined)).toBeUndefined();
+    expect(sanitizeImportedSettings(null)).toBeUndefined();
+    expect(sanitizeImportedSettings(['en'])).toBeUndefined();
+    expect(sanitizeImportedSettings('en')).toBeUndefined();
+    expect(sanitizeImportedSettings({})).toBeUndefined();
   });
 });

@@ -46,6 +46,40 @@ export interface ExportData {
 }
 
 /**
+ * Validates the `settings` block of an import file. The file is untrusted input
+ * that ends up in the import preview and in `workspace.getConfiguration`, so
+ * only the fields this extension defines are forwarded, and only with values it
+ * can actually apply: an unknown locale would render as a raw i18n key in the
+ * preview, and an unknown worktree mode would be silently ignored on apply.
+ * Unknown or wrongly typed fields are dropped rather than guessed, so a partial
+ * (or entirely bogus) settings block simply imports nothing.
+ */
+export function sanitizeImportedSettings(value: unknown): ExportSettings | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  const settings: ExportSettings = {};
+  if (raw.locale === 'en' || raw.locale === 'zh') {
+    settings.locale = raw.locale;
+  }
+  if (typeof raw.debug === 'boolean') {
+    settings.debug = raw.debug;
+  }
+  if (
+    raw.worktreeOpenMode === 'ask' ||
+    raw.worktreeOpenMode === 'currentWindow' ||
+    raw.worktreeOpenMode === 'newWindow'
+  ) {
+    settings.worktreeOpenMode = raw.worktreeOpenMode;
+  }
+  if (typeof raw.worktreeCacheDirectory === 'string') {
+    settings.worktreeCacheDirectory = raw.worktreeCacheDirectory;
+  }
+  return Object.keys(settings).length > 0 ? settings : undefined;
+}
+
+/**
  * True when both URLs resolve to the same origin. Imported entries may reuse a
  * stored instance id with an attacker-chosen URL, so callers use this to
  * decide whether a stored token may stay bound to that id. Unparseable URLs
@@ -184,6 +218,6 @@ export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData
   if (validInstances.length === 0) {
     throw new Error(vscode.l10n.t('No valid instances found in file'));
   }
-  const settings = data.settings as ExportSettings | undefined;
+  const settings = sanitizeImportedSettings(data.settings);
   return { instances: validInstances, settings };
 }

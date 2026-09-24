@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { ForgejoClientHost, InsufficientScopeDetails } from './clientHost';
 import { getServerVersion } from './serverVersion';
+import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 import type { Logger } from '../logger';
 
 // 401/403 scope toasts are deduped per instance+reason for the whole session:
@@ -18,7 +19,13 @@ const shownUnsupportedVersionUrls = new Set<string>();
  * token settings page or the extension settings view.
  */
 export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
-  const notify = (key: string, instanceUrl: string, message: string) => {
+  /**
+   * `displayUrl` is what every toast shows: the stored instance URL may carry
+   * the token as userinfo, and a toast is a user-visible surface like any other.
+   * `instanceUrl` keeps the real value, which only the "Open Token Settings"
+   * action needs.
+   */
+  const notify = (key: string, displayUrl: string, instanceUrl: string, message: string) => {
     if (shownPermissionErrorKeys.has(key)) {
       return;
     }
@@ -45,28 +52,31 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
   return {
     t: vscode.l10n.t,
     notifyInvalidCredentials(instanceUrl: string): void {
+      const displayUrl = redactUrlUserinfo(instanceUrl);
       notify(
-        `${instanceUrl}|401`,
+        `${displayUrl}|401`,
+        displayUrl,
         instanceUrl,
-        vscode.l10n.t('Invalid or expired credentials for {0}. Update the access token.', instanceUrl),
+        vscode.l10n.t('Invalid or expired credentials for {0}. Update the access token.', displayUrl),
       );
     },
     notifyInsufficientScope(instanceUrl: string, details: InsufficientScopeDetails): void {
       // Forgejo names the missing scope in the error body ("token does not
       // have at least one of required scope(s): [write:issue]"); surface it
       // so the user knows exactly which scope to grant.
+      const displayUrl = redactUrlUserinfo(instanceUrl);
       const message = details.scope
         ? vscode.l10n.t(
             'Permission denied by {0}: the access token lacks the required scope {1}.',
-            instanceUrl,
+            displayUrl,
             details.scope,
           )
         : vscode.l10n.t(
             'Permission denied by {0}: {1}. The access token may lack the required scope.',
-            instanceUrl,
+            displayUrl,
             details.body,
           );
-      notify(`${instanceUrl}|${details.body}`, instanceUrl, message);
+      notify(`${displayUrl}|${details.body}`, displayUrl, instanceUrl, message);
     },
     notifyUnsupportedInstance(url: string, requiredVersion: string): void {
       if (shownUnsupportedVersionUrls.has(url)) {

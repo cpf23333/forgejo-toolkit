@@ -1125,14 +1125,28 @@ export class ForgejoClient {
     );
   }
 
+  /**
+   * The commit history of one file, paged up to the shared list cap.
+   *
+   * A single `limit: 50` request presented the newest 50 commits as the whole
+   * history: a busier file silently lost everything older, with no truncation
+   * signal to notice it by. The endpoint takes `page`/`limit`, so the history is
+   * read the same way every other capped list is; a result that still fills the
+   * cap is detectable with `isListTruncated` (as the caller already does for the
+   * other lists).
+   */
   async getFileHistory(owner: string, repo: string, filepath: string, ref?: string): Promise<ForgejoCommit[]> {
-    const commits = await repoGetAllCommits(
-      owner,
-      repo,
-      ref ? { sha: ref, path: filepath, limit: 50 } : { path: filepath, limit: 50 },
-      { client: this._client() },
+    const commits = await this._fetchAllPages<Commit>(
+      (page) =>
+        repoGetAllCommits(
+          owner,
+          repo,
+          ref ? { sha: ref, path: filepath, page, limit: PAGE_SIZE } : { path: filepath, page, limit: PAGE_SIZE },
+          { client: this._client() },
+        ) as Promise<Commit[] | null | undefined>,
+      { label: 'file history' },
     );
-    return (commits ?? []).map(
+    return commits.map(
       (commit) =>
         ({
           sha: commit.sha ?? '',
@@ -1204,13 +1218,18 @@ export class ForgejoClient {
    * may be incomplete: the git tree endpoint truncates large trees and paging
    * it has a bound, so a search over an incomplete tree can miss matches. The
    * caller shows that instead of implying the file does not exist.
+   *
+   * `truncatedBy` names which of the two causes applied. `files` is sliced to
+   * `MAX_SEARCH_RESULTS` before it is returned, so a caller cannot recover the
+   * cause from the list length: a complete tree with exactly that many matches
+   * and a tree cut short by the cap are the same length.
    */
   async searchRepoFiles(
     owner: string,
     repo: string,
     ref: string,
     query: string,
-  ): Promise<{ files: GitEntry[]; truncated: boolean }> {
+  ): Promise<{ files: GitEntry[]; truncated: boolean; truncatedBy?: 'matches' | 'tree' }> {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) {
       return { files: [], truncated: false };
@@ -1235,10 +1254,15 @@ export class ForgejoClient {
       return pathA.localeCompare(pathB);
     });
 
+    // More matches than the cap means the list was cut; a tree read that ended
+    // truncated means matches may be missing. Reported by cause because only the
+    // first can be improved by narrowing the query.
+    const matchesCapped = files.length > MAX_SEARCH_RESULTS;
     return {
       files: files.slice(0, MAX_SEARCH_RESULTS),
       // Either the tree itself was incomplete or the match list was capped.
-      truncated: tree.truncated || files.length > MAX_SEARCH_RESULTS,
+      truncated: tree.truncated || matchesCapped,
+      truncatedBy: matchesCapped ? ('matches' as const) : ('tree' as const),
     };
   }
 
@@ -2009,41 +2033,53 @@ export class ForgejoClient {
       .filter((c) => c.id !== undefined && ATTACHMENT_REFERENCE_REGEX.test(c.body ?? ''))
       .map((c) => c.id as number);
     const assetsMap = new Map<number, ForgejoIssueAttachment[]>();
-    await Promise.all(
-      commentIds.map(async (commentId) => {
-        try {
-          const assets = (await issueListIssueCommentAttachments(owner, repo, commentId, {
-            client: this._client(),
-          })) as {
-            id?: number;
-            uuid?: string;
-            name?: string;
-            size?: number;
-            browser_download_url?: string;
-          }[];
-          assetsMap.set(
-            commentId,
-            assets.map((a) => ({
-              id: a.id,
-              uuid: a.uuid ?? '',
-              name: a.name ?? '',
-              size: a.size,
-              browser_download_url: a.browser_download_url ?? `${this.url}/attachments/${a.uuid}`,
-            })),
-          );
-        } catch (error) {
-          this.logger?.debug(
-            `[probe] comment assets for #${commentId}: ${error instanceof Error ? error.message : String(error)}`,
-          );
-          assetsMap.set(commentId, []);
-        }
-      }),
-    );
+    const unavailable = new Set<number>();
+    // Bounded fan-out: a comment list can reach the list cap (500 rows), and a
+    // self-hosted instance must not receive hundreds of simultaneous GETs. The
+    // same 4-in-flight shape the webview uses keeps the batch fast without
+    // flooding the server.
+    await mapWithConcurrency(commentIds, 4, async (commentId) => {
+      try {
+        const assets = (await issueListIssueCommentAttachments(owner, repo, commentId, {
+          client: this._client(),
+        })) as {
+          id?: number;
+          uuid?: string;
+          name?: string;
+          size?: number;
+          browser_download_url?: string;
+        }[];
+        assetsMap.set(
+          commentId,
+          assets.map((a) => ({
+            id: a.id,
+            uuid: a.uuid ?? '',
+            name: a.name ?? '',
+            size: a.size,
+            browser_download_url: a.browser_download_url ?? `${this.url}/attachments/${a.uuid}`,
+          })),
+        );
+      } catch (error) {
+        // A failed lookup must stay distinguishable from "this comment has no
+        // attachments": rendering the failure as an empty list told the user
+        // their attachment was gone. The flag lets the view say the list could
+        // not be loaded instead.
+        this.logger?.debug(
+          `[probe] comment assets for #${commentId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        unavailable.add(commentId);
+        assetsMap.set(commentId, []);
+      }
+    });
     return comments.map((c) => {
       if (c.id === undefined) {
         return c;
       }
-      return { ...c, assets: assetsMap.get(c.id) ?? [] };
+      return {
+        ...c,
+        assets: assetsMap.get(c.id) ?? [],
+        ...(unavailable.has(c.id) ? { attachmentsUnavailable: true } : {}),
+      };
     });
   }
 
@@ -2484,7 +2520,17 @@ export class ForgejoClient {
         // request URL supplies the resource kind and scope a 404 message names,
         // and an installed dispatcher tells the classifier that a connection
         // failure happened on the way through the proxy.
-        throw toApiError(error, requestContextFor(targetUrl, { viaProxy: this.requestDispatcher !== undefined }));
+        //
+        // The proxy signal has to come from the dispatcher the request actually
+        // used, not from this client's own field: the extension installs the
+        // configured proxy once through `setDefaultRequestDispatcher`, so every
+        // ordinary client (`this.requestDispatcher === undefined`) runs proxied
+        // while the per-client field stays unset. Reading the field alone left
+        // the whole sidebar, onboarding panel and review-comment panel reporting
+        // "Cannot connect to the instance. Check that it is running" for a proxy
+        // that refused the connection — the wrong host to look at.
+        const viaProxy = this.requestDispatcher !== undefined || defaultRequestDispatcher !== undefined;
+        throw toApiError(error, requestContextFor(targetUrl, { viaProxy }));
       }
     };
   }
@@ -2515,6 +2561,25 @@ export class ForgejoClient {
     const scopeMatch = text.match(/required scope\(s\): \[([^\]]+)\]/i);
     host.notifyInsufficientScope(this.url, { scope: scopeMatch?.[1], body: text });
   }
+}
+
+/**
+ * Run `task` for every item with at most `limit` tasks in flight, preserving no
+ * particular order. Used for per-comment follow-up requests: the item list can
+ * reach the list cap, and firing them all at once floods a self-hosted instance.
+ */
+async function mapWithConcurrency<T>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (let index = next++; index < items.length; index = next++) {
+      await task(items[index]);
+    }
+  });
+  await Promise.all(workers);
 }
 
 function mergeHeaders(...headers: Array<RequestConfig['headers'] | undefined>): Record<string, string> {

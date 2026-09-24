@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { instanceIdFor } from '../instanceIdentity';
+import { instanceIdFor, instanceNameFor } from '../instanceIdentity';
 
 describe('instanceIdFor', () => {
   it('keeps the plain host-login id for a root path URL', () => {
@@ -22,6 +22,26 @@ describe('instanceIdFor', () => {
   it('keeps the port and normalizes multi-segment paths', () => {
     expect(instanceIdFor('https://forgejo.example.com:3004/x/y', 'demo-user')).toBe(
       'forgejo.example.com:3004-x-y-demo-user',
+    );
+  });
+});
+
+describe('instanceNameFor', () => {
+  it('renders login@host plus the sub-path, without a trailing slash', () => {
+    expect(instanceNameFor('https://forgejo.example.com', 'demo-user')).toBe('demo-user@forgejo.example.com');
+    expect(instanceNameFor('https://forgejo.example.com/', 'demo-user')).toBe('demo-user@forgejo.example.com');
+    expect(instanceNameFor('https://forgejo.example.com/a/', 'demo-user')).toBe('demo-user@forgejo.example.com/a');
+    expect(instanceNameFor('https://forgejo.example.com:3004/x/y', 'demo-user')).toBe(
+      'demo-user@forgejo.example.com:3004/x/y',
+    );
+  });
+
+  it('produces the same name for the same instance however it is spelled', () => {
+    // `name` is part of the webview's instance cache identity, so a save and an
+    // edit of the same URL must not produce two different names: editing an
+    // instance without changing anything would otherwise drop its cached data.
+    expect(instanceNameFor('https://forgejo.example.com/a', 'demo-user')).toBe(
+      instanceNameFor('https://forgejo.example.com/a/', 'demo-user'),
     );
   });
 });

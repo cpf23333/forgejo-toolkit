@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { instanceIdFor } from '../instanceIdentity';
+import { instanceIdFor, instanceNameFor } from '../instanceIdentity';
 import { logger } from '../logger';
 import { ForgejoClient } from '../api/client';
 import { ConfigManager } from '../config';
@@ -203,13 +203,11 @@ export class OnboardingWebviewPanel {
                 // Match viewProvider's saveInstance: the id is keyed by host
                 // (including the port), so both entry points produce the same
                 // instance identity.
-                const parsedInstanceUrl = new URL(normalizedUrl);
-                const instanceHost = parsedInstanceUrl.host;
                 const instance: ForgejoInstance = {
                   id: instanceIdFor(normalizedUrl, user.login),
                   url: normalizedUrl,
                   token,
-                  name: `${user.login}@${instanceHost}${parsedInstanceUrl.pathname.replace(/\/+$/, '')}`,
+                  name: instanceNameFor(normalizedUrl, user.login),
                   username: user.login,
                   syncApiUrlsToInstanceUrl,
                 };

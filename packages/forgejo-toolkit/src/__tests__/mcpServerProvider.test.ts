@@ -129,6 +129,21 @@ describe('registerMcpServerProvider', () => {
     expect(definitions[0].label).toContain('Second');
   });
 
+  it('keeps credential userinfo out of the server label', async () => {
+    // The label is user-visible in the MCP server list; the environment keeps
+    // the real URL, which the child needs to authenticate.
+    const { provider, instances } = setup();
+    instances.push(makeInstance({ name: '', url: 'https://token-abc123@forgejo.example.com' }));
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    expect(definitions[0].label).not.toContain('token-abc123');
+    expect(definitions[0].label).toContain('forgejo.example.com');
+    expect(definitions[0].env[MCP_ENV_INSTANCE_URL]).toBe('https://token-abc123@forgejo.example.com');
+  });
+
   it('passes the per-instance API URL sync flag to the child process', async () => {
     const { provider, instances } = setup();
     instances.push(makeInstance({ syncApiUrlsToInstanceUrl: false }));

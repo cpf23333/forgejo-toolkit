@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ForgejoClient } from './api/client';
-import { ApiError } from './api/errors';
+import { userFacingErrorMessage } from './api/errors';
 import { ConfigManager } from './config';
 import { logger } from './logger';
 import { base64ToUint8Array } from './repoFileProvider';
@@ -28,7 +28,7 @@ export const FORGEJO_PR_SCHEME = 'forgejo-pr';
  */
 export { missingPayloadNotice } from './utils/payloadNotice';
 
-export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
+export class ForgejoPrDiffFileSystemProvider implements vscode.FileSystemProvider {
   private readonly _onDidChangeFile = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   public readonly onDidChangeFile = this._onDidChangeFile.event;
 
@@ -90,12 +90,16 @@ export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
       // UTF-8 string would corrupt it.
       return base64ToUint8Array(entry.content);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 404) {
-        return new Uint8Array(0);
-      }
-      const err = error instanceof Error ? error.message : String(error);
+      // A 404 used to be reported as empty bytes, which is indistinguishable
+      // from a genuinely empty side: the diff then showed every line of the file
+      // as added (head side missing) or as removed (base side missing). The
+      // causes are real — a force-pushed or gc'd sha, a path that no longer
+      // exists at that ref, a token that lost access — and the file provider
+      // must not invent content for any of them. Same policy as
+      // `RepoFileSystemProvider.readFile`, which reports the failure instead.
+      const err = userFacingErrorMessage(error);
       logger.error(`Failed to fetch Forgejo PR file content for ${uri.toString()}: ${err}`);
-      throw new Error(`Failed to fetch ${params.path}@${ref}: ${err}`);
+      throw vscode.FileSystemError.Unavailable(vscode.l10n.t('Could not load {0} at {1}: {2}', params.path, ref, err));
     }
   }
 

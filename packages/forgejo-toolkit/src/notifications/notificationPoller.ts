@@ -9,10 +9,13 @@ import { userFacingErrorMessage } from '../api/errors';
 const SEEN_NOTIFICATION_IDS_KEY = 'forgejoToolkit.seenNotificationIds';
 
 /**
- * Page size of the poller's notification request. A page shorter than this is
- * the server's whole unread+pinned set, which is what makes a row that is absent
- * from it known to be read; a page that fills the limit may have been truncated,
- * so absence proves nothing there. See `_pollInstance`.
+ * Page size of the poller's notification request.
+ *
+ * It cannot be used as a completeness proof: `client.ts` documents that Forgejo
+ * silently clamps a larger `limit` server-side, so a page that is *shorter* than
+ * this is not necessarily the whole unread+pinned set — a server with a lower
+ * cap returns exactly its cap. Only an empty page proves there is nothing left,
+ * which is what `_coverageFor` acts on. See `_pollInstance`.
  */
 const POLL_PAGE_LIMIT = 50;
 
@@ -68,6 +71,15 @@ export class NotificationPoller implements vscode.Disposable {
   // row the poll did not return. Entries for instances that are gone are dropped
   // at the start of a round.
   private readonly _knownUnreadIds = new Map<string, number[]>();
+
+  /**
+   * Bumped whenever a successful "Mark all as read" clears the view. A poll
+   * reply that was already in flight when that happened describes the state
+   * before the clear, so pushing it would resurrect the rows the user just
+   * cleared; `_pollInstance` compares the generation it captured against this
+   * one and drops such a reply. See `_markAllRead`.
+   */
+  private _clearedViewGeneration = 0;
 
   constructor(
     private readonly _config: ConfigManager,
@@ -232,6 +244,12 @@ export class NotificationPoller implements vscode.Disposable {
     if (this._disposed) {
       return undefined;
     }
+    // The generation the view state is at when the request goes out. A
+    // "Mark all as read" that lands while this request is in flight clears the
+    // view and bumps the counter, so this reply describes a state the user
+    // already dismissed; pushing it would rewrite the badge slot and re-flag
+    // every row as unread for up to the polling interval.
+    const generation = this._clearedViewGeneration;
     this._logger?.debug(`Polling notifications for ${instance.name}`);
     const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
     const notifications = await client.getNotifications(['unread', 'pinned'], undefined, POLL_PAGE_LIMIT);
@@ -240,6 +258,12 @@ export class NotificationPoller implements vscode.Disposable {
     // request was in flight; drop the stale result instead of pushing it to
     // the webview or showing a toast.
     if (this._disposed || !this._config.getInstances().some((i) => i.id === instance.id)) {
+      return undefined;
+    }
+    // A clear that landed meanwhile wins over this reply (see above). The
+    // coverage is deliberately not recorded either: the ids it would carry were
+    // cleared from the view, and the next poll re-establishes them.
+    if (this._clearedViewGeneration !== generation) {
       return undefined;
     }
 
@@ -253,19 +277,26 @@ export class NotificationPoller implements vscode.Disposable {
    * The ids this poll can speak for, and the record of what it saw unread for
    * the next one.
    *
-   * The request asks for the unread+pinned set, so a page shorter than the limit
-   * is that whole set: every row this poller saw unread last time and that is
-   * absent from the page was examined and found read, and the view can only
-   * clear such a row if it is named here (it is not in `notifications`). A page
-   * that fills the limit may have been truncated — a newly arrived notification
-   * pushes older rows off it — so absence proves nothing and only the returned
-   * ids are covered.
+   * The request asks for the unread+pinned set, so a page that came back *empty*
+   * is that whole set: every row this poller saw unread last time is read now,
+   * and the view can only clear such a row if it is named here (it is not in
+   * `notifications`).
+   *
+   * A non-empty page cannot prove completeness, however short it is. Forgejo
+   * silently clamps a `limit` above its own cap (`client.ts`), so a server whose
+   * cap is lower than POLL_PAGE_LIMIT returns exactly its cap and no more; the
+   * page looks short while unread rows sit past it. Unioning the previously-seen
+   * ids in on that evidence marked those unread rows read in the view. Only the
+   * ids the page carried are covered then — the same rule a full page has always
+   * had.
    */
   private _coverageFor(instanceId: string, notifications: ForgejoNotification[]): number[] {
     const pageIds = idsOf(notifications);
     const previouslyUnread = this._knownUnreadIds.get(instanceId) ?? [];
-    const coveredIds =
-      notifications.length < POLL_PAGE_LIMIT ? [...new Set([...pageIds, ...previouslyUnread])] : pageIds;
+    // A full page (or one below the clamp) may have been truncated, so only an
+    // empty page proves the request saw the entire unread set.
+    const wholeSetSeen = notifications.length === 0;
+    const coveredIds = wholeSetSeen ? [...new Set([...pageIds, ...previouslyUnread])] : pageIds;
     this._knownUnreadIds.set(instanceId, coveredIds);
     return coveredIds;
   }
@@ -370,6 +401,11 @@ export class NotificationPoller implements vscode.Disposable {
     // view is cleared even if that poll fails.
     const markedIds = this._knownUnreadIds.get(instance.id) ?? [];
     this._knownUnreadIds.set(instance.id, []);
+    // Any poll that was already in flight read the unread list before the mark
+    // and is therefore stale: its reply must not push the cleared rows back.
+    // The refresh below starts *after* the bump, so it polls on the new
+    // generation and is allowed through.
+    this._clearedViewGeneration += 1;
     this._sender.pushNotifications(instance.id, [], markedIds);
     // Refresh the view after a successful mark. A refresh failure is not a
     // mark failure (the server already marked everything read) and must not

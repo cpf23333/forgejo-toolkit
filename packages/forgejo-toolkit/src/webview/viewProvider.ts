@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { instanceIdFor } from '../instanceIdentity';
+import { instanceIdFor, instanceNameFor } from '../instanceIdentity';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -34,6 +34,7 @@ import {
   isRevertInProgress,
   listRemotes,
   openWorktree,
+  requiresWorkspaceReplacement,
   resolveRemoteForRepo,
   revertMergeCommit,
   sameRepositoryUrl,
@@ -695,13 +696,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           const user = await client.getCurrentUser();
 
           const normalizedUrl = url.replace(/\/$/, '');
-          const parsedInstanceUrl = new URL(normalizedUrl);
-          const instanceHost = parsedInstanceUrl.host;
           const instance: ForgejoInstance = {
             id: instanceIdFor(normalizedUrl, user.login),
             url: normalizedUrl,
             token,
-            name: `${user.login}@${instanceHost}${parsedInstanceUrl.pathname.replace(/\/+$/, '')}`,
+            name: instanceNameFor(normalizedUrl, user.login),
             username: user.login,
             syncApiUrlsToInstanceUrl,
           };
@@ -757,7 +756,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           await this._config.updateInstance(id, {
             url: normalizedUrl,
             token,
-            name: `${user.login}@${new URL(normalizedUrl).host}`,
+            // Same derivation as saveInstance/onboarding: a sub-path instance
+            // keeps its name (and therefore its webview cache identity) when it
+            // is edited without changing anything.
+            name: instanceNameFor(normalizedUrl, user.login),
             username: user.login,
             syncApiUrlsToInstanceUrl,
           });
@@ -2706,7 +2708,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           typeof filename !== 'string' ||
           typeof status !== 'string' ||
           typeof baseSha !== 'string' ||
-          typeof headSha !== 'string'
+          typeof headSha !== 'string' ||
+          // The filename reaches the contents-API route through the diff URI,
+          // and previousFilename is used in its place for a renamed file, so
+          // both get the same guard every sibling handler applies.
+          !isSafeRepoPath(filename) ||
+          (previousFilename !== undefined && previousFilename !== null && !isSafeRepoPath(previousFilename))
         ) {
           return;
         }
@@ -2747,6 +2754,25 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         try {
+          // The same path guard a sibling handler applies: a forged filename or
+          // previous_filename reaches the contents-API route. `encodeFilePath`
+          // neutralises most escape attempts, so this is defense in depth.
+          const unsupported = files.some((file) => {
+            if (typeof file === 'string') {
+              return !isSafeRepoPath(file);
+            }
+            const candidate = file as { filename?: unknown; previous_filename?: unknown };
+            if (!isSafeRepoPath(candidate.filename)) {
+              return true;
+            }
+            return candidate.previous_filename !== undefined && candidate.previous_filename !== null
+              ? !isSafeRepoPath(candidate.previous_filename)
+              : false;
+          });
+          if (unsupported) {
+            logger.error(`openSelectedPullRequestDiffs ignored: unsafe file path in the webview message`);
+            return;
+          }
           const resourceList = files.map((file) => {
             const filename = typeof file === 'string' ? file : file.filename;
             const status = typeof file === 'string' ? 'modified' : file.status;
@@ -4362,6 +4388,56 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     );
   }
 
+  /**
+   * Ask before replacing the open workspace with a worktree that is about to be
+   * created, and report whether to continue. Opening the folder in the current
+   * window is what `openWorktree` itself confirms; asking here lets the create
+   * paths do it *before* they create anything.
+   *
+   * The order matters. `openWorktree` confirms inside the call that also opens
+   * the folder, so a flow that created the checkout first left it — and the
+   * throwaway or issue branch checked out in it — behind with no record when
+   * the user declined: nothing in Settings ever listed it and the sweep only
+   * reclaims checkouts whose source repository is gone. Confirming first means a
+   * decline leaves the cache exactly as it was.
+   *
+   * The wording and the "Open" label match `openWorktree` (both go through the
+   * same localized strings), so the caller passes `confirmed` there and the user
+   * still sees one prompt.
+   */
+  private async _confirmReplaceWorkspace(worktreePath: string, openInNewWindow: boolean): Promise<boolean> {
+    if (!requiresWorkspaceReplacement(worktreePath, openInNewWindow)) {
+      return true;
+    }
+    const openLabel = vscode.l10n.t('Open');
+    const choice = await vscode.window.showWarningMessage(
+      vscode.l10n.t('This will replace the current workspace with the worktree. Continue?'),
+      { modal: true },
+      openLabel,
+    );
+    return choice === openLabel;
+  }
+
+  /**
+   * Roll back a checkout this flow created when the folder did not end up
+   * opening for it: the user decided against the replacement after confirming,
+   * or `vscode.openFolder` itself failed. Closes the last hole a cancelled open
+   * could fall through — a recordless checkout whose throwaway branch stays
+   * checked out, invisible to Settings and to the lazy sweep.
+   *
+   * The branch is only deleted when it is the PR throwaway name
+   * (`pr-<n>-<sha7>`); the git helpers' pattern guard leaves any other branch
+   * alone, so an unexpected leftover is never destroyed. Best effort: the user
+   * already said no, and a failed cleanup must not replace that answer with an
+   * error. A leftover that survives is reclaimed by the stale-registration
+   * recovery in `fetchPullRequestHead` on the next attempt.
+   */
+  private async _discardDeclinedPrCheckout(sourceRepoPath: string, worktreePath: string, branch: string) {
+    await discardStalePrWorktree(sourceRepoPath, worktreePath, branch).catch((error: unknown) => {
+      logger.error(`Could not reclaim the declined PR worktree ${worktreePath}: ${userFacingErrorMessage(error)}`);
+    });
+  }
+
   private async _exportInstances(ids?: string[]) {
     if (!this._view) {
       return;
@@ -4417,7 +4493,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const instances = ids ? allInstances.filter((instance) => ids.includes(instance.id)) : allInstances;
     const configuration = vscode.workspace.getConfiguration('forgejoToolkit');
     const settings: ExportSettings = {
-      locale: configuration.get<string>('locale') ?? undefined,
+      locale: configuration.get<'en' | 'zh'>('locale') ?? undefined,
       debug: configuration.get<boolean>('debug') ?? undefined,
       worktreeOpenMode: this._config.getWorktreeOpenMode(),
       worktreeCacheDirectory: this._config.getWorktreeCacheDirectory() ?? undefined,
@@ -5094,8 +5170,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         worktreePath,
         createdAt: Date.now(),
       };
-      const opened = await openWorktree(worktreePath, openInNewWindow, () =>
-        this._worktreeManager.addWorktree(worktree),
+      // Asked before the open, and therefore after every write this path makes
+      // (creating the checkout included): a decline then leaves a recordless
+      // checkout and its issue branch behind, which nothing could reclaim. See
+      // _confirmReplaceWorkspace.
+      if (!(await this._confirmReplaceWorkspace(worktreePath, openInNewWindow))) {
+        reply({ cancelled: true });
+        return;
+      }
+      const opened = await openWorktree(
+        worktreePath,
+        openInNewWindow,
+        () => this._worktreeManager.addWorktree(worktree),
+        { confirmed: true },
       );
       if (!opened) {
         reply({ cancelled: true });
@@ -5309,6 +5396,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const worktreeState = inspection.state;
 
       if (worktreeState === 'current') {
+        // Existing checkout: confirmation before opening replaces nothing on
+        // disk, so the order the create path below needs is harmless here too.
+        if (!(await this._confirmReplaceWorkspace(worktreePath, openInNewWindow))) {
+          this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+          return;
+        }
         const worktree: WorktreeInfo = {
           id: `${instanceId}:${owner}/${repo}#pr-${index}`,
           instanceId,
@@ -5323,10 +5416,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           worktreePath,
           createdAt: Date.now(),
         };
-        const openedForCurrent = await openWorktree(worktreePath, openInNewWindow, () =>
-          this._worktreeManager.addWorktree(worktree),
+        const openedForCurrent = await openWorktree(
+          worktreePath,
+          openInNewWindow,
+          () => this._worktreeManager.addWorktree(worktree),
+          { confirmed: true },
         );
         if (!openedForCurrent) {
+          // Same rollback as the create path: this checkout may have just been
+          // created by a previous attempt, and a failed open must not leave it
+          // with nothing recording it.
+          await this._discardDeclinedPrCheckout(sourceRepoPath, worktreePath, `pr-${index}-${headSha.slice(0, 7)}`);
           this._reply('worktreeCancelled', { instanceId, owner, repo, index });
           return;
         }
@@ -5357,6 +5457,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       }
 
       const localBranch = `pr-${index}-${headSha.slice(0, 7)}`;
+
+      // Confirm the replace-current-workspace modal *before* the checkout is
+      // created. Creating it first and recording it only after the prompt left
+      // an unrecorded checkout with the throwaway branch checked out whenever
+      // the user declined; if that directory was then removed (a cache-directory
+      // change, disk cleanup), its git worktree registration survived and every
+      // later attempt failed on "refusing to fetch into branch … checked out at
+      // <old path>". Declining now leaves no branch and no registration at all.
+      if (!(await this._confirmReplaceWorkspace(worktreePath, openInNewWindow))) {
+        this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+        return;
+      }
+
       await fetchPullRequestHead(sourceRepoPath, remoteName, index, localBranch, instance.token);
 
       // Verify the fetched code is the PR head the API reported. Pull refs are
@@ -5396,10 +5509,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         worktreePath,
         createdAt: Date.now(),
       };
-      const openedNew = await openWorktree(worktreePath, openInNewWindow, () =>
-        this._worktreeManager.addWorktree(worktree),
+      const openedNew = await openWorktree(
+        worktreePath,
+        openInNewWindow,
+        () => this._worktreeManager.addWorktree(worktree),
+        { confirmed: true },
       );
       if (!openedNew) {
+        await this._discardDeclinedPrCheckout(sourceRepoPath, worktreePath, localBranch);
         this._reply('worktreeCancelled', { instanceId, owner, repo, index });
         return;
       }

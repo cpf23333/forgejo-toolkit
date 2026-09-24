@@ -411,11 +411,11 @@ describe('NotificationPoller', () => {
     poller.dispose();
   });
 
-  it('reports a row it examined and no longer finds unread as covered', async () => {
-    // The poll asks the server for the unread+pinned set, so a page shorter than
-    // the limit is the whole unread list: a row that was unread on the previous
-    // poll and is absent now was examined and found read. The view can only clear
-    // such a row when the host names it, because the row is not in the page.
+  it('reports a row whose absence an empty page proves as covered', async () => {
+    // An empty page is the one page that proves the poll saw the whole unread
+    // set, so a row that was unread on the previous poll and is absent now was
+    // examined and found read. The view can only clear such a row when the host
+    // names it, because the row is not in the page.
     mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
     const config = createFakeConfig([instanceA]);
     const poller = createPoller(config, createFakeContext());
@@ -424,10 +424,51 @@ describe('NotificationPoller', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1), notification(2)], [1, 2]);
 
-    mockGetNotifications.mockResolvedValue([notification(1)]);
+    mockGetNotifications.mockResolvedValue([]);
     await vi.advanceTimersByTimeAsync(300_000);
-    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1)], [1, 2]);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [], [1, 2]);
 
+    poller.dispose();
+  });
+
+  it('drops a poll reply that was in flight when the view was cleared', async () => {
+    // The webview clears the badge and marks the covered rows read on the mark
+    // reply. A poll that was already in flight read the unread list *before*
+    // that mark, so pushing its reply afterwards rewrites the badge slot and
+    // re-flags every cleared row as unread until the next interval.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    const config = createFakeConfig([instanceA]);
+    const poller = createPoller(config, createFakeContext());
+    const internals = poller as unknown as {
+      _pollInstance(instance: ForgejoInstance): Promise<unknown>;
+      _markAllRead(instance: ForgejoInstance): Promise<void>;
+    };
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1), notification(2)], [1, 2]);
+
+    // A poll is in flight (its reply is held open) when the mark lands.
+    let finishStalePoll!: () => void;
+    mockGetNotifications
+      .mockImplementationOnce(
+        () =>
+          new Promise<ForgejoNotification[]>((resolve) => {
+            finishStalePoll = () => resolve([notification(1), notification(2), notification(3)]);
+          }),
+      )
+      // The refresh poll that follows the mark sees what is still unread.
+      .mockResolvedValue([notification(3), notification(4)]);
+    const stalePoll = internals._pollInstance(instanceA);
+    expect(typeof finishStalePoll).toBe('function');
+    await internals._markAllRead(instanceA);
+    // The stale reply only lands now, after the clear.
+    finishStalePoll();
+    await stalePoll;
+
+    // The clear push, then the post-mark refresh: the stale reply is dropped.
+    expect(sender.pushNotifications).toHaveBeenCalledWith('a', [], [1, 2]);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(3), notification(4)], [3, 4]);
     poller.dispose();
   });
 
@@ -451,6 +492,75 @@ describe('NotificationPoller', () => {
 
     expect(mockMarkAllRead).toHaveBeenCalledTimes(1);
     expect(sender.pushNotifications).toHaveBeenCalledWith('a', [], [1, 2, 3]);
+    poller.dispose();
+  });
+
+  it('covers every known id when the page comes back empty', async () => {
+    // An empty page is the one page that provably is the whole unread+pinned
+    // set: everything this poller saw unread before is gone from it, so the view
+    // may clear all of those rows.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2), notification(3)]);
+    const config = createFakeConfig([instanceA]);
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [1, 2, 3].map(notification), [1, 2, 3]);
+    mockGetNotifications.mockResolvedValue([]);
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [], [1, 2, 3]);
+    poller.dispose();
+  });
+
+  it('does not cover a previously seen id absent from a short page that is not the whole set', async () => {
+    // Forgejo silently clamps a `limit` above its own cap, so a page shorter
+    // than the poller's 50 can still be a truncated one. Unioning the previously
+    // seen ids in on that evidence marked rows read that the poll never examined
+    // — they were simply past the server's cap.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    const config = createFakeConfig([instanceA]);
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1), notification(2)], [1, 2]);
+
+    // A clamped page: two rows, one of which was already known unread; id 2 is
+    // absent but may only be past the cap, so it must stay uncovered.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(3)]);
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1), notification(3)], [1, 3]);
+    poller.dispose();
+  });
+
+  it('covers only the returned ids when the page fills the limit', async () => {
+    // A full page may have been truncated (a newly arrived notification pushes
+    // older rows off it), so absence proves nothing there either.
+    const fullPage = Array.from({ length: 50 }, (_, index) => notification(index + 1));
+    mockGetNotifications.mockResolvedValue(fullPage);
+    const config = createFakeConfig([instanceA]);
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith(
+      'a',
+      fullPage,
+      fullPage.map((row) => row.id),
+    );
+
+    // The next page is full again and drops the oldest rows: they stay uncovered.
+    const nextPage = Array.from({ length: 50 }, (_, index) => notification(index + 6));
+    mockGetNotifications.mockResolvedValue(nextPage);
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith(
+      'a',
+      nextPage,
+      nextPage.map((row) => row.id),
+    );
     poller.dispose();
   });
 });

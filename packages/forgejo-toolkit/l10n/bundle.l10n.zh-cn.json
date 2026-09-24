@@ -159,6 +159,8 @@
   "Failed to cancel review: {0}": "取消评审失败：{0}",
   "The export file uses an unsupported key-derivation iteration count": "导出文件使用了不受支持的密钥派生迭代次数",
   "Unable to open diff: {0}": "无法打开 diff：{0}",
+  "Could not load the review comments for this file: {0}": "无法加载该文件的评审评论：{0}",
+  "Could not load {0} at {1}: {2}": "无法加载 {1} 处的 {0}：{2}",
   "Unable to open selected diffs: {0}": "无法打开选中的 diff：{0}",
   "Unable to open file: {0}": "无法打开文件：{0}",
   "Copied to clipboard": "已复制到剪贴板",

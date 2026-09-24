@@ -2671,3 +2671,95 @@ describe('getRefCommitSha', () => {
     await expect(getRefCommitSha('/repo', 'no-such-ref')).resolves.toBeUndefined();
   });
 });
+
+describe('fetchPullRequestHead recovery from a stranded worktree registration', () => {
+  const strandedPath = '/cache/worktrees/owner-repo-pr-1';
+  const branch = 'pr-1-abcdef1';
+  // What git prints when the branch is checked out in a worktree whose
+  // directory was deleted outside git (the registration survives).
+  const refusal = `fatal: refusing to fetch into branch 'refs/heads/${branch}' checked out at '${strandedPath}'`;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // The shared `fs` mock starts with `access` resolving; the recovery only
+    // acts when the registered directory is gone.
+    vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+  });
+
+  /** Answers the fetch with the refusal once, then like a working fetch. */
+  function refuseFirstFetch() {
+    let fetchCalls = 0;
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'fetch') {
+          fetchCalls += 1;
+          if (fetchCalls === 1) {
+            // promisify(execFile) rejects with an error carrying git's stderr,
+            // which runGit rethrows as the message.
+            const error = new Error('Command failed: git fetch') as Error & { stderr: string };
+            error.stderr = refusal;
+            callback(error, '', refusal);
+            return;
+          }
+          callback(null, '', '');
+          return;
+        }
+        if (args[0] === 'worktree' && args[1] === 'list') {
+          const porcelain = `worktree /repo\nHEAD abc\nbranch refs/heads/main\n\nworktree ${strandedPath}\nHEAD abc\nbranch refs/heads/${branch}\n\n`;
+          callback(null, { stdout: porcelain, stderr: '' } as unknown as string, '');
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+    return () => fetchCalls;
+  }
+
+  it('prunes the registration and drops the leftover branch, then retries the fetch', async () => {
+    const fetchCalls = refuseFirstFetch();
+    // The registration's directory is gone, which is what makes it stale.
+    vi.mocked(fs.promises.access).mockRejectedValue(
+      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
+    );
+
+    await expect(fetchPullRequestHead('/repo', 'origin', 1, branch)).resolves.toBeUndefined();
+
+    expect(fetchCalls()).toBe(2);
+    const commands = mocks.execFile.mock.calls.map((call) => (call[1] as string[]).join(' '));
+    expect(commands).toContain('worktree prune');
+    expect(commands).toContain(`branch -D ${branch}`);
+  });
+
+  it('leaves an existing checkout of the branch alone and rethrows the refusal', async () => {
+    const fetchCalls = refuseFirstFetch();
+    // The registered worktree directory still exists: it may hold the user's
+    // work, so nothing may be pruned or deleted to unblock the fetch.
+    vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+
+    await expect(fetchPullRequestHead('/repo', 'origin', 1, branch)).rejects.toThrow(/refusing to fetch/);
+
+    expect(fetchCalls()).toBe(1);
+    const commands = mocks.execFile.mock.calls.map((call) => (call[1] as string[]).join(' '));
+    expect(commands).not.toContain('worktree prune');
+    expect(commands.some((command) => command.startsWith('branch -D'))).toBe(false);
+  });
+
+  it('does not treat an unrelated fetch failure as a stranded registration', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'fetch') {
+          const error = new Error('Command failed: git fetch') as Error & { stderr: string };
+          error.stderr = 'fatal: could not read from remote repository';
+          callback(error, '', error.stderr);
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+
+    await expect(fetchPullRequestHead('/repo', 'origin', 1, branch)).rejects.toThrow(/could not read from remote/);
+
+    const commands = mocks.execFile.mock.calls.map((call) => (call[1] as string[]).join(' '));
+    expect(commands).not.toContain('worktree prune');
+  });
+});

@@ -168,6 +168,14 @@ import { PullReviewCommentController } from '../pullReviewCommentController';
 import { FORGEJO_PR_SCHEME } from '../../prFileSystemProvider';
 import type { ConfigManager } from '../../config';
 import * as vscode from 'vscode';
+import * as attachmentResolver from '../../utils/resolveAttachmentImages';
+
+/** Flush macrotasks until the predicate holds. */
+async function flushUntil(predicate: () => boolean, attempts = 50) {
+  for (let i = 0; i < attempts && !predicate(); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
 
 const INSTANCE_ID = 'inst-1';
 
@@ -177,7 +185,9 @@ function createConfig(): ConfigManager {
       {
         id: INSTANCE_ID,
         url: 'https://forgejo.example.com',
-        token: '',
+        // A token makes _createComment resolve attachment images, which is the
+        // await the mid-render close test needs to interrupt.
+        token: 'secret-token',
         name: 'user@forgejo.example.com',
         username: 'user',
       },
@@ -513,8 +523,83 @@ describe('PullReviewCommentController comment context cleanup', () => {
       vi.useRealTimers();
     }
   });
-});
 
+  it('keeps a re-created comment deletable after a re-render', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
+
+      await openDocument(makeDocument(false));
+      const thread = state.createdThreads[0];
+      const contextValue = (thread.comments[0] as { contextValue?: string }).contextValue as string;
+      expect(controller.getCommentContext(contextValue)).toBeDefined();
+
+      // A refresh re-renders the same comment: the thread is updated in place
+      // with a freshly built comment whose encoded context is identical (the
+      // encoding is pure over the coordinates). Dropping the old comment's
+      // context while building the new one removed the entry the new comment
+      // needs, so Delete found no context and returned silently.
+      vi.setSystemTime(Date.now() + 60_000);
+      await openDocument(makeDocument(false));
+
+      expect(thread.dispose).not.toHaveBeenCalled();
+      const replacement = thread.comments[0] as { contextValue?: string };
+      expect(replacement.contextValue).toBe(contextValue);
+      expect(controller.getCommentContext(contextValue)).toBeDefined();
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('prunes threads of an earlier render when the document closes mid-render', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    const headDocument = makeDocument(false);
+    await openDocument(headDocument);
+    const headThread = state.createdThreads[0];
+    const contextValue = (headThread.comments[0] as { contextValue?: string }).contextValue as string;
+
+    // A second render with two comments on the same side: the first updates the
+    // existing thread, and building its replacement comment awaits attachment
+    // resolution. The document closes during that await, so the loop must stop
+    // before creating the second thread — and must still run the prune
+    // afterwards, or the head thread stays in the panel and in the map while the
+    // second comment's thread is never attached to anything.
+    state.comments = [
+      { id: 301, path: 'src/index.ts', position: 2, body: 'head note' },
+      { id: 303, path: 'src/index.ts', position: 3, body: 'another head note' },
+    ];
+    let finishAttachment!: () => void;
+    // The replacement comment for the first entry is built through an
+    // attachment resolution, which is where the document closes.
+    const attachmentSpy = vi
+      .spyOn(attachmentResolver, 'resolveAttachmentImages')
+      .mockImplementation(() => new Promise<string>((resolve) => (finishAttachment = () => resolve('body'))));
+    try {
+      vi.setSystemTime(Date.now() + 60_000);
+      const pendingRender = openDocument(headDocument);
+      await flushUntil(() => finishAttachment !== undefined);
+      headDocument.isClosed = true;
+      finishAttachment();
+      await pendingRender;
+      // Let the async continuations the resolved attachment kicked off settle;
+      // the thread mutations are chained, so the assertions must not race them.
+      await flushUntil(() => headThread.dispose.mock.calls.length > 0, 10);
+
+      expect(headThread.dispose).toHaveBeenCalled();
+      expect(controller.getCommentContext(contextValue)).toBeUndefined();
+      // The thread this render did attach (comment 301) stays; only the
+      // orphaned one from the earlier render is gone.
+      expect(threadCount(controller)).toBe(1);
+    } finally {
+      attachmentSpy.mockRestore();
+      controller.dispose();
+    }
+  });
+});
 describe('PullReviewCommentController multi-line comments', () => {
   beforeEach(() => {
     state.createdThreads.length = 0;
@@ -774,6 +859,41 @@ describe('PullReviewCommentController multi-line comments', () => {
 
     expect(panelState.createOrShow).not.toHaveBeenCalled();
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('pull request diff'));
+    controller.dispose();
+  });
+
+  it('surfaces a failed review-comment load instead of showing no comments', async () => {
+    // Offline, a revoked token or a rate limit makes the review fetch fail. The
+    // controller used to log and return, so the diff opened with zero threads
+    // and the user believed nobody had commented on it.
+    state.diffError = new Error('network down');
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    try {
+      await openDocument(makeDocument(false));
+
+      expect(threadCount(controller)).toBe(0);
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+        expect.stringContaining('Could not load the review comments'),
+      );
+    } finally {
+      state.diffError = null;
+      controller.dispose();
+    }
+  });
+
+  it('does not report an error when the file simply has no comments', async () => {
+    state.comments = [];
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    expect(threadCount(controller)).toBe(0);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
     controller.dispose();
   });
 

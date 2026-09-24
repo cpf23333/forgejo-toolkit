@@ -7,7 +7,7 @@ import { OnboardingWebviewPanel } from './webview/onboardingPanel';
 import { ConfigManager } from './config';
 import { registerReadmeProvider } from './readmeProvider';
 import { registerRepoFileProvider } from './repoFileProvider';
-import { FORGEJO_PR_SCHEME, ForgejoPRFileSystemProvider } from './prFileSystemProvider';
+import { FORGEJO_PR_SCHEME, ForgejoPrDiffFileSystemProvider } from './prFileSystemProvider';
 import { ForgejoPRDecorationProvider } from './prDecorationProvider';
 import { ForgejoIssueMentionProvider } from './editor/issueMentionProvider';
 import { TodoCommentCodeActionProvider } from './editor/todoCommentCodeAction';
@@ -100,7 +100,7 @@ export async function activate(context: vscode.ExtensionContext) {
     logger.error(`Welcome onboarding failed: ${error instanceof Error ? error.message : String(error)}`);
   });
   registerRepoFileProvider(context, config);
-  const prFileSystemProvider = new ForgejoPRFileSystemProvider(config);
+  const prFileSystemProvider = new ForgejoPrDiffFileSystemProvider(config);
 
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(FORGEJO_PR_SCHEME, prFileSystemProvider, { isReadonly: true }),

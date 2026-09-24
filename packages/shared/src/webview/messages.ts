@@ -34,10 +34,47 @@ function tokenFingerprint(token: string): string {
   return `${(hash >>> 0).toString(16)}-${token.length}`;
 }
 
+/**
+ * A URL with its credential material removed, for anything that leaves the
+ * extension host (the webview, a toast, the MCP server label).
+ *
+ * A configured instance URL may embed credentials (`https://user:token@host`),
+ * and the webview is a sandboxed page that must never receive them. The rule
+ * mirrors `redactUrlUserinfo` in the extension package (kept separate because
+ * the webview bundle imports this module and must stay free of the host's
+ * module graph): a password is replaced, and so is the username of an http(s)
+ * URL that carries no password, where a Forgejo access token is commonly written
+ * in the username position. Host and path stay readable.
+ */
+function redactUserinfo(url: string): string {
+  if (!url.includes('@')) {
+    return url;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    // Not an absolute URL: the scp-like `user@host:path` form carries no
+    // password, so there is nothing to strip.
+    return url;
+  }
+  if (!parsed.username && !parsed.password) {
+    return url;
+  }
+  if (parsed.password) {
+    parsed.password = '***';
+  } else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+    parsed.username = '***';
+  }
+  return parsed.toString();
+}
+
 export function toPublicInstance(instance: ForgejoInstance): PublicForgejoInstance {
   return {
     id: instance.id,
-    url: instance.url,
+    // Never the raw stored URL: it may carry the token as userinfo, and every
+    // webview renders this value (the dashboard list, the Settings editor).
+    url: redactUserinfo(instance.url),
     name: instance.name,
     username: instance.username,
     tokenFingerprint: tokenFingerprint(instance.token),
@@ -48,7 +85,10 @@ export function toPublicInstance(instance: ForgejoInstance): PublicForgejoInstan
 }
 
 export interface ExportSettings {
-  locale?: string;
+  // Only the locales the extension actually ships (see the
+  // `forgejoToolkit.locale` enum); anything else would render as a raw i18n key
+  // in the import preview and would be dropped by the host on apply.
+  locale?: 'en' | 'zh';
   debug?: boolean;
   worktreeOpenMode?: 'ask' | 'currentWindow' | 'newWindow';
   worktreeCacheDirectory?: string;

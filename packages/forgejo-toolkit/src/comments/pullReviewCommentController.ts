@@ -195,9 +195,11 @@ export class PullReviewCommentController implements vscode.Disposable {
       if (visibleUris.has(thread.uri.toString())) {
         continue;
       }
-      this._dropCommentContexts(thread);
       thread.dispose();
       this._threads.delete(key);
+      // After the delete: _dropCommentContexts keeps contexts a live thread
+      // still carries, and this thread must no longer count as one.
+      this._dropCommentContexts(thread);
       dropped = true;
     }
     if (dropped) {
@@ -387,9 +389,11 @@ export class PullReviewCommentController implements vscode.Disposable {
     const uriKey = document.uri.toString();
     for (const [key, thread] of this._threads.entries()) {
       if (thread.uri.toString() === uriKey) {
-        this._dropCommentContexts(thread);
         thread.dispose();
         this._threads.delete(key);
+        // After the delete: _dropCommentContexts keeps contexts a live thread
+        // still carries, and this thread must no longer count as one.
+        this._dropCommentContexts(thread);
       }
     }
   }
@@ -409,6 +413,11 @@ export class PullReviewCommentController implements vscode.Disposable {
       this._logger?.error(
         `Failed to load pull request reviews for ${params.owner}/${params.repo}#${params.index}: ${err}`,
       );
+      // Logging alone left a revoked token, a rate limit or an outage looking
+      // exactly like "this file has no comments": the diff opened with zero
+      // threads and nothing else. Say that the load failed — once per document
+      // render, not per comment.
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not load the review comments for this file: {0}', err));
     }
   }
 
@@ -419,8 +428,16 @@ export class PullReviewCommentController implements vscode.Disposable {
   ): Promise<void> {
     const scope = this._threadScope(params);
     const threadsToKeep = new Set<string>();
+    // The document can close in the middle of the loop (below), and the prune at
+    // the end must run even then: threads of an earlier render stay in the panel
+    // and in `_threads` otherwise, with the comment created for this render
+    // never attached to anything. `break` out of the loop instead of returning.
+    let documentClosed = false;
 
     for (const { review, comments } of data.reviews) {
+      if (documentClosed) {
+        break;
+      }
       const reviewId = review.id;
       if (typeof reviewId !== 'number') {
         continue;
@@ -455,7 +472,6 @@ export class PullReviewCommentController implements vscode.Disposable {
         }
 
         const key = pullReviewThreadKey(scope, reviewId, commentId);
-        threadsToKeep.add(key);
 
         const instance = this._findInstance(params.instanceId);
         const instanceName = instance?.name ?? params.instanceId;
@@ -469,9 +485,17 @@ export class PullReviewCommentController implements vscode.Disposable {
         const threadRange = new vscode.Range(resolved.line, 0, endLine, endCharacter);
         const existing = this._threads.get(key);
         if (existing) {
+          // The new comment is built first: it carries the same encoded context
+          // value as the one being replaced, so dropping the old comment's
+          // context before registering the new one would delete the entry the
+          // re-created comment depends on — leaving a comment whose Delete
+          // command finds no context and returns silently. Dropping afterwards
+          // removes only the old values that are not reused (a moved line).
+          const replacement = await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName);
           this._dropCommentContexts(existing);
           existing.range = threadRange;
-          existing.comments = [await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName)];
+          existing.comments = [replacement];
+          threadsToKeep.add(key);
           continue;
         }
 
@@ -479,7 +503,8 @@ export class PullReviewCommentController implements vscode.Disposable {
         // document is still open before creating a thread for it (same race
         // as the post-load guard in _loadAndRender).
         if (document.isClosed) {
-          return;
+          documentClosed = true;
+          break;
         }
         const thread = this._controller.createCommentThread(uri, threadRange, [
           await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName),
@@ -487,17 +512,24 @@ export class PullReviewCommentController implements vscode.Disposable {
         thread.canReply = false;
         thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
         this._threads.set(key, thread);
+        // Only a thread this render actually attached is kept: a comment the
+        // loop stopped before (the document closed) must not protect its stale
+        // thread from the prune below.
+        threadsToKeep.add(key);
       }
     }
 
     // Dispose only threads of the document being re-rendered (including its
     // diff side); threads of other files, pull requests, or the other side
-    // of the same file stay untouched.
+    // of the same file stay untouched. Runs even when the document closed
+    // mid-render, so nothing from an earlier render is left behind.
     for (const [key, thread] of this._threads.entries()) {
       if (pullReviewThreadMatchesScope(key, scope) && !threadsToKeep.has(key)) {
-        this._dropCommentContexts(thread);
         thread.dispose();
         this._threads.delete(key);
+        // After the delete: _dropCommentContexts keeps contexts a live thread
+        // still carries, and this thread must no longer count as one.
+        this._dropCommentContexts(thread);
       }
     }
     this._applyThreadRangeDecorations();
@@ -552,12 +584,33 @@ export class PullReviewCommentController implements vscode.Disposable {
   // The map is keyed by an encoded context string that includes the position,
   // so a comment whose line moves (or whose thread is disposed) would leave a
   // stale entry behind unless its old contextValue is removed here.
+  //
+  // A value that a comment *still in a live thread* carries is left in place:
+  // `_encodeCommentContext` is pure over the coordinates, so re-rendering a
+  // comment in place builds a new comment with the identical contextValue. The
+  // new comment is registered in the map before the old one is dropped (see
+  // `_renderThreads`), and deleting by value would then remove the entry the
+  // re-created comment's Delete command needs — the command found no context and
+  // returned silently.
   private _dropCommentContexts(thread: vscode.CommentThread): void {
     for (const comment of thread.comments) {
-      if (comment.contextValue) {
-        this._commentContextMap.delete(comment.contextValue);
+      const contextValue = comment.contextValue;
+      if (contextValue && !this._contextValueInUse(contextValue)) {
+        this._commentContextMap.delete(contextValue);
       }
     }
+  }
+
+  /** Whether any thread this controller still tracks carries `contextValue`. */
+  private _contextValueInUse(contextValue: string): boolean {
+    for (const thread of this._threads.values()) {
+      for (const comment of thread.comments) {
+        if (comment.contextValue === contextValue) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private _buildUri(params: ForgejoPrUriParams & { isBase: boolean }): vscode.Uri {

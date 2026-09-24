@@ -259,7 +259,12 @@ export function requestResourceFor(url: string): RequestResource | undefined {
   if (!path) {
     return undefined;
   }
-  if (path[0] === 'repos' && path.length >= 3) {
+  // Not every `/repos/...` route is repository-scoped: Forgejo's instance-wide
+  // issue/search endpoints put something that is not an owner (or not a repo)
+  // behind `/repos/`, and they used to render as "Not found: repository in
+  // issues/search". A path is repository-scoped when its first segment is
+  // `repos` and its third does not name one of those search routes.
+  if (path[0] === 'repos' && path.length >= 3 && !isInstanceWideRepoResource(path[2])) {
     const [, owner, repo, ...rest] = path;
     return { resource: repositoryResourceLabel(rest), owner: decodeSegment(owner), repo: decodeSegment(repo) };
   }
@@ -269,6 +274,22 @@ export function requestResourceFor(url: string): RequestResource | undefined {
     return { resource: 'user' };
   }
   return undefined;
+}
+
+/**
+ * Whether the third `/repos/...` segment names one of Forgejo's instance-wide
+ * search routes rather than a repository's own resource.
+ *
+ * `/repos/issues/search` is the global issue search — its "owner" segment is the
+ * literal `issues` — and `/repos/{owner}/issues` with a further segment is the
+ * owner-wide issue search. `/repos/{owner}/{repo}/issues` is the ordinary
+ * repository issue list, so only a third segment of `issues` or `search` is
+ * excluded. A repository genuinely named `issues` or `search` is misread as
+ * instance-wide; the alternative misreads the search routes, which do 404
+ * (a server without the endpoint answers 404 for them).
+ */
+function isInstanceWideRepoResource(segment: string | undefined): boolean {
+  return segment === 'issues' || segment === 'search';
 }
 
 /**

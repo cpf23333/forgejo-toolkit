@@ -133,10 +133,11 @@ export class WorktreeManager {
    * branch — it is the user's own work branch.
    *
    * The whole read-snapshot → git operations → write-back sequence runs inside
-   * the module write queue: the git steps can take seconds, and a record added
-   * meanwhile must not be lost when the (stale) snapshot is written back.
-   * Serializing the git operations too is the accepted trade-off — removals
-   * are rare and user-triggered.
+   * the module write queue, so two removals in this host cannot interleave; the
+   * write-back itself re-reads the records first (see the merge comment there),
+   * which is what keeps an entry another *window* added during the slow git
+   * steps. Serializing the git operations too is the accepted trade-off —
+   * removals are rare and user-triggered.
    *
    * Returns false when there is no record for `id`: the caller then has nothing
    * to report as removed, and the checkout (if it still exists) was not touched
@@ -180,9 +181,17 @@ export class WorktreeManager {
           );
         }
       }
+      // The write-back is a merge like config.ts::_writeInstancesMerged: the
+      // read above is a snapshot, and the git steps between it and here take
+      // seconds. The queue only serializes *this* extension host, while two
+      // windows are separate processes sharing the same globalState keys, so
+      // re-reading now keeps a record another window added meanwhile (a
+      // concurrent PR open, touchCachedRepo, the lazy sweep) instead of dropping
+      // it along with the stale snapshot. Only the entry this call intended to
+      // remove is filtered out.
       await this.context.globalState.update(
         WORKTREES_KEY,
-        worktrees.filter((w) => w.id !== id),
+        this.getWorktrees().filter((w) => w.id !== id),
       );
       return true;
     });

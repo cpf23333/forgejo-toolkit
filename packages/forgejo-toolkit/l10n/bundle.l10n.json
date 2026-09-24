@@ -160,6 +160,8 @@
   "Failed to cancel review: {0}": "Failed to cancel review: {0}",
   "The export file uses an unsupported key-derivation iteration count": "The export file uses an unsupported key-derivation iteration count",
   "Unable to open diff: {0}": "Unable to open diff: {0}",
+  "Could not load the review comments for this file: {0}": "Could not load the review comments for this file: {0}",
+  "Could not load {0} at {1}: {2}": "Could not load {0} at {1}: {2}",
   "Unable to open selected diffs: {0}": "Unable to open selected diffs: {0}",
   "Unable to open file: {0}": "Unable to open file: {0}",
   "Copied to clipboard": "Copied to clipboard",

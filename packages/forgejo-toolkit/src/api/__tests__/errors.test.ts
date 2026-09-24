@@ -338,6 +338,23 @@ describe('requestResourceFor', () => {
     expect(requestResourceFor('https://forgejo.example.com/api/v1/users/demo-user')).toEqual({ resource: 'user' });
   });
 
+  it('does not read an instance-wide search path as a repository scope', () => {
+    // `/repos/issues/search` and `/repos/{owner}/issues` put a word that is not
+    // an owner (or not a repo) behind `/repos/`; reading them as owner/repo
+    // scopes rendered "Not found: repository in issues/search".
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/repos/issues/search?q=term')).toBeUndefined();
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/repos/issues/search')).toBeUndefined();
+    expect(
+      requestResourceFor('https://forgejo.example.com/api/v1/repos/demo-user/issues/search?q=term'),
+    ).toBeUndefined();
+    // The ordinary repository issue list still names its repository.
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/repos/demo-user/demo-repo/issues')).toEqual({
+      resource: 'issue',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+    });
+  });
+
   it('carries the proxy flag even when the endpoint has no resource kind', () => {
     // The flag is what keeps a proxy outage from reading as a dead instance, and
     // it must survive an endpoint the classifier does not recognize.

@@ -20,3 +20,17 @@ export function instanceIdFor(normalizedUrl: string, login: string): string {
     .toLowerCase();
   return `${parsed.host}-${slug}-${login}`;
 }
+
+/**
+ * The display name an instance is stored under: `<login>@<host><sub-path>`.
+ *
+ * Must be derived the same way by every entry point that saves an instance.
+ * `name` is part of the webview's instance cache identity
+ * (`webview/src/composables/useAppState.ts`), so a form that drops the
+ * sub-path rewrites the identity of an extra-path instance on a plain edit and
+ * makes the view discard every payload cached for it.
+ */
+export function instanceNameFor(normalizedUrl: string, login: string): string {
+  const parsed = new URL(normalizedUrl);
+  return `${login}@${parsed.host}${parsed.pathname.replace(/\/+$/, '')}`;
+}
