@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { createProxyDispatcher, resolveProxyUrl } from './api/proxy';
+import { createProxyDispatcher, getProxyFetch, resolveProxyUrl } from './api/proxy';
 import { setDefaultRequestDispatcher } from './api/client';
 import { registerCommands } from './commands';
 import { ForgejoToolkitViewProvider } from './webview/viewProvider';
@@ -25,10 +25,15 @@ import { logger } from './logger';
 
 export async function activate(context: vscode.ExtensionContext) {
   // Requests honour a proxy: the editor's http.proxy wins over the environment,
-  // and the agent is created once for the whole session.
-  setDefaultRequestDispatcher(
-    createProxyDispatcher(resolveProxyUrl(process.env, vscode.workspace.getConfiguration('http').get<string>('proxy'))),
-  );
+  // and the agent plus its matching fetch are created once for the whole session.
+  // A value the proxy agent refuses must never abort activation, so it degrades
+  // to a direct connection with a warning instead.
+  const proxyUrl = resolveProxyUrl(process.env, vscode.workspace.getConfiguration('http').get<string>('proxy'));
+  const proxyDispatcher = createProxyDispatcher(proxyUrl);
+  if (proxyUrl && !proxyDispatcher) {
+    logger.info(`Ignoring the configured proxy "${proxyUrl}": it is not a usable HTTP proxy URL`);
+  }
+  setDefaultRequestDispatcher(proxyDispatcher, proxyDispatcher ? getProxyFetch() : undefined);
   logger.watch();
   context.subscriptions.push({ dispose: () => logger.dispose() });
 

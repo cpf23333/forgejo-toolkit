@@ -7,7 +7,7 @@ import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { toApiError } from './errors-core';
 import { getForgejoClientHost } from './clientHost';
 import { assertActionsSupported } from './serverVersion';
-import type { Client, RequestConfig, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
+import type { Client, RequestConfig, RequestFetch, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
   createCurrentUserRepo,
   getTree,
@@ -291,18 +291,52 @@ export interface MentionSearchResult {
 export function withDispatcher<TRequestData>(
   config: RequestConfig<TRequestData>,
   dispatcher?: unknown,
+  fetchImpl?: RequestFetch,
 ): RequestConfig<TRequestData> {
-  return dispatcher ? { ...config, dispatcher } : config;
+  return dispatcher ? { ...config, dispatcher, ...(fetchImpl ? { fetchImpl } : {}) } : config;
 }
 
 // Set once at activation: the editor setting or environment, resolved to a proxy
-// agent. Per-client dispatchers (should they ever exist) win over this.
+// agent plus the fetch implementation that understands it. Per-client
+// dispatchers (should they ever exist) win over this.
 let defaultRequestDispatcher: unknown;
+let defaultRequestFetch: RequestFetch | undefined;
 
-/** Installs the proxy dispatcher every client uses unless it has its own. */
-export function setDefaultRequestDispatcher(dispatcher?: unknown): void {
+/** Installs the proxy dispatcher and its matching fetch for every client. */
+export function setDefaultRequestDispatcher(dispatcher?: unknown, fetchImpl?: RequestFetch): void {
   defaultRequestDispatcher = dispatcher;
+  defaultRequestFetch = fetchImpl;
 }
+
+/**
+ * Merges the signals that can abort one request: the caller's, the per-client
+ * one (MCP tool cancellation) and the request timeout. Each of them must still
+ * be able to abort, so they are combined rather than one overriding the others.
+ */
+export function combineRequestSignals(signals: Array<AbortSignal | undefined>): AbortSignal | undefined {
+  const active = signals.filter((signal): signal is AbortSignal => Boolean(signal));
+  if (active.length === 0) {
+    return undefined;
+  }
+  return active.length === 1 ? active[0] : AbortSignal.any(active);
+}
+
+/**
+ * The signal one request runs under.
+ *
+ * `API_REQUEST_TIMEOUT_MS` is a default for requests nobody bounded, not a
+ * ceiling: a caller that passes its own signal (a long artifact or log download)
+ * replaces it. The client-level signal is added on top either way, so a
+ * cancelled MCP tool call aborts even though the timeout would otherwise have
+ * been the only signal.
+ */
+export function requestSignalFor(callerSignal?: AbortSignal, clientSignal?: AbortSignal): AbortSignal {
+  return combineRequestSignals([
+    callerSignal ?? AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
+    clientSignal,
+  ]) as AbortSignal;
+}
+
 export function withAbortSignal<TRequestData>(
   config: RequestConfig<TRequestData>,
   signal?: AbortSignal,
@@ -313,6 +347,8 @@ export class ForgejoClient {
   private readonly configuredOrigin: string;
   /** Node fetch dispatcher (undici ProxyAgent) for hosts behind a proxy. */
   private readonly requestDispatcher?: unknown;
+  /** The fetch that understands `requestDispatcher` (the bundled undici). */
+  private readonly requestFetch?: RequestFetch;
   /** Abort signal for this client's requests; set by `withSignal` (MCP tool calls). */
   private readonly abortSignal?: AbortSignal;
   private detectedServerOrigin: string | undefined;
@@ -326,10 +362,11 @@ export class ForgejoClient {
     private token: string,
     private logger?: ClientLogger,
     syncApiUrlsToInstanceUrl?: boolean,
-    options?: { signal?: AbortSignal; dispatcher?: unknown },
+    options?: { signal?: AbortSignal; dispatcher?: unknown; fetch?: RequestFetch },
   ) {
     this.abortSignal = options?.signal;
     this.requestDispatcher = options?.dispatcher;
+    this.requestFetch = options?.fetch;
     this.configuredOrigin = new URL(this.url.replace(/\/$/, '')).origin;
     this.syncApiUrlsToInstanceUrl = syncApiUrlsToInstanceUrl ?? true;
     this.tokenCacheKey = createHash('sha256').update(token).digest('hex').slice(0, 16);
@@ -1300,7 +1337,10 @@ export class ForgejoClient {
   }
 
   async getUserPreview(username: string): Promise<ForgejoUser | undefined> {
-    const user = await this._probe(userGet(username, { client: this._client() }), `getUserPreview ${username}`);
+    const user = await this._probe(
+      userGet(encodePathSegment(username), { client: this._client() }),
+      `getUserPreview ${username}`,
+    );
     return user as ForgejoUser | undefined;
   }
 
@@ -1379,11 +1419,11 @@ export class ForgejoClient {
   }
 
   addIssueSubscription(owner: string, repo: string, index: number, user: string): Promise<unknown> {
-    return issueAddSubscription(owner, repo, index, user, { client: this._client() });
+    return issueAddSubscription(owner, repo, index, encodePathSegment(user), { client: this._client() });
   }
 
   deleteIssueSubscription(owner: string, repo: string, index: number, user: string): Promise<unknown> {
-    return issueDeleteSubscription(owner, repo, index, user, { client: this._client() });
+    return issueDeleteSubscription(owner, repo, index, encodePathSegment(user), { client: this._client() });
   }
 
   startIssueStopwatch(owner: string, repo: string, index: number): Promise<unknown> {
@@ -1492,12 +1532,16 @@ export class ForgejoClient {
       { client: this._client() },
     ).then((result) => {
       const data = result as {
+        id?: number;
         uuid?: string;
         name?: string;
         size?: number;
         browser_download_url?: string;
       };
       return {
+        // The numeric id is what the delete endpoint takes; dropping it here left
+        // the webview unable to delete an attachment it had just uploaded.
+        id: data.id ?? 0,
         uuid: data.uuid ?? '',
         name: data.name ?? filename,
         size: data.size,
@@ -1526,11 +1570,24 @@ export class ForgejoClient {
   async getFileContent(owner: string, repo: string, filepath: string, ref?: string): Promise<string> {
     const params = ref ? { ref } : undefined;
     const response = await repoGetContents(owner, repo, encodeFilePath(filepath), params, { client: this._client() });
-    const content = (response as { content?: string }).content;
-    if (!content) {
+    if (Array.isArray(response)) {
+      // The contents endpoint answers a directory with its children; an empty
+      // string here would read as "this file is empty", which is a different (and
+      // wrong) answer. This method only serves the MCP `get_file_content` tool.
+      return `${filepath} is a directory, not a file: use list_repo_contents to list its entries.`;
+    }
+    const entry = response as { content?: string; size?: number };
+    if (!entry.content) {
+      // Forgejo withholds the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE`
+      // and reports the real size instead. Returning an empty string here told the
+      // MCP caller the file was empty, which is a different (and wrong) answer; this
+      // method only serves the MCP `get_file_content` tool, whose output is English.
+      if (entry.size && entry.size > 0) {
+        return `Forgejo did not return this file's content: at ${entry.size} bytes it is above the instance's contents API payload limit. Read it in the browser instead.`;
+      }
       return '';
     }
-    return decodeBase64(content);
+    return decodeBase64(entry.content);
   }
 
   async getPullRequestFiles(owner: string, repo: string, index: number): Promise<ForgejoChangedFile[]> {
@@ -1561,7 +1618,13 @@ export class ForgejoClient {
     baseSha: string,
     headSha: string,
   ): Promise<ForgejoChangedFile[]> {
-    const compare = await repoCompareDiff(owner, repo, `${baseSha}..${headSha}`, { client: this._client() });
+    // The comparison is one path segment (`compare/{base}..{head}`), and the URL
+    // parser resolves dot segments, so both refs are encoded per segment: a
+    // forged `../` value cannot walk the request onto another endpoint. Anything
+    // that is exactly `.`/`..` is refused by `encodePathSegment`.
+    const compare = await repoCompareDiff(owner, repo, `${encodePathSegment(baseSha)}..${encodePathSegment(headSha)}`, {
+      client: this._client(),
+    });
     const statusMap = new Map<string, string>();
     const compareFiles = (compare.files ?? []) as Array<{ filename?: string; status?: string }>;
     for (const file of compareFiles) {
@@ -1938,7 +2001,13 @@ export class ForgejoClient {
    * (rather than mutating a shared one) keeps concurrent tool calls independent.
    */
   withSignal(signal?: AbortSignal): ForgejoClient {
-    return new ForgejoClient(this.url, this.token, this.logger, this.syncApiUrlsToInstanceUrl, { signal });
+    return new ForgejoClient(this.url, this.token, this.logger, this.syncApiUrlsToInstanceUrl, {
+      signal,
+      // Keep this client's own proxy pair: a signalling copy must not silently
+      // fall back to the activation-wide one (or to a direct connection).
+      dispatcher: this.requestDispatcher,
+      fetch: this.requestFetch,
+    });
   }
 
   private _client(): Client {
@@ -1956,17 +2025,19 @@ export class ForgejoClient {
       this.logger?.debug(`Request: ${method} ${targetUrl}`);
 
       try {
+        const dispatcher = this.requestDispatcher ?? defaultRequestDispatcher;
+        // A client-local dispatcher must be paired with its own fetch; only the
+        // activation-wide pair is safe to reuse for the default one.
+        const requestFetch = this.requestDispatcher ? this.requestFetch : defaultRequestFetch;
         const response = await baseClient<TResponseData>({
           // A cancelled MCP tool call aborts its requests, and a configured proxy is
-          // a Node fetch dispatcher; the shared request layer forwards both to fetch.
+          // a Node fetch dispatcher plus the undici fetch that understands it.
           ...withDispatcher(
-            withAbortSignal(config, this.abortSignal),
-            this.requestDispatcher ?? defaultRequestDispatcher,
+            withAbortSignal(config, requestSignalFor(config.signal, this.abortSignal)),
+            dispatcher,
+            requestFetch,
           ),
           baseURL,
-          // A reachable-but-unresponsive instance must not hang the request
-          // forever; callers may still pass their own signal.
-          signal: config.signal ?? AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
           headers: mergeHeaders(config.headers, { Authorization: `token ${this.token}` }),
         });
 

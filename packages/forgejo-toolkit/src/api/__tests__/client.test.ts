@@ -1191,6 +1191,9 @@ describe('ForgejoClient with MSW', () => {
         'screenshot.png',
       );
       expect(attachment.uuid).toBeDefined();
+      // The numeric id is what the delete endpoint takes; dropping it left the
+      // webview unable to remove an attachment it had just uploaded.
+      expect(attachment.id).toBe(mockIssueAttachment.id);
     });
 
     it('deletes an issue attachment', async () => {
@@ -1620,6 +1623,56 @@ describe('ForgejoClient with MSW', () => {
       const content = await client.getFileContent('demo-user', 'demo-repo', 'dir/a#b?.txt', 'main');
       expect(content).toBe('hello');
       expect(requestedUrl).toContain('contents/dir/a%23b%3F.txt');
+    });
+  });
+
+  describe('Files whose payload the instance withholds', () => {
+    it('explains the withheld payload instead of reporting an empty file', async () => {
+      // The contents API answers with the real size and no `content` above
+      // `[api] DEFAULT_MAX_BLOB_SIZE`; an empty string read as an empty file.
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/:path', () =>
+          HttpResponse.json({ name: 'huge.bin', path: 'huge.bin', type: 'file', size: 12 * 1024 * 1024 }),
+        ),
+      );
+      const client = createClient();
+
+      const content = await client.getFileContent('demo-user', 'demo-repo', 'huge.bin');
+
+      expect(content).toContain('did not return this file');
+      expect(content).toContain(String(12 * 1024 * 1024));
+    });
+
+    it('still returns an empty string for a genuinely empty file', async () => {
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/:path', () =>
+          HttpResponse.json({ name: 'empty.txt', path: 'empty.txt', type: 'file', size: 0, content: '' }),
+        ),
+      );
+      const client = createClient();
+
+      await expect(client.getFileContent('demo-user', 'demo-repo', 'empty.txt')).resolves.toBe('');
+    });
+
+    it('says a directory is a directory instead of reporting an empty file', async () => {
+      // The contents endpoint answers a directory with its children, which the
+      // content field cannot describe; an empty string would read as "empty file".
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/:path', () =>
+          HttpResponse.json([{ name: 'inner', path: 'dir/inner', type: 'file', size: 5 }]),
+        ),
+      );
+      const client = createClient();
+
+      await expect(client.getFileContent('demo-user', 'demo-repo', 'dir')).resolves.toContain('is a directory');
+    });
+
+    it('refuses a path that would escape the contents route', async () => {
+      const client = createClient();
+
+      await expect(client.getFileContent('demo-user', 'demo-repo', '../user/keys')).rejects.toThrow(
+        /Unsafe path segment/,
+      );
     });
   });
 

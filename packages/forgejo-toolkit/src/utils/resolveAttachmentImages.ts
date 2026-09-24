@@ -1,5 +1,6 @@
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { API_REQUEST_TIMEOUT_MS } from '../api/client';
+import { getProxyFetch } from '../api/proxy';
 
 /**
  * Session-level cache of resolved attachment images. Attachment content at a
@@ -71,8 +72,10 @@ export async function resolveAttachmentImages(text: string, instance: ForgejoIns
       }
       try {
         // A hung image host must not stall the surrounding Promise.all; on
-        // timeout the fetch rejects and the original URL is kept.
-        const response = await fetch(url, {
+        // timeout the fetch rejects and the original URL is kept. Images go
+        // through the configured proxy like every other request: a dispatcher is
+        // only understood by the undici fetch that created it.
+        const response = await (getProxyFetch() ?? fetch)(url, {
           headers: { Authorization: `token ${instance.token}` },
           signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
         });

@@ -86,6 +86,16 @@ describe('encodePathSegment', () => {
   it('accepts numbers', () => {
     expect(encodePathSegment(42)).toBe('42');
   });
+
+  it('refuses dot segments instead of encoding them', () => {
+    // `encodeURIComponent` leaves `.` alone and the URL parser resolves `.`/`..`
+    // (and their percent-encoded spellings) as path navigation, so an
+    // interpolated value could walk out of the endpoint it was meant for.
+    expect(() => encodePathSegment('..')).toThrow(/Unsafe path segment/);
+    expect(() => encodePathSegment('.')).toThrow(/Unsafe path segment/);
+    // A name that merely contains dots is fine.
+    expect(encodePathSegment('v1.0.0')).toBe('v1.0.0');
+  });
 });
 
 describe('mergeHeaders', () => {
@@ -162,6 +172,41 @@ describe('client', () => {
         url: '/api/repos',
       }),
     ).rejects.toThrow('Forgejo API error 404: Not found');
+  });
+
+  it('uses the fetch that understands a configured dispatcher', async () => {
+    // A dispatcher and the fetch sharing its undici copy must travel together:
+    // Node's built-in fetch rejects a dispatcher built by another undici major.
+    const dispatcher = { fake: true };
+    const calls: Array<{ url: string; dispatcher?: unknown }> = [];
+    const fetchImpl = (url: string, init?: { dispatcher?: unknown }) => {
+      calls.push({ url, dispatcher: init?.dispatcher });
+      return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    };
+
+    const result = (await client({
+      baseURL: 'http://example.com',
+      url: '/api/repos',
+      dispatcher,
+      fetchImpl,
+    })) as ResponseConfig<{ ok: boolean }>;
+
+    expect(calls).toEqual([{ url: 'http://example.com/api/repos', dispatcher }]);
+    expect(result.data).toEqual({ ok: true });
+  });
+
+  it('falls back to global fetch when only a dispatcher is set', async () => {
+    // Without a matching fetch the dispatcher is dropped rather than handed to a
+    // fetch that would fail the request.
+    mockServer.use(http.get('http://example.com/api/repos', () => HttpResponse.json({ ok: true }, { status: 200 })));
+
+    const result = (await client({
+      baseURL: 'http://example.com',
+      url: '/api/repos',
+      dispatcher: { fake: true },
+    })) as ResponseConfig<{ ok: boolean }>;
+
+    expect(result.data).toEqual({ ok: true });
   });
 
   it('truncates oversized error bodies', async () => {

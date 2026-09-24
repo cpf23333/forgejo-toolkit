@@ -4,6 +4,13 @@
 
 export type RequestCredentials = 'omit' | 'same-origin' | 'include';
 
+/**
+ * A `fetch` implementation. Node's built-in fetch only accepts a `dispatcher`
+ * created by the undici copy it ships internally, so a host that bundles its own
+ * undici passes both the dispatcher and the matching fetch here.
+ */
+export type RequestFetch = (input: string, init?: RequestInit & { dispatcher?: unknown }) => Promise<Response>;
+
 export type RequestConfig<TData = unknown> = {
   baseURL?: string;
   url?: string;
@@ -14,6 +21,8 @@ export type RequestConfig<TData = unknown> = {
   signal?: AbortSignal;
   /** Node fetch dispatcher (undici ProxyAgent) for hosts behind a proxy. */
   dispatcher?: unknown;
+  /** Fetch implementation that understands `dispatcher`; defaults to global fetch. */
+  fetchImpl?: RequestFetch;
   headers?: [string, string][] | Record<string, string>;
   credentials?: RequestCredentials;
 };
@@ -31,9 +40,17 @@ export type ResponseErrorConfig<TError = unknown> = TError;
  * Encodes a single URL path segment so values containing `/`, `#`, `?` or
  * other reserved characters (e.g. branch names like `release/1.0`) do not
  * corrupt the request path.
+ *
+ * Dot segments are rejected instead of encoded: the URL parser treats `.` and
+ * `..` (in literal or percent-encoded form) as path navigation and removes them,
+ * so an interpolated `..` would make the request escape its route.
  */
 export function encodePathSegment(value: string | number): string {
-  return encodeURIComponent(String(value));
+  const segment = String(value);
+  if (segment === '.' || segment === '..') {
+    throw new Error(`Unsafe path segment: ${segment}`);
+  }
+  return encodeURIComponent(segment);
 }
 
 const MAX_ERROR_BODY_LENGTH = 500;
@@ -107,13 +124,20 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(targetUrl, {
+  // A dispatcher is only understood by the fetch that shares its undici copy, so
+  // the caller supplies the pair together. A dispatcher without its fetch is
+  // dropped rather than handed to global fetch, which would reject the foreign
+  // handler ("invalid onRequestStart method") and fail the request.
+  const useDispatcher = Boolean(paramsConfig.dispatcher && paramsConfig.fetchImpl);
+  const doFetch: RequestFetch = useDispatcher ? (paramsConfig.fetchImpl as RequestFetch) : (fetch as RequestFetch);
+
+  const response = await doFetch(targetUrl, {
     credentials: paramsConfig.credentials || 'same-origin',
     method: paramsConfig.method?.toUpperCase(),
     body,
     signal: paramsConfig.signal,
     headers,
-    ...(paramsConfig.dispatcher ? { dispatcher: paramsConfig.dispatcher } : {}),
+    ...(useDispatcher ? { dispatcher: paramsConfig.dispatcher } : {}),
   } as RequestInit & { dispatcher?: unknown });
 
   if (!response.ok) {
