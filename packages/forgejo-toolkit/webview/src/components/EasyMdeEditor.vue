@@ -21,6 +21,12 @@ type TributeStatic = (typeof import('tributejs'))['default'];
 interface Props {
   modelValue?: string;
   placeholder?: string;
+  /**
+   * Accessible name of the editor. EasyMDE exposes its own placeholder as the
+   * only description, so the field name has to be applied to the CodeMirror
+   * input element after initialisation.
+   */
+  label?: string;
   uploadImage?: (file: File, onSuccess: (url: string) => void, onError: (error: string) => void) => void;
   disabled?: boolean;
   instanceId?: string;
@@ -32,6 +38,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   placeholder: '',
+  label: '',
   disabled: false,
   scene: 'default',
 });
@@ -70,6 +77,18 @@ const baseUrl = computed(() => {
 
 function getMentionInput(): HTMLElement | null {
   return easyMDE?.codemirror.getInputField() ?? null;
+}
+
+// CodeMirror's own input element is the focus target, and `aria-label` fixes
+// its accessible name. The `<textarea>` EasyMDE hides covers the window before
+// EasyMDE has finished loading its chunks.
+function applyEditorLabel() {
+  const name = props.label || props.placeholder;
+  const input = getMentionInput();
+  if (input && name) {
+    input.setAttribute('aria-label', name);
+  }
+  textareaRef.value?.setAttribute('aria-label', name);
 }
 
 function isTributeActive(): boolean {
@@ -625,6 +644,7 @@ onMounted(async () => {
   };
 
   easyMDE = new EasyMDEClass(options);
+  applyEditorLabel();
   easyMDE.codemirror.on('change', () => {
     emit('update:modelValue', easyMDE?.value() ?? '');
     schedulePreviewRender();
@@ -722,11 +742,13 @@ watch(
     }
   },
 );
+
+watch(() => [props.label, props.placeholder], applyEditorLabel);
 </script>
 
 <template>
   <div ref="wrapperRef" class="easy-mde-editor" :class="{ 'is-fullscreen': isFullscreen }">
-    <textarea ref="textareaRef"></textarea>
+    <textarea ref="textareaRef" :aria-label="label || placeholder"></textarea>
   </div>
 </template>
 

@@ -1,6 +1,7 @@
 import { config, mount, type ComponentMountingOptions } from '@vue/test-utils';
 import { createAppRouter } from '../../router';
 import { createI18nInstance, type Locale } from '../../i18n';
+import { VSCODE_ELEMENT_STUBS } from './vscodeElements';
 import type { Component } from 'vue';
 
 export function createTestRouter() {
@@ -30,50 +31,12 @@ export function mockVSCodeApi() {
 }
 
 export function stubVSCodeElements() {
+  // One list, shared with the setup file: the tags the webview renders are
+  // declared in ./vscodeElements.ts and kept in step with the sources by
+  // ./vscodeElements.test.ts.
   config.global.stubs = {
     ...config.global.stubs,
-    'vscode-tree-item': {
-      template: '<div data-stub="vscode-tree-item"><slot /></div>',
-    },
-    'vscode-tree': {
-      template: '<div data-stub="vscode-tree"><slot /></div>',
-    },
-    'vscode-button': {
-      template: '<button data-stub="vscode-button"><slot /></button>',
-    },
-    'vscode-icon': {
-      template: '<span data-stub="vscode-icon" :class="$attrs.class"><slot /></span>',
-    },
-    'vscode-dropdown': {
-      template: '<select data-stub="vscode-dropdown"><slot /></select>',
-    },
-    'vscode-option': {
-      template: '<option data-stub="vscode-option"><slot /></option>',
-    },
-    'vscode-text-field': {
-      template: '<input data-stub="vscode-text-field" />',
-    },
-    'vscode-text-area': {
-      template: '<textarea data-stub="vscode-text-area" />',
-    },
-    'vscode-checkbox': {
-      template: '<input type="checkbox" data-stub="vscode-checkbox" />',
-    },
-    'vscode-radio': {
-      template: '<input type="radio" data-stub="vscode-radio" />',
-    },
-    'vscode-tabs': {
-      template: '<div data-stub="vscode-tabs"><slot /></div>',
-    },
-    'vscode-tab-header': {
-      template: '<div data-stub="vscode-tab-header"><slot /></div>',
-    },
-    'vscode-tab-panel': {
-      template: '<div data-stub="vscode-tab-panel"><slot /></div>',
-    },
-    'vscode-tab': {
-      template: '<div data-stub="vscode-tab"><slot /></div>',
-    },
+    ...VSCODE_ELEMENT_STUBS,
   };
 }
 

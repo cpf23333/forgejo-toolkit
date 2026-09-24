@@ -376,6 +376,7 @@ async function handleCreateSubmit(data: {
           :value="searchInput"
           class="search-input"
           :placeholder="t('dashboard.repoIssues.searchPlaceholder')"
+          :label="t('dashboard.repoIssues.searchPlaceholder')"
           @input="searchInput = ($event.target as HTMLInputElement).value"
         />
         <vscode-button icon="add" @click="openCreateIssue()">

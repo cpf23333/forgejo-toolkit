@@ -84,17 +84,87 @@ async function renderComment(comment: ForgejoTimelineComment) {
   }
 }
 
-watch(
-  () => props.comments,
-  (comments) => {
-    for (const comment of comments) {
-      if (comment.body) {
-        renderComment(comment);
-      }
-      if (comment.id !== undefined) {
-        state.loadCommentReactions(props.instanceId, props.owner, props.repo, comment.id);
-      }
+const sortOrder = ref<'asc' | 'desc'>('asc');
+
+const sortedComments = computed(() => {
+  const list = [...props.comments];
+  list.sort((a, b) => {
+    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return sortOrder.value === 'asc' ? ta - tb : tb - ta;
+  });
+  return list;
+});
+
+// A busy pull request can carry MAX_ITEMS timeline entries; marking every entry
+// as loading in one tick would fire one markdown request (and one reaction
+// request) per comment at once. At most this many markdown renders are in
+// flight; the rest wait for a slot, so the host sees a trickle instead of a
+// burst while every comment still gets rendered.
+const COMMENT_RENDER_BATCH = 25;
+const MAX_MARKDOWN_RENDERS_IN_FLIGHT = 4;
+let markdownRendersInFlight = 0;
+const queuedCommentRenders: ForgejoTimelineComment[] = [];
+
+// How many entries of the timeline are rendered. A full page of MAX_ITEMS
+// comments would otherwise mount a markdown body per entry in one render; the
+// remainder is revealed a batch at a time so nothing becomes unreachable.
+const visibleCommentCount = ref(COMMENT_RENDER_BATCH);
+const visibleComments = computed(() => sortedComments.value.slice(0, visibleCommentCount.value));
+const hiddenCommentCount = computed(() => Math.max(0, sortedComments.value.length - visibleCommentCount.value));
+const nextCommentBatchCount = computed(() => Math.min(COMMENT_RENDER_BATCH, hiddenCommentCount.value));
+
+function toggleSortOrder() {
+  sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+}
+
+function showMoreComments() {
+  visibleCommentCount.value += COMMENT_RENDER_BATCH;
+}
+
+function pumpCommentRenders() {
+  while (markdownRendersInFlight < MAX_MARKDOWN_RENDERS_IN_FLIGHT && queuedCommentRenders.length > 0) {
+    const comment = queuedCommentRenders.shift()!;
+    markdownRendersInFlight += 1;
+    void renderComment(comment).finally(() => {
+      markdownRendersInFlight = Math.max(0, markdownRendersInFlight - 1);
+      pumpCommentRenders();
+    });
+  }
+}
+
+/**
+ * Queues the markdown render and the reaction fetch of the comments currently
+ * in the render window. `loadCommentReactions` applies the same idea for the
+ * reaction requests, so the host receives a bounded number of calls per tick.
+ */
+function requestCommentData(comments: ForgejoTimelineComment[]) {
+  for (const comment of comments) {
+    if (comment.id !== undefined) {
+      state.loadCommentReactions(props.instanceId, props.owner, props.repo, comment.id);
     }
+    const key = commentKey(comment);
+    if (!comment.body) {
+      continue;
+    }
+    if (renderedBodies[key] && renderedBodySources[key] === comment.body) {
+      continue;
+    }
+    if (loadingIds.value.has(key) || queuedCommentRenders.includes(comment)) {
+      continue;
+    }
+    queuedCommentRenders.push(comment);
+  }
+  pumpCommentRenders();
+}
+
+// Re-runs when the timeline arrives, when a body is edited in place, and when
+// the render window grows: each time it queues only what the visible rows still
+// need, and never more than MAX_MARKDOWN_RENDERS_IN_FLIGHT renders at once.
+watch(
+  [() => props.comments, visibleCommentCount],
+  () => {
+    requestCommentData(sortedComments.value.slice(0, visibleCommentCount.value));
   },
   { immediate: true, deep: true },
 );
@@ -199,22 +269,6 @@ async function uploadAttachment(comment: ForgejoTimelineComment, file: File) {
   } finally {
     uploadingCommentCount.value -= 1;
   }
-}
-
-const sortOrder = ref<'asc' | 'desc'>('asc');
-
-const sortedComments = computed(() => {
-  const list = [...props.comments];
-  list.sort((a, b) => {
-    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return sortOrder.value === 'asc' ? ta - tb : tb - ta;
-  });
-  return list;
-});
-
-function toggleSortOrder() {
-  sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
 }
 
 const menuRefs = ref<Map<number, HTMLElement>>(new Map());
@@ -403,7 +457,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
       </vscode-button>
     </div>
     <div v-if="comments.length === 0" class="empty">{{ t('dashboard.detail.noComments') }}</div>
-    <div v-for="comment in sortedComments" :key="commentKey(comment)" class="timeline-item">
+    <div v-for="comment in visibleComments" :key="commentKey(comment)" class="timeline-item">
       <div class="timeline-header">
         <img
           v-if="comment.user?.avatar_url"
@@ -481,6 +535,12 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
       />
     </div>
 
+    <div v-if="hiddenCommentCount > 0" class="timeline-more">
+      <vscode-button secondary icon="chevron-down" @click="showMoreComments">
+        {{ t('dashboard.detail.showMoreComments', { count: nextCommentBatchCount }) }}
+      </vscode-button>
+    </div>
+
     <ModalDialog
       :open="editingComment !== undefined"
       :title="t('dashboard.detail.editComment')"
@@ -549,6 +609,11 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
 .empty {
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
+}
+
+.timeline-more {
+  display: flex;
+  justify-content: center;
 }
 
 .timeline-item {

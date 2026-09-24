@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import DiffFileList from '../DiffFileList.vue';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
 
-function mountList(props: Record<string, unknown> = {}) {
+function mountList(props: Record<string, unknown> = {}, options: { attachTo?: HTMLElement } = {}) {
   return mount(DiffFileList, {
     props: { files: [], ...props },
     global: { plugins: [createTestI18n('en')] },
+    ...options,
   });
 }
 
@@ -55,5 +57,104 @@ describe('DiffFileList truncation notice', () => {
 
     const below = mountList({ files: Array.from({ length: 499 }, (_, i) => file(i)) });
     expect(below.find('.list-truncated').exists()).toBe(false);
+  });
+});
+
+/**
+ * The tree is a keyboard widget: every row used to be a tab stop, so a large
+ * diff took one Tab press per file. It follows the conventional roving-tabindex
+ * pattern instead — one tab stop for the whole tree, arrow keys to move — which
+ * is what these tests pin down.
+ */
+describe('DiffFileList tree keyboard navigation', () => {
+  // Flat names, so the tree has exactly one row per file.
+  const threeFiles = [
+    { filename: 'a.ts', status: 'modified', additions: 1, deletions: 0, changes: 1 },
+    { filename: 'b.ts', status: 'added', additions: 2, deletions: 0, changes: 2 },
+    { filename: 'c.ts', status: 'removed', additions: 0, deletions: 3, changes: 3 },
+  ];
+
+  function mountTree() {
+    // Focus assertions need the component connected to the document.
+    return mountList({ files: threeFiles, supportsMultiDiff: true }, { attachTo: document.body });
+  }
+
+  function rowByPath(wrapper: ReturnType<typeof mountTree>, path: string) {
+    return wrapper.get(`.tree-row[data-path="${path}"]`);
+  }
+
+  it('keeps a single tab stop for the whole tree', async () => {
+    const wrapper = mountTree();
+    await nextTick();
+
+    const rows = wrapper.findAll('.tree-row');
+    expect(rows).toHaveLength(3);
+
+    const tabbable = rows.filter((row) => row.attributes('tabindex') === '0');
+    expect(tabbable).toHaveLength(1);
+    expect(rows.filter((row) => row.attributes('tabindex') === '-1')).toHaveLength(rows.length - 1);
+
+    // One tab stop means the whole tree, not just its rows: every focusable
+    // element inside it is counted, so a row checkbox that stays focusable
+    // fails this even though the roving tabindex on the rows looks right.
+    const tabStops = wrapper
+      .get('.file-tree')
+      .findAll('*')
+      .filter((node) => node.attributes('tabindex') !== '-1' && node.attributes('tabindex') !== undefined);
+    expect(tabStops.map((node) => node.attributes('tabindex'))).toEqual(['0']);
+    expect(wrapper.get('.node-checkbox').attributes('tabindex')).toBe('-1');
+    wrapper.unmount();
+  });
+
+  it('toggles the focused row with Space and opens it with Enter', async () => {
+    const wrapper = mountTree();
+    await nextTick();
+
+    const checkboxOf = (path: string) => rowByPath(wrapper, path).find('.node-checkbox');
+    const first = rowByPath(wrapper, 'a.ts');
+    expect((checkboxOf('a.ts').element as HTMLInputElement).checked).toBe(false);
+
+    // Space is the row's selection key: the checkbox it stands for is not a tab
+    // stop, so the row is the only way to reach it from the keyboard.
+    await first.trigger('keydown', { key: ' ' });
+    await nextTick();
+    expect((checkboxOf('a.ts').element as HTMLInputElement).checked).toBe(true);
+
+    await first.trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted('openDiff')?.[0]).toEqual(['a.ts', 'modified', undefined]);
+
+    // Space must not open the diff as well.
+    expect(wrapper.emitted('openDiff')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it('moves focus with the arrow keys and opens the focused file', async () => {
+    const wrapper = mountTree();
+    await nextTick();
+
+    const tree = wrapper.get('.file-tree');
+    await tree.trigger('keydown', { key: 'ArrowDown' });
+    await flushPromises();
+
+    expect(document.activeElement?.getAttribute('data-path')).toBe('b.ts');
+    expect(rowByPath(wrapper, 'b.ts').attributes('tabindex')).toBe('0');
+    expect(rowByPath(wrapper, 'a.ts').attributes('tabindex')).toBe('-1');
+
+    await tree.trigger('keydown', { key: 'ArrowUp' });
+    await flushPromises();
+    expect(document.activeElement?.getAttribute('data-path')).toBe('a.ts');
+
+    await rowByPath(wrapper, 'a.ts').trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted('openDiff')?.[0]).toEqual(['a.ts', 'modified', undefined]);
+    wrapper.unmount();
+  });
+
+  it('names each file checkbox after the file it selects', async () => {
+    const wrapper = mountTree();
+    await nextTick();
+
+    const labels = wrapper.findAll('.node-checkbox').map((box) => box.attributes('aria-label'));
+    expect(labels).toEqual(['Select a.ts (modified)', 'Select b.ts (added)', 'Select c.ts (removed)']);
+    wrapper.unmount();
   });
 });

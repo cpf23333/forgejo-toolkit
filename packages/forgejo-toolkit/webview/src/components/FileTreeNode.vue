@@ -1,14 +1,39 @@
 <script setup lang="ts">
+import { computed, inject, provide, type ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { FileTreeNode } from '../types/fileTree';
+import { fileTreeFocusedPathKey, type FileTreeNode } from '../types/fileTree';
 
 const { t } = useI18n();
 
+/**
+ * Roving tabindex: only one row of the tree is a tab stop at a time, so a
+ * 500-file diff is reachable with Tab + arrow keys instead of 500 tab presses.
+ * The tree owner (`DiffFileList`) provides the path of the focused row, and each
+ * row passes it on to its children, so one state drives every nested row.
+ */
 interface Props {
   node: FileTreeNode;
+  /** Path of the row that owns the tree's single tab stop (absent outside a tree). */
+  focusPath?: string | null;
+  /** Depth in the tree, announced by screen readers as the row's level. */
+  level?: number;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), { level: 1 });
+
+// `null` means "no row chosen yet"; the first row then carries the tab stop.
+const inheritedPath = inject<ComputedRef<string | null> | null>(fileTreeFocusedPathKey, null);
+const focusedPath = computed(() => (props.focusPath === undefined ? inheritedPath?.value : props.focusPath));
+const isTabbable = computed(() => {
+  const path = focusedPath.value;
+  return path === null || path === undefined ? true : path === props.node.path;
+});
+
+provide(
+  fileTreeFocusedPathKey,
+  computed(() => props.node.path),
+);
+
 const emit = defineEmits<{
   toggleExpand: [node: FileTreeNode];
   check: [node: FileTreeNode, checked: boolean];
@@ -48,6 +73,8 @@ function onRowClick(event: MouseEvent) {
 
 function onRowKeydown(event: KeyboardEvent) {
   if (event.key !== 'Enter' && event.key !== ' ') {
+    // Arrow keys are tree navigation; the tree owner (`DiffFileList`) resolves
+    // them from the keydown that bubbles up from this row.
     return;
   }
   // Keydown bubbles from focused inner controls; like onRowClick, leave the
@@ -58,12 +85,28 @@ function onRowKeydown(event: KeyboardEvent) {
     return;
   }
   event.preventDefault();
+  // Space is the row's selection key (the checkbox it stands for is not a tab
+  // stop of its own), Enter opens the diff.
+  if (event.key === ' ') {
+    emit('check', props.node, !props.node.checked);
+    return;
+  }
   if (isDir) {
     onToggleExpand();
   } else {
     openDiff();
   }
 }
+
+// The checkbox is the row's selection control and needs a name of its own: the
+// visible text sits outside it, so screen readers would announce a bare
+// "checkbox" for every changed file.
+const checkboxLabel = computed(() => {
+  if (isDir) {
+    return props.node.name;
+  }
+  return t('dashboard.detail.selectFile', { name: props.node.name, status: statusText(props.node.file?.status) });
+});
 
 function statusClass(status?: string): string {
   switch (status) {
@@ -133,7 +176,12 @@ function nodeIcon(): string {
     <div
       class="tree-row"
       :class="{ 'is-file': !isDir, 'is-dir': isDir }"
-      tabindex="0"
+      v-bind="{ 'data-path': props.node.path }"
+      :tabindex="isTabbable ? 0 : -1"
+      role="treeitem"
+      :aria-level="props.level"
+      :aria-expanded="hasChildren ? props.node.expanded : undefined"
+      :aria-selected="props.node.checked"
       @click="onRowClick"
       @keydown="onRowKeydown"
     >
@@ -142,6 +190,8 @@ function nodeIcon(): string {
         class="node-checkbox"
         :checked="props.node.checked"
         :indeterminate="props.node.indeterminate"
+        :aria-label="checkboxLabel"
+        tabindex="-1"
         @change="onCheck"
       />
       <span
@@ -171,6 +221,8 @@ function nodeIcon(): string {
         v-for="child in props.node.children"
         :key="child.path"
         :node="child"
+        :focus-path="focusedPath"
+        :level="props.level + 1"
         @toggle-expand="(childNode) => emit('toggleExpand', childNode)"
         @check="(childNode, checked) => emit('check', childNode, checked)"
         @open-diff="(filename, status, previousFilename) => emit('openDiff', filename, status, previousFilename)"

@@ -11,6 +11,15 @@ export const messages = {
 
 export const defaultLocale: Locale = 'zh';
 
+/**
+ * BCP-47 spelling of an app locale, for `<html lang>` and the `toLocale*` /
+ * `Intl` formatters: without it the host browser formats dates and numbers with
+ * whatever locale it is running in, which does not match the UI language.
+ */
+export function localeTag(locale: Locale): string {
+  return locale === 'zh' ? 'zh-CN' : 'en';
+}
+
 export function createI18nInstance(locale: Locale = defaultLocale) {
   return createI18n({
     legacy: false,

@@ -375,6 +375,7 @@ async function handleCreateSubmit(data: {
           :value="searchInput"
           class="search-input"
           :placeholder="t('dashboard.repoPullRequests.searchPlaceholder')"
+          :label="t('dashboard.repoPullRequests.searchPlaceholder')"
           @input="searchInput = ($event.target as HTMLInputElement).value"
         />
         <vscode-button icon="add" @click="openCreatePullRequest()">

@@ -1,4 +1,4 @@
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { ForgejoInstance } from '../types/instance';
@@ -27,8 +27,32 @@ const MAX_JOB_LOG_ENTRIES = 10;
 const MAX_PAYLOAD_ENTRIES = 64;
 
 // How long a request/response round-trip to the extension host may take
-// before the pending promise is rejected as timed out.
-const REQUEST_TIMEOUT_MS = 60_000;
+// before the pending promise is rejected as timed out. Most commands answer
+// in seconds, so abandoning one after a minute frees its slot instead of
+// spinning forever.
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
+
+/**
+ * The host does not bound some commands by the webview's minute: it waits for
+ * its own modal confirmation dialog (an unbounded human decision) before
+ * replying to the two attachment-delete commands. Rejecting those at 60 s
+ * would discard the real reply — and the work the user just confirmed —
+ * while the host still considers the request in flight. They get the host's
+ * long-operation budget instead (mirrors `API_DOWNLOAD_TIMEOUT_MS` in
+ * `src/api/client.ts`, which cannot be imported here: the webview bundle
+ * must not pull in extension-host code).
+ */
+const HOST_LONG_OPERATION_TIMEOUT_MS = 5 * 60_000;
+
+const COMMAND_TIMEOUTS_MS: Record<string, number> = {
+  // Host-side native confirmation before the reply.
+  deleteReleaseAttachment: HOST_LONG_OPERATION_TIMEOUT_MS,
+  deleteIssueCommentAttachment: HOST_LONG_OPERATION_TIMEOUT_MS,
+};
+
+function requestTimeoutMs(command: string): number {
+  return COMMAND_TIMEOUTS_MS[command] ?? DEFAULT_REQUEST_TIMEOUT_MS;
+}
 
 function evictOldestKey<V>(map: Map<string, V>, skip?: (value: V) => boolean) {
   for (const [key, value] of map) {
@@ -86,6 +110,15 @@ function clearByPrefix<V>(map: Map<string, V>, prefix: string) {
 }
 
 /**
+ * Whether a repository-list "fetched" mark written at `timestamp` is still
+ * fresh. A mark older than `ttlMs` means the list it guards must be refetched
+ * rather than served from the payload map.
+ */
+function isMarkFresh(timestamp: number | undefined, ttlMs: number): boolean {
+  return timestamp !== undefined && Date.now() - timestamp <= ttlMs;
+}
+
+/**
  * Whether `key` belongs to the repository scope `${instanceId}:${owner}/${repo}`.
  * Keys append a separator (`:state`, `#pr-3`, `:branch:main`) or nothing at all,
  * so the match must stop at a boundary: clearing `owner/repo` must not also drop
@@ -106,7 +139,7 @@ import '../types/config';
 import { postMessage } from './vscode';
 
 const vscodeVersion = window.__FORGEJO_TOOLKIT_CONFIG__?.vscodeVersion ?? '';
-import type { Locale } from '../i18n';
+import { localeTag, type Locale } from '../i18n';
 import type {
   ForgejoActionRun,
   ForgejoActionRunJob,
@@ -163,6 +196,21 @@ export interface MentionIssue {
   state?: string;
   user?: ForgejoUser;
   is_pull?: boolean;
+}
+
+/**
+ * Which form a `saveInstanceResult` answers: an existing instance (edit) or a
+ * brand-new one (add). The host does not echo identity for this
+ * request/response pair, so the webview stamps the reply with the target it
+ * sent it for.
+ */
+export interface SaveInstanceTarget {
+  kind: 'instance' | 'new';
+  instanceId?: string;
+}
+
+export function saveInstanceTargetKey(target: SaveInstanceTarget): string {
+  return target.kind === 'instance' ? `instance:${target.instanceId ?? ''}` : 'new';
 }
 
 function createAppState() {
@@ -314,8 +362,15 @@ function createAppState() {
   // repoIssues/repoPullRequests store the lists themselves; these track when
   // each list was last fetched so a cached list goes stale after the TTL and
   // the next visit refetches instead of serving it forever.
-  const repoIssuesFetchedAt = createTimedCache<true>(30_000);
-  const repoPullRequestsFetchedAt = createTimedCache<true>(30_000);
+  //
+  // A reactive Map rather than a `createTimedCache`, and NOT wrapped in a ref:
+  // the dependency picker reads the mark from a `computed`, and a plain object
+  // behind a computed caches its first answer forever, so "this list has never
+  // been fetched" would never turn into "it has" (and the picker's empty hint
+  // could never render). Every value here is a fetch timestamp.
+  const REPO_LIST_MARKS_TTL_MS = 30_000;
+  const repoIssuesFetchedAt = reactive(new Map<string, number>());
+  const repoPullRequestsFetchedAt = reactive(new Map<string, number>());
 
   const issueDetailCache = createTimedCache<ForgejoIssueDetail>(5_000);
   const pullRequestDetailCache = createTimedCache<ForgejoPullRequestDetail>(5_000);
@@ -366,8 +421,21 @@ function createAppState() {
     title?: string;
     body?: string;
   } | null>(null);
-  const testConnectionResult = ref<{ success: boolean; username?: string; error?: string } | undefined>(undefined);
-  const saveInstanceResult = ref<{ success: boolean; error?: string } | undefined>(undefined);
+  // `target` is stamped by the webview (the host reply carries no identity):
+  // it tells a view which form a `testConnectionResult` answers, so testing one
+  // instance and then opening another does not show "Connected as <the other
+  // instance's user>" as the form on screen's status. Optional so a reply that
+  // arrives without a recorded intent still flows through unchanged.
+  const testConnectionResult = ref<
+    { success: boolean; username?: string; error?: string; target?: SaveInstanceTarget } | undefined
+  >(undefined);
+  // `target` is stamped by the webview (the host reply carries no identity):
+  // it tells a view which form this reply answers so a reply for one form is
+  // not applied to another the user has since opened. Optional so a reply that
+  // arrives without a recorded intent still flows through unchanged.
+  const saveInstanceResult = ref<{ success: boolean; error?: string; target?: SaveInstanceTarget } | undefined>(
+    undefined,
+  );
   const exportInstancesResult = ref<{ success: boolean; path?: string; error?: string } | undefined>(undefined);
   const importInstancesResult = ref<{ success: boolean; count?: number; error?: string } | undefined>(undefined);
   // Preview data from the host: token fields are stripped to '' host-side
@@ -401,6 +469,29 @@ function createAppState() {
     | { command: 'saveInstance'; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean }
     | { command: 'editInstance'; id: string; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean };
   let saveInstanceLatestArgs: SaveInstanceMessage | undefined;
+
+  // The form the latest save intent belongs to. The host's reply carries no
+  // identity, so every reply is stamped with this target; reading it at reply
+  // time also gives a replayed superseded intent its own target once its
+  // response finally lands.
+  function saveInstanceTargetOf(message: SaveInstanceMessage | undefined): SaveInstanceTarget | undefined {
+    if (!message) {
+      return undefined;
+    }
+    return message.command === 'editInstance' ? { kind: 'instance', instanceId: message.id } : { kind: 'new' };
+  }
+
+  // The form a `testConnection` intent belongs to: the edit form of the
+  // instance it carries, or the add form when it has none. Read at reply time
+  // so a replayed superseded intent is stamped with its own target.
+  function testConnectionTargetOf(
+    message: { url: string; token: string; instanceId?: string } | undefined,
+  ): SaveInstanceTarget | undefined {
+    if (!message) {
+      return undefined;
+    }
+    return message.instanceId ? { kind: 'instance', instanceId: message.instanceId } : { kind: 'new' };
+  }
   let importPreviewToken = 0;
   let importPreviewInFlightToken = 0;
   // Latest loadNotifications intent recorded while a request is in flight;
@@ -497,9 +588,13 @@ function createAppState() {
   // promise rejects and the associated loading state is cleared instead of
   // spinning forever. The stored resolve/reject clear the timer, so normal
   // responses never trigger the timeout path.
+  // `command` (the host command name, not the request id) selects the timeout
+  // budget: most commands get the default minute, while commands the host may
+  // block on a human decision get its long-operation budget.
   function registerPending<T, E>(
     map: Map<string, PendingHandlers<T, E> & { loadingKey?: string }>,
     id: string,
+    command: string,
     handlers: PendingHandlers<T, E>,
     options?: { loadingKey?: string; makeTimeoutError?: () => E; extra?: Record<string, unknown> },
   ): void {
@@ -514,7 +609,7 @@ function createAppState() {
         setError(loadingKey, t('common.requestTimeout'));
       }
       handlers.reject(makeTimeoutError());
-    }, REQUEST_TIMEOUT_MS);
+    }, requestTimeoutMs(command));
     map.set(id, {
       ...options?.extra,
       resolve: (value: T) => {
@@ -2600,7 +2695,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       setPayloadEntry(repoIssues.value, key, data.issues ?? []);
-      repoIssuesFetchedAt.set(key, true);
+      repoIssuesFetchedAt.set(key, Date.now());
     }
   }
 
@@ -2620,7 +2715,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       setPayloadEntry(repoPullRequests.value, key, data.pullRequests ?? []);
-      repoPullRequestsFetchedAt.set(key, true);
+      repoPullRequestsFetchedAt.set(key, Date.now());
     }
   }
 
@@ -3175,7 +3270,11 @@ function createAppState() {
       return;
     }
     testConnectionInFlightToken = 0;
-    testConnectionResult.value = message;
+    // Stamp the reply with the form the intent it answers was sent for, the
+    // same way a save reply is stamped: without it, testing one instance and
+    // then opening another leaves "Connected as <the first user>" on the form
+    // now on screen.
+    testConnectionResult.value = { ...message, target: testConnectionTargetOf(testConnectionLatestArgs) };
   }
 
   function armTestConnectionTimeout() {
@@ -3184,7 +3283,7 @@ function createAppState() {
     }
     testConnectionTimeout = setTimeout(() => {
       handleTestConnectionResult({ success: false, error: t('common.requestTimeout') });
-    }, REQUEST_TIMEOUT_MS);
+    }, DEFAULT_REQUEST_TIMEOUT_MS);
   }
 
   function handleSaveInstanceResult(message: { success: boolean; error?: string }) {
@@ -3199,7 +3298,10 @@ function createAppState() {
       return;
     }
     saveInstanceInFlightToken = 0;
-    saveInstanceResult.value = message;
+    // Stamp the reply with the target of the intent it answers (the latest
+    // one: a superseded response was dropped and replayed above, and the
+    // target is read from the args that request was sent with).
+    saveInstanceResult.value = { ...message, target: saveInstanceTargetOf(saveInstanceLatestArgs) };
   }
 
   function armSaveInstanceTimeout() {
@@ -3208,7 +3310,7 @@ function createAppState() {
     }
     saveInstanceTimeout = setTimeout(() => {
       handleSaveInstanceResult({ success: false, error: t('common.requestTimeout') });
-    }, REQUEST_TIMEOUT_MS);
+    }, DEFAULT_REQUEST_TIMEOUT_MS);
   }
 
   function testConnection(url: string, token: string, instanceId?: string) {
@@ -3280,6 +3382,14 @@ function createAppState() {
     locale.value = newLocale;
     postMessage({ command: 'setLocale', locale: newLocale });
   }
+
+  // `<html lang>` follows the locale the UI renders in (screen readers pick
+  // their language rules from it): the host can push a locale (initial state, a
+  // settings change from another panel), so watch the state rather than only
+  // the local changeLocale call.
+  watch(locale, (value) => {
+    document.documentElement.lang = localeTag(value as Locale);
+  });
 
   function changeDebug(newDebug: boolean) {
     debug.value = newDebug;
@@ -3417,7 +3527,13 @@ function createAppState() {
     beginLoading(key);
     const _requestId = `release-create-${++releaseCreationRequestId}`;
     return new Promise((resolve, reject) => {
-      registerPending(pendingReleaseCreations, _requestId, { resolve, reject }, { loadingKey: key });
+      registerPending(
+        pendingReleaseCreations,
+        _requestId,
+        'createRepoRelease',
+        { resolve, reject },
+        { loadingKey: key },
+      );
       postMessage({
         command: 'createRepoRelease',
         instanceId,
@@ -3470,6 +3586,7 @@ function createAppState() {
       registerPending(
         releaseAttachmentPromises,
         _requestId,
+        'createReleaseAttachment',
         { resolve, reject },
         {
           makeTimeoutError: () => t('common.requestTimeout'),
@@ -3504,6 +3621,7 @@ function createAppState() {
       registerPending(
         releaseAttachmentDeletePromises,
         _requestId,
+        'deleteReleaseAttachment',
         { resolve, reject },
         {
           makeTimeoutError: () => t('common.requestTimeout'),
@@ -3564,7 +3682,7 @@ function createAppState() {
     beginLoading(key);
     const _requestId = `issue-create-${++issueCreationRequestId}`;
     return new Promise((resolve, reject) => {
-      registerPending(pendingIssueCreations, _requestId, { resolve, reject }, { loadingKey: key });
+      registerPending(pendingIssueCreations, _requestId, 'createIssue', { resolve, reject }, { loadingKey: key });
       postMessage({
         command: 'createIssue',
         instanceId,
@@ -3687,7 +3805,13 @@ function createAppState() {
     beginLoading(key);
     const _requestId = `issue-comment-create-${++issueCommentCreationRequestId}`;
     return new Promise((resolve, reject) => {
-      registerPending(pendingIssueCommentCreations, _requestId, { resolve, reject }, { loadingKey: key });
+      registerPending(
+        pendingIssueCommentCreations,
+        _requestId,
+        'createIssueComment',
+        { resolve, reject },
+        { loadingKey: key },
+      );
       postMessage({ command: 'createIssueComment', instanceId, owner, repo, index, body, _requestId });
     });
   }
@@ -3719,7 +3843,7 @@ function createAppState() {
   ): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}:comment-${commentId}:attachment-delete:${++attachmentDeleteRequestId}`;
-      registerPending(pendingAttachmentDeletes, id, { resolve, reject });
+      registerPending(pendingAttachmentDeletes, id, 'deleteIssueCommentAttachment', { resolve, reject });
       postMessage({
         command: 'deleteIssueCommentAttachment',
         instanceId,
@@ -3759,7 +3883,7 @@ function createAppState() {
   ): Promise<ForgejoIssueAttachment> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}#issue-${index}:attachment:${++attachmentUploadRequestId}`;
-      registerPending(pendingAttachmentUploads, id, { resolve, reject });
+      registerPending(pendingAttachmentUploads, id, 'createIssueAttachment', { resolve, reject });
       const reader = new FileReader();
       reader.onload = () => {
         const array = new Uint8Array(reader.result as ArrayBuffer);
@@ -3789,7 +3913,7 @@ function createAppState() {
   ): Promise<ForgejoIssueAttachment> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}#issue-${index}:comment-${commentId}:attachment:${++attachmentUploadRequestId}`;
-      registerPending(pendingAttachmentUploads, id, { resolve, reject });
+      registerPending(pendingAttachmentUploads, id, 'createIssueCommentAttachment', { resolve, reject });
       const reader = new FileReader();
       reader.onload = () => {
         const array = new Uint8Array(reader.result as ArrayBuffer);
@@ -3823,7 +3947,7 @@ function createAppState() {
   ): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const id = `${instanceId}:${owner}/${repo}#issue-${index}:attachment-delete:${++attachmentDeleteRequestId}`;
-      registerPending(pendingAttachmentDeletes, id, { resolve, reject });
+      registerPending(pendingAttachmentDeletes, id, 'deleteIssueAttachment', { resolve, reject });
       postMessage({
         command: 'deleteIssueAttachment',
         instanceId,
@@ -3855,7 +3979,13 @@ function createAppState() {
     beginLoading(key);
     const _requestId = `pull-request-create-${++pullRequestCreationRequestId}`;
     return new Promise((resolve, reject) => {
-      registerPending(pendingPullRequestCreations, _requestId, { resolve, reject }, { loadingKey: key });
+      registerPending(
+        pendingPullRequestCreations,
+        _requestId,
+        'createPullRequest',
+        { resolve, reject },
+        { loadingKey: key },
+      );
       postMessage({
         command: 'createPullRequest',
         instanceId,
@@ -4086,7 +4216,7 @@ function createAppState() {
 
   function loadRepoIssues(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
     const key = repoIssuesKey(instanceId, owner, repo, state, query);
-    if (repoIssues.value.has(key) && repoIssuesFetchedAt.has(key)) {
+    if (repoIssues.value.has(key) && isMarkFresh(repoIssuesFetchedAt.get(key), REPO_LIST_MARKS_TTL_MS)) {
       return;
     }
     if (loading.get(key)) {
@@ -4349,7 +4479,7 @@ function createAppState() {
 
   function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
     const key = repoPullRequestsKey(instanceId, owner, repo, state, query);
-    if (repoPullRequests.value.has(key) && repoPullRequestsFetchedAt.has(key)) {
+    if (repoPullRequests.value.has(key) && isMarkFresh(repoPullRequestsFetchedAt.get(key), REPO_LIST_MARKS_TTL_MS)) {
       return;
     }
     if (loading.get(key)) {
@@ -4540,7 +4670,13 @@ function createAppState() {
     }
     const _requestId = `render-${++renderMarkdownRequestId}`;
     const promise = new Promise<string>((resolve, reject) => {
-      registerPending(pendingRenderMarkdownRequests, _requestId, { resolve, reject }, { extra: { cacheKey } });
+      registerPending(
+        pendingRenderMarkdownRequests,
+        _requestId,
+        'renderMarkdown',
+        { resolve, reject },
+        { extra: { cacheKey } },
+      );
       postMessage({ command: 'renderMarkdown', instanceId, text, context, _requestId });
     });
     inFlightRenderMarkdown.set(cacheKey, promise);
@@ -4562,7 +4698,7 @@ function createAppState() {
   ): Promise<{ users: MentionUser[]; issues: MentionIssue[] }> {
     const _requestId = `mention-${++mentionSearchRequestId}`;
     return new Promise((resolve, reject) => {
-      registerPending(pendingMentionSearchRequests, _requestId, { resolve, reject });
+      registerPending(pendingMentionSearchRequests, _requestId, 'searchMentions', { resolve, reject });
       postMessage({ command: 'searchMentions', instanceId, owner, repo, query, type, _requestId });
     });
   }
@@ -4570,7 +4706,7 @@ function createAppState() {
   function getUserPreview(instanceId: string, username: string): Promise<ForgejoUser | undefined> {
     const _requestId = `user-preview-${++userPreviewRequestId}`;
     return new Promise((resolve, reject) => {
-      registerPending(pendingUserPreviewRequests, _requestId, { resolve, reject });
+      registerPending(pendingUserPreviewRequests, _requestId, 'getUserPreview', { resolve, reject });
       postMessage({ command: 'getUserPreview', instanceId, username, _requestId });
     });
   }
@@ -4583,7 +4719,7 @@ function createAppState() {
   ): Promise<ForgejoIssue | undefined> {
     const _requestId = `issue-preview-${++issuePreviewRequestId}`;
     return new Promise((resolve, reject) => {
-      registerPending(pendingIssuePreviewRequests, _requestId, { resolve, reject });
+      registerPending(pendingIssuePreviewRequests, _requestId, 'getIssuePreview', { resolve, reject });
       postMessage({ command: 'getIssuePreview', instanceId, owner, repo, index, _requestId });
     });
   }
@@ -4665,8 +4801,8 @@ function createAppState() {
     repoLabelsCache.deleteWhere(inScope);
     repoAssigneesCache.deleteWhere(inScope);
     repoMilestonesCache.deleteWhere(inScope);
-    repoIssuesFetchedAt.deleteWhere(inScope);
-    repoPullRequestsFetchedAt.deleteWhere(inScope);
+    clearWhere(repoIssuesFetchedAt, inScope);
+    clearWhere(repoPullRequestsFetchedAt, inScope);
   }
 
   /**
@@ -4677,13 +4813,13 @@ function createAppState() {
    */
   function invalidateRepoIssueLists(prefix: string): void {
     clearByPrefix(repoIssues.value, `${prefix}:issues:`);
-    repoIssuesFetchedAt.deleteWhere((key) => key.startsWith(`${prefix}:issues:`));
+    clearWhere(repoIssuesFetchedAt, (key) => key.startsWith(`${prefix}:issues:`));
   }
 
   /** Same as `invalidateRepoIssueLists` for the pull request lists. */
   function invalidateRepoPullRequestLists(prefix: string): void {
     clearByPrefix(repoPullRequests.value, `${prefix}:pulls:`);
-    repoPullRequestsFetchedAt.deleteWhere((key) => key.startsWith(`${prefix}:pulls:`));
+    clearWhere(repoPullRequestsFetchedAt, (key) => key.startsWith(`${prefix}:pulls:`));
   }
 
   // The repository the route currently points at. Navigating to another one

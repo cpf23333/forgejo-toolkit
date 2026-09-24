@@ -1,6 +1,6 @@
 import { createApp } from 'vue';
 import App from './App.vue';
-import { createI18nInstance, defaultLocale } from './i18n';
+import { createI18nInstance, defaultLocale, localeTag } from './i18n';
 import { createAppRouter } from './router';
 import './types/config';
 import '@vscode-elements/elements/dist/vscode-button/index.js';
@@ -22,6 +22,11 @@ const config = window.__FORGEJO_TOOLKIT_CONFIG__;
 const panelMode = config?.panelMode;
 const panelLocale = config?.locale ?? defaultLocale;
 const i18n = createI18nInstance(panelMode ? panelLocale : defaultLocale);
+
+// `index.html` ships `lang="en"`; screen readers and the browser pick their
+// language rules from it, so it has to follow the locale the panel actually
+// renders in. `useAppState` keeps it in sync when the locale changes at runtime.
+document.documentElement.lang = localeTag(panelMode ? panelLocale : defaultLocale);
 
 // The dashboard is the common case and stays static; the two standalone panels are
 // imported on demand, so opening one of them (or the dashboard) does not download

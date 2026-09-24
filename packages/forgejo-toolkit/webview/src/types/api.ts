@@ -255,6 +255,8 @@ export interface ForgejoRepoDetail {
   repository: ForgejoRepository;
   empty: boolean;
   readme?: string;
+  /** Size of a README whose payload the contents API withheld; undefined otherwise. */
+  readmeSize?: number;
   branches: string[];
   recentCommits: ForgejoCommit[];
 }

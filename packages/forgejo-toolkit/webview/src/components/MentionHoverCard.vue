@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAppState } from '../composables/useAppState';
 import type { ForgejoIssue, ForgejoUser } from '../types/api';
 
 const props = defineProps<{
@@ -13,6 +14,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const state = useAppState();
 
 const user = computed(() => (props.type === 'user' ? (props.data as ForgejoUser | undefined) : undefined));
 const issue = computed(() => (props.type === 'issue' ? (props.data as ForgejoIssue | undefined) : undefined));
@@ -40,7 +42,7 @@ function formatDate(value?: string): string {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return date.toLocaleDateString();
+  return date.toLocaleDateString(state.locale.value);
 }
 </script>
 

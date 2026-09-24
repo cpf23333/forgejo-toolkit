@@ -1,5 +1,6 @@
 import { config } from '@vue/test-utils';
 import { vi } from 'vitest';
+import { VSCODE_ELEMENT_STUBS } from './helpers/vscodeElements';
 
 if (typeof window !== 'undefined') {
   (window as any).__FORGEJO_TOOLKIT_CONFIG__ = {
@@ -13,49 +14,14 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Stubs for the `<vscode-*>` elements the webview renders. They are compiled as
+// custom elements (`vite.config.ts` sets `isCustomElement` for every `vscode-`
+// tag), so Vue never resolves them as components and these entries do not
+// actually replace them today; what keeps the list complete is the drift guard
+// in `__tests__/helpers/vscodeElements.test.ts`. The stub markup is kept so a
+// tag that ever becomes a real component is already stubbed rather than
+// rendered for real.
 config.global.stubs = {
   ...config.global.stubs,
-  'vscode-tree-item': {
-    template:
-      '<div data-stub="vscode-tree-item" :data-branch="$attrs.branch" :data-level="$attrs.level"><slot /><slot name="actions" /></div>',
-  },
-  'vscode-tree': {
-    template: '<div data-stub="vscode-tree"><slot /></div>',
-  },
-  'vscode-button': {
-    template: '<button data-stub="vscode-button"><slot /></button>',
-  },
-  'vscode-icon': {
-    template: '<span data-stub="vscode-icon" :class="$attrs.class"><slot /></span>',
-  },
-  'vscode-dropdown': {
-    template: '<select data-stub="vscode-dropdown"><slot /></select>',
-  },
-  'vscode-option': {
-    template: '<option data-stub="vscode-option"><slot /></option>',
-  },
-  'vscode-text-field': {
-    template: '<input data-stub="vscode-text-field" />',
-  },
-  'vscode-text-area': {
-    template: '<textarea data-stub="vscode-text-area" />',
-  },
-  'vscode-checkbox': {
-    template: '<input type="checkbox" data-stub="vscode-checkbox" />',
-  },
-  'vscode-radio': {
-    template: '<input type="radio" data-stub="vscode-radio" />',
-  },
-  'vscode-tabs': {
-    template: '<div data-stub="vscode-tabs"><slot /></div>',
-  },
-  'vscode-tab-header': {
-    template: '<div data-stub="vscode-tab-header"><slot /></div>',
-  },
-  'vscode-tab-panel': {
-    template: '<div data-stub="vscode-tab-panel"><slot /></div>',
-  },
-  'vscode-tab': {
-    template: '<div data-stub="vscode-tab"><slot /></div>',
-  },
+  ...VSCODE_ELEMENT_STUBS,
 };

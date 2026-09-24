@@ -141,3 +141,116 @@ describe('RepoFileBrowser truncated search', () => {
     expect(wrapper.text()).not.toContain('dashboard.fileBrowser.searchTruncated');
   });
 });
+
+/**
+ * `vscode-tree-item` is a custom element: every entry costs a host element and a
+ * shadow root even while a collapsed branch hides it with CSS, and the host
+ * reply for a directory is uncapped. A directory with thousands of entries used
+ * to mount one element per entry in a single render, which froze the panel.
+ */
+describe('RepoFileBrowser directory entry cap', () => {
+  const ROOT_KEY = 'inst-1:owner/repo:main:';
+  const CAP = 200;
+
+  beforeEach(() => {
+    stateMock.loadRepoContents.mockClear();
+    stateMock.repoContents.value.clear();
+  });
+
+  function setRootEntries(count: number) {
+    const state = useAppState() as unknown as { repoContents: { value: Map<string, unknown[]> } };
+    state.repoContents.value.set(
+      ROOT_KEY,
+      Array.from({ length: count }, (_, i) => ({
+        name: `file-${i}.ts`,
+        path: `file-${i}.ts`,
+        type: 'file',
+        size: 1,
+        sha: `sha-${i}`,
+      })),
+    );
+  }
+
+  it('mounts one batch of rows for a huge directory and keeps the rest reachable', async () => {
+    setRootEntries(5000);
+    const wrapper = mountHost();
+    await nextTick();
+
+    // 5k entries must not become 5k custom elements in one render.
+    const rows = wrapper.findAll('vscode-tree-item');
+    expect(rows.length).toBe(CAP + 1); // the batch plus the "show more" row
+    expect(wrapper.text()).toContain('file-0.ts');
+    expect(wrapper.text()).not.toContain('file-200.ts');
+
+    // Every entry stays reachable: the rest arrives in batches of the same size.
+    // (The state mock's `t` returns the key, so the batch size shows up as the
+    // interpolation argument rather than in the text.)
+    const showMore = wrapper.get('.tree-show-more');
+    expect(showMore.text()).toContain('dashboard.fileBrowser.showMore');
+    for (let batch = 0; batch < 3; batch++) {
+      await showMore.trigger('click');
+      await nextTick();
+    }
+    expect(wrapper.findAll('vscode-tree-item').length).toBe(CAP * 4 + 1);
+    expect(wrapper.text()).toContain('file-799.ts');
+
+    wrapper.unmount();
+  });
+
+  it('renders a directory of exactly the cap without a "show more" row', async () => {
+    setRootEntries(CAP);
+    const wrapper = mountHost();
+    await nextTick();
+
+    expect(wrapper.findAll('vscode-tree-item')).toHaveLength(CAP);
+    expect(wrapper.find('.tree-show-more').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('activates the "show more" row from the keyboard', async () => {
+    // The row lives inside `<vscode-tree>`, whose host keydown handler stops the
+    // key on the tree item and treats Enter/Space as item selection, so a nested
+    // button never receives the browser's own keyboard activation. The capture
+    // listener on the tree has to fire it instead.
+    setRootEntries(5000);
+    const wrapper = mountHost();
+    await nextTick();
+
+    const showMore = wrapper.get('.tree-show-more');
+    expect(wrapper.findAll('vscode-tree-item')).toHaveLength(CAP + 1);
+
+    await showMore.trigger('keydown', { key: 'Enter' });
+    await nextTick();
+    expect(wrapper.findAll('vscode-tree-item')).toHaveLength(CAP * 2 + 1);
+
+    await showMore.trigger('keydown', { key: ' ' });
+    await nextTick();
+    expect(wrapper.findAll('vscode-tree-item')).toHaveLength(CAP * 3 + 1);
+
+    // The mouse path still works.
+    await showMore.trigger('click');
+    await nextTick();
+    expect(wrapper.findAll('vscode-tree-item')).toHaveLength(CAP * 4 + 1);
+
+    wrapper.unmount();
+  });
+
+  it('does not load a file when the keyboard activates a "show more" row', async () => {
+    // Enter/Space over a tree item is also the tree's selection key: activating
+    // the row must not fall through to the item-select handler, which would try
+    // to open an item that has no file path.
+    setRootEntries(5000);
+    const wrapper = mountHost();
+    await nextTick();
+    // Mounting loads the root directory; only what the keypress adds matters.
+    stateMock.openRepoFile.mockClear();
+    stateMock.loadRepoContents.mockClear();
+
+    await wrapper.get('.tree-show-more').trigger('keydown', { key: 'Enter' });
+    await nextTick();
+
+    expect(stateMock.openRepoFile).not.toHaveBeenCalled();
+    expect(stateMock.loadRepoContents).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+});

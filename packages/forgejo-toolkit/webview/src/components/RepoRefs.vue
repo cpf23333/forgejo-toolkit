@@ -68,7 +68,7 @@ watch(loading, (value) => {
 
 function formatDate(date: string): string {
   try {
-    return new Date(date).toLocaleDateString();
+    return new Date(date).toLocaleDateString(state.locale.value);
   } catch {
     return date;
   }

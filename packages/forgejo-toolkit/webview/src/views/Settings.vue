@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { useAppState } from '../composables/useAppState';
+import { useAppState, saveInstanceTargetKey, type SaveInstanceTarget } from '../composables/useAppState';
 import ModalDialog from '../components/ModalDialog.vue';
 import TokenScopeList from '../components/TokenScopeList.vue';
 import type { ForgejoInstance } from '../types/instance';
@@ -36,6 +36,14 @@ const saving = ref(false);
 const status = ref('');
 const statusType = ref<'idle' | 'success' | 'error'>('idle');
 const editingInstance = ref<ForgejoInstance | null>(null);
+// The form this view is showing / last submitted, i.e. the only form a
+// `saveInstanceResult` may be applied to. The host's save reply carries no
+// identity, so the webview stamps it with the target it was sent for (see
+// sendSaveInstance); without this guard the reply for one form would wipe the
+// URL/token the user has since typed into another and claim that one was
+// saved. `null` means no form has been submitted yet, so only an unstamped
+// reply (one that predates stamping) is still applied.
+let submittedTarget: SaveInstanceTarget | null = null;
 const exportStatus = ref<{ message: string; type: 'success' | 'error' } | null>(null);
 const importStatus = ref<{ message: string; type: 'success' | 'error' } | null>(null);
 const exportDialogOpen = ref(false);
@@ -114,6 +122,7 @@ function handleSave() {
     return;
   }
   saving.value = true;
+  submittedTarget = { kind: 'new' };
   setStatus(t('settings.status.testing'));
   state.saveInstance(url.value.trim(), token.value.trim(), syncApiUrlsToInstanceUrl.value);
 }
@@ -123,12 +132,16 @@ function handleUpdate() {
     return;
   }
   saving.value = true;
+  submittedTarget = { kind: 'instance', instanceId: editingInstance.value.id };
   setStatus(t('settings.status.testing'));
   state.editInstance(editingInstance.value.id, url.value.trim(), token.value.trim(), syncApiUrlsToInstanceUrl.value);
 }
 
 function startEdit(instance: ForgejoInstance) {
   editingInstance.value = instance;
+  // The form on screen is this instance now: a reply for a previously
+  // submitted form must not touch it (see the saveInstanceResult watcher).
+  submittedTarget = { kind: 'instance', instanceId: instance.id };
   url.value = instance.url;
   // Tokens never reach the webview; leaving the field empty keeps the
   // stored token (see the editInstance host handler).
@@ -139,6 +152,9 @@ function startEdit(instance: ForgejoInstance) {
 
 function cancelEdit() {
   editingInstance.value = null;
+  // Back to the add form: a reply for the edit that was just abandoned does
+  // not belong to the form on screen any more.
+  submittedTarget = { kind: 'new' };
   url.value = '';
   token.value = '';
   syncApiUrlsToInstanceUrl.value = true;
@@ -267,7 +283,21 @@ watch(
     if (!result) {
       return;
     }
+    // The reply arrives once (the composable's own request timeout is already
+    // cleared when it lands), so the busy flag is cleared on every path. Below
+    // the target guard then only drops the *result*: reporting a test the user
+    // has navigated away from would claim the form on screen was tested, but
+    // leaving the form on "Testing…" with the button disabled for good is worse.
     testing.value = false;
+    if (
+      result.target &&
+      (!submittedTarget || saveInstanceTargetKey(result.target) !== saveInstanceTargetKey(submittedTarget))
+    ) {
+      // The test answered a form this view is no longer showing (the user
+      // opened another instance, or went back to the add form) — see the
+      // saveInstanceResult watcher below for the same rule.
+      return;
+    }
     if (result.success) {
       setStatus(t('settings.status.successConnection', { username: result.username ?? '' }), 'success');
     } else {
@@ -282,12 +312,32 @@ watch(
     if (!result) {
       return;
     }
+    // The reply arrives exactly once (the composable clears its request timer
+    // when the reply lands, and a superseded intent is dropped before it gets
+    // here), so the busy flag is reset before the target guard below: a form
+    // left on "Saving…" with its submit button disabled forever would be a
+    // worse bug than the status it protects.
     saving.value = false;
+    // The reply answers whichever form was submitted when it was sent; the
+    // user may have moved on since (opened another instance for edit, gone
+    // back to the add form). Applying the *result* here would wipe the fields
+    // of the form on screen and report a "saved" status for a save it never
+    // sent, so a stamped reply that is not this form's is dropped.
+    // `submittedTarget` is null until a form is submitted: only an unstamped
+    // legacy reply is applied then.
+    if (
+      result.target &&
+      (!submittedTarget || saveInstanceTargetKey(result.target) !== saveInstanceTargetKey(submittedTarget))
+    ) {
+      return;
+    }
     if (result.success) {
       setStatus(t('settings.status.successSaved'), 'success');
       url.value = '';
       token.value = '';
       editingInstance.value = null;
+      // The edit form just closed back to the add form.
+      submittedTarget = { kind: 'new' };
     } else {
       setStatus(result.error ?? t('settings.status.errorSaved'), 'error');
     }
@@ -679,31 +729,56 @@ label {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 8px;
   border: 1px solid var(--vscode-panel-border);
   border-radius: 4px;
   background-color: var(--vscode-editor-inactiveSelectionBackground);
 }
 
-.saved-actions {
+/*
+ * A saved instance URL or worktree path is arbitrarily long and `.settings` is
+ * an `overflow: auto` column: without a shrinkable, wrapping text block the row
+ * grows wider than the panel, adds a horizontal scrollbar and pushes the
+ * Edit/Remove buttons out of view. The text block yields instead; the actions
+ * keep their size.
+ */
+.saved-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.saved-actions,
+.worktree-actions {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex: 0 0 auto;
 }
 
 .saved-name {
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .saved-url {
   font-size: 0.85em;
   color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .saved-path {
   font-size: 0.8em;
   color: var(--vscode-descriptionForeground);
   font-family: var(--vscode-editor-font-family), monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .worktree-list {
@@ -720,12 +795,6 @@ label {
 
 .worktree-item {
   align-items: flex-start;
-}
-
-.worktree-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
 }
 
 .empty-list {

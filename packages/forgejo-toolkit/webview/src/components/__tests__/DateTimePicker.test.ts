@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import DateTimePicker from '../DateTimePicker.vue';
@@ -180,5 +180,116 @@ describe('DateTimePicker panel identity', () => {
 
     first.unmount();
     second.unmount();
+  });
+});
+
+/**
+ * The panel is `position: fixed`, so a field near an edge puts part of it
+ * outside the webview: at a narrow sidebar or high zoom the right columns and
+ * the footer buttons were unreachable, with no scrollbar to bring them back.
+ */
+describe('DateTimePicker panel clamping', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    restoreViewport();
+    vi.restoreAllMocks();
+  });
+
+  const originalViewport = {
+    width: Object.getOwnPropertyDescriptor(window, 'innerWidth'),
+    height: Object.getOwnPropertyDescriptor(window, 'innerHeight'),
+  };
+
+  /** jsdom defines these as getters on the window, so `vi.stubGlobal` misses. */
+  function setViewport(width: number, height: number) {
+    Object.defineProperty(window, 'innerWidth', { value: width, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: height, configurable: true });
+  }
+
+  function restoreViewport() {
+    if (originalViewport.width) {
+      Object.defineProperty(window, 'innerWidth', originalViewport.width);
+    }
+    if (originalViewport.height) {
+      Object.defineProperty(window, 'innerHeight', originalViewport.height);
+    }
+  }
+
+  /**
+   * jsdom performs no layout, so every element measures 0: without measured
+   * panel bounds the vertical flip has nothing to decide on.
+   */
+  function measurePanel(width: number, height: number) {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(width);
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(height);
+  }
+
+  function panelStyle(wrapper: ReturnType<typeof mountPicker>) {
+    const panel = wrapper.get('.date-time-panel');
+    return {
+      top: Number.parseFloat((panel.element as HTMLElement).style.top),
+      left: Number.parseFloat((panel.element as HTMLElement).style.left),
+    };
+  }
+
+  it('keeps the panel inside the viewport when the field is at the right edge', async () => {
+    const wrapper = mountPicker();
+    const input = wrapper.get('.date-time-input');
+    // A 200px-wide sidebar (or a zoomed-in editor): the field sits at the very
+    // edge, so an unclamped panel (min-width 260px) would hang outside it.
+    setViewport(200, 800);
+    input.element.getBoundingClientRect = () =>
+      ({ top: 100, bottom: 124, left: 180, right: 200, width: 20, height: 24 }) as DOMRect;
+
+    await pressKey(wrapper, 'Enter');
+
+    expect(panelStyle(wrapper).left).toBe(8);
+    wrapper.unmount();
+  });
+
+  it('flips the panel above the field when it would not fit below', async () => {
+    const wrapper = mountPicker();
+    const input = wrapper.get('.date-time-input');
+    setViewport(900, 300);
+    measurePanel(260, 320);
+    input.element.getBoundingClientRect = () =>
+      ({ top: 270, bottom: 294, left: 40, right: 240, width: 200, height: 24 }) as DOMRect;
+
+    await pressKey(wrapper, 'Enter');
+
+    // 294 + 320 would end 314px below a 300px viewport: the panel opens above
+    // the field instead, and stays clamped to the top gap.
+    expect(panelStyle(wrapper).top).toBe(Math.max(8, 270 - 320 - 4));
+    wrapper.unmount();
+  });
+
+  it('clamps a flipped panel to the top of the viewport', async () => {
+    const wrapper = mountPicker();
+    const input = wrapper.get('.date-time-input');
+    setViewport(900, 300);
+    measurePanel(260, 900);
+    input.element.getBoundingClientRect = () =>
+      ({ top: 270, bottom: 294, left: 40, right: 240, width: 200, height: 24 }) as DOMRect;
+
+    await pressKey(wrapper, 'Enter');
+
+    // A panel taller than the viewport cannot be shown above the field either:
+    // it stays at the top gap rather than at a negative offset.
+    expect(panelStyle(wrapper).top).toBe(8);
+    wrapper.unmount();
+  });
+
+  it('opens below the field when there is room for it', async () => {
+    const wrapper = mountPicker();
+    const input = wrapper.get('.date-time-input');
+    setViewport(900, 800);
+    measurePanel(260, 320);
+    input.element.getBoundingClientRect = () =>
+      ({ top: 100, bottom: 124, left: 32, right: 232, width: 200, height: 24 }) as DOMRect;
+
+    await pressKey(wrapper, 'Enter');
+
+    expect(panelStyle(wrapper)).toEqual({ top: 128, left: 32 });
+    wrapper.unmount();
   });
 });

@@ -79,13 +79,18 @@ const { initialRouteParams, stateMock, keyFor } = vi.hoisted(() => {
 
 // The route is reactive so a test can move the user to another repository while
 // the save handler is still deleting the pull request's marked attachments.
+// `path` is the key App.vue caches each keep-alive view under: a cached view of
+// another pull request is recognised by its path, not by the (already moved)
+// live params.
 vi.mock('vue-router', async () => {
   const { reactive: makeReactive } = await import('vue');
   const params = makeReactive({ ...initialRouteParams });
+  const route = makeReactive({ params, path: '/pull/inst-1/owner/repoA/5' });
   return {
-    useRoute: () => ({ params }),
+    useRoute: () => route,
     useRouter: () => ({ push: vi.fn() }),
     __params: params,
+    __route: route,
   };
 });
 
@@ -122,6 +127,11 @@ import * as routerModule from 'vue-router';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
 
 const routeParams = (routerModule as unknown as { __params: Record<string, string> }).__params;
+const testRoute = (routerModule as unknown as { __route: { path: string } }).__route;
+
+/** Paths App.vue would key the keep-alive entries with, one per pull request. */
+const OWN_PR_PATH = '/pull/inst-1/owner/repoA/5';
+const OTHER_PR_PATH = '/pull/inst-1/owner/repoA/6';
 
 const state = useAppState() as unknown as Record<string, any>;
 
@@ -160,6 +170,7 @@ describe('PullRequestDetail save target', () => {
     routeParams.owner = 'owner';
     routeParams.repo = 'repoA';
     routeParams.index = '5';
+    testRoute.path = OWN_PR_PATH;
     state.pullRequestDetails.value.clear();
     state.pullRequestComments.value.clear();
     state.errors.clear();
@@ -195,6 +206,55 @@ describe('PullRequestDetail save target', () => {
       ['inst-1', 'owner', 'repoA', 5, 7],
       ['inst-1', 'owner', 'repoA', 5, 8],
     ]);
+    wrapper.unmount();
+  });
+
+  it('still deletes the marked attachments when the save lands after the user navigated away', async () => {
+    // The host reports the save asynchronously; the user may already be on
+    // another pull request. The reply names the pull request that was saved, and
+    // that pull request's own cached view still owns the delete: dropping it
+    // would leave the marked attachment behind forever. Comparing the report
+    // against the live route instead is the bug this pins down.
+    const wrapper = mountView();
+    await nextTick();
+
+    (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+    testRoute.path = OTHER_PR_PATH;
+    routeParams.repo = 'repoB';
+    routeParams.index = '6';
+    state.lastSavedPullRequest.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 5 };
+    await flushPromises();
+
+    expect(state.deleteIssueAttachment.mock.calls.map((call: unknown[]) => call.slice(0, 5))).toEqual([
+      ['inst-1', 'owner', 'repoA', 5, 7],
+    ]);
+    expect(state.loadPullRequestDetail).toHaveBeenCalledWith('inst-1', 'owner', 'repoA', 5, true);
+    wrapper.unmount();
+  });
+
+  it('drops a save of another pull request once the route has moved to it', async () => {
+    // A cached view only owns the pull request it was created for. The reply for
+    // #6 belongs to #6's own view; this cached view of #5 must neither delete
+    // its marks against #6 nor clear them, or they would be gone when the user
+    // comes back.
+    const wrapper = mountView();
+    await nextTick();
+
+    (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+    testRoute.path = OTHER_PR_PATH;
+    routeParams.repo = 'repoB';
+    routeParams.index = '6';
+    state.lastSavedPullRequest.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoB', index: 6 };
+    await flushPromises();
+
+    expect(state.deleteIssueAttachment.mock.calls.map((call: unknown[]) => call.slice(0, 5))).not.toContainEqual([
+      'inst-1',
+      'owner',
+      'repoB',
+      6,
+      7,
+    ]);
+    expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
     wrapper.unmount();
   });
 
@@ -295,6 +355,7 @@ describe('PullRequestDetail upload target', () => {
     routeParams.owner = 'owner';
     routeParams.repo = 'repoA';
     routeParams.index = '5';
+    testRoute.path = OWN_PR_PATH;
     state.errors.clear();
     state.pullRequestDetails.value.clear();
     state.pullRequestDetails.value.set(keyFor('inst-1', 'owner', 'repoA', 5), {

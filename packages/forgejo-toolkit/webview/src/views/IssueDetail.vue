@@ -15,6 +15,7 @@ import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import { stateLabel } from '../utils/stateLabel';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
+import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import {
   useAppState,
   issueDetailKey,
@@ -108,9 +109,14 @@ const repoIssuesLoading = computed(() => state.loading.get(repoIssuesKeyValue.va
 // pull request cost ten requests on a busy repository. It loads when the picker is
 // first used, and the empty state waits until then.
 const repoIssuesFetched = computed(() => state.repoIssuesFetchedAt.has(repoIssuesKeyValue.value));
+// The list is capped by the paged endpoint (LIST_ITEM_LIMIT): at the cap some issues
+// are missing, which the panel has to say out loud (same notice other lists use).
+const repoIssuesTruncated = computed(() => isListTruncated(repoIssues.value));
+// The freshness check (TTL + in-flight dedup) lives in the composable, so the
+// picker's own `.has()` mark must not gate it: a list fetched once was otherwise
+// never refreshed, and a dependency added from the issue panel never showed up.
 function ensureRepoIssuesLoaded() {
-  if (!repoIssuesFetched.value) {
-  }
+  state.loadRepoIssues(instanceId.value, owner.value, repo.value, 'open');
 }
 
 const availableDependencies = computed(() =>
@@ -153,7 +159,6 @@ function loadIssueData() {
   state.loadRepoLabels(instanceId.value, owner.value, repo.value);
   state.loadRepoAssignees(instanceId.value, owner.value, repo.value);
   state.loadRepoMilestones(instanceId.value, owner.value, repo.value);
-  state.loadRepoIssues(instanceId.value, owner.value, repo.value, 'open');
   state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
   state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
   state.loadUserStopwatches(instanceId.value);
@@ -459,17 +464,21 @@ function detailFor(target: { instanceId: string; owner: string; repo: string; in
   return state.issueDetails.value.get(issueDetailKey(target.instanceId, target.owner, target.repo, target.index));
 }
 
-async function deletePendingAttachments(): Promise<{ declined: number; failed: number }> {
+async function deletePendingAttachments(target: {
+  instanceId: string;
+  owner: string;
+  repo: string;
+  index: number;
+}): Promise<{ declined: number; failed: number }> {
   const ids = pendingDeleteAttachmentIds.value;
   if (ids.length === 0) {
     return { declined: 0, failed: 0 };
   }
-  // Capture the issue before the first await. The deletes are separate
-  // round-trips and `route.params` follows the global route: reading it again
-  // per id would delete the marked attachments of whatever issue the user
-  // navigated to in the meantime — and would drop them from that issue's local
-  // list instead of the one they were deleted from.
-  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
+  // The target is passed in, not read from the live route: the deletes are
+  // separate round-trips and `route.params` follows the global route, so
+  // reading it again would delete the marked attachments of whatever issue the
+  // user navigated to in the meantime — and would drop them from that issue's
+  // local list instead of the one they were deleted from.
   isDeletingAttachments.value = true;
   deletingAttachmentId.value = ids[0];
   try {
@@ -610,39 +619,62 @@ function handleRemoveDependency(depNumber: number) {
   state.removeIssueDependency(instanceId.value, owner.value, repo.value, index.value, depNumber);
 }
 
+// The route path this view was created for: the key App.vue caches the
+// keep-alive entry under. Under keep-alive a view of another issue stays
+// mounted (cached) while the live route has moved on, so its `route.params` no
+// longer describe it — but its own captured target still does.
+const ownPath = route.path;
+// The issue this cached view exists for, captured once: `route.params` follow
+// the global route, so reading them later would describe whichever issue is on
+// screen instead.
+const ownIssueKey = issueDetailKey(instanceId.value, owner.value, repo.value, index.value);
+
 watch(
   () => state.lastSavedIssue.value,
   async (saved) => {
-    if (
-      saved?.instanceId === instanceId.value &&
-      saved.owner === owner.value &&
-      saved.repo === repo.value &&
-      saved.index === index.value
-    ) {
-      // Capture the saved issue before the first await: deleting the marked
-      // attachments and reloading the detail are separate round-trips, and
-      // `route.params` follows the global route. Reading it again afterwards
-      // would reload (and clear the pending list of) whatever issue the user
-      // navigated to in the meantime.
-      const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
-      try {
-        const outcome = await deletePendingAttachments();
-        state.loadIssueDetail(target.instanceId, target.owner, target.repo, target.index, true);
-        pendingDeleteAttachmentIds.value = [];
-        isEditing.value = false;
-        // The issue was saved; tell the user why a marked attachment is still
-        // there instead of closing the dialog without a word.
-        const notice = attachmentDeleteNoticeFor(outcome);
-        attachmentDeleteNotice.value = notice
-          ? t(`dashboard.detail.${notice.key}`, { count: notice.count })
-          : undefined;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        state.errors.set(
-          issueFormKey(target.instanceId, target.owner, target.repo, target.index),
-          t('dashboard.form.error', { message }),
-        );
-      }
+    // Only the view that owns the saved issue may act on its report. Several
+    // detail views stay cached under keep-alive and each keeps its own
+    // `pendingDeleteAttachmentIds`, while `lastSavedIssue` is a single shared
+    // slot: without this guard, saving issue B makes every cached view delete
+    // *its own* marked attachments against B.
+    //
+    // Ownership is decided by the reply's target, not by the live route: a save
+    // reported after the user navigated away still belongs to the issue that was
+    // saved, and that issue's view must still clean up its marked attachments.
+    // A cached view of another issue (whose target is neither the live route's
+    // nor the reply's) must not react at all.
+    if (!saved) {
+      return;
+    }
+    const target = {
+      instanceId: saved.instanceId,
+      owner: saved.owner,
+      repo: saved.repo,
+      index: saved.index,
+    };
+    const savedKey = issueDetailKey(target.instanceId, target.owner, target.repo, target.index);
+    if (route.path !== ownPath && savedKey !== ownIssueKey) {
+      return;
+    }
+    // The saved issue itself is the target, not the live route: the host can
+    // report a save after the user navigated away, and reading `route.params`
+    // again would make a late save drop (and mis-address) the marked
+    // attachment deletes of the issue that was actually saved.
+    try {
+      const outcome = await deletePendingAttachments(target);
+      state.loadIssueDetail(target.instanceId, target.owner, target.repo, target.index, true);
+      pendingDeleteAttachmentIds.value = [];
+      isEditing.value = false;
+      // The issue was saved; tell the user why a marked attachment is still
+      // there instead of closing the dialog without a word.
+      const notice = attachmentDeleteNoticeFor(outcome);
+      attachmentDeleteNotice.value = notice ? t(`dashboard.detail.${notice.key}`, { count: notice.count }) : undefined;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      state.errors.set(
+        issueFormKey(target.instanceId, target.owner, target.repo, target.index),
+        t('dashboard.form.error', { message }),
+      );
     }
   },
 );
@@ -698,7 +730,9 @@ function formatDuration(seconds: number): string {
 
 function formatAbsoluteDate(date: string): string {
   try {
-    return new Date(date).toLocaleDateString();
+    // Formatted with the UI locale, not the host browser's: a Chinese UI must
+    // not show a US-ordered date just because VS Code runs on an en-US system.
+    return new Date(date).toLocaleDateString(state.locale.value);
   } catch {
     return date;
   }
@@ -938,12 +972,18 @@ function reloadIssue() {
 
         <CollapsibleSection :title="t('dashboard.detail.dueDate')">
           <div v-if="isEditingDueDate" class="due-date-edit">
-            <DateTimePicker v-model="dueDateValue" type="date" :disabled="dueDateSaving" />
+            <DateTimePicker
+              v-model="dueDateValue"
+              type="date"
+              :disabled="dueDateSaving"
+              :label="t('dashboard.detail.dueDate')"
+            />
             <div class="due-date-edit-actions">
               <button
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.save')"
+                :aria-label="t('dashboard.actions.save')"
                 :disabled="dueDateSaving"
                 @click="saveDueDate"
               >
@@ -953,6 +993,7 @@ function reloadIssue() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.cancel')"
+                :aria-label="t('dashboard.actions.cancel')"
                 @click="cancelEditDueDate"
               >
                 <vscode-icon name="close" />
@@ -968,6 +1009,7 @@ function reloadIssue() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.edit')"
+                :aria-label="t('dashboard.actions.edit')"
                 @click="startEditDueDate"
               >
                 <vscode-icon name="edit" />
@@ -977,6 +1019,7 @@ function reloadIssue() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.delete')"
+                :aria-label="t('dashboard.actions.delete')"
                 @click="clearDueDate"
               >
                 <vscode-icon name="trash" />
@@ -989,6 +1032,7 @@ function reloadIssue() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.set')"
+                :aria-label="t('dashboard.actions.set')"
                 @click="startEditDueDate"
               >
                 <vscode-icon name="edit" />
@@ -1077,6 +1121,7 @@ function reloadIssue() {
               type="number"
               :value="String(manualTimeHours)"
               :min="0"
+              :label="t('dashboard.detail.hours')"
               @input="manualTimeHours = Number(($event.target as HTMLInputElement).value)"
             />
             <span>{{ t('dashboard.detail.hours') }}</span>
@@ -1085,6 +1130,7 @@ function reloadIssue() {
               :value="String(manualTimeMinutes)"
               :min="0"
               :max="59"
+              :label="t('dashboard.detail.minutes')"
               @input="manualTimeMinutes = Number(($event.target as HTMLInputElement).value)"
             />
             <span>{{ t('dashboard.detail.minutes') }}</span>
@@ -1101,6 +1147,7 @@ function reloadIssue() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.delete')"
+                :aria-label="t('dashboard.actions.delete')"
                 @click="handleDeleteTime(time.id ?? 0)"
               >
                 <vscode-icon name="trash" />
@@ -1123,6 +1170,7 @@ function reloadIssue() {
                 type="button"
                 class="link-button"
                 :title="t('dashboard.actions.delete')"
+                :aria-label="t('dashboard.actions.delete')"
                 @click="handleRemoveDependency(dep.number)"
               >
                 <vscode-icon name="trash" />
@@ -1131,34 +1179,41 @@ function reloadIssue() {
           </div>
           <div v-else class="empty-list">{{ t('dashboard.detail.noDependencies') }}</div>
           <div class="dependency-form">
+            <!-- The control stays mounted while the list loads: unmounting it one
+                 tick after the open would close the dropdown the user just opened,
+                 and keyboard users (the element opens from its own keydown, with no
+                 click) could never load the list at all. -->
+            <vscode-single-select
+              :value="selectedDependencyNumber === undefined ? '' : String(selectedDependencyNumber)"
+              class="dependency-select"
+              :label="t('dashboard.detail.dependencies')"
+              @click="ensureRepoIssuesLoaded"
+              @keydown="ensureRepoIssuesLoaded"
+              @change="selectedDependencyNumber = Number(($event.target as HTMLSelectElement).value) || undefined"
+            >
+              <vscode-option value="">{{ t('dashboard.detail.dependencyPlaceholder') }}</vscode-option>
+              <vscode-option v-for="issue in availableDependencies" :key="issue.id" :value="String(issue.number)">
+                #{{ issue.number }} {{ issue.title }}
+              </vscode-option>
+            </vscode-single-select>
+            <vscode-button
+              icon="add"
+              :disabled="repoIssuesLoading || !selectedDependencyNumber || availableDependencies.length === 0"
+              @click="addDependency"
+              secondary
+            >
+              {{ t('dashboard.detail.addDependency') }}
+            </vscode-button>
             <div v-if="repoIssuesLoading" class="dependency-status">{{ t('dashboard.detail.dependencyLoading') }}</div>
-            <template v-else>
-              <vscode-single-select
-                :value="selectedDependencyNumber === undefined ? '' : String(selectedDependencyNumber)"
-                class="dependency-select"
-                @click="ensureRepoIssuesLoaded"
-                @change="selectedDependencyNumber = Number(($event.target as HTMLSelectElement).value) || undefined"
-              >
-                <vscode-option value="">{{ t('dashboard.detail.dependencyPlaceholder') }}</vscode-option>
-                <vscode-option v-for="issue in availableDependencies" :key="issue.id" :value="String(issue.number)">
-                  #{{ issue.number }} {{ issue.title }}
-                </vscode-option>
-              </vscode-single-select>
-              <vscode-button
-                icon="add"
-                :disabled="!selectedDependencyNumber || availableDependencies.length === 0"
-                @click="addDependency"
-                secondary
-              >
-                {{ t('dashboard.detail.addDependency') }}
-              </vscode-button>
-            </template>
           </div>
           <div
             v-if="repoIssuesFetched && !repoIssuesLoading && availableDependencies.length === 0"
             class="dependency-status empty"
           >
             {{ t('dashboard.detail.dependencyEmpty') }}
+          </div>
+          <div v-if="repoIssuesFetched && !repoIssuesLoading && repoIssuesTruncated" class="dependency-status">
+            {{ t('dashboard.detail.dependencyTruncated') }}
           </div>
         </CollapsibleSection>
       </div>

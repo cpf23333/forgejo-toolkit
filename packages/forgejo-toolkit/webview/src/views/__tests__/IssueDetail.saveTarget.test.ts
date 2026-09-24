@@ -3,11 +3,12 @@ import { mount } from '@vue/test-utils';
 import { defineComponent, nextTick, reactive } from 'vue';
 import { flushPromises } from '@vue/test-utils';
 
-const { initialRouteParams, stateMock, keyFor } = vi.hoisted(() => {
+const { initialRouteParams, initialRoutePath, stateMock, keyFor } = vi.hoisted(() => {
   const keyFor = (...parts: unknown[]) => parts.join('|');
   return {
     keyFor,
     initialRouteParams: { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: '5' },
+    initialRoutePath: '/issue/inst-1/owner/repoA/5',
     stateMock: {
       addIssueTime: vi.fn(),
       changeIssueReaction: vi.fn(),
@@ -64,14 +65,20 @@ const { initialRouteParams, stateMock, keyFor } = vi.hoisted(() => {
   };
 });
 
-// The route is reactive so a test can move the user to another repository while
-// the save handler is still deleting the issue's marked attachments.
+/**
+ * The route is reactive so a test can move the user to another repository while
+ * the save handler is still deleting the issue's marked attachments. `path` is
+ * the key App.vue caches each keep-alive view under: a cached view of another
+ * issue is recognised by its path, not by the (already moved) live params.
+ */
 vi.mock('vue-router', async () => {
   const { reactive: makeReactive } = await import('vue');
   const params = makeReactive({ ...initialRouteParams });
+  const route = makeReactive({ params, path: initialRoutePath });
   return {
-    useRoute: () => ({ params }),
+    useRoute: () => route,
     __params: params,
+    __route: route,
   };
 });
 
@@ -107,6 +114,11 @@ import * as routerModule from 'vue-router';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
 
 const routeParams = (routerModule as unknown as { __params: Record<string, string> }).__params;
+const testRoute = (routerModule as unknown as { __route: { path: string } }).__route;
+
+/** Paths App.vue would key the keep-alive entries with, one per issue. */
+const OWN_PATH = '/issue/inst-1/owner/repoA/5';
+const OTHER_ISSUE_PATH = '/issue/inst-1/owner/repoA/6';
 
 const state = useAppState() as unknown as Record<string, any>;
 
@@ -152,6 +164,7 @@ describe('IssueDetail save target', () => {
     routeParams.owner = 'owner';
     routeParams.repo = 'repoA';
     routeParams.index = '5';
+    testRoute.path = OWN_PATH;
     state.issueDetails.value.clear();
     state.issueDetails.value.set(keyFor('inst-1', 'owner', 'repoA', 5), {
       number: 5,
@@ -161,6 +174,28 @@ describe('IssueDetail save target', () => {
       assignees: [],
       assets: [],
     });
+  });
+
+  it('does not react to another issue being saved while this view is cached and inactive', async () => {
+    // App.vue keeps one cached view per route path (the keep-alive key), so this
+    // view of issue #5 stays mounted but deactivated while issue #6 is on
+    // screen. It still holds the marks the user made for #5; the save of #6
+    // belongs to #6's own view, so this one must not delete anything.
+    const wrapper = mountView();
+    await nextTick();
+
+    (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+    // The live route has moved to another issue: this view's own path no longer
+    // matches, which is what marks the cached view inactive.
+    testRoute.path = OTHER_ISSUE_PATH;
+
+    state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 6 };
+    await flushPromises();
+
+    expect(state.deleteIssueAttachment.mock.calls).toEqual([]);
+    // The marks belong to the issue this view is showing and must survive.
+    expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
+    wrapper.unmount();
   });
 
   it('reloads the issue that was saved, not the one the user switched to', async () => {
@@ -203,6 +238,32 @@ describe('IssueDetail save target', () => {
       ['inst-1', 'owner', 'repoA', 5, 7],
       ['inst-1', 'owner', 'repoA', 5, 8],
     ]);
+    wrapper.unmount();
+  });
+
+  it('drops a save of another issue once the route has moved to it', async () => {
+    // A cached view only owns the issue it was created for. The reply for issue
+    // #6 belongs to #6's own view (or to whichever view the route now shows);
+    // this cached view of #5 must neither delete its marks against #6 nor clear
+    // them, or they would be gone when the user comes back.
+    const wrapper = mountView();
+    await nextTick();
+
+    (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+    testRoute.path = OTHER_ISSUE_PATH;
+    routeParams.repo = 'repoB';
+    routeParams.index = '6';
+    state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoB', index: 6 };
+    await flushPromises();
+
+    expect(state.deleteIssueAttachment.mock.calls.map((call: unknown[]) => call.slice(0, 5))).not.toContainEqual([
+      'inst-1',
+      'owner',
+      'repoB',
+      6,
+      7,
+    ]);
+    expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
     wrapper.unmount();
   });
 
@@ -282,6 +343,7 @@ describe('IssueDetail upload target', () => {
     routeParams.owner = 'owner';
     routeParams.repo = 'repoA';
     routeParams.index = '5';
+    testRoute.path = OWN_PATH;
     state.errors.clear();
     state.issueDetails.value.clear();
     state.issueDetails.value.set(keyFor('inst-1', 'owner', 'repoA', 5), {

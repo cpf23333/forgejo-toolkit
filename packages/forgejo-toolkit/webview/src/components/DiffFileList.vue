@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, provide, ref, watch } from 'vue';
 import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useI18n } from 'vue-i18n';
 import FileTreeNode from './FileTreeNode.vue';
 import type { ForgejoChangedFile } from '../types/api';
-import type { FileTreeNode as FileTreeNodeType } from '../types/fileTree';
+import { fileTreeFocusedPathKey, type FileTreeNode as FileTreeNodeType } from '../types/fileTree';
 
 const { t } = useI18n();
 
@@ -197,6 +197,140 @@ function openSelectedDiffs() {
   }
   emit('openSelectedDiffs', selectedFiles.value);
 }
+
+// --- Keyboard navigation ---------------------------------------------------
+// Every row used to be a tab stop, which made a 500-file diff unusable with a
+// keyboard: reaching the last file took 500 Tab presses. The tree now follows
+// the conventional roving-tabindex pattern — one tab stop for the whole tree,
+// arrow keys move inside it — like the repository file browser's `vscode-tree`.
+
+const focusedPath = ref<string | null>(null);
+provide(
+  fileTreeFocusedPathKey,
+  computed(() => focusedPath.value),
+);
+
+const treeRef = ref<HTMLElement | null>(null);
+
+/** Visible rows in tree order: a collapsed directory's children are skipped. */
+function visibleRows(): FileTreeNodeType[] {
+  const rows: FileTreeNodeType[] = [];
+  function walk(nodes: FileTreeNodeType[]) {
+    for (const node of nodes) {
+      rows.push(node);
+      if (node.type === 'dir' && node.expanded) {
+        walk(node.children);
+      }
+    }
+  }
+  walk(tree.value);
+  return rows;
+}
+
+function findParentPath(path: string): string | null {
+  let parent: string | null = null;
+  function walk(nodes: FileTreeNodeType[], parentPath: string | null) {
+    for (const node of nodes) {
+      if (node.path === path) {
+        parent = parentPath;
+        return;
+      }
+      if (node.type === 'dir') {
+        walk(node.children, node.path);
+      }
+    }
+  }
+  walk(tree.value, null);
+  return parent;
+}
+
+function focusRow(path: string | null) {
+  focusedPath.value = path;
+  void nextTick(() => {
+    if (path === null) {
+      return;
+    }
+    // The focus target is found in the DOM instead of through a child ref:
+    // nested rows are rendered recursively, so only the row itself knows its
+    // element.
+    const row = treeRef.value?.querySelector<HTMLElement>(`[data-path="${CSS.escape(path)}"]`);
+    row?.focus();
+  });
+}
+
+function onTreeKeydown(event: KeyboardEvent) {
+  const key = event.key;
+  if (key !== 'ArrowDown' && key !== 'ArrowUp' && key !== 'ArrowLeft' && key !== 'ArrowRight') {
+    return;
+  }
+  const rows = visibleRows();
+  if (rows.length === 0) {
+    return;
+  }
+  const current = focusedPath.value;
+  if (current === null) {
+    focusRow(rows[0].path);
+    return;
+  }
+  const position = rows.findIndex((row) => row.path === current);
+  if (position < 0) {
+    focusRow(rows[0].path);
+    return;
+  }
+  const row = rows[position];
+  if (key === 'ArrowDown') {
+    if (position < rows.length - 1) {
+      focusRow(rows[position + 1].path);
+    }
+    return;
+  }
+  if (key === 'ArrowUp') {
+    if (position > 0) {
+      focusRow(rows[position - 1].path);
+    }
+    return;
+  }
+  if (key === 'ArrowRight') {
+    // A collapsed directory was already expanded by the row itself; the owner
+    // only has to step into an expanded one.
+    if (row.type === 'dir' && row.expanded && row.children.length > 0) {
+      focusRow(row.children[0].path);
+    }
+    return;
+  }
+  // ArrowLeft: a row whose subtree is already collapsed moves to its parent.
+  if (row.type === 'dir' && row.expanded) {
+    toggleExpand(row);
+    return;
+  }
+  focusRow(findParentPath(current));
+}
+
+// Tabbing into the tree lands on whichever row was focused last, but a user can
+// also arrive with the browser's own focus (a click before the roving state was
+// set, a restored focus). Track it so the next arrow key moves from the row the
+// user is actually on.
+function onTreeFocusIn(event: FocusEvent) {
+  const row = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-path]');
+  const path = row?.dataset.path;
+  if (path !== undefined && path !== focusedPath.value) {
+    focusedPath.value = path;
+  }
+}
+
+watch(
+  tree,
+  (nodes) => {
+    // Keep the tab stop on a row that still exists, and give an unvisited tree
+    // one tabbable row so the whole list is reachable with Tab.
+    const rows = visibleRows();
+    if (focusedPath.value !== null && rows.some((row) => row.path === focusedPath.value)) {
+      return;
+    }
+    focusedPath.value = nodes.length > 0 ? nodes[0].path : null;
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -241,11 +375,12 @@ function openSelectedDiffs() {
           </button>
         </div>
       </div>
-      <ul class="file-tree">
+      <ul ref="treeRef" class="file-tree" role="tree" @keydown="onTreeKeydown" @focusin="onTreeFocusIn">
         <FileTreeNode
           v-for="node in tree"
           :key="node.path"
           :node="node"
+          :focus-path="focusedPath"
           @toggle-expand="toggleExpand"
           @check="onNodeCheck"
           @open-diff="openDiff"

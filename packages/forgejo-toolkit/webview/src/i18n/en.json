@@ -48,7 +48,9 @@
     "nextMonth": "Next month",
     "today": "Today",
     "clear": "Clear",
-    "time": "Time"
+    "time": "Time",
+    "hours": "Hours",
+    "minutes": "Minutes"
   },
   "onboarding": {
     "title": "Welcome to Forgejo Toolkit",
@@ -119,6 +121,7 @@
       "searchNoResults": "No matching files.",
       "searchTruncated": "The repository tree is too large to read completely, so matches may be missing. Narrow the search.",
       "clearSearch": "Clear search",
+      "showMore": "Show {count} more entries",
       "history": "File history",
       "historyTitle": "History: {path}",
       "noHistory": "No history found for this file."
@@ -192,6 +195,7 @@
       "publishRelease": "Publish release",
       "attachmentsLabel": "Attachments",
       "addAttachment": "Add attachment",
+      "removeAttachment": "Remove attachment {name}",
       "attachmentUploadFailed": "{count} attachment(s) failed to upload. The release was created; submit again to retry only the remaining attachments.",
       "truncated": "Only the first 500 entries are shown."
     },
@@ -309,6 +313,7 @@
         "modified": "modified",
         "renamed": "renamed"
       },
+      "selectFile": "Select {name} ({status})",
       "mergedBy": "Merged by",
       "openIssue": "Open Issue in Browser",
       "openPullRequest": "Open Pull Request in Browser",
@@ -335,14 +340,16 @@
       "dependencyPlaceholder": "Select an issue...",
       "dependencyLoading": "Loading...",
       "dependencyEmpty": "No available issues",
+      "dependencyTruncated": "Only the first 500 issues are listed; issues beyond the cap cannot be picked here.",
       "addDependency": "Add",
-      "participants": "Participants",
+      "participants": "Participants ({count})",
       "references": "References",
       "addReaction": "Add reaction",
       "removeReaction": "Remove reaction",
       "commentsAndTimeline": "Comments & Timeline",
       "commits": "Commits",
       "noComments": "No comments yet",
+      "showMoreComments": "Show {count} more entries",
       "forcePushed": "force pushed",
       "sortOldestFirst": "Sort: oldest first",
       "sortNewestFirst": "Sort: newest first",

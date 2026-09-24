@@ -4,6 +4,8 @@ import { useAppState, repoContentsKey, repoFileSearchKey } from '../composables/
 import FileTreeItem from './FileTreeItem.vue';
 import RepoFileHistoryDialog from './RepoFileHistoryDialog.vue';
 import { isImageFile } from '../utils/fileTypes';
+import { FILE_TREE_LEVEL_CAP } from '../utils/fileTreeCap';
+import { activateShowMoreRowFromKey } from '../utils/treeRowActivation';
 import type { ForgejoContentEntry } from '../types/api';
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
 
@@ -36,6 +38,22 @@ const rootKey = computed(() => repoContentsKey(props.instanceId, props.owner, pr
 const rootEntries = computed(() => state.repoContents.value.get(rootKey.value) ?? []);
 const rootLoading = computed(() => state.loading.get(rootKey.value) ?? false);
 const rootError = computed(() => state.errors.get(rootKey.value));
+
+// The host reply for a directory is uncapped, and every entry mounts a custom
+// element (see FILE_TREE_LEVEL_CAP): the root level is windowed the same way as
+// the nested ones, with the rest reachable through the "show more" row.
+const visibleRootCount = ref(FILE_TREE_LEVEL_CAP);
+const visibleRootEntries = computed(() => rootEntries.value.slice(0, visibleRootCount.value));
+const hiddenRootCount = computed(() => Math.max(0, rootEntries.value.length - visibleRootCount.value));
+const nextRootBatchCount = computed(() => Math.min(FILE_TREE_LEVEL_CAP, hiddenRootCount.value));
+
+watch(rootKey, () => {
+  visibleRootCount.value = FILE_TREE_LEVEL_CAP;
+});
+
+function showMoreRootEntries() {
+  visibleRootCount.value += FILE_TREE_LEVEL_CAP;
+}
 
 const searchKey = computed(() =>
   repoFileSearchKey(props.instanceId, props.owner, props.repo, selectedRef.value, searchQuery.value.trim()),
@@ -86,6 +104,16 @@ function onTreeKeydown(event: KeyboardEvent) {
   }
   const path = (item as HTMLElement).dataset.filePath ?? '';
   state.loadRepoContents(props.instanceId, props.owner, props.repo, path, selectedRef.value);
+}
+
+// The tree consumes Enter/Space over a tree item before the browser can activate
+// a nested control (see utils/treeRowActivation), so the "show more" row is
+// activated from a capture-phase listener that runs before the tree's own.
+function onTreeKeydownCapture(event: KeyboardEvent) {
+  if (activateShowMoreRowFromKey(event)) {
+    event.stopImmediatePropagation();
+    event.preventDefault();
+  }
 }
 
 function runSearch() {
@@ -220,7 +248,13 @@ onUnmounted(() => {
 <template>
   <div class="file-browser">
     <div class="file-browser-toolbar">
-      <vscode-single-select filter="fuzzy" :value="selectedRef" class="branch-select" @change="onBranchChange">
+      <vscode-single-select
+        filter="fuzzy"
+        :value="selectedRef"
+        class="branch-select"
+        :label="state.t('dashboard.branches')"
+        @change="onBranchChange"
+      >
         <vscode-option v-for="branch in branches" :key="branch" :value="branch" :selected="branch === selectedRef">
           {{ branch }}
         </vscode-option>
@@ -244,6 +278,7 @@ onUnmounted(() => {
         @input="searchQuery = ($event.target as HTMLInputElement).value"
         class="search-input"
         :placeholder="state.t('dashboard.fileBrowser.searchPlaceholder')"
+        :label="state.t('dashboard.fileBrowser.searchPlaceholder')"
       />
       <button
         v-if="hasSearchQuery"
@@ -292,10 +327,11 @@ onUnmounted(() => {
             v-else-if="rootEntries.length"
             ref="treeRef"
             @vsc-tree-select="onTreeSelect"
+            @keydown.capture="onTreeKeydownCapture"
             @keydown="onTreeKeydown"
           >
             <FileTreeItem
-              v-for="entry in rootEntries"
+              v-for="entry in visibleRootEntries"
               :key="entry.sha ?? entry.path ?? entry.name"
               :entry="entry"
               :instance-id="instanceId"
@@ -304,6 +340,11 @@ onUnmounted(() => {
               :branch-ref="selectedRef"
               @show-history="onShowHistory"
             />
+            <vscode-tree-item v-if="hiddenRootCount > 0" class="tree-show-more-row" :branch="false">
+              <button type="button" class="tree-show-more" @click="showMoreRootEntries">
+                {{ state.t('dashboard.fileBrowser.showMore', { count: nextRootBatchCount }) }}
+              </button>
+            </vscode-tree-item>
           </vscode-tree>
           <div v-else class="tree-status">{{ state.t('dashboard.fileBrowser.emptyDirectory') }}</div>
         </template>
@@ -427,6 +468,21 @@ onUnmounted(() => {
 
 .tree-status.error {
   color: var(--vscode-testing-iconFailed);
+}
+
+.tree-show-more {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.95em;
+  text-align: left;
+}
+
+.tree-show-more:hover {
+  text-decoration: underline;
 }
 
 .search-results {

@@ -48,7 +48,7 @@ function formatDate(dateString: string): string {
   if (Number.isNaN(date.getTime())) {
     return dateString;
   }
-  return date.toLocaleString();
+  return date.toLocaleString(state.locale.value);
 }
 
 function truncateMessage(message: string): string {

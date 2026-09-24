@@ -219,7 +219,7 @@ function formatTime(time?: string): string {
   if (Number.isNaN(date.getTime())) {
     return time;
   }
-  return date.toLocaleString();
+  return date.toLocaleString(state.locale.value);
 }
 
 function notificationTypeLabel(notification: ForgejoNotification): string {

@@ -154,6 +154,19 @@ function openRunDetail(run: { id?: number }) {
   state.openActionRunDetail(props.instanceId, props.owner, props.repo, run.id);
 }
 
+// The row is a button-like container, but it also holds real controls (the
+// "Open in Browser" button). Keydown bubbles from them, so activating one would
+// run the row action as well; leave keys that originate inside a nested control
+// to that control, like FileTreeNode and RepoRefs do.
+function onRunRowKeydown(event: KeyboardEvent, run: { id?: number }) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('button, a, input, vscode-button')) {
+    return;
+  }
+  event.preventDefault();
+  openRunDetail(run);
+}
+
 function onWorkflowChange(event: Event) {
   const target = event.target as HTMLSelectElement | null;
   triggerWorkflow.value = target?.value ?? '';
@@ -289,6 +302,7 @@ onUnmounted(() => {
           <vscode-single-select
             v-if="availableWorkflows().length > 0"
             :value="triggerWorkflow"
+            :label="t('dashboard.actionRun.workflowFile')"
             @change="onWorkflowChange"
           >
             <vscode-option value="" disabled>{{ t('dashboard.actionRun.selectWorkflow') }}</vscode-option>
@@ -301,11 +315,17 @@ onUnmounted(() => {
             :value="triggerWorkflow"
             @input="triggerWorkflow = ($event.target as HTMLInputElement).value"
             :placeholder="t('dashboard.actionRun.workflowFilePlaceholder')"
+            :label="t('dashboard.actionRun.workflowFile')"
           />
         </div>
         <div class="trigger-field">
           <label>{{ t('dashboard.actionRun.ref') }}</label>
-          <vscode-single-select v-if="(props.branches ?? []).length > 0" :value="triggerRef" @change="onRefChange">
+          <vscode-single-select
+            v-if="(props.branches ?? []).length > 0"
+            :value="triggerRef"
+            :label="t('dashboard.actionRun.ref')"
+            @change="onRefChange"
+          >
             <vscode-option value="" disabled>{{ t('dashboard.actionRun.selectRef') }}</vscode-option>
             <vscode-option
               v-for="branch in props.branches"
@@ -321,6 +341,7 @@ onUnmounted(() => {
             :value="triggerRef"
             @input="triggerRef = ($event.target as HTMLInputElement).value"
             :placeholder="t('dashboard.actionRun.refPlaceholder')"
+            :label="t('dashboard.actionRun.ref')"
           />
         </div>
         <div class="trigger-inputs">
@@ -329,13 +350,20 @@ onUnmounted(() => {
               :value="input.key"
               @input="input.key = ($event.target as HTMLInputElement).value"
               :placeholder="t('dashboard.actionRun.inputKey')"
+              :label="t('dashboard.actionRun.inputKey')"
             />
             <vscode-textfield
               :value="input.value"
               @input="input.value = ($event.target as HTMLInputElement).value"
               :placeholder="t('dashboard.actionRun.inputValue')"
+              :label="t('dashboard.actionRun.inputValue')"
             />
-            <vscode-button icon-only icon="trash" @click="removeTriggerInput(index)" />
+            <vscode-button
+              icon-only
+              icon="trash"
+              :aria-label="t('dashboard.remove')"
+              @click="removeTriggerInput(index)"
+            />
           </div>
           <vscode-button secondary icon="add" @click="addTriggerInput">
             {{ t('dashboard.actionRun.addInput') }}
@@ -372,8 +400,8 @@ onUnmounted(() => {
         tabindex="0"
         role="button"
         @click="openRunDetail(run)"
-        @keydown.enter="openRunDetail(run)"
-        @keydown.space.prevent="openRunDetail(run)"
+        @keydown.enter="onRunRowKeydown($event, run)"
+        @keydown.space="onRunRowKeydown($event, run)"
       >
         <vscode-icon :class="['run-status-icon', statusClass(run.status)]" :name="statusIcon(run.status)" />
         <div class="run-info">
@@ -387,6 +415,7 @@ onUnmounted(() => {
               icon-only
               icon="globe"
               :title="t('dashboard.actions.open')"
+              :aria-label="t('dashboard.actions.open')"
               @click.stop="state.openExternal(run.html_url)"
             />
           </div>

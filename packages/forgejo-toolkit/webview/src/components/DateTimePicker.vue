@@ -20,6 +20,12 @@ import { useI18n } from 'vue-i18n';
 const props = defineProps<{
   modelValue?: string | null;
   placeholder?: string;
+  /**
+   * Accessible name of the field. A neighbouring `<label>` cannot be associated
+   * with the input across the component boundary, so callers pass the field
+   * name here; screen readers otherwise announce only "Select date and time".
+   */
+  label?: string;
   disabled?: boolean;
   displayFormat?: string;
   valueFormat?: string;
@@ -51,12 +57,32 @@ function onDocumentClick(event: MouseEvent) {
   }
 }
 
+// The panel is `position: fixed` (the edit dialogs are scroll containers, so an
+// absolutely positioned panel would be clipped), which means it must be clamped
+// to the viewport by hand: at a narrow sidebar or a high zoom level its right
+// columns and footer otherwise render outside the webview with no way to scroll
+// to them. Mirrors MentionHoverCard's clamping.
+const PANEL_MIN_WIDTH = 260;
+const VIEWPORT_GAP = 8;
+
 function updatePanelPosition() {
   const rect = inputRef.value?.getBoundingClientRect();
   if (!rect) return;
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const panelWidth = Math.max(panelRef.value?.offsetWidth ?? 0, PANEL_MIN_WIDTH);
+  const panelHeight = panelRef.value?.offsetHeight ?? 0;
+  const maxLeft = Math.max(VIEWPORT_GAP, viewportWidth - panelWidth - VIEWPORT_GAP);
+  const left = Math.min(Math.max(rect.left, VIEWPORT_GAP), maxLeft);
+  // Prefer opening below the field; flip above it when it would not fit and
+  // there is more room up there (the field is near the bottom of the viewport).
+  const below = rect.bottom + 4;
+  const above = rect.top - panelHeight - 4;
+  const fitsBelow = panelHeight === 0 || below + panelHeight <= viewportHeight - VIEWPORT_GAP;
+  const top = fitsBelow ? below : Math.max(VIEWPORT_GAP, above);
   panelStyle.value = {
-    top: `${rect.bottom + 4}px`,
-    left: `${rect.left}px`,
+    top: `${top}px`,
+    left: `${left}px`,
   };
 }
 
@@ -84,6 +110,10 @@ const pickerType = computed(() => props.type ?? 'datetime');
 const isDateOnly = computed(() => pickerType.value === 'date');
 const displayFormat = computed(() => props.displayFormat ?? (isDateOnly.value ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm'));
 const valueFormat = computed(() => props.valueFormat ?? 'iso');
+
+// The caller's label names the field ("Due date"); without one the generic
+// picker description is still better than an unlabelled field.
+const fieldLabel = computed(() => props.label || t('datePicker.placeholder'));
 
 const weekDays = computed(() => {
   const formatter = new Intl.DateTimeFormat(locale.value, { weekday: 'narrow' });
@@ -409,7 +439,7 @@ function monthYearLabel() {
       aria-haspopup="dialog"
       :aria-expanded="panelOpen"
       :aria-controls="panelId"
-      :aria-label="t('datePicker.placeholder')"
+      :aria-label="fieldLabel"
       :value="displayValue"
       :placeholder="placeholder || t('datePicker.placeholder')"
       :disabled="disabled"
@@ -424,7 +454,7 @@ function monthYearLabel() {
       ref="panelRef"
       class="date-time-panel"
       role="dialog"
-      :aria-label="t('datePicker.placeholder')"
+      :aria-label="fieldLabel"
       tabindex="-1"
       :style="panelStyle"
     >
@@ -453,15 +483,24 @@ function monthYearLabel() {
       </div>
 
       <div v-if="!isDateOnly" class="time-row">
-        <span class="time-label">{{ t('datePicker.time') }}</span>
-        <input v-model="hourValue" type="number" min="0" max="23" class="time-input" @blur="hourValue = hourValue" />
-        <span class="time-separator">:</span>
+        <span class="time-label" aria-hidden="true">{{ t('datePicker.time') }}</span>
+        <input
+          v-model="hourValue"
+          type="number"
+          min="0"
+          max="23"
+          class="time-input"
+          :aria-label="t('datePicker.hours')"
+          @blur="hourValue = hourValue"
+        />
+        <span class="time-separator" aria-hidden="true">:</span>
         <input
           v-model="minuteValue"
           type="number"
           min="0"
           max="59"
           class="time-input"
+          :aria-label="t('datePicker.minutes')"
           @blur="minuteValue = minuteValue"
         />
       </div>

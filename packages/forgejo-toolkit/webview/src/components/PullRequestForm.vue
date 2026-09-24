@@ -220,6 +220,7 @@ function handleSubmit() {
         data-autofocus
         @input="title = ($event.target as HTMLInputElement).value"
         :placeholder="t('dashboard.form.titlePlaceholder')"
+        :label="t('dashboard.form.title')"
       />
     </div>
     <div class="form-row">
@@ -229,6 +230,7 @@ function handleSubmit() {
           filter="fuzzy"
           :value="base"
           class="branch-select"
+          :label="t('dashboard.form.base')"
           @change="base = ($event.target as HTMLInputElement).value"
         >
           <vscode-option v-for="branch in branches" :key="branch" :value="branch" :selected="branch === base">
@@ -242,6 +244,7 @@ function handleSubmit() {
           filter="fuzzy"
           :value="head"
           class="branch-select"
+          :label="t('dashboard.form.head')"
           @change="head = ($event.target as HTMLInputElement).value"
         >
           <vscode-option v-for="branch in branches" :key="branch" :value="branch" :selected="branch === head">
@@ -259,6 +262,7 @@ function handleSubmit() {
           type="button"
           class="option-tag"
           :class="{ selected: selectedAssignees.includes(login) }"
+          :aria-pressed="selectedAssignees.includes(login)"
           @click="toggleAssignee(login)"
         >
           {{ login }}
@@ -275,6 +279,7 @@ function handleSubmit() {
           class="option-tag label-option"
           :class="{ selected: selectedLabelIds.includes(label.id ?? -1) }"
           :style="labelStyle(label.color)"
+          :aria-pressed="selectedLabelIds.includes(label.id ?? -1)"
           @click="toggleLabel(label.id ?? -1)"
         >
           {{ label.name }}
@@ -285,6 +290,7 @@ function handleSubmit() {
       <label>{{ t('dashboard.form.milestone') }}</label>
       <vscode-single-select
         :value="selectedMilestoneId === undefined ? '' : String(selectedMilestoneId)"
+        :label="t('dashboard.form.milestone')"
         @change="
           selectedMilestoneId =
             ($event.target as HTMLSelectElement).value === ''
@@ -305,13 +311,14 @@ function handleSubmit() {
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.dueDate') }}</label>
-      <DateTimePicker v-model="dueDate" type="date" />
+      <DateTimePicker v-model="dueDate" type="date" :label="t('dashboard.form.dueDate')" />
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.body') }}</label>
       <EasyMdeEditor
         v-model="body"
         :placeholder="t('dashboard.form.bodyPlaceholder')"
+        :label="t('dashboard.form.body')"
         :upload-image="uploadImage"
         :instance-id="instanceId"
         :owner="owner"

@@ -61,7 +61,10 @@ type VscodeButtonProps = Pick<
   | 'value'
 >;
 
-type VscodeCheckboxProps = Pick<VscodeCheckbox, 'autofocus' | 'checked' | 'defaultChecked' | 'invalid' | 'name'>;
+type VscodeCheckboxProps = Pick<
+  VscodeCheckbox,
+  'autofocus' | 'checked' | 'defaultChecked' | 'invalid' | 'name' | 'label'
+>;
 
 type VscodeContextMenuProps = Pick<VscodeContextMenu, 'data' | 'preventClose' | 'show' | 'tabIndex'>;
 

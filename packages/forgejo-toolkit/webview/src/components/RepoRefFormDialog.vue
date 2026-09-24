@@ -232,6 +232,7 @@ function title(): string {
           :value="name"
           @input="name = ($event.target as HTMLInputElement).value"
           :placeholder="t('dashboard.repoRefs.nameLabel')"
+          :label="t('dashboard.repoRefs.nameLabel')"
         />
       </div>
 
@@ -242,6 +243,7 @@ function title(): string {
             :value="oldRef"
             @input="oldRef = ($event.target as HTMLInputElement).value"
             :placeholder="defaultBranch ?? ''"
+            :label="t('dashboard.repoRefs.createBranchFromPrompt')"
           />
         </div>
       </template>
@@ -253,11 +255,16 @@ function title(): string {
             :value="tagTarget"
             @input="tagTarget = ($event.target as HTMLInputElement).value"
             :placeholder="defaultBranch ?? ''"
+            :label="t('dashboard.repoRefs.createTagTargetPrompt')"
           />
         </div>
         <div class="form-field">
           <label>{{ t('dashboard.repoRefs.createTagMessagePrompt') }}</label>
-          <vscode-textfield :value="tagMessage" @input="tagMessage = ($event.target as HTMLInputElement).value" />
+          <vscode-textfield
+            :value="tagMessage"
+            :label="t('dashboard.repoRefs.createTagMessagePrompt')"
+            @input="tagMessage = ($event.target as HTMLInputElement).value"
+          />
         </div>
       </template>
 
@@ -269,6 +276,7 @@ function title(): string {
               :value="name"
               @input="name = ($event.target as HTMLInputElement).value"
               :placeholder="t('dashboard.repoRefs.nameLabel')"
+              :label="t('dashboard.repoRefs.releaseTagNameLabel')"
               class="tag-name-input"
             />
             <span class="at-separator">@</span>
@@ -277,6 +285,7 @@ function title(): string {
               list="release-targets"
               class="ref-input target-input"
               :placeholder="t('dashboard.repoRefs.selectTarget')"
+              :aria-label="t('dashboard.repoRefs.selectTarget')"
             />
             <datalist id="release-targets">
               <option v-for="branch in branches" :key="`branch-${branch}`" :value="branch" />
@@ -287,12 +296,20 @@ function title(): string {
 
         <div class="form-field">
           <label>{{ t('dashboard.repoRefs.createReleaseNamePrompt') }}</label>
-          <vscode-textfield :value="releaseName" @input="releaseName = ($event.target as HTMLInputElement).value" />
+          <vscode-textfield
+            :value="releaseName"
+            :label="t('dashboard.repoRefs.createReleaseNamePrompt')"
+            @input="releaseName = ($event.target as HTMLInputElement).value"
+          />
         </div>
 
         <div class="form-field">
           <label>{{ t('dashboard.repoRefs.releaseBodyLabel') }}</label>
-          <EasyMdeEditor v-model="releaseBody" :placeholder="t('dashboard.repoRefs.releaseBodyLabel')" />
+          <EasyMdeEditor
+            v-model="releaseBody"
+            :placeholder="t('dashboard.repoRefs.releaseBodyLabel')"
+            :label="t('dashboard.repoRefs.releaseBodyLabel')"
+          />
         </div>
 
         <div v-if="mode === 'release'" class="form-field attachment-field">
@@ -306,7 +323,14 @@ function title(): string {
             <li v-for="att in attachments" :key="att.id" class="attachment-item">
               <a :href="att.browser_download_url" target="_blank" class="attachment-name">{{ att.name }}</a>
               <span class="attachment-size">{{ formatBytes(att.size) }}</span>
-              <button type="button" class="attachment-delete" @click="removeAttachment(att)">×</button>
+              <button
+                type="button"
+                class="attachment-delete"
+                :aria-label="t('dashboard.repoRefs.removeAttachment', { name: att.name })"
+                @click="removeAttachment(att)"
+              >
+                ×
+              </button>
             </li>
           </ul>
           <PendingAttachmentList

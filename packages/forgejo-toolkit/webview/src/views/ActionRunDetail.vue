@@ -322,7 +322,7 @@ function formatDate(date?: string): string {
     return '';
   }
   try {
-    return new Date(date).toLocaleString();
+    return new Date(date).toLocaleString(state.locale.value);
   } catch {
     return date;
   }
