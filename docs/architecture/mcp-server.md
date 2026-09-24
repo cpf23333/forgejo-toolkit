@@ -69,7 +69,10 @@ Forgejo instance REST API
   through the `ForgejoClientHost` hooks; the MCP process keeps the default
   headless host, where those hooks are no-ops / English passthrough.
 - **Instance selection:** exactly one instance is exposed per server
-  process — the first configured instance (insertion order). The definition
+  process — the first configured instance that has a stored access token
+  (insertion order). Instances without a token are skipped so that one which is
+  still waiting for its token cannot hide a later, usable instance; when no
+  instance has a token, no server definition is returned. The definition
   provider re-resolves on `onDidChangeMcpServerDefinitions` when instances
   change. Multi-instance fan-out remains a future direction (see below).
 - **Token flow:** `activate()` reads the token from SecretStorage and passes
@@ -213,6 +216,7 @@ same endpoint for exactly this reason.
   these makes VS Code ask the user to confirm each tool call; they will
   additionally require individual opt-in in extension settings (default off).
 - **Multi-instance fan-out:** one server per configured instance, or an
-  `instance` tool parameter, instead of the single default instance.
+  `instance` tool parameter, instead of the single token-bearing default
+  instance.
 - **MCP prompts:** preset prompt templates (e.g. "review this PR") on top of
   the tool surface.

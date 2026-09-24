@@ -15,12 +15,18 @@ license files in the `.vsix` are this `NOTICE` and the repository's `LICENSE`; t
 full license text of each bundled package stays in that package's own distribution
 (the npm registry tarball, or the copy under `node_modules` in a checkout).
 
+The list below covers the third-party packages whose code is compiled into those
+shipped bundles. It follows the built bundles under `out/` rather than the manifest,
+so a package that is compiled in without being imported by a source file directly is
+still listed (that is the case for `lit`, see below).
+
 Packages whose code is compiled into the bundles:
 
   vue                           MIT
   vue-router                    MIT
   vue-i18n                      MIT
   @vscode-elements/elements     MIT
+  lit                           MIT
   easymde                       MIT
   tributejs                     MIT
   dompurify                     MPL-2.0 OR Apache-2.0 (used under Apache-2.0)
@@ -28,11 +34,15 @@ Packages whose code is compiled into the bundles:
   @modelcontextprotocol/sdk     MIT
   undici                        MIT
 
-These are the packages the sources import directly; their own dependencies (for
-example `codemirror`, `marked`, `typo-js` and `codemirror-spell-checker`, which
-`easymde` bundles into its distributed `easymde.min.js`) are compiled in with them
-and are covered by their upstream licenses. `pnpm licenses list --prod` is the
-authoritative, current list of every license in the production dependency graph.
+`lit` (whose `lit-html`, `lit-element` and `@lit/reactive-element` code is what
+`@vscode-elements/elements` renders through) is compiled into
+`out/webview/assets/index-*.js` even though no source file imports it directly, so
+it is listed here rather than left to the dependency graph. A listed package's own
+dependencies are compiled in with it (for example `codemirror`, `marked`, `typo-js`
+and `codemirror-spell-checker`, which `easymde` bundles into its distributed
+`easymde.min.js`) and are covered by their upstream licenses. `pnpm licenses list
+--prod` is the authoritative, current list of every license in the production
+dependency graph.
 
 Build- and test-only dependencies (Vite, Vitest, esbuild, TypeScript, `@vscode/vsce`,
 jsdom, msw, and `lightningcss`, which Vite uses as its CSS transformer because

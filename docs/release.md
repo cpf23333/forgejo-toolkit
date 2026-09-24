@@ -110,8 +110,16 @@ run — it never triggers on a push, tag or schedule:
 
 1. Typecheck and run the test suites on the dispatched commit.
 2. Build and package the extension (`pnpm --filter forgejo-toolkit package`),
-   then check that `out/extension.js`, `out/mcp-server.js` and `package.json`
-   are inside the `.vsix`.
+   then check the `.vsix` for eight entries — the paths as they appear inside
+   the archive, matched case-insensitively because `vsce` writes the changelog
+   copy as `extension/changelog.md` regardless of the repository spelling:
+   `extension/package.json`, `extension/out/extension.js`,
+   `extension/out/mcp-server.js`, `extension/LICENSE.txt`,
+   `extension/changelog.md`, `extension/l10n/bundle.l10n.json`,
+   `extension/walkthrough/addInstance.md` and
+   `extension/out/webview/index.html`. The list lives in the "Check the
+   packaged .vsix" step of `.forgejo/workflows/release.yml`; a missing entry
+   fails the run.
 3. Upload the `.vsix` as a workflow artifact (so it can be downloaded without
    creating a release).
 4. Create the Codeberg release and attach the `.vsix` — only when `dry_run` is
@@ -123,7 +131,10 @@ The release body comes from `CHANGELOG.md`: the section matching the released
 version (`## [<version>]`), falling back to `## [Unreleased]`, and only if both
 are empty to a capped commit log (40 commits, or everything since the newest
 `v*` tag). That is why step 2 of this document insists on the changelog section
-being written — an empty section silently degrades the release notes.
+being written — an empty section silently degrades the release notes. The
+extracted lines are published verbatim, so the section must read as user-facing
+release notes: keep maintainer instructions (how or when to update the file, for
+example) outside it — at the top of the changelog or in this document.
 
 Inputs: `tag` (override the tag), `prerelease` (mark the release as a
 prerelease), `dry_run` (defaults to `true`, so the first run only builds).

@@ -27,7 +27,9 @@ const text = await response.text();
 const spec = JSON.parse(text);
 await writeFile(target, text);
 const digest = createHash('sha256').update(text).digest('hex').slice(0, 12);
-console.log(`spec:update wrote ${text.length} bytes for ${TAG}`);
+// `text.length` counts UTF-16 code units, not bytes: the file on disk is larger
+// (the snapshot is 853,826 characters vs 853,842 bytes), so name the unit.
+console.log(`spec:update wrote ${text.length} characters (${Buffer.byteLength(text)} bytes) for ${TAG}`);
 console.log(`  source: ${SOURCE}`);
 console.log(`  paths: ${Object.keys(spec.paths ?? {}).length}, sha256: ${digest}`);
 console.log('  info.version is a build placeholder in the template; the tag is the version');

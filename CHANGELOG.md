@@ -5,12 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+<!-- Maintainers: the `## [<version>]` section is extracted verbatim and published
+     as the Codeberg release body (see `.forgejo/workflows/release.yml`), so keep
+     it user-facing and up to date — never place maintainer notes inside a
+     version section. The release checklist is in `docs/release.md`. -->
+
 ## [Unreleased]
 
 ## [0.0.1] - 2026-09-23
 
-First public release. This section is also used as the Codeberg release body, so
-keep it up to date for every release (see `docs/release.md`).
+First public release.
 
 ### Added
 
@@ -50,7 +54,8 @@ keep it up to date for every release (see `docs/release.md`).
 - **Actions.** Workflow run history with incremental paging, run detail with
   jobs, logs and artifacts, artifact download, cancellation of a running run, and
   manual workflow dispatch with inputs.
-- **MCP server.** The first configured instance is exposed to MCP clients
+- **MCP server.** The first configured instance with a stored access token is
+  exposed to MCP clients
   (VS Code ≥ 1.102) as a read-only stdio server covering Issues, PRs,
   notifications, repositories, search, Actions, files, commits, reviews and
   metadata, with input validation and result truncation. The token travels

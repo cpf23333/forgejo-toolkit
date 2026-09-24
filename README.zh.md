@@ -58,19 +58,20 @@ pnpm --filter forgejo-toolkit package
 
 ## 兼容性
 
-- **Forgejo ≥ 16.0** —— 最低版本定为 v16：多个已交付功能依赖 v16 才出现的接口（Actions 的 job/artifact/job 日志/取消/删除，以及多行 review 评论）。更老的实例可能部分可用，但不受支持：扩展每会话提示一次温和警告，且不阻断功能，因此 v15 用户会在这些面板上看到请求失败——服务端返回的裸 404，或由扩展自行闸门拦下的 Actions 调用给出「需要 Forgejo 1.19 或更高版本」的说明（见 KNOWN_ISSUES）。
+- **Forgejo ≥ 16.0** —— 最低版本定为 v16：多个已交付功能依赖 v16 才出现的接口（Actions 的 job/artifact/job 日志/取消/删除，以及多行 review 评论）。更老的实例可能部分可用，但不受支持：扩展每会话提示一次温和警告，且不阻断功能，因此 v15 用户会在这些面板上看到请求失败——服务端返回的裸 404（见 KNOWN_ISSUES）。
 - **主要目标版本：Forgejo v16.x** —— 扩展基于最新的 Forgejo 稳定版（当前为 v16 系列）开发和验证，最低版本与验证目标为同一系列。
 - **VS Code ≥ 1.102** —— 通过扩展的 `engines.vscode` 字段强制约束。
-- **Actions 功能需要 Forgejo ≥ 1.19** —— 在最低版本之上按特性闸门处理：扩展把探测到的服务端版本与 1.19 这条下限比较，早于 Actions API 的实例会在请求时立即失败并给出本地化错误「该功能需要 Forgejo 1.19 或更高版本，当前服务器版本为 <版本>。」，而不是让服务端返回裸 404。Actions 相关界面本身仍然显示，被拒绝的是请求。探测不到版本的服务端不会因此被拦（闸门失败时放行）。
+- **Actions 的 1.19 下限低于支持下限** —— Actions API 最早出现在 Forgejo 1.19，扩展会把探测到的服务端版本与这条下限比较：早于 1.19 的服务端会在请求时被拒绝，给出本地化错误「该功能需要 Forgejo 1.19 或更高版本，当前服务器版本为 <版本>。」，而不是拿到裸 404。从 1.21 时代起的版本（含 v7–v16 现代版本序列）都高于 1.19——这道闸门只可能对 1.18 及更早的版本触发——因此在 Forgejo 15 实例上闸门不会触发，那里缺失的 Actions 子端点会返回服务端自己的 404（见 KNOWN_ISSUES）。Actions 相关界面本身仍然显示，被拒绝的是请求。探测不到版本的服务端不会因此被拦（闸门失败时放行）。
 - 未来依赖更新 Forgejo 版本的新端点（如 v17 的 rerun API）同样按特性闸门处理，不会抬升整体最低版本。
 
 ## MCP Server（AI Agent 集成）
 
 扩展内置 MCP Server，让 Copilot agent mode 等 AI 助手可以用自然语言查询你的 Forgejo 实例。
 
-- **零配置**：首个已配置的 Forgejo 实例会通过 VS Code 的 `contributes.mcpServerDefinitionProviders` API 自动暴露给 MCP 客户端，无需任何额外设置，也不用单独启动服务。
+- **零配置**：首个已配置且已保存 access token 的 Forgejo 实例会通过 VS Code 的 `contributes.mcpServerDefinitionProviders` API 自动暴露给 MCP 客户端，无需任何额外设置，也不用单独启动服务。
 - **要求**：VS Code ≥ 1.102，且至少配置了一个带 access token 的实例；不满足时静默不注册。
 - **使用方式**：在 Copilot 聊天中切换到 agent mode，直接用自然语言提问，例如「list my issues」或「看一下这个仓库最近一次失败运行的 CI 日志」。
+- **代理**：请求会遵循编辑器的 `http.proxy` 设置，其优先级高于环境变量 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（三者的大小写拼写都会读取），该设置会以 `FORGEJO_MCP_PROXY` 转发给 MCP 服务进程。
 - **工具概览**：约 27 个工具，分为四组——
   - **基础**：Issue、PR、时间线、通知、仓库信息与搜索（如 `list_issues`、`get_pull_request`）。
   - **Actions**：运行历史、job 日志与制品（如 `list_action_runs`、`get_action_job_log`）。

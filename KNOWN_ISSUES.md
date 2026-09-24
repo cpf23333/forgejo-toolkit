@@ -173,9 +173,11 @@ As a result the repository is not detected as linked: the dashboard shows no lin
 
 Workaround: add a remote whose URL contains the instance host verbatim, or configure the rewrite the other way around (put the full instance URL in the remote and rewrite it for other tools).
 
-## Files larger than 10 MiB render as empty
+## Files larger than 10 MiB cannot be read through the contents API
 
-Forgejo's contents API omits the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE` (10 MiB by default): it returns `content: ""` together with the real `size` instead of failing. The pull request diff now shows a notice naming the size and pointing at the browser instead of an empty document; the repository browser and the dashboard README still render as empty (see `TODO.md`).
+Forgejo's contents API omits the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE` (10 MiB by default): it returns `content: ""` together with the real `size` instead of failing, while a genuinely empty file reports `size: 0`.
+
+Everywhere the extension reads a payload through that API it now tells the two cases apart and serves a notice naming the size and pointing at the browser — the pull request diff, the repository file browser, the repository README preview and the MCP file-content tool — instead of rendering the file as an empty document. A real empty file still opens as an empty document.
 
 Workaround: open the file through the Forgejo web UI or a local checkout.
 
@@ -185,21 +187,21 @@ Paged list endpoints stop after 500 items. A list whose length is exactly 500 ma
 
 Several views now say so when a list reaches the cap: the repository issue list, the repository pull request list, the branches / tags / releases tabs, the issue and pull request timelines (comments), the changed-file list, the commit list, and the repository file search (which reports when the git tree itself was too large to read completely rather than a 500-item cap). The MCP tools append a `(list truncated at 500 items: …)` note when the tool result itself or one of its direct fields is a capped list.
 
-The remaining lists are shown silently, so an account or repository with more matching entries sees an incomplete list with no hint: repositories, notifications, labels, milestones, assignees, issue dependencies, reactions, tracked time, and run artifacts.
+The remaining lists are shown silently, so an account or repository with more matching entries sees an incomplete list with no hint: repositories, labels, milestones, issue dependencies, reactions, tracked time, and run artifacts. Notification threads are the exception: the notifications view pages them with a "Load more" button until the server answers with an empty page, so they are not cut off at the cap.
 
-The "Create PR" status bar entry is a special case: it reads only the first page of open pull requests, and when that page reaches 500 it writes a warning to the `Forgejo Toolkit` Output Channel instead of showing a "Create PR" button for a branch that already has a pull request beyond the cap. That warning is the only signal, and it is easy to miss.
+The "Create PR" status bar entry is a special case: it reads the open pull request list up to the shared 500-item cap (up to ten requests) just to answer whether the current branch already has a pull request, and when the result reaches the cap it writes a warning to the `Forgejo Toolkit` Output Channel. A pull request beyond the cap is not detected, so the entry can still offer "Create PR" for a branch that already has one; that warning is the only signal, and it is easy to miss.
 
 Workaround: narrow the list with the extension's filters or keyword search, or use the Forgejo web UI for a complete view.
 
 ## Proxy support ignores `no_proxy`, and each process reads its own configuration
 
-Requests honour a proxy: the editor's `http.proxy` setting wins over `HTTPS_PROXY`/`http_proxy`/`HTTP_PROXY`/`ALL_PROXY` from the environment, the value is normalized (a scheme-less `proxy.example.com:8080` is accepted) and an unusable value falls back to a direct connection with a log line. The extension passes the setting to its MCP server process as `FORGEJO_MCP_PROXY`; that process otherwise reads the environment, since it runs outside the editor. Note that `no_proxy` is not interpreted: a host listed there is still sent through the proxy, because the extension talks to a single configured instance and silently ignoring the proxy would be harder to diagnose.
+Requests honour a proxy: the editor's `http.proxy` setting wins over the environment's `HTTPS_PROXY`/`https_proxy`, `HTTP_PROXY`/`http_proxy` and `ALL_PROXY`/`all_proxy`, the value is normalized (a scheme-less `proxy.example.com:8080` is accepted) and an unusable value falls back to a direct connection with a log line. The extension passes the setting to its MCP server process as `FORGEJO_MCP_PROXY`; that process otherwise reads the environment, since it runs outside the editor. Note that `no_proxy` is not interpreted: a host listed there is still sent through the proxy, because every request goes to an instance the user configured and silently ignoring the configured proxy would be harder to diagnose.
 
 Workaround: point the instance URL at a host that is reachable directly — a reverse proxy or tunnel in front of the Forgejo server — or run the editor on a network with direct access.
 
 ## The worktree cache sweep adopts every bare repository under its cache directory
 
-`forgejoToolkit.worktreeCacheDirectory` accepts any writable folder, and the extension keeps its own bare clones in `<cacheDir>/repos/*.git`. The periodic sweep treats every such directory as its own: one that the extension never uses is deleted once it is 30 days old, and the oldest ones are deleted when more than 20 exist. Pointing the setting at a folder that already holds unrelated bare clones therefore puts them on that schedule.
+`forgejoToolkit.worktreeCacheDirectory` accepts any writable folder, and the extension keeps its own bare clones in `<cacheDir>/repos/*.git`. The LRU sweep runs lazily — it is triggered while a worktree is created from a cache clone, never on a timer — and treats every such directory as its own: a clone the extension never uses is stamped as used the first time a sweep sees it and deleted once 30 days pass without another use, and the oldest ones are deleted when more than 20 exist. Pointing the setting at a folder that already holds unrelated bare clones therefore puts them on that schedule.
 
 Workaround: use a dedicated folder for the setting (the default is extension storage), or keep bare repositories you maintain yourself outside `<cacheDir>/repos`.
 

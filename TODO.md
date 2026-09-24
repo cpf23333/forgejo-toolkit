@@ -13,15 +13,18 @@
 
 - [ ] P3 `IssueAddTime` 缺 422：**上游规格本身没有这个响应**（`packages/forgejo-api/spec/swagger.v1.json` 里 `POST /repos/{owner}/{repo}/issues/{index}/times` 只声明 `200/400/403/404`），所以重新生成补不上。`client.ts` 已注释服务端实际行为；要类型层面补齐得等上游 swagger 注解，或由我们本地手写类型（决定：暂不做）
 - [ ] P3 重新生成 kubb 客户端需要能跑通的环境：本机 Windows + Node 24.14.0/25.6.1 上 `kubb generate` 稳定崩溃（exit 134，V8/libuv abort，出现过 3 次，崩溃点在它已经清空输出目录之后）。已加防护 `pnpm --filter @cpf23333-forgejo-toolkit/api generate:safe`（脏树拒绝启动 + 失败自动 `git restore`）；CI 容器是 Node 22，优先在那里跑并核对 diff
-- [ ] P2 `X-Total-Count` 仍不可用（共享请求层不透出响应头）：通知分页已按「只有空页才算结束」处理，但列表总数与「是否还有更多」仍无法精确展示
+- [ ] P2 `X-Total-Count` 仍拿不到：**不是**共享请求层的问题——`packages/shared/src/request/index.ts` 的 `ResponseConfig` 一直返回 `headers`，丢掉它的是生成的 operation 包装层：每个 `packages/forgejo-api/src/generated/client/*.ts` 函数都只 `return res.data`（如 `issueListIssues.ts`）。所以列表总数与「是否还有更多」无法精确展示；要修得改生成流程让包装层透出 `headers`/`status`，或在调用处绕开包装层直接用请求客户端。通知分页已按「只有空页才算结束」处理，列表截断按「长度达到 500 即可能被截断」提示
 - [ ] P5 低优先级（等上游）：`vscode-tree` 内按钮（IconActionButton）的 Enter/Space 被库自身 `keydown` 的 `preventDefault` 抑制（`@vscode-elements/elements` 2.5.1 既有行为）
 - [ ] 等上游版本：Forgejo v17（约 2026-10 底）的 workflow / job rerun（`forgejo#13924`，用 ≥17.0 版本闸门，并同步移除 `KNOWN_ISSUES` 对应条目）；Actions 日志 ndjson + 服务端过滤（#12820 / #12821，低优先级）
 - [ ] 规划中的功能：MCP Phase 2 写工具（默认关 + 设置逐项开启 + 不标 `readOnlyHint`）、MCP 多实例 fan-out、`forgejoToolkit.mcpEnabled` 开关
 - [ ] P3 打包优化：`out/mcp-server.js` 里约 **350 KB** 的代码与 `out/extension.js` 重复——`packages/forgejo-toolkit/esbuild.js`（约 7–47 行）为扩展宿主和 MCP 服务器各配一份 esbuild，共享运行时（生成客户端、`shared` 请求层、zod 等）被打进两个包。做法是让两份 bundle 共用一个 chunk（或把 MCP 入口作为第二个 entry 输出），但**必须跑一次构建才能核对体积与 `forbid-vscode` 约束**，因此暂缓（决定：等发版后再做）
 - [ ] P3 打包优化：onboarding / review 评论两个面板各自加载的是整份 dashboard webview 入口（`webview/src/main.ts` 在入口里同步注册 13 个 `@vscode-elements/elements` 模块，入口 335 KB，而面板 chunk 只有 8 KB / 5 KB），所以打开评论编辑器要解析整个 dashboard 外壳。做法是按面板拆分 webview 入口，或把 dashboard 主体改成懒加载路由；同样需要构建核对，因此暂缓
 - [ ] P4 「创建 PR」状态栏仍会拉取整个打开中 PR 列表（上限 500 条 ≈ 10 次请求）才能回答分支查询。正确但浪费：要真正减少请求数需要在 `client.ts` 暴露分页方法（例如 `getRepoPullRequests(owner, repo, state, { page, limit })`），再由状态栏只取第一页。当前实现会在达到 500 条上限时写一条明确的警告日志，因此计数不会悄悄出错。改动涉及共享 API 面，留到发版后
+- [ ] P5 已知代价（仅记录）：`API_REQUEST_TIMEOUT_MS`（30 s）约束的是**每一页请求**，而不是整次分页操作——`client.ts` 的分页辅助 `_fetchAllPages` 每页各发一次请求、超时按页重新计时，所以一次达到 500 条上限的分页读取在慢实例上累计可能持续数分钟（约 10 页 × 30 s）。需要整体上限的调用方必须自己传 `AbortSignal`
 - [ ] P4 多窗口重复轮询/探测（每个窗口各跑一份通知轮询与版本探测，首次运行向导标记也存在竞态）已作为平台代价记录在 `KNOWN_ISSUES.md`；若之后要收敛，可选方向是用 globalState 时间戳做「一个窗口主导」的租约
 - [ ] P4 两处已确认但发版前未修的低危问题（2026-09-23 第二轮审查）：① 依赖选择器读的是非响应式的 `TimedCache` 标记（`useAppState.ts` 的 `repoIssuesFetchedAt`），所以 `IssueDetail.vue`/`PullRequestDetail.vue` 里「无可选依赖」的提示永远不会渲染，且 `ensureRepoIssuesLoaded` 是空实现（按需加载从未发生）；② `Settings.vue` 的 `saveInstanceResult` 未按实例区分，实例 A 的保存回包落在用户正在编辑的实例 B 表单上会清空 B 已输入的 URL/token 并提示已保存
+- [ ] P4 仓库详情对「没有 README」的仓库会多发一次 `/contents/README.md` 请求（`viewProvider.ts` 的 README 提示探测，而 `client.getRepoDetail` 已经取过同一份内容）。做法：给 `ForgejoRepoDetail` 加 `readmeSize?: number`（`src/api/types.ts` 与 `webview/src/types/api.ts` 两处镜像），`getRepoDetail` 复用已取到的 entry（`readme: entry?.content`、`readmeSize: entry?.content === undefined ? entry?.size : undefined`），`viewProvider` 改为读 `detail.readmeSize` 并在本地化提示里用该尺寸，即可去掉第二次请求并让提示继续生效
+- [ ] P5 统一 URL 脱敏实现：`worktree/gitOperations.ts` 的 `redactRemoteUrl` 与 `src/api/versionProbe.ts` 的 `redactInstanceUrl` 现在是两份同规则实现——前者因 `esbuild.js` 的 `forbid-vscode` 约束（`gitOperations` 依赖 `vscode`，而 MCP 包会引入 `versionProbe`）不能被 MCP 侧导入。做法是把纯函数挪到无 `vscode` 依赖的工具模块（如 `src/utils/urls.ts`），两边各自转出/复用一份实现
 - [ ] 已知的平台代价（无解，仅记录）：贡献 `mcpServerDefinitionProviders` 后，VS Code 会为查询 MCP 定义而**主动激活**扩展（上游 issue microsoft/vscode#266221「MCP server 导致扩展在所有工作区、连空工作区都被激活」）。官方激活事件清单里没有 MCP 条目（`onStartupFinished` 本身是标准事件），所以既不需要也无法声明专门事件；这一条只是记录代价本身——激活事件的实际取法（已补 `onStartupFinished`）与实测数据见下方「走查与实测」
 
 ## 走查与实测

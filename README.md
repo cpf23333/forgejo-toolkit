@@ -72,19 +72,20 @@ The file is written to `packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix`
 
 ## Compatibility
 
-- **Forgejo ≥ 16.0** — the minimum is v16 because several shipped features rely on endpoints that first appeared there (Actions run jobs/artifacts/job logs/cancel/delete and multi-line review comments). Older instances may partially work but are not supported: the extension shows a one-time warning per session and keeps every feature enabled, so v15 users will see request failures on those panels — a bare 404 from the server, or, for the Actions calls the extension gates itself, the descriptive "requires Forgejo 1.19 or newer" error (see KNOWN_ISSUES).
+- **Forgejo ≥ 16.0** — the minimum is v16 because several shipped features rely on endpoints that first appeared there (Actions run jobs/artifacts/job logs/cancel/delete and multi-line review comments). Older instances may partially work but are not supported: the extension shows a one-time warning per session and keeps every feature enabled, so v15 users will see request failures on those panels — a bare 404 from the server (see KNOWN_ISSUES).
 - **Primary target: Forgejo v16.x** — the extension is developed and validated against the latest Forgejo stable release (currently the v16 series); the minimum and the validation target are the same series.
 - **VS Code ≥ 1.102** — enforced via the extension's `engines.vscode` field.
-- **Actions features require Forgejo ≥ 1.19** — handled as a feature gate on top of the minimum: the extension compares the probed server version with the 1.19 floor, and a request against an older instance fails fast with a localized "This feature requires Forgejo 1.19 or newer, but this server reports version &lt;version&gt;." error instead of Forgejo's bare 404. The Actions UI itself stays visible; it is the request that is refused. A server whose version cannot be probed is never blocked (the gate fails open).
+- **The Actions 1.19 floor sits below the supported minimum** — the Actions API first appeared in Forgejo 1.19 and the extension compares the probed server version against that floor: a server older than 1.19 is refused with a localized "This feature requires Forgejo 1.19 or newer, but this server reports version &lt;version&gt;." error instead of a bare 404. Every version from the 1.21 era onward, including the modern v7–v16 series, compares above 1.19 — the gate can only fire for 1.18 and older — so on a Forgejo 15 instance it never fires and the Actions sub-endpoints missing there answer with the server's own 404 (see KNOWN_ISSUES). The Actions UI itself stays visible; it is the request that is refused. A server whose version cannot be probed is never blocked (the gate fails open).
 - Future endpoints from newer Forgejo releases (e.g. the v17 rerun API) are gated per feature the same way and do not raise the overall minimum version either.
 
 ## MCP Server (AI Agent Integration)
 
 The extension ships a built-in MCP server that lets AI assistants — such as Copilot agent mode — query your Forgejo instance in natural language.
 
-- **Zero configuration**: the first configured Forgejo instance is automatically exposed to MCP clients via VS Code's `contributes.mcpServerDefinitionProviders` API. No extra setup, no separate server to run.
+- **Zero configuration**: the first configured Forgejo instance that has a stored access token is automatically exposed to MCP clients via VS Code's `contributes.mcpServerDefinitionProviders` API. No extra setup, no separate server to run.
 - **Requirements**: VS Code ≥ 1.102 and at least one configured instance with an access token. If neither is available, the server is simply not registered.
 - **Usage**: open Copilot chat in agent mode and ask in natural language, e.g. "list my issues" or "show the CI log of the latest failed run in this repo".
+- **Proxy**: requests honour the editor's `http.proxy` setting, which wins over the environment's `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` (each name is read in either case), and the setting is forwarded to the MCP server process as `FORGEJO_MCP_PROXY`.
 - **Tool overview**: about 27 tools in four groups —
   - **Core**: issues, pull requests, timelines, notifications, repository info, and search (e.g. `list_issues`, `get_pull_request`).
   - **Actions**: run history, job logs, and artifacts (e.g. `list_action_runs`, `get_action_job_log`).
