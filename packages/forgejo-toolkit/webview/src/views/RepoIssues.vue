@@ -114,6 +114,14 @@ const hasIssues = computed(
 const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? []);
 const assignees = computed(() => state.repoAssignees.value.get(assigneesKey.value) ?? []);
 const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.value) ?? []);
+// The create/edit form's pickers are the only consumers of these three lists, and
+// a failed load writes its reason to the list's own key. Nothing read it, so the
+// form rendered empty pickers — indistinguishable from a repository that has none
+// — with no way to tell the user why. The failure is shown at the picker it
+// emptied (see IssueForm's `labelsError` and friends).
+const labelsError = computed(() => state.errors.get(labelsKey.value) ?? '');
+const assigneesError = computed(() => state.errors.get(assigneesKey.value) ?? '');
+const milestonesError = computed(() => state.errors.get(milestonesKey.value) ?? '');
 const refs = computed(() => state.repoRefs.value.get(refsKey.value));
 const branches = computed(
   () => refs.value?.branches.map((b) => b.name).filter((name): name is string => Boolean(name)) ?? [],
@@ -575,6 +583,9 @@ async function handleCreateSubmit(data: {
         :labels="labels"
         :assignees="assignees"
         :milestones="milestones"
+        :labels-error="labelsError"
+        :assignees-error="assigneesError"
+        :milestones-error="milestonesError"
         :branches="branches"
         :tags="tags"
         :upload-image="handleUploadImageForCreate"

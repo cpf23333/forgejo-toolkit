@@ -299,7 +299,11 @@ function isEmptyList(entry: unknown[] | undefined): boolean {
                 :label="t('dashboard.actions.open')"
                 @click.prevent="state.openExternal(repo.html_url)"
               />
+              <!-- Hidden when there is nothing to copy: a legacy payload (a mask
+                   and no functional URL) makes `cloneUrl` return '', and copying
+                   '' still reported a successful copy. -->
               <IconActionButton
+                v-if="cloneUrl(repo)"
                 name="copy"
                 :label="t('dashboard.actions.copyClone')"
                 @click.prevent="state.copyToClipboard(cloneUrl(repo))"

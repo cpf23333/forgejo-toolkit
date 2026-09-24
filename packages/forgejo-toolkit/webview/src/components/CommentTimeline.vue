@@ -296,6 +296,19 @@ function getCommentReactionsLoading(comment: ForgejoTimelineComment) {
   return key ? (state.loading.get(key) ?? false) : false;
 }
 
+/**
+ * The failure this comment's reaction bar has to show. A failed load and a failed
+ * toggle both land on the comment's `commentReactionsKey` (see
+ * `handleCommentReactions` / `handleCommentReactionChanged`), and the host sends
+ * no toast, so without this the row the user tried to react to kept its previous
+ * state with the reason read nowhere. The other two `ReactionBar` call sites
+ * already pass their own key's error.
+ */
+function getCommentReactionsError(comment: ForgejoTimelineComment): string {
+  const key = getCommentReactionsKey(comment);
+  return key ? (state.errors.get(key) ?? '') : '';
+}
+
 function handleCommentReactionToggle(comment: ForgejoTimelineComment, content: string, add: boolean) {
   if (comment.id === undefined) {
     return;
@@ -773,6 +786,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         :reactions="getCommentReactions(comment)"
         :current-username="currentUsername"
         :loading="getCommentReactionsLoading(comment)"
+        :error="getCommentReactionsError(comment)"
         @toggle="(content, add) => handleCommentReactionToggle(comment, content, add)"
       />
     </div>

@@ -443,12 +443,13 @@ function createAppState() {
   // without this the previous server's reply would be written under the id the
   // new configuration uses. One record per outstanding request — appended before
   // the post, consumed in send order — is what attributes a reply to the request
-  // it answers: an identity change both drops the records that server left
-  // behind and appends the reload's own, so a reply that matches no record is
-  // one no request of the current server can have asked for (see
-  // consumeInstanceListReply). Only those three loaders write here, which also
-  // makes this map the exact list of slots `clearInstancePayloads` has to clear
-  // on an identity change: the clear has to free the loading flag too, or the
+  // it answers. An identity change keeps the records it invalidated (they are the
+  // tombstones the superseded request's own late reply has to consume) and the
+  // reload appends its own, so a reply whose record was sent for a server this
+  // webview no longer is gets refused instead of writing the replaced server's
+  // rows (see consumeInstanceListReply). Only those three loaders write here, which
+  // also makes this map the exact list of slots `clearInstancePayloads` has to
+  // clear on an identity change: the clear has to free the loading flag too, or the
   // mandated reload below is deduped away by it.
   const instanceListRequests = new Map<string, { instanceId: string; identity: string; epoch: number }[]>();
   // Per-instance poll failures (expired token, unreachable instance) so the
@@ -1981,16 +1982,20 @@ function createAppState() {
   }
 
   /**
-   * Frees the loading/error slots one instance's identity change invalidated and
-   * drops the records it invalidated.
+   * Frees the loading/error slots one instance's identity change invalidated, and
+   * keeps every queued record as a tombstone.
    *
    * A request sent for the replaced server can never answer for the server now
-   * configured, and its record has to go with the change: keeping it would leave
-   * the reload's record indistinguishable from it (both can carry the identity
-   * and epoch the webview now has). Its late reply is refused because it finds no
-   * record of the configured server: the reload's record is consumed by the
-   * reload's own reply, and when the identity change had no reload to issue (the
-   * instance was removed) nothing is recorded at all.
+   * configured, but its record is deliberately kept: its own late reply consumes
+   * records in send order, and dropping the tombstone would let that reply consume
+   * the reload's record instead. A reload is issued with the identity/epoch the
+   * webview now has (url a -> b -> a, or a reload issued for the identity the
+   * webview last saw), so the superseded reply could match the reload's record and
+   * write the replaced server's rows under the id the new configuration uses. With
+   * the tombstone kept, that reply finds a record of a server this webview no
+   * longer is, is refused, and leaves the reload's record queued for the reload's
+   * own reply; when the identity change had no reload to issue (the instance was
+   * removed) nothing is appended at all.
    */
   function invalidateInstanceListRequests(instanceId: string) {
     for (const [key, queue] of Array.from(instanceListRequests)) {
@@ -5597,7 +5602,8 @@ function createAppState() {
     // and the reply of the request still in flight wrote the replaced server's
     // rows back under the id the new configuration uses (see
     // consumeInstanceListReply).
-    invalidateInstanceListRequests(instanceId); // A badge request still in flight is deliberately left in place: its reply
+    invalidateInstanceListRequests(instanceId);
+    // A badge request still in flight is deliberately left in place: its reply
     // has to be attributable, and the cursor it was sent with is what keeps it
     // apart from the requests the new configuration sends (see
     // notificationRequests). handleNotifications drops the replaced server's

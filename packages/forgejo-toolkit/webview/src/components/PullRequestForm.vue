@@ -22,6 +22,15 @@ interface Props {
   labels?: ForgejoLabel[];
   assignees?: string[];
   milestones?: ForgejoMilestone[];
+  /**
+   * The failure the repository's label / assignee / milestone list load ended
+   * with (`repoLabelsKey` and friends). The host sends no toast, so without these
+   * the picker rendered empty — the same thing the user sees when the repository
+   * has none — and the form silently offered no choice at all.
+   */
+  labelsError?: string;
+  assigneesError?: string;
+  milestonesError?: string;
   submitLabel: string;
   loading?: boolean;
   error?: string;
@@ -42,6 +51,9 @@ const props = withDefaults(defineProps<Props>(), {
   labels: () => [],
   assignees: () => [],
   milestones: () => [],
+  labelsError: '',
+  assigneesError: '',
+  milestonesError: '',
   branches: () => [],
   loading: false,
   error: '',
@@ -314,6 +326,9 @@ async function handleSubmit() {
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.assignees') }}</label>
+      <div v-if="assigneesError" class="form-field-error" role="status">
+        {{ t('dashboard.form.assigneesLoadFailed', { message: assigneesError }) }}
+      </div>
       <div class="option-list">
         <button
           v-for="login in assignees"
@@ -330,6 +345,9 @@ async function handleSubmit() {
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.labels') }}</label>
+      <div v-if="labelsError" class="form-field-error" role="status">
+        {{ t('dashboard.form.labelsLoadFailed', { message: labelsError }) }}
+      </div>
       <div class="option-list">
         <button
           v-for="label in labels"
@@ -347,6 +365,9 @@ async function handleSubmit() {
     </div>
     <div class="form-field">
       <label>{{ t('dashboard.form.milestone') }}</label>
+      <div v-if="milestonesError" class="form-field-error" role="status">
+        {{ t('dashboard.form.milestonesLoadFailed', { message: milestonesError }) }}
+      </div>
       <vscode-single-select
         :value="selectedMilestoneId === undefined ? '' : String(selectedMilestoneId)"
         :label="t('dashboard.form.milestone')"
@@ -462,6 +483,13 @@ async function handleSubmit() {
 .form-error {
   color: var(--vscode-testing-iconFailed);
   font-size: 0.9em;
+}
+
+/* A failed list load, shown at the picker it emptied (the form's own `error`
+   line is for the save). */
+.form-field-error {
+  color: var(--vscode-errorForeground);
+  font-size: 0.85em;
 }
 
 .form-actions {

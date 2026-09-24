@@ -4,6 +4,8 @@ import { nextTick } from 'vue';
 
 const { stateMock } = vi.hoisted(() => ({
   stateMock: {
+    // `functionalUrl` is optional: a test below swaps in a payload from a host
+    // build that predates the field.
     instances: {
       value: [
         {
@@ -13,7 +15,7 @@ const { stateMock } = vi.hoisted(() => ({
           functionalUrl: 'https://forgejo.example.com/',
           username: 'demo-user',
         },
-      ],
+      ] as Array<{ id: string; url: string; functionalUrl?: string; username: string }>,
     },
     loading: new Map<string, boolean>(),
     errors: new Map<string, string>(),
@@ -88,6 +90,17 @@ describe('GlobalSearch clone URL', () => {
     stateMock.loading.clear();
     stateMock.errors.clear();
     stateMock.globalSearchResults.value.clear();
+    // A test below replaces the instance list with a legacy payload; every test
+    // starts from the host's current one.
+    stateMock.instances.value = [
+      {
+        id: 'inst-1',
+        // What the host sends: the display value keeps the credential mask.
+        url: 'https://***@forgejo.example.com/',
+        functionalUrl: 'https://forgejo.example.com/',
+        username: 'demo-user',
+      },
+    ];
   });
 
   it('copies the credential-free clone URL', async () => {
@@ -109,6 +122,20 @@ describe('GlobalSearch clone URL', () => {
     await typeQuery(wrapper, 'alpha');
 
     expect(wrapper.text()).toContain('https://***@forgejo.example.com/');
+    wrapper.unmount();
+  });
+
+  it('does not offer the copy action when there is no usable URL to copy', async () => {
+    // A payload from a host build that predates `functionalUrl`, with the display
+    // value masked: the clone URL is '' and the button used to write an empty
+    // clipboard while still reporting the copy as done.
+    stateMock.instances.value = [{ id: 'inst-1', url: 'https://***@forgejo.example.com/', username: 'demo-user' }];
+    seedResults();
+    const wrapper = mountSearch();
+    await typeQuery(wrapper, 'alpha');
+
+    expect(wrapper.findAll('button[aria-label="Copy clone URL"]')).toHaveLength(0);
+    expect(stateMock.copyToClipboard).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 });

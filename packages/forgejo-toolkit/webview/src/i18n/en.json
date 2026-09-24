@@ -459,6 +459,7 @@
       "trackedTimeTotal": "Total tracked time",
       "trackedTimeMine": "My tracked time",
       "stopwatchRunningElsewhere": "A timer is already running on {issue}; starting one here ends it and records that time.",
+      "stopwatchLoadFailed": "Could not read the timer state: {message}",
       "commentsTruncated": "Only the first 500 timeline entries are shown.",
       "filesTruncated": "Only the first 500 changed files are shown.",
       "commitsTruncated": "Only the first 500 commits are shown."
@@ -479,6 +480,9 @@
       "labels": "Labels",
       "assignees": "Assignees",
       "milestone": "Milestone",
+      "labelsLoadFailed": "Could not load labels: {message}",
+      "assigneesLoadFailed": "Could not load assignees: {message}",
+      "milestonesLoadFailed": "Could not load milestones: {message}",
       "noMilestone": "-- no milestone --",
       "dueDate": "Due date",
       "ref": "Reference",

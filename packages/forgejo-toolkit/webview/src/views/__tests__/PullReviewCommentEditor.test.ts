@@ -59,7 +59,19 @@ function mountEditor(context: PullReviewCommentContext) {
   });
 }
 
-function dispatchHostReply(command: string) {
+/**
+ * A completion reply carries the context its request was started with
+ * (`instanceId`/`owner`/`repo`/`index`), which is how the editor tells its own
+ * answer from one meant for the line/PR the singleton panel showed before.
+ */
+const OWN_IDENTITY = { instanceId: 'inst-1', owner: 'owner', repo: 'repo', index: 2 };
+
+function dispatchHostReply(command: string, data: Record<string, unknown> = OWN_IDENTITY) {
+  window.dispatchEvent(new MessageEvent('message', { data: { command, ...data } }));
+}
+
+/** A command that carries no identity at all (`queryPullReviewCommentDraft`). */
+function dispatchBareReply(command: string) {
   window.dispatchEvent(new MessageEvent('message', { data: { command } }));
 }
 
@@ -127,7 +139,7 @@ describe('PullReviewCommentEditor draft-state query', () => {
   it('answers clean when the body is empty or whitespace', async () => {
     mountEditor(createContext());
 
-    dispatchHostReply('queryPullReviewCommentDraft');
+    dispatchBareReply('queryPullReviewCommentDraft');
     await nextTick();
 
     expect(postMessageMock).toHaveBeenCalledWith({ command: 'pullReviewCommentDraftState', dirty: false });
@@ -137,7 +149,7 @@ describe('PullReviewCommentEditor draft-state query', () => {
     const wrapper = mountEditor(createContext());
     await wrapper.find('[data-stub="easymde"]').setValue('work in progress');
 
-    dispatchHostReply('queryPullReviewCommentDraft');
+    dispatchBareReply('queryPullReviewCommentDraft');
     await nextTick();
 
     expect(postMessageMock).toHaveBeenCalledWith({ command: 'pullReviewCommentDraftState', dirty: true });
@@ -249,6 +261,83 @@ describe('PullReviewCommentEditor submit waits for an in-flight image upload', (
     expect(postMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({ command: 'submitPullReviewComment', body: 'plain comment' }),
     );
+    wrapper.unmount();
+  });
+});
+
+/**
+ * The panel is a singleton: the host reuses it for another line or pull request,
+ * and a request posted for the *previous* context can still answer after the
+ * switch. Resetting `submitting` on the command name alone therefore released the
+ * guard of the editor now on screen, whose next click posted a second comment or
+ * review — the duplicate the guard exists to prevent. The reply has to carry the
+ * context it was started for, and the editor has to compare it with its own.
+ */
+describe('PullReviewCommentEditor completion-reply attribution', () => {
+  beforeEach(() => {
+    postMessageMock.mockClear();
+  });
+
+  it('does not release the guard for a comment reply from another context', async () => {
+    const wrapper = mountEditor(createContext());
+    await wrapper.find('[data-stub="easymde"]').setValue('hello');
+    const submitButton = wrapper.findAll('vscode-button')[0];
+
+    await submitButton.trigger('click');
+    expect(postMessageMock).toHaveBeenCalledTimes(1);
+
+    // The reply answers the editor the host had open before this one (a
+    // different line of the same pull request).
+    dispatchHostReply('pullReviewCommentSubmitted', { ...OWN_IDENTITY, index: 3 });
+    await nextTick();
+    await submitButton.trigger('click');
+    expect(postMessageMock).toHaveBeenCalledTimes(1);
+
+    // Its own reply is what releases the guard.
+    dispatchHostReply('pullReviewCommentSubmitted');
+    await nextTick();
+    await submitButton.trigger('click');
+    expect(postMessageMock).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it('does not release the guard for a review-submit reply from another instance', async () => {
+    const wrapper = mountEditor(createContext({ mode: 'review', pendingReviewId: 5 }));
+
+    // Buttons: addToReview, submitReview, cancelReview, close.
+    const submitReviewButton = wrapper.findAll('vscode-button')[1];
+    await submitReviewButton.trigger('click');
+    expect(postMessageMock).toHaveBeenCalledTimes(1);
+
+    dispatchHostReply('pullReviewSubmitted', { ...OWN_IDENTITY, instanceId: 'inst-2' });
+    await nextTick();
+    await submitReviewButton.trigger('click');
+    expect(postMessageMock).toHaveBeenCalledTimes(1);
+
+    dispatchHostReply('pullReviewSubmitted');
+    await nextTick();
+    await submitReviewButton.trigger('click');
+    expect(postMessageMock).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it('does not release the guard for a review-delete reply from another repository', async () => {
+    const wrapper = mountEditor(createContext({ mode: 'review', pendingReviewId: 5 }));
+
+    const cancelButton = wrapper.findAll('vscode-button')[2];
+    await cancelButton.trigger('click');
+    expect(postMessageMock).toHaveBeenCalledTimes(1);
+
+    dispatchHostReply('pullReviewDeleted', { ...OWN_IDENTITY, repo: 'other-repo' });
+    await nextTick();
+    await cancelButton.trigger('click');
+    expect(postMessageMock).toHaveBeenCalledTimes(1);
+
+    // A declined confirm is this editor's own answer: it releases the guard.
+    dispatchHostReply('pullReviewDeleted', { ...OWN_IDENTITY, cancelled: true });
+    await nextTick();
+    await cancelButton.trigger('click');
+    expect(postMessageMock).toHaveBeenCalledTimes(2);
     wrapper.unmount();
   });
 });

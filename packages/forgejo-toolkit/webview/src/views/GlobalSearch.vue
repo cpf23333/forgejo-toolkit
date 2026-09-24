@@ -465,7 +465,11 @@ watch(stateFilter, () => {
                       :label="t('dashboard.actions.open')"
                       @click.prevent="state.openExternal(repo.html_url)"
                     />
+                    <!-- Hidden when there is nothing to copy: a legacy payload (a
+                         mask and no functional URL) makes `repoCloneUrl` return
+                         '', and copying '' still reported a successful copy. -->
                     <IconActionButton
+                      v-if="repoCloneUrl(instance, repo)"
                       name="copy"
                       :label="t('dashboard.actions.copyClone')"
                       @click.prevent="state.copyToClipboard(repoCloneUrl(instance, repo))"
@@ -488,7 +492,9 @@ watch(stateFilter, () => {
                     :label="t('dashboard.actions.open')"
                     @click.prevent="state.openExternal(repo.html_url)"
                   />
+                  <!-- Same guard as the grouped-tab row above. -->
                   <IconActionButton
+                    v-if="repoCloneUrl(instance, repo)"
                     name="copy"
                     :label="t('dashboard.actions.copyClone')"
                     @click.prevent="state.copyToClipboard(repoCloneUrl(instance, repo))"

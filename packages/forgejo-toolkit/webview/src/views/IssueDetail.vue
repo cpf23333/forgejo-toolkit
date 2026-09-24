@@ -88,12 +88,27 @@ const reactionsKey = computed(() => issueReactionsKey(instanceId.value, owner.va
 const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? []);
 const assignees = computed(() => state.repoAssignees.value.get(assigneesKey.value) ?? []);
 const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.value) ?? []);
+// The edit dialog's pickers are the only consumers of these three lists, and a
+// failed load writes its reason to the list's own key. Nothing read it, so the
+// form rendered empty pickers — indistinguishable from a repository that has none
+// — with no way to tell the user why. The failure is shown at the picker it
+// emptied (see IssueForm's `labelsError` and friends).
+const labelsError = computed(() => state.errors.get(labelsKey.value) ?? '');
+const assigneesError = computed(() => state.errors.get(assigneesKey.value) ?? '');
+const milestonesError = computed(() => state.errors.get(milestonesKey.value) ?? '');
 const subscription = computed(() => state.issueSubscriptions.value.get(subscriptionKey.value));
 const subscriptionError = computed(() => state.errors.get(subscriptionKey.value));
 const trackedTimes = computed(() => state.issueTrackedTimes.value.get(trackedTimesKey.value) ?? []);
 const trackedTimesError = computed(() => state.errors.get(trackedTimesKey.value));
 const trackedTimesSaving = computed(() => state.loading.get(trackedTimesKey.value) ?? false);
 const stopwatches = computed(() => state.userStopwatches.value.get(stopwatchesKey.value) ?? []);
+// `loadUserStopwatches` answers on this instance-wide key, and its failure was read
+// by nothing: the time-tracking area fell back to an empty stopwatch list, which is
+// exactly what "no timer is running" looks like — it offered Start and dropped the
+// "running elsewhere" hint while one really was running, inviting a second start.
+// The failure is its own line, and the start/stop control is withheld until the
+// state can be read (an unknown state must not be presented as either state).
+const stopwatchesError = computed(() => state.errors.get(stopwatchesKey.value) ?? '');
 const isStopwatchRunning = computed(() =>
   stopwatches.value.some(
     (sw) => sw.repo_owner_name === owner.value && sw.repo_name === repo.value && sw.issue_index === index.value,
@@ -115,6 +130,20 @@ const dependencies = computed(() => state.issueDependencies.value.get(dependenci
 // nothing, leaving the row the user tried to remove in place with no reason. The
 // host sends no toast for either, so the section is where both must appear.
 const dependenciesError = computed(() => state.errors.get(dependenciesKey.value) ?? '');
+/**
+ * Whether the error currently on the dependency key belongs to an add/remove the
+ * user made rather than to the list load. Both write the same key, so the reason
+ * alone cannot say which action failed, and the change wording used to be gated on
+ * `dependencies.length`: with no dependencies yet, a failed add rendered "Failed to
+ * load dependencies" — naming a cause the code never established. The flag is set
+ * when a change is dispatched, and cleared when the loader is asked again or when
+ * the list payload changes (which only a successful change does).
+ */
+const dependencyActionWasChange = ref(false);
+// `dependenciesError` split by the action it belongs to, so each line names the
+// request that actually failed.
+const dependencyLoadError = computed(() => (dependencyActionWasChange.value ? '' : dependenciesError.value));
+const dependencyChangeError = computed(() => (dependencyActionWasChange.value ? dependenciesError.value : ''));
 /**
  * The dependency number the add is waiting on, kept until the request settles so
  * a failure leaves the pick in place for a retry (see addDependency).
@@ -184,6 +213,9 @@ function loadIssueData() {
   state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value);
   state.loadIssueTrackedTimes(instanceId.value, owner.value, repo.value, index.value);
   state.loadUserStopwatches(instanceId.value);
+  // A fresh load owns the dependency key from here on: a reason it reports is the
+  // load's, not a previous change's (see dependencyActionWasChange).
+  dependencyActionWasChange.value = false;
   state.loadIssueDependencies(instanceId.value, owner.value, repo.value, index.value);
   state.loadIssueReactions(instanceId.value, owner.value, repo.value, index.value);
 }
@@ -593,10 +625,16 @@ function addDependency() {
   // payload is the settle signal. The `loading` flag cannot be: it goes straight
   // back to true for the reload, so a watcher on it never sees the settle.
   dependencyPending.value = dependencyIndex;
+  // From here the key's reason is this change's, whether it succeeds (the reload
+  // clears the flag and the error) or fails (the error is the change's).
+  dependencyActionWasChange.value = true;
   state.createIssueDependency(instanceId.value, owner.value, repo.value, index.value, dependencyIndex);
 }
 
 watch(dependencies, (list) => {
+  // The list payload changed, which only a successful change's reload does: the
+  // key's next reason (if any) belongs to a load again.
+  dependencyActionWasChange.value = false;
   if (dependencyPending.value === undefined) {
     return;
   }
@@ -816,6 +854,9 @@ function handleDeleteTime(timeId: number) {
 }
 
 function handleRemoveDependency(depNumber: number) {
+  // Same ownership of the key as an add: the reason this removal reports is the
+  // removal's, not a load's (see dependencyActionWasChange).
+  dependencyActionWasChange.value = true;
   state.removeIssueDependency(instanceId.value, owner.value, repo.value, index.value, depNumber);
 }
 
@@ -1301,10 +1342,13 @@ function reloadIssue() {
           <p v-if="stopwatchElsewhere && !isStopwatchRunning" class="time-tracking-hint">
             {{ t('dashboard.detail.stopwatchRunningElsewhere', { issue: stopwatchElsewhereLabel }) }}
           </p>
+          <div v-if="stopwatchesError" class="error time-tracking-error" role="status">
+            {{ t('dashboard.detail.stopwatchLoadFailed', { message: stopwatchesError }) }}
+          </div>
           <div v-if="trackedTimesError" class="error time-tracking-error">
             {{ t('dashboard.error', { message: trackedTimesError }) }}
           </div>
-          <div class="time-tracking-actions">
+          <div v-if="!stopwatchesError" class="time-tracking-actions">
             <vscode-button
               v-if="!isStopwatchRunning"
               icon="play"
@@ -1383,8 +1427,8 @@ function reloadIssue() {
               </button>
             </div>
           </div>
-          <div v-else-if="dependenciesError" class="dependency-status error" role="status">
-            {{ t('dashboard.detail.dependenciesLoadFailed', { message: dependenciesError }) }}
+          <div v-else-if="dependencyLoadError" class="dependency-status error" role="status">
+            {{ t('dashboard.detail.dependenciesLoadFailed', { message: dependencyLoadError }) }}
           </div>
           <div v-else class="empty-list">{{ t('dashboard.detail.noDependencies') }}</div>
           <div class="dependency-form">
@@ -1414,8 +1458,16 @@ function reloadIssue() {
               {{ t('dashboard.detail.addDependency') }}
             </vscode-button>
             <div v-if="repoIssuesLoading" class="dependency-status">{{ t('dashboard.detail.dependencyLoading') }}</div>
-            <div v-if="dependenciesError && dependencies.length" class="dependency-status error" role="status">
-              {{ t('dashboard.detail.dependencyChangeFailed', { message: dependenciesError }) }}
+            <!-- The load failure that left a previous list on screen still has to
+                 be said (the empty case renders it beside the list above). -->
+            <div v-if="dependencyLoadError && dependencies.length" class="dependency-status error" role="status">
+              {{ t('dashboard.detail.dependenciesLoadFailed', { message: dependencyLoadError }) }}
+            </div>
+            <!-- Not gated on the list being non-empty: an add or removal can fail
+                 while the issue has no dependencies yet, and that phrase is what
+                 used to render the load wording. -->
+            <div v-if="dependencyChangeError" class="dependency-status error" role="status">
+              {{ t('dashboard.detail.dependencyChangeFailed', { message: dependencyChangeError }) }}
             </div>
           </div>
           <div
@@ -1455,6 +1507,9 @@ function reloadIssue() {
           :labels="labels"
           :assignees="assignees"
           :milestones="milestones"
+          :labels-error="labelsError"
+          :assignees-error="assigneesError"
+          :milestones-error="milestonesError"
           :upload-image="handleUploadImage"
           :instance-id="instanceId"
           :owner="owner"

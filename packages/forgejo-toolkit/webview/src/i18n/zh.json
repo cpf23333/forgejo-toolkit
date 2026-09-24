@@ -459,6 +459,7 @@
       "trackedTimeTotal": "记录的总工时",
       "trackedTimeMine": "我的工时",
       "stopwatchRunningElsewhere": "{issue} 上已有计时在进行：在这里启动会结束它，并把那段时间记入工时。",
+      "stopwatchLoadFailed": "无法读取计时器状态：{message}",
       "commentsTruncated": "时间线只显示前 500 条记录。",
       "filesTruncated": "变更文件只显示前 500 个。",
       "commitsTruncated": "提交只显示前 500 个。"
@@ -479,6 +480,9 @@
       "labels": "标签",
       "assignees": "负责人",
       "milestone": "里程碑",
+      "labelsLoadFailed": "加载标签失败：{message}",
+      "assigneesLoadFailed": "加载负责人失败：{message}",
+      "milestonesLoadFailed": "加载里程碑失败：{message}",
       "noMilestone": "-- 无里程碑 --",
       "dueDate": "到期时间",
       "ref": "引用分支/标签",

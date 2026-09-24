@@ -14,7 +14,10 @@ import type { ForgejoInstance } from '../types/instance';
  * field (and test fixtures): there the display URL is all there is, and it is
  * the better answer only when it carries no mask. A URL that does carry the
  * mask is not returned — a broken link is worse than no link — so the caller
- * gets `''` and its `v-if`/empty-URL guard suppresses the action.
+ * gets `''`. What `''` means is each caller's to decide, and not every one can
+ * treat it as usable: the copy actions must not offer themselves with nothing to
+ * copy (`DashboardInstanceItem`'s `cloneUrl`, `GlobalSearch`'s `repoCloneUrl`),
+ * while `EasyMdeEditor` maps it to `undefined` for the upload base.
  */
 export function functionalInstanceUrl(instance: ForgejoInstance | undefined): string {
   if (!instance) {

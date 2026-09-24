@@ -98,7 +98,9 @@ vi.mock('../../composables/useAppState', async () => {
     issueSubscriptionKey: (...parts: unknown[]) => `subscription|${keyFor(...parts)}`,
     issueTrackedTimesKey: (...parts: unknown[]) => `times|${keyFor(...parts)}`,
     userStopwatchesKey: keyBuilder,
-    issueDependenciesKey: keyBuilder,
+    // Also distinct: the detail key is built by the same `keyBuilder`, and the
+    // dependency section's error must not be confused with the view's own.
+    issueDependenciesKey: (...parts: unknown[]) => `deps|${keyFor(...parts)}`,
     issueReactionsKey: keyBuilder,
   };
 });
@@ -111,6 +113,7 @@ const state = useAppState() as unknown as Record<string, any>;
 
 const SUBSCRIPTION_KEY = `subscription|${keyFor('inst-1', 'owner', 'repo', 1)}`;
 const TIMES_KEY = `times|${keyFor('inst-1', 'owner', 'repo', 1)}`;
+const DEPENDENCIES_KEY = `deps|${keyFor('inst-1', 'owner', 'repo', 1)}`;
 
 function pullRequestDetail(index: number) {
   return {
@@ -254,6 +257,59 @@ describe('PullRequestDetail sidebar panels', () => {
     // The values survived the failure, so the retry needs no retyping.
     await addButton.trigger('click');
     expect(state.addIssueTime).toHaveBeenNthCalledWith(2, 'inst-1', 'owner', 'repo', 1, 1800);
+    wrapper.unmount();
+  });
+
+  // The stopwatch list is instance-wide (`userStopwatchesKey`), so its failure is
+  // not the tracked-times one: it used to be read by nothing, and the panel fell
+  // back to an empty list — which is what "no timer is running" looks like. The
+  // panel then offered Start and dropped the "running elsewhere" hint while a
+  // timer really was running.
+  it('says the timer state could not be read instead of offering Start', async () => {
+    state.errors.set(keyFor('inst-1'), 'network down');
+
+    const wrapper = await mountView();
+
+    expect(wrapper.text()).toContain('Could not read the timer state: network down');
+    expect(wrapper.find('.time-tracking-actions').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('offers the start action for a successful empty stopwatch load', async () => {
+    state.userStopwatches.value.set(keyFor('inst-1'), []);
+
+    const wrapper = await mountView();
+
+    expect(wrapper.find('.time-tracking-actions').text()).toContain('Start timer');
+    expect(wrapper.text()).not.toContain('Could not read the timer state');
+    wrapper.unmount();
+  });
+
+  // Same shape as the issue detail view's dependency section (see
+  // IssueDetail.dependencyErrors): the load and the add/remove changes share one
+  // error key, and the change wording used to be gated on a non-empty list.
+  it('names the change, not the load, for a failed add on a pull request with no dependencies', async () => {
+    const wrapper = await mountView();
+
+    (wrapper.vm as unknown as { selectedDependencyNumber: number }).selectedDependencyNumber = 7;
+    (wrapper.vm as unknown as { addDependency: () => void }).addDependency();
+    await nextTick();
+
+    state.errors.set(DEPENDENCIES_KEY, 'the issue is already a dependency');
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Failed to change dependencies: the issue is already a dependency');
+    expect(wrapper.text()).not.toContain('Failed to load dependencies');
+    wrapper.unmount();
+  });
+
+  it('keeps the load wording for a failed dependency load', async () => {
+    state.errors.set(DEPENDENCIES_KEY, 'permission denied');
+
+    const wrapper = await mountView();
+
+    expect(wrapper.text()).toContain('Failed to load dependencies: permission denied');
+    expect(wrapper.text()).not.toContain('Failed to change dependencies');
     wrapper.unmount();
   });
 });

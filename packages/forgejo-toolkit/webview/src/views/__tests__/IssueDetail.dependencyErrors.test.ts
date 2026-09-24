@@ -179,6 +179,12 @@ describe('IssueDetail dependency errors', () => {
     await nextTick();
     expect(wrapper.text()).toContain('#9 blocking issue');
 
+    // The user removes #9 from its row. The view's own handler dispatches the
+    // request, which is also what tells the shared dependency key that the reason
+    // it reports belongs to a change and not to a load.
+    (wrapper.vm as unknown as { handleRemoveDependency: (number: number) => void }).handleRemoveDependency(9);
+    await nextTick();
+
     window.dispatchEvent(
       new MessageEvent('message', {
         data: {
@@ -210,6 +216,53 @@ describe('IssueDetail dependency errors', () => {
     dispatchDependencies({ error: 'network down' });
     await nextTick();
 
+    expect(wrapper.text()).not.toContain('Failed to change dependencies');
+    wrapper.unmount();
+  });
+
+  it('names the change, not the load, when the add fails on an issue with no dependencies yet', async () => {
+    // The list is empty here because the issue has none, not because a load
+    // failed — no dependency payload ever arrived. The change-failure line used to
+    // be gated on `dependencies.length`, so this exact case rendered "Failed to
+    // load dependencies" for an add the user had just made: the load had
+    // succeeded (or was never the failing request), and the label named a cause
+    // the code never established.
+    const wrapper = await mountIssueDetail();
+    await nextTick();
+
+    (wrapper.vm as unknown as { selectedDependencyNumber: number }).selectedDependencyNumber = 7;
+    (wrapper.vm as unknown as { addDependency: () => void }).addDependency();
+    await nextTick();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          command: 'issueDependencyChanged',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo: 'repoA',
+          index: 5,
+          dependencyIndex: 7,
+          action: 'add',
+          error: 'the issue is already a dependency',
+        },
+      }),
+    );
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Failed to change dependencies: the issue is already a dependency');
+    expect(wrapper.text()).not.toContain('Failed to load dependencies');
+    wrapper.unmount();
+  });
+
+  it('keeps the load wording for a failed load on an issue with no dependencies', async () => {
+    const wrapper = await mountIssueDetail();
+    await nextTick();
+
+    dispatchDependencies({ error: 'permission denied' });
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Failed to load dependencies: permission denied');
     expect(wrapper.text()).not.toContain('Failed to change dependencies');
     wrapper.unmount();
   });

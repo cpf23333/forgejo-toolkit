@@ -35,9 +35,9 @@ describe('functionalInstanceUrl', () => {
   });
 
   it('never returns a masked URL', () => {
-    // No functional twin and a mask in the display value: there is no usable
-    // URL, and the caller's empty check suppresses the action rather than
-    // copying or opening `https://***@host/...`.
+    // No functional twin and a mask in the display value: there is no usable URL.
+    // What `''` means is the caller's to decide, and the clone-URL copy actions
+    // hide themselves rather than copying `https://***@host/...` (or nothing).
     expect(
       functionalInstanceUrl({
         id: 'inst-1',

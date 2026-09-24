@@ -33,14 +33,40 @@ const pendingUploads = createPendingUploads();
 const isReviewMode = computed(() => mode.value === 'review');
 const hasPendingReview = computed(() => typeof pendingReviewId.value === 'number');
 
+/**
+ * Whether a completion reply answers a request this editor posted.
+ *
+ * The panel is a singleton and the host reuses it for another line or pull
+ * request, so a request posted for the previous context can still answer after
+ * the switch. The completion commands carry the context their request was
+ * started with (`instanceId`/`owner`/`repo`/`index`, see the shared
+ * `HostToWebviewMessage`), and clearing `submitting` on the command name alone
+ * let that stale reply release the guard of the editor now on screen: the next
+ * click posted a second comment or review, which is exactly the duplicate the
+ * guard exists to prevent.
+ */
+function isOwnReply(data: { instanceId?: string; owner?: string; repo?: string; index?: number }): boolean {
+  return (
+    data.instanceId === props.context.instanceId &&
+    data.owner === props.context.owner &&
+    data.repo === props.context.repo &&
+    data.index === props.context.index
+  );
+}
+
 function handleMessage(event: MessageEvent) {
-  const command = event.data?.command;
+  const data = event.data;
+  const command = data?.command;
   if (
     command === 'pullReviewCommentSubmitted' ||
     command === 'pullReviewSubmitted' ||
     command === 'pullReviewDeleted'
   ) {
-    submitting.value = false;
+    // Another context's completion is not this editor's answer: it must not
+    // release the guard (see isOwnReply).
+    if (isOwnReply(data)) {
+      submitting.value = false;
+    }
     return;
   }
   // The host asks before reusing this singleton panel for another line/PR;
