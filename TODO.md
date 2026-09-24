@@ -32,7 +32,11 @@
 - [x] P2 MCP 工具调用取消：`ForgejoClient.withSignal(signal)` 会为该客户端的**每个**请求带上信号（`withAbortSignal` 合并进请求配置，共享请求层本来就把它转给 fetch），MCP 侧在派发时用 `handlersFor(extra)` 以带信号的客户端重建处理器（不改 27 个处理器签名）。测试：`mcp/__tests__/tools.test.ts` 断言派发把信号交给 `withSignal`、无信号时不重建；`src/api/__tests__/clientSignal.test.ts` 断言合并本身。（MSW 会重建 Request 丢掉调用方信号，所以端到端断言放在请求层与合并两步上。）
 - [ ] P3 `packages/forgejo-api` 规格源固定：`kubb.config.ts` 仍直接读上游 swagger（生成器包已钉到 `4.39.2`），建议 pin 到上游 tag 并记录版本；`src/generated/client|mocks` 目前无 value 导入，可考虑只保留 types
 - [x] P3 通知分页的边界：不再把「短页」当作列表结束——只有空页才结束（服务端可能把页大小压到 50 以下，而总数只在生成的 client 不透出的响应头里）。代价是最末尾多一次「加载更多」请求/点击；`useAppState.ts` 的规则 + `Notifications.test.ts`/`useAppState.test.ts` 共 5 条断言已同步。
-- [ ] P3 确认「未打开 Dashboard 时 MCP server 是否会被 VS Code 发现」：文档结论是贡献该扩展点的扩展会被自动激活（故暂不加 `onStartupFinished`，避免每次开窗都激活）。发版走查时用全新窗口确认 Chat 的工具选择器能看到 forgejo 工具，看不到再补
+- [~] P3/D⑧ 「未打开 Dashboard 时 MCP server 是否会被 VS Code 发现」：**机制已核实（2026-09-23），只差你机器上的一次实机确认**。
+  - VS Code 官方的**全部激活事件**清单里**没有** MCP 相关条目（`onLanguageModelTool`/`onChatParticipant` 分别对应语言模型工具与聊天参与者，不适用），所以「贡献 `mcpServerDefinitionProviders` 后 VS Code 为取定义而激活扩展」是平台自带行为，**不需要也无法**声明专门激活事件；这也印证了当初不加 `onStartupFinished` 的决定。
+  - 已知代价：VS Code 会因此主动激活扩展来查询 MCP 定义（上游 issue microsoft/vscode#266221 的标题即「MCP server 导致扩展在所有工作区、连空工作区都被激活」），属平台行为，扩展侧无法改成惰性。
+  - **为什么没能在 dev host 里做完确认**：`mcpServerProvider.ts` 在 `config.getInstances()[0]` 为空（或无 token）时返回 `[]`；harness 的隔离 profile 没有实例，也**无法**预置——实例要经「添加实例」向导写进 globalState/SecretStorage，而该向导是**编辑器区面板**，驱动器只能操作侧边栏 webview（既有结论）。所以 dev host 里 Chat 的工具选择器必然是空的，不构成结论。
+  - **给你的一次确认（约 1 分钟）**：在你自己的 VS Code 里配好实例 → **不要**打开 Forgejo Dashboard → 新开窗口 → 打开 Chat → 打开工具选择器（或输入 `#tools`）→ 看是否出现 `Forgejo: <实例名>` 的工具。若看不到，再补 `onStartupFinished`（代价：每次开窗都激活）。
 - [x] `prFileSystemProvider` 对 >10 MiB 文件的文案：contents API 返回 `content: ""` + 真实 `size` 时，PR diff 现在返回一条本地化说明（`missingPayloadNotice`，带 2 条单测）而不是空文档；`KNOWN_ISSUES` en/zh 已同步。
 - [ ] 同一提示还该落到仓库浏览（webview 文件查看器）与仓库概览的 `README.md`：它们仍把空 `content` 渲染成空文档。原条目：- [ ] 走查补充：`prFileSystemProvider` 对 >10 MiB 文件在 PR diff 里的文案落点（contents API 返回空 `content`，见 `KNOWN_ISSUES`）；性能实测（激活耗时、懒加载后体积）
 - [~] P5 500 条列表全量渲染、无虚拟化：**已拿到部分实测证据**（2026-09-23）——
@@ -79,5 +83,5 @@
   - **更正**：`IssueAddTime` 缺 422 **不是生成器的问题**——固定下来的规格里 `POST /repos/{owner}/{repo}/issues/{index}/times` 只声明 `200/400/403/404`，重新生成补不上这个类型。`client.ts` 的注释已记录服务端实际会返回 422；要类型层面补齐得等上游 swagger 注解，或由我们本地补类型（你定）。
   - 重新生成本身仍待做（`pnpm --filter @cpf23333-forgejo-toolkit/api generate`），预期只在上游规格演进时才有 diff。
 - [x] C⑥ 打包优化（2026-09-23，构建验证）：入口**按面板拆分**（`main.ts` 里两个独立面板改动态 `import()`，产出 `OnboardingPanel` 8 KB / `PullReviewCommentPanel` 5 KB 独立块）并**去掉重复的 codicon 样式导入**（`@vscode/codicons/dist/codicon.css` 已由 `content.ts` 以 `<link id="vscode-codicon-stylesheet">` 注入、文件由 `copyCodicons` 拷进产物，vscode-elements 正是读该 link 的 href）。实测入口 **JS 432 → 327 KB**、入口 **CSS 204 → 1 KB**（不再内联 164 KB base64 TTF；`codicon.ttf` 仍以文件形式随包，123 KB），仪表盘首屏从 636 KB 降到 328 KB（约 −48%）。`vite build` 通过、全量测试/检查通过。
-- [ ] D⑧ MCP 激活核对：需要在全新窗口里确认 Chat 工具选择器能看到 forgejo 工具（需构建授权 + `pnpm launch`）
+- [~] D⑧ MCP 激活核对：见上面 P3 条目（机制已核实；实机确认需你在配好实例的窗口里做一次，harness 无法预置实例）。
 - [ ] D⑫ vscode-tree 键盘：等上游库修复（`vscode-tree` 的 `IconActionButton` 在 `keydown` 里 `preventDefault`），当前仅在 KNOWN_ISSUES/待办里登记
