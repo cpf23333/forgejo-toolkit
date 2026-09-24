@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { LIST_ITEM_LIMIT, type ForgejoClient } from '../src/api/client';
+import { LIST_ITEM_LIMIT, MAX_SEARCH_RESULTS, REPO_DETAIL_LIST_LIMIT, type ForgejoClient } from '../src/api/client';
 import { userFacingErrorMessage } from '../src/api/errors-core';
 
 /**
@@ -112,17 +112,54 @@ function assertCompleteRepoScope(owner?: string, repo?: string): void {
 }
 
 /**
+ * The fields a keyword filter matches, mirroring the repository-scoped listing
+ * endpoint (`/repos/{owner}/{repo}/issues?q=…`): title, body and author.
+ */
+function matchesQuery(
+  item: { title?: string; body?: string; user?: { login?: string } },
+  normalizedQuery: string,
+): boolean {
+  return [item.title, item.body, item.user?.login].some(
+    (field) => typeof field === 'string' && field.toLowerCase().includes(normalizedQuery),
+  );
+}
+
+/**
+ * Client-side keyword filter for the instance-wide issue and pull request
+ * listings.
+ *
+ * The repository-scoped branch asks the server to filter (`?q=`); the
+ * instance-wide search endpoint the client uses for its fallback has no usable
+ * keyword parameter here, so the argument has to be applied to the fetched rows.
+ * Doing that is the point: the previous code dropped `query` entirely on that
+ * branch, so a caller asking for `{ query: 'login' }` received every issue
+ * involving the user and had no way to see that no filtering had happened.
+ */
+function filterByQuery<T extends { title?: string; body?: string; user?: { login?: string } }>(
+  items: T[],
+  query?: string,
+): T[] {
+  const normalized = query?.trim().toLowerCase();
+  return normalized ? items.filter((item) => matchesQuery(item, normalized)) : items;
+}
+
+/**
  * Plain async handlers behind the MCP tools, exported for unit tests: they
  * return the untruncated payload and let errors propagate. The MCP
  * registration (registerTools) adds truncation and error rendering on top.
  */
 export function buildToolHandlers(client: ForgejoClient) {
   return {
+    // The scope assertion stays in a synchronous arrow so a half-specified
+    // scope throws (rather than rejecting) before any request is issued; the
+    // keyword filter is then applied to whatever the listing returns.
     list_issues: (args: ListIssuesArgs) => {
       assertCompleteRepoScope(args.owner, args.repo);
-      return args.owner && args.repo
-        ? client.getRepoIssues(args.owner, args.repo, args.state ?? 'open', args.query)
-        : client.getUserIssues(args.state ?? 'open');
+      const issues =
+        args.owner && args.repo
+          ? client.getRepoIssues(args.owner, args.repo, args.state ?? 'open', args.query)
+          : client.getUserIssues(args.state ?? 'open');
+      return issues.then((items) => filterByQuery(items, args.query));
     },
 
     get_issue: async (args: IssueRefArgs) => {
@@ -137,9 +174,11 @@ export function buildToolHandlers(client: ForgejoClient) {
 
     list_pull_requests: (args: ListIssuesArgs) => {
       assertCompleteRepoScope(args.owner, args.repo);
-      return args.owner && args.repo
-        ? client.getRepoPullRequests(args.owner, args.repo, args.state ?? 'open', args.query)
-        : client.getUserPullRequests(args.state ?? 'open');
+      const pulls =
+        args.owner && args.repo
+          ? client.getRepoPullRequests(args.owner, args.repo, args.state ?? 'open', args.query)
+          : client.getUserPullRequests(args.state ?? 'open');
+      return pulls.then((items) => filterByQuery(items, args.query));
     },
 
     get_pull_request: async (args: IssueRefArgs) => {
@@ -372,6 +411,29 @@ const PAGED_LISTS: Record<ToolName, readonly string[]> = {
 };
 
 /**
+ * The tools whose input schema has a filter or a paging argument, so "narrow the
+ * query" is advice the caller can actually act on.
+ *
+ * A capped list is one thing; being able to reach the rest of it is another.
+ * `list_branches`, `list_tags`, `list_releases`, `list_labels`,
+ * `list_milestones`, `list_my_repos` and `list_pull_reviews` take only the
+ * repository (or nothing at all), so a truncated answer from one of them cannot
+ * be improved by the caller and must be reported as incomplete instead.
+ */
+const NARROWABLE_TOOLS: ReadonlySet<ToolName> = new Set<ToolName>([
+  'list_issues',
+  'get_issue',
+  'list_pull_requests',
+  'get_pull_request',
+  'get_pr_timeline',
+  'list_notifications',
+  'search',
+  'list_action_runs',
+  'get_action_run_artifacts',
+  'get_file_history',
+]);
+
+/**
  * A note for the paged lists of `pagedLists` that reached the client cap, or an
  * empty string.
  *
@@ -381,12 +443,63 @@ const PAGED_LISTS: Record<ToolName, readonly string[]> = {
  * wrapping one (`get_issue` carries `comments`, `get_pull_request` carries
  * `files` and `commits`), and a capped list inside it would otherwise go
  * unannounced.
+ *
+ * `canNarrow` decides what the caller is told to do about it: a tool with no
+ * filter and no paging has no way to fetch the rest, and pointing such a caller
+ * at a query it cannot pass is worse than saying the answer is incomplete.
  */
-export function listTruncationNote(value: unknown, pagedLists: readonly string[]): string {
+export function listTruncationNote(
+  value: unknown,
+  pagedLists: readonly string[],
+  options: { canNarrow: boolean },
+): string {
   const capped = cappedListFields(value, pagedLists);
+  if (capped.length === 0) {
+    return '';
+  }
+  const names = capped.join(', ');
+  return options.canNarrow
+    ? `\n(list truncated at ${LIST_ITEM_LIMIT} items: ${names}; narrow the query to see the rest)`
+    : `\n(list truncated at ${LIST_ITEM_LIMIT} items: ${names}; the result is incomplete and this tool has no filter or paging, so the remaining items cannot be fetched through the MCP tools — read them in the Forgejo web UI, or use a narrower tool for the same data)`;
+}
+
+/**
+ * A note for `get_repo`, whose branch and commit lists are capped by
+ * `getRepoDetail`'s `{ limit: REPO_DETAIL_LIST_LIMIT }`.
+ *
+ * The lists are not `LIST_ITEM_LIMIT`-paged, so `listTruncationNote` does not
+ * see them at all. Without a note a caller reads ten branches as "this
+ * repository has ten branches" and concludes that the branch it wanted does not
+ * exist.
+ */
+export function repoDetailCapNote(value: unknown): string {
+  const detail = value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
+  const capped = ['branches', 'recentCommits'].filter((field) => {
+    const list = detail?.[field];
+    return Array.isArray(list) && list.length >= REPO_DETAIL_LIST_LIMIT;
+  });
   return capped.length === 0
     ? ''
-    : `\n(list truncated at ${LIST_ITEM_LIMIT} items: ${capped.join(', ')}; narrow the query to see the rest)`;
+    : `\n(note: ${capped.join(' and ')} is capped at ${REPO_DETAIL_LIST_LIMIT} items by this tool; the list is incomplete. Use list_branches for the full branch list, or the Forgejo web UI for the full commit history.)`;
+}
+
+/**
+ * A note for `search_repo_files`, whose `truncated` flag has two causes: the git
+ * tree could not be read completely, or the match list hit
+ * `MAX_SEARCH_RESULTS`. Only the second is recoverable by narrowing the query,
+ * so the note names the cause it can see and stays silent otherwise. The flag
+ * itself is reported inside the result.
+ */
+export function repoSearchTruncationNote(value: unknown): string {
+  const result = value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
+  if (result?.truncated !== true) {
+    return '';
+  }
+  const files = result.files;
+  if (Array.isArray(files) && files.length >= MAX_SEARCH_RESULTS) {
+    return `\n(matches capped at ${MAX_SEARCH_RESULTS}: the result is incomplete; a narrower query would return the rest)`;
+  }
+  return '\n(the repository tree could not be read completely, so the matches may be incomplete)';
 }
 
 /**
@@ -407,7 +520,13 @@ async function callTool(tool: ToolName, run: () => Promise<unknown>) {
     const text =
       (serialized.length > MAX_TOOL_RESULT_LENGTH
         ? `${serialized.slice(0, MAX_TOOL_RESULT_LENGTH)}\n... (truncated: the result exceeded ${Math.round(MAX_TOOL_RESULT_LENGTH / 1024)} KB and was cut off)`
-        : serialized) + listTruncationNote(result, PAGED_LISTS[tool]);
+        : serialized) +
+      listTruncationNote(result, PAGED_LISTS[tool], { canNarrow: NARROWABLE_TOOLS.has(tool) }) +
+      // Two tools carry a cut the paged-list classification cannot see: get_repo
+      // caps its branch and commit lists at REPO_DETAIL_LIST_LIMIT, and
+      // search_repo_files reports its own `truncated` flag with two causes.
+      (tool === 'get_repo' ? repoDetailCapNote(result) : '') +
+      (tool === 'search_repo_files' ? repoSearchTruncationNote(result) : '');
     return { content: [{ type: 'text' as const, text }] };
   } catch (error) {
     // userFacingErrorMessage never includes request headers, so the token
@@ -435,12 +554,12 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     'list_issues',
     {
       description:
-        'List issues. With owner and repo, lists the issues of that repository (optionally keyword-filtered); without them, lists issues across the instance that involve the authenticated user.',
+        'List issues. With owner and repo, lists the issues of that repository (optionally keyword-filtered); without them, lists issues across the instance that involve the authenticated user (the same keyword filter is applied to the returned rows).',
       inputSchema: {
         owner: ownerSchema,
         repo: repoSchema,
         state: stateSchema,
-        query: z.string().optional().describe('Keyword filter (repository listing only).'),
+        query: z.string().optional().describe('Keyword filter on title, body, or author (applied in both listings).'),
       },
       annotations: readOnly,
     },
@@ -465,12 +584,12 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     'list_pull_requests',
     {
       description:
-        'List pull requests. With owner and repo, lists the pull requests of that repository (optionally keyword-filtered); without them, lists pull requests across the instance that involve the authenticated user.',
+        'List pull requests. With owner and repo, lists the pull requests of that repository (optionally keyword-filtered); without them, lists pull requests across the instance that involve the authenticated user (the same keyword filter is applied to the returned rows).',
       inputSchema: {
         owner: ownerSchema,
         repo: repoSchema,
         state: stateSchema,
-        query: z.string().optional().describe('Keyword filter (repository listing only).'),
+        query: z.string().optional().describe('Keyword filter on title, body, or author (applied in both listings).'),
       },
       annotations: readOnly,
     },
@@ -531,7 +650,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
   server.registerTool(
     'get_repo',
     {
-      description: 'Get repository details, including README, branches, and recent commits.',
+      description: `Get repository details, including README, branches, and recent commits. The branches and recentCommits lists are capped at ${REPO_DETAIL_LIST_LIMIT} items each, so a short list does not mean the repository has only that many: use list_branches for the complete branch list.`,
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -698,8 +817,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
   server.registerTool(
     'search_repo_files',
     {
-      description:
-        'Search file paths in a repository by keyword (case-insensitive substring match over the git tree). Returns the matching paths and `truncated`, which is true when the repository tree was too large to read completely, so matches may be missing.',
+      description: `Search file paths in a repository by keyword (case-insensitive substring match over the git tree). Returns the matching paths and \`truncated\`, which is true in two cases: the repository tree was too large to read completely (matches may be missing), or the match list hit its cap of ${MAX_SEARCH_RESULTS} and was cut short (a narrower query returns the rest).`,
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,

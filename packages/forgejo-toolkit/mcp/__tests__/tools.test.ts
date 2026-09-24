@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
-import { ForgejoClient, LIST_ITEM_LIMIT } from '../../src/api/client';
-import { ApiError } from '../../src/api/errors-core';
+import { ForgejoClient, LIST_ITEM_LIMIT, MAX_SEARCH_RESULTS } from '../../src/api/client';
+import { ApiError, toApiError } from '../../src/api/errors-core';
 import {
   buildToolHandlers,
   listTruncationNote,
@@ -32,6 +32,13 @@ import {
   mockHistoryCommit,
 } from '../../src/test/mocks/data';
 
+/**
+ * The list cap `get_repo` inherits from `getRepoDetail` (`{ limit: 10 }`).
+ * Asserted instead of a hand-written 10 so the fixture and the client cannot
+ * drift apart.
+ */
+const GET_REPO_LIST_CAP = 10;
+
 describe('MCP tool handlers with MSW', () => {
   beforeAll(() => {
     startMockServer();
@@ -47,6 +54,46 @@ describe('MCP tool handlers with MSW', () => {
 
   function createHandlers() {
     return buildToolHandlers(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+  }
+
+  /**
+   * Registers the tools against a stub MCP server and a fully stubbed client, so
+   * a test can drive the tool layer (notes, error rendering) without HTTP.
+   *
+   * The MCP SDK's presence in this file changes how MSW applies handlers
+   * registered with `use()` after the server started listening, so the tool
+   * layer is exercised over stubs here and the real request paths are covered by
+   * the client and error suites.
+   */
+  function registerWithStubClient(methods: Record<string, (...args: never[]) => Promise<unknown>>) {
+    const calls: { name: string; args: unknown[] }[] = [];
+    const client = new Proxy(methods, {
+      get: (target, property: string) => {
+        if (property in target) {
+          return (...args: unknown[]) => {
+            calls.push({ name: property, args });
+            return (target[property] as (...args: unknown[]) => Promise<unknown>)(...args);
+          };
+        }
+        if (property === 'withSignal') {
+          return () => client;
+        }
+        throw new Error(`stub client has no method ${property}`);
+      },
+    });
+    const registered = new Map<
+      string,
+      (args: unknown, extra?: unknown) => Promise<{ isError?: boolean; content: { text: string }[] }>
+    >();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+    registerTools(server, client as never);
+
+    const call = (name: string, args: unknown) => registered.get(name)?.(args);
+    return { call, calls };
   }
 
   it('list_issues lists repository issues when owner and repo are given', async () => {
@@ -105,6 +152,29 @@ describe('MCP tool handlers with MSW', () => {
     const pulls = (await handlers.list_pull_requests({})) as typeof mockPullRequests;
     expect(pulls).toHaveLength(mockPullRequests.length);
     expect(pulls[0].title).toBe(mockPullRequests[0].title);
+  });
+
+  it('list_issues applies the keyword filter to the instance-wide listing too', async () => {
+    // Without owner/repo the handler answers the user-wide listing, and a
+    // caller that passes `query` is asking for a filtered answer: dropping the
+    // argument returned every issue as if the filter had been applied.
+    const handlers = createHandlers();
+    const matches = (await handlers.list_issues({ query: 'login' })) as typeof mockIssues;
+    expect(matches).toHaveLength(1);
+    expect(matches[0].title).toBe(mockIssues[0].title);
+
+    const misses = (await handlers.list_issues({ query: 'no-such-keyword' })) as typeof mockIssues;
+    expect(misses).toHaveLength(0);
+  });
+
+  it('list_pull_requests applies the keyword filter to the instance-wide listing too', async () => {
+    const handlers = createHandlers();
+    const matches = (await handlers.list_pull_requests({ query: 'dark' })) as typeof mockPullRequests;
+    expect(matches).toHaveLength(1);
+    expect(matches[0].title).toBe(mockPullRequests[0].title);
+
+    const misses = (await handlers.list_pull_requests({ query: 'no-such-keyword' })) as typeof mockPullRequests;
+    expect(misses).toHaveLength(0);
   });
 
   it('get_pull_request returns the detail with files and commits', async () => {
@@ -398,6 +468,131 @@ describe('MCP tool handlers with MSW', () => {
     expect(repos).toHaveLength(3);
     expect(repos[0].full_name).toBe(mockRepository.full_name);
   });
+
+  it('get_repo says a capped branch and commit list is capped', async () => {
+    // getRepoDetail asks for { limit: 10 }: the tool is classified as
+    // unpaged, so without a note a caller reads the 10 rows as the complete
+    // list and concludes that the branch it wanted does not exist.
+    const branches = Array.from({ length: GET_REPO_LIST_CAP }, (_, i) => ({ name: `branch-${i}` }));
+    const commits = Array.from({ length: GET_REPO_LIST_CAP }, (_, i) => ({ sha: `sha-${i}` }));
+    const { call } = registerWithStubClient({
+      getRepoDetail: async () => ({ repository: {}, empty: false, branches, recentCommits: commits }),
+    });
+
+    const result = await call('get_repo', { owner: 'demo-user', repo: 'demo-repo' });
+    const text = result?.content[0].text ?? '';
+
+    expect(text).toContain('capped');
+    expect(text).toContain('branches');
+    expect(text).toContain('recentCommits');
+    expect(text).toContain('list_branches');
+  });
+
+  it('get_repo does not claim a cap when the lists are shorter than it', async () => {
+    const { call } = registerWithStubClient({
+      getRepoDetail: async () => ({
+        repository: {},
+        empty: false,
+        branches: ['main', 'dev'],
+        recentCommits: [{}],
+      }),
+    });
+    const result = await call('get_repo', { owner: 'demo-user', repo: 'demo-repo' });
+
+    expect(result?.content[0].text).not.toContain('capped');
+  });
+
+  it('search_repo_files says the match list was capped at the 200-match limit', async () => {
+    // `truncated` is true both when the tree could not be read completely and
+    // when the match list hit MAX_SEARCH_RESULTS; only the second is
+    // recoverable by narrowing the query, so the note must say so.
+    const files = Array.from({ length: MAX_SEARCH_RESULTS }, (_, i) => ({ path: `match-${i}.ts` }));
+    const { call, calls } = registerWithStubClient({
+      getRepoDefaultBranch: async () => 'main',
+      searchRepoFiles: async () => ({ files, truncated: true }),
+    });
+
+    const result = await call('search_repo_files', { owner: 'demo-user', repo: 'demo-repo', query: 'match' });
+    const text = result?.content[0].text ?? '';
+
+    // `ref` is resolved by the client when the caller omits it, so the stub is
+    // called with the default branch the tool asked for.
+    expect(calls.map((entry) => entry.name)).toEqual(['getRepoDefaultBranch', 'searchRepoFiles']);
+    expect(text).toContain(`capped at ${MAX_SEARCH_RESULTS}`);
+    expect(text).toContain('narrower query');
+  });
+
+  it('search_repo_files says the tree was incomplete when it could not be read fully', async () => {
+    // The other cause of the same `truncated` flag: narrowing the query cannot
+    // recover matches that were never read, so the note must not promise it.
+    const { call } = registerWithStubClient({
+      getRepoDefaultBranch: async () => 'main',
+      searchRepoFiles: async () => ({ files: [{ path: 'src/index.ts' }], truncated: true }),
+    });
+
+    const result = await call('search_repo_files', { owner: 'demo-user', repo: 'demo-repo', query: 'index' });
+    const text = result?.content[0].text ?? '';
+
+    expect(text).toContain('incomplete');
+    expect(text).not.toContain('capped at');
+    expect(text).not.toContain('narrower query');
+  });
+
+  it('search_repo_files stays silent when nothing was truncated', async () => {
+    const { call } = registerWithStubClient({
+      getRepoDefaultBranch: async () => 'main',
+      searchRepoFiles: async () => ({ files: [{ path: 'src/index.ts' }], truncated: false }),
+    });
+    const result = await call('search_repo_files', { owner: 'demo-user', repo: 'demo-repo', query: 'index' });
+
+    expect(result?.content[0].text ?? '').not.toContain('capped at');
+  });
+
+  it('names the owner and repository of a 404 on the repository', async () => {
+    // One message covered every 404 (bad owner/repo, bad path, real scope
+    // problem), so the caller could not tell what to change. The client
+    // attaches the resource it asked for; this is the rendering the tool shows.
+    const { call } = registerWithStubClient({
+      getRepoDetail: async () => {
+        throw toApiError(new Error('Forgejo API error 404: Not Found ({"message":"not found"})'), {
+          resource: 'repository',
+          owner: 'demo-user',
+          repo: 'demo-repo',
+        });
+      },
+    });
+
+    const result = await call('get_repo', { owner: 'demo-user', repo: 'demo-repo' });
+    const text = result?.content[0].text ?? '';
+
+    expect(result?.isError).toBe(true);
+    expect(text).toContain('Not found');
+    expect(text).toContain('demo-user/demo-repo');
+    expect(text).toContain('Check the owner and repo');
+    expect(text).not.toContain('mock-token');
+  });
+
+  it('names the resource kind of a 404 on a repository-scoped object', async () => {
+    const { call } = registerWithStubClient({
+      getFileContent: async () => {
+        throw toApiError(new Error('Forgejo API error 404: Not Found ({"message":"not found"})'), {
+          resource: 'file or directory',
+          owner: 'demo-user',
+          repo: 'demo-repo',
+        });
+      },
+    });
+
+    const result = await call('get_file_content', {
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      path: 'missing.md',
+    });
+    const text = result?.content[0].text ?? '';
+
+    expect(text).toContain('demo-user/demo-repo');
+    expect(text).toMatch(/file or directory/);
+  });
 });
 
 describe('truncateLargeStrings', () => {
@@ -526,15 +721,34 @@ describe('list truncation reporting', () => {
       listTruncationNote(
         Array.from({ length: LIST_ITEM_LIMIT }, () => ({})),
         ['the result'],
+        { canNarrow: true },
       ),
     ).toContain('truncated at ' + LIST_ITEM_LIMIT);
     expect(
       listTruncationNote(
         Array.from({ length: LIST_ITEM_LIMIT - 1 }, () => ({})),
         ['the result'],
+        { canNarrow: true },
       ),
     ).toBe('');
-    expect(listTruncationNote({ items: [] }, ['the result'])).toBe('');
+    expect(listTruncationNote({ items: [] }, ['the result'], { canNarrow: true })).toBe('');
+  });
+
+  it('tells a caller without any narrowing option that the rest is unreachable', () => {
+    // list_branches/list_tags/list_releases/list_labels/list_milestones/
+    // list_my_repos/list_pull_reviews have no filter and no paging, so "narrow
+    // the query" is advice they cannot act on: the note must say the result is
+    // incomplete and point at the surfaces that can show the rest.
+    const note = listTruncationNote(
+      Array.from({ length: LIST_ITEM_LIMIT }, () => ({})),
+      ['the result'],
+      { canNarrow: false },
+    );
+
+    expect(note).toContain('incomplete');
+    expect(note).toContain(String(LIST_ITEM_LIMIT));
+    expect(note).toContain('web UI');
+    expect(note).not.toContain('narrow the query');
   });
 
   it('also reports a capped list wrapped in a tool result object', () => {
@@ -548,6 +762,7 @@ describe('list truncation reporting', () => {
         files: [{ path: 'a' }],
       },
       ['comments'],
+      { canNarrow: true },
     );
 
     expect(note).toContain('truncated at ' + LIST_ITEM_LIMIT);
@@ -560,9 +775,11 @@ describe('list truncation reporting', () => {
     // holding exactly LIST_ITEM_LIMIT entries is complete; only the lists a
     // client method pages may be announced as cut off.
     const complete = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ name: `file-${i}` }));
-    expect(listTruncationNote(complete, [])).toBe('');
-    expect(listTruncationNote({ files: complete }, [])).toBe('');
-    expect(listTruncationNote({ files: complete }, ['files'])).toContain('truncated at ' + LIST_ITEM_LIMIT);
+    expect(listTruncationNote(complete, [], { canNarrow: false })).toBe('');
+    expect(listTruncationNote({ files: complete }, [], { canNarrow: false })).toBe('');
+    expect(listTruncationNote({ files: complete }, ['files'], { canNarrow: false })).toContain(
+      'truncated at ' + LIST_ITEM_LIMIT,
+    );
   });
 
   it('appends the note to a tool result that hit the cap', async () => {
@@ -599,5 +816,41 @@ describe('list truncation reporting', () => {
 
     expect(result?.content[0].text).toContain('file-0.txt');
     expect(result?.content[0].text).not.toContain('truncated at');
+  });
+
+  it('does not tell a filterless listing to narrow a query it does not have', async () => {
+    // list_branches takes owner/repo only: the capped list is genuinely
+    // incomplete, and advice about narrowing would be unusable.
+    const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ name: `branch-${i}` }));
+    const client = { getRepoBranches: async () => capped } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('list_branches')?.({ owner: 'demo-user', repo: 'demo-repo' });
+    const text = result?.content[0].text ?? '';
+
+    expect(text).toContain('incomplete');
+    expect(text).not.toContain('narrow the query');
+  });
+
+  it('keeps the narrowing advice for a listing that does have filters', async () => {
+    const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ id: i + 1, title: 'issue' }));
+    const client = { getRepoIssues: async () => capped } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('list_issues')?.({ owner: 'demo-user', repo: 'demo-repo' });
+
+    expect(result?.content[0].text).toContain('narrow the query');
   });
 });
