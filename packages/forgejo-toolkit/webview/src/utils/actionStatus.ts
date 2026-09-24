@@ -40,6 +40,29 @@ export function isActionStatusFailed(status?: string): boolean {
 }
 
 /**
+ * Whether a run has reached a state that will not change again. Used by the run
+ * detail view to decide whether there is anything left to poll for.
+ */
+export function isActionStatusFinal(status?: string): boolean {
+  return (
+    status === 'success' || status === 'failure' || status === 'error' || status === 'cancelled' || status === 'skipped'
+  );
+}
+
+/**
+ * Whether the run detail view's poll interval should be running.
+ *
+ * Asking only `isActionStatusFinal(run.status)` is not enough: a run that fails
+ * to load stores no entry in `actionRunDetails` (the composable writes one only
+ * on success), so `run.status` is `undefined`, the status is not final, and the
+ * interval kept refetching the failing request forever. A load error is
+ * therefore a stop condition of its own.
+ */
+export function shouldPollActionRun(status?: string, hasLoadError = false): boolean {
+  return !hasLoadError && !isActionStatusFinal(status);
+}
+
+/**
  * A run can be cancelled while it is not in a final state. The server accepts
  * `cancel` for `unknown`, `waiting`, `running` and `blocked` (a done run is
  * simply left alone and still answers 204), so those are the statuses that should

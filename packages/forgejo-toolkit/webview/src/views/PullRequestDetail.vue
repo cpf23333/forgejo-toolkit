@@ -14,6 +14,7 @@ import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import { stateLabel } from '../utils/stateLabel';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
+import { createPendingUploads } from '../utils/pendingUploads';
 import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import ReactionBar from '../components/ReactionBar.vue';
 import { CollapsibleSection } from '../vscode-controls';
@@ -247,13 +248,19 @@ const uploadingAttachmentCount = ref(0);
 const deletingAttachmentId = ref<number | undefined>(undefined);
 const isDeletingAttachments = ref(false);
 const pendingDeleteAttachmentIds = ref<number[]>([]);
+// Attachments still uploading in the edit dialog (the editor's image picker and
+// the attachment list both register here; see handleUploadImage and
+// handleAttachmentUpload).
+const pendingEditUploads = createPendingUploads();
+// The submit handler set the dialog busy to wait for those uploads.
+const isAwaitingUploads = ref(false);
 // Feedback for attachments that survived the save: the host asks for a
 // confirmation per attachment, so a declined one must not disappear silently.
 const attachmentDeleteNotice = ref<string | undefined>(undefined);
 const editFormKey = computed(() => pullRequestFormKey(instanceId.value, owner.value, repo.value, index.value));
 const editLoading = computed(() => state.loading.get(editFormKey.value) ?? false);
 const editError = computed(() => state.errors.get(editFormKey.value));
-const formLoading = computed(() => editLoading.value || isDeletingAttachments.value);
+const formLoading = computed(() => editLoading.value || isDeletingAttachments.value || isAwaitingUploads.value);
 
 const commentFormKey = computed(() => issueCommentFormKey(instanceId.value, owner.value, repo.value, index.value));
 const commentLoading = computed(() => state.loading.get(commentFormKey.value) ?? false);
@@ -459,7 +466,7 @@ function closeEdit() {
   isEditing.value = false;
 }
 
-function handleEditSubmit(data: {
+async function handleEditSubmit(data: {
   title: string;
   body: string;
   base?: string;
@@ -468,7 +475,21 @@ function handleEditSubmit(data: {
   milestone?: number;
   dueDate?: string;
 }) {
-  state.editPullRequest(instanceId.value, owner.value, repo.value, index.value, {
+  // Capture the target before the first await, like the other handlers.
+  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
+  // An upload inserts its markdown into the editor only when its request
+  // returns: saving before that would submit a body missing the image the user
+  // just inserted. The submit button is disabled meanwhile; this covers a
+  // submit that still gets through.
+  if (pendingEditUploads.isPending()) {
+    isAwaitingUploads.value = true;
+    try {
+      await pendingEditUploads.waitForIdle();
+    } finally {
+      isAwaitingUploads.value = false;
+    }
+  }
+  state.editPullRequest(target.instanceId, target.owner, target.repo, target.index, {
     title: data.title,
     body: data.body,
     base: data.base,
@@ -544,6 +565,8 @@ async function handleUploadImage(file: File, onSuccess: (url: string) => void, o
   // request the form was opened for, not to whatever the route points at when
   // the upload returns.
   const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
+  // Registered so a save issued while this upload runs waits for it.
+  const upload = pendingEditUploads.begin();
   try {
     const attachment = await state.uploadIssueAttachment(
       target.instanceId,
@@ -564,6 +587,8 @@ async function handleUploadImage(file: File, onSuccess: (url: string) => void, o
     onSuccess(attachment.uuid ? `/attachments/${attachment.uuid}` : (attachment.browser_download_url ?? ''));
   } catch (error) {
     onError(error instanceof Error ? error.message : String(error));
+  } finally {
+    pendingEditUploads.end(upload);
   }
 }
 
@@ -571,6 +596,7 @@ async function handleAttachmentUpload(file: File) {
   // Same target capture as `handleUploadImage`: the edit dialog's attachment
   // list belongs to the pull request the form was opened for.
   const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
+  const upload = pendingEditUploads.begin();
   uploadingAttachmentCount.value += 1;
   try {
     const attachment = await state.uploadIssueAttachment(
@@ -596,6 +622,7 @@ async function handleAttachmentUpload(file: File) {
     );
   } finally {
     uploadingAttachmentCount.value -= 1;
+    pendingEditUploads.end(upload);
   }
 }
 
@@ -700,14 +727,11 @@ function clearDueDate() {
   });
 }
 
-// The route path this view was created for: the key App.vue caches the
-// keep-alive entry under. Under keep-alive a view of another pull request stays
-// mounted (cached) while the live route has moved on, so its `route.params` no
-// longer describe it — but its own captured target still does.
-const ownPath = route.path;
-// The pull request this cached view exists for, captured once: `route.params`
-// follow the global route, so reading them later would describe whichever pull
-// request is on screen instead.
+// The pull request this view exists for, captured once: under keep-alive a view
+// of another pull request stays mounted (cached) while the live route has moved
+// on, so its `route.params` no longer describe it — but its own captured target
+// still does. The live route is deliberately not consulted: which route is live
+// says nothing about which pull request a save reply belongs to.
 const ownPullRequestKey = pullRequestDetailKey(instanceId.value, owner.value, repo.value, index.value);
 
 watch(
@@ -722,8 +746,8 @@ watch(
     // Ownership is decided by the reply's target, not by the live route: a save
     // reported after the user navigated away still belongs to the pull request
     // that was saved, and that pull request's view must still clean up its
-    // marked attachments. A cached view of another pull request (whose target is
-    // neither the live route's nor the reply's) must not react at all.
+    // marked attachments. A live view of *another* pull request must not react,
+    // and neither must a cached view of another pull request.
     if (!saved) {
       return;
     }
@@ -734,7 +758,10 @@ watch(
       index: saved.index,
     };
     const savedKey = pullRequestDetailKey(target.instanceId, target.owner, target.repo, target.index);
-    if (route.path !== ownPath && savedKey !== ownPullRequestKey) {
+    if (savedKey !== ownPullRequestKey) {
+      // Being the live route is not ownership: the live view of PR A also
+      // renders while PR B is being saved elsewhere, and it must not delete
+      // A's marked attachments against B.
       return;
     }
     // The saved pull request itself is the target, not the live route: the host

@@ -172,16 +172,23 @@ function nodeIcon(): string {
 </script>
 
 <template>
-  <li class="tree-node">
+  <!-- The `<li>` carries the treeitem role: a `role="treeitem"` wrapped in a
+       plain `<li>` (or on a `<div>` inside one) breaks the required parent/child
+       chain `tree > treeitem > group > treeitem`, and the nested list below must
+       be exposed as the children's group. The `<div>` stays the row element
+       because it holds the focus and the class the styles target. -->
+  <li
+    class="tree-node"
+    role="treeitem"
+    :aria-level="props.level"
+    :aria-expanded="hasChildren ? props.node.expanded : undefined"
+    :aria-selected="props.node.checked"
+  >
     <div
       class="tree-row"
       :class="{ 'is-file': !isDir, 'is-dir': isDir }"
       v-bind="{ 'data-path': props.node.path }"
       :tabindex="isTabbable ? 0 : -1"
-      role="treeitem"
-      :aria-level="props.level"
-      :aria-expanded="hasChildren ? props.node.expanded : undefined"
-      :aria-selected="props.node.checked"
       @click="onRowClick"
       @keydown="onRowKeydown"
     >
@@ -216,7 +223,10 @@ function nodeIcon(): string {
         <span v-if="props.node.file.deletions" class="deletions">−{{ props.node.file.deletions }}</span>
       </span>
     </div>
-    <ul v-if="isDir && props.node.expanded" class="file-tree-children">
+    <ul v-if="isDir && props.node.expanded" class="file-tree-children" role="group">
+      <!-- `aria-level` on the child row is not `level + 1` of the DOM depth:
+           `role="group"` is not a treeitem, so the level stays the child's own
+           depth (the owner passes it down). -->
       <FileTreeNode
         v-for="child in props.node.children"
         :key="child.path"

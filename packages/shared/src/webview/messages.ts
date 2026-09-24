@@ -12,7 +12,27 @@ export interface ForgejoInstance {
  * extension host: every API call is proxied through host message handlers,
  * so webviews only receive the non-sensitive fields.
  */
-export type PublicForgejoInstance = Omit<ForgejoInstance, 'token'>;
+export type PublicForgejoInstance = Omit<ForgejoInstance, 'token'> & {
+  /** An opaque fingerprint of the token, so a webview can notice a swap. */
+  tokenFingerprint?: string;
+};
+
+/**
+ * A short, non-reversible fingerprint of an access token.
+ *
+ * The webview must be able to tell that the credential behind an instance
+ * changed (so it can drop cached payloads) without ever seeing the token. A
+ * plain hash is used on purpose: `node:crypto` must not reach the webview
+ * bundle, and the value never has to be collision-proof against an attacker who
+ * already has the token.
+ */
+function tokenFingerprint(token: string): string {
+  let hash = 5381;
+  for (let index = 0; index < token.length; index += 1) {
+    hash = ((hash << 5) + hash + token.charCodeAt(index)) | 0;
+  }
+  return `${(hash >>> 0).toString(16)}-${token.length}`;
+}
 
 export function toPublicInstance(instance: ForgejoInstance): PublicForgejoInstance {
   return {
@@ -20,6 +40,7 @@ export function toPublicInstance(instance: ForgejoInstance): PublicForgejoInstan
     url: instance.url,
     name: instance.name,
     username: instance.username,
+    tokenFingerprint: tokenFingerprint(instance.token),
     ...(instance.syncApiUrlsToInstanceUrl !== undefined
       ? { syncApiUrlsToInstanceUrl: instance.syncApiUrlsToInstanceUrl }
       : {}),
@@ -74,6 +95,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       index: number;
+      /** The created worktree, so the settings list can show it without a reload. */
+      worktree?: unknown;
       cancelled?: boolean;
       error?: string;
     }

@@ -135,6 +135,35 @@ function isInRepoScope(key: string, scope: string): boolean {
 function clearRepoScope<V>(map: Map<string, V>, scope: string) {
   clearWhere(map, (key) => isInRepoScope(key, scope));
 }
+
+/**
+ * The part of an instance the webview's cached payloads depend on. The host
+ * keeps the id stable across an edit, so comparing these fields is what tells
+ * an edit apart from a no-op refresh of the list.
+ *
+ * The token itself never reaches the webview; the host sends an opaque
+ * fingerprint of it instead, which is enough to notice that the credential
+ * behind the same URL and account changed.
+ */
+function instanceCacheIdentity(instance: ForgejoInstance): string {
+  return [instance.url, instance.username ?? '', instance.name ?? '', instance.tokenFingerprint ?? ''].join('\u0000');
+}
+
+/**
+ * Ids whose identity changed between two instance lists (added instances have
+ * no cached payloads to release, so only surviving ids are reported).
+ */
+function changedInstanceIdentities(previous: ForgejoInstance[], next: ForgejoInstance[]): string[] {
+  const before = new Map(previous.map((instance) => [instance.id, instanceCacheIdentity(instance)]));
+  const changed: string[] = [];
+  for (const instance of next) {
+    const identity = before.get(instance.id);
+    if (identity !== undefined && identity !== instanceCacheIdentity(instance)) {
+      changed.push(instance.id);
+    }
+  }
+  return changed;
+}
 import '../types/config';
 import { postMessage } from './vscode';
 
@@ -695,9 +724,19 @@ function createAppState() {
         }
         break;
       }
-      case 'instances':
-        instances.value = message.data ?? [];
+      case 'instances': {
+        const next = message.data ?? [];
+        // An instance keeps its id across an edit, so a URL or account change
+        // leaves every payload cached under that id describing the *previous*
+        // server/account. Drop them before the new list lands (see
+        // clearInstancePayloads).
+        const changed = changedInstanceIdentities(instances.value, next);
+        instances.value = next;
+        for (const instanceId of changed) {
+          clearInstancePayloads(instanceId);
+        }
         break;
+      }
       case 'refreshData':
         refreshInstanceData();
         break;
@@ -1400,7 +1439,15 @@ function createAppState() {
           setPayloadEntry(notificationPollErrors.value, data.instanceId, data.error);
         } else {
           notificationPollErrors.value.delete(data.instanceId);
-          setPayloadEntry(polledNotifications.value, data.instanceId, data.notifications ?? []);
+          const polled = data.notifications ?? [];
+          setPayloadEntry(polledNotifications.value, data.instanceId, polled);
+          // The poller asks the server for the unread list, so its result is
+          // authoritative for *which* notifications are unread — not only for
+          // the badge the slot feeds. Reconciling the view's slot against it
+          // keeps an open Notifications view from contradicting the badge (its
+          // rows are written exclusively by getNotifications replies, so a
+          // "Mark all as read" from the host toast left them unread).
+          reconcileViewNotifications(data.instanceId, polled);
         }
         break;
       }
@@ -1588,6 +1635,14 @@ function createAppState() {
           setError(key, message.error);
         } else {
           errors.delete(key);
+          // A created worktree must reach the Settings list, which renders
+          // `worktrees`. The host reply is a bare success flag today, so the
+          // worktree (when the host starts sending it, see the note in
+          // registerStartWorkWorktree) is merged exactly like `worktreeOpened`.
+          const created = (message as { worktree?: unknown }).worktree;
+          if (created) {
+            registerStartWorkWorktree(created as ForgejoPullRequestWorktreeInfo);
+          }
         }
         break;
       }
@@ -3120,6 +3175,37 @@ function createAppState() {
     setPayloadEntry(notificationsHasMore.value, key, incoming.length > 0);
   }
 
+  /**
+   * Align the view's notification slot with the unread set the poller just
+   * fetched. The poller asks for `['unread', 'pinned']`, so an id missing from
+   * `polled` is read on the server; marking it read locally is what keeps an
+   * open Notifications view consistent with the badge after a "Mark all as
+   * read" (the host's toast path never writes the view slot). The view's rows
+   * themselves are untouched: only the `unread` flag moves.
+   */
+  function reconcileViewNotifications(instanceId: string, polled: ForgejoNotification[]) {
+    const key = notificationsKey(instanceId);
+    const list = notifications.value.get(key);
+    if (!list || list.length === 0) {
+      return;
+    }
+    const unreadIds = new Set(
+      polled.filter((notification) => notification.unread).map((notification) => notification.id),
+    );
+    let changed = false;
+    const reconciled = list.map((notification) => {
+      const unread = notification.id !== undefined && unreadIds.has(notification.id);
+      if (unread === notification.unread) {
+        return notification;
+      }
+      changed = true;
+      return { ...notification, unread };
+    });
+    if (changed) {
+      setPayloadEntry(notifications.value, key, reconciled);
+    }
+  }
+
   function handleNotificationMarkedRead(data: { instanceId: string; id: number; error?: string }) {
     const key = notificationsKey(data.instanceId);
     if (data.error) {
@@ -4636,6 +4722,26 @@ function createAppState() {
     postMessage({ command: 'startWorkOnIssue', instanceId, owner, repo, index, title });
   }
 
+  /**
+   * Adds the worktree a "Start work" created to the list Settings renders.
+   *
+   * The host records the worktree before opening it and answers with a bare
+   * `startWorkResult`, so nothing carried it to the webview and the new worktree
+   * never appeared under Settings until the next full state snapshot. The
+   * webview cannot invent it (the id and branch name are host-generated), so it
+   * merges the record when the host includes one — the reply is typed as
+   * `startWorkResult` plus a `worktree` field, the same shape `worktreeOpened`
+   * already carries and the same merge this applies.
+   */
+  function registerStartWorkWorktree(worktree: ForgejoPullRequestWorktreeInfo) {
+    if (!worktree || typeof worktree.id !== 'string' || worktree.id.length === 0) {
+      return;
+    }
+    const list = worktrees.value.filter((entry) => entry.id !== worktree.id);
+    list.push(worktree);
+    worktrees.value = list;
+  }
+
   function removeWorktree(id: string) {
     postMessage({ command: 'removeWorktree', id });
   }
@@ -4846,6 +4952,98 @@ function createAppState() {
       clearRepoPayloads(previous);
     }
   });
+
+  /**
+   * Releases every payload and TTL cache held for one instance.
+   *
+   * The instance list is keyed by id, and an edit keeps that id, so URL or
+   * account changes would otherwise leave the previous server's repositories,
+   * issues, files and runs on screen (they are keyed by the same id and served
+   * from caches the edit never invalidated). Repo-scoped slots share the
+   * `${instanceId}:` prefix, so they are dropped with the same clear.
+   */
+  function clearInstancePayloads(instanceId: string): void {
+    const inScope = (key: string) => key.startsWith(`${instanceId}:`);
+    // Repo-scoped slots carry their own prefix (`${instanceId}:${owner}/${repo}`)
+    // with a separator that is itself part of the instance prefix.
+    clearWhere(repositories.value, (key) => key === instanceId);
+    clearWhere(myIssues.value, (key) => key === instanceId);
+    clearWhere(myPullRequests.value, (key) => key === instanceId);
+    clearWhere(notifications.value, (key) => key === notificationsKey(instanceId));
+    clearWhere(notificationsBefore.value, (key) => key === notificationsKey(instanceId));
+    clearWhere(notificationsHasMore.value, (key) => key === notificationsKey(instanceId));
+    clearWhere(polledNotifications.value, (key) => key === instanceId);
+    clearWhere(notificationPollErrors.value, (key) => key === instanceId);
+    clearWhere(userStopwatches.value, (key) => key === userStopwatchesKey(instanceId));
+    clearWhere(globalSearchResults.value, inScope);
+    for (const map of instanceScopedPayloads()) {
+      clearWhere(map, inScope);
+    }
+    repositoriesCache.delete(instanceId);
+    myIssuesCache.deleteWhere(inScope);
+    myPullRequestsCache.deleteWhere(inScope);
+    for (const cache of instanceScopedCaches()) {
+      cache.deleteWhere(inScope);
+    }
+    // Loading/error slots are keyed the same way and would otherwise keep a
+    // stale spinner or error for a server the user just replaced.
+    clearWhere(loading, inScope);
+    clearWhere(errors, inScope);
+  }
+
+  /** Reactive payload maps whose keys are all instance-scoped. */
+  function instanceScopedPayloads(): Map<string, unknown>[] {
+    return [
+      repoDetails.value,
+      issueDetails.value,
+      pullRequestDetails.value,
+      repoIssues.value,
+      repoPullRequests.value,
+      repoBranchCommits.value,
+      pullRequestFiles.value,
+      pullRequestComments.value,
+      pullRequestCommits.value,
+      repoContents.value,
+      repoRefs.value,
+      repoFileSearchResults.value,
+      repoFileSearchTruncated.value,
+      fileHistories.value,
+      repoLabels.value,
+      repoAssignees.value,
+      repoMilestones.value,
+      actionRuns.value,
+      actionRunsPage.value,
+      actionRunsHasMore.value,
+      actionRunTotalCount.value,
+      actionRunDetails.value,
+      actionRunJobs.value,
+      actionRunArtifacts.value,
+      actionJobLogs.value,
+      issueSubscriptions.value,
+      issueTrackedTimes.value,
+      issueDependencies.value,
+      issueReactions.value,
+      commentReactions.value,
+    ] as Map<string, unknown>[];
+  }
+
+  /** TTL response caches whose keys are all instance-scoped. */
+  function instanceScopedCaches(): { deleteWhere(predicate: (key: string) => boolean): void }[] {
+    return [
+      repoDetailsCache,
+      issueDetailCache,
+      pullRequestDetailCache,
+      pullRequestCommentsCache,
+      pullRequestFilesCache,
+      pullRequestCommitsCache,
+      repoContentsCache,
+      repoRefsCache,
+      repoBranchCommitsCache,
+      repoLabelsCache,
+      repoAssigneesCache,
+      repoMilestonesCache,
+    ];
+  }
 
   /**
    * Handle the host "refresh instances" command: drop the instance-level TTL

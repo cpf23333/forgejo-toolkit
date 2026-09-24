@@ -15,6 +15,7 @@ import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import { stateLabel } from '../utils/stateLabel';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
+import { createPendingUploads } from '../utils/pendingUploads';
 import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import {
   useAppState,
@@ -239,13 +240,21 @@ const uploadingAttachmentCount = ref(0);
 const deletingAttachmentId = ref<number | undefined>(undefined);
 const isDeletingAttachments = ref(false);
 const pendingDeleteAttachmentIds = ref<number[]>([]);
+// Attachments still uploading in the edit dialog (the editor's image picker and
+// the attachment list both register here; see handleUploadImage and
+// handleAttachmentUpload).
+const pendingEditUploads = createPendingUploads();
+// The submit handler set the dialog busy to wait for those uploads. Tracked
+// separately from `uploadingAttachmentCount` because the wait starts while the
+// upload is counted down (isDeletingAttachments has the same role for deletes).
+const isAwaitingUploads = ref(false);
 // Feedback for attachments that survived the save: the host asks for a
 // confirmation per attachment, so a declined one must not disappear silently.
 const attachmentDeleteNotice = ref<string | undefined>(undefined);
 const editFormKey = computed(() => issueFormKey(instanceId.value, owner.value, repo.value, index.value));
 const editLoading = computed(() => state.loading.get(editFormKey.value) ?? false);
 const editError = computed(() => state.errors.get(editFormKey.value));
-const formLoading = computed(() => editLoading.value || isDeletingAttachments.value);
+const formLoading = computed(() => editLoading.value || isDeletingAttachments.value || isAwaitingUploads.value);
 
 const commentFormKey = computed(() => issueCommentFormKey(instanceId.value, owner.value, repo.value, index.value));
 const commentLoading = computed(() => state.loading.get(commentFormKey.value) ?? false);
@@ -358,7 +367,7 @@ function closeEdit() {
   isEditing.value = false;
 }
 
-function handleEditSubmit(data: {
+async function handleEditSubmit(data: {
   title: string;
   body: string;
   labels: number[];
@@ -366,7 +375,22 @@ function handleEditSubmit(data: {
   milestone?: number;
   dueDate?: string;
 }) {
-  state.editIssue(instanceId.value, owner.value, repo.value, index.value, {
+  // Capture the target before the first await, like the other handlers: the
+  // save must be addressed to the issue the form was opened for.
+  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
+  // The uploads insert their markdown into the editor only when their request
+  // returns. The submit button is disabled meanwhile, but a submit that still
+  // gets through must not save a body that misses the image the user just
+  // inserted: wait for the uploads, then serialise what is on screen.
+  if (pendingEditUploads.isPending()) {
+    isAwaitingUploads.value = true;
+    try {
+      await pendingEditUploads.waitForIdle();
+    } finally {
+      isAwaitingUploads.value = false;
+    }
+  }
+  state.editIssue(target.instanceId, target.owner, target.repo, target.index, {
     title: data.title,
     body: data.body,
     labels: data.labels,
@@ -516,6 +540,10 @@ async function handleUploadImage(file: File, onSuccess: (url: string) => void, o
   // Capture the issue before the await. The file belongs to the issue the form
   // was opened for, not to whatever the route points at when the upload returns.
   const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
+  // Registered so a save issued while this upload runs waits for it (IssueForm
+  // also tracks the same upload for its submit button; this side covers the
+  // edit dialog as a whole).
+  const upload = pendingEditUploads.begin();
   try {
     const attachment = await state.uploadIssueAttachment(
       target.instanceId,
@@ -536,6 +564,8 @@ async function handleUploadImage(file: File, onSuccess: (url: string) => void, o
     onSuccess(attachment.uuid ? `/attachments/${attachment.uuid}` : (attachment.browser_download_url ?? ''));
   } catch (error) {
     onError(error instanceof Error ? error.message : String(error));
+  } finally {
+    pendingEditUploads.end(upload);
   }
 }
 
@@ -543,6 +573,7 @@ async function handleAttachmentUpload(file: File) {
   // Same target capture as `handleUploadImage`: the edit dialog's attachment
   // list belongs to the issue the form was opened for.
   const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
+  const upload = pendingEditUploads.begin();
   uploadingAttachmentCount.value += 1;
   try {
     const attachment = await state.uploadIssueAttachment(
@@ -568,6 +599,7 @@ async function handleAttachmentUpload(file: File) {
     );
   } finally {
     uploadingAttachmentCount.value -= 1;
+    pendingEditUploads.end(upload);
   }
 }
 
@@ -619,14 +651,11 @@ function handleRemoveDependency(depNumber: number) {
   state.removeIssueDependency(instanceId.value, owner.value, repo.value, index.value, depNumber);
 }
 
-// The route path this view was created for: the key App.vue caches the
-// keep-alive entry under. Under keep-alive a view of another issue stays
-// mounted (cached) while the live route has moved on, so its `route.params` no
-// longer describe it — but its own captured target still does.
-const ownPath = route.path;
-// The issue this cached view exists for, captured once: `route.params` follow
-// the global route, so reading them later would describe whichever issue is on
-// screen instead.
+// The issue this view exists for, captured once: under keep-alive a view of
+// another issue stays mounted (cached) while the live route has moved on, so
+// its `route.params` no longer describe it — but its own captured target still
+// does. The live route is deliberately not consulted: which route is live says
+// nothing about which issue a save reply belongs to.
 const ownIssueKey = issueDetailKey(instanceId.value, owner.value, repo.value, index.value);
 
 watch(
@@ -641,8 +670,8 @@ watch(
     // Ownership is decided by the reply's target, not by the live route: a save
     // reported after the user navigated away still belongs to the issue that was
     // saved, and that issue's view must still clean up its marked attachments.
-    // A cached view of another issue (whose target is neither the live route's
-    // nor the reply's) must not react at all.
+    // A live view of *another* issue must not react, and neither must a cached
+    // view of another issue.
     if (!saved) {
       return;
     }
@@ -653,7 +682,12 @@ watch(
       index: saved.index,
     };
     const savedKey = issueDetailKey(target.instanceId, target.owner, target.repo, target.index);
-    if (route.path !== ownPath && savedKey !== ownIssueKey) {
+    if (savedKey !== ownIssueKey) {
+      // This view's own issue is not the one that was saved. Being the live
+      // route is not ownership: the live view of issue A also renders while
+      // issue B is being saved elsewhere, and it must not delete A's marked
+      // attachments against B. Ownership is decided by the reply's target
+      // versus this view's own target only.
       return;
     }
     // The saved issue itself is the target, not the live route: the host can

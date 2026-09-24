@@ -291,11 +291,18 @@ function onTreeKeydown(event: KeyboardEvent) {
     return;
   }
   if (key === 'ArrowRight') {
-    // A collapsed directory was already expanded by the row itself; the owner
-    // only has to step into an expanded one.
-    if (row.type === 'dir' && row.expanded && row.children.length > 0) {
-      focusRow(row.children[0].path);
+    if (row.type !== 'dir' || row.children.length === 0) {
+      return;
     }
+    // The treeitem contract for ArrowRight: a collapsed directory expands, an
+    // expanded one steps into its first child. The row itself only handles
+    // Enter/Space, so without the expand branch the key did nothing on a
+    // collapsed directory (the row never expanded it).
+    if (!row.expanded) {
+      toggleExpand(row);
+      return;
+    }
+    focusRow(row.children[0].path);
     return;
   }
   // ArrowLeft: a row whose subtree is already collapsed moves to its parent.

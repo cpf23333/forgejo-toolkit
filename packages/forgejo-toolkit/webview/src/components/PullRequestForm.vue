@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import EasyMdeEditor from './EasyMdeEditor.vue';
 import DateTimePicker from './DateTimePicker.vue';
+import { createPendingUploads } from '../utils/pendingUploads';
 import type { ForgejoLabel, ForgejoMilestone } from '../types/api';
 
 const { t } = useI18n();
@@ -197,7 +198,47 @@ function channelLuminance(channel: number): number {
   return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
 }
 
-function handleSubmit() {
+// See IssueForm: an image upload inserts its markdown only when the request
+// returns, so a save issued meanwhile must wait for it.
+const pendingImageUploads = createPendingUploads();
+const pendingUploadCount = ref(0);
+/** Whether an image is still uploading; drives the submit button's disabled state. */
+const uploadingImage = computed(() => pendingUploadCount.value > 0);
+
+function trackImageUpload(file: File, onSuccess: (url: string) => void, onError: (error: string) => void): void {
+  const upload = pendingImageUploads.begin();
+  pendingUploadCount.value += 1;
+  const settle = () => {
+    pendingImageUploads.end(upload);
+    pendingUploadCount.value = Math.max(0, pendingUploadCount.value - 1);
+  };
+  props.uploadImage?.(
+    file,
+    (url) => {
+      try {
+        onSuccess(url);
+      } finally {
+        settle();
+      }
+    },
+    (error) => {
+      try {
+        onError(error);
+      } finally {
+        settle();
+      }
+    },
+  );
+}
+
+const trackedUploadImage = computed(() => (props.uploadImage ? trackImageUpload : undefined));
+
+async function handleSubmit() {
+  // Wait for in-flight uploads: the body only gains the image markdown when
+  // their request returns.
+  if (pendingImageUploads.isPending()) {
+    await pendingImageUploads.waitForIdle();
+  }
   emit('submit', {
     title: title.value,
     body: body.value,
@@ -319,7 +360,7 @@ function handleSubmit() {
         v-model="body"
         :placeholder="t('dashboard.form.bodyPlaceholder')"
         :label="t('dashboard.form.body')"
-        :upload-image="uploadImage"
+        :upload-image="trackedUploadImage"
         :instance-id="instanceId"
         :owner="owner"
         :repo="repo"
@@ -328,7 +369,10 @@ function handleSubmit() {
     <div v-if="error" class="form-error">{{ t('dashboard.form.error', { message: error }) }}</div>
     <slot name="extra" />
     <div class="form-actions">
-      <vscode-button type="submit" :disabled="loading || !title.trim() || !base || (mode === 'create' && !head)">
+      <vscode-button
+        type="submit"
+        :disabled="loading || uploadingImage || !title.trim() || !base || (mode === 'create' && !head)"
+      >
         {{ loading ? t('dashboard.form.saving') : submitLabel }}
       </vscode-button>
       <vscode-button type="button" secondary @click="emit('cancel')">

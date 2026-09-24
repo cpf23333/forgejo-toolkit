@@ -5,6 +5,8 @@ import {
   isActionRunCancellable,
   isActionRunDeletable,
   isActionStatusFailed,
+  isActionStatusFinal,
+  shouldPollActionRun,
 } from '../actionStatus';
 
 /** `models/actions/status.go` is the source of this list. */
@@ -70,5 +72,53 @@ describe('isActionRunDeletable', () => {
     for (const status of ['unknown', 'waiting', 'running', 'blocked', 'pending', undefined]) {
       expect(isActionRunDeletable(status), String(status)).toBe(false);
     }
+  });
+});
+
+describe('isActionStatusFinal', () => {
+  it('covers the done states and nothing else', () => {
+    for (const status of ['success', 'failure', 'error', 'cancelled', 'skipped']) {
+      expect(isActionStatusFinal(status), status).toBe(true);
+    }
+    for (const status of ['unknown', 'waiting', 'running', 'blocked', undefined]) {
+      expect(isActionStatusFinal(status), String(status)).toBe(false);
+    }
+  });
+});
+
+/**
+ * The run detail view polls a live run and stops when it finishes. A failed
+ * load is the case that used to leak: no run entry is stored on error, so the
+ * status stays `undefined`, `isActionStatusFinal(undefined)` is false, and the
+ * interval refetched the failing request forever.
+ */
+describe('shouldPollActionRun', () => {
+  it('keeps polling only while the run is live', () => {
+    for (const status of ['unknown', 'waiting', 'running', 'blocked']) {
+      expect(shouldPollActionRun(status, false), status).toBe(true);
+    }
+  });
+
+  it('stops once the run reached a final status', () => {
+    for (const status of ['success', 'failure', 'error', 'cancelled', 'skipped']) {
+      expect(shouldPollActionRun(status, false), status).toBe(false);
+    }
+  });
+
+  it('stops after a failed load even though no run status is known', () => {
+    // The exact shape of the bug: the run could not be loaded, so there is no
+    // status, and the poll decision must still say "stop".
+    expect(shouldPollActionRun(undefined, true)).toBe(false);
+    expect(shouldPollActionRun('running', true)).toBe(false);
+    expect(shouldPollActionRun(undefined, false)).toBe(true);
+  });
+
+  it('is not the status-only predicate the view used to ask', () => {
+    // Pre-fix the decision was `!isActionStatusFinal(status)` alone: with no run
+    // entry stored on a failed load the status is undefined, so that predicate
+    // answered "poll" and the interval refetched the failing request forever.
+    const statusOnly = (status?: string) => !isActionStatusFinal(status);
+    expect(statusOnly(undefined)).toBe(true);
+    expect(shouldPollActionRun(undefined, true)).toBe(false);
   });
 });

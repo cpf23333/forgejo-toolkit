@@ -275,11 +275,101 @@ describe('Settings testConnectionResult target', () => {
     const wrapper = mountView();
     await nextTick();
 
+    // A test can only be issued from a submittable form (the add form needs a
+    // URL and a token), so fill it in before testing — otherwise there is no
+    // request for any reply, stamped or not, to answer.
+    await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com/legacy');
+    await typeInto(wrapper, '#forgejo-token', 'legacy-token');
     await clickButton(wrapper, 'Test Connection');
+    expect(state.testConnection).toHaveBeenCalled();
+
     state.testConnectionResult.value = { success: true, username: 'demo-user' };
     await nextTick();
 
     expect(wrapper.text()).toContain('demo-user');
+    wrapper.unmount();
+  });
+
+  it('shows the add form connection success the composable stamped for it', async () => {
+    const wrapper = mountView();
+    await nextTick();
+
+    await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com/new');
+    await typeInto(wrapper, '#forgejo-token', 'new-token');
+    await clickButton(wrapper, 'Test Connection');
+    expect(state.testConnection).toHaveBeenCalledWith('https://forgejo.example.com/new', 'new-token', undefined);
+
+    // The composable stamps the reply with the target it read from the request
+    // intent: the add form's own reply must be applied, not dropped as stale
+    // (the view used to treat "no form submitted yet" as "not my form").
+    state.testConnectionResult.value = { success: true, username: 'new-user', target: { kind: 'new' } };
+    await nextTick();
+
+    expect(wrapper.text()).toContain('new-user');
+    expect(wrapper.text()).not.toContain('Testing...');
+    wrapper.unmount();
+  });
+
+  it('shows a failed add form connection instead of sticking on Testing...', async () => {
+    const wrapper = mountView();
+    await nextTick();
+
+    await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com/new');
+    await typeInto(wrapper, '#forgejo-token', 'wrong-token');
+    await clickButton(wrapper, 'Test Connection');
+
+    state.testConnectionResult.value = {
+      success: false,
+      error: 'Invalid token',
+      target: { kind: 'new' },
+    };
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Invalid token');
+    // The busy state is cleared on every path: the reply arrives once, so a
+    // form left on "Testing..." would keep its button disabled for good.
+    expect(wrapper.text()).not.toContain('Testing...');
+    wrapper.unmount();
+  });
+
+  it('applies a stamped reply for the instance being edited', async () => {
+    const wrapper = mountView();
+    await nextTick();
+
+    await clickEdit(wrapper, 0);
+    await clickButton(wrapper, 'Test Connection');
+    expect(state.testConnection).toHaveBeenCalledWith(INSTANCE_A.url, '', INSTANCE_A.id);
+
+    state.testConnectionResult.value = {
+      success: true,
+      username: 'alpha-user',
+      target: { kind: 'instance', instanceId: INSTANCE_A.id },
+    };
+    await nextTick();
+
+    expect(wrapper.text()).toContain('alpha-user');
+    expect(wrapper.text()).not.toContain('Testing...');
+    wrapper.unmount();
+  });
+
+  it('ignores the add form reply after the user moved to an instance edit', async () => {
+    const wrapper = mountView();
+    await nextTick();
+
+    await typeInto(wrapper, '#forgejo-url', 'https://forgejo.example.com/new');
+    await typeInto(wrapper, '#forgejo-token', 'new-token');
+    await clickButton(wrapper, 'Test Connection');
+
+    // The user opens instance A for edit before the add form's reply lands.
+    await clickEdit(wrapper, 0);
+
+    // The reply belongs to the form the user left: it must not report the form
+    // on screen as connected, nor must it leave it claiming a running test.
+    state.testConnectionResult.value = { success: true, username: 'new-user', target: { kind: 'new' } };
+    await nextTick();
+
+    expect(wrapper.text()).not.toContain('new-user');
+    expect(wrapper.text()).not.toContain('Testing...');
     wrapper.unmount();
   });
 });

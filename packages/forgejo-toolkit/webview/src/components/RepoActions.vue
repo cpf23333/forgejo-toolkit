@@ -19,8 +19,14 @@ const showTrigger = ref(false);
 const triggerWorkflow = ref('');
 const triggerRef = ref(props.defaultBranch ?? '');
 const triggerInputs = ref<{ key: string; value: string }[]>([]);
+// The workflow filename as the rest of the flow uses it (and as the host
+// receives it): `dispatchWorkflow` writes its loading/error slot under the
+// trimmed name (see submitTrigger). Keying the spinner and the error on the raw
+// field instead made a typed trailing space look like a different workflow, so
+// a failing dispatch showed no error and the Run button never re-enabled.
+const trimmedWorkflow = computed(() => triggerWorkflow.value.trim());
 const dispatchKey = computed(() =>
-  dispatchWorkflowKey(props.instanceId, props.owner, props.repo, triggerWorkflow.value || 'new'),
+  dispatchWorkflowKey(props.instanceId, props.owner, props.repo, trimmedWorkflow.value || 'new'),
 );
 const dispatchLoading = computed(() => state.loading.get(dispatchKey.value) ?? false);
 const dispatchError = computed(() => state.errors.get(dispatchKey.value));
@@ -234,7 +240,7 @@ function availableWorkflows(): string[] {
 }
 
 function submitTrigger() {
-  const workflow = triggerWorkflow.value.trim();
+  const workflow = trimmedWorkflow.value;
   const ref = triggerRef.value.trim();
   if (!workflow || !ref) {
     return;
@@ -379,10 +385,7 @@ onUnmounted(() => {
           {{ t('dashboard.repoActions.dispatchTimeout') }}
         </div>
         <div class="trigger-actions">
-          <vscode-button
-            :disabled="dispatchLoading || !triggerWorkflow.trim() || !triggerRef.trim()"
-            @click="submitTrigger"
-          >
+          <vscode-button :disabled="dispatchLoading || !trimmedWorkflow || !triggerRef.trim()" @click="submitTrigger">
             {{ dispatchLoading ? t('dashboard.loading') : t('dashboard.repoActions.runWorkflow') }}
           </vscode-button>
           <vscode-button secondary :disabled="dispatchLoading" @click="resetTrigger">

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { flushPromises, mount } from '@vue/test-utils';
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import DiffFileList from '../DiffFileList.vue';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
@@ -74,13 +74,59 @@ describe('DiffFileList tree keyboard navigation', () => {
     { filename: 'c.ts', status: 'removed', additions: 0, deletions: 3, changes: 3 },
   ];
 
-  function mountTree() {
+  function mountTree(files: Record<string, unknown>[] = threeFiles) {
     // Focus assertions need the component connected to the document.
-    return mountList({ files: threeFiles, supportsMultiDiff: true }, { attachTo: document.body });
+    return mountList({ files, supportsMultiDiff: true }, { attachTo: document.body });
   }
 
   function rowByPath(wrapper: ReturnType<typeof mountTree>, path: string) {
-    return wrapper.get(`.tree-row[data-path="${path}"]`);
+    // Queried through the DOM: `wrapper.findAll` does not descend into the
+    // recursively rendered child components, so nested rows are invisible to it.
+    // The path is matched as an attribute rather than interpolated into the
+    // selector, which a path like `src/a.ts` is not valid for.
+    const row = findRow(wrapper, path);
+    expect(row, `row ${path}`).toBeTruthy();
+    return new DOMWrapper(row!);
+  }
+
+  /** Whether a row for `path` is rendered (a collapsed subtree renders none). */
+  function hasRow(wrapper: ReturnType<typeof mountTree>, path: string): boolean {
+    return findRow(wrapper, path) !== undefined;
+  }
+
+  function findRow(wrapper: ReturnType<typeof mountTree>, path: string): Element | undefined {
+    return [...wrapper.element.querySelectorAll('.tree-row')].find(
+      (candidate) => candidate.getAttribute('data-path') === path,
+    );
+  }
+
+  /** The toolbar's "Collapse all" button (it has no class of its own). */
+  async function collapseAll(wrapper: ReturnType<typeof mountTree>) {
+    const button = wrapper.findAll('button').find((candidate) => candidate.text().trim() === 'Collapse all');
+    expect(button, 'Collapse all button').toBeTruthy();
+    await button!.trigger('click');
+  }
+
+  /**
+   * The `<li>` carrying the treeitem role for the row at `path`. `data-path`
+   * lives on the row (`<div>`), which is also what the roving tabindex and the
+   * focus logic address. The ancestor `<li>`s of a nested path match the same
+   * selector, so the deepest level wins.
+   */
+  function dirItem(wrapper: ReturnType<typeof mountTree>, path: string) {
+    // Same DOM lookup as `rowByPath`, then its own `<li>`: the ancestor `<li>`s
+    // of a nested path match too, so the deepest tier wins.
+    const row = findRow(wrapper, path);
+    expect(row, `row ${path}`).toBeTruthy();
+    const tiers = [...wrapper.element.querySelectorAll('li.tree-node')]
+      .filter((candidate) => candidate.contains(row!))
+      .map((candidate) => new DOMWrapper<Element>(candidate));
+    expect(tiers.length, `treeitem for ${path}`).toBeGreaterThan(0);
+    return tiers.reduce((deepest, candidate) =>
+      Number(candidate.attributes('aria-level') ?? 0) > Number(deepest.attributes('aria-level') ?? 0)
+        ? candidate
+        : deepest,
+    );
   }
 
   it('keeps a single tab stop for the whole tree', async () => {
@@ -155,6 +201,71 @@ describe('DiffFileList tree keyboard navigation', () => {
 
     const labels = wrapper.findAll('.node-checkbox').map((box) => box.attributes('aria-label'));
     expect(labels).toEqual(['Select a.ts (modified)', 'Select b.ts (added)', 'Select c.ts (removed)']);
+    wrapper.unmount();
+  });
+
+  /**
+   * A collapsed directory used to swallow ArrowRight: the row's keydown handler
+   * returns for arrow keys on purpose (the tree owner resolves them) and the
+   * owner only stepped into directories it believed were already expanded.
+   */
+  it('expands a collapsed directory with ArrowRight, then steps into it', async () => {
+    const wrapper = mountTree([
+      { filename: 'src/a.ts', status: 'modified', additions: 1, deletions: 0, changes: 1 },
+      { filename: 'src/b.ts', status: 'modified', additions: 1, deletions: 0, changes: 1 },
+    ]);
+    await nextTick();
+
+    const tree = wrapper.get('.file-tree');
+    // The toolbar's collapse-all leaves the directory row collapsed without
+    // toggling it through the keyboard, which is the state under test.
+    await collapseAll(wrapper);
+    await nextTick();
+    expect(dirItem(wrapper, 'src').attributes('aria-expanded')).toBe('false');
+    expect(hasRow(wrapper, 'src/a.ts')).toBe(false);
+
+    // ArrowRight on the collapsed directory expands it (the treeitem contract).
+    await rowByPath(wrapper, 'src').trigger('keydown', { key: 'ArrowRight' });
+    await nextTick();
+
+    expect(dirItem(wrapper, 'src').attributes('aria-expanded')).toBe('true');
+    expect(hasRow(wrapper, 'src/a.ts')).toBe(true);
+
+    // A second ArrowRight steps into the first child.
+    await tree.trigger('keydown', { key: 'ArrowRight' });
+    await flushPromises();
+    expect(document.activeElement?.getAttribute('data-path')).toBe('src/a.ts');
+    wrapper.unmount();
+  });
+
+  it('exposes the treeitem structure the ARIA tree pattern requires', async () => {
+    const wrapper = mountTree([
+      { filename: 'src/nested/a.ts', status: 'modified', additions: 1, deletions: 0, changes: 1 },
+    ]);
+    await nextTick();
+
+    // Collapse the tree first, so the nested group below is one this test opened.
+    await collapseAll(wrapper);
+    await nextTick();
+
+    const dir = dirItem(wrapper, 'src');
+    expect(dir.attributes('role')).toBe('treeitem');
+    expect(dir.attributes('aria-level')).toBe('1');
+    expect(dir.attributes('aria-expanded')).toBe('false');
+    // The row itself is not a treeitem: `li > div[role=treeitem]` is invalid.
+    expect(wrapper.get('.tree-row[data-path="src"]').attributes('role')).toBeUndefined();
+
+    await rowByPath(wrapper, 'src').trigger('keydown', { key: 'Enter' });
+    await nextTick();
+
+    // The nested list is the children's group, and the child row carries level 2.
+    const group = dirItem(wrapper, 'src').get('ul');
+    expect(group.attributes('role')).toBe('group');
+    const child = dirItem(wrapper, 'src/nested');
+    expect(child.attributes('role')).toBe('treeitem');
+    // `src` is level 1 and `src/nested` its child, so the nested treeitem is
+    // level 2: `role="group"` must not add a level of its own.
+    expect(child.attributes('aria-level')).toBe('2');
     wrapper.unmount();
   });
 });

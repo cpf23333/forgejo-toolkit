@@ -370,9 +370,15 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
       .map((call) => call[0] as Record<string, unknown>)
       .find((message) => message.command === 'initialState');
     expect(reply).toBeDefined();
-    // Tokens must never reach a webview.
+    // Tokens must never reach a webview: only the opaque fingerprint travels.
     expect(reply?.instances).toEqual([
-      { id: 'demo', url: 'https://forgejo.example.com', name: 'Demo', username: 'demo-user' },
+      {
+        id: 'demo',
+        url: 'https://forgejo.example.com',
+        name: 'Demo',
+        username: 'demo-user',
+        tokenFingerprint: expect.stringMatching(/^[0-9a-f]+-\d+$/),
+      },
     ]);
     expect(reply?.locale).toBe('en');
     // The editor panel has no worktree manager; inert defaults keep the

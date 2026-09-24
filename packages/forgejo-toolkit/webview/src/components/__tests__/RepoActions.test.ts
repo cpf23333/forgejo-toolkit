@@ -186,4 +186,73 @@ describe('RepoActions dispatch feedback', () => {
       vi.useRealTimers();
     }
   });
+
+  /**
+   * The workflow filename is trimmed before it is sent (`submitTrigger`), so the
+   * dispatch's loading slot and error slot are keyed by the trimmed name too
+   * (`dispatchWorkflow` writes them from the value it was handed). Keying the
+   * spinner and the error on the raw field made a trailing space — which the
+   * input can easily carry — point at a slot nothing ever writes: the failure
+   * vanished and Run stayed disabled on "Loading...".
+   */
+  async function fillTrigger(
+    wrapper: ReturnType<typeof mountHost>,
+    workflow: string,
+  ): Promise<{ runButton: ReturnType<typeof wrapper.findAll>[number] }> {
+    const triggerButton = wrapper.findAll('vscode-button').find((b) => b.text().includes('Trigger workflow'));
+    await triggerButton!.trigger('click');
+    const textfields = wrapper.findAll('vscode-textfield');
+    (textfields[0].element as unknown as { value: string }).value = workflow;
+    await textfields[0].trigger('input');
+    (textfields[1].element as unknown as { value: string }).value = 'main';
+    await textfields[1].trigger('input');
+    const runButton = wrapper.findAll('vscode-button').find((b) => b.text().trim() === 'Run');
+    expect(runButton).toBeTruthy();
+    return { runButton: runButton! };
+  }
+
+  it('shows a failing dispatch error and re-enables Run when the workflow field has padding', async () => {
+    const wrapper = mountHost();
+    const { runButton } = await fillTrigger(wrapper, '  ci.yml  ');
+
+    await runButton.trigger('click');
+    expect(stateMock.dispatchWorkflow).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 'ci.yml', 'main', {});
+
+    const state = useAppState() as unknown as { loading: Map<string, boolean>; errors: Map<string, string> };
+    // The host answers on the key the trimmed name built.
+    state.loading.set('inst-1:owner/repo:actions:dispatch:ci.yml', true);
+    await nextTick();
+    state.errors.set('inst-1:owner/repo:actions:dispatch:ci.yml', 'workflow not found');
+    state.loading.set('inst-1:owner/repo:actions:dispatch:ci.yml', false);
+    await nextTick();
+
+    expect(wrapper.text()).toContain('workflow not found');
+    // The cleared slot must also end the spinner: the button shows "Run" again
+    // and is submittable, so the user can retry.
+    expect(wrapper.text()).not.toContain('Loading...');
+    const after = wrapper.findAll('vscode-button').find((b) => b.text().trim() === 'Run');
+    expect(after).toBeTruthy();
+    wrapper.unmount();
+  });
+
+  it('clears the dispatch spinner on the completion watcher even without an error', async () => {
+    const wrapper = mountHost();
+    const { runButton } = await fillTrigger(wrapper, 'ci.yml');
+
+    await runButton.trigger('click');
+    const state = useAppState() as unknown as {
+      loading: Map<string, boolean>;
+      lastDispatchCancelled: { value: string | undefined };
+    };
+    state.loading.set('inst-1:owner/repo:actions:dispatch:ci.yml', true);
+    await nextTick();
+    expect(wrapper.text()).toContain('Loading...');
+
+    state.loading.set('inst-1:owner/repo:actions:dispatch:ci.yml', false);
+    await nextTick();
+
+    expect(wrapper.text()).not.toContain('Loading...');
+    expect(wrapper.findAll('vscode-button').some((b) => b.text().trim() === 'Run')).toBe(true);
+    wrapper.unmount();
+  });
 });

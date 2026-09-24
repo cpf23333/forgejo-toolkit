@@ -44,6 +44,26 @@ const editingInstance = ref<ForgejoInstance | null>(null);
 // saved. `null` means no form has been submitted yet, so only an unstamped
 // reply (one that predates stamping) is still applied.
 let submittedTarget: SaveInstanceTarget | null = null;
+// The add form is also a form the user can submit, so it gets a target of its
+// own rather than `null`. A `testConnectionResult` is matched against it: an
+// unstamped `null` target cannot tell "the add form is on screen" apart from
+// "no form has been touched", and treating the add form's own reply as a stale
+// one dropped exactly the result the user was waiting for (the status stuck on
+// "Testing…" and a wrong-token error never appeared). `submittedTarget` keeps
+// its `null` meaning for save replies, which only ever answer a submitted form.
+const FORM_ADD: SaveInstanceTarget = { kind: 'new' };
+const formTarget = computed<SaveInstanceTarget>(() =>
+  editingInstance.value ? { kind: 'instance', instanceId: editingInstance.value.id } : FORM_ADD,
+);
+// A form switch (opening an instance for edit, cancelling back to the add form)
+// invalidates every reply that was requested for the previous form. The reply
+// arrives exactly once, so the busy flags are still reset on that path; only
+// the *result* is dropped.
+let formGeneration = 0;
+// The test this view is waiting for (set by handleTest). The reply carries the
+// stamp the composable read from the request intent, so this is only a
+// fallback for an unstamped reply; the generation is what recognises a switch.
+let pendingTest: { target: SaveInstanceTarget; generation: number } | null = null;
 const exportStatus = ref<{ message: string; type: 'success' | 'error' } | null>(null);
 const importStatus = ref<{ message: string; type: 'success' | 'error' } | null>(null);
 const exportDialogOpen = ref(false);
@@ -111,6 +131,9 @@ function handleTest() {
     return;
   }
   testing.value = true;
+  // Record which form this test answers: the reply is dropped when the user has
+  // moved to another form in the meantime (see the testConnectionResult watcher).
+  pendingTest = { target: formTarget.value, generation: formGeneration };
   setStatus(t('settings.status.testing'));
   // In edit mode the token field may be empty (keep the stored token); the
   // host falls back to the stored token for the given instance id.
@@ -142,6 +165,9 @@ function startEdit(instance: ForgejoInstance) {
   // The form on screen is this instance now: a reply for a previously
   // submitted form must not touch it (see the saveInstanceResult watcher).
   submittedTarget = { kind: 'instance', instanceId: instance.id };
+  // Any reply still in flight was requested for the form just left.
+  formGeneration += 1;
+  pendingTest = null;
   url.value = instance.url;
   // Tokens never reach the webview; leaving the field empty keeps the
   // stored token (see the editInstance host handler).
@@ -155,6 +181,8 @@ function cancelEdit() {
   // Back to the add form: a reply for the edit that was just abandoned does
   // not belong to the form on screen any more.
   submittedTarget = { kind: 'new' };
+  formGeneration += 1;
+  pendingTest = null;
   url.value = '';
   token.value = '';
   syncApiUrlsToInstanceUrl.value = true;
@@ -284,14 +312,20 @@ watch(
       return;
     }
     // The reply arrives once (the composable's own request timeout is already
-    // cleared when it lands), so the busy flag is cleared on every path. Below
-    // the target guard then only drops the *result*: reporting a test the user
-    // has navigated away from would claim the form on screen was tested, but
-    // leaving the form on "Testing…" with the button disabled for good is worse.
+    // cleared when it lands), so the busy flag is cleared on every path.
     testing.value = false;
+    const answered = pendingTest;
+    pendingTest = null;
+    // The reply belongs to the form it was requested for. `target` is the stamp
+    // the composable read from the request intent; an unstamped reply falls back
+    // to the form this view was waiting on. A form switch in between
+    // (`formGeneration` moved on) means the answer can only be stale: reporting
+    // it would claim the form on screen was tested.
+    const target = result.target ?? answered?.target;
     if (
-      result.target &&
-      (!submittedTarget || saveInstanceTargetKey(result.target) !== saveInstanceTargetKey(submittedTarget))
+      !target ||
+      (answered && answered.generation !== formGeneration) ||
+      saveInstanceTargetKey(target) !== saveInstanceTargetKey(formTarget.value)
     ) {
       // The test answered a form this view is no longer showing (the user
       // opened another instance, or went back to the add form) — see the

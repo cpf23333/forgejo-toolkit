@@ -18,6 +18,8 @@ import {
   isActionRunCancellable,
   isActionRunDeletable,
   isActionStatusFailed,
+  isActionStatusFinal,
+  shouldPollActionRun,
 } from '../utils/actionStatus';
 
 const route = useRoute();
@@ -86,8 +88,10 @@ watch(
 const POLL_INTERVAL_MS = 4000;
 let pollTimer: ReturnType<typeof setInterval> | undefined;
 
+// Runs and jobs share the status vocabulary, so the "finished" predicate the
+// job list uses is the same one the poll decision is built on.
 function isFinalStatus(status?: string): boolean {
-  return ['success', 'failure', 'error', 'cancelled', 'skipped'].includes(status ?? '');
+  return isActionStatusFinal(status);
 }
 
 watch(runKey, () => {
@@ -156,12 +160,14 @@ function refreshRun() {
 
 function startPolling() {
   stopPolling();
-  if (isFinalStatus(run.value?.status)) {
+  // A run that could not be loaded has no status to poll for: `shouldPollActionRun`
+  // treats the load error as a stop condition of its own (see its comment).
+  if (!shouldPollActionRun(run.value?.status, runError.value !== undefined)) {
     return;
   }
   pollTimer = setInterval(() => {
     refreshRun();
-    if (isFinalStatus(run.value?.status)) {
+    if (!shouldPollActionRun(run.value?.status, runError.value !== undefined)) {
       stopPolling();
     }
   }, POLL_INTERVAL_MS);
@@ -174,16 +180,13 @@ function stopPolling() {
   }
 }
 
-watch(
-  () => run.value?.status,
-  (status) => {
-    if (isFinalStatus(status)) {
-      stopPolling();
-    } else if (isActive.value) {
-      startPolling();
-    }
-  },
-);
+watch([() => run.value?.status, runError], ([status, error]) => {
+  if (!shouldPollActionRun(status, error !== undefined)) {
+    stopPolling();
+  } else if (isActive.value) {
+    startPolling();
+  }
+});
 
 onActivated(() => {
   isActive.value = true;
@@ -192,7 +195,7 @@ onActivated(() => {
   loadRunData();
   applyJobCollapseDefaults();
   loadExpandedJobLogs(false);
-  if (!isFinalStatus(run.value?.status)) {
+  if (shouldPollActionRun(run.value?.status, runError.value !== undefined)) {
     startPolling();
   }
 });
@@ -444,6 +447,7 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
         {{ t('dashboard.retry') }}
       </vscode-button>
     </div>
+    <div v-if="runError" class="status-message">{{ t('dashboard.actionRun.pollingPaused') }}</div>
     <div v-else-if="run" class="run-summary">
       <div class="run-title-row">
         <vscode-icon :class="['run-status-icon', statusClass(run.status)]" :name="statusIcon(run.status)" />
@@ -587,6 +591,14 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
 
 .error-state {
   color: var(--vscode-errorForeground);
+}
+
+/* Neutral note (e.g. polling paused after a failed load): informative, not an
+   error of its own. */
+.status-message {
+  padding: 0 12px 12px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
 }
 
 .run-summary {

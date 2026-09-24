@@ -185,8 +185,7 @@ describe('IssueDetail save target', () => {
     await nextTick();
 
     (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
-    // The live route has moved to another issue: this view's own path no longer
-    // matches, which is what marks the cached view inactive.
+    // The live route has moved on: this view is cached and inactive.
     testRoute.path = OTHER_ISSUE_PATH;
 
     state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 6 };
@@ -195,6 +194,45 @@ describe('IssueDetail save target', () => {
     expect(state.deleteIssueAttachment.mock.calls).toEqual([]);
     // The marks belong to the issue this view is showing and must survive.
     expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
+    wrapper.unmount();
+  });
+
+  it('does not react to another issue being saved while this view is live', async () => {
+    // Being the live route is not ownership: this is the live view of issue #5,
+    // and #6 is saved from a view of its own. Deleting #5's marks against #6
+    // would remove them from the wrong issue and lose them for good.
+    const wrapper = mountView();
+    await nextTick();
+
+    (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+
+    state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 6 };
+    await flushPromises();
+
+    expect(state.deleteIssueAttachment.mock.calls).toEqual([]);
+    expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
+    wrapper.unmount();
+  });
+
+  it('deletes the saved issue marks even after the route moved on', async () => {
+    // The reply's target decides ownership, not the live route: the user
+    // navigated to another issue while #5's save was in flight, and #5's view
+    // still owns the save (its marks must be cleaned up).
+    const wrapper = mountView();
+    await nextTick();
+
+    (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+    testRoute.path = OTHER_ISSUE_PATH;
+    routeParams.index = '6';
+
+    state.lastSavedIssue.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 5 };
+    await flushPromises();
+
+    expect(state.deleteIssueAttachment.mock.calls.map((call: unknown[]) => call.slice(0, 5))).toEqual([
+      ['inst-1', 'owner', 'repoA', 5, 7],
+    ]);
+    // The save was this view's own: its edit dialog closes and its marks clear.
+    expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([]);
     wrapper.unmount();
   });
 

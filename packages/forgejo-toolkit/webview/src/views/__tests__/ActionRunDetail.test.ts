@@ -231,6 +231,87 @@ describe('ActionRunDetail job log collapsing', () => {
   });
 });
 
+/**
+ * A run that cannot be loaded stores no run entry, so `run.status` stays
+ * undefined and `isFinalStatus(undefined)` is false: the poll interval used to
+ * keep refetching a failing request forever.
+ *
+ * The two tests here cover the state the user sees and the requests that stop.
+ * Whether this file's tree is actually polled is not asserted: mounting the
+ * view directly (the way this file does) never arms the poll interval, because
+ * the watcher that starts it only reacts to changes that happen after the first
+ * flush. The polling itself is covered by the "ActionRunDetail job log
+ * collapsing" tests above, which drive it through state written after mount.
+ */
+describe('ActionRunDetail polling after a failed load', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stateMock.loading.clear();
+    stateMock.errors.clear();
+    stateMock.actionRunDetails.value.clear();
+    stateMock.actionRunJobs.value.clear();
+    stateMock.actionRunArtifacts.value.clear();
+    stateMock.actionJobLogs.value.clear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function failRunLoad() {
+    // Through `useAppState()`: that is the reactive proxy the component reads,
+    // while `stateMock.errors` is the raw Map behind it.
+    (useAppState() as unknown as { errors: Map<string, string> }).errors.set(
+      'inst-1:owner/repo:run:5',
+      'run not found',
+    );
+  }
+
+  it('stops polling once the run load failed and says so', async () => {
+    // A live run, so a mount that does poll has an interval to stop.
+    setRun('running');
+    const wrapper = mountDetail();
+    await nextTick();
+
+    // The refresh fails: no run entry is stored (so the status stays undefined
+    // and `isFinalStatus(undefined)` is false) and the loaders' in-flight guard
+    // is cleared, which is exactly the state that used to keep the interval
+    // refetching a failing request forever.
+    stateMock.actionRunDetails.value.delete('inst-1:owner/repo:run:5');
+    failRunLoad();
+    await nextTick();
+    await nextTick();
+
+    expect(wrapper.text()).toContain('run not found');
+    expect(wrapper.text()).toContain('Auto-refresh is paused');
+
+    stateMock.loading.clear();
+    const afterFailure = stateMock.loadActionRun.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(4000 * 3);
+    expect(stateMock.loadActionRun.mock.calls.length).toBe(afterFailure);
+    wrapper.unmount();
+  });
+
+  it('resumes polling after a successful retry', async () => {
+    const wrapper = mountDetail();
+    await nextTick();
+    failRunLoad();
+    await nextTick();
+
+    // A reply that clears the error (the retry landed and the run resolved)
+    // turns the interval back on.
+    (useAppState() as unknown as { errors: Map<string, string> }).errors.delete('inst-1:owner/repo:run:5');
+    setRun('running');
+    await nextTick();
+
+    const before = stateMock.loadActionRun.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(stateMock.loadActionRun.mock.calls.length).toBeGreaterThan(before);
+    wrapper.unmount();
+  });
+});
+
 describe('ActionRunDetail run actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();

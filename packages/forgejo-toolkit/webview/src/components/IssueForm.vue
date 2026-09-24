@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import EasyMdeEditor from './EasyMdeEditor.vue';
 
 import DateTimePicker from './DateTimePicker.vue';
+import { createPendingUploads } from '../utils/pendingUploads';
 import type { ForgejoLabel, ForgejoMilestone } from '../types/api';
 
 const { t } = useI18n();
@@ -198,7 +199,55 @@ function handleMilestoneChange(event: Event) {
   selectedMilestoneId.value = value === '' ? undefined : Number(value);
 }
 
-function handleSubmit() {
+// Uploads started from the body editor are tracked so the submit handler can
+// wait for them: the editor inserts the image markdown only when the upload
+// returns, so saving first would submit a body without the image.
+const pendingImageUploads = createPendingUploads();
+// Reactive mirror of the tracker: the submit button is disabled while an image
+// is still uploading, because the body does not contain its markdown yet.
+const pendingUploadCount = ref(0);
+
+function trackImageUpload(file: File, onSuccess: (url: string) => void, onError: (error: string) => void): void {
+  const upload = pendingImageUploads.begin();
+  pendingUploadCount.value += 1;
+  const settle = () => {
+    pendingImageUploads.end(upload);
+    pendingUploadCount.value = Math.max(0, pendingUploadCount.value - 1);
+  };
+  props.uploadImage?.(
+    file,
+    (url) => {
+      try {
+        onSuccess(url);
+      } finally {
+        // The editor inserts the markdown inside `onSuccess`, so the tracked
+        // upload must stay pending until that has happened.
+        settle();
+      }
+    },
+    (error) => {
+      try {
+        onError(error);
+      } finally {
+        // A failed upload releases the wait instead of hanging the save.
+        settle();
+      }
+    },
+  );
+}
+
+const trackedUploadImage = computed(() => (props.uploadImage ? trackImageUpload : undefined));
+/** Number of images currently uploading; drives the submit button's disabled state. */
+const uploadingImage = computed(() => pendingUploadCount.value > 0);
+
+async function handleSubmit() {
+  // Wait for in-flight uploads before serialising the body: the markdown they
+  // insert lands in `body` only when their request returns, and the button is
+  // disabled meanwhile, but a submit that still gets through (Enter in a field,
+  // a programmatic click) must not save a body that misses the image.
+  if (pendingImageUploads.isPending()) {
+    await pendingImageUploads.waitForIdle();
+  }
   emit('submit', {
     title: title.value,
     body: body.value,
@@ -301,7 +350,7 @@ function handleSubmit() {
         v-model="body"
         :placeholder="t('dashboard.form.bodyPlaceholder')"
         :label="t('dashboard.form.body')"
-        :upload-image="uploadImage"
+        :upload-image="trackedUploadImage"
         :instance-id="instanceId"
         :owner="owner"
         :repo="repo"
@@ -313,7 +362,7 @@ function handleSubmit() {
       <vscode-button type="button" @click="emit('cancel')" secondary>
         {{ t('dashboard.form.cancel') }}
       </vscode-button>
-      <vscode-button type="submit" :disabled="loading || !title.trim()">
+      <vscode-button type="submit" :disabled="loading || uploadingImage || !title.trim()">
         {{ loading ? t('dashboard.form.saving') : submitLabel }}
       </vscode-button>
     </div>

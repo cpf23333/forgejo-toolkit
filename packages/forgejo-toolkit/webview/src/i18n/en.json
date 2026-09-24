@@ -249,7 +249,8 @@
       "untitledJob": "Untitled job",
       "noLogs": "No logs available.",
       "cancelRun": "Cancel run",
-      "deleteRun": "Delete run"
+      "deleteRun": "Delete run",
+      "pollingPaused": "Auto-refresh is paused because the run could not be loaded. Retry to resume it."
     },
     "actionsDuration": {
       "seconds": "{seconds}s",

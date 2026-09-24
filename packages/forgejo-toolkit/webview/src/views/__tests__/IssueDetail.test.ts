@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
-import { nextTick, reactive } from 'vue';
+import { flushPromises, mount } from '@vue/test-utils';
+import { defineComponent, nextTick, reactive } from 'vue';
 
 const { routeMock, stateMock, keyFor } = vi.hoisted(() => {
   const keyFor = (...parts: unknown[]) => parts.join('|');
@@ -115,7 +115,6 @@ function trackedTimeDeleteButtons(wrapper: ReturnType<typeof mountView>) {
 
 const TIMES_KEY = keyFor('inst-1', 'owner', 'repo', '5');
 const STOPWATCH_KEY = keyFor('inst-1');
-
 describe('IssueDetail tracked time panel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -207,6 +206,99 @@ describe('IssueDetail tracked time panel', () => {
     await nextTick();
 
     expect(wrapper.findAll('.list-truncated').length).toBeGreaterThan(0);
+    wrapper.unmount();
+  });
+});
+
+/**
+ * Saving while an image is still uploading used to submit the body from before
+ * the upload: EasyMDE inserts `![image](url)` from the upload's success
+ * callback, so the earlier body reached the server without the image the user
+ * had just inserted.
+ */
+describe('IssueDetail save waits for in-flight image uploads', () => {
+  const EasyMdeEditorStub = defineComponent({
+    name: 'EasyMdeEditor',
+    props: {
+      modelValue: { type: String, default: '' },
+      uploadImage: { type: Function, default: undefined },
+    },
+    emits: ['update:modelValue'],
+    setup(props, { emit }) {
+      // Mirrors EasyMDE's real behaviour: the markdown is inserted only from
+      // the upload's success callback, never when the file is picked.
+      function pickImage() {
+        props.uploadImage?.(
+          new File(['x'], 'shot.png', { type: 'image/png' }),
+          (url: string) => emit('update:modelValue', `![image](${url})`),
+          () => {},
+        );
+      }
+      return { pickImage };
+    },
+    template:
+      '<div class="editor-stub"><button type="button" class="pick-image" @click="pickImage">pick</button></div>',
+  });
+
+  function mountEditorView() {
+    return mount(IssueDetail, {
+      global: {
+        plugins: [createTestI18n('en')],
+        stubs: { EasyMdeEditor: EasyMdeEditorStub, AttachmentList: true },
+      },
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    appState().issueDetails.value.clear();
+    appState().errors.clear();
+    appState().issueDetails.value.set(keyFor('inst-1', 'owner', 'repo', 5), {
+      number: 5,
+      title: 'an issue',
+      body: 'original body',
+      user: { login: 'demo-user' },
+      labels: [],
+      assignees: [],
+    });
+  });
+
+  function editDialog(wrapper: ReturnType<typeof mountEditorView>) {
+    // The comment box renders an editor of its own; the edit dialog's form is
+    // the one whose submit handler saves the issue.
+    const form = wrapper.findAll('form').find((candidate) => candidate.classes().includes('issue-form'));
+    expect(form, 'edit dialog form').toBeTruthy();
+    return form!;
+  }
+
+  it('includes the image markdown when a save is issued while the upload is running', async () => {
+    let finishUpload: ((attachment: { id: number; uuid: string }) => void) | undefined;
+    const uploadPromise = new Promise<{ id: number; uuid: string }>((resolve) => {
+      finishUpload = resolve;
+    });
+    appState().uploadIssueAttachment.mockReturnValue(uploadPromise);
+
+    const wrapper = mountEditorView();
+    await nextTick();
+    const form = editDialog(wrapper);
+
+    // The user inserts an image into the body: the request is in flight and the
+    // markdown is not in the editor yet.
+    await form.find('.pick-image').trigger('click');
+    await nextTick();
+    expect(appState().uploadIssueAttachment).toHaveBeenCalledTimes(1);
+
+    // …and submits the form before the upload returns.
+    await form.trigger('submit');
+    await nextTick();
+    expect(appState().editIssue).not.toHaveBeenCalled();
+
+    // The upload lands and the editor inserts its markdown.
+    finishUpload?.({ id: 1, uuid: 'uuid-1' });
+    await flushPromises();
+
+    expect(appState().editIssue).toHaveBeenCalledTimes(1);
+    expect(appState().editIssue.mock.calls[0][4].body).toContain('![image](/attachments/uuid-1)');
     wrapper.unmount();
   });
 });

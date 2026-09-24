@@ -232,7 +232,7 @@ describe('PullRequestDetail save target', () => {
     wrapper.unmount();
   });
 
-  it('drops a save of another pull request once the route has moved to it', async () => {
+  it('drops a save of another pull request while this cached view is inactive', async () => {
     // A cached view only owns the pull request it was created for. The reply for
     // #6 belongs to #6's own view; this cached view of #5 must neither delete
     // its marks against #6 nor clear them, or they would be gone when the user
@@ -254,6 +254,23 @@ describe('PullRequestDetail save target', () => {
       6,
       7,
     ]);
+    expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
+    wrapper.unmount();
+  });
+
+  it('does not react to another pull request being saved while this view is live', async () => {
+    // Being the live route is not ownership: this is the live view of #5 while
+    // #6 is saved elsewhere, and deleting #5's marks against #6 would remove
+    // them from the wrong pull request.
+    const wrapper = mountView();
+    await nextTick();
+
+    (wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds = [7];
+
+    state.lastSavedPullRequest.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', index: 6 };
+    await flushPromises();
+
+    expect(state.deleteIssueAttachment.mock.calls).toEqual([]);
     expect((wrapper.vm as unknown as { pendingDeleteAttachmentIds: number[] }).pendingDeleteAttachmentIds).toEqual([7]);
     wrapper.unmount();
   });
