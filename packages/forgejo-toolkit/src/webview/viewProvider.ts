@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { logger } from '../logger';
-import { ForgejoClient, API_REQUEST_TIMEOUT_MS } from '../api/client';
+import { ForgejoClient, API_REQUEST_TIMEOUT_MS, invalidateRepoContentCaches } from '../api/client';
 import type { ForgejoChangedFile } from '../api/types';
 import { ConfigManager } from '../config';
 import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -4138,6 +4138,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   public refresh() {
+    // Refresh is also the escape hatch for a repository that changed behind the
+    // extension (a merge made elsewhere, a pushed commit): the tree and
+    // contents memos have short TTLs but are shared process-wide, so their
+    // entries must go before the webview re-reads anything.
+    invalidateRepoContentCaches();
     this._sendInstances();
     // A just-published repository must drop the "Publish to Forgejo" button
     // (forgejoToolkit.hasUnpublishedRepo) without waiting for an editor
@@ -4812,7 +4817,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     const { instanceId, owner, repo, index } = target;
-    const reply = (data: { cancelled?: boolean; error?: string }) =>
+    const reply = (data: { cancelled?: boolean; error?: string; worktree?: unknown }) =>
       this._reply('startWorkResult', { instanceId, owner, repo, index, ...data });
 
     const instance = this._findInstance(instanceId);
@@ -4952,7 +4957,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       if (openInNewWindow) {
         await this._worktreeManager.addWorktree(worktree);
       }
-      reply({});
+      // The webview merges this into its worktree list, so a worktree created by
+      // "Start work" appears in Settings without a separate round trip.
+      reply({ worktree });
       vscode.window.showInformationMessage(
         vscode.l10n.t('Started work on issue #{0}: created branch {1}', index, branch),
       );

@@ -250,9 +250,34 @@ const repoContentsCache = new Map<string, RepoContentsCacheEntry>();
 const REPO_CONTENTS_TTL_MS = 5_000;
 const MAX_REPO_CONTENTS_CACHE_ENTRIES = 64;
 
+/**
+ * Joins the parts of a cache key so no two different requests can produce the
+ * same key. A plain separator character is not enough: `|` is legal in a git ref
+ * name and in a file name, so the path `a|b` with ref `main` and the path `a`
+ * with ref `b|main` would both render as `...|a|b|main` and alias one entry.
+ * Prefixing each part with its length makes the encoding injective.
+ */
+function cacheKeyFor(...parts: string[]): string {
+  return parts.map((part) => `${part.length}:${part}`).join('|');
+}
+
 /** Clear the shared repo-contents memo. Exported for tests. */
 export function clearRepoContentsCache(): void {
   repoContentsCache.clear();
+}
+
+/**
+ * Drop the shared repository-content memos (the recursive git tree and the
+ * contents memo).
+ *
+ * Both are short-lived, so this is not about size: a mutation that changes a
+ * repository's content behind a still-valid key would keep serving pre-mutation
+ * bytes. The merge path below calls it, and so does the host's Refresh command,
+ * which is the user's escape hatch when a tree or file looks stale.
+ */
+export function invalidateRepoContentCaches(): void {
+  clearTreeCache();
+  clearRepoContentsCache();
 }
 
 /**
@@ -1052,7 +1077,7 @@ export class ForgejoClient {
     // the same path, and this memo is shared across client instances.
     const cacheKey = this.abortSignal
       ? undefined
-      : `${this.configuredOrigin}|${this.tokenCacheKey}|${owner}/${repo}|${path}|${ref ?? ''}`;
+      : cacheKeyFor(this.configuredOrigin, this.tokenCacheKey, owner, repo, path, ref ?? '');
     if (cacheKey) {
       const cached = repoContentsCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
@@ -1140,7 +1165,7 @@ export class ForgejoClient {
     repo: string,
     ref: string,
   ): Promise<{ entries: GitEntry[]; truncated: boolean }> {
-    const key = `${this.configuredOrigin}|${this.tokenCacheKey}|${owner}/${repo}@${ref}`;
+    const key = cacheKeyFor(this.configuredOrigin, this.tokenCacheKey, owner, repo, ref);
     const cached = treeCache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
       return { entries: cached.value, truncated: false };
@@ -1998,8 +2023,19 @@ export class ForgejoClient {
     return commits as Commit[];
   }
 
-  mergePullRequest(owner: string, repo: string, index: number, strategy: 'merge' | 'rebase' | 'squash'): Promise<void> {
-    return repoMergePullRequest(owner, repo, index, { Do: strategy }, { client: this._client() }) as Promise<void>;
+  async mergePullRequest(
+    owner: string,
+    repo: string,
+    index: number,
+    strategy: 'merge' | 'rebase' | 'squash',
+  ): Promise<void> {
+    await repoMergePullRequest(owner, repo, index, { Do: strategy }, { client: this._client() });
+    // The merge moved the base branch, so every cached tree and file body for
+    // this instance is now potentially pre-merge: the tree cache has no way to
+    // know which ref changed, and serving a cached commit list or file from
+    // before the merge is exactly the staleness the user sees right after
+    // merging. Drop the whole shared memo instead of trying to guess.
+    invalidateRepoContentCaches();
   }
 
   async getPullRequestDiff(owner: string, repo: string, index: number): Promise<string> {

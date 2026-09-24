@@ -23,6 +23,7 @@
   "This will replace the current workspace with the worktree. Continue?": "This will replace the current workspace with the worktree. Continue?",
   "Select Cache Directory": "Select Cache Directory",
   "Cannot use \"{0}\" as the worktree cache directory: {1}": "Cannot use \"{0}\" as the worktree cache directory: {1}",
+  "Could not delete the worktree directory \"{0}\": {1}": "Could not delete the worktree directory \"{0}\": {1}",
   "Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.": "Choose how to export instance configuration. Access tokens will be included in plain text unless encrypted.",
   "Encrypt with password": "Encrypt with password",
   "Plain text": "Plain text",

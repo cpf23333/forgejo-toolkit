@@ -71,17 +71,54 @@ describe('toApiError', () => {
 });
 
 describe('extractApiErrorMessage', () => {
+  // The strings below are what `describedBody` in
+  // `packages/shared/src/request/index.ts` writes into the error message: a JSON
+  // body follows the status text inside parentheses, anything else is described
+  // by shape instead of quoted.
   it('pulls the message field out of the JSON body', () => {
     const raw = 'Forgejo API error 422: {"message":"title is required","url":"https://example.com"}';
     expect(extractApiErrorMessage(raw)).toBe('title is required');
   });
 
-  it('falls back to the raw text when the body is not JSON or has no message', () => {
+  it('pulls the message out of the parenthesized JSON body the request client produces', () => {
+    expect(
+      extractApiErrorMessage('Forgejo API error 422: Unprocessable Entity ({"message":"title is required"})'),
+    ).toBe('title is required');
+    expect(extractApiErrorMessage('Forgejo API error 409: Conflict ({"message":"name taken"})')).toBe('name taken');
+  });
+
+  it('keeps a described body when the status text is empty (HTTP/2 sends no reason phrase)', () => {
+    // A server that omits the reason phrase leaves the status text empty, so the
+    // body starts with the parenthesis.
+    expect(extractApiErrorMessage('Forgejo API error 409: ({"message":"name taken"})')).toBe('name taken');
+  });
+
+  it('falls back to the raw text when the body has no usable message', () => {
     expect(extractApiErrorMessage('Forgejo API error 500: Internal Server Error')).toBe(
       'Forgejo API error 500: Internal Server Error',
     );
     expect(extractApiErrorMessage('Forgejo API error 500: {"other":1}')).toBe('Forgejo API error 500: {"other":1}');
+    // A JSON body with fields but no `message` keeps its description rather than
+    // rendering a partial object.
+    expect(extractApiErrorMessage('Forgejo API error 500: Internal Server Error ({"errors":["boom"]})')).toBe(
+      'Forgejo API error 500: Internal Server Error ({"errors":["boom"]})',
+    );
     expect(extractApiErrorMessage('plain error')).toBe('plain error');
+  });
+
+  it('keeps the described shape of an HTML or empty body instead of hunting for JSON', () => {
+    // The request layer never quotes a non-JSON body, and a description is more
+    // actionable than the markup would be.
+    const html = extractApiErrorMessage('Forgejo API error 502: non-JSON response body (HTTP 502, text/html)');
+    expect(html).toBe('Forgejo API error 502: non-JSON response body (HTTP 502, text/html)');
+    expect(extractApiErrorMessage('Forgejo API error 503: empty response body (HTTP 503, application/json)')).toBe(
+      'Forgejo API error 503: empty response body (HTTP 503, application/json)',
+    );
+  });
+
+  it('keeps the raw text for a truncated JSON body instead of showing half an object', () => {
+    const raw = 'Forgejo API error 422: Unprocessable Entity ({"message":"' + 'x'.repeat(20) + ' (truncated)})';
+    expect(extractApiErrorMessage(raw)).toBe(raw);
   });
 });
 
@@ -138,17 +175,42 @@ describe('apiErrorUserMessage', () => {
   });
 
   it('appends the extracted body message for 409/422 and other statuses', () => {
-    const conflict = messageFor('http', 'Forgejo API error 409: {"message":"name taken"}', 409);
+    // The parentheses are the request layer's JSON body wrapper; the message
+    // inside is what the user must see, not the raw body.
+    const conflict = messageFor('http', 'Forgejo API error 409: Conflict ({"message":"name taken"})', 409);
     expect(conflict).toContain('Conflict');
     expect(conflict).toContain('name taken');
+    expect(conflict).not.toContain('"message"');
 
-    const validation = messageFor('http', 'Forgejo API error 422: {"message":"title is required"}', 422);
+    const validation = messageFor(
+      'http',
+      'Forgejo API error 422: Unprocessable Entity ({"message":"title is required"})',
+      422,
+    );
     expect(validation).toContain('Validation failed');
     expect(validation).toContain('title is required');
 
-    const generic = messageFor('http', 'Forgejo API error 500: {"message":"boom"}', 500);
+    const generic = messageFor('http', 'Forgejo API error 500: Internal Server Error ({"message":"boom"})', 500);
     expect(generic).toContain('Request failed');
     expect(generic).toContain('boom');
+  });
+
+  it('keeps the described shape for an HTML or empty error body', () => {
+    const html = messageFor('http', 'Forgejo API error 502: non-JSON response body (HTTP 502, text/html)', 502);
+    expect(html).toContain('Request failed');
+    expect(html).toContain('non-JSON response body');
+    expect(html).not.toContain('<html>');
+
+    const empty = messageFor('http', 'Forgejo API error 503: empty response body (HTTP 503, application/json)', 503);
+    expect(empty).toContain('Request failed');
+    expect(empty).toContain('empty response body');
+  });
+
+  it('keeps the raw body when the JSON has no message field', () => {
+    const raw = 'Forgejo API error 500: Internal Server Error ({"errors":["boom"]})';
+    const message = messageFor('http', raw, 500);
+    expect(message).toContain('Request failed');
+    expect(message).toContain('{"errors":["boom"]}');
   });
 
   it('keeps the raw message for unknown errors', () => {

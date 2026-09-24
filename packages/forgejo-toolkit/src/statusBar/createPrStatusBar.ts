@@ -15,9 +15,22 @@ import { userFacingErrorMessage } from '../api/errors';
 
 const REFRESH_DEBOUNCE_MS = 300;
 const OPEN_PR_CACHE_TTL_MS = 60_000;
+/**
+ * The default branch rarely changes, but "rarely" is not "never": renaming it,
+ * changing it in the repository settings or switching the linked instance to a
+ * different repository all happen while a window stays open, and a stale answer
+ * either hides the button on the former default branch or offers to create a PR
+ * from the current default branch. Exported for tests.
+ */
+export const DEFAULT_BRANCH_CACHE_TTL_MS = 5 * 60_000;
 
 interface OpenPrCacheEntry {
   value: number | undefined;
+  expiresAt: number;
+}
+
+interface DefaultBranchCacheEntry {
+  value: string | undefined;
   expiresAt: number;
 }
 
@@ -62,9 +75,10 @@ export class CreatePrStatusBarController implements vscode.Disposable {
   private _watchedHeadPath: string | undefined;
   private _refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private _generation = 0;
-  // Session-level cache: the default branch rarely changes, and being briefly
-  // wrong about it only affects whether the button appears, so no TTL.
-  private readonly _defaultBranchCache = new Map<string, string | undefined>();
+  // Both caches are keyed by instance id/url list rather than by token, so a
+  // token-only change keeps the key: clear explicitly in onInstancesChanged
+  // below, or a reconfigured instance keeps answering from the previous state.
+  private readonly _defaultBranchCache = new Map<string, DefaultBranchCacheEntry>();
   // Short TTL: a PR merged or closed outside the extension must not leave the
   // status bar stale for the whole session.
   private readonly _openPrCache = new Map<string, OpenPrCacheEntry>();
@@ -78,8 +92,12 @@ export class CreatePrStatusBarController implements vscode.Disposable {
       this._config.onInstancesChanged(() => {
         // Detection results key on the instance id/url list, but a token-only
         // change keeps the same key; clear explicitly so a reconfigured
-        // instance is re-probed immediately.
+        // instance is re-probed immediately. An edit can also point the entry
+        // at another repository, whose default branch and open PRs are not the
+        // cached ones, so both per-repository caches go with it.
         clearLinkedRepositoryCache();
+        this._defaultBranchCache.clear();
+        this._openPrCache.clear();
         this.scheduleRefresh();
       }),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleRefresh()),
@@ -148,19 +166,23 @@ export class CreatePrStatusBarController implements vscode.Disposable {
 
       const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       const repoKey = `${linked.instanceId}/${linked.owner}/${linked.repo}`;
-      if (!this._defaultBranchCache.has(repoKey)) {
+      const cachedDefaultBranch = this._defaultBranchCache.get(repoKey);
+      if (!cachedDefaultBranch || cachedDefaultBranch.expiresAt <= Date.now()) {
         const detail = await client.getRepoDetail(linked.owner, linked.repo);
         // A refresh superseded while the request was in flight must not write
         // its older result over the newer refresh's value.
         if (isStale()) {
           return;
         }
-        this._defaultBranchCache.set(repoKey, detail.repository.default_branch);
+        this._defaultBranchCache.set(repoKey, {
+          value: detail.repository.default_branch,
+          expiresAt: Date.now() + DEFAULT_BRANCH_CACHE_TTL_MS,
+        });
       }
       if (isStale()) {
         return;
       }
-      const defaultBranch = this._defaultBranchCache.get(repoKey);
+      const defaultBranch = this._defaultBranchCache.get(repoKey)?.value;
       if (!defaultBranch || branch === defaultBranch) {
         this._item.hide();
         return;

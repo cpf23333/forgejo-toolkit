@@ -136,9 +136,38 @@ describe('WorktreeManager.removeWorktree', () => {
     await manager.removeWorktree(target.id);
 
     // Dropping the record removes the only entry point to the directory, so
-    // it must be deleted first (best-effort) instead of leaking on disk.
+    // it must be deleted first instead of leaking on disk.
     expect(fs.existsSync(orphanedDir)).toBe(false);
     expect(store.get(WORKTREES_KEY)).toEqual([]);
+  });
+
+  it('keeps the record and surfaces the failure when the orphaned directory cannot be deleted', async () => {
+    // A failed delete (a file still open in another process on Windows,
+    // permissions, an I/O error) must not drop the record: the directory is
+    // still there, and the record is the only entry point left to retry from.
+    const orphanedDir = path.join(sourceDir, 'undeletable-worktree');
+    fs.mkdirSync(orphanedDir);
+    const target = makeWorktree({
+      sourceRepoPath: path.join(sourceDir, 'does-not-exist'),
+      worktreePath: orphanedDir,
+    });
+    const { context, store } = createContext([target]);
+    const manager = new WorktreeManager(context);
+    const rmSpy = vi
+      .spyOn(fs.promises, 'rm')
+      .mockImplementationOnce(() =>
+        Promise.reject(Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' })),
+      );
+    try {
+      await expect(manager.removeWorktree(target.id)).rejects.toThrow(/EBUSY/);
+
+      expect(store.get(WORKTREES_KEY)).toEqual([target]);
+      // The view provider surfaces the error via worktreeError; the manager
+      // must not also toast, or the user would see the error twice.
+      expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    } finally {
+      rmSpy.mockRestore();
+    }
   });
 
   it('keeps the record and rethrows without toasting when git removal fails', async () => {

@@ -120,13 +120,12 @@ export class WorktreeManager {
    * then drop the record. When the source repository itself is gone from disk
    * (deleted manually) the git steps cannot run — the worktree directory
    * (inside the cache directory, a controlled generated path) is removed
-   * best-effort before the record is dropped, or it would be orphaned
-   * forever with no entry point left to clean it up. On failure the record
-   * is kept so the
-   * UI retains an entry point for retry, and the error is thrown for the
-   * caller to surface (the view provider forwards it to the webview as
-   * `worktreeError`) — this method must not also toast, or the user would see
-   * the error twice.
+   * first, or it would be orphaned forever with no entry point left to clean it
+   * up; a failed delete keeps the record and throws. On failure of either path
+   * the record is kept so the UI retains an entry point for retry, and the error
+   * is thrown for the caller to surface (the view provider forwards it to the
+   * webview as `worktreeError`) — this method must not also toast, or the user
+   * would see the error twice.
    *
    * PR worktrees also delete their throwaway local branch (`pr-<n>-<sha7>`):
    * `git worktree remove` never removes branches, so every PR head update
@@ -157,7 +156,25 @@ export class WorktreeManager {
           await deleteBranch(target.sourceRepoPath, localBranch).catch(() => undefined);
         }
       } else {
-        await fs.promises.rm(target.worktreePath, { recursive: true, force: true }).catch(() => undefined);
+        // The record is the only entry point to the orphaned checkout, so it may
+        // be dropped only once the directory is really gone. A delete can fail
+        // for reasons the user can act on (a file still open in another process
+        // on Windows, permissions, an I/O error), and swallowing that failure
+        // dropped the record and reported success while the directory stayed on
+        // disk with nothing left pointing at it — unreachable forever. Keep the
+        // record instead, and throw so the caller surfaces the reason once
+        // through `worktreeError` (same contract as a failed git removal).
+        try {
+          await fs.promises.rm(target.worktreePath, { recursive: true, force: true });
+        } catch (error) {
+          throw new Error(
+            vscode.l10n.t(
+              'Could not delete the worktree directory "{0}": {1}',
+              target.worktreePath,
+              error instanceof Error ? error.message : String(error),
+            ),
+          );
+        }
       }
       await this.context.globalState.update(
         WORKTREES_KEY,

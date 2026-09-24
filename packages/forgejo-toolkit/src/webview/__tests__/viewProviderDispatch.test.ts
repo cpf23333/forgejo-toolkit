@@ -19,10 +19,12 @@ const clientMocks = vi.hoisted(() => ({
   resetIssueTime: vi.fn(),
   deleteIssueTime: vi.fn(),
   downloadActionArtifactToFile: vi.fn(),
+  invalidateRepoContentCaches: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
   API_REQUEST_TIMEOUT_MS: 30_000,
+  invalidateRepoContentCaches: clientMocks.invalidateRepoContentCaches,
   ForgejoClient: vi.fn().mockImplementation(function () {
     return {
       searchMentions: vi.fn().mockRejectedValue(new Error('network down')),
@@ -226,6 +228,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clientMocks.resetIssueTime.mockReset().mockResolvedValue(undefined);
     clientMocks.deleteIssueTime.mockReset().mockResolvedValue(undefined);
     clientMocks.downloadActionArtifactToFile.mockReset().mockResolvedValue(undefined);
+    clientMocks.invalidateRepoContentCaches.mockReset();
     vi.mocked(fetchBranch).mockReset();
     vi.mocked(createWorktreeWithNewBranch).mockReset();
     vi.mocked(isCurrentWorkspaceBaseRepo).mockReset();
@@ -712,6 +715,16 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     const messages = postedMessages(fake.posted);
     expect(messages.some((m) => m.command === 'instances')).toBe(true);
     expect(messages.some((m) => m.command === 'refreshData')).toBe(true);
+  });
+
+  it('refresh() drops the host-side repository-content caches', async () => {
+    // The tree and contents memos live in the API client module, shared by every
+    // provider instance, and the webview's refreshData only invalidates its own
+    // state: without this call the file tree can keep showing pre-refresh
+    // content until the memo's TTL runs out.
+    provider.refresh();
+    await flushDispatches();
+    expect(clientMocks.invalidateRepoContentCaches).toHaveBeenCalledTimes(1);
   });
 
   it('allows http(s) openExternal and blocks other schemes', async () => {

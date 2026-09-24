@@ -332,7 +332,6 @@
   "engines": {
     "vscode": "^1.102.0"
   },
-  "packageManager": "pnpm@11.18.0",
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,

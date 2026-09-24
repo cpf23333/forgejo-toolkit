@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
-import { CreatePrStatusBarController } from '../createPrStatusBar';
+import { CreatePrStatusBarController, DEFAULT_BRANCH_CACHE_TTL_MS } from '../createPrStatusBar';
 import type { ConfigManager } from '../../config';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
@@ -196,6 +196,53 @@ describe('CreatePrStatusBarController', () => {
     await controller!.refresh();
     await controller!.refresh();
     expect(getRepoDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-reads the default branch once its cache entry expires', async () => {
+    // A default branch renamed (or changed in the repository settings) while the
+    // window stays open must not leave the button keyed to the old one forever.
+    vi.useFakeTimers();
+    try {
+      createController();
+      await controller!.refresh();
+      await controller!.refresh();
+      expect(getRepoDetail).toHaveBeenCalledTimes(1);
+
+      vi.setSystemTime(Date.now() + DEFAULT_BRANCH_CACHE_TTL_MS + 1);
+      await controller!.refresh();
+      expect(getRepoDetail).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('drops both per-repository caches when instances change', async () => {
+    // An edited instance keeps its id, so the repository key is unchanged: the
+    // caches have to be cleared explicitly or the button keeps answering with
+    // the previous repository's default branch and open PRs.
+    vi.useFakeTimers();
+    try {
+      let listener: (() => void) | undefined;
+      const config = {
+        getInstances: () => [instance],
+        onInstancesChanged: (l: () => void) => {
+          listener = l;
+          return { dispose: () => {} };
+        },
+      } as unknown as ConfigManager;
+      controller = new CreatePrStatusBarController(config);
+      await controller.refresh();
+      expect(getRepoDetail).toHaveBeenCalledTimes(1);
+      expect(getRepoPullRequests).toHaveBeenCalledTimes(1);
+
+      listener!();
+      await controller.refresh();
+
+      expect(getRepoDetail).toHaveBeenCalledTimes(2);
+      expect(getRepoPullRequests).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('caches the open-PR lookup until the TTL expires', async () => {

@@ -495,6 +495,19 @@ describe('ForgejoClient with MSW', () => {
       expect(requests()).toBe(3);
     });
 
+    it('does not alias a request to another whose path and ref contain the separator', async () => {
+      // `|` is legal in a file name and in a git ref name, so joining the key
+      // parts with `|` made (path `a|b`, ref `main`) and (path `a`, ref
+      // `b|main`) one key — the second request was answered with the first
+      // file's bytes.
+      const requests = countContentRequests();
+      const client = new ForgejoClient('https://forgejo.example.com', 'mock-token');
+      await client.getRepoContents('demo-user', 'demo-repo', 'a|b', 'main');
+      await client.getRepoContents('demo-user', 'demo-repo', 'a', 'b|main');
+
+      expect(requests()).toBe(2);
+    });
+
     it('does not share a result with a client that carries an abort signal', async () => {
       // An MCP tool call's result belongs to that call only; the shared memo
       // must neither answer it nor be populated from a call that may be aborted.
@@ -1084,6 +1097,28 @@ describe('ForgejoClient with MSW', () => {
       );
       expect(treeRequests).toBe(2);
     });
+
+    it('does not alias two tree requests whose repository and ref contain the separator', async () => {
+      // Same separator problem as the contents memo: the old key joined
+      // `owner/repo` and the ref, so a repository name carrying the separator
+      // could collide with a ref that carries it.
+      let treeRequests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', () => {
+          treeRequests += 1;
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [{ path: 'src/index.ts', type: 'blob' }],
+            truncated: false,
+          });
+        }),
+      );
+      const client = createClient();
+      await client.searchRepoFiles('demo-user', 'demo-repo@main', 'v2', 'index');
+      await client.searchRepoFiles('demo-user', 'demo-repo', 'main@v2', 'index');
+
+      expect(treeRequests).toBe(2);
+    });
   });
 
   describe('Branch, tag, and release CRUD', () => {
@@ -1639,7 +1674,42 @@ describe('ForgejoClient with MSW', () => {
 
     it('merges a pull request', async () => {
       const client = createClient();
-      await expect(client.mergePullRequest('demo-user', 'demo-repo', 2, 'merge')).resolves.toEqual({});
+      await expect(client.mergePullRequest('demo-user', 'demo-repo', 2, 'merge')).resolves.toBeUndefined();
+    });
+
+    it('drops the cached git tree and contents memo when a pull request is merged', async () => {
+      // The merge moves the base branch, so a tree or file body read before it
+      // is stale the moment it succeeds; the shared memos have no way to know
+      // which ref changed, so the merge path clears them.
+      const client = createClient();
+      let treeRequests = 0;
+      let contentRequests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', () => {
+          treeRequests += 1;
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [{ path: 'pre-merge.ts', type: 'blob' }],
+            truncated: false,
+          });
+        }),
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/*', () => {
+          contentRequests += 1;
+          return HttpResponse.json([{ ...mockReadmeContent, path: 'README.md' }]);
+        }),
+      );
+
+      await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'pre-merge');
+      await client.getRepoContents('demo-user', 'demo-repo', 'README.md', 'main');
+      expect(treeRequests).toBe(1);
+      expect(contentRequests).toBe(1);
+
+      await client.mergePullRequest('demo-user', 'demo-repo', 2, 'merge');
+
+      await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'pre-merge');
+      await client.getRepoContents('demo-user', 'demo-repo', 'README.md', 'main');
+      expect(treeRequests).toBe(2);
+      expect(contentRequests).toBe(2);
     });
 
     it('fetches pull request diff', async () => {

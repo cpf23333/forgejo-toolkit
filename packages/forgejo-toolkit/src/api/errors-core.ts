@@ -97,20 +97,55 @@ export function toApiError(error: unknown): ApiError {
 }
 
 /**
+ * The `message` field of the JSON object carried by an error body, if the body
+ * carries one.
+ *
+ * The shared request client renders a JSON body as `<statusText> ({...})` (see
+ * `describedBody` in `packages/shared/src/request/index.ts`), so the object is
+ * wrapped in parentheses; a bare object (`{"message":"..."}`) is accepted too,
+ * for callers and fixtures that build the message by hand. A body that is not
+ * JSON, or is JSON without a usable `message` string, yields `undefined` so the
+ * caller can fall back to the raw text — for a described body (empty, or from a
+ * non-JSON content type) the description *is* the actionable part.
+ */
+function messageFromErrorBody(body: string): string | undefined {
+  const jsonStart = body.indexOf('{');
+  if (jsonStart === -1) {
+    return undefined;
+  }
+  const quoted = body.slice(jsonStart).trim();
+  const candidates = quoted.endsWith(')') ? [quoted, quoted.slice(0, -1).trim()] : [quoted];
+  for (const candidate of candidates) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(candidate);
+    } catch {
+      continue;
+    }
+    if (parsed && typeof parsed === 'object') {
+      const message = (parsed as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim()) {
+        return message;
+      }
+      // Valid JSON, but nothing to extract: stop instead of re-parsing the
+      // same object with its wrapper stripped.
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Pull the human-readable `message` field out of a `Forgejo API error <status>:
- * <json body>` string so validation failures surface their actual reason
- * instead of raw JSON. Falls back to the original text.
+ * <body>` string so validation failures surface their actual reason instead of
+ * raw JSON. Falls back to the original text.
  */
 export function extractApiErrorMessage(raw: string): string {
-  const bodyMatch = raw.match(/Forgejo API error \d+:\s*(\{[\s\S]*)/);
+  const bodyMatch = raw.match(/Forgejo API error \d+:\s*([\s\S]*)$/);
   if (bodyMatch) {
-    try {
-      const parsed = JSON.parse(bodyMatch[1]) as { message?: unknown };
-      if (typeof parsed.message === 'string' && parsed.message.trim()) {
-        return parsed.message;
-      }
-    } catch {
-      // Not JSON — fall through to the raw message.
+    const message = messageFromErrorBody(bodyMatch[1]);
+    if (message !== undefined) {
+      return message;
     }
   }
   return raw;
