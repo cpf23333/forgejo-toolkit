@@ -13,11 +13,13 @@ export const MCP_ENV_SYNC_API_URLS = 'FORGEJO_MCP_SYNC_API_URLS';
 export const MCP_ENV_PROXY = 'FORGEJO_MCP_PROXY';
 
 /**
- * Exposes the first configured Forgejo instance to VS Code agent mode as a
- * stdio MCP server (out/mcp-server.js). The instance URL and token reach the
- * child process exclusively through environment variables — never through
- * tool schemas, results, or log output. When the instance list changes, the
- * provider fires onDidChangeMcpServerDefinitions so VS Code re-resolves.
+ * Exposes the first configured Forgejo instance that has a stored access token
+ * to VS Code agent mode as a stdio MCP server (out/mcp-server.js). The instance
+ * URL and token reach the child process exclusively through environment
+ * variables — never through tool schemas, results, or log output. When the
+ * instance list changes — or the editor's `http.proxy` changes, since that
+ * setting is read here and forwarded to the child — the provider fires
+ * onDidChangeMcpServerDefinitions so VS Code re-resolves.
  */
 export function registerMcpServerProvider(
   context: vscode.ExtensionContext,
@@ -28,6 +30,16 @@ export function registerMcpServerProvider(
   context.subscriptions.push(
     onDidChange,
     config.onInstancesChanged(() => onDidChange.fire()),
+    // The proxy is read in provideMcpServerDefinitions, i.e. once per
+    // resolution, so the value captured when the child was spawned would
+    // otherwise stay stale for the session. The extension host re-installs its
+    // dispatcher on this change; re-resolving the definition is what gives the
+    // MCP child the same treatment.
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('http.proxy')) {
+        onDidChange.fire();
+      }
+    }),
   );
 
   const provider: vscode.McpServerDefinitionProvider = {

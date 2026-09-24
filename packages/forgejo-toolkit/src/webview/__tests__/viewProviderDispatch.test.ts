@@ -7,6 +7,7 @@ import * as path from 'path';
 
 const clientMocks = vi.hoisted(() => ({
   getRepoContents: vi.fn(),
+  getReadmeEntry: vi.fn(),
   editIssue: vi.fn(),
   replaceIssueLabels: vi.fn(),
   getRepoDetail: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('../../api/client', () => ({
       replaceIssueLabels: clientMocks.replaceIssueLabels,
       getRepoDetail: clientMocks.getRepoDetail,
       getRepoContents: clientMocks.getRepoContents,
+      getReadmeEntry: clientMocks.getReadmeEntry,
       getPullRequestDetail: clientMocks.getPullRequestDetail,
       getUserIssues: clientMocks.getUserIssues,
       getUserPullRequests: clientMocks.getUserPullRequests,
@@ -41,8 +43,12 @@ vi.mock('../../api/client', () => ({
   }),
 }));
 
-vi.mock('../../worktree/gitOperations', async () => {
+vi.mock('../../worktree/gitOperations', async (importOriginal) => {
   const path = await import('node:path');
+  // Keep the real comparison: the PR-worktree source check is exactly what the
+  // transport/credential semantics are about, so a test double would prove
+  // nothing.
+  const actual = await importOriginal<typeof import('../../worktree/gitOperations')>();
   return {
     clearLinkedRepositoryCache: vi.fn(),
     cloneRepository: vi.fn(),
@@ -68,6 +74,7 @@ vi.mock('../../worktree/gitOperations', async () => {
     openWorktree: vi.fn(async () => true),
     resolveRemoteForRepo: vi.fn(async () => 'origin'),
     revertMergeCommit: vi.fn(),
+    sameRepositoryUrl: actual.sameRepositoryUrl,
     sanitizeForPath: vi.fn((value: string) => value),
     removeWorktreeAndPrune: vi.fn(),
   };
@@ -98,6 +105,8 @@ import {
   getRefCommitSha,
   inspectPrWorktree,
   isCurrentWorkspaceBaseRepo,
+  isGitRepository,
+  listRemotes,
   openWorktree,
   removeWorktreeAndPrune,
   resolveRemoteForRepo,
@@ -200,6 +209,8 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
   let fake: ReturnType<typeof createFakeView>;
 
   beforeEach(async () => {
+    clientMocks.getRepoContents.mockReset();
+    clientMocks.getReadmeEntry.mockReset();
     clientMocks.editIssue.mockReset();
     clientMocks.replaceIssueLabels.mockReset();
     clientMocks.getRepoDetail.mockReset();
@@ -225,6 +236,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clearServerVersions();
     vi.mocked(vscode.window.showQuickPick).mockReset();
     vi.mocked(vscode.window.showSaveDialog).mockReset();
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
     proxyMocks.getProxyFetch.mockReset();
     context = createFakeContext();
     config = new ConfigManager(context as never);
@@ -289,15 +301,47 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
       expect(clientMocks.getRepoDetail).toHaveBeenCalledWith('demo-user', 'demo.repo_1');
     });
+
+    it.each([
+      { command: 'getRepoContents', result: 'repoContents', extra: { path: '', ref: 'main' } },
+      { command: 'getFileHistory', result: 'fileHistory', extra: { path: 'src/index.ts', ref: 'main' } },
+    ])('answers a rejected $command through its own reply so the loader clears', async ({ command, result, extra }) => {
+      // These loaders carry no `_requestId`, so the requestError fallback
+      // cannot answer them: the guard has to use the handler's own contract
+      // (a result-shaped reply echoing the fields the loading gate keys on).
+      vi.mocked(ForgejoClient).mockClear();
+      fake.send({ command, instanceId: testInstance.id, owner: '..', repo: 'repo', ...extra });
+      await flushDispatches();
+
+      expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+      expect(postedMessages(fake.posted)).toContainEqual(
+        expect.objectContaining({
+          command: result,
+          instanceId: testInstance.id,
+          owner: '..',
+          repo: 'repo',
+          error: 'The request could not be completed',
+        }),
+      );
+      expect(postedMessages(fake.posted).some((m) => m.command === 'requestError')).toBe(false);
+    });
   });
 
   describe('path parameter guard', () => {
     // `path`, `user` and `username` end up in API routes of their own. The URL
     // parser resolves dot segments, so a forged value would retarget a
     // repository-scoped command at another same-origin endpoint.
-    const hostilePaths = ['../admin/users', 'src/../../user', '/etc/passwd', 'src\\..\\secret', 'src?ref=main', 'a//b'];
+    const hostilePaths = [
+      '../admin/users',
+      'src/../../user',
+      '/etc/passwd',
+      'src\\..\\secret',
+      'a//b',
+      'C:secret',
+      'src/\u0000evil',
+    ];
 
-    it.each(hostilePaths)('ignores getRepoContents with path %j', async (path) => {
+    it.each(hostilePaths)('rejects getRepoContents with path %j and answers so the loader clears', async (path) => {
       vi.mocked(ForgejoClient).mockClear();
       fake.send({
         command: 'getRepoContents',
@@ -311,6 +355,86 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
       expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
       expect(clientMocks.getRepoContents).not.toHaveBeenCalled();
+      // The file browser sets its loading gate before posting and only a
+      // `repoContents` reply clears it; the message carries no `_requestId`, so
+      // the dispatch fallback cannot answer it. The reply has to echo the
+      // identity the webview keys that gate on, otherwise it is dropped and the
+      // spinner stays up.
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'repoContents');
+      expect(reply).toMatchObject({
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        ref: 'main',
+        path,
+        error: 'The request could not be completed',
+      });
+    });
+
+    it.each(['src/why?.ts', 'src/we#ird name.md'])(
+      'still lists a directory whose file name contains the legal character %j',
+      async (path) => {
+        // '?' and '#' are legal in a git file name and the client encodes each
+        // segment, so the guard must let them through instead of making the file
+        // impossible to open.
+        clientMocks.getRepoContents.mockClear();
+        clientMocks.getRepoContents.mockResolvedValue([]);
+        fake.send({
+          command: 'getRepoContents',
+          instanceId: testInstance.id,
+          owner: 'owner',
+          repo: 'repo',
+          path,
+          ref: 'main',
+        });
+        await flushUntil(() => clientMocks.getRepoContents.mock.calls.length > 0);
+
+        expect(clientMocks.getRepoContents).toHaveBeenCalledWith('owner', 'repo', path, 'main');
+      },
+    );
+
+    it('answers a rejected getFileHistory through its own reply so the history loader clears', async () => {
+      fake.send({
+        command: 'getFileHistory',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        path: '../etc/passwd',
+        ref: 'main',
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'fileHistory');
+      expect(reply).toMatchObject({ path: '../etc/passwd', error: 'The request could not be completed' });
+    });
+
+    it('reports a rejected openRepoFile instead of dropping the request', async () => {
+      fake.send({
+        command: 'openRepoFile',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        path: '/etc/passwd',
+        ref: 'main',
+      });
+      await flushDispatches();
+
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('The request could not be completed');
+    });
+
+    it('reports a rejected openRepoFileDiff instead of dropping the request', async () => {
+      fake.send({
+        command: 'openRepoFileDiff',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        path: 'src/../../secret',
+        baseRef: 'main',
+        headRef: 'feature',
+      });
+      await flushDispatches();
+
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('The request could not be completed');
     });
 
     it('still lists the repository root and an ordinary path', async () => {
@@ -366,6 +490,111 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       await flushDispatches();
 
       expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rejected loaders echo the request fields verbatim', () => {
+    // The webview keys each loader's spinner on the raw values it sent
+    // (`useAppState.ts` builds `${ref}`/`${path}` into the key), so a guard's
+    // error reply has to echo them unchanged: normalising a missing `ref` to
+    // `''` lands on a different key than the one the loader set and the
+    // spinner never clears. `RepoDetail.vue` forwards an unnormalised
+    // `detail.repository.default_branch`, which is how a missing `ref` happens.
+    function repoContentsKey(message: Record<string, unknown>): string {
+      return `${String(message.instanceId)}:${String(message.owner)}/${String(message.repo)}:contents:${String(message.ref)}:${String(message.path)}`;
+    }
+    function fileHistoryKey(message: Record<string, unknown>): string {
+      return `${String(message.instanceId)}:${String(message.owner)}/${String(message.repo)}:file-history:${String(message.path)}:${String(message.ref)}`;
+    }
+
+    it.each([
+      {
+        label: 'an absent ref',
+        command: 'getRepoContents',
+        result: 'repoContents',
+        sent: { owner: 'owner', repo: 'repo', path: '' },
+        expected: { owner: 'owner', repo: 'repo', path: '', ref: undefined },
+      },
+      {
+        label: 'an explicitly undefined ref',
+        command: 'getRepoContents',
+        result: 'repoContents',
+        sent: { owner: 'owner', repo: 'repo', path: 'src', ref: undefined },
+        expected: { owner: 'owner', repo: 'repo', path: 'src', ref: undefined },
+      },
+      {
+        label: 'an absent ref',
+        command: 'getFileHistory',
+        result: 'fileHistory',
+        sent: { owner: 'owner', repo: 'repo', path: 'src/index.ts' },
+        expected: { owner: 'owner', repo: 'repo', path: 'src/index.ts', ref: undefined },
+      },
+    ])('clears the loader key for $command with $label', async ({ command, result, sent, expected }) => {
+      const keyOf = command === 'getRepoContents' ? repoContentsKey : fileHistoryKey;
+      fake.send({ command, instanceId: testInstance.id, ...sent });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === result);
+      expect(reply).toBeDefined();
+      expect(reply?.error).toBe('The request could not be completed');
+      // Same key the loader built from the values it posted.
+      expect(keyOf(reply as Record<string, unknown>)).toBe(
+        keyOf({ instanceId: testInstance.id, ...expected } as Record<string, unknown>),
+      );
+    });
+  });
+
+  describe('requestId-less loaders answer a rejected payload', () => {
+    // These commands carry no `_requestId`, so the generic dispatch fallback
+    // cannot answer them; each handler has to reply through its own result
+    // contract or the view's spinner (file search, refs, global search, action
+    // runs/jobs) stays up forever.
+    it.each([
+      {
+        label: 'searchRepoFiles with a non-string query',
+        command: 'searchRepoFiles',
+        result: 'repoFilesSearchResult',
+        extra: { owner: 'owner', repo: 'repo', ref: 'main', query: 42 },
+      },
+      {
+        label: 'getRepoRefs with a non-string instance id',
+        command: 'getRepoRefs',
+        result: 'repoRefs',
+        extra: { instanceId: 5, owner: 'owner', repo: 'repo' },
+      },
+      {
+        label: 'globalSearch with an unknown scope',
+        command: 'globalSearch',
+        result: 'globalSearchResult',
+        extra: { scope: 'nope', query: 'x', state: 'all' },
+      },
+      {
+        label: 'getActionRun with a non-number run id',
+        command: 'getActionRun',
+        result: 'actionRun',
+        extra: { owner: 'owner', repo: 'repo', runId: '3' },
+      },
+      {
+        label: 'getActionJobLog with a non-number job id',
+        command: 'getActionJobLog',
+        result: 'actionJobLog',
+        extra: { owner: 'owner', repo: 'repo', jobId: '9' },
+      },
+    ])('answers $label through $result', async ({ command, result, extra }) => {
+      vi.mocked(ForgejoClient).mockClear();
+      fake.send({ command, instanceId: testInstance.id, ...extra });
+      await flushDispatches();
+
+      expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+      expect(postedMessages(fake.posted)).toContainEqual(
+        expect.objectContaining({
+          command: result,
+          error: 'The request could not be completed',
+        }),
+      );
+      // The generic fallback cannot route a requestId-less reply, so it must
+      // not be used here.
+      expect(postedMessages(fake.posted).some((m) => m.command === 'requestError')).toBe(false);
     });
   });
 
@@ -761,6 +990,86 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(small?.content).toBe('YWJj');
   });
 
+  describe('README payload notice', () => {
+    function repoDetailReply() {
+      return postedMessages(fake.posted).find((m) => m.command === 'repoDetail')?.detail as
+        | { readme?: string }
+        | undefined;
+    }
+
+    it('explains a README whose payload the contents API withheld', async () => {
+      // `getRepoDetail` reports "no README" both for a repository without one and
+      // for a README above the contents API payload limit; the dashboard showed
+      // neither a README nor an explanation in the second case.
+      clientMocks.getRepoDetail.mockResolvedValue({
+        repository: { name: 'repo' },
+        readme: undefined,
+        branches: [],
+        recentCommits: [],
+      });
+      clientMocks.getReadmeEntry.mockResolvedValue({ size: 12 * 1024 * 1024 });
+
+      fake.send({ command: 'getRepoDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo' });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      expect(repoDetailReply()?.readme).toContain('MiB');
+      expect(clientMocks.getReadmeEntry).toHaveBeenCalledWith('owner', 'repo');
+    });
+
+    it('keeps a README the API returned instead of replacing it with a notice', async () => {
+      clientMocks.getRepoDetail.mockResolvedValue({
+        repository: { name: 'repo' },
+        readme: '# Hello',
+        branches: [],
+        recentCommits: [],
+      });
+
+      fake.send({ command: 'getRepoDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo' });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      expect(repoDetailReply()?.readme).toBe('# Hello');
+      // A README that arrived needs no size probe.
+      expect(clientMocks.getReadmeEntry).not.toHaveBeenCalled();
+    });
+
+    it('stays silent for a repository that has no README', async () => {
+      clientMocks.getRepoDetail.mockResolvedValue({
+        repository: { name: 'repo' },
+        readme: undefined,
+        branches: [],
+        recentCommits: [],
+      });
+      clientMocks.getReadmeEntry.mockResolvedValue(undefined);
+
+      fake.send({ command: 'getRepoDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo' });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      expect(repoDetailReply()?.readme).toBeUndefined();
+    });
+  });
+
+  describe('README preview', () => {
+    it('keys the virtual document by instance, owner and repo', async () => {
+      // Two instances can host the same owner/repo; a URI without the instance
+      // id would show whichever README was registered last for both.
+      const executeCommand = vi.mocked(vscode.commands.executeCommand);
+      executeCommand.mockClear();
+
+      fake.send({
+        command: 'previewReadme',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        content: '# Hello',
+      });
+      await flushDispatches();
+
+      const call = executeCommand.mock.calls.find(([command]) => command === 'markdown.showPreviewToSide');
+      expect(call).toBeDefined();
+      expect((call?.[1] as { path?: string } | undefined)?.path).toBe(`${testInstance.id}/owner/repo/README.md`);
+    });
+  });
+
   it('marks a cancelled instance export as cancelled rather than failed', async () => {
     // Dismissing the export dialog is not a failure: without the flag the webview
     // stores the reply and Settings reports "Failed to export instances".
@@ -1022,6 +1331,36 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
           repo: 'widgets',
           runId: 7,
         });
+        await flushDispatches();
+
+        const message = lastConfirmMessage();
+        expect(message).toContain('acme/widgets');
+        expect(message).toContain(testInstance.name);
+      });
+
+      it('names the instance and repository for a worktree removal', async () => {
+        // Deleting a worktree drops the local directory and any work it holds,
+        // so its prompt has to identify the target like the other destructive
+        // confirmations.
+        await context.globalState.update('forgejoToolkit.worktrees', [
+          {
+            id: 'w-named',
+            instanceId: testInstance.id,
+            owner: 'acme',
+            repo: 'widgets',
+            prIndex: 3,
+            prTitle: 'title',
+            headBranch: 'feature',
+            headSha: 'abc',
+            baseBranch: 'main',
+            sourceRepoPath: '/src/repo',
+            worktreePath: '/cache/worktrees/w-named',
+            createdAt: 0,
+          },
+        ]);
+        declineNextConfirm();
+
+        fake.send({ command: 'removeWorktree', id: 'w-named' });
         await flushDispatches();
 
         const message = lastConfirmMessage();
@@ -1683,7 +2022,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       { owner: 'owner', repo: 'repo', index: 1.5 },
     ];
 
-    it.each(hostileTargets)('ignores openPrWorktree with %j', async (target) => {
+    it.each(hostileTargets)('ignores openPrWorktree with %j and replies so the spinner clears', async (target) => {
       fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, ...target });
       await flushDispatches();
 
@@ -1691,6 +2030,15 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(vi.mocked(cloneRepository)).not.toHaveBeenCalled();
       expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
       expect(postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened')).toHaveLength(0);
+      // The PR view sets its spinner before posting and only a worktreeError
+      // with operation 'open' clears it; a silent drop would leave it spinning.
+      const replies = postedMessages(fake.posted).filter((m) => m.command === 'worktreeError');
+      expect(replies).toHaveLength(1);
+      expect(replies[0]).toMatchObject({
+        error: 'The request could not be completed',
+        operation: 'open',
+        instanceId: testInstance.id,
+      });
     });
 
     it.each(hostileTargets)('ignores startWorkOnIssue with %j but replies so the spinner clears', async (target) => {
@@ -1769,6 +2117,59 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       });
       vi.mocked(getRefCommitSha).mockResolvedValue('abcdef1234567890');
     }
+
+    /** Answers the source picker with a folder the user selects by hand. */
+    function primeLocalFolderPath(remotes: Array<{ name: string; url: string }>) {
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue(undefined as never);
+      vi.mocked(findLocalRepo).mockResolvedValue(undefined as never);
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+      vi.spyOn(config, 'getWorktreeCacheDirectory').mockReturnValue(cacheDir);
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'abcdef1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(vscode.window.showQuickPick).mockImplementation(async (items) => {
+        const list = items as unknown as Array<{ value?: string }>;
+        return list.find((item) => item.value === 'select') as never;
+      });
+      vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([{ fsPath: '/picked/repo', scheme: 'file' }] as never);
+      vi.mocked(isGitRepository).mockResolvedValue(true);
+      vi.mocked(listRemotes).mockResolvedValue(remotes as never);
+      vi.mocked(getRefCommitSha).mockResolvedValue('abcdef1234567890');
+      vi.mocked(inspectPrWorktree).mockResolvedValue({ state: 'missing' });
+    }
+
+    it('accepts a picked folder whose remote is the same repository over another transport', async () => {
+      // The source check compares transports, not spellings: `alice@host:o/r.git`
+      // names the same repository as the instance's https URL, and credentials in
+      // either URL are ignored. The old shared-normalizer comparison rejected it,
+      // which the user saw as "Selected repository does not match the PR base
+      // repository" for their own checkout.
+      primeLocalFolderPath([{ name: 'origin', url: 'alice@forgejo.example.com:owner/repo.git' }]);
+      vi.mocked(resolveRemoteForRepo).mockResolvedValue('origin');
+      vi.mocked(fetchPullRequestHead).mockResolvedValue(undefined);
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => vi.mocked(resolveRemoteForRepo).mock.calls.length > 0);
+
+      const errors = postedMessages(fake.posted)
+        .filter((message) => message.command === 'worktreeError')
+        .map((message) => String(message.error));
+      expect(errors.some((error) => error.includes('does not match'))).toBe(false);
+      expect(vi.mocked(resolveRemoteForRepo)).toHaveBeenCalledWith('/picked/repo', testInstance.url, 'owner', 'repo');
+    });
+
+    it('refuses a picked folder whose remote belongs to another repository', async () => {
+      primeLocalFolderPath([{ name: 'origin', url: 'git@forgejo.example.com:someone/else.git' }]);
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeError'));
+
+      const error = postedMessages(fake.posted).find((message) => message.command === 'worktreeError');
+      expect(String(error?.error)).toContain('does not match');
+      expect(vi.mocked(resolveRemoteForRepo)).not.toHaveBeenCalled();
+    });
 
     it('runs a single bare clone when two PRs of the same repository are opened concurrently', async () => {
       primeClonePath();

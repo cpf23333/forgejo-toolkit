@@ -34,13 +34,25 @@ export function isSafeRepoIdentity(owner: unknown, repo: unknown): boolean {
 }
 
 /**
+ * Control characters (C0 and C1, including NUL) have no place in a URL path:
+ * the server rejects them or silently drops them. `\p{Cc}` is used instead of a
+ * code-point range so the C1 block is covered too.
+ */
+const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
+
+/**
  * True when a repository file path from the webview is safe to interpolate into
  * the contents API route.
  *
- * Unlike a name segment, a path keeps its `/` separators, so only the dangerous
- * shapes are rejected: absolute or drive-relative prefixes, backslashes,
- * empty/`.`/`..` segments (whose percent-encoded forms the URL parser also
- * resolves), and characters that would end the path (`?`, `#`).
+ * Unlike a name segment, a path keeps its `/` separators, and the client
+ * percent-encodes each segment (`encodeURIComponent`) before building the
+ * route, so everything encoding can neutralise is allowed — including `?` and
+ * `#`, which are legal characters in a git file name and would otherwise make
+ * such a file impossible to open. Only the shapes that survive encoding are
+ * rejected: absolute or drive-relative prefixes, backslashes (the URL parser
+ * normalises `\` to `/` for http(s), so `a\..\..\admin` still traverses),
+ * empty/`.`/`..` segments (whose percent-encoded forms it resolves too), and
+ * control characters.
  */
 export function isSafeRepoPath(value: unknown): value is string {
   if (typeof value !== 'string' || value.length > 4096) {
@@ -53,7 +65,7 @@ export function isSafeRepoPath(value: unknown): value is string {
   if (value.startsWith('/') || value.startsWith('\\') || /^[A-Za-z]:/.test(value)) {
     return false;
   }
-  if (value.includes('\\') || value.includes('?') || value.includes('#')) {
+  if (value.includes('\\') || CONTROL_CHARACTER_PATTERN.test(value)) {
     return false;
   }
   return value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');

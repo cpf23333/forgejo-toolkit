@@ -13,7 +13,11 @@ interface RepoContext {
 }
 
 const ISSUE_MENTION_REGEX = /#(\d+)/g;
-const USER_MENTION_REGEX = /@([a-zA-Z0-9_.-]+)/g;
+// A username may contain `-`, `_` and `.` (Forgejo allows all three), but a
+// trailing `.` is sentence punctuation: `@alice.` names `alice`, not the user
+// `alice.`. Dots are therefore only accepted between word characters, so the
+// match can neither swallow a following `.` nor run past `..`.
+const USER_MENTION_REGEX = /@([a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*)/g;
 
 const MENTION_CACHE_TTL_MS = 60_000;
 // Completion lists are only dropped from the cache when their key is read again

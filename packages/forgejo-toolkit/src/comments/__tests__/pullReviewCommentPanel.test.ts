@@ -15,6 +15,12 @@ vi.mock('../../api/client', () => ({
   // `AbortSignal.timeout(undefined)` and silently skip inlining.
   API_REQUEST_TIMEOUT_MS: 30_000,
   ForgejoClient: class {
+    constructor(url: string) {
+      // Mirror the real client: its constructor resolves the configured origin
+      // and therefore throws for a URL that is not absolute, which
+      // `config.ts`/`instanceImport.ts` accept unvalidated.
+      new URL(url.replace(/\/$/, ''));
+    }
     createPendingPullReview = clientMocks.createPendingPullReview;
     addPullReviewComment = clientMocks.addPullReviewComment;
     renderMarkdown = clientMocks.renderMarkdown;
@@ -31,6 +37,7 @@ import type { ConfigManager } from '../../config';
 
 function createFakePanel() {
   const handlers: Array<(message: unknown) => unknown> = [];
+  const disposeHandlers: Array<() => void> = [];
   return {
     title: '',
     webview: {
@@ -41,9 +48,19 @@ function createFakePanel() {
         return { dispose: vi.fn() };
       }),
     },
-    onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
+    // The real panel is disposed from the outside (`panel.dispose()`), which
+    // fires the registered callback; the fake has to do the same so `_dispose`
+    // cleanup is observable.
+    onDidDispose: vi.fn((handler: () => void) => {
+      disposeHandlers.push(handler);
+      return { dispose: vi.fn() };
+    }),
     reveal: vi.fn(),
-    dispose: vi.fn(),
+    dispose: vi.fn(() => {
+      for (const handler of disposeHandlers) {
+        handler();
+      }
+    }),
     // Simulate the webview answering back (draft-state replies, requests).
     receive: (message: unknown) => {
       for (const handler of handlers) {
@@ -315,12 +332,12 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     vi.clearAllMocks();
   });
 
-  function configWithInstance(): ConfigManager {
+  function configWithInstance(url = 'https://forgejo.example.com'): ConfigManager {
     return {
       getInstances: () => [
         {
           id: 'demo',
-          url: 'https://forgejo.example.com',
+          url,
           token: 'secret-token',
           name: 'Demo',
           username: 'demo-user',
@@ -329,7 +346,7 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     } as unknown as ConfigManager;
   }
 
-  function openPanel() {
+  function openPanel(instanceUrl = 'https://forgejo.example.com') {
     const fakePanel = createFakePanel();
     let messageHandler: ((message: unknown) => Promise<void>) | undefined;
     fakePanel.webview.onDidReceiveMessage = vi.fn((...args: unknown[]) => {
@@ -337,7 +354,11 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
       return { dispose: vi.fn() };
     });
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
-    PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, configWithInstance(), createContext());
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      configWithInstance(instanceUrl),
+      createContext(),
+    );
     return { fakePanel, send: (message: unknown) => messageHandler?.(message) };
   }
 
@@ -523,6 +544,123 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ command: 'requestError', _requestId: 'req-mention' }),
     );
+  });
+
+  it('answers a throwing submit handler and never rejects the message promise', async () => {
+    // An instance URL that is not absolute passes configuration unvalidated and
+    // makes the ForgejoClient constructor throw. The dispatch promise must not
+    // reject, and the editor has to receive its completion command — it clears
+    // the `submitting` flag on that command only, so without the reply every
+    // button stays disabled forever.
+    const { fakePanel, send } = openPanel('forgejo.example.com');
+
+    const dispatch = send({ command: 'submitPullReviewComment', body: 'hello', mode: 'single' });
+    await expect(dispatch).resolves.toBeUndefined();
+
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'pullReviewCommentSubmitted', error: expect.any(String) }),
+    );
+    expect(fakePanel.webview.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'requestError' }),
+    );
+  });
+
+  it('answers a submit whose handler throws outside its own try block', async () => {
+    // `_findInstance` runs before the handler's try/catch, so only the
+    // dispatcher-level fallback can answer this one.
+    let getInstancesCalls = 0;
+    const config = {
+      getInstances: () => {
+        getInstancesCalls += 1;
+        // The panel renders once while it is constructed; the handler's lookup
+        // is the call that explodes.
+        if (getInstancesCalls > 1) {
+          throw new Error('storage exploded');
+        }
+        return [{ id: 'demo', url: 'https://forgejo.example.com', token: 't', name: 'Demo', username: 'demo-user' }];
+      },
+    } as unknown as ConfigManager;
+    const fakePanel = createFakePanel();
+    let messageHandler: ((message: unknown) => Promise<void>) | undefined;
+    fakePanel.webview.onDidReceiveMessage = vi.fn((...args: unknown[]) => {
+      messageHandler = args[0] as (message: unknown) => Promise<void>;
+      return { dispose: vi.fn() };
+    });
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+    PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, config, createContext());
+
+    await expect(
+      messageHandler?.({ command: 'submitPullReviewComment', body: 'hello', mode: 'single' }),
+    ).resolves.toBeUndefined();
+
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'pullReviewCommentSubmitted', error: expect.any(String) }),
+    );
+  });
+
+  it('answers a throwing submitPullReview handler through pullReviewSubmitted', async () => {
+    const { fakePanel, send } = openPanel('forgejo.example.com');
+
+    await expect(send({ command: 'submitPullReview', reviewId: 5, event: 'COMMENT' })).resolves.toBeUndefined();
+
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'pullReviewSubmitted', error: expect.any(String) }),
+    );
+  });
+
+  it('answers a throwing deletePullReview handler through pullReviewDeleted', async () => {
+    const { fakePanel, send } = openPanel('forgejo.example.com');
+    // Earlier tests replace the shared mock's confirmation default, so the
+    // accept path is queued explicitly.
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Cancel Review' as never);
+
+    await expect(send({ command: 'deletePullReview', reviewId: 5 })).resolves.toBeUndefined();
+
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'pullReviewDeleted', error: expect.any(String) }),
+    );
+  });
+
+  it('ignores malformed messages without rejecting the dispatch promise', async () => {
+    const { fakePanel, send } = openPanel();
+    fakePanel.webview.postMessage.mockClear();
+
+    for (const message of [undefined, 'not-an-object', 42, { noCommand: true }]) {
+      await expect(send(message)).resolves.toBeUndefined();
+    }
+
+    // Nothing to answer and nothing to report: these are not requests.
+    expect(fakePanel.webview.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('clears the draft-state query timer when the panel is disposed', async () => {
+    vi.useFakeTimers();
+    try {
+      const fakePanel = createFakePanel();
+      vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+      const panel = PullReviewCommentPanel.createOrShow(
+        vscode.Uri.file('/ext') as vscode.Uri,
+        configWithInstance(),
+        createContext(),
+      );
+      // A context switch starts the draft-state query, which arms a 2 s timeout.
+      PullReviewCommentPanel.createOrShow(
+        vscode.Uri.file('/ext') as vscode.Uri,
+        configWithInstance(),
+        createContext({ lineNumber: 9 }),
+      );
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fakePanel.webview.postMessage).toHaveBeenCalledWith({ command: 'queryPullReviewCommentDraft' });
+      expect(vi.getTimerCount()).toBe(1);
+
+      panel.dispose();
+
+      // The timeout must be gone: firing it later would post to a disposed
+      // webview (and the query promise would never settle).
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

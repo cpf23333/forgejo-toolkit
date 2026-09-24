@@ -40,13 +40,46 @@ export interface PullReviewCommentPanelCallbacks {
   onDeleted?: (context: PullReviewCommentContext) => void;
 }
 
+/**
+ * Request/response commands this panel answers through the command's own
+ * completion reply instead of the generic `requestError`: the editor clears its
+ * `submitting` flag on the completion command alone and posts no `_requestId`
+ * (`PullReviewCommentEditor.vue`), so an unanswered request wedges every button
+ * forever. A handler that throws before replying — e.g. the `ForgejoClient`
+ * constructor rejecting an instance URL that is not absolute — must still
+ * produce this reply.
+ */
+const COMPLETION_REPLY_COMMANDS: Record<string, HostToWebviewMessage['command']> = {
+  submitPullReviewComment: 'pullReviewCommentSubmitted',
+  submitPullReview: 'pullReviewSubmitted',
+  deletePullReview: 'pullReviewDeleted',
+};
+
+/** Reply command → the request command it completes (see above). */
+const COMPLETION_REQUEST_COMMANDS = new Map<string, string>(
+  Object.entries(COMPLETION_REPLY_COMMANDS).map(([request, reply]) => [reply, request]),
+);
+
 export class PullReviewCommentPanel implements vscode.Disposable {
   public static readonly viewType = 'forgejoToolkitPullReviewComment';
   public static currentPanel?: PullReviewCommentPanel;
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _disposables: vscode.Disposable[] = [];
+  /**
+   * Requests currently being handled. A request id is removed by `_reply`; a
+   * completion-reply request command (see `COMPLETION_REPLY_COMMANDS`) is
+   * tracked by its own name. The dispatch wrapper answers whatever is left when
+   * the handler ends — or throws — without replying.
+   */
+  private readonly _unansweredRequests = new Set<string>();
   private _context: PullReviewCommentContext;
+  /**
+   * Draft-state query in flight; `_dispose` settles it so its 2 s timeout can
+   * no longer fire against a disposed panel (see `_queryDraftDirty`).
+   */
+  private _draftQuery: { settle(dirty: boolean): void } | undefined;
+  private _disposed = false;
 
   public static createOrShow(
     extensionUri: vscode.Uri,
@@ -108,89 +141,137 @@ export class PullReviewCommentPanel implements vscode.Disposable {
 
     this._panel.webview.onDidReceiveMessage(
       async (message) => {
-        logger.debug(`Received message from pull review comment webview: ${(message as WebviewToHostMessage).command}`);
-        // Repository identity from the webview is interpolated verbatim into
-        // API paths (`/repos/${owner}/${repo}/…`), where the URL parser
-        // resolves dot segments and splits on `?`/`#`. This panel has its own
-        // dispatcher, so the same guard the sidebar applies is repeated here
-        // before any handler runs.
-        const identity = message as { owner?: unknown; repo?: unknown; _requestId?: unknown };
-        if (!isSafeRepoIdentity(identity.owner, identity.repo)) {
-          logger.error(
-            `Ignoring message from the review comment webview with an unsafe owner/repo identity: ${String(identity.owner)}/${String(identity.repo)}`,
-          );
-          if (typeof identity._requestId === 'string') {
+        // Read the command defensively: this line runs before the try below, so
+        // a malformed (non-object) message must not throw out of the handler.
+        const dispatchCommand =
+          message && typeof message === 'object' && typeof (message as { command?: unknown }).command === 'string'
+            ? (message as { command: string }).command
+            : undefined;
+        logger.debug(`Received message from pull review comment webview: ${String(dispatchCommand)}`);
+        // Track what this dispatch owes an answer to, exactly like the sidebar
+        // and onboarding dispatchers: a handler that returns early — or throws,
+        // e.g. from a `ForgejoClient` constructor rejecting a non-absolute
+        // instance URL — must not leave the webview's promise pending (the
+        // editor's `submitting` flag then disables every button forever).
+        const dispatchRequestId =
+          message && typeof message === 'object' && typeof (message as { _requestId?: unknown })._requestId === 'string'
+            ? (message as { _requestId: string })._requestId
+            : undefined;
+        if (dispatchRequestId) {
+          this._unansweredRequests.add(dispatchRequestId);
+        }
+        const completionReply = dispatchCommand ? COMPLETION_REPLY_COMMANDS[dispatchCommand] : undefined;
+        if (dispatchCommand && completionReply) {
+          this._unansweredRequests.add(dispatchCommand);
+        }
+        try {
+          // Repository identity from the webview is interpolated verbatim into
+          // API paths (`/repos/${owner}/${repo}/…`), where the URL parser
+          // resolves dot segments and splits on `?`/`#`. This panel has its own
+          // dispatcher, so the same guard the sidebar applies is repeated here
+          // before any handler runs.
+          const identity = message as { owner?: unknown; repo?: unknown; _requestId?: unknown };
+          if (!isSafeRepoIdentity(identity.owner, identity.repo)) {
+            logger.error(
+              `Ignoring message from the review comment webview with an unsafe owner/repo identity: ${String(identity.owner)}/${String(identity.repo)}`,
+            );
+            if (typeof identity._requestId === 'string') {
+              this._reply('requestError', {
+                _requestId: identity._requestId,
+                error: vscode.l10n.t('The request could not be completed'),
+              });
+            }
+            return;
+          }
+          switch ((message as WebviewToHostMessage).command) {
+            case 'getInitialState': {
+              this._sendInitialState();
+              return;
+            }
+            case 'getLinkedRepository': {
+              // The editor webview shares the sidebar composable, which asks for
+              // the linked repository on mount. This panel is not repository
+              // -scoped UI, so answer with "none" instead of leaving the request
+              // unanswered.
+              this._reply('linkedRepository', {});
+              return;
+            }
+            case 'renderMarkdown': {
+              await this._handleRenderMarkdown(message);
+              return;
+            }
+            case 'searchMentions': {
+              await this._handleSearchMentions(message);
+              return;
+            }
+            case 'closePullReviewCommentPanel': {
+              this._panel.dispose();
+              return;
+            }
+            case 'submitPullReviewComment': {
+              await this._handleSubmitPullReviewComment(message);
+              return;
+            }
+            case 'submitPullReview': {
+              await this._handleSubmitPullReview(message);
+              return;
+            }
+            case 'deletePullReview': {
+              await this._handleDeletePullReview(message);
+              return;
+            }
+            case 'createIssueAttachment': {
+              await this._handleCreateIssueAttachment(message);
+              return;
+            }
+            default: {
+              // The editor webview posts through the shared sidebar composable,
+              // so a command this panel does not implement used to be dropped
+              // silently: the caller's promise then only settled on its 60 s
+              // timeout (markdown preview) or produced an empty result (mention
+              // completion). Answer request/response messages so the failure is
+              // visible instead of hanging.
+              const requestId = (message as { _requestId?: unknown })._requestId;
+              const command = String((message as { command?: unknown }).command);
+              if (typeof requestId === 'string') {
+                logger.error(`Unhandled message from the pull review comment webview: ${command}`);
+                this._reply('requestError', {
+                  _requestId: requestId,
+                  error: vscode.l10n.t('This action is not available in the review comment editor.'),
+                });
+                return;
+              }
+              // A fire-and-forget broadcast from the shared composable (mount-time
+              // state requests and the like): nobody is waiting for an answer and
+              // the panel is not broken, so this is not an error. It stays visible
+              // when the user turns on debug logging.
+              logger.debug(`Ignored fire-and-forget message in the review comment webview: ${command}`);
+              return;
+            }
+          }
+        } catch (error) {
+          const err = userFacingErrorMessage(error);
+          logger.error(`Error handling pull review comment webview message "${String(dispatchCommand)}": ${err}`);
+        } finally {
+          if (dispatchRequestId && this._unansweredRequests.has(dispatchRequestId)) {
+            this._unansweredRequests.delete(dispatchRequestId);
+            logger.error(
+              `Pull review comment handler for "${String(dispatchCommand)}" ended without replying to request ${dispatchRequestId}`,
+            );
             this._reply('requestError', {
-              _requestId: identity._requestId,
+              _requestId: dispatchRequestId,
               error: vscode.l10n.t('The request could not be completed'),
             });
           }
-          return;
-        }
-        switch ((message as WebviewToHostMessage).command) {
-          case 'getInitialState': {
-            this._sendInitialState();
-            return;
-          }
-          case 'getLinkedRepository': {
-            // The editor webview shares the sidebar composable, which asks for
-            // the linked repository on mount. This panel is not repository
-            // -scoped UI, so answer with "none" instead of leaving the request
-            // unanswered.
-            this._reply('linkedRepository', {});
-            return;
-          }
-          case 'renderMarkdown': {
-            await this._handleRenderMarkdown(message);
-            return;
-          }
-          case 'searchMentions': {
-            await this._handleSearchMentions(message);
-            return;
-          }
-          case 'closePullReviewCommentPanel': {
-            this._panel.dispose();
-            return;
-          }
-          case 'submitPullReviewComment': {
-            await this._handleSubmitPullReviewComment(message);
-            return;
-          }
-          case 'submitPullReview': {
-            await this._handleSubmitPullReview(message);
-            return;
-          }
-          case 'deletePullReview': {
-            await this._handleDeletePullReview(message);
-            return;
-          }
-          case 'createIssueAttachment': {
-            await this._handleCreateIssueAttachment(message);
-            return;
-          }
-          default: {
-            // The editor webview posts through the shared sidebar composable,
-            // so a command this panel does not implement used to be dropped
-            // silently: the caller's promise then only settled on its 60 s
-            // timeout (markdown preview) or produced an empty result (mention
-            // completion). Answer request/response messages so the failure is
-            // visible instead of hanging.
-            const requestId = (message as { _requestId?: unknown })._requestId;
-            const command = String((message as { command?: unknown }).command);
-            if (typeof requestId === 'string') {
-              logger.error(`Unhandled message from the pull review comment webview: ${command}`);
-              this._reply('requestError', {
-                _requestId: requestId,
-                error: vscode.l10n.t('This action is not available in the review comment editor.'),
-              });
-              return;
-            }
-            // A fire-and-forget broadcast from the shared composable (mount-time
-            // state requests and the like): nobody is waiting for an answer and
-            // the panel is not broken, so this is not an error. It stays visible
-            // when the user turns on debug logging.
-            logger.debug(`Ignored fire-and-forget message in the review comment webview: ${command}`);
-            return;
+          if (dispatchCommand && completionReply && this._unansweredRequests.has(dispatchCommand)) {
+            this._unansweredRequests.delete(dispatchCommand);
+            logger.error(`Pull review comment handler for "${dispatchCommand}" ended without replying`);
+            // The completion command is the only reply the editor can route, so
+            // the fallback uses it instead of the generic `requestError`.
+            (this._reply as (command: string, data: Record<string, unknown>) => void)(completionReply, {
+              ...this._repoParams(),
+              error: vscode.l10n.t('The request could not be completed'),
+            });
           }
         }
       },
@@ -263,6 +344,12 @@ export class PullReviewCommentPanel implements vscode.Disposable {
         return;
       }
     }
+    // The panel may have been disposed while the draft query or the modal was
+    // pending; retitling/posting to it afterwards is pointless (and posting can
+    // reject on a disposed webview), so the switch stops here.
+    if (this._disposed) {
+      return;
+    }
     this._setContext(reviewContext, callbacks);
   }
 
@@ -273,19 +360,41 @@ export class PullReviewCommentPanel implements vscode.Disposable {
    */
   private _queryDraftDirty(): Promise<boolean> {
     return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        subscription.dispose();
-        logger.debug('Pull review draft-state query timed out; switching context without confirmation');
-        resolve(false);
-      }, 2000);
-      const subscription = this._panel.webview.onDidReceiveMessage((message) => {
+      // The query owns a webview listener and a 2 s timeout; both are tracked in
+      // `_draftQuery` so `_dispose` can settle the promise and drop them instead
+      // of letting the timeout fire against a disposed panel. `settle` is
+      // idempotent and bound to its own query, so a listener from an earlier
+      // query cannot answer a later one when disposal does not unregister it.
+      let settled = false;
+      const query = {
+        timer: undefined as ReturnType<typeof setTimeout> | undefined,
+        subscription: undefined as vscode.Disposable | undefined,
+        settle: (dirty: boolean) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          if (query.timer !== undefined) {
+            clearTimeout(query.timer);
+          }
+          query.subscription?.dispose();
+          if (this._draftQuery === query) {
+            this._draftQuery = undefined;
+          }
+          resolve(dirty);
+        },
+      };
+      query.subscription = this._panel.webview.onDidReceiveMessage((message) => {
         const data = message as { command?: string; dirty?: boolean };
         if (data.command === 'pullReviewCommentDraftState') {
-          clearTimeout(timer);
-          subscription.dispose();
-          resolve(Boolean(data.dirty));
+          query.settle(Boolean(data.dirty));
         }
       });
+      query.timer = setTimeout(() => {
+        logger.debug('Pull review draft-state query timed out; switching context without confirmation');
+        query.settle(false);
+      }, 2000);
+      this._draftQuery = query;
       void this._panel.webview.postMessage({ command: 'queryPullReviewCommentDraft' });
     });
   }
@@ -343,9 +452,13 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       comment.extra_lines_count = this._context.extraLinesCount;
     }
 
-    const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
     const startsNewReview = data.mode === 'review' && typeof data.pendingReviewId !== 'number';
     try {
+      // Constructed inside the try: the constructor resolves the instance
+      // origin and throws for a URL that is not absolute (`config.ts` accepts
+      // those unvalidated), which must surface as an error reply rather than a
+      // rejected message promise.
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       if (data.mode === 'review') {
         if (typeof data.pendingReviewId === 'number') {
           await client.addPullReviewComment(
@@ -407,8 +520,10 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       return;
     }
 
-    const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
     try {
+      // Constructed inside the try so a non-absolute instance URL (a
+      // constructor throw) still answers the request.
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       await client.submitPullReview(
         this._context.owner,
         this._context.repo,
@@ -460,8 +575,10 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       return;
     }
 
-    const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
     try {
+      // Constructed inside the try so a non-absolute instance URL (a
+      // constructor throw) still answers the request.
+      const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       await client.deletePullReview(this._context.owner, this._context.repo, this._context.index, reviewId);
       this._reply('pullReviewDeleted', { ...this._repoParams() });
       this._callbacks?.onDeleted?.(this._context);
@@ -661,6 +778,16 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     command: T,
     data: Omit<Extract<HostToWebviewMessage, { command: T }>, 'command'>,
   ) {
+    // Mark the request answered so the dispatch fallback does not emit a
+    // duplicate reply.
+    const requestId = (data as { _requestId?: unknown })._requestId;
+    if (typeof requestId === 'string') {
+      this._unansweredRequests.delete(requestId);
+    }
+    const completionRequest = COMPLETION_REQUEST_COMMANDS.get(command);
+    if (completionRequest) {
+      this._unansweredRequests.delete(completionRequest);
+    }
     this._panel.webview.postMessage({ command, ...data } as HostToWebviewMessage);
   }
 
@@ -676,7 +803,11 @@ export class PullReviewCommentPanel implements vscode.Disposable {
   }
 
   private _dispose(): void {
+    this._disposed = true;
     PullReviewCommentPanel.currentPanel = undefined;
+    // A draft-state query may still be waiting on its 2 s timeout: settle it and
+    // drop the timer so it cannot fire (and post to a disposed webview) later.
+    this._draftQuery?.settle(false);
     while (this._disposables.length) {
       const disposable = this._disposables.pop();
       if (disposable) {

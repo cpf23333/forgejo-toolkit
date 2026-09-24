@@ -177,12 +177,11 @@ export class CreatePrStatusBarController implements vscode.Disposable {
         if (isStale()) {
           return;
         }
-        // Walk the first page only: a PR for this branch beyond the default page
-        // size is not detected, and a full page would mean up to 10 requests on
-        // every refresh just to answer "is there a PR for this branch?". The list
-        // length is the only completeness signal the endpoint offers, so a page
-        // that reaches the shared cap is reported as a possible miss instead of
-        // silently paging through the rest (isListTruncated).
+        // The open-PR list is read to the shared 500-item cap (up to ten
+        // requests per refresh) so the branch lookup stays correct for
+        // repositories with many open pull requests; the endpoint offers no
+        // total, so a list that reaches the cap is reported as a possible miss
+        // rather than silently trusted (isListTruncated).
         if (isListTruncated(pulls)) {
           logger.error(
             `[createPrStatusBar] open pull request list for ${linked.owner}/${linked.repo} reached the ${LIST_ITEM_LIMIT}-item cap; a pull request for "${branch}" beyond it will not be detected`,

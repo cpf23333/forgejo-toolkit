@@ -522,26 +522,47 @@ describe('list truncation reporting', () => {
   it('names a list that hit the item cap and stays silent otherwise', () => {
     // Every paged client method stops at LIST_ITEM_LIMIT; the note is what tells a
     // caller that more rows exist.
-    expect(listTruncationNote(Array.from({ length: LIST_ITEM_LIMIT }, () => ({})))).toContain(
-      'truncated at ' + LIST_ITEM_LIMIT,
-    );
-    expect(listTruncationNote(Array.from({ length: LIST_ITEM_LIMIT - 1 }, () => ({})))).toBe('');
-    expect(listTruncationNote({ items: [] })).toBe('');
+    expect(
+      listTruncationNote(
+        Array.from({ length: LIST_ITEM_LIMIT }, () => ({})),
+        ['the result'],
+      ),
+    ).toContain('truncated at ' + LIST_ITEM_LIMIT);
+    expect(
+      listTruncationNote(
+        Array.from({ length: LIST_ITEM_LIMIT - 1 }, () => ({})),
+        ['the result'],
+      ),
+    ).toBe('');
+    expect(listTruncationNote({ items: [] }, ['the result'])).toBe('');
   });
 
   it('also reports a capped list wrapped in a tool result object', () => {
     // get_issue returns { issue, comments } and get_pull_request returns
     // { pullRequest, files, commits }: a capped list inside one of those used to
     // go unannounced.
-    const note = listTruncationNote({
-      issue: { number: 1 },
-      comments: Array.from({ length: LIST_ITEM_LIMIT }, () => ({})),
-      files: [{ path: 'a' }],
-    });
+    const note = listTruncationNote(
+      {
+        issue: { number: 1 },
+        comments: Array.from({ length: LIST_ITEM_LIMIT }, () => ({})),
+        files: [{ path: 'a' }],
+      },
+      ['comments'],
+    );
 
     expect(note).toContain('truncated at ' + LIST_ITEM_LIMIT);
     expect(note).toContain('comments');
     expect(note).not.toContain('files');
+  });
+
+  it('does not report a complete list from a method that does not page', () => {
+    // list_repo_contents reads a whole directory in one request, so a directory
+    // holding exactly LIST_ITEM_LIMIT entries is complete; only the lists a
+    // client method pages may be announced as cut off.
+    const complete = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ name: `file-${i}` }));
+    expect(listTruncationNote(complete, [])).toBe('');
+    expect(listTruncationNote({ files: complete }, [])).toBe('');
+    expect(listTruncationNote({ files: complete }, ['files'])).toContain('truncated at ' + LIST_ITEM_LIMIT);
   });
 
   it('appends the note to a tool result that hit the cap', async () => {
@@ -558,5 +579,25 @@ describe('list truncation reporting', () => {
     const result = await registered.get('list_issues')?.({ owner: 'demo-user', repo: 'demo-repo' });
 
     expect(result?.content[0].text).toContain('truncated at ' + LIST_ITEM_LIMIT);
+  });
+
+  it('keeps a complete unpaginated directory listing out of the truncation note', async () => {
+    // The contents API answers in a single request and the client never pages
+    // it, so a full directory of LIST_ITEM_LIMIT entries is not cut off and must
+    // not be reported as if more rows existed.
+    const complete = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ name: `file-${i}.txt`, type: 'file' }));
+    const client = { getRepoContents: async () => complete } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('list_repo_contents')?.({ owner: 'demo-user', repo: 'demo-repo' });
+
+    expect(result?.content[0].text).toContain('file-0.txt');
+    expect(result?.content[0].text).not.toContain('truncated at');
   });
 });

@@ -1,7 +1,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ForgejoClient, type ClientLogger } from '../src/api/client';
 import { userFacingErrorMessage } from '../src/api/errors-core';
-import { probeServerVersion } from '../src/api/versionProbe';
+import { probeServerVersion, redactInstanceUrl } from '../src/api/versionProbe';
 import { setDefaultRequestDispatcher } from '../src/api/client';
 import { createProxyDispatcher, getProxyFetch, resolveProxyUrl } from '../src/api/proxy';
 import { createMcpServer } from './mcpServer';
@@ -9,7 +9,9 @@ import { createMcpServer } from './mcpServer';
 // A stdio MCP server must keep stdout clean for the protocol framing, so all
 // diagnostics go to stderr. The token is never logged: request logs carry
 // method + URL only, and errors are rendered via userFacingErrorMessage,
-// which never includes request headers.
+// which never includes request headers. The instance URL is passed through
+// `redactInstanceUrl` wherever it is logged, because the configured value may
+// itself embed credentials (`https://user:token@host`).
 const logger: ClientLogger = {
   isDebugEnabled: () => process.env.FORGEJO_MCP_DEBUG === 'true',
   debug(message: string) {
@@ -47,7 +49,8 @@ async function main(): Promise<void> {
   // known, which is exactly how it behaves in the editor.
   void probeServerVersion(url, token, logger, syncApiUrls);
   await server.connect(new StdioServerTransport());
-  logger.info(`MCP server ready for ${url}`);
+  // The configured URL may embed credentials; only the redacted form is logged.
+  logger.info(`MCP server ready for ${redactInstanceUrl(url)}`);
 }
 
 main().catch((error: unknown) => {

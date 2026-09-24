@@ -11,7 +11,7 @@ import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { getWebviewContent, toInstanceOrigins } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
-import { openReadmePreview } from '../readmeProvider';
+import { openReadmePreview, withheldReadmeNotice } from '../readmeProvider';
 import { buildRepoFileUri } from '../repoFileProvider';
 import { WorktreeManager, WorktreeInfo, validateCacheDirectory } from '../worktree/worktreeManager';
 import { InFlightTasks } from '../worktree/inFlightTasks';
@@ -35,10 +35,10 @@ import {
   openWorktree,
   resolveRemoteForRepo,
   revertMergeCommit,
+  sameRepositoryUrl,
   sanitizeForPath,
 } from '../worktree/gitOperations';
 import type { StalePrWorktreeInfo } from '../worktree/gitOperations';
-import { normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { HostToWebviewMessage } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import {
   computeImportTokenConflicts,
@@ -475,12 +475,37 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         });
         return;
       }
+      // openPrWorktree is the same kind of plain (requestId-less) message, and
+      // the PR view spins until a worktreeOpened/worktreeCancelled/
+      // worktreeError reply arrives. The identity fields are echoed when they
+      // are strings so the reply routes to the view that asked (the webview
+      // builds that key from whatever it sent).
+      if (message.command === 'openPrWorktree') {
+        this._reply('worktreeError', {
+          error: vscode.l10n.t('The request could not be completed'),
+          operation: 'open',
+          instanceId: typeof message.instanceId === 'string' ? message.instanceId : undefined,
+          owner: typeof message.owner === 'string' ? message.owner : undefined,
+          repo: typeof message.repo === 'string' ? message.repo : undefined,
+          index: typeof message.index === 'number' ? message.index : undefined,
+        });
+        return;
+      }
       const requestId = typeof message._requestId === 'string' ? (message._requestId as string) : undefined;
       if (requestId) {
         this._reply('requestError', {
           _requestId: requestId,
           error: vscode.l10n.t('The request could not be completed'),
         });
+        return;
+      }
+      // RequestId-less loaders (getRepoContents, getFileHistory, …) set their
+      // spinner before posting and clear it only on their own result message, so
+      // returning silently leaves it spinning forever. Reject through the same
+      // reply contract as the handler's invalid-payload path.
+      const resultCommand = LOAD_RESULT_COMMANDS[message.command] ?? MUTATION_RESULT_COMMANDS[message.command];
+      if (resultCommand) {
+        this._replyResultShapedError(message, resultCommand, vscode.l10n.t('The request could not be completed'));
       }
       return;
     }
@@ -505,6 +530,33 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  /**
+   * Answers a requestId-less, result-shaped webview message with an error reply
+   * that echoes the request fields (minus `command`) — which is how the webview
+   * routes the result to its loading key. Used when a request is rejected before
+   * any handler runs (a deleted instance, a forged owner/repo), where returning
+   * silently would leave the view spinning forever.
+   */
+  private _replyResultShapedError(message: any, resultCommand: string, error: string): void {
+    const { command: _command, ...rest } = message as Record<string, unknown>;
+    // editIssue/editPullRequest route close/reopen toggles and inline due-date
+    // saves to their own loading keys via these flags, which the handlers derive
+    // from `data` on the normal path.
+    const editData = rest.data as { state_toggle?: unknown; due_date_update?: unknown } | undefined;
+    const routingFlags =
+      message.command === 'editIssue' || message.command === 'editPullRequest'
+        ? {
+            ...(editData?.state_toggle ? { stateToggle: true } : {}),
+            ...(editData?.due_date_update ? { dueDateUpdate: true } : {}),
+          }
+        : {};
+    (this._reply as (command: string, data: Record<string, unknown>) => void)(resultCommand, {
+      ...rest,
+      ...routingFlags,
+      error,
+    });
+  }
+
   private async _handleMessage(message: any): Promise<void> {
     logger.debug(`Received message from webview: ${message.command}`);
     // Instance was deleted while a keep-alive view still targets it: answer
@@ -515,23 +567,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const resultCommand = LOAD_RESULT_COMMANDS[message.command] ?? MUTATION_RESULT_COMMANDS[message.command];
     if (resultCommand && typeof message.instanceId === 'string' && !this._findInstance(message.instanceId)) {
       logger.error(`${message.command} failed: instance not found: ${message.instanceId}`);
-      const { command: _command, ...rest } = message as Record<string, unknown>;
-      // editIssue/editPullRequest route close/reopen toggles and inline
-      // due-date saves to their own loading keys via these flags, which the
-      // handlers derive from `data` on the normal path.
-      const editData = rest.data as { state_toggle?: unknown; due_date_update?: unknown } | undefined;
-      const routingFlags =
-        message.command === 'editIssue' || message.command === 'editPullRequest'
-          ? {
-              ...(editData?.state_toggle ? { stateToggle: true } : {}),
-              ...(editData?.due_date_update ? { dueDateUpdate: true } : {}),
-            }
-          : {};
-      (this._reply as (command: string, data: Record<string, unknown>) => void)(resultCommand, {
-        ...rest,
-        ...routingFlags,
-        error: vscode.l10n.t('The Forgejo instance is no longer configured'),
-      });
+      this._replyResultShapedError(
+        message,
+        resultCommand,
+        vscode.l10n.t('The Forgejo instance is no longer configured'),
+      );
       return;
     }
     switch (message.command) {
@@ -901,6 +941,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           typeof searchState !== 'string' ||
           !['all', 'repositories', 'issues', 'pullRequests'].includes(rawScope)
         ) {
+          // The search view only clears its loading gate on a
+          // `globalSearchResult` reply and this message carries no
+          // `_requestId`, so the dispatch fallback cannot answer it.
+          this._replyResultShapedError(
+            message,
+            'globalSearchResult',
+            vscode.l10n.t('The request could not be completed'),
+          );
           return;
         }
         const scope = rawScope as 'all' | 'repositories' | 'issues' | 'pullRequests';
@@ -1025,7 +1073,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const detail = await client.getRepoDetail(owner, repo);
-          const detailWithResolvedAvatars = await this._resolveCommitAvatars(detail, instance);
+          // `detail.readme` is undefined both for a repository without a README
+          // and for a README above the contents API's payload limit, where the
+          // dashboard would otherwise show neither a README nor an explanation.
+          // Only the second case costs an extra entry probe, and only the second
+          // one has something to say.
+          const readme = detail.readme ?? (await withheldReadmeNotice(client, owner, repo));
+          const detailWithResolvedAvatars = await this._resolveCommitAvatars({ ...detail, readme }, instance);
           this._reply('repoDetail', {
             instanceId: instance.id,
             owner,
@@ -2851,6 +2905,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         const { owner, repo } = message;
         if (typeof owner !== 'string' || typeof repo !== 'string') {
+          // The runs view clears its loading gate only on an `actionRuns`
+          // reply, and this message carries no `_requestId`.
+          this._replyResultShapedError(message, 'actionRuns', vscode.l10n.t('The request could not be completed'));
           return;
         }
         const page = typeof message.page === 'number' ? message.page : 1;
@@ -2886,6 +2943,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         const { owner, repo, runId } = message;
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
+          // The detail view clears its loading gate only on an `actionRun`
+          // reply, and this message carries no `_requestId`.
+          this._replyResultShapedError(message, 'actionRun', vscode.l10n.t('The request could not be completed'));
           return;
         }
         try {
@@ -2912,6 +2972,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         const { owner, repo, runId } = message;
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
+          // The jobs list clears its loading gate only on an `actionRunJobs`
+          // reply, and this message carries no `_requestId`.
+          this._replyResultShapedError(message, 'actionRunJobs', vscode.l10n.t('The request could not be completed'));
           return;
         }
         try {
@@ -2938,6 +3001,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         const { owner, repo, runId } = message;
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
+          // The artifacts list clears its loading gate only on an
+          // `actionRunArtifacts` reply, and this message carries no
+          // `_requestId`.
+          this._replyResultShapedError(
+            message,
+            'actionRunArtifacts',
+            vscode.l10n.t('The request could not be completed'),
+          );
           return;
         }
         try {
@@ -2964,6 +3035,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         const { owner, repo, jobId } = message;
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof jobId !== 'number') {
+          // The log view clears its loading gate only on an `actionJobLog`
+          // reply, and this message carries no `_requestId`.
+          this._replyResultShapedError(message, 'actionJobLog', vscode.l10n.t('The request could not be completed'));
           return;
         }
         try {
@@ -3242,6 +3316,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           !isSafeRepoPath(path) ||
           typeof ref !== 'string'
         ) {
+          // The file browser keys its loading gate on the identity it sent and
+          // only a `repoContents` reply clears it. This message carries no
+          // `_requestId`, so the dispatch fallback cannot answer it: reply with
+          // the same shape as the error path below instead of dropping it.
+          // The fields are echoed verbatim (not normalized) because the loader
+          // keys its gate on the raw values: `RepoDetail.vue` forwards an
+          // unnormalised `default_branch`, so a missing `ref` arrives as
+          // `undefined` and a `''` substitute would clear a different key.
+          this._replyResultShapedError(message, 'repoContents', vscode.l10n.t('The request could not be completed'));
           return;
         }
         try {
@@ -3289,6 +3372,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           !isSafeRepoPath(path) ||
           typeof ref !== 'string'
         ) {
+          // This message carries no `_requestId`, so the dispatch fallback
+          // cannot answer it; the handler's error contract is a visible message
+          // rather than a reply.
+          vscode.window.showErrorMessage(vscode.l10n.t('The request could not be completed'));
           return;
         }
         try {
@@ -3313,6 +3400,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           typeof ref !== 'string' ||
           typeof query !== 'string'
         ) {
+          // The file-search view only clears its loading gate on a
+          // `repoFilesSearchResult` reply and this message carries no
+          // `_requestId`, so the dispatch fallback cannot answer it.
+          this._replyResultShapedError(
+            message,
+            'repoFilesSearchResult',
+            vscode.l10n.t('The request could not be completed'),
+          );
           return;
         }
         try {
@@ -3354,6 +3449,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         const { owner, repo, path, ref } = message;
         if (typeof owner !== 'string' || typeof repo !== 'string' || !isSafeRepoPath(path) || typeof ref !== 'string') {
+          // Same reasoning as getRepoContents: the history view only clears its
+          // loading gate on a `fileHistory` reply and this message carries no
+          // `_requestId` for the dispatch fallback to answer. The fields are
+          // echoed verbatim so the reply lands on the key the loader set, even
+          // when `ref`/`path` are missing.
+          this._replyResultShapedError(message, 'fileHistory', vscode.l10n.t('The request could not be completed'));
           return;
         }
         try {
@@ -3391,6 +3492,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           typeof baseRef !== 'string' ||
           typeof headRef !== 'string'
         ) {
+          // Same reasoning as openRepoFile: no `_requestId` to answer, so the
+          // rejection has to reach the user through the handler's own contract.
+          vscode.window.showErrorMessage(vscode.l10n.t('The request could not be completed'));
           return;
         }
         try {
@@ -3407,6 +3511,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       case 'getRepoRefs': {
         const { instanceId, owner, repo } = message;
         if (typeof instanceId !== 'string' || typeof owner !== 'string' || typeof repo !== 'string') {
+          // The refs view only clears its loading gate on a `repoRefs` reply and
+          // this message carries no `_requestId`, so the dispatch fallback
+          // cannot answer it.
+          this._replyResultShapedError(message, 'repoRefs', vscode.l10n.t('The request could not be completed'));
           return;
         }
         const instance = this._findInstance(instanceId);
@@ -3815,9 +3923,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'previewReadme': {
-        const { owner, repo, content } = message;
+        const { owner, repo, content, instanceId } = message;
         if (typeof owner === 'string' && typeof repo === 'string' && typeof content === 'string') {
-          openReadmePreview(this._readmeProvider, owner, repo, content);
+          // The instance id keys the virtual document: two instances hosting the
+          // same owner/repo must not share (and overwrite) one README document.
+          openReadmePreview(
+            this._readmeProvider,
+            owner,
+            repo,
+            content,
+            typeof instanceId === 'string' ? instanceId : undefined,
+          );
         }
         return;
       }
@@ -3845,15 +3961,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               : `remove:${record.instanceId}:${record.owner}/${record.repo}#${record.prIndex}`
             : `remove:${id}`;
           await this._worktreeInFlight.run(key, async () => {
+            // Removing a worktree deletes the local directory and any work it
+            // holds, so like every other destructive prompt it names its target.
+            // The scope is data (instance name and owner/repo), composed around
+            // the translated sentence; a missing instance record leaves the
+            // prompt unscoped rather than blocking a local cleanup.
+            const scope = record
+              ? `${confirmInstanceScope(this._findInstance(record.instanceId) ?? { name: record.instanceId }, record.owner, record.repo)}: `
+              : '';
             // The confirmation lives inside the guard (same reasoning as
             // mergePullRequest). The webview tracks no pending state for
             // removeWorktree, so a decline needs no reply: the record and
             // the worktrees list simply stay as they are.
             if (
               !(await this._confirmDestructive(
-                vscode.l10n.t(
+                `${scope}${vscode.l10n.t(
                   'Delete this worktree? The local directory will be permanently deleted (not moved to the recycle bin) and any uncommitted changes will be lost.',
-                ),
+                )}`,
               ))
             ) {
               return;
@@ -4036,11 +4160,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     // (the user's `forgejoToolkit.locale` can differ from the display
     // language); the text itself is resolved by l10n so the host has a single
     // source of truth for user-facing strings instead of a hard-coded zh/en
-    // pair. TODO: the contributed view name in
-    // packages/forgejo-toolkit/package.json is still the literal
-    // `"name": "Dashboard"`; it needs a `%key%` reference backed by
-    // package.nls.json / package.nls.zh-cn.json so the activity bar label is
-    // localized before the view is ever opened.
+    // pair.
     void locale;
     this._view.title = vscode.l10n.t('Dashboard');
   }
@@ -4611,9 +4731,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           `${normalizedInstanceUrl}/${owner}/${repo}.git`,
           `${normalizedInstanceUrl}/${owner}/${repo}`,
         ];
-        const matches = remotes.some((remote) =>
-          expectedUrls.some((url) => normalizeGitUrl(remote.url) === normalizeGitUrl(url)),
-        );
+        // Transport-agnostic comparison: an ssh/scp remote and the https spelling
+        // of the same repository name the same repository, credentials are
+        // ignored, and a portless transport (ssh/scp/git) matches an instance URL
+        // with or without a web port. The shared normalizeGitUrl comparison
+        // matched none of those, so the user's own checkout was rejected as "not
+        // the PR base repository" whenever the remote carried a token, used an scp
+        // login other than `git`, or the instance URL carried a port.
+        const matches = remotes.some((remote) => expectedUrls.some((url) => sameRepositoryUrl(remote.url, url)));
         if (!matches) {
           return { kind: 'error', message: vscode.l10n.t('Selected repository does not match the PR base repository') };
         }
@@ -4817,6 +4942,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     const target = parseWorktreeTarget(message);
     if (!target) {
       logger.error(`openPrWorktree ignored: invalid repository identity in the webview message`);
+      // _doStartWorkOnIssue answers its invalid-target path the same way: the
+      // PR view sets its spinner before posting and only a worktree reply
+      // clears it, so dropping the request silently would leave it spinning.
+      this._reply('worktreeError', {
+        error: vscode.l10n.t('The request could not be completed'),
+        operation: 'open',
+        instanceId: typeof message.instanceId === 'string' ? message.instanceId : undefined,
+        owner: typeof message.owner === 'string' ? message.owner : undefined,
+        repo: typeof message.repo === 'string' ? message.repo : undefined,
+        index: typeof message.index === 'number' ? message.index : undefined,
+      });
       return;
     }
     const { instanceId, owner, repo, index } = target;

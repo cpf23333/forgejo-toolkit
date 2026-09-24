@@ -45,6 +45,17 @@ describe('createProxyDispatcher', () => {
     },
   );
 
+  it('forgets the agent and its fetch when the proxy is removed', () => {
+    // The setting is re-read when http.proxy changes; clearing it must also stop
+    // the direct `getProxyFetch()` consumers (token-bearing image fetches) from
+    // using the proxy the user just removed.
+    expect(createProxyDispatcher('http://proxy.example.com:4321')).toBeDefined();
+    expect(typeof getProxyFetch()).toBe('function');
+
+    expect(createProxyDispatcher(undefined)).toBeUndefined();
+    expect(getProxyFetch()).toBeUndefined();
+  });
+
   it('exposes the bundled-undici fetch only while a proxy is active', () => {
     // The dispatcher is only understood by the undici copy that created it, so
     // the two are installed together (see `getProxyFetch`).

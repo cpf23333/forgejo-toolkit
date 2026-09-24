@@ -322,9 +322,18 @@ export class OnboardingWebviewPanel {
               return;
             }
             case 'previewReadme': {
-              const { owner, repo, content } = message;
+              const { owner, repo, content, instanceId } = message;
               if (typeof owner === 'string' && typeof repo === 'string' && typeof content === 'string') {
-                openReadmePreview(this._readmeProvider, owner, repo, content);
+                // The instance id keys the virtual document, exactly as in the
+                // sidebar handler: without it two instances hosting the same
+                // owner/repo would share one README document.
+                openReadmePreview(
+                  this._readmeProvider,
+                  owner,
+                  repo,
+                  content,
+                  typeof instanceId === 'string' ? instanceId : undefined,
+                );
               }
               return;
             }

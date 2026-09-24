@@ -399,10 +399,15 @@ export class ForgejoClient {
    * available on all endpoints. The safety bound caps the total item count
    * (not the page count), so a clamped page size does not shrink the overall
    * result window.
+   *
+   * `label` names the list in the completion log: `API_REQUEST_TIMEOUT_MS`
+   * bounds one request, not the whole paged operation, so the request count is
+   * the only visible measure of what a multi-page read cost the caller (and
+   * how close it came to the item cap).
    */
   private async _fetchAllPages<T>(
     fetchPage: (page: number) => Promise<T[] | null | undefined>,
-    options: { shortPageMarksEnd?: boolean } = {},
+    options: { label: string; shortPageMarksEnd?: boolean },
   ): Promise<T[]> {
     const shortPageMarksEnd = options.shortPageMarksEnd ?? true;
     // Endpoints that filter rows *after* the page was read from the database can
@@ -420,8 +425,13 @@ export class ForgejoClient {
     // the first page (same pattern as the git-tree loop below): without it,
     // duplicates would accumulate up to MAX_ITEMS.
     let previousFirstItemKey: string | undefined;
+    // Number of requests actually issued. `page` cannot serve as this count:
+    // the loop increments it after the last full page, so a read stopped by
+    // MAX_ITEMS would report one request too many.
+    let requests = 0;
     while (all.length < MAX_ITEMS) {
       const items = (await fetchPage(page)) ?? [];
+      requests++;
       const firstItemKey = items.length > 0 ? JSON.stringify(items[0]) : undefined;
       if (firstItemKey !== undefined && firstItemKey === previousFirstItemKey) {
         break;
@@ -447,19 +457,22 @@ export class ForgejoClient {
       }
       page++;
     }
+    this.logger?.debug(`[pages] ${options.label}: ${requests} request(s), ${all.length} item(s)`);
     return all;
   }
 
   async getUserStopWatches(): Promise<StopWatch[]> {
-    const watches = await this._fetchAllPages((page) =>
-      userGetStopWatches({ page, limit: PAGE_SIZE }, { client: this._client() }),
+    const watches = await this._fetchAllPages(
+      (page) => userGetStopWatches({ page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'stop watches' },
     );
     return watches as StopWatch[];
   }
 
   async getUserRepositories(): Promise<ForgejoRepository[]> {
-    const repos = await this._fetchAllPages((page) =>
-      userCurrentListRepos({ page, limit: PAGE_SIZE }, { client: this._client() }),
+    const repos = await this._fetchAllPages(
+      (page) => userCurrentListRepos({ page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'repositories' },
     );
     return repos as ForgejoRepository[];
   }
@@ -469,44 +482,48 @@ export class ForgejoClient {
   }
 
   async getUserIssues(state: string = 'open'): Promise<ForgejoIssue[]> {
-    const issues = await this._fetchAllPages((page) =>
-      issueSearchIssues(
-        {
-          state: state as 'open' | 'closed' | 'all',
-          type: 'issues',
-          // /repos/issues/search is unfiltered by default: without these flags
-          // the server returns every issue in every repository the token can
-          // see. The dashboard tab promises the user's own items ("assigned to
-          // you" / "related to you"), so scope the query explicitly.
-          created: true,
-          assigned: true,
-          mentioned: true,
-          review_requested: true,
-          page,
-          limit: PAGE_SIZE,
-        },
-        { client: this._client() },
-      ),
+    const issues = await this._fetchAllPages(
+      (page) =>
+        issueSearchIssues(
+          {
+            state: state as 'open' | 'closed' | 'all',
+            type: 'issues',
+            // /repos/issues/search is unfiltered by default: without these flags
+            // the server returns every issue in every repository the token can
+            // see. The dashboard tab promises the user's own items ("assigned to
+            // you" / "related to you"), so scope the query explicitly.
+            created: true,
+            assigned: true,
+            mentioned: true,
+            review_requested: true,
+            page,
+            limit: PAGE_SIZE,
+          },
+          { client: this._client() },
+        ),
+      { label: 'user issues' },
     );
     return issues as ForgejoIssue[];
   }
 
   async getUserPullRequests(state: string = 'open'): Promise<ForgejoPullRequest[]> {
-    const pulls = await this._fetchAllPages((page) =>
-      issueSearchIssues(
-        {
-          state: state as 'open' | 'closed' | 'all',
-          type: 'pulls',
-          // Same default-unfiltered caveat as getUserIssues.
-          created: true,
-          assigned: true,
-          mentioned: true,
-          review_requested: true,
-          page,
-          limit: PAGE_SIZE,
-        },
-        { client: this._client() },
-      ),
+    const pulls = await this._fetchAllPages(
+      (page) =>
+        issueSearchIssues(
+          {
+            state: state as 'open' | 'closed' | 'all',
+            type: 'pulls',
+            // Same default-unfiltered caveat as getUserIssues.
+            created: true,
+            assigned: true,
+            mentioned: true,
+            review_requested: true,
+            page,
+            limit: PAGE_SIZE,
+          },
+          { client: this._client() },
+        ),
+      { label: 'user pull requests' },
     );
     return pulls as ForgejoPullRequest[];
   }
@@ -551,16 +568,19 @@ export class ForgejoClient {
 
   async getActionRunArtifacts(owner: string, repo: string, runId: number): Promise<ForgejoActionArtifact[]> {
     this._assertActions();
-    const artifacts = await this._fetchAllPages(async (page) => {
-      const result = await listActionRunArtifacts(
-        owner,
-        repo,
-        runId,
-        { page, limit: PAGE_SIZE },
-        { client: this._client() },
-      );
-      return Array.isArray(result) ? result : ((result as { artifacts?: ActionArtifact[] }).artifacts ?? []);
-    });
+    const artifacts = await this._fetchAllPages(
+      async (page) => {
+        const result = await listActionRunArtifacts(
+          owner,
+          repo,
+          runId,
+          { page, limit: PAGE_SIZE },
+          { client: this._client() },
+        );
+        return Array.isArray(result) ? result : ((result as { artifacts?: ActionArtifact[] }).artifacts ?? []);
+      },
+      { label: 'action artifacts' },
+    );
     return artifacts as ForgejoActionArtifact[];
   }
 
@@ -741,12 +761,45 @@ export class ForgejoClient {
     await notifyReadList({ all: true, 'to-status': 'read' }, { client: this._client() });
   }
 
-  async getReadme(owner: string, repo: string): Promise<string | undefined> {
+  /**
+   * The README's text and the size the contents API reported, or `undefined`
+   * when the repository has no README (a 404, or any other read failure —
+   * `_probe` treats them alike).
+   *
+   * The contents API omits the payload of a file above `[api]
+   * DEFAULT_MAX_BLOB_SIZE` (10 MiB by default) and answers with the real
+   * `size` instead of failing. `getReadme` can only report "no text" in that
+   * case, which is indistinguishable from a repository without a README, so
+   * this variant carries the size through: a caller that sees a size with no
+   * content knows the payload was withheld and can say so (the host renders
+   * the localized notice from its `utils/payloadNotice.ts`) instead of showing
+   * a README-less repository. `content` is the decoded text, exactly what
+   * `getReadme` returns when it is present.
+   */
+  async getReadmeEntry(
+    owner: string,
+    repo: string,
+    ref?: string,
+  ): Promise<{ content?: string; size?: number } | undefined> {
     const readmeFile = await this._probe(
-      repoGetContents(owner, repo, 'README.md', undefined, { client: this._client() }),
-      `getReadme ${owner}/${repo}`,
+      repoGetContents(owner, repo, 'README.md', ref ? { ref } : undefined, { client: this._client() }),
+      `getReadmeEntry ${owner}/${repo}`,
     );
-    return readmeFile?.content ? decodeBase64(readmeFile.content) : undefined;
+    if (!readmeFile || Array.isArray(readmeFile)) {
+      return undefined;
+    }
+    const entry: { content?: string; size?: number } = {};
+    if (readmeFile.content) {
+      entry.content = decodeBase64(readmeFile.content);
+    }
+    if (readmeFile.size !== undefined) {
+      entry.size = readmeFile.size;
+    }
+    return entry;
+  }
+
+  async getReadme(owner: string, repo: string, ref?: string): Promise<string | undefined> {
+    return (await this.getReadmeEntry(owner, repo, ref))?.content;
   }
 
   /**
@@ -1002,22 +1055,25 @@ export class ForgejoClient {
   }
 
   async getRepoBranches(owner: string, repo: string): Promise<ForgejoBranch[]> {
-    const branches = await this._fetchAllPages((page) =>
-      repoListBranches(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    const branches = await this._fetchAllPages(
+      (page) => repoListBranches(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'branches' },
     );
     return branches as ForgejoBranch[];
   }
 
   async getRepoTags(owner: string, repo: string): Promise<ForgejoTag[]> {
-    const tags = await this._fetchAllPages((page) =>
-      repoListTags(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    const tags = await this._fetchAllPages(
+      (page) => repoListTags(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'tags' },
     );
     return tags as ForgejoTag[];
   }
 
   async getRepoReleases(owner: string, repo: string): Promise<ForgejoRelease[]> {
-    const releases = await this._fetchAllPages((page) =>
-      repoListReleases(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    const releases = await this._fetchAllPages(
+      (page) => repoListReleases(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'releases' },
     );
     return releases as ForgejoRelease[];
   }
@@ -1263,20 +1319,23 @@ export class ForgejoClient {
 
   async getRepoIssues(owner: string, repo: string, state: string = 'open', query?: string): Promise<ForgejoIssue[]> {
     const q = query?.trim();
-    const issues = await this._fetchAllPages((page) =>
-      issueListIssues(
-        owner,
-        repo,
-        { state: state as 'open' | 'closed' | 'all', type: 'issues', ...(q ? { q } : {}), page, limit: PAGE_SIZE },
-        { client: this._client() },
-      ),
+    const issues = await this._fetchAllPages(
+      (page) =>
+        issueListIssues(
+          owner,
+          repo,
+          { state: state as 'open' | 'closed' | 'all', type: 'issues', ...(q ? { q } : {}), page, limit: PAGE_SIZE },
+          { client: this._client() },
+        ),
+      { label: 'issues' },
     );
     return issues as ForgejoIssue[];
   }
 
   async getRepoLabels(owner: string, repo: string): Promise<Label[]> {
-    const labels = await this._fetchAllPages((page) =>
-      issueListLabels(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    const labels = await this._fetchAllPages(
+      (page) => issueListLabels(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'labels' },
     );
     return labels as Label[];
   }
@@ -1287,8 +1346,10 @@ export class ForgejoClient {
   }
 
   async getRepoMilestones(owner: string, repo: string): Promise<Milestone[]> {
-    const milestones = await this._fetchAllPages((page) =>
-      issueGetMilestonesList(owner, repo, { state: 'open', page, limit: PAGE_SIZE }, { client: this._client() }),
+    const milestones = await this._fetchAllPages(
+      (page) =>
+        issueGetMilestonesList(owner, repo, { state: 'open', page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'milestones' },
     );
     return milestones as Milestone[];
   }
@@ -1361,27 +1422,31 @@ export class ForgejoClient {
     const q = query?.trim();
     if (q) {
       // repoListPullRequests has no keyword filter; the issues endpoint supports `q` with `type=pulls`.
-      const pulls = await this._fetchAllPages((page) =>
-        issueListIssues(
-          owner,
-          repo,
-          { state: state as 'open' | 'closed' | 'all', type: 'pulls', q, page, limit: PAGE_SIZE },
-          { client: this._client() },
-        ),
+      const pulls = await this._fetchAllPages(
+        (page) =>
+          issueListIssues(
+            owner,
+            repo,
+            { state: state as 'open' | 'closed' | 'all', type: 'pulls', q, page, limit: PAGE_SIZE },
+            { client: this._client() },
+          ),
+        { label: 'pull requests' },
       );
       // The issues endpoint returns issue-shaped rows (the old code cast them the
       // same way); drop any null entry first so consumers can dereference freely.
       return this._definedPullRequests(pulls) as ForgejoPullRequest[];
     }
-    const pulls = await this._fetchAllPages((page) =>
-      repoListPullRequests(
-        owner,
-        repo,
-        { state: state as 'open' | 'closed' | 'all', page, limit: PAGE_SIZE },
-        {
-          client: this._client(),
-        },
-      ),
+    const pulls = await this._fetchAllPages(
+      (page) =>
+        repoListPullRequests(
+          owner,
+          repo,
+          { state: state as 'open' | 'closed' | 'all', page, limit: PAGE_SIZE },
+          {
+            client: this._client(),
+          },
+        ),
+      { label: 'pull requests' },
     );
     return this._definedPullRequests(pulls) as ForgejoPullRequest[];
   }
@@ -1439,8 +1504,9 @@ export class ForgejoClient {
   }
 
   async listIssueTrackedTimes(owner: string, repo: string, index: number): Promise<TrackedTime[]> {
-    const times = await this._fetchAllPages((page) =>
-      issueTrackedTimes(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    const times = await this._fetchAllPages(
+      (page) => issueTrackedTimes(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'tracked times' },
     );
     return times as TrackedTime[];
   }
@@ -1465,8 +1531,9 @@ export class ForgejoClient {
     // MaxResponseItems) and sends no total count, so an unpaged call silently
     // truncated issues with more than 30 dependencies. `_fetchAllPages` walks the
     // pages until one comes back short.
-    return (await this._fetchAllPages((page) =>
-      issueListIssueDependencies(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    return (await this._fetchAllPages(
+      (page) => issueListIssueDependencies(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'issue dependencies' },
     )) as ForgejoIssue[];
   }
 
@@ -1481,8 +1548,9 @@ export class ForgejoClient {
   }
 
   async getIssueReactions(owner: string, repo: string, index: number): Promise<Reaction[]> {
-    const reactions = await this._fetchAllPages((page) =>
-      issueGetIssueReactions(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    const reactions = await this._fetchAllPages(
+      (page) => issueGetIssueReactions(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'issue reactions' },
     );
     return reactions as Reaction[];
   }
@@ -1591,8 +1659,9 @@ export class ForgejoClient {
   }
 
   async getPullRequestFiles(owner: string, repo: string, index: number): Promise<ForgejoChangedFile[]> {
-    const files = await this._fetchAllPages((page) =>
-      repoGetPullRequestFiles(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    const files = await this._fetchAllPages(
+      (page) => repoGetPullRequestFiles(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'pull request files' },
     );
     // The API spells a deleted file's status 'deleted' (the compare endpoint
     // uses 'removed'); consumers only recognize 'removed', so normalize here.
@@ -1668,7 +1737,7 @@ export class ForgejoClient {
       // references) *after* the page has been read from the database, so a page
       // that comes back shorter than the page size does not mean the timeline
       // ended — keep paging until an empty page arrives.
-      { shortPageMarksEnd: false },
+      { label: 'timeline', shortPageMarksEnd: false },
     );
     // Body-reference heuristic: only comments whose body links an attachment
     // (see ATTACHMENT_REFERENCE_REGEX) get an attachment-list request, instead
@@ -1770,14 +1839,16 @@ export class ForgejoClient {
   }
 
   async getPullRequestCommits(owner: string, repo: string, index: number): Promise<Commit[]> {
-    const commits = await this._fetchAllPages((page) =>
-      repoGetPullRequestCommits(
-        owner,
-        repo,
-        index,
-        { files: true, page, limit: PAGE_SIZE },
-        { client: this._client() },
-      ),
+    const commits = await this._fetchAllPages(
+      (page) =>
+        repoGetPullRequestCommits(
+          owner,
+          repo,
+          index,
+          { files: true, page, limit: PAGE_SIZE },
+          { client: this._client() },
+        ),
+      { label: 'pull request commits' },
     );
     return commits as Commit[];
   }
@@ -1796,8 +1867,9 @@ export class ForgejoClient {
   }
 
   async listPullReviews(owner: string, repo: string, index: number): Promise<PullReview[]> {
-    const result = await this._fetchAllPages((page) =>
-      repoListPullReviews(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+    const result = await this._fetchAllPages(
+      (page) => repoListPullReviews(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+      { label: 'pull request reviews' },
     );
     return result as PullReview[];
   }

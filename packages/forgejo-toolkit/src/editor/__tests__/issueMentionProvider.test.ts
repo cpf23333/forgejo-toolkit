@@ -127,6 +127,38 @@ describe('ForgejoIssueMentionProvider linked repository attribution', () => {
   });
 });
 
+describe('user mention boundaries', () => {
+  beforeEach(() => {
+    detectMock.mockReset();
+    detectMock.mockResolvedValue(linkedResult('inst-m1') as never);
+  });
+
+  async function mentionTargets(text: string): Promise<string[]> {
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-m1']));
+    const links = await provider.provideDocumentLinks(makeFileDocument(text) as never, {} as never);
+    return links.map((link) => (link.target as { toString(): string }).toString());
+  }
+
+  it('drops trailing sentence punctuation instead of naming a user that does not exist', async () => {
+    // `@alice.` used to link to `.../alice.`, a user that does not exist.
+    expect(await mentionTargets('thanks @alice. and @bob,')).toEqual([`${INSTANCE_URL}/alice`, `${INSTANCE_URL}/bob`]);
+  });
+
+  it('keeps `-`, `_` and dots between word characters inside the username', async () => {
+    expect(await mentionTargets('thanks @alice-b, @alice_1 and @alice.dev')).toEqual([
+      `${INSTANCE_URL}/alice-b`,
+      `${INSTANCE_URL}/alice_1`,
+      `${INSTANCE_URL}/alice.dev`,
+    ]);
+  });
+
+  it('links a mention at the end of a line', async () => {
+    expect(await mentionTargets('thanks @alice')).toEqual([`${INSTANCE_URL}/alice`]);
+    // The match must stop at the line break rather than run into the next line.
+    expect(await mentionTargets('thanks @alice\nmore text')).toEqual([`${INSTANCE_URL}/alice`]);
+  });
+});
+
 describe('getMentionRange', () => {
   function docAt(text: string) {
     return { lineAt: () => ({ text }) };

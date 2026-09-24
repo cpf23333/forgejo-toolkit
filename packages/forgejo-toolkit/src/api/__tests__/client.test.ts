@@ -32,6 +32,7 @@ import {
   mockPullRequests,
   mockPullRequestDetail,
   mockRootContents,
+  mockReadmeContent,
   mockActionRun,
   mockActionRunJob,
   mockActionArtifact,
@@ -282,13 +283,84 @@ describe('ForgejoClient with MSW', () => {
     expect(readme).toContain('Demo Repository');
   });
 
+  it('fetches the README entry with its text and size', async () => {
+    const client = createClient();
+    const entry = await client.getReadmeEntry('demo-user', 'demo-repo');
+    expect(entry?.content).toContain('Demo Repository');
+    expect(entry?.size).toBe(mockReadmeContent.size);
+  });
+
+  it('reads the README at an explicit ref', async () => {
+    const client = createClient();
+    const refs: Array<string | null> = [];
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', ({ request }) => {
+        refs.push(new URL(request.url).searchParams.get('ref'));
+        return HttpResponse.json(mockReadmeContent);
+      }),
+    );
+
+    await client.getReadme('demo-user', 'demo-repo', 'v2');
+    await client.getReadmeEntry('demo-user', 'demo-repo', 'v2');
+
+    expect(refs).toEqual(['v2', 'v2']);
+  });
+
+  it('reports a genuinely absent README as undefined', async () => {
+    const client = createClient();
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', () => new HttpResponse(null, { status: 404 })),
+    );
+
+    await expect(client.getReadmeEntry('demo-user', 'demo-repo')).resolves.toBeUndefined();
+    // The legacy accessor keeps its old answer for the same reason.
+    await expect(client.getReadme('demo-user', 'demo-repo')).resolves.toBeUndefined();
+  });
+
+  it('reports the size of a README whose payload Forgejo withheld', async () => {
+    const client = createClient();
+    // Forgejo omits the payload above [api] DEFAULT_MAX_BLOB_SIZE (10 MiB by
+    // default) and answers with the real size and no content.
+    const withheldSize = 11 * 1024 * 1024;
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', () =>
+        HttpResponse.json({ ...mockReadmeContent, content: undefined, size: withheldSize }),
+      ),
+    );
+
+    const entry = await client.getReadmeEntry('demo-user', 'demo-repo');
+    // The size is the only signal that tells this apart from "no README".
+    expect(entry?.size).toBe(withheldSize);
+    expect(entry?.content).toBeUndefined();
+    // getReadme still answers "no text" — the notice is the host's job — but it
+    // must not invent empty content either.
+    await expect(client.getReadme('demo-user', 'demo-repo')).resolves.toBeUndefined();
+  });
+
   it('fetches repository detail', async () => {
     const client = createClient();
     const detail = await client.getRepoDetail('demo-user', 'demo-repo');
     expect(detail.repository.full_name).toBe(mockRepository.full_name);
     expect(detail.empty).toBe(false);
+    expect(detail.readme).toContain('Demo Repository');
     expect(detail.branches).toContain('main');
     expect(detail.recentCommits).toHaveLength(1);
+  });
+
+  it('keeps the withheld README size reachable beside a detail payload without README text', async () => {
+    const client = createClient();
+    const withheldSize = 11 * 1024 * 1024;
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', () =>
+        HttpResponse.json({ ...mockReadmeContent, content: undefined, size: withheldSize }),
+      ),
+    );
+
+    const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+    expect(detail.readme).toBeUndefined();
+    // The detail payload cannot carry the size today; the host reads it from
+    // getReadmeEntry instead (see the report for the ForgejoRepoDetail contract).
+    expect((await client.getReadmeEntry('demo-user', 'demo-repo'))?.size).toBe(withheldSize);
   });
 
   it('fetches branch commits', async () => {
@@ -1816,6 +1888,35 @@ describe('ForgejoClient with MSW', () => {
       const client = createDebugClient(messages);
       await client.getCurrentUser();
       expect(messages.some((m) => m.startsWith('Response body:') && m.includes(mockUser.login))).toBe(true);
+    });
+
+    it('logs how many requests a paged read cost', async () => {
+      const messages: string[] = [];
+      const client = createDebugClient(messages);
+      // The per-request timeout bounds one page, not the whole paged read, so
+      // the request count is the only visible measure of that read's cost.
+      // Clamp pages to 30 items: 70 repos then take three requests.
+      const total = 70;
+      mockServer.use(
+        http.get('https://*/api/v1/user/repos', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          const start = (page - 1) * 30;
+          return HttpResponse.json(
+            Array.from({ length: Math.max(0, Math.min(30, total - start)) }, (_, i) => ({
+              ...mockRepository,
+              id: start + i + 1,
+              full_name: `demo-user/repo-${start + i + 1}`,
+            })),
+          );
+        }),
+      );
+
+      await client.getUserRepositories();
+
+      const pageLog = messages.find((m) => m.startsWith('[pages] repositories:'));
+      expect(pageLog).toBeDefined();
+      expect(pageLog).toContain('3 request(s)');
+      expect(pageLog).toContain('70 item(s)');
     });
   });
 

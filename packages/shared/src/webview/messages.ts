@@ -1242,7 +1242,9 @@ export type WebviewToHostMessage =
   // Opens a recorded worktree path in the OS file manager. The host validates
   // the path against the known worktree list instead of trusting a URI.
   | { command: 'openWorktreePath'; path: string }
-  | { command: 'previewReadme'; owner: string; repo: string; content: string }
+  // The instance id keys the virtual README document: without it two instances
+  // share one document, so one instance's README could be shown for the other.
+  | { command: 'previewReadme'; instanceId?: string; owner: string; repo: string; content: string }
   | { command: 'openPrWorktree'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'startWorkOnIssue'; instanceId: string; owner: string; repo: string; index: number; title?: string }
   | { command: 'removeWorktree'; id: string }

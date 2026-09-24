@@ -50,9 +50,14 @@ function setup() {
 
   const logger = { debug: vi.fn() } as unknown as Logger;
 
+  const configListenerCalls = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.length;
   registerMcpServerProvider(context, config, logger);
   const provider = registerSpy.mock.calls[0][1];
-  return { registerSpy, provider, instanceListeners, instances };
+  // The listener this call registered, not one left over from another setup().
+  const configurationListener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls[
+    configListenerCalls
+  ]?.[0];
+  return { registerSpy, provider, instanceListeners, instances, configurationListener };
 }
 
 function makeInstance(overrides: Partial<ForgejoInstance> = {}): ForgejoInstance {
@@ -186,5 +191,25 @@ describe('registerMcpServerProvider', () => {
     instanceListeners[0]([]);
     const emitter = vi.mocked(vscode.EventEmitter).mock.results[0].value as { fire: ReturnType<typeof vi.fn> };
     expect(emitter.fire).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-resolves when the editor proxy setting changes so the child stops using a stale proxy', () => {
+    // The proxy is read once per resolution, so without this the child spawned
+    // before the change keeps connecting through the old (or no) proxy.
+    const { configurationListener } = setup();
+    expect(configurationListener).toBeDefined();
+
+    configurationListener?.({ affectsConfiguration: (section: string) => section === 'http.proxy' } as never);
+
+    const emitter = vi.mocked(vscode.EventEmitter).mock.results[0].value as { fire: ReturnType<typeof vi.fn> };
+    expect(emitter.fire).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves definitions untouched when an unrelated setting changes', () => {
+    const { configurationListener } = setup();
+    configurationListener?.({ affectsConfiguration: () => false } as never);
+
+    const emitter = vi.mocked(vscode.EventEmitter).mock.results[0].value as { fire: ReturnType<typeof vi.fn> };
+    expect(emitter.fire).not.toHaveBeenCalled();
   });
 });

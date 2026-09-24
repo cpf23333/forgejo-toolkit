@@ -115,6 +115,7 @@ describe('OnboardingWebviewPanel message dispatch', () => {
   let context: ReturnType<typeof createFakeContext>;
   let config: ConfigManager;
   let fake: ReturnType<typeof createFakePanel>;
+  let readmeProvider: ReadmeContentProvider;
 
   beforeEach(async () => {
     context = createFakeContext();
@@ -124,13 +125,30 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     clearServerVersions();
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fake.panel as never);
     OnboardingWebviewPanel.currentPanel = undefined;
-    OnboardingWebviewPanel.createOrShow(
-      context as never,
-      context.extensionUri as never,
-      config,
-      new ReadmeContentProvider(),
-    );
+    readmeProvider = new ReadmeContentProvider();
+    OnboardingWebviewPanel.createOrShow(context as never, context.extensionUri as never, config, readmeProvider);
     await config.addInstance(testInstance);
+  });
+
+  it('keys the README preview document by the instance the request names', async () => {
+    // The virtual document URI has to carry the instance id, exactly like the
+    // sidebar handler: without it two instances hosting the same owner/repo
+    // share (and overwrite) one README document.
+    const executeCommand = vi.mocked(vscode.commands.executeCommand);
+    executeCommand.mockClear();
+
+    fake.send({
+      command: 'previewReadme',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      content: '# Hello',
+    });
+    await flushDispatches();
+
+    const call = executeCommand.mock.calls.find(([command]) => command === 'markdown.showPreviewToSide');
+    expect(call).toBeDefined();
+    expect((call?.[1] as { path?: string } | undefined)?.path).toBe(`${testInstance.id}/owner/repo/README.md`);
   });
 
   it('replies with requestError when a request handler returns early without answering', async () => {

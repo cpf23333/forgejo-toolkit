@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { createProxyDispatcher, getProxyFetch, resolveProxyUrl } from './api/proxy';
+import { createProxyDispatcher, getProxyFetch, redactProxyForLog, resolveProxyUrl } from './api/proxy';
 import { setDefaultRequestDispatcher } from './api/client';
 import { registerCommands } from './commands';
 import { ForgejoToolkitViewProvider } from './webview/viewProvider';
@@ -25,15 +25,28 @@ import { logger } from './logger';
 
 export async function activate(context: vscode.ExtensionContext) {
   // Requests honour a proxy: the editor's http.proxy wins over the environment,
-  // and the agent plus its matching fetch are created once for the whole session.
-  // A value the proxy agent refuses must never abort activation, so it degrades
-  // to a direct connection with a warning instead.
-  const proxyUrl = resolveProxyUrl(process.env, vscode.workspace.getConfiguration('http').get<string>('proxy'));
-  const proxyDispatcher = createProxyDispatcher(proxyUrl);
-  if (proxyUrl && !proxyDispatcher) {
-    logger.info(`Ignoring the configured proxy "${proxyUrl}": it is not a usable HTTP proxy URL`);
-  }
-  setDefaultRequestDispatcher(proxyDispatcher, proxyDispatcher ? getProxyFetch() : undefined);
+  // and the agent plus its matching fetch are created once per resolved URL. A
+  // value the proxy agent refuses must never abort activation, so it degrades to
+  // a direct connection with a log line instead.
+  const installProxyDispatcher = (): void => {
+    const proxyUrl = resolveProxyUrl(process.env, vscode.workspace.getConfiguration('http').get<string>('proxy'));
+    const proxyDispatcher = createProxyDispatcher(proxyUrl);
+    if (proxyUrl && !proxyDispatcher) {
+      // Redacted: a proxy URL may carry credentials and this channel is logged.
+      logger.info(`Ignoring the configured proxy "${redactProxyForLog(proxyUrl)}": it is not a usable HTTP proxy URL`);
+    }
+    setDefaultRequestDispatcher(proxyDispatcher, proxyDispatcher ? getProxyFetch() : undefined);
+  };
+  installProxyDispatcher();
+  // The dispatcher is installed once, so a proxy the user adds, fixes or removes
+  // must be picked up without reloading the window.
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('http.proxy')) {
+        installProxyDispatcher();
+      }
+    }),
+  );
   logger.watch();
   context.subscriptions.push({ dispose: () => logger.dispose() });
 

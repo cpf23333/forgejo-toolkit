@@ -62,36 +62,69 @@ let dispatcher: ProxyAgent | undefined;
 let dispatcherProxyUrl: string | undefined;
 let dispatcherFetch: RequestFetch | undefined;
 
+/** Forgets the installed agent (closing it) so no request keeps using it. */
+function clearProxyDispatcher(): void {
+  const previous = dispatcher;
+  dispatcher = undefined;
+  dispatcherProxyUrl = undefined;
+  dispatcherFetch = undefined;
+  // A hot-reloaded setting can leave several agents behind; each holds sockets.
+  void previous?.close().catch(() => undefined);
+}
+
 /** The `ProxyAgent` for a proxy URL, created once per URL and never throwing. */
 export function createProxyDispatcher(proxyUrl?: string): ProxyAgent | undefined {
   if (!proxyUrl) {
+    // No proxy configured: forget any agent from an earlier configuration,
+    // otherwise requests (including token-bearing image fetches, which read
+    // `getProxyFetch` directly) would keep using a proxy the user just removed.
+    clearProxyDispatcher();
     return undefined;
   }
   const normalized = normalizeProxyUrl(proxyUrl);
   if (!normalized) {
-    // Forget any previously installed agent: an unusable value means "no proxy",
-    // not "keep using the last one".
-    dispatcher = undefined;
-    dispatcherProxyUrl = undefined;
-    dispatcherFetch = undefined;
+    // An unusable value means "no proxy", not "keep using the last one".
+    clearProxyDispatcher();
     return undefined;
   }
   if (dispatcher && dispatcherProxyUrl === normalized) {
     return dispatcher;
   }
+  const previous = dispatcher;
   try {
     const agent = new ProxyAgent(normalized);
     dispatcher = agent;
     dispatcherProxyUrl = normalized;
     dispatcherFetch = createProxyFetch(agent);
+    if (previous) {
+      void previous.close().catch(() => undefined);
+    }
     return dispatcher;
   } catch {
     // A proxy value undici refuses (an unsupported option, an unusable port)
     // leaves the extension without a proxy instead of failing activation.
-    dispatcher = undefined;
-    dispatcherProxyUrl = undefined;
-    dispatcherFetch = undefined;
+    clearProxyDispatcher();
     return undefined;
+  }
+}
+
+/**
+ * A proxy URL with its credentials removed, for a log line.
+ *
+ * A proxy URL may carry `user:password@`; the output channel is often shared or
+ * pasted into a report, so only the scheme, host and port are logged.
+ */
+export function redactProxyForLog(value: string): string {
+  try {
+    const parsed = new URL(normalizeProxyUrl(value) ?? value);
+    if (!parsed.username && !parsed.password) {
+      return value;
+    }
+    parsed.username = '';
+    parsed.password = '';
+    return parsed.toString();
+  } catch {
+    return '<unparsable proxy URL>';
   }
 }
 
