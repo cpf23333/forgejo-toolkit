@@ -21,3 +21,11 @@ pnpm --filter @cpf23333-forgejo-toolkit/api generate     # regenerate types, cli
 Then update the table above, review the diff (a newer spec can change request and
 response shapes), run `pnpm check` and the test suites, and note any behaviour the
 checklist records.
+
+> **Before regenerating, make sure the working tree is clean.** `kubb` deletes
+> `../src/generated` before it writes, so a run that fails (a crash, a bad spec)
+> leaves the directory empty — `git restore --source=HEAD --worktree ../src/generated`
+> brings it back. On 2026-09-23 `pnpm generate` aborted twice on Windows (exit 134,
+> a V8/libuv crash after the clean step) both with the default heap and with
+> `NODE_OPTIONS=--max-old-space-size=6144`, so the pinned snapshot is committed but
+> the regeneration itself still needs a working toolchain run (or another machine).
