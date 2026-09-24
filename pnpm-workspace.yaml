@@ -9,8 +9,3 @@ allowBuilds:
   keytar: true
   lefthook: true
   msw: true
-
-onlyBuiltDependencies:
-  - es5-ext
-  - esbuild
-  - msw

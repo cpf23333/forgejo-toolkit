@@ -32,7 +32,7 @@ In one test PR the web UI reported 6 changed files (including a deleted file), b
 
 The extension now uses the `GET /repos/{owner}/{repo}/compare/{basehead}` endpoint to build the PR-level changed-file list. This returns the net diff between the PR base and head, including files that are deleted in the overall PR. Files that are added in one commit and removed in another commit do not appear in the net list, which is correct for a full-PR view but differs from a per-commit view.
 
-A future improvement could add a per-commit diff mode to show the changes introduced by each individual commit (see TODO.md / ROADMAP.md).
+The per-commit view the PR detail page already offers covers that gap: its **Commits** section lists the changed files of each individual commit and opens a single-commit diff, so a file that is added in one commit and removed in another is still visible there even though the PR-level list omits it.
 
 ## Modified/renamed files do not show an M/R badge in the multi-file diff editor
 
@@ -203,7 +203,7 @@ Workaround: point the instance URL at a host that is reachable directly — a re
 
 `forgejoToolkit.worktreeCacheDirectory` accepts any writable folder, and the extension keeps its own bare clones in `<cacheDir>/repos/*.git` and its checkouts in `<cacheDir>/worktrees/*`. The LRU sweep runs lazily — it is triggered while a worktree is created from a cache clone, never on a timer — and treats every bare-clone directory as its own: a clone the extension never uses is stamped as used the first time a sweep sees it and deleted once 30 days pass without another use, and the oldest ones are deleted when more than 20 exist. Pointing the setting at a folder that already holds unrelated bare clones therefore puts them on that schedule.
 
-Checkouts under `<cacheDir>/worktrees` are swept in the same pass, but only where the extension can prove it created them: the directory must be a direct child, must not be referenced by a recorded worktree, must be older than 30 days, and must be a linked checkout whose source clone is gone (a `.git` file pointing at a deleted `<source>/.git/worktrees/<name>`) or have no `.git` entry at all. A real checkout (a `.git` directory — for example a repository you placed there yourself) and a worktree whose source clone still exists are never deleted.
+Checkouts under `<cacheDir>/worktrees` are swept in the same pass, but only where the extension can prove it created them: the directory must be a direct child, must not be referenced by a recorded worktree, must be older than 30 days, and must be a linked checkout whose source clone is gone (a `.git` file pointing at a deleted `<source>/.git/worktrees/<name>`). A real checkout (a `.git` directory — for example a repository you placed there yourself) and a worktree whose source clone still exists are never deleted. A directory with no `.git` entry at all is not swept either: the sweep cannot tell it apart from unrelated content, so it stays on disk and stays invisible to the worktree list until you delete it yourself (starting work on an issue asks before deleting such a directory when it is the one the extension would use).
 
 Workaround: use a dedicated folder for the setting (the default is extension storage), or keep bare repositories you maintain yourself outside `<cacheDir>/repos`.
 

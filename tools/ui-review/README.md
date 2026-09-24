@@ -142,8 +142,12 @@ cannot observe (native modals, real git, real MCP clients).
 9. **Release attachment delete (mock-backed).** Dashboard → the repository
    (`demo-repo`) → `引用` → `Release` → the pencil on `Version 2.0.0` → in
    "编辑 Release" scroll to `附件` → the `×` on `release-notes.md`. The host asks
-   "Delete this attachment?" (`确定删除此附件吗?`); `{ESC}` keeps the row,
-   `{ENTER}` removes it and the debug log shows
+   "Delete attachment #10 of release #5 in <instance name> (demo-user/demo-repo)?"
+   (`确定删除 <实例名> (demo-user/demo-repo) 中版本 #5 的附件 #10 吗？`), the
+   instance-scoped form of "Delete attachment #{0} of release #{1} in {2}?" — the
+   ids come from the fixtures and `{2}` is the instance name plus `owner/repo`, so
+   there is no generic "delete this attachment?" prompt any more. `{ESC}` keeps
+   the row, `{ENTER}` removes it and the debug log shows
    `DELETE …/releases/5/assets/10 → 204`.
    Fixtures this relies on: `mockRelease.assets` must list
    `mockReleaseAttachment` (the dialog only offers delete for attachments the
