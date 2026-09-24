@@ -25,6 +25,7 @@ import {
   REPO_DETAIL_LIST_LIMIT,
   repoContentsCacheBytesForTest,
   setDefaultRequestDispatcher,
+  treeCacheSizeForTest,
 } from '../client';
 import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
@@ -505,6 +506,73 @@ describe('ForgejoClient with MSW', () => {
 
       expect(detail.readme).toBeUndefined();
       // Size 0 is an empty README, not a withheld payload.
+      expect(detail.readmeSize).toBeUndefined();
+      expect(requests()).toBe(1);
+    });
+
+    it('describes a symlinked README instead of reporting its link target as a withheld payload', async () => {
+      // Forgejo answers a symlink with `target` and a `size` equal to the
+      // *target's* length. Copying that size marked the README as withheld above
+      // the instance's payload limit — a cause the server never gave, next to a
+      // nonsense size ("0.0 MiB" for a one-character target).
+      const client = createClient();
+      const target = 'docs/real-readme.md';
+      const requests = countReadmeRequests(() =>
+        HttpResponse.json({
+          name: 'README.md',
+          path: 'README.md',
+          type: 'symlink',
+          sha: 'link-sha',
+          size: target.length,
+          target,
+        }),
+      );
+
+      const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+      // The README is not missing: it is a symlink, and the detail says so.
+      expect(detail.readme).toContain('symlink');
+      expect(detail.readme).toContain(target);
+      // The link target's length must never be presented as a payload size.
+      expect(detail.readmeSize).toBeUndefined();
+      expect(detail.readme).not.toContain('MiB');
+      expect(requests()).toBe(1);
+    });
+
+    it('describes a submodule README instead of claiming nothing was returned', async () => {
+      const client = createClient();
+      const gitUrl = 'https://forgejo.example.com/demo-user/upstream-lib.git';
+      const requests = countReadmeRequests(() =>
+        HttpResponse.json({
+          name: 'README.md',
+          path: 'README.md',
+          type: 'submodule',
+          sha: 'submodule-sha',
+          size: 0,
+          submodule_git_url: gitUrl,
+        }),
+      );
+
+      const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+      expect(detail.readme).toContain('submodule');
+      expect(detail.readme).toContain(gitUrl);
+      // A submodule entry carries no payload at all: nothing was withheld.
+      expect(detail.readmeSize).toBeUndefined();
+      expect(requests()).toBe(1);
+    });
+
+    it('claims nothing for a README entry of a kind that has no payload', async () => {
+      // Any other non-file kind: no text to show, but also no size to blame on
+      // the instance's payload limit.
+      const client = createClient();
+      const requests = countReadmeRequests(() =>
+        HttpResponse.json({ name: 'README.md', path: 'README.md', type: 'dir', sha: 'dir-sha', size: 4096 }),
+      );
+
+      const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+      expect(detail.readme).toBeUndefined();
       expect(detail.readmeSize).toBeUndefined();
       expect(requests()).toBe(1);
     });
@@ -2761,6 +2829,51 @@ describe('ForgejoClient with MSW', () => {
       // A complete answer names no cause: a `truncatedBy` on an untruncated
       // result would describe a cut that never happened.
       expect(result.truncatedBy).toBeUndefined();
+    });
+  });
+
+  describe('git tree cache expiry', () => {
+    it('purges expired trees when a new one is inserted', async () => {
+      // Expiry used to be checked only on a hit, so up to MAX_TREE_CACHE_ENTRIES
+      // dead trees — each one a repository's whole blob-path array — stayed
+      // reachable until a count-based eviction happened to pick them.
+      const client = createClient();
+      let requests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', () => {
+          requests += 1;
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [{ path: 'a.ts', type: 'blob', sha: 'blob-sha' }],
+            truncated: false,
+          });
+        }),
+      );
+
+      const start = Date.now();
+      const clock = vi.spyOn(Date, 'now');
+      try {
+        clock.mockReturnValue(start);
+        await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'a');
+        await client.searchRepoFiles('demo-user', 'demo-repo', 'dev', 'a');
+        expect(treeCacheSizeForTest()).toBe(2);
+
+        // Both entries are now past their 60 s TTL.
+        clock.mockReturnValue(start + 60_001);
+        await client.searchRepoFiles('demo-user', 'demo-repo', 'feature', 'a');
+
+        // Only the tree just read is held: the two expired ones were purged
+        // rather than left to be evicted by count later.
+        expect(treeCacheSizeForTest()).toBe(1);
+
+        // The fresh entry survived the purge: a second search over it is served
+        // from memory instead of re-reading the tree.
+        const requestsAfterFetch = requests;
+        await client.searchRepoFiles('demo-user', 'demo-repo', 'feature', 'a');
+        expect(requests).toBe(requestsAfterFetch);
+      } finally {
+        clock.mockRestore();
+      }
     });
   });
 

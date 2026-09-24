@@ -31,6 +31,7 @@ import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
 import { clearServerVersions, getServerVersion, setServerVersion } from '../../api/serverVersion';
 import { clearLinkedRepositoryCache } from '../../worktree/gitOperations';
+import { logger } from '../../logger';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 type MessageListener = (message: unknown) => void;
@@ -64,6 +65,7 @@ function createFakePanel() {
   const posted: unknown[] = [];
   let listener: MessageListener | undefined;
   let disposeListener: (() => void) | undefined;
+  let disposed = false;
   const panel = {
     reveal: vi.fn(),
     dispose: vi.fn(),
@@ -76,6 +78,12 @@ function createFakePanel() {
       cspSource: '',
       asWebviewUri: (uri: unknown) => uri,
       postMessage: (message: unknown) => {
+        if (disposed) {
+          // What a disposed VS Code WebviewPanel does: posting rejects. A
+          // request that settles after the panel closed then becomes an
+          // unhandled rejection unless the host checks first.
+          throw new Error('Webview is disposed');
+        }
         posted.push(message);
         return Promise.resolve(true);
       },
@@ -89,7 +97,10 @@ function createFakePanel() {
     panel,
     posted,
     send: (message: unknown) => listener?.(message),
-    dispose: () => disposeListener?.(),
+    dispose: () => {
+      disposed = true;
+      disposeListener?.();
+    },
   };
 }
 
@@ -566,5 +577,86 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
     expect(result).toMatchObject({ success: false, error: 'Invalid input' });
     expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('Invalid input');
+  });
+
+  it('refuses a saveInstance URL that embeds a credential before testing it', async () => {
+    // The wizard's save stores through ConfigManager, which refuses a userinfo
+    // URL (fetch cannot even request one). Connection-testing it first answered
+    // "Cannot connect to the instance…" and named the instance instead of the
+    // URL, exactly the misdirection the sidebar's own save refusal avoids.
+    const { ForgejoClient } = await import('../../api/client');
+    vi.mocked(ForgejoClient).mockClear();
+    const addInstance = vi.spyOn(config, 'addInstance');
+
+    fake.send({
+      command: 'saveInstance',
+      url: 'https://alice:secret-token@forgejo.example.com',
+      token: 'tok',
+      _requestId: 'req-userinfo-save',
+    });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result).toMatchObject({ success: false });
+    expect(String(result?.error)).toContain('http');
+    expect(String(result?.error)).not.toContain('alice');
+    expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+    expect(addInstance).not.toHaveBeenCalled();
+  });
+
+  it('redacts a credential-carrying URL before logging it', async () => {
+    // The URL comes from the (untrusted) webview and can embed a token as
+    // userinfo; the sidebar redacts the same two log lines. The scheme refusal
+    // and the openExternal failure both have to log the redacted form.
+    const loggerError = vi.spyOn(logger, 'error');
+    const openExternal = vi.mocked(vscode.env.openExternal);
+    openExternal.mockRejectedValueOnce(new Error('no handler'));
+
+    fake.send({ command: 'openExternal', url: 'data:text/html,<b>x</b>' });
+    await flushDispatches();
+
+    fake.send({
+      command: 'openExternal',
+      url: 'https://alice:secret-token@forgejo.example.com/page',
+    });
+    await flushDispatches();
+
+    const logged = loggerError.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('forgejo.example.com');
+    expect(logged).not.toContain('secret-token');
+    // The failing-open line really ran: the block line alone would not prove the
+    // failure path is redacted too.
+    expect(logged).toContain('openExternal failed');
+  });
+
+  it('drops a reply once the panel is disposed instead of rejecting', async () => {
+    // The user closes the wizard while a request is still awaiting the network:
+    // without a guard, `_reply` posts to the disposed webview and the rejection
+    // is unhandled — the dispatch wrapper's catch has already returned.
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    // The list is deferred so the handler is still mid-request when the panel
+    // is disposed.
+    let resolveRepos!: (value: unknown) => void;
+    clientMocks.getUserRepositories.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRepos = resolve;
+        }),
+    );
+
+    fake.send({ command: 'getRepositories', instanceId: testInstance.id });
+    await flushDispatches();
+
+    fake.dispose();
+
+    resolveRepos([]);
+    await flushDispatches();
+    await flushDispatches();
+
+    process.off('unhandledRejection', onRejection);
+    expect(rejections).toEqual([]);
+    expect(postedMessages(fake.posted).some((m) => m.command === 'repositories')).toBe(false);
   });
 });

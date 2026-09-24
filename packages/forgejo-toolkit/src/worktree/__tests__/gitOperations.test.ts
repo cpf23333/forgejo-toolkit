@@ -26,8 +26,11 @@ vi.mock('fs', () => ({
     access: vi.fn(async () => undefined),
     stat: vi.fn(),
     readFile: vi.fn(),
+    writeFile: vi.fn(async () => undefined),
     readdir: vi.fn(async () => []),
-    rm: vi.fn(),
+    // Async like the real one: a test that leaves it unimplemented must not
+    // turn a fire-and-forget `rm(...).catch(...)` into a TypeError.
+    rm: vi.fn(async () => undefined),
   },
 }));
 
@@ -136,6 +139,24 @@ function mockRevParseShas(shasByRef: Record<string, string>, revListCounts: Reco
   });
 }
 
+/**
+ * Makes `fs.promises.readFile` answer as the clone's ownership marker readback:
+ * a `.clone-owner` read returns whatever `writeFile` last wrote (the token the
+ * call under test generated), and any other read fails, so the completeness
+ * probe sees no `remote.origin.url`. Without this the mocked `readFile` answers
+ * `undefined`, which the marker check reads as "not mine" and no cleanup runs.
+ */
+function installOwnMarkerReadback(): void {
+  vi.mocked(fs.promises.writeFile).mockImplementation(async () => undefined);
+  vi.mocked(fs.promises.readFile).mockImplementation(async (file: unknown) => {
+    if (!String(file).endsWith('.clone-owner')) {
+      throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
+    }
+    const written = vi.mocked(fs.promises.writeFile).mock.calls.at(-1)?.[1];
+    return String(written ?? '');
+  });
+}
+
 describe('gitOperations token leak prevention', () => {
   const token = 'secret-token-abc123';
 
@@ -183,6 +204,8 @@ describe('gitOperations token leak prevention', () => {
     await pushBranch('/repo', 'origin', 'main', token);
     await cloneRepository('https://forgejo.example.com/a/b.git', '/tmp/b', token);
     await fetchPullRequestHead('/repo', 'origin', 1, 'pr-1', token);
+    // push, clone, fetch: the clone's ownership marker and completeness probe
+    // are filesystem work, not git commands.
     expect(mocks.execFile).toHaveBeenCalledTimes(3);
     for (const call of mocks.execFile.mock.calls) {
       for (const arg of call[1] as string[]) {
@@ -230,7 +253,7 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
     await pushBranch('/repo', 'origin', 'main', token, true, instanceUrl);
     const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
     expect(pushCall).toBeDefined();
-    expect(pushCall![1]).toEqual(['push', '-u', 'origin', 'main']);
+    expect(pushCall![1]).toEqual(['push', '-u', 'origin', 'refs/heads/main']);
     const env = (pushCall![2] as { env?: NodeJS.ProcessEnv }).env;
     expect(env?.GIT_CONFIG_VALUE_0).toBe(`Authorization: token ${token}`);
   });
@@ -255,7 +278,7 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
     await pushBranch('/repo', 'origin', 'main', token, false, instanceUrl);
     const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
     expect(pushCall).toBeDefined();
-    expect(pushCall![1]).toEqual(['push', 'origin', 'main']);
+    expect(pushCall![1]).toEqual(['push', 'origin', 'refs/heads/main']);
     const env = (pushCall![2] as { env?: NodeJS.ProcessEnv }).env;
     expect(env?.GIT_CONFIG_VALUE_0).toBeUndefined();
   });
@@ -270,7 +293,7 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
     expect(mocks.execFile).toHaveBeenCalledTimes(1);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['push', 'origin', 'main'],
+      ['push', 'origin', 'refs/heads/main'],
       expect.objectContaining({
         env: expect.objectContaining({
           GIT_CONFIG_COUNT: '1',
@@ -341,7 +364,7 @@ describe('pushBranch remote ownership check (TOCTOU guard)', () => {
 
     await pushBranch('/repo', 'origin', 'main', token, false, instanceUrl);
     const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
-    expect(pushCall![1]).toEqual(['push', 'origin', 'main']);
+    expect(pushCall![1]).toEqual(['push', 'origin', 'refs/heads/main']);
     expect((pushCall![2] as { env?: NodeJS.ProcessEnv }).env?.GIT_CONFIG_VALUE_0).toBe(`Authorization: token ${token}`);
   });
 });
@@ -661,7 +684,7 @@ describe('gitOperations argument passing', () => {
     await pushBranch('/repo', 'origin', branch);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['push', 'origin', branch],
+      ['push', 'origin', `refs/heads/${branch}`],
       expect.anything(),
       expect.any(Function),
     );
@@ -675,6 +698,22 @@ describe('gitOperations argument passing', () => {
     await expect(pushBranch('/repo', '--force', 'main')).rejects.toThrow(/is not a usable git remote name/);
     await expect(pushBranch('/repo', '-u', 'main')).rejects.toThrow(/is not a usable git remote name/);
     expect(mocks.execFile).not.toHaveBeenCalled();
+  });
+
+  it('pushBranch cannot turn a branch named "+x" into a forced push', async () => {
+    // `+` is a legal refname character but a leading one in a refspec is git's
+    // force marker, so the bare name reached git as "force-update the branch x"
+    // — pushing unrelated history over it (or failing with "src refspec x does
+    // not match any"). The source is spelled as the full ref, where no part of
+    // the value can be read as a flag.
+    await pushBranch('/repo', 'origin', '+x');
+
+    const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
+    expect(pushCall).toBeDefined();
+    expect(pushCall![1]).toEqual(['push', 'origin', 'refs/heads/+x']);
+    for (const arg of pushCall![1] as string[]) {
+      expect(arg.startsWith('+')).toBe(false);
+    }
   });
 
   it('cloneRepository passes --quiet so clone progress does not overflow stderr maxBuffer', async () => {
@@ -691,7 +730,7 @@ describe('gitOperations argument passing', () => {
     await pushBranch('/repo', 'origin', 'main', 'tok', true);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['push', '-u', 'origin', 'main'],
+      ['push', '-u', 'origin', 'refs/heads/main'],
       expect.objectContaining({
         env: expect.objectContaining({
           GIT_CONFIG_VALUE_0: 'Authorization: token tok',
@@ -942,7 +981,7 @@ describe('gitOperations argument passing', () => {
     // No upstream configured in this mock: falls back to a plain origin push.
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['push', 'origin', 'HEAD'],
+      ['push', 'origin', 'refs/heads/HEAD'],
       expect.anything(),
       expect.any(Function),
     );
@@ -1913,11 +1952,14 @@ describe('git timeouts', () => {
 
   it('removes the partial clone a killed clone left behind', async () => {
     vi.useFakeTimers();
+    installOwnMarkerReadback();
     // The clone directory only appears once git is running, so the pre-call
     // existence probe answers "absent" and the directory is this call's own.
     vi.mocked(fs.promises.access).mockRejectedValue(
       Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
     );
+    // No `remote.origin.url` was written, so the directory is provably this
+    // call's incomplete output.
     mockAbortableExecFile();
 
     const settled = cloneRepository('https://forgejo.example.com/owner/repo.git', '/cache/repos/owner-repo.git').catch(
@@ -1938,6 +1980,10 @@ describe('git timeouts', () => {
   });
 
   it('removes the partial clone a failed clone left behind', async () => {
+    installOwnMarkerReadback();
+    vi.mocked(fs.promises.access).mockRejectedValue(
+      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
+    );
     mocks.execFile.mockImplementation(
       (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
         callback(
@@ -1965,6 +2011,11 @@ describe('git timeouts', () => {
     // clone): git refuses to clone into it, so this call did not create it and
     // must not remove it.
     vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+    // A complete clone (a usable `remote.origin.url`) is left alone whatever
+    // the marker says; the marker read is not even reached for this case.
+    vi.mocked(fs.promises.readFile).mockImplementation(async (file: unknown) =>
+      String(file).endsWith('/config') ? '[remote "origin"]\n\turl = https://forgejo.example.com/owner/repo.git\n' : '',
+    );
     mocks.execFile.mockImplementation(
       (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
         callback(
@@ -1982,8 +2033,76 @@ describe('git timeouts', () => {
     ).rejects.toThrow('already exists');
 
     // A directory the user created by hand is out of scope: only the clone this
-    // call created may be reclaimed.
-    expect(vi.mocked(fs.promises.rm)).not.toHaveBeenCalled();
+    // call created may be reclaimed. (The call's own ownership marker next to
+    // the directory is removed; the directory itself is not touched.)
+    expect(vi.mocked(fs.promises.rm)).not.toHaveBeenCalledWith(
+      '/cache/repos/hand-made.git',
+      expect.objectContaining({ recursive: true }),
+    );
+  });
+
+  it('removes a markerless partial clone only when this call owns it', async () => {
+    // The directory was absent before the call, but the ownership marker is
+    // not this call's (a second window wrote its own before this one got
+    // there) — the in-flight clone belongs to that window and must survive.
+    vi.mocked(fs.promises.access).mockRejectedValue(
+      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
+    );
+    vi.mocked(fs.promises.readFile).mockResolvedValue('another-window-999-1-abc');
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(
+          Object.assign(new Error('fatal: destination path already exists'), {
+            stderr: 'fatal: destination path already exists',
+          }),
+          '',
+          'fatal: destination path already exists',
+        );
+      },
+    );
+
+    await expect(
+      cloneRepository('https://forgejo.example.com/owner/repo.git', '/cache/repos/owner-repo.git'),
+    ).rejects.toThrow('already exists');
+
+    expect(vi.mocked(fs.promises.rm)).not.toHaveBeenCalledWith('/cache/repos/owner-repo.git', {
+      recursive: true,
+      force: true,
+    });
+  });
+
+  it('leaves a complete clone alone even when this call owns the marker', async () => {
+    // The window that created this clone finished it before this call's clone
+    // failed on the existing directory: a usable `remote.origin.url` means the
+    // directory is a cache clone, not anybody's partial output.
+    vi.mocked(fs.promises.access).mockRejectedValue(
+      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
+    );
+    vi.mocked(fs.promises.readFile).mockImplementation(async (file: unknown) =>
+      String(file).endsWith('/config')
+        ? '[remote "origin"]\n\turl = https://forgejo.example.com/owner/repo.git\n'
+        : 'this-calls-own-marker-read-back',
+    );
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(
+          Object.assign(new Error('fatal: destination path already exists'), {
+            stderr: 'fatal: destination path already exists',
+          }),
+          '',
+          'fatal: destination path already exists',
+        );
+      },
+    );
+
+    await expect(
+      cloneRepository('https://forgejo.example.com/owner/repo.git', '/cache/repos/owner-repo.git'),
+    ).rejects.toThrow('already exists');
+
+    expect(vi.mocked(fs.promises.rm)).not.toHaveBeenCalledWith('/cache/repos/owner-repo.git', {
+      recursive: true,
+      force: true,
+    });
   });
 
   it('leaves a clone that finishes in time alone', async () => {
@@ -1997,7 +2116,12 @@ describe('git timeouts', () => {
       cloneRepository('https://forgejo.example.com/owner/repo.git', '/cache/repos/owner-repo.git'),
     ).resolves.toBeUndefined();
 
-    expect(vi.mocked(fs.promises.rm)).not.toHaveBeenCalled();
+    // Only the call's own ownership marker is cleaned up; the finished clone
+    // is never recursively removed.
+    expect(vi.mocked(fs.promises.rm)).not.toHaveBeenCalledWith(
+      '/cache/repos/owner-repo.git',
+      expect.objectContaining({ recursive: true }),
+    );
   });
 });
 
@@ -3278,5 +3402,166 @@ describe('fetchPullRequestHead recovery from a stranded worktree registration', 
 
     const commands = mocks.execFile.mock.calls.map((call) => (call[1] as string[]).join(' '));
     expect(commands).not.toContain('worktree prune');
+  });
+});
+
+describe('createWorktreeWithNewBranch recovery from a stranded worktree registration', () => {
+  // The issue path's own wedge: the checkout directory was deleted outside git
+  // (disk cleanup, a manual delete, a cache-directory change), the registration
+  // survived, and `git worktree add -B <branch>` then refuses on *every* retry.
+  const strandedPath = '/cache/worktrees/owner-repo-issue-5';
+  const branch = 'issue-5-fix-bug';
+  const worktreePath = '/cache/worktrees/owner-repo-issue-5-fix-bug';
+  // Verified against git 2.55: the refusal names the branch and the missing path.
+  const refusal = `fatal: '${branch}' is already used by worktree at '${strandedPath}'`;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+  });
+
+  /**
+   * The argv of the guarded `worktree add`: the first attempt is refused with
+   * git's "already used by worktree" message, the retry (after the prune) runs
+   * in a `worktree list` that no longer reports the branch.
+   */
+  function refuseFirstAdd() {
+    let addCalls = 0;
+    let pruned = false;
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'rev-parse' && args[1] === '--verify') {
+          // The leftover branch resolves to the start point, so the reset loses
+          // nothing and is allowed.
+          callback(null, { stdout: 'aaaaaaa1\n', stderr: '' } as unknown as string, '');
+          return;
+        }
+        if (args[0] === 'rev-list' && args[1] === '--count') {
+          callback(null, { stdout: '0\n', stderr: '' } as unknown as string, '');
+          return;
+        }
+        if (args[0] === 'worktree' && args[1] === 'add') {
+          addCalls += 1;
+          if (!pruned) {
+            const error = new Error('Command failed: git worktree add') as Error & { stderr: string };
+            error.stderr = refusal;
+            callback(error, '', refusal);
+            return;
+          }
+          callback(null, '', '');
+          return;
+        }
+        if (args[0] === 'worktree' && args[1] === 'prune') {
+          pruned = true;
+          callback(null, '', '');
+          return;
+        }
+        if (args[0] === 'worktree' && args[1] === 'list') {
+          const porcelain = pruned
+            ? 'worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n'
+            : `worktree /repo\nHEAD abc\nbranch refs/heads/main\n\nworktree ${strandedPath}\nHEAD abc\nbranch refs/heads/${branch}\nprunable gitdir file points to non-existent location\n\n`;
+          callback(null, { stdout: porcelain, stderr: '' } as unknown as string, '');
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+    return () => addCalls;
+  }
+
+  it('prunes a registration whose directory is gone and retries the add once', async () => {
+    const addCalls = refuseFirstAdd();
+    // The registered worktree directory no longer exists: that is what makes
+    // the registration prunable.
+    vi.mocked(fs.promises.access).mockRejectedValue(
+      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
+    );
+
+    await expect(createWorktreeWithNewBranch('/repo', worktreePath, branch, 'FETCH_HEAD')).resolves.toBeUndefined();
+
+    expect(addCalls()).toBe(2);
+    const commands = mocks.execFile.mock.calls.map((call) => (call[1] as string[]).join(' '));
+    expect(commands).toContain('worktree prune');
+    // The real problem was the stranded registration, so no branch was deleted
+    // and the retry used the same argv as the first attempt.
+    expect(commands.filter((command) => command.startsWith('worktree add '))).toEqual([
+      `worktree add -B ${branch} -- ${worktreePath} FETCH_HEAD`,
+      `worktree add -B ${branch} -- ${worktreePath} FETCH_HEAD`,
+    ]);
+  });
+
+  it('leaves a live registration alone and reports the real problem', async () => {
+    const addCalls = refuseFirstAdd();
+    // The registered checkout is still on disk: it may hold the user's work, so
+    // nothing may be pruned to make the add succeed.
+    vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+
+    await expect(createWorktreeWithNewBranch('/repo', worktreePath, branch, 'FETCH_HEAD')).rejects.toThrow(
+      /is already used by worktree/,
+    );
+
+    expect(addCalls()).toBe(1);
+    const commands = mocks.execFile.mock.calls.map((call) => (call[1] as string[]).join(' '));
+    expect(commands).not.toContain('worktree prune');
+  });
+
+  it('refuses to reset a branch that has commits of its own after the prune', async () => {
+    // Before the prune the branch is pinned to the missing checkout, so the
+    // first guard passes with the divergence it can see; once the registration
+    // is gone the branch resolves again and `-B` would silently drop the
+    // commits the start point does not reach. The guard has to run on the retry
+    // too, and it refuses (fails loudly) instead of resetting.
+    let pruned = false;
+    let listCalls = 0;
+    // The registered directory is gone, so the registration is the stranded one
+    // the recovery acts on.
+    vi.mocked(fs.promises.access).mockRejectedValue(
+      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
+    );
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'rev-parse' && args[1] === '--verify') {
+          const ref = String(args[2] ?? '').replace(/\^\{commit\}$/, '');
+          const shas: Record<string, string> = {
+            [`refs/heads/${branch}`]: 'aaaaaaa1',
+            FETCH_HEAD: 'bbbbbbb2',
+          };
+          callback(null, { stdout: shas[ref] ? `${shas[ref]}\n` : '', stderr: '' } as unknown as string, '');
+          return;
+        }
+        if (args[0] === 'rev-list' && args[1] === '--count') {
+          // Zero before the prune (the reset looks harmless), one afterwards.
+          callback(null, { stdout: pruned ? '1\n' : '0\n', stderr: '' } as unknown as string, '');
+          return;
+        }
+        if (args[0] === 'worktree' && args[1] === 'add') {
+          const error = new Error('Command failed: git worktree add') as Error & { stderr: string };
+          error.stderr = refusal;
+          callback(error, '', refusal);
+          return;
+        }
+        if (args[0] === 'worktree' && args[1] === 'prune') {
+          pruned = true;
+          callback(null, '', '');
+          return;
+        }
+        if (args[0] === 'worktree' && args[1] === 'list') {
+          listCalls += 1;
+          const porcelain = `worktree /repo\nHEAD abc\nbranch refs/heads/main\n\nworktree ${strandedPath}\nHEAD abc\nbranch refs/heads/${branch}\nprunable gitdir file points to non-existent location\n\n`;
+          callback(null, { stdout: porcelain, stderr: '' } as unknown as string, '');
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+
+    await expect(createWorktreeWithNewBranch('/repo', worktreePath, branch, 'FETCH_HEAD')).rejects.toThrow(
+      /commits of its own/,
+    );
+    expect(pruned).toBe(true);
+    // Exactly one add attempt: the retry is refused before it runs.
+    const commands = mocks.execFile.mock.calls.map((call) => (call[1] as string[]).join(' '));
+    expect(commands.filter((command) => command.startsWith('worktree add '))).toHaveLength(1);
+    expect(listCalls).toBeGreaterThan(0);
   });
 });

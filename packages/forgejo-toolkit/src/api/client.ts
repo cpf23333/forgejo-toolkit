@@ -254,6 +254,32 @@ export function clearTreeCache(): void {
 }
 
 /**
+ * How many git trees the shared cache currently holds. Exported for tests, which
+ * cannot otherwise observe that inserting purges the entries whose TTL has
+ * passed.
+ */
+export function treeCacheSizeForTest(): number {
+  return treeCache.size;
+}
+
+/**
+ * Drops the tree entries whose TTL has passed, so the count cap measures live
+ * entries.
+ *
+ * Expiry used to be checked only on a hit, so up to MAX_TREE_CACHE_ENTRIES
+ * expired trees — each a repository's whole blob-path array — stayed reachable
+ * until a count-based eviction happened to pick them; the contents memo carries
+ * the same fix in `purgeExpiredRepoContents`.
+ */
+function purgeExpiredTreeCache(now: number): void {
+  for (const [key, entry] of treeCache) {
+    if (entry.expiresAt <= now) {
+      treeCache.delete(key);
+    }
+  }
+}
+
+/**
  * Short-lived memo of `getRepoContents` answers, for the repository file
  * provider: VS Code calls `stat` and then `readFile` for the same URI, and
  * because that provider builds a ForgejoClient per call, the second call used to
@@ -1001,9 +1027,11 @@ export class ForgejoClient {
   }
 
   /**
-   * The README's text and the size the contents API reported, or `undefined`
-   * when the repository has no README (a 404, or any other read failure —
-   * `_probe` treats them alike).
+   * What the contents endpoint answered for `README.md`: its decoded text
+   * (`content`), the honest sentence to show instead when the entry is not a
+   * regular file (`notice`), the size of a regular file whose payload the
+   * instance withheld (`size`), or `undefined` when the repository has no
+   * README (a 404, or any other read failure — `_probe` treats them alike).
    *
    * The contents API omits the payload of a file above `[api]
    * DEFAULT_MAX_BLOB_SIZE` (10 MiB by default) and answers with the real
@@ -1012,27 +1040,57 @@ export class ForgejoClient {
    * this variant carries the size through: a caller that sees a size with no
    * content knows the payload was withheld and can say so (the host renders
    * the localized notice from its `utils/payloadNotice.ts`) instead of showing
-   * a README-less repository. `content` is the decoded text, exactly what
-   * `getReadme` returns when it is present. `getRepoDetail` calls this once and
-   * exposes the result as `readme`/`readmeSize`, so a detail load needs no
-   * second probe.
+   * a README-less repository.
+   *
+   * The `size` is only ever copied for a regular file. The endpoint answers a
+   * symlinked README with `type: 'symlink'`, `target` and a `size` equal to the
+   * *link target's* length — reading that as "the payload was withheld above
+   * the instance's limit" named a cause the server never gave, next to a
+   * nonsense size (0.0 MiB for a one-character target). A submodule README
+   * (`type: 'submodule'`, size 0) has no payload at all. Both carry `notice`
+   * instead, exactly like `getFileContentResult` answers those kinds.
+   *
+   * `getRepoDetail` calls this once and exposes the result as
+   * `readme`/`readmeSize`, so a detail load needs no second probe.
    */
   async getReadmeEntry(
     owner: string,
     repo: string,
     ref?: string,
-  ): Promise<{ content?: string; size?: number } | undefined> {
+  ): Promise<{ content?: string; size?: number; notice?: string } | undefined> {
     const readmeFile = await this._probe(
-      repoGetContents(owner, repo, 'README.md', ref ? { ref } : undefined, { client: this._client() }),
+      repoGetContents(owner, repo, README_PATH, ref ? { ref } : undefined, { client: this._client() }),
       `getReadmeEntry ${owner}/${repo}`,
     );
     if (!readmeFile || Array.isArray(readmeFile)) {
       return undefined;
     }
-    const entry: { content?: string; size?: number } = {};
+    const entry: { content?: string; size?: number; notice?: string } = {};
+    // Content the server did send is always file content, whatever the entry
+    // says, and the `size` alongside it is then the file's own size.
     if (readmeFile.content) {
       entry.content = decodeBase64(readmeFile.content);
+    } else {
+      switch ((readmeFile as { type?: string }).type) {
+        case 'symlink':
+          // `size` here is the *link target's* length, not a payload size.
+          entry.notice = readmeSymlinkNotice((readmeFile as { target?: string }).target);
+          return entry;
+        case 'submodule':
+          entry.notice = readmeSubmoduleNotice((readmeFile as { submodule_git_url?: string }).submodule_git_url);
+          return entry;
+        case 'dir':
+          // Defensive: a directory answers with its listing (an array, handled
+          // above), but a single `dir` entry must not fall through to the
+          // size-based withheld-payload reading.
+          return entry;
+        default:
+          break;
+      }
     }
+    // A regular file (or an entry that names no type at all, as older servers
+    // do). A positive size with no content means the payload was withheld; size
+    // 0 is a genuinely empty README.
     if (readmeFile.size !== undefined) {
       entry.size = readmeFile.size;
     }
@@ -1118,12 +1176,20 @@ export class ForgejoClient {
     return {
       repository: repository as ForgejoRepository,
       empty: false,
-      readme: readmeEntry?.content,
-      // A positive size with no content is the only combination that means
-      // "withheld": size 0 is a genuinely empty README and no entry at all is an
-      // absent one, and both must leave this undefined.
+      // Read the README's text when it arrived, and otherwise the honest
+      // sentence for a README that is not a regular file (a symlink or a
+      // submodule). Neither is a size, so `readmeSize` stays unset for them.
+      readme: readmeEntry?.content ?? readmeEntry?.notice,
+      // A positive size with no content and no notice is the only combination
+      // that means "withheld": size 0 is a genuinely empty README, no entry at
+      // all is an absent one, and a symlink/submodule has no payload to withhold
+      // — all of those must leave this undefined.
       readmeSize:
-        readmeEntry && readmeEntry.content === undefined && readmeEntry.size && readmeEntry.size > 0
+        readmeEntry &&
+        readmeEntry.content === undefined &&
+        readmeEntry.notice === undefined &&
+        readmeEntry.size &&
+        readmeEntry.size > 0
           ? readmeEntry.size
           : undefined,
       branches: (branchPage ?? [])
@@ -1394,6 +1460,13 @@ export class ForgejoClient {
     // a later caller still learns the result may be incomplete, and it expires on
     // the same TTL and is evicted oldest-first like any other. Failures are still
     // not cached: an error above propagates before this point.
+    // Expired entries are counted out first: without that, up to
+    // MAX_TREE_CACHE_ENTRIES trees whose TTL has passed stayed in the map (and
+    // in memory) until a count-based eviction happened to pick them, and they
+    // could evict a live entry to make room for a new one even though they
+    // themselves were dead.
+    const now = Date.now();
+    purgeExpiredTreeCache(now);
     if (treeCache.size >= MAX_TREE_CACHE_ENTRIES) {
       // Map iteration order is insertion order: the first key is the oldest.
       const oldest = treeCache.keys().next().value;
@@ -1401,7 +1474,7 @@ export class ForgejoClient {
         treeCache.delete(oldest);
       }
     }
-    treeCache.set(key, { value: allFiles, truncated, expiresAt: Date.now() + TREE_CACHE_TTL_MS });
+    treeCache.set(key, { value: allFiles, truncated, expiresAt: now + TREE_CACHE_TTL_MS });
     return { entries: allFiles, truncated };
   }
 
@@ -2817,6 +2890,12 @@ export interface FileContentResult {
   text: string;
 }
 
+/**
+ * The path `getReadmeEntry` probes. Named once so the notice sentences below
+ * name the same file the request did.
+ */
+const README_PATH = 'README.md';
+
 /** The answer for a path that names a directory, whose response is its listing. */
 function directoryNotice(path: string): string {
   return `${path} is a directory, not a file: use list_repo_contents to list its entries.`;
@@ -2842,6 +2921,31 @@ function submoduleNotice(path: string, gitUrl?: string): string {
   return gitUrl
     ? `${path} is a submodule, not a file: its own repository is at ${gitUrl}. Open the submodule in the Forgejo web UI, or clone that repository.`
     : `${path} is a submodule, not a file: it is a separate repository, so it has no file content here. Open it in the Forgejo web UI.`;
+}
+
+/**
+ * The answer for a README that is a symlink. The contents API fills `content`
+ * only for a regular file and answers a symlink with `target` and a `size` equal
+ * to the link target's length, so that size is not the README's and must never
+ * become a withheld-payload notice. Kept separate from `symlinkNotice` because
+ * the caller here is the dashboard's README preview, not a file read: it says
+ * where the text lives rather than asking for a different path.
+ */
+function readmeSymlinkNotice(target?: string): string {
+  return target
+    ? `${README_PATH} is a symlink to ${target}, so Forgejo returned no text for it. Open ${target} in the Forgejo web UI to read it.`
+    : `${README_PATH} is a symlink that points elsewhere in the repository, so Forgejo returned no text for it. Open it in the Forgejo web UI to read it.`;
+}
+
+/**
+ * The answer for a README that is a submodule: the entry names its own
+ * repository and carries no payload at all (its size is 0), so there is no text
+ * this repository can show and none was withheld.
+ */
+function readmeSubmoduleNotice(gitUrl?: string): string {
+  return gitUrl
+    ? `${README_PATH} is a submodule whose own repository is at ${gitUrl}, so this repository holds no README text for it. Open the submodule in the Forgejo web UI to read it there.`
+    : `${README_PATH} is a submodule, a separate repository, so this repository holds no README text for it. Open it in the Forgejo web UI.`;
 }
 
 // The generated API clients interpolate path parameters into the URL without

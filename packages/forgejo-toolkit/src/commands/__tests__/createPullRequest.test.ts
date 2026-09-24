@@ -44,6 +44,7 @@ import {
   pushBranch,
   resolveUpstreamRemote,
 } from '../../worktree/gitOperations';
+import { logger } from '../../logger';
 
 const instance: ForgejoInstance = {
   id: 'inst1',
@@ -301,6 +302,31 @@ describe('createPrFromCurrentBranch', () => {
     expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
     expect(pushBranch).not.toHaveBeenCalled();
     expect(viewProvider.openCreatePullRequest).not.toHaveBeenCalled();
+  });
+
+  it('keeps the instance credential out of the log when it reports a foreign push target', async () => {
+    // The stored instance URL predates the config guard that refuses a URL
+    // carrying userinfo, so a legacy `https://user:token@host` is still possible
+    // here — and this line reached the output channel verbatim.
+    const credentialInstance: ForgejoInstance = {
+      ...instance,
+      url: 'https://user:secret-token@forgejo.example.com',
+    };
+    const config = { getInstances: () => [credentialInstance] } as unknown as ConfigManager;
+    const errorSpy = vi.spyOn(logger, 'error');
+    setUpstream('mirror/feature');
+    vi.mocked(getAheadCount).mockResolvedValue(1);
+    vi.mocked(getRemotePushUrls).mockResolvedValue(['https://github.example.com/owner/repo.git']);
+
+    try {
+      await createPrFromCurrentBranch(config, createViewProvider());
+    } finally {
+      const logged = errorSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      errorSpy.mockRestore();
+      expect(logged).toContain('does not belong to instance');
+      expect(logged).toContain('forgejo.example.com');
+      expect(logged).not.toContain('secret-token');
+    }
   });
 
   it('aborts without pushing when only one of the push targets belongs to the instance', async () => {

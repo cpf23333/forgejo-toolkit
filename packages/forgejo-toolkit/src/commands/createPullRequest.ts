@@ -4,6 +4,7 @@ import type { ForgejoToolkitViewProvider } from '../webview/viewProvider';
 import { ForgejoClient } from '../api/client';
 import { logger } from '../logger';
 import { userFacingErrorMessage } from '../api/errors';
+import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 import {
   detectLinkedRepository,
   getAheadCount,
@@ -179,7 +180,10 @@ export async function createPrFromCurrentBranch(
       pushToken = undefined;
     } else if (pushUrls.some((url) => !findInstanceForRemote(url, [instance]))) {
       logger.error(
-        `[createPrFromCurrentBranch] a push target of remote "${pushRemote}" does not belong to instance ${instance.url}; push aborted to avoid leaking the access token`,
+        // Redacted: a legacy stored instance URL may embed the access token as
+        // userinfo (`https://user:token@host`), and this line lands in the
+        // output channel.
+        `[createPrFromCurrentBranch] a push target of remote "${pushRemote}" does not belong to instance ${redactUrlUserinfo(instance.url)}; push aborted to avoid leaking the access token`,
       );
       vscode.window.showErrorMessage(
         vscode.l10n.t(

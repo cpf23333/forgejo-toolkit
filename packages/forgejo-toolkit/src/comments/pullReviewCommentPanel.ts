@@ -371,6 +371,13 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     reviewContext: PullReviewCommentContext,
     callbacks?: PullReviewCommentPanelCallbacks,
   ): Promise<void> {
+    // The panel may already be disposed when this queued switch runs (the switch
+    // is chained on `_contextSwitch`, and `_dispose` ran past it): asking a
+    // disposed webview about its draft is pointless, and the question would arm
+    // a fresh 2 s timer that `_dispose` has already walked past.
+    if (this._disposed) {
+      return;
+    }
     if (await this._queryDraftDirty()) {
       const discardLabel = vscode.l10n.t('Discard Draft');
       const choice = await vscode.window.showWarningMessage(
@@ -397,6 +404,11 @@ export class PullReviewCommentPanel implements vscode.Disposable {
    * prompting on a stale panel) would be worse than the residual risk.
    */
   private _queryDraftDirty(): Promise<boolean> {
+    // A disposed panel has no editor to ask, and posting the question would
+    // reject; answer "clean" without posting or arming the timeout.
+    if (this._disposed) {
+      return Promise.resolve(false);
+    }
     return new Promise((resolve) => {
       // The query owns a webview listener and a 2 s timeout; both are tracked in
       // `_draftQuery` so `_dispose` can settle the promise and drop them instead
@@ -834,7 +846,21 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     if (completionRequest) {
       this._unansweredRequests.delete(completionRequest);
     }
-    this._panel.webview.postMessage({ command, ...data } as HostToWebviewMessage);
+    // The panel can be closed while a handler is still awaiting its network
+    // call (`_handleSubmitPullReviewComment`, `_handleSubmitPullReview`,
+    // `_handleCreateIssueAttachment` all reply after their request resolves).
+    // Posting to the disposed webview then rejects, and an unguarded,
+    // un-caught rejection surfaces as an unhandled rejection in the extension
+    // host. The sidebar guards the same hazard by dropping the reply once its
+    // view is gone (`viewProvider._reply`); this panel has no view to null out,
+    // so `_disposed` is the equivalent check. The reply is dropped rather than
+    // awaited: nobody can consume it any more.
+    if (this._disposed) {
+      return;
+    }
+    void Promise.resolve(this._panel.webview.postMessage({ command, ...data } as HostToWebviewMessage)).catch(
+      () => undefined,
+    );
   }
 
   private _update(): void {

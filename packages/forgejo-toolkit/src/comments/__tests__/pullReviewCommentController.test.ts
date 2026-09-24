@@ -242,11 +242,12 @@ function createConfig(): ConfigManager {
   } as unknown as ConfigManager;
 }
 
-function makeDocument(isBase: boolean) {
+function makeDocument(isBase: boolean, overrides?: { index?: number; ref?: string; instanceId?: string }) {
   // The query must serialize exactly like the controller's _buildUri so the
   // document matches the comments rendered for its side.
-  const query = JSON.stringify({ index: 2, ref: 'sha1', isBase });
-  const path = `/${INSTANCE_ID}/owner/repo/src/index.ts`;
+  const instanceId = overrides?.instanceId ?? INSTANCE_ID;
+  const query = JSON.stringify({ index: overrides?.index ?? 2, ref: overrides?.ref ?? 'sha1', isBase });
+  const path = `/${instanceId}/owner/repo/src/index.ts`;
   const uri = {
     scheme: FORGEJO_PR_SCHEME,
     path,
@@ -1157,6 +1158,69 @@ describe('PullReviewCommentController review comments fan-out', () => {
       expect(shown).toHaveBeenCalledTimes(1);
     } finally {
       controller.dispose();
+    }
+  });
+
+  it('warns again for a different pull request whose failing review shares an id', async () => {
+    // Review ids are per-pull-request sequences, so review 11 here is not the
+    // review 11 that failed in the other pull request. Fingerprinting them
+    // without the pull request swallowed the second warning entirely.
+    state.listReviews = [
+      { id: 10, state: 'COMMENTED', user: { login: 'reviewer' } },
+      { id: 11, state: 'PENDING', user: { login: 'user' } },
+    ];
+    state.failedReviewIds = [11];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const shown = vi.mocked(vscode.window.showWarningMessage);
+
+    try {
+      await openDocument(makeDocument(false));
+      expect(shown).toHaveBeenCalledTimes(1);
+
+      // A different pull request of the same repository, whose failing review
+      // carries the same per-PR id.
+      await openDocument(makeDocument(false, { index: 3 }));
+
+      expect(shown).toHaveBeenCalledTimes(2);
+      expect(shown.mock.calls[1][0]).toContain('11');
+    } finally {
+      controller.dispose();
+    }
+  });
+
+  it('warns again when the same reviews fail after a complete load recovered', async () => {
+    vi.useFakeTimers();
+    try {
+      state.listReviews = [
+        { id: 10, state: 'COMMENTED', user: { login: 'reviewer' } },
+        { id: 11, state: 'PENDING', user: { login: 'user' } },
+      ];
+      state.failedReviewIds = [11];
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
+      const shown = vi.mocked(vscode.window.showWarningMessage);
+
+      await openDocument(makeDocument(false));
+      expect(shown).toHaveBeenCalledTimes(1);
+
+      // The instance recovers: a re-fetch after the cache TTL loads every
+      // review, so the remembered failure no longer describes the data.
+      state.failedReviewIds = [];
+      vi.setSystemTime(Date.now() + 60_000);
+      await openDocument(makeDocument(false));
+      expect(shown).toHaveBeenCalledTimes(1);
+
+      // It fails again on the same review: this is a new failure and the user
+      // must hear about it rather than be left with stale, silently hidden data.
+      state.failedReviewIds = [11];
+      vi.setSystemTime(Date.now() + 120_000);
+      await openDocument(makeDocument(false));
+
+      expect(shown).toHaveBeenCalledTimes(2);
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
     }
   });
 

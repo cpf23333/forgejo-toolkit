@@ -358,12 +358,12 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
       return { dispose: vi.fn() };
     });
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
-    PullReviewCommentPanel.createOrShow(
+    const panel = PullReviewCommentPanel.createOrShow(
       vscode.Uri.file('/ext') as vscode.Uri,
       configWithInstance(instanceUrl),
       createContext(),
     );
-    return { fakePanel, send: (message: unknown) => messageHandler?.(message) };
+    return { fakePanel, panel, send: (message: unknown) => messageHandler?.(message) };
   }
 
   it('answers getInitialState so the shared composable can mount', async () => {
@@ -379,6 +379,10 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
       {
         id: 'demo',
         url: 'https://forgejo.example.com',
+        // The credential-free twin the webview hands to git or the browser
+        // (see `toPublicInstance`); this instance URL carries none, so it is the
+        // stored URL unchanged.
+        functionalUrl: 'https://forgejo.example.com',
         name: 'Demo',
         username: 'demo-user',
         tokenFingerprint: expect.stringMatching(/^[0-9a-f]+-\d+$/),
@@ -704,6 +708,80 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
       // The timeout must be gone: firing it later would post to a disposed
       // webview (and the query promise would never settle).
       expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('drops a reply whose request finished after the panel was disposed', async () => {
+    // The submit handlers reply only after their network call resolves, so
+    // closing the panel mid-request made `_reply` post to a disposed webview.
+    // That post rejects, and the un-caught rejection surfaced in the extension
+    // host as an unhandled rejection.
+    const unhandled: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandledRejection);
+    try {
+      const { fakePanel, panel, send } = openPanel();
+      let finishSubmit!: () => void;
+      const started = new Promise<void>((resolveStarted) => {
+        clientMocks.createPendingPullReview.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveStarted();
+              finishSubmit = () => resolve({ id: 42 });
+            }),
+        );
+      });
+
+      const dispatch = send({ command: 'submitPullReviewComment', body: 'hello', mode: 'review' });
+      await started;
+      // A plain function, not a `vi.fn()`: Vitest attaches its own handler to a
+      // mock's result, which would swallow the very rejection under test.
+      const posted: unknown[] = [];
+      (fakePanel.webview as unknown as { postMessage: unknown }).postMessage = (message: unknown) => {
+        posted.push(message);
+        // Posting to a disposed webview rejects; that rejection is the hazard.
+        return Promise.reject(new Error('Webview is disposed'));
+      };
+      panel.dispose();
+
+      finishSubmit();
+      await expect(dispatch).resolves.toBeUndefined();
+      // Give Node a turn to report an unhandled rejection.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // The rejection is the hazard this guards against, so it comes first.
+      expect(unhandled).toEqual([]);
+      expect(posted).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
+  });
+
+  it('does not query a disposed webview or arm a stale timer for a queued context switch', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fakePanel, panel } = openPanel();
+      fakePanel.webview.postMessage.mockClear();
+      const internals = panel as unknown as {
+        _switchContext(context: PullReviewCommentContext): void;
+      };
+
+      // A context switch is queued on the switch chain; the panel is disposed
+      // before the chained body runs. Asking the disposed webview about its
+      // draft posted to it and armed a fresh 2 s timer that `_dispose` had
+      // already walked past.
+      internals._switchContext(createContext({ lineNumber: 9 }));
+      panel.dispose();
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(fakePanel.webview.postMessage).not.toHaveBeenCalledWith({ command: 'queryPullReviewCommentDraft' });
+      expect(vi.getTimerCount()).toBe(0);
+      // The stale switch does not retitle the closed panel either.
+      expect(panelInternals(panel)._context.lineNumber).toBe(1);
     } finally {
       vi.useRealTimers();
     }

@@ -3943,7 +3943,59 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         expect(String(prompt)).toContain(worktreePath);
         const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
         expect(reply?.error).toBeUndefined();
+        // The confirmed delete goes through the worktree-aware helper rather
+        // than a bare `fs.rm`, so a registration pointing at that directory is
+        // cleared too and cannot wedge the next attempt (the helper's own
+        // delete is what removes the directory; see the registration test).
+        expect(vi.mocked(removeWorktreeAndPrune)).toHaveBeenCalledWith('/src/repo', worktreePath);
+        expect(vi.mocked(createWorktreeWithNewBranch)).toHaveBeenCalledWith(
+          '/src/repo',
+          worktreePath,
+          'issue-5-fix-bug',
+          'FETCH_HEAD',
+        );
+      });
+
+      it('clears the registration behind the confirmed delete instead of leaving it behind', async () => {
+        // A bare `fs.rm` removed the directory but left `.git/worktrees/<name>`
+        // in the source repository. The stale registration then made every later
+        // `git worktree add` for that branch fail with "already used by worktree
+        // at <deleted path>". The worktree-aware removal runs `git worktree
+        // remove --force` and prunes, so the next attempt starts clean.
+        clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+        vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Confirm' as never);
+        vi.mocked(removeWorktreeAndPrune).mockImplementationOnce(async () => {
+          // What the real helper guarantees for a directory git no longer sees:
+          // the registration is pruned and the directory removed.
+          fs.rmSync(worktreePath, { recursive: true, force: true });
+        });
+
+        await sendStartWork();
+
+        expect(vi.mocked(removeWorktreeAndPrune)).toHaveBeenCalledWith('/src/repo', worktreePath);
         expect(fs.existsSync(worktreePath)).toBe(false);
+        expect(vi.mocked(createWorktreeWithNewBranch)).toHaveBeenCalledWith(
+          '/src/repo',
+          worktreePath,
+          'issue-5-fix-bug',
+          'FETCH_HEAD',
+        );
+      });
+
+      it('still attempts the checkout when the confirmed delete fails', async () => {
+        // The user answered "delete and create it again": a removal that fails
+        // (a file held open on Windows, a directory the process cannot touch)
+        // must be reported in the log, not turn the accepted flow into a silent
+        // no-op. The retry in createWorktreeWithNewBranch reclaims a
+        // registration whose directory is really gone.
+        clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+        vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Confirm' as never);
+        vi.mocked(removeWorktreeAndPrune).mockRejectedValueOnce(new Error('fatal: could not remove worktree'));
+
+        await sendStartWork();
+
+        const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+        expect(reply?.error).toBeUndefined();
         expect(vi.mocked(createWorktreeWithNewBranch)).toHaveBeenCalledWith(
           '/src/repo',
           worktreePath,

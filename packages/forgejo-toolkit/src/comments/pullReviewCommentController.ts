@@ -121,11 +121,18 @@ export class PullReviewCommentController implements vscode.Disposable {
   private readonly _reviewDataInFlight = new InFlightTasks();
   /**
    * Fingerprint of the incomplete review-id set the load warning was last shown
-   * for. Both the user and the editor can trigger a re-fetch (a mutation
-   * invalidates the review-data cache), so without this the same failure warns
-   * again every time the cache is refilled.
+   * for, keyed by the pull request it belongs to (`_reviewDataCacheKey`). Both
+   * the user and the editor can trigger a re-fetch (a mutation invalidates the
+   * review-data cache), so without this the same failure warns again every time
+   * the cache is refilled.
+   *
+   * The key is part of the fingerprint because review ids are per-pull-request
+   * sequences: bare ids made a failure in pull request A suppress the warning
+   * for an unrelated pull request B whose failing review happened to share a
+   * number. The entry is dropped when that pull request's data is complete
+   * again, so a recovery followed by a fresh failure still warns.
    */
-  private _warnedIncompleteReviews: string | undefined;
+  private readonly _warnedIncompleteReviews = new Map<string, string>();
   // VS Code's built-in comment-thread range decoration is an inline decoration:
   // the first line (the thread range always starts at column 0) and interior
   // lines get a full-width band via line-break fill, but the final line is
@@ -268,6 +275,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     }
     this._threads.clear();
     this._commentContextMap.clear();
+    this._warnedIncompleteReviews.clear();
     // The cache holds parsed diffs (several MiB for a large patch) and lives for
     // the controller's lifetime; release them with it instead of waiting for a
     // TTL that nothing will read again.
@@ -463,19 +471,27 @@ export class PullReviewCommentController implements vscode.Disposable {
       // every `onDidChangeActiveTextEditor` (opening the other side of a diff,
       // focusing any document), and the 15 s cache answers then — before this
       // guard, one transient per-review failure re-toasted the warning once per
-      // document opened and on every focus change. The id set is remembered too,
-      // so a later re-fetch that fails on the same reviews stays silent while a
-      // *different* set still warns.
-      if (data.incompleteReviewIds.length > 0) {
-        const fingerprint = data.incompleteReviewIds.slice().sort().join(',');
-        if (fetched && fingerprint !== this._warnedIncompleteReviews) {
-          this._warnedIncompleteReviews = fingerprint;
-          vscode.window.showWarningMessage(
-            vscode.l10n.t(
-              'Some reviews could not be loaded, so their comments may be missing: {0}',
-              data.incompleteReviewIds.join(', '),
-            ),
-          );
+      // document opened and on every focus change. The id set is remembered per
+      // pull request too, so a later re-fetch that fails on the same reviews
+      // stays silent while a different set — or a different pull request whose
+      // failing review shares a numeric id — still warns.
+      if (fetched) {
+        const cacheKey = this._reviewDataCacheKey(params);
+        if (data.incompleteReviewIds.length > 0) {
+          const fingerprint = data.incompleteReviewIds.slice().sort().join(',');
+          if (fingerprint !== this._warnedIncompleteReviews.get(cacheKey)) {
+            this._warnedIncompleteReviews.set(cacheKey, fingerprint);
+            vscode.window.showWarningMessage(
+              vscode.l10n.t(
+                'Some reviews could not be loaded, so their comments may be missing: {0}',
+                data.incompleteReviewIds.join(', '),
+              ),
+            );
+          }
+        } else {
+          // Complete data clears the memory, so a failure on the same reviews
+          // after a recovery is not mistaken for the failure already reported.
+          this._warnedIncompleteReviews.delete(cacheKey);
         }
       }
       // The document may have been closed while the load was in flight; the

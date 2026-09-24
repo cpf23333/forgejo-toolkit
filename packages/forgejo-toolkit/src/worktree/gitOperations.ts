@@ -764,6 +764,10 @@ export async function resolveUpstreamRemote(dirPath: string): Promise<UpstreamRe
  * starting with `-` would be read as an option (`--force`, `--upload-pack=…`).
  * Callers derive it from the upstream (`@{upstream}`) or from a user prompt, so
  * it is not necessarily one this module chose.
+ *
+ * `refspec` is a local *branch name*, which is sent as the full
+ * `refs/heads/<branch>` source (see `pushRefspec`): passed bare, a legal branch
+ * named `+x` would be read as the force marker plus the branch `x`.
  */
 export async function pushBranch(
   dirPath: string,
@@ -790,12 +794,35 @@ export async function pushBranch(
     args.push('-u');
   }
   assertGitRevision(refspec, 'refspec');
-  args.push(remote, refspec);
+  args.push(remote, pushRefspec(refspec));
   // A push transfers as much as a fetch does, so it gets the same long cap.
   const { stderr } = await runGit(args, dirPath, authEnv(token), GIT_LONG_TIMEOUT_MS);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
+}
+
+/**
+ * The refspec this module pushes with, made unambiguous.
+ *
+ * A bare local branch name is not a safe refspec: git reads a leading `+` as
+ * the force-update marker, so the legal branch `+x` would reach the remote as
+ * "force-update the branch `x`" — pushing unrelated history over it — and a
+ * name that matches nothing would fail as `src refspec x does not match any`
+ * instead of naming the branch the user asked for. `assertGitRevision` only
+ * rejects a leading `-`, which is not enough here (and `+`, unlike `-`, is a
+ * perfectly legal refname character, so it must not simply be refused).
+ *
+ * Spelling the source as the full `refs/heads/<branch>` removes the ambiguity:
+ * `refs/heads/+x` names the branch that actually exists, and no part of the
+ * value is left for git to read as a flag.
+ *
+ * A value that is not a plain branch name — a `<src>:<dst>` pair, or a ref
+ * already spelled out — is left exactly as the caller wrote it: rewriting one
+ * of those would change which ref is pushed.
+ */
+function pushRefspec(refspec: string): string {
+  return /^[^:]+$/.test(refspec) && !refspec.startsWith('refs/') ? `refs/heads/${refspec}` : refspec;
 }
 
 /**
@@ -840,23 +867,56 @@ export async function getGitHeadPath(dirPath: string): Promise<string | undefine
 /**
  * Create the shared bare cache clone at `targetPath`.
  *
- * On failure the partial clone is removed, but only the one this call made: a
- * `git clone` killed at its timeout (or one that failed before git wrote
- * `remote.origin.url`) leaves a directory that looks like a valid cache clone,
- * and the caller treats a directory that exists as usable — the retry skips the
- * clone and every later attempt fails with "No git remote in the local
- * repository points at owner/repo". Whether the path existed before this call
- * is therefore recorded first: a directory the user created by hand is never
- * deleted, and git refuses to clone into an existing directory, so a path that
- * did not exist beforehand can only hold this call's own output.
+ * On failure the partial clone is removed, but only the one this call made and
+ * only while it is still provably incomplete. A `git clone` killed at its
+ * timeout (or one that failed before git wrote `remote.origin.url`) leaves a
+ * directory that looks like a valid cache clone, and the caller treats a
+ * directory that exists as usable — the retry skips the clone and every later
+ * attempt fails with "No git remote in the local repository points at
+ * owner/repo". The leftovers must therefore be reclaimed.
+ *
+ * The cache directory is shared by every VS Code window (`_bareCloneInFlight`
+ * dedupes inside one extension host only), so "the path did not exist before
+ * this call" does not prove the directory is this call's output: a second
+ * window that read the path as absent just before the first window's clone
+ * created it fails with "destination path already exists" and would `rm -rf`
+ * the clone the first window is still writing into (breaking its in-flight
+ * fetch/worktree add and the checkouts whose gitdir lives inside it).
+ *
+ * Chosen mechanism: an ownership marker plus a completeness gate.
+ *
+ * - Before cloning, this call creates `<targetPath>.clone-owner` holding a
+ *   unique token (this extension host's pid plus a per-call nonce).
+ * - Cleanup happens only when that marker is still the one this call wrote AND
+ *   `<targetPath>/config` does not carry a usable `remote.origin.url`. A marker
+ *   another call wrote means the directory is somebody else's; a complete clone
+ *   is left alone no matter whose marker is there, which is what protects a
+ *   clone another window already finished or is still using.
+ * - The marker lives beside the directory, not inside it, so it never appears
+ *   as content of the clone and cannot itself be mistaken for clone state.
+ *
+ * A directory the user created by hand is never deleted either: it has no
+ * marker of ours, so the first condition already excludes it.
  */
 export async function cloneRepository(url: string, targetPath: string, token?: string): Promise<void> {
   const existedBeforeCall = await fs.promises.access(targetPath).then(
     () => true,
     () => false,
   );
+  await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+  const markerPath = cloneMarkerPath(targetPath);
+  const markerToken = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let markerWritten = false;
   try {
-    await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+    // Written before the clone so a concurrent window's failure cleanup can
+    // already see that this directory belongs to somebody else.
+    await fs.promises.writeFile(markerPath, markerToken, 'utf8');
+    markerWritten = true;
+  } catch {
+    // Best-effort: without the marker the cleanup below simply declines to
+    // remove anything, which is the safe direction.
+  }
+  try {
     // Pass the token via env-based per-command config so it is neither persisted
     // in the cloned repository's remote URL nor visible in git's command line.
     // --quiet keeps clone progress out of stderr (huge repos would overflow
@@ -872,7 +932,11 @@ export async function cloneRepository(url: string, targetPath: string, token?: s
       throw new Error(stderr);
     }
   } catch (error) {
-    if (!existedBeforeCall) {
+    if (
+      markerWritten &&
+      !existedBeforeCall &&
+      (await isThisCallsIncompleteClone(targetPath, markerPath, markerToken))
+    ) {
       // Best-effort: the directory is this call's partial output, and a delete
       // that fails (a file still held open by the killed child on Windows) must
       // not replace the clone's own failure.
@@ -883,7 +947,60 @@ export async function cloneRepository(url: string, targetPath: string, token?: s
         // an existing directory) rather than reported here.
       }
     }
+    if (markerWritten) {
+      await fs.promises.rm(markerPath, { force: true }).catch(() => undefined);
+    }
     throw error;
+  }
+  // Success: the clone is complete, so nothing may delete it. The marker would
+  // only ever be stale after this point.
+  if (markerWritten) {
+    await fs.promises.rm(markerPath, { force: true }).catch(() => undefined);
+  }
+}
+
+/** Where `cloneRepository` records which call owns an in-progress clone. */
+function cloneMarkerPath(targetPath: string): string {
+  return `${targetPath}.clone-owner`;
+}
+
+/**
+ * Whether the directory at `targetPath` is still this call's own, unfinished
+ * clone output — the only thing the failure path may delete. Both conditions
+ * are required, and each rules out a different way of deleting someone else's
+ * clone (see cloneRepository).
+ */
+async function isThisCallsIncompleteClone(
+  targetPath: string,
+  markerPath: string,
+  markerToken: string,
+): Promise<boolean> {
+  try {
+    const owner = await fs.promises.readFile(markerPath, 'utf8');
+    if (owner.trim() !== markerToken) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  return !(await hasUsableOriginRemote(targetPath));
+}
+
+/**
+ * Whether a bare repository directory carries the `remote.origin.url` a
+ * finished `git clone` writes. Its own or a caller's separate helper would
+ * disagree on which file to read, so the probe is kept here, next to the only
+ * caller.
+ */
+async function hasUsableOriginRemote(repoPath: string): Promise<boolean> {
+  try {
+    const config = await fs.promises.readFile(path.join(repoPath, 'config'), 'utf8');
+    // The `url = …` line of the remote git wrote; the section header
+    // (`[remote "origin"]`) carries no url key of its own, so a header alone
+    // never counts as usable.
+    return /(?:^|\n)\s*url\s*=\s*\S/.test(config);
+  } catch {
+    return false;
   }
 }
 
@@ -961,8 +1078,8 @@ async function runFetchPullRequestHead(
  * with the same refusal, and the user only sees "the pull request may have been
  * updated, please retry" — which never becomes true.
  *
- * Recovery is deliberately narrow. It acts only on a git refusal whose message
- * names the branch being fetched, and only when no checkout of that branch is
+ * Recovery is deliberately narrow. It acts only on a git failure whose message
+ * names the branch as checked out, and only when no checkout of that branch is
  * left on disk: the leftovers are the *missing* worktree directories, whose
  * registration `git worktree prune` drops (prune only removes registrations
  * whose directory is gone). An existing directory is left untouched, so a
@@ -980,13 +1097,53 @@ async function recoverFromWorktreeCheckedOutBranch(
   if (!/refusing to fetch into branch/i.test(message) || !message.includes(localBranch)) {
     return false;
   }
+  const registeredDir = await findMissingWorktreeDirFor(repoPath, localBranch);
+  if (!registeredDir) {
+    return false;
+  }
+  await runGit(['worktree', 'prune'], repoPath);
+  // The throwaway branch the missing checkout pinned: dropping it frees the
+  // branch for the refspec. A real user branch is never named this way, and the
+  // delete is best-effort — a leftover branch that survives still cannot block
+  // the fetch once its registration is gone.
+  await deleteBranch(repoPath, localBranch).catch(() => undefined);
+  return true;
+}
+
+/**
+ * The branch a `worktree add` refusal names as already checked out, or
+ * undefined when the refusal is about anything else.
+ *
+ * git prints `fatal: '<branch>' is already used by worktree at '<path>'` (and
+ * has used the wording "is already checked out at" in other versions), so both
+ * the punctuation around the branch name and the path's quoting are read
+ * loosely rather than anchored to one git version.
+ */
+function alreadyUsedBranch(error: unknown): string | undefined {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /'?([^'\s]+)'? is already (?:used by worktree at|checked out at) ['"]?(.+?)['"]?\s*$/m.exec(message);
+  return match?.[1];
+}
+
+/**
+ * The path of the registered worktree that still holds `localBranch` while its
+ * directory is gone, or undefined when there is no such registration.
+ *
+ * This is what makes pruning safe: `git worktree prune` drops *only*
+ * registrations whose directory has disappeared, so it can never reclaim a
+ * checkout the user is working in. A registration at a path that exists is
+ * reported as nothing to recover from and is left to the flow's own
+ * stale-worktree handling (which asks before destroying anything).
+ */
+async function findMissingWorktreeDirFor(repoPath: string, localBranch: string): Promise<string | undefined> {
   let registeredDir: string | undefined;
   try {
     const { stdout } = await runGit(['worktree', 'list', '--porcelain'], repoPath);
     // The block `git worktree list --porcelain` prints for the worktree holding
     // the branch: a `worktree <path>` line followed by `branch refs/heads/<name>`
-    // (detached entries say `detached` instead). The path never contains a
-    // newline, so the first line of the block is the whole path.
+    // (detached entries say `detached` instead) and, once its directory is gone,
+    // a `prunable <reason>` line. The path never contains a newline, so the
+    // first line of the block is the whole path.
     for (const block of stdout.split(/\n\s*\n/)) {
       const lines = block.split('\n');
       const pathLine = lines.find((line) => line.startsWith('worktree '));
@@ -997,11 +1154,14 @@ async function recoverFromWorktreeCheckedOutBranch(
       }
     }
   } catch {
-    return false;
+    return undefined;
   }
   if (!registeredDir) {
-    return false;
+    return undefined;
   }
+  // The directory probe is the authority, not git's `prunable` line: a version
+  // that does not report the marker yet still must not have a live checkout
+  // pruned, and an existing directory is never a prune candidate either way.
   if (
     await fs.promises.access(registeredDir).then(
       () => true,
@@ -1009,17 +1169,11 @@ async function recoverFromWorktreeCheckedOutBranch(
     )
   ) {
     // The checkout is still on disk, so somebody may be working in it; the
-    // caller's refusal stands and the flow's own stale-worktree handling takes
+    // caller's failure stands and the flow's own stale-worktree handling takes
     // it from here.
-    return false;
+    return undefined;
   }
-  await runGit(['worktree', 'prune'], repoPath);
-  // The throwaway branch the missing checkout pinned: dropping it frees the
-  // branch for the refspec. A real user branch is never named this way, and the
-  // delete is best-effort — a leftover branch that survives still cannot block
-  // the fetch once its registration is gone.
-  await deleteBranch(repoPath, localBranch).catch(() => undefined);
-  return true;
+  return registeredDir;
 }
 
 /**
@@ -1121,6 +1275,11 @@ export async function fetchBranch(repoPath: string, remote: string, branch: stri
  * run unguarded. When the branch does not exist there is nothing to reset
  * (`-B` creates it) and an unresolvable start point is left to git, which needs
  * that same value to create the branch and fails the command if it is bad.
+ *
+ * A registration left behind by a checkout whose directory was deleted outside
+ * git is recovered from rather than reported: see the catch below. A refusal
+ * git reports for any other reason, and one whose checkout is still on disk, is
+ * rethrown unchanged.
  */
 export async function createWorktreeWithNewBranch(
   repoPath: string,
@@ -1131,27 +1290,39 @@ export async function createWorktreeWithNewBranch(
   await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
   assertGitRevision(newBranch, 'branch');
   assertGitRevision(startPoint, 'start point');
-  const [existingSha, startSha] = await Promise.all([
-    getRefCommitSha(repoPath, `refs/heads/${newBranch}`),
-    getRefCommitSha(repoPath, startPoint),
-  ]);
-  if (existingSha) {
-    if (!startSha) {
-      throw new Error(
-        `branch "${newBranch}" already exists and the start point "${startPoint}" cannot be resolved; refusing to reset it without knowing what it would lose`,
-      );
+  await assertResetIsSafe(repoPath, newBranch, startPoint);
+  try {
+    await runCreateWorktreeWithNewBranch(repoPath, worktreePath, newBranch, startPoint);
+  } catch (error) {
+    // A registration whose directory was deleted outside git (a cache-directory
+    // change, disk cleanup, a manual delete) refuses every `worktree add` for
+    // its branch with "already used by worktree at <missing path>" until someone
+    // prunes it by hand — the state the code's own comments call realistic and
+    // the PR path already recovers from (`recoverFromWorktreeCheckedOutBranch`).
+    // The issue path had no such recovery, so "Start work" could never succeed
+    // again. Same rule here: prune only a registration whose checkout is really
+    // gone, then retry once.
+    const heldBranch = alreadyUsedBranch(error);
+    if (!heldBranch || !(await findMissingWorktreeDirFor(repoPath, heldBranch))) {
+      throw error;
     }
-    // Commits the leftover branch has that startPoint does not reach. Zero
-    // covers "same commit" and "behind startPoint" (both resettable); a
-    // positive count — or a rev-list git cannot complete, which must not be
-    // read as "nothing to lose" — means the branch carries its own work.
-    const ownCommits = await countCommitsNotReachableFrom(repoPath, existingSha, startSha);
-    if (ownCommits === undefined || ownCommits > 0) {
-      throw new Error(
-        `branch "${newBranch}" already exists at ${existingSha.slice(0, 7)} and has commits of its own; delete the branch before starting work on it again`,
-      );
-    }
+    await runGit(['worktree', 'prune'], repoPath);
+    // The prune removed only the registration, so the branch (and any commits
+    // it carries) is still there. The reset guard has to run again before the
+    // retry: while the branch was pinned to the missing checkout it may have
+    // been the only ref resolving its tip, and `-B` must not silently drop
+    // commits of its own. It refuses (fails loudly) rather than resetting.
+    await assertResetIsSafe(repoPath, newBranch, startPoint);
+    await runCreateWorktreeWithNewBranch(repoPath, worktreePath, newBranch, startPoint);
   }
+}
+
+async function runCreateWorktreeWithNewBranch(
+  repoPath: string,
+  worktreePath: string,
+  newBranch: string,
+  startPoint: string,
+): Promise<void> {
   try {
     const { stderr } = await runGit(
       ['worktree', 'add', '-B', newBranch, '--', worktreePath, startPoint],
@@ -1164,6 +1335,36 @@ export async function createWorktreeWithNewBranch(
     }
   } catch (error) {
     await rethrowAfterKilledWorktreeAdd(repoPath, worktreePath, error);
+  }
+}
+
+/**
+ * The divergence guard described on createWorktreeWithNewBranch: `-B` may only
+ * reset a leftover branch when that loses nothing, and an unevaluable guard
+ * fails closed.
+ */
+async function assertResetIsSafe(repoPath: string, newBranch: string, startPoint: string): Promise<void> {
+  const [existingSha, startSha] = await Promise.all([
+    getRefCommitSha(repoPath, `refs/heads/${newBranch}`),
+    getRefCommitSha(repoPath, startPoint),
+  ]);
+  if (!existingSha) {
+    return;
+  }
+  if (!startSha) {
+    throw new Error(
+      `branch "${newBranch}" already exists and the start point "${startPoint}" cannot be resolved; refusing to reset it without knowing what it would lose`,
+    );
+  }
+  // Commits the leftover branch has that startPoint does not reach. Zero
+  // covers "same commit" and "behind startPoint" (both resettable); a
+  // positive count — or a rev-list git cannot complete, which must not be
+  // read as "nothing to lose" — means the branch carries its own work.
+  const ownCommits = await countCommitsNotReachableFrom(repoPath, existingSha, startSha);
+  if (ownCommits === undefined || ownCommits > 0) {
+    throw new Error(
+      `branch "${newBranch}" already exists at ${existingSha.slice(0, 7)} and has commits of its own; delete the branch before starting work on it again`,
+    );
   }
 }
 

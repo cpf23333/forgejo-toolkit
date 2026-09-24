@@ -18,7 +18,7 @@ import {
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity } from './repoIdentity';
 import { connectionFailureMessage, isHttpUrl } from './connectionTest';
-import { hasUrlUserinfo } from '../utils/redactUrlUserinfo';
+import { hasUrlUserinfo, redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { userFacingErrorMessage } from '../api/errors';
 import { probeServerVersion } from '../api/versionProbe';
@@ -45,6 +45,16 @@ export class OnboardingWebviewPanel {
    * rehydrates the selected entries by id.
    */
   private _pendingImportInstances: ForgejoInstance[] | undefined;
+  /**
+   * Set by `_dispose`, which runs from the panel's `onDidDispose`. The webview
+   * is gone from then on, so `_reply` must stop posting: a request that settles
+   * after the user closed the panel (the async handlers here all await the
+   * network) would otherwise call `postMessage` on a disposed webview, and the
+   * rejection that produces is unhandled — the dispatch wrapper's own catch has
+   * already returned by then. Same guard the sidebar gets by checking its
+   * `_view` reference, which its dispose handler clears.
+   */
+  private _disposed = false;
 
   public static createOrShow(
     context: vscode.ExtensionContext,
@@ -198,6 +208,20 @@ export class OnboardingWebviewPanel {
               const { url, token, syncApiUrlsToInstanceUrl } = message;
               if (typeof url !== 'string' || typeof token !== 'string') {
                 this._reply('saveInstanceResult', { success: false, error: vscode.l10n.t('Invalid input') });
+                return;
+              }
+              // Same refusal as testConnection above, and for the sidebar's
+              // reason (viewProvider's saveInstance): `ConfigManager.addInstance`
+              // will not store a URL that embeds a credential, and `fetch` cannot
+              // request one either. Without this the wizard connection-tested the
+              // URL first and answered "Cannot connect to the instance…", naming
+              // the instance when the URL was the problem. Checked before the
+              // test, so no request leaves the extension host for such a URL.
+              if (!isHttpUrl(url) || hasUrlUserinfo(url)) {
+                this._reply('saveInstanceResult', {
+                  success: false,
+                  error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
+                });
                 return;
               }
               try {
@@ -369,14 +393,20 @@ export class OnboardingWebviewPanel {
               const uri = vscode.Uri.parse(url);
               // Only web URLs may be opened from the (untrusted) webview.
               if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-                logger.error(`Blocked onboarding openExternal with disallowed scheme "${uri.scheme}": ${url}`);
+                // The URL is webview-supplied and may carry a credential as
+                // userinfo; the sidebar redacts it for the same two log lines
+                // (viewProvider's openExternal), so this panel must not write
+                // the raw value it refused.
+                logger.error(
+                  `Blocked onboarding openExternal with disallowed scheme "${uri.scheme}": ${redactUrlUserinfo(url)}`,
+                );
                 return;
               }
               try {
                 await vscode.env.openExternal(uri);
               } catch (error) {
                 const err = userFacingErrorMessage(error);
-                logger.error(`onboarding openExternal failed for ${url}: ${err}`);
+                logger.error(`onboarding openExternal failed for ${redactUrlUserinfo(url)}: ${err}`);
               }
               return;
             }
@@ -728,6 +758,11 @@ export class OnboardingWebviewPanel {
     if (typeof requestId === 'string') {
       this._unansweredRequests.delete(requestId);
     }
+    if (this._disposed) {
+      // The webview is gone; posting would reject on a disposed panel. The
+      // request is still marked answered above so nothing lingers waiting on it.
+      return;
+    }
     this._panel.webview.postMessage({ command, ...data } as HostToWebviewMessage);
   }
 
@@ -752,6 +787,7 @@ export class OnboardingWebviewPanel {
   }
 
   private _dispose() {
+    this._disposed = true;
     OnboardingWebviewPanel.currentPanel = undefined;
     this._panel.dispose();
     // The import preview's stash holds the picked file's tokens in plaintext.

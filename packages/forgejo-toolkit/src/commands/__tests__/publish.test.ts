@@ -258,6 +258,32 @@ describe('publishToForgejo', () => {
     expect(vscode.env.openExternal).not.toHaveBeenCalled();
   });
 
+  it('keeps credentials out of the log when it reports a blocked html_url', async () => {
+    // The blocked-scheme line reaches the output channel with the URL the
+    // instance returned; a URL carrying userinfo must not be logged verbatim.
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockResolvedValue({
+      clone_url: `${INSTANCE_URL}/alice/my-repo.git`,
+      full_name: 'alice/my-repo',
+      html_url: 'ftp://alice:secret-token@forgejo.example.com/alice/my-repo',
+    });
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValue('Open in Browser' as never);
+    const errorSpy = vi.spyOn(logger, 'error');
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    const logged = errorSpy.mock.calls.map((call) => String(call[0])).join('\n');
+    errorSpy.mockRestore();
+    expect(logged).toContain('Blocked openExternal with disallowed scheme');
+    expect(logged).toContain('forgejo.example.com');
+    expect(logged).not.toContain('secret-token');
+    expect(vscode.env.openExternal).not.toHaveBeenCalled();
+  });
+
   it('asks which account to push with when several match the remote and the owner does not disambiguate', async () => {
     setupWorkspace(`${INSTANCE_URL}/shared/repo.git`);
     vi.mocked(getCurrentBranch).mockResolvedValue('main');

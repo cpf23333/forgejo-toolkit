@@ -5335,7 +5335,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // `git worktree add` marker (see isAbandonedWorktree) and the PR paths
       // ask first (see _confirmDiscardStaleWorktree). This path asks too, and
       // names the path it is about; a decline refuses the start and says how to
-      // unblock it instead of deleting anything.
+      // unblock it instead of deleting anything. A confirmed delete goes through
+      // the worktree-aware removal, so it cannot leave a registration behind
+      // (see the removal below).
       let existsOnDisk = await fs.promises.access(worktreePath).then(
         () => true,
         () => false,
@@ -5362,7 +5364,22 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             return;
           }
           logger.error(`startWorkOnIssue: removing invalid leftover directory ${worktreePath}`);
-          await fs.promises.rm(worktreePath, { recursive: true, force: true });
+          // Worktree-aware, not a bare `fs.rm`: a directory that is not a
+          // checkout of *this* repository can still be registered as one
+          // (a cache-directory change, or an earlier attempt whose marker was
+          // removed by hand). A bare delete would leave that registration behind
+          // and the next attempt would then fail on git's "already used by
+          // worktree at <path>" for a path that no longer exists — the same
+          // wedge the PR paths avoid by deleting through
+          // removeWorktreeAndPrune, which also prunes the registration.
+          try {
+            await removeWorktreeAndPrune(sourceRepoPath, worktreePath);
+          } catch (error) {
+            // The confirmed state is "gone", so the create below must still be
+            // attempted. A registration that survived is reclaimed by the retry
+            // in createWorktreeWithNewBranch when its directory is really gone.
+            logger.error(`startWorkOnIssue could not reclaim ${worktreePath}: ${userFacingErrorMessage(error)}`);
+          }
           existsOnDisk = false;
         }
       }
