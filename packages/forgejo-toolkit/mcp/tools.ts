@@ -242,6 +242,9 @@ export function buildToolHandlers(client: ForgejoClient) {
       // The git-tree endpoint needs an explicit ref; resolve the default
       // branch when the caller omits one.
       const ref = args.ref ?? (await client.getRepoDefaultBranch(args.owner, args.repo));
+      // The client already marks which cause cut the answer short; the result is
+      // passed through unchanged so the note can name it (see
+      // repoSearchTruncationNote).
       return client.searchRepoFiles(args.owner, args.repo, ref, args.query);
     },
 
@@ -419,18 +422,20 @@ const PAGED_LISTS: Record<ToolName, readonly string[]> = {
  * `list_milestones`, `list_my_repos` and `list_pull_reviews` take only the
  * repository (or nothing at all), so a truncated answer from one of them cannot
  * be improved by the caller and must be reported as incomplete instead.
+ *
+ * The same goes for the tools that take one revision or one record — `get_issue`,
+ * `get_pull_request`, `get_pr_timeline`, `get_action_run_artifacts` (owner, repo
+ * and a number) and `get_file_history` (whose `ref` selects a revision, not a
+ * narrower slice of the history, and which pages up to the shared 500-commit
+ * cap): none of them has a filter or a page to pass, so listing them here
+ * would have the note tell the caller to narrow a query it cannot send.
  */
 const NARROWABLE_TOOLS: ReadonlySet<ToolName> = new Set<ToolName>([
   'list_issues',
-  'get_issue',
   'list_pull_requests',
-  'get_pull_request',
-  'get_pr_timeline',
   'list_notifications',
   'search',
   'list_action_runs',
-  'get_action_run_artifacts',
-  'get_file_history',
 ]);
 
 /**
@@ -485,21 +490,28 @@ export function repoDetailCapNote(value: unknown): string {
 
 /**
  * A note for `search_repo_files`, whose `truncated` flag has two causes: the git
- * tree could not be read completely, or the match list hit
- * `MAX_SEARCH_RESULTS`. Only the second is recoverable by narrowing the query,
- * so the note names the cause it can see and stays silent otherwise. The flag
- * itself is reported inside the result.
+ * tree could not be read completely, or the match list hit `MAX_SEARCH_RESULTS`.
+ * Only the second is recoverable by narrowing the query, so the note names the
+ * cause it can see and stays silent otherwise. The flag itself is reported
+ * inside the result.
+ *
+ * The cause cannot be read off the array length: the client slices `files` to
+ * `MAX_SEARCH_RESULTS` before returning, so a capped list holds exactly that
+ * many rows and "at or over the cap" says nothing about why it is that long. The
+ * client reports which cause applied in `truncatedBy` instead, and this note
+ * follows that report, falling back to the tree wording when the signal is
+ * absent (a hand-built payload): an unreadable tree is the safer cause to name,
+ * since "a narrower query would return the rest" is a promise only the cap can
+ * keep.
  */
 export function repoSearchTruncationNote(value: unknown): string {
   const result = value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
   if (result?.truncated !== true) {
     return '';
   }
-  const files = result.files;
-  if (Array.isArray(files) && files.length >= MAX_SEARCH_RESULTS) {
-    return `\n(matches capped at ${MAX_SEARCH_RESULTS}: the result is incomplete; a narrower query would return the rest)`;
-  }
-  return '\n(the repository tree could not be read completely, so the matches may be incomplete)';
+  return result.truncatedBy === 'matches'
+    ? `\n(matches capped at ${MAX_SEARCH_RESULTS}: the result is incomplete; a narrower query would return the rest)`
+    : '\n(the repository tree could not be read completely, so the matches may be incomplete)';
 }
 
 /**

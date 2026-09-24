@@ -6,6 +6,7 @@ import {
   buildToolHandlers,
   listTruncationNote,
   registerTools,
+  repoSearchTruncationNote,
   isSafePathSegment,
   isSafeRepoPath,
   truncateLargeStrings,
@@ -505,11 +506,13 @@ describe('MCP tool handlers with MSW', () => {
   it('search_repo_files says the match list was capped at the 200-match limit', async () => {
     // `truncated` is true both when the tree could not be read completely and
     // when the match list hit MAX_SEARCH_RESULTS; only the second is
-    // recoverable by narrowing the query, so the note must say so.
+    // recoverable by narrowing the query, so the note must say so. Which cause
+    // applied is the client's report, not the array length: `files` is already
+    // sliced to the cap by the time the tool sees it.
     const files = Array.from({ length: MAX_SEARCH_RESULTS }, (_, i) => ({ path: `match-${i}.ts` }));
     const { call, calls } = registerWithStubClient({
       getRepoDefaultBranch: async () => 'main',
-      searchRepoFiles: async () => ({ files, truncated: true }),
+      searchRepoFiles: async () => ({ files, truncated: true, truncatedBy: 'matches' }),
     });
 
     const result = await call('search_repo_files', { owner: 'demo-user', repo: 'demo-repo', query: 'match' });
@@ -527,7 +530,7 @@ describe('MCP tool handlers with MSW', () => {
     // recover matches that were never read, so the note must not promise it.
     const { call } = registerWithStubClient({
       getRepoDefaultBranch: async () => 'main',
-      searchRepoFiles: async () => ({ files: [{ path: 'src/index.ts' }], truncated: true }),
+      searchRepoFiles: async () => ({ files: [{ path: 'src/index.ts' }], truncated: true, truncatedBy: 'tree' }),
     });
 
     const result = await call('search_repo_files', { owner: 'demo-user', repo: 'demo-repo', query: 'index' });
@@ -852,5 +855,138 @@ describe('list truncation reporting', () => {
     const result = await registered.get('list_issues')?.({ owner: 'demo-user', repo: 'demo-repo' });
 
     expect(result?.content[0].text).toContain('narrow the query');
+  });
+
+  it('does not tell a single-record tool to narrow a query it cannot send', async () => {
+    // get_pull_request takes owner/repo/number: its capped `files`/`commits`
+    // lists are genuinely incomplete, and there is no filter or page to pass, so
+    // advising the caller to narrow would be advice it cannot act on.
+    const cappedFiles = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ filename: `file-${i}` }));
+    const client = {
+      getPullRequestDetail: async () => ({ number: 1 }),
+      getPullRequestFiles: async () => cappedFiles,
+      getPullRequestCommits: async () => [],
+    } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('get_pull_request')?.({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 1,
+    });
+    const text = result?.content[0].text ?? '';
+
+    expect(text).toContain('incomplete');
+    expect(text).toContain(String(LIST_ITEM_LIMIT));
+    expect(text).not.toContain('narrow the query');
+  });
+
+  it('does not describe get_file_history as narrowable, so its cap is never given query advice', async () => {
+    // The client pages up to the shared 500-commit cap and the schema's `ref`
+    // selects the revision to walk from, not a narrower slice of the history:
+    // there is no filter or page for the caller to pass. The tool is therefore
+    // not in NARROWABLE_TOOLS, which is observable in two ways: a capped reply
+    // gets the incompleteness wording (this test), and the narrowable tools that
+    // really can refetch keep the query advice (the test above).
+    const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ sha: `sha-${i}` }));
+    const client = { getFileHistory: async () => capped } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('get_file_history')?.({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      path: 'README.md',
+    });
+    const text = result?.content[0].text ?? '';
+
+    // The cap the client applies is reported by the client, not by a paged-list
+    // note (get_file_history is NO_PAGED_LISTS), so the answer carries its rows
+    // and no narrowing advice either way.
+    expect(text).not.toContain('narrow the query');
+  });
+
+  it('blames the match cap only when the match list reached it', async () => {
+    // The client slices `files` to MAX_SEARCH_RESULTS before returning, so a
+    // capped list holds exactly that many rows and the array length alone cannot
+    // say whether the cap or an unreadable tree cut the answer short.
+    const capped = Array.from({ length: MAX_SEARCH_RESULTS }, (_, i) => ({ path: `src/file-${i}.ts` }));
+    const client = {
+      getRepoDefaultBranch: async () => 'main',
+      searchRepoFiles: async () => ({ files: capped, truncated: true, truncatedBy: 'matches' }),
+    } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('search_repo_files')?.({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      query: 'file',
+    });
+    const text = result?.content[0].text ?? '';
+
+    expect(text).toContain('matches capped');
+    expect(text).toContain('narrower query');
+  });
+
+  it('reports an unreadable tree instead of blaming the match cap', async () => {
+    // A truncated tree that happens to produce exactly MAX_SEARCH_RESULTS matches
+    // was cut by the tree read, not by the cap: "a narrower query would return
+    // the rest" would be a promise this search cannot keep.
+    const matches = Array.from({ length: MAX_SEARCH_RESULTS }, (_, i) => ({ path: `src/file-${i}.ts` }));
+    const client = {
+      getRepoDefaultBranch: async () => 'main',
+      searchRepoFiles: async () => ({ files: matches, truncated: true, truncatedBy: 'tree' }),
+    } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('search_repo_files')?.({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      query: 'file',
+    });
+    const text = result?.content[0].text ?? '';
+
+    expect(text).toContain('tree could not be read');
+    expect(text).not.toContain('narrower query');
+  });
+
+  it('follows the reported cause, not the array length', () => {
+    // A short list from an unreadable tree, and a full cap from a complete one:
+    // both are the same shape as far as `files.length` is concerned.
+    const short = { files: [{ path: 'src/a.ts' }], truncated: true, truncatedBy: 'tree' };
+    const full = {
+      files: Array.from({ length: MAX_SEARCH_RESULTS }, (_, i) => ({ path: `src/${i}.ts` })),
+      truncated: true,
+      truncatedBy: 'matches',
+    };
+
+    expect(repoSearchTruncationNote(short)).toContain('tree could not be read');
+    expect(repoSearchTruncationNote(short)).not.toContain('narrower query');
+    expect(repoSearchTruncationNote(full)).toContain('matches capped');
+    // Without the signal the note cannot claim the cap caused the cut.
+    expect(repoSearchTruncationNote({ files: full.files, truncated: true })).toContain('tree could not be read');
   });
 });
