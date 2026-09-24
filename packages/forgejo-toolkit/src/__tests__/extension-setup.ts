@@ -73,9 +73,10 @@ vi.mock('vscode', () => ({
       const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(url);
       return { fsPath: url, scheme: match?.[1] ?? '' };
     }),
-    from: vi.fn((components: { scheme: string; path: string }) => ({
+    from: vi.fn((components: { scheme: string; path: string; query?: string }) => ({
       scheme: components.scheme,
       path: components.path,
+      query: components.query,
       fsPath: components.path,
       toString: () => `${components.scheme}://${components.path}`,
     })),
@@ -103,4 +104,11 @@ vi.mock('vscode', () => ({
   Disposable: {
     from: vi.fn(),
   },
+  FileSystemError: {
+    // Real instances carry a `code`; the tests only assert that a read provider
+    // reports "not found" as a rejection.
+    FileNotFound: (uri?: unknown) => new Error(`FileNotFound: ${String(uri)}`),
+    NoPermissions: () => new Error('NoPermissions'),
+  },
+  FileType: { Unknown: 0, File: 1, Directory: 2, SymbolicLink: 64 },
 }));

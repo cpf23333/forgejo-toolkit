@@ -4,6 +4,7 @@ import { ApiError } from './api/errors';
 import { ConfigManager } from './config';
 import { logger } from './logger';
 import { base64ToUint8Array } from './repoFileProvider';
+import { missingPayloadNotice } from './utils/payloadNotice';
 
 export interface ForgejoPrUriParams {
   instanceId: string;
@@ -20,22 +21,13 @@ export interface ForgejoPrUriParams {
 export const FORGEJO_PR_SCHEME = 'forgejo-pr';
 
 /**
- * The notice served in place of a file whose payload Forgejo withheld.
- *
- * The contents API omits the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE`
- * (10 MiB by default) and reports the real `size` instead of failing, so an empty
- * buffer would render the diff as an empty file with no explanation.
+ * The notice served in place of a file whose payload Forgejo withheld. Kept
+ * re-exported here because this provider (and the diff view) were its first
+ * users; the implementation lives in `utils/payloadNotice` so the repository
+ * file provider can use it without a circular import.
  */
-export function missingPayloadNotice(size: number | undefined): string | undefined {
-  if (!size || size <= 0) {
-    return undefined;
-  }
-  const mib = (size / (1024 * 1024)).toFixed(1);
-  return vscode.l10n.t(
-    'Forgejo did not return this file ({0} MiB): the contents API omits payloads above its size limit. Open the file in the browser to read it.',
-    mib,
-  );
-}
+export { missingPayloadNotice } from './utils/payloadNotice';
+
 export class ForgejoPRFileSystemProvider implements vscode.FileSystemProvider {
   private readonly _onDidChangeFile = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   public readonly onDidChangeFile = this._onDidChangeFile.event;

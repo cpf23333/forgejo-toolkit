@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ForgejoClient } from './api/client';
 import { ConfigManager } from './config';
 import { logger } from './logger';
+import { missingPayloadNotice } from './utils/payloadNotice';
 
 export const REPO_FILE_SCHEME = 'cpf23333-forgejo-toolkit-repofile';
 
@@ -80,7 +81,14 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
         throw vscode.FileSystemError.FileNotFound(uri);
       }
 
-      if (entries.length > 1 || entries[0].type === 'dir') {
+      // The contents endpoint answers with the requested entry alone when the
+      // path names a file, and with its children when it names a directory — so a
+      // directory holding exactly one child would otherwise be reported as that
+      // child. Comparing the reported path with the requested one tells them
+      // apart (`entries[0].path` echoes the request for a file).
+      const isDirectory = entries.length > 1 || entries[0].type === 'dir' || entries[0].path !== params.path;
+
+      if (isDirectory) {
         return {
           type: vscode.FileType.Directory,
           ctime: 0,
@@ -145,8 +153,21 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
       const entries = await client.getRepoContents(params.owner, params.repo, params.path, params.ref);
       const entry = entries[0];
 
-      if (!entry || entry.type !== 'file' || !entry.content) {
+      // A single entry is only this file when the API echoed the requested path;
+      // otherwise the path named a directory with one child (see `stat`).
+      if (!entry || entry.type !== 'file' || entry.path !== params.path) {
         throw vscode.FileSystemError.FileNotFound(uri);
+      }
+
+      if (!entry.content) {
+        // An empty `content` means one of two things, and they must not look
+        // alike: Forgejo withholds the payload of files above
+        // `[api] DEFAULT_MAX_BLOB_SIZE` (reporting the real `size` instead), in
+        // which case the reader gets the same explanation the diff view serves,
+        // or the file really is empty and opens as an empty document. Reporting
+        // "file not found" for either was wrong.
+        const notice = missingPayloadNotice(entry.size);
+        return notice ? new TextEncoder().encode(`${notice}\n`) : new Uint8Array(0);
       }
 
       return base64ToUint8Array(entry.content);
