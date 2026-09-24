@@ -24,7 +24,7 @@
 - [ ] P4 多窗口重复轮询/探测（每个窗口各跑一份通知轮询与版本探测，首次运行向导标记也存在竞态）已作为平台代价记录在 `KNOWN_ISSUES.md`；若之后要收敛，可选方向是用 globalState 时间戳做「一个窗口主导」的租约
 - [ ] P4 两处已确认但发版前未修的低危问题（2026-09-23 第二轮审查）：① 依赖选择器读的是非响应式的 `TimedCache` 标记（`useAppState.ts` 的 `repoIssuesFetchedAt`），所以 `IssueDetail.vue`/`PullRequestDetail.vue` 里「无可选依赖」的提示永远不会渲染，且 `ensureRepoIssuesLoaded` 是空实现（按需加载从未发生）；② `Settings.vue` 的 `saveInstanceResult` 未按实例区分，实例 A 的保存回包落在用户正在编辑的实例 B 表单上会清空 B 已输入的 URL/token 并提示已保存
 - [ ] P4 仓库详情对「没有 README」的仓库会多发一次 `/contents/README.md` 请求（`viewProvider.ts` 的 README 提示探测，而 `client.getRepoDetail` 已经取过同一份内容）。做法：给 `ForgejoRepoDetail` 加 `readmeSize?: number`（`src/api/types.ts` 与 `webview/src/types/api.ts` 两处镜像），`getRepoDetail` 复用已取到的 entry（`readme: entry?.content`、`readmeSize: entry?.content === undefined ? entry?.size : undefined`），`viewProvider` 改为读 `detail.readmeSize` 并在本地化提示里用该尺寸，即可去掉第二次请求并让提示继续生效
-- [ ] P5 统一 URL 脱敏实现：`worktree/gitOperations.ts` 的 `redactRemoteUrl` 与 `src/api/versionProbe.ts` 的 `redactInstanceUrl` 现在是两份同规则实现——前者因 `esbuild.js` 的 `forbid-vscode` 约束（`gitOperations` 依赖 `vscode`，而 MCP 包会引入 `versionProbe`）不能被 MCP 侧导入。做法是把纯函数挪到无 `vscode` 依赖的工具模块（如 `src/utils/urls.ts`），两边各自转出/复用一份实现
+- [ ] P5 已确认但发版前未修的低危项（2026-09-23 第五轮审查）：① 导入设置只做类型断言不做校验，预览界面可能渲染原始 i18n key（`src/webview/instanceImport.ts` 的 `sanitizeImportedInstances` 附近；要按 locale / worktreeOpenMode / 轮询开关与间隔 / debug 等已知字段校验取值，未知值丢弃或回退）；② `host:/srv/git/repo.git` 这类带绝对路径的 scp 远端会被归一化成 `host/srv/git/repo` 并解析出 owner/repo（`gitOperations.ts` 的 `remoteComparisonKeys`），当前选择是“去掉前导斜杠后继续解析”而不是拒绝——需要决定按哪种语义处理（Forgejo 的仓库路径必然是 `/owner/repo.git`，因此拒绝更贴近真实）
 - [ ] 已知的平台代价（无解，仅记录）：贡献 `mcpServerDefinitionProviders` 后，VS Code 会为查询 MCP 定义而**主动激活**扩展（上游 issue microsoft/vscode#266221「MCP server 导致扩展在所有工作区、连空工作区都被激活」）。官方激活事件清单里没有 MCP 条目（`onStartupFinished` 本身是标准事件），所以既不需要也无法声明专门事件；这一条只是记录代价本身——激活事件的实际取法（已补 `onStartupFinished`）与实测数据见下方「走查与实测」
 
 ## 走查与实测
@@ -42,3 +42,14 @@
 ## 进行中
 
 （空）
+
+## 第六/七轮审查后待修（2026-09-23，按优先级）
+
+- [ ] **high** Settings 的 `testConnectionResult` 目标归属回归：在「新增实例」表单上第一次 Test Connection 会被目标守卫丢掉，状态卡在 Testing，错误 token 也永不显示（`webview/src/views/Settings.vue` 的 `handleTest` / `submittedTarget` 初始化）
+- [ ] **high** 保存与进行中的图片上传竞态：`handleEditSubmit` 不等附件上传（`formLoading` 未涵盖 upload），已插入的图片进不了保存后的正文（`views/IssueDetail.vue`、`views/PullRequestDetail.vue`、`components/EasyMdeEditor.vue`）
+- [ ] **medium** 详情保存守卫把「我是当前路由」当成归属：当前显示 issue A 的视图会拿 A 的待删附件去删「被保存的 B」（`IssueDetail.vue`、`PullRequestDetail.vue` 的 watcher 守卫）
+- [ ] **medium** 非 JSON 错误体改写后 `extractApiErrorMessage` 变死代码，409/422 现在直接显示原始 JSON（`src/api/errors-core.ts`、`packages/shared/src/request/index.ts`）
+- [ ] **medium** 运行详情轮询在无法加载该 run 时永不停止；派发按钮/错误键用未 trim 的 workflow 值导致错误消失且按钮不禁用（`views/ActionRunDetail.vue`、`components/RepoActions.vue`）
+- [ ] **medium** 实例编辑沿用同一 id 且不清 webview 缓存，上一账号的仓库/议题/文件仍可见；状态栏默认分支缓存无 TTL 且实例编辑后不清（`src/webview/viewProvider.ts`、`webview/src/composables/useAppState.ts`、`src/statusBar/createPrStatusBar.ts`）
+- [ ] **medium** 发布流程：`version-packages` 写的是包内 CHANGELOG，而 release workflow 读根 CHANGELOG；`docs/release.md` 的 `pnpm exec vsce` 在仓库根不可用（vsce 只在扩展包内）；README 的商店安装链接在发布前是 404
+- [ ] **low** diff 树 role 语义（treeitem 被 li 包裹、嵌套 ul 缺 role=group、ArrowRight 对折叠目录无效）、worktree 删除失败仍丢记录、Toast 标记全部已读后已打开的 Notifications 视图与徽标不一致、Start work 的 issue worktree 不出现在设置列表、缺商店 icon、根 package.json 缺 packageManager 固定、DOMPurify 的 Apache-2.0 许可文本未随包、评审刷新会加入变更前的在途加载并回写旧线程、合并后树/内容缓存不失效（Refresh 也不清）、`getRepoContents` 记忆键用 `|` 拼接可被路径/ref 中的 `|` 混淆

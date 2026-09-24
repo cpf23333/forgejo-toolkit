@@ -201,7 +201,9 @@ Workaround: point the instance URL at a host that is reachable directly — a re
 
 ## The worktree cache sweep adopts every bare repository under its cache directory
 
-`forgejoToolkit.worktreeCacheDirectory` accepts any writable folder, and the extension keeps its own bare clones in `<cacheDir>/repos/*.git`. The LRU sweep runs lazily — it is triggered while a worktree is created from a cache clone, never on a timer — and treats every such directory as its own: a clone the extension never uses is stamped as used the first time a sweep sees it and deleted once 30 days pass without another use, and the oldest ones are deleted when more than 20 exist. Pointing the setting at a folder that already holds unrelated bare clones therefore puts them on that schedule.
+`forgejoToolkit.worktreeCacheDirectory` accepts any writable folder, and the extension keeps its own bare clones in `<cacheDir>/repos/*.git` and its checkouts in `<cacheDir>/worktrees/*`. The LRU sweep runs lazily — it is triggered while a worktree is created from a cache clone, never on a timer — and treats every bare-clone directory as its own: a clone the extension never uses is stamped as used the first time a sweep sees it and deleted once 30 days pass without another use, and the oldest ones are deleted when more than 20 exist. Pointing the setting at a folder that already holds unrelated bare clones therefore puts them on that schedule.
+
+Checkouts under `<cacheDir>/worktrees` are swept in the same pass, but only where the extension can prove it created them: the directory must be a direct child, must not be referenced by a recorded worktree, must be older than 30 days, and must be a linked checkout whose source clone is gone (a `.git` file pointing at a deleted `<source>/.git/worktrees/<name>`) or have no `.git` entry at all. A real checkout (a `.git` directory — for example a repository you placed there yourself) and a worktree whose source clone still exists are never deleted.
 
 Workaround: use a dedicated folder for the setting (the default is extension storage), or keep bare repositories you maintain yourself outside `<cacheDir>/repos`.
 

@@ -30,5 +30,7 @@
   "walkthrough.openDashboard.description": "Browse repositories, issues, pull requests, and notifications.",
   "walkthrough.publishOrCreatePr.title": "Publish a repository or create a PR",
   "walkthrough.publishOrCreatePr.description": "Push a local repository to your instance, or start a pull request from the current branch.",
-  "mcpServerDefinitionProvider.instances.label": "Forgejo Toolkit Instances"
+  "mcpServerDefinitionProvider.instances.label": "Forgejo Toolkit Instances",
+  "capabilities.untrustedWorkspaces.description": "Forgejo Toolkit reads and caches repository state (git worktrees, the extension's cache directory and instance configuration), so it is disabled in Restricted Mode until you trust the workspace.",
+  "capabilities.virtualWorkspaces.description": "Forgejo Toolkit needs real files: it creates git worktrees and maintains a local cache directory for repositories and pull requests."
 }

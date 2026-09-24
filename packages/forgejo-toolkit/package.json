@@ -261,10 +261,10 @@
           "when": "false"
         }
       ],
-      "comment/context": [
+      "comments/comment/context": [
         {
           "command": "forgejoToolkit.deletePullReviewComment",
-          "when": "comment =~ /forgejo:/",
+          "when": "commentController == forgejo-pull-review-comments && comment =~ /^forgejo:/",
           "group": "navigation@0"
         }
       ],
@@ -332,5 +332,15 @@
   "engines": {
     "vscode": "^1.102.0"
   },
-  "packageManager": "pnpm@11.18.0"
+  "packageManager": "pnpm@11.18.0",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "%capabilities.untrustedWorkspaces.description%"
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "%capabilities.virtualWorkspaces.description%"
+    }
+  }
 }
