@@ -5,5 +5,12 @@
   "semi": true,
   "trailingComma": "all",
   "endOfLine": "lf",
-  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/out/**", "**/.turbo/**", ".agents/**"]
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/out/**",
+    "**/.turbo/**",
+    ".agents/**",
+    "**/spec/swagger.v1.json"
+  ]
 }

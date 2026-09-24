@@ -6,16 +6,17 @@ version a server happened to run.
 
 | Field          | Value                                                                                                            |
 | -------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Source         | `https://codeberg.org/swagger.v1.json`                                                                           |
+| Source         | `https://codeberg.org/forgejo/forgejo/raw/tag/<tag>/templates/swagger/v1_json.tmpl`                              |
 | Target version | **`v16.0.0`** (the oldest release this extension supports; the template's `info.version` is a build placeholder) |
 | Paths          | 326                                                                                                              |
+| Size / sha256  | 853,826 bytes, `0be3bbe8598c` (as `spec:update` prints them)                                                     |
 | Fetched        | 2026-09-23                                                                                                       |
 
 Refresh it deliberately:
 
 ```bash
 FORGEJO_SPEC_TAG=v16.0.0 pnpm --filter @cpf23333-forgejo-toolkit/api spec:update   # default tag
-pnpm --filter @cpf23333-forgejo-toolkit/api generate     # regenerate types, client and mocks
+pnpm --filter @cpf23333-forgejo-toolkit/api generate:safe   # regenerate (restores on failure)
 ```
 
 Then update the table above, review the diff (a newer spec can change request and
