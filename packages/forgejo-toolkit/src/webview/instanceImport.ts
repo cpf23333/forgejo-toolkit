@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { isHttpUrl } from './connectionTest';
+import { hasUrlUserinfo } from '../utils/redactUrlUserinfo';
 
 export const MAX_IMPORT_PBKDF2_ITERATIONS = 1_000_000;
 
@@ -156,6 +157,13 @@ export function stripInstanceTokens(instances: ForgejoInstance[]): ForgejoInstan
  * `ConfigManager.addInstance` and the save/edit handlers: the file is
  * untrusted input and none of those layers can assume another rejected it.
  *
+ * The URL must also carry no userinfo (`https://user:token@host`). Nothing else
+ * rejects it, and it cannot work: Node's `fetch` refuses to build a request from
+ * a URL with credentials, so the entry would be stored, then fail every request
+ * with a transport error the API layer reports as "cannot connect to the
+ * instance". A file's credential belongs in its `token` field, which is where
+ * the export format puts it.
+ *
  * `id` is forwarded as-is: the file may name an id that is already stored,
  * and this function has no view of the stored list. ConfigManager.addInstance
  * enforces the id/url origin consistency that makes reusing a stored id safe
@@ -171,6 +179,7 @@ export function sanitizeImportedInstances(items: unknown[]): { valid: ForgejoIns
       typeof instance.id === 'string' &&
       typeof instance.url === 'string' &&
       isHttpUrl(instance.url) &&
+      !hasUrlUserinfo(instance.url) &&
       typeof instance.token === 'string' &&
       typeof instance.name === 'string' &&
       typeof instance.username === 'string'

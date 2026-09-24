@@ -1022,6 +1022,8 @@ describe('PullReviewCommentController review comments fan-out', () => {
   beforeEach(() => {
     state.createdThreads.length = 0;
     state.openHandlers.length = 0;
+    state.editorHandlers.length = 0;
+    state.diffFetches = 0;
     state.failedReviewIds = [];
     state.commentsRequests = [];
     state.peakCommentsInFlight = 0;
@@ -1119,6 +1121,71 @@ describe('PullReviewCommentController review comments fan-out', () => {
       expect(shown).toHaveBeenCalledWith(expect.stringContaining('Some reviews could not be loaded'));
       expect(shown.mock.calls[0][0]).toContain('11');
     } finally {
+      controller.dispose();
+    }
+  });
+
+  it('warns about an incomplete review load only once while the data stays cached', async () => {
+    // `_loadAndRender` re-runs for every focus change and for every document
+    // opened, and the 15 s cache answers those re-enters. A warning per render
+    // therefore re-toasted one transient failure once per document and on every
+    // focus change between the two sides of a diff.
+    state.listReviews = [
+      { id: 10, state: 'COMMENTED', user: { login: 'reviewer' } },
+      { id: 11, state: 'PENDING', user: { login: 'user' } },
+    ];
+    state.failedReviewIds = [11];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const activeEditor = state.editorHandlers[0];
+    const shown = vi.mocked(vscode.window.showWarningMessage);
+
+    try {
+      await openDocument(makeDocument(false));
+      expect(shown).toHaveBeenCalledTimes(1);
+
+      // The other side of the diff: the cache answers, the fetch count does not
+      // move, and the warning is not replayed.
+      const fetchesAfterFirst = state.diffFetches;
+      await openDocument(makeDocument(true));
+      expect(state.diffFetches).toBe(fetchesAfterFirst);
+
+      // A plain focus change re-enters the same path.
+      activeEditor({ document: makeDocument(false) });
+      await flushUntil(() => threadCount(controller) > 0);
+
+      expect(shown).toHaveBeenCalledTimes(1);
+    } finally {
+      controller.dispose();
+    }
+  });
+
+  it('localizes the missing-instance failure instead of embedding the id raw', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    // Spying rather than only comparing the rendered text: the raw
+    // concatenation renders the same string, so only the call itself proves the
+    // message went through the translation seam (`vscode.l10n.t`) and not
+    // through a template literal no bundle can reach.
+    const translate = vi.spyOn(vscode.l10n, 't');
+
+    try {
+      const failure = await (
+        controller as unknown as {
+          _fetchReviewData(params: {
+            instanceId: string;
+            owner: string;
+            repo: string;
+            index: number;
+          }): Promise<unknown>;
+        }
+      )
+        ._fetchReviewData({ instanceId: 'gone-instance', owner: 'owner', repo: 'repo', index: 2 })
+        .catch((error: unknown) => error);
+
+      expect((failure as Error).message).toBe('Forgejo instance not found: gone-instance');
+      expect(translate).toHaveBeenCalledWith('Forgejo instance not found: {0}', 'gone-instance');
+    } finally {
+      translate.mockRestore();
       controller.dispose();
     }
   });

@@ -213,6 +213,23 @@ describe('createIssueFromComment', () => {
 
     const body = (viewProvider.openNewIssue.mock.calls[0][0] as { body: string }).body;
     expect(body).not.toContain('secret-token');
-    expect(body).toContain('forgejo.example.com/owner/repo/blob/abc123/src/a.ts#L5');
+    // The userinfo is removed, not masked: a reader of the issue has to be able
+    // to open the link, and `alice:***@host` is not a URL that resolves.
+    expect(body).toBe('https://forgejo.example.com/owner/repo/blob/abc123/src/a.ts#L5');
+  });
+
+  it('removes a token written in the username position from the issue body', async () => {
+    vi.mocked(detectLinkedRepository).mockResolvedValue(linked as never);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('abc123');
+    const viewProvider = { openNewIssue: vi.fn() };
+
+    await createIssueFromComment(
+      createConfig({ ...INSTANCE, url: 'https://secret-token@forgejo.example.com/' }),
+      viewProvider as never,
+      { fsPath: '/repo/src/a.ts', line: 0, text: 'refactor this' },
+    );
+
+    const body = (viewProvider.openNewIssue.mock.calls[0][0] as { body: string }).body;
+    expect(body).toBe('https://forgejo.example.com/owner/repo/blob/abc123/src/a.ts#L1');
   });
 });

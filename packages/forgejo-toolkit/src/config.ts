@@ -3,6 +3,7 @@ import * as path from 'path';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { isSameOriginUrl } from './webview/instanceImport';
 import { isHttpUrl } from './webview/connectionTest';
+import { hasUrlUserinfo } from './utils/redactUrlUserinfo';
 import { WorktreeManager } from './worktree/worktreeManager';
 import { logger } from './logger';
 
@@ -111,6 +112,17 @@ export class ConfigManager {
     if (!isHttpUrl(instance.url)) {
       throw new Error(vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'));
     }
+    // A URL that embeds a credential as userinfo is refused for the same
+    // reason: Node's `fetch` refuses to construct a request from a URL with
+    // credentials at all, so storing it produces an instance whose every call
+    // fails with a transport error the user sees as "cannot connect to the
+    // instance". The credential belongs in the token field, which is stored in
+    // SecretStorage and sent as an Authorization header. Refused rather than
+    // stripped silently: dropping a secret the user typed, without telling
+    // them, would leave a saved instance that authenticates as nobody.
+    if (hasUrlUserinfo(instance.url)) {
+      throw new Error(vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'));
+    }
     // Token semantics (shared with updateInstance): a non-empty token is
     // stored in SecretStorage; an empty token means "keep the existing
     // credential". Re-adding an instance id without re-entering its token
@@ -139,11 +151,23 @@ export class ConfigManager {
     this._onInstancesChanged.fire(this.getInstances());
   }
 
+  /**
+   * Apply a partial update to a stored instance.
+   *
+   * A `url` update goes through the same refusals `addInstance` applies, and for
+   * the same reason: this is the other way a URL reaches the store, and an entry
+   * that `fetch` cannot request would fail every call with a message blaming the
+   * instance. Callers that already gate the URL (the sidebar's editInstance)
+   * are not the only ones — this is the boundary itself.
+   */
   async updateInstance(id: string, updates: Partial<Omit<ForgejoInstance, 'id'>>): Promise<void> {
     const instances = this._getStoredInstances();
     const index = instances.findIndex((i) => i.id === id);
     if (index === -1) {
       return;
+    }
+    if (updates.url !== undefined && (!isHttpUrl(updates.url) || hasUrlUserinfo(updates.url))) {
+      throw new Error(vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'));
     }
     // An empty token update means "unchanged", so the stored secret is kept.
     if (updates.token) {

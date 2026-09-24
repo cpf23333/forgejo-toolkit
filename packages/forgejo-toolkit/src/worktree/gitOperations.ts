@@ -32,6 +32,72 @@ const GIT_TIMEOUT_MS = 120_000;
 const GIT_LONG_TIMEOUT_MS = 900_000;
 
 /**
+ * Git subcommands whose work can cross the network. A timeout on one of them may
+ * well be a stalled transfer or a credential helper waiting on input, which is
+ * what the timeout message for this class says.
+ *
+ * The long-cap callers run only these (`clone --bare`, `fetch`, `push`) plus the
+ * checkout `worktree add`, which `timedOutOnNetwork` matches separately.
+ */
+const NETWORK_SUBCOMMANDS = new Set(['clone', 'fetch', 'ls-remote', 'pull', 'push']);
+
+/**
+ * Whether a timed-out command may have been waiting on the network or on a
+ * credential helper rather than on the local repository.
+ *
+ * Every other command `runGit` runs is local plumbing (`rev-parse`, `config`,
+ * `status`, `worktree list`/`prune`/`remove`, `reset`, `rev-list`, `branch -D`,
+ * `revert`), where those two are the *least* likely causes: they answer in
+ * milliseconds unless something local is stuck (an `index.lock` held by a dead
+ * process, a filesystem that stopped responding). Telling the user to check the
+ * network there misdirects them away from the actual cause.
+ *
+ * Classified from argv, never from the cap the caller passed: the message has to
+ * describe the command that actually timed out, so a caller that pairs a local
+ * command with the long cap still gets the local wording, and vice versa.
+ */
+function timedOutOnNetwork(args: string[]): boolean {
+  const [subcommand, sub] = args;
+  if (subcommand === 'worktree') {
+    // `worktree add` performs the checkout the long cap exists for; `list`,
+    // `prune` and `remove` only touch local metadata.
+    return sub === 'add';
+  }
+  return NETWORK_SUBCOMMANDS.has(subcommand);
+}
+
+/**
+ * The operation named in the timeout message. `worktree add` needs both words:
+ * naming only "worktree" would not say whether the checkout or the local
+ * `list`/`prune`/`remove` was the one that hung.
+ */
+function gitOperation(args: string[]): string {
+  return args[0] === 'worktree' && args[1] === 'add' ? 'worktree add' : (args[0] ?? 'command');
+}
+
+/**
+ * The message a command that outlived its cap reports, picked by the class of
+ * command that timed out (see `timedOutOnNetwork`). Both classes are built here
+ * and nowhere else, so the message cannot disagree with the rejection path that
+ * won the race.
+ */
+function gitTimeoutMessage(args: string[], timeoutMs: number): string {
+  const operation = gitOperation(args);
+  const seconds = Math.max(1, Math.ceil(timeoutMs / 1000));
+  return timedOutOnNetwork(args)
+    ? vscode.l10n.t(
+        'Git {0} did not finish within {1} seconds and was stopped. Check the network connection or credential helper, then try again.',
+        operation,
+        seconds,
+      )
+    : vscode.l10n.t(
+        'Git {0} did not finish within {1} seconds and was stopped. The repository may be locked or a git process may be stuck; check the repository state and try again.',
+        operation,
+        seconds,
+      );
+}
+
+/**
  * Raised when a git child had to be killed because it outlived its timeout.
  *
  * Callers single this out: a killed `git worktree add` leaves a registration and
@@ -80,9 +146,17 @@ function describeGitFailure(error: unknown, gitPath: string): Error {
  * left the git process behind, and made every later attempt on that key reuse
  * the same dead promise. The timeout rejects with `GitTimeoutError` so the task
  * settles (and the key is released) and the user gets an actionable message.
+ * That rejection is guaranteed even though the abort's own rejection can win
+ * the race (see `timerFired` below): the class is what callers branch on.
  *
  * `timeoutMs` defaults to the local-command cap; the callers whose work is
  * genuinely long pass `GIT_LONG_TIMEOUT_MS`.
+ *
+ * The timeout message names the likely cause for the class of command that
+ * actually timed out — the network/credential helper for a transfer or checkout,
+ * the local repository state for the plumbing that answers in milliseconds on a
+ * healthy one — rather than blaming the network for every command (see
+ * `gitTimeoutMessage`).
  *
  * The binary is resolved from the editor's `git.path` setting on every call
  * (git runs may be minutes apart, and the setting is live), falling back to
@@ -102,23 +176,25 @@ export async function runGit(
   // exists to remove.
   const controller = new AbortController();
   let timer: NodeJS.Timeout | undefined;
+  // Records that the cap fired, not just that the race rejected with it. The
+  // abort makes `execFile` reject with its own AbortError, and with both
+  // promises racing, which rejection `Promise.race` observes first is not
+  // guaranteed: on Node 22+ the abort's rejection wins and
+  // `error instanceof GitTimeoutError` is false, so a timed-out command was
+  // reported as an ordinary failure. The flag makes the outcome independent of
+  // that ordering — once the cap fired, the caller always sees the timeout.
+  let timerFired = false;
+  const timeoutError = () => new GitTimeoutError(gitTimeoutMessage(args, timeoutMs));
   const timedOut = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
+      timerFired = true;
       // `killSignal: 'SIGKILL'` below, not SIGTERM: a wedged git (an
       // unreachable host mid-transfer, a credential helper blocked on input)
       // cannot be trusted to exit on a catchable signal, and the process has to
       // be gone before the caller's cleanup deletes what it was writing (see
       // rethrowAfterKilledWorktreeAdd).
       controller.abort();
-      reject(
-        new GitTimeoutError(
-          vscode.l10n.t(
-            'Git {0} did not finish within {1} seconds and was stopped. Check the network connection or credential helper, then try again.',
-            args[0] ?? 'command',
-            Math.max(1, Math.ceil(timeoutMs / 1000)),
-          ),
-        ),
-      );
+      reject(timeoutError());
     }, timeoutMs);
   });
   try {
@@ -132,8 +208,14 @@ export async function runGit(
       timedOut,
     ]);
   } catch (error) {
-    // The cap rejects with its own error; everything else is a git failure.
-    throw error instanceof GitTimeoutError ? error : describeGitFailure(error, gitPath);
+    // The cap fired: whatever rejection won the race is the killed child's, so
+    // report the timeout the callers single out (the message is built here, so
+    // the AbortError seen earlier in the race is never surfaced).
+    if (timerFired) {
+      throw error instanceof GitTimeoutError ? error : timeoutError();
+    }
+    // Everything else is a git failure.
+    throw describeGitFailure(error, gitPath);
   } finally {
     // Also covers the timeout path: an already-fired timer is harmless to clear,
     // and a pending one must not outlive the call.
@@ -755,21 +837,53 @@ export async function getGitHeadPath(dirPath: string): Promise<string | undefine
   }
 }
 
+/**
+ * Create the shared bare cache clone at `targetPath`.
+ *
+ * On failure the partial clone is removed, but only the one this call made: a
+ * `git clone` killed at its timeout (or one that failed before git wrote
+ * `remote.origin.url`) leaves a directory that looks like a valid cache clone,
+ * and the caller treats a directory that exists as usable — the retry skips the
+ * clone and every later attempt fails with "No git remote in the local
+ * repository points at owner/repo". Whether the path existed before this call
+ * is therefore recorded first: a directory the user created by hand is never
+ * deleted, and git refuses to clone into an existing directory, so a path that
+ * did not exist beforehand can only hold this call's own output.
+ */
 export async function cloneRepository(url: string, targetPath: string, token?: string): Promise<void> {
-  await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
-  // Pass the token via env-based per-command config so it is neither persisted
-  // in the cloned repository's remote URL nor visible in git's command line.
-  // --quiet keeps clone progress out of stderr (huge repos would overflow
-  // execFile's 1MB maxBuffer); fatal errors are still printed, so the check
-  // below is unaffected.
-  const { stderr } = await runGit(
-    ['clone', '--bare', '--quiet', url, targetPath],
-    undefined,
-    authEnv(token),
-    GIT_LONG_TIMEOUT_MS,
+  const existedBeforeCall = await fs.promises.access(targetPath).then(
+    () => true,
+    () => false,
   );
-  if (stderr && stderr.toLowerCase().includes('error')) {
-    throw new Error(stderr);
+  try {
+    await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+    // Pass the token via env-based per-command config so it is neither persisted
+    // in the cloned repository's remote URL nor visible in git's command line.
+    // --quiet keeps clone progress out of stderr (huge repos would overflow
+    // execFile's 1MB maxBuffer); fatal errors are still printed, so the check
+    // below is unaffected.
+    const { stderr } = await runGit(
+      ['clone', '--bare', '--quiet', url, targetPath],
+      undefined,
+      authEnv(token),
+      GIT_LONG_TIMEOUT_MS,
+    );
+    if (stderr && stderr.toLowerCase().includes('error')) {
+      throw new Error(stderr);
+    }
+  } catch (error) {
+    if (!existedBeforeCall) {
+      // Best-effort: the directory is this call's partial output, and a delete
+      // that fails (a file still held open by the killed child on Windows) must
+      // not replace the clone's own failure.
+      try {
+        await fs.promises.rm(targetPath, { recursive: true, force: true });
+      } catch {
+        // Leftovers are retried by the next attempt's own clone (which fails on
+        // an existing directory) rather than reported here.
+      }
+    }
+    throw error;
   }
 }
 
@@ -1409,6 +1523,22 @@ export async function revertMergeCommit(
         info.repo.toLowerCase() === expectedRepo.repo.toLowerCase()
       );
     };
+    // The remote name comes from `branch.<name>.remote`, which a repository can
+    // set to anything — including `--all`, which `git remote get-url` reads as
+    // its own option. getRemotePushUrls refuses such a name by throwing, and
+    // that refusal is an internal message: it names neither the instance nor the
+    // repository, and it is not localized. Check first, so the user gets a
+    // localized abort naming the real problem instead.
+    if (!isSafeRemoteName(remote)) {
+      throw new Error(
+        vscode.l10n.t(
+          'Revert aborted: "{0}" is not a usable git remote name, so the push target for {1}/{2} could not be verified. Point the branch at a real remote (for example "origin") and try again.',
+          remote,
+          expectedRepo.owner,
+          expectedRepo.repo,
+        ),
+      );
+    }
     const pushUrls = await getRemotePushUrls(repoPath, remote);
     if (!pushUrls || pushUrls.length === 0 || !pushUrls.every(isExpectedRepo)) {
       throw new Error(

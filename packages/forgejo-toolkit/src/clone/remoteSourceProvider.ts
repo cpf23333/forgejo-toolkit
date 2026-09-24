@@ -5,7 +5,7 @@ import type { ForgejoRepository } from '../api/types';
 import { ForgejoClient } from '../api/client';
 import { userFacingErrorMessage } from '../api/errors';
 import { logger } from '../logger';
-import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
+import { stripUrlUserinfo } from '../utils/redactUrlUserinfo';
 
 // Minimal structural declarations for the built-in git extension's stable v1
 // API surface (see extensions/git/src/api/git.d.ts in the VS Code sources).
@@ -89,17 +89,24 @@ export class ForgejoRemoteSourceProvider implements RemoteSourceProvider {
  * token through env-based git config (`authEnv` in `worktree/gitOperations.ts`).
  * This provider has no way to reach that path: the git extension performs the
  * clone itself from the URL we hand back. So the userinfo is stripped rather
- * than embedded: a private repository clone then relies on the user's own git
- * credential helper, and the configured token is never written to disk.
+ * than embedded: the configured token is never written to disk, and a private
+ * repository clone then relies on the user's own git credential helper — the
+ * same reasoning `cloneRepository` follows when it passes the token through
+ * env-based git config (`authEnv` in `worktree/gitOperations.ts`) instead of
+ * putting it in the URL.
+ *
+ * Masking the credential instead of removing it (`https://alice:***@host`) would
+ * be worse than leaving it: `***` is not a credential, so the clone could only
+ * fail, and git would persist that masked URL as the new repository's remote.
  *
  * A URL Forgejo itself reports (`clone_url`, `ssh_url`) is passed through
  * untouched: those are the server's own canonical remote URLs.
  */
 export function toRemoteSource(instance: ForgejoInstance, repo: ForgejoRepository): RemoteSource {
-  // Redact first: the helper re-serializes an absolute URL, which appends a
-  // trailing slash, so trimming it afterwards is what keeps the join below from
-  // producing a double slash.
-  const fallbackUrl = redactUrlUserinfo(instance.url).replace(/\/$/, '');
+  // The helper re-serializes an absolute URL, which appends a trailing slash, so
+  // trimming it afterwards is what keeps the join below from producing a double
+  // slash.
+  const fallbackUrl = stripUrlUserinfo(instance.url).replace(/\/$/, '');
   const urls = [repo.clone_url ?? `${fallbackUrl}/${repo.full_name}.git`];
   if (repo.ssh_url) {
     urls.push(repo.ssh_url);

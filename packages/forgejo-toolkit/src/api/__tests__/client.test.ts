@@ -247,6 +247,33 @@ describe('ForgejoClient with MSW', () => {
     expect(captured[0].get('state')).toBe('open');
     expect(captured[1].get('type')).toBe('pulls');
     expect(captured[1].get('state')).toBe('all');
+    // No keyword passed means no keyword sent: the request shape the dashboard
+    // has always used is unchanged.
+    expect(captured[0].get('q')).toBeNull();
+    expect(captured[1].get('q')).toBeNull();
+  });
+
+  it('passes the instance-wide keyword to the server instead of filtering rows', async () => {
+    // The MCP list tools used to pass `q` to the repository endpoint and then
+    // re-filter the rows locally; the instance-wide fallback dropped the keyword
+    // server-side and filtered locally. Both now ask the server, whose indexer
+    // also matches comments — the local filter did not, so it discarded matches
+    // the server had made.
+    const client = createClient();
+    const captured: URLSearchParams[] = [];
+    mockServer.use(
+      http.get('https://*/api/v1/repos/issues/search', ({ request }) => {
+        captured.push(new URL(request.url).searchParams);
+        return HttpResponse.json([]);
+      }),
+    );
+
+    await client.getUserIssues('open', 'login');
+    await client.getUserPullRequests('open', 'login');
+
+    expect(captured).toHaveLength(2);
+    expect(captured[0].get('q')).toBe('login');
+    expect(captured[1].get('q')).toBe('login');
   });
 
   it('searches repositories', async () => {
@@ -379,6 +406,33 @@ describe('ForgejoClient with MSW', () => {
     const detail = await client.getRepoDetail('demo-user', 'demo-repo');
 
     expect(detail.branches).toHaveLength(REPO_DETAIL_LIST_LIMIT);
+    // 50 branches exist and only 10 are returned, so the cut is real.
+    expect(detail.branchesTruncated).toBe(true);
+  });
+
+  it('reports an exactly-full branch and commit list as complete, not capped', async () => {
+    // `getRepoDetail` asks for one row beyond the cap, so the extra row's
+    // presence — not the returned length — is what proves a cut. Comparing
+    // lengths told a caller with exactly REPO_DETAIL_LIST_LIMIT branches that
+    // the list was incomplete.
+    const client = createClient();
+    const branches = Array.from({ length: REPO_DETAIL_LIST_LIMIT }, (_, i) => ({ name: `branch-${i}` }));
+    const commits = Array.from({ length: REPO_DETAIL_LIST_LIMIT }, (_, i) => ({ sha: `sha-${i}` }));
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/branches', ({ request }) =>
+        HttpResponse.json(branches.slice(0, Number(new URL(request.url).searchParams.get('limit') ?? '10'))),
+      ),
+      http.get('https://*/api/v1/repos/:owner/:repo/commits', ({ request }) =>
+        HttpResponse.json(commits.slice(0, Number(new URL(request.url).searchParams.get('limit') ?? '10'))),
+      ),
+    );
+
+    const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+    expect(detail.branches).toHaveLength(REPO_DETAIL_LIST_LIMIT);
+    expect(detail.recentCommits).toHaveLength(REPO_DETAIL_LIST_LIMIT);
+    expect(detail.branchesTruncated).toBe(false);
+    expect(detail.recentCommitsTruncated).toBe(false);
   });
 
   describe('getRepoDetail README entry', () => {
@@ -620,6 +674,40 @@ describe('ForgejoClient with MSW', () => {
       expect(requests).toBe(6);
       await client.getRepoContents('demo-user', 'demo-repo', 'file-4.md', 'main');
       expect(requests).toBe(6);
+    });
+
+    it('never caches a single listing larger than the whole budget', async () => {
+      // One oversized listing used to be stored anyway: it evicted every other
+      // entry and still left the running total over the budget, so the next
+      // insert evicted again and the bound never held.
+      let requests = 0;
+      const smallBody = Buffer.from('small file bytes').toString('base64');
+      const hugeBody = Buffer.alloc(REPO_CONTENTS_CACHE_MAX_BYTES + 1024, 97).toString('base64');
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/*', ({ request }) => {
+          requests += 1;
+          const requested = new URL(request.url).pathname.split('/contents/')[1];
+          const content = requested === 'huge.md' ? hugeBody : smallBody;
+          return HttpResponse.json([{ ...mockReadmeContent, path: requested, content }]);
+        }),
+      );
+      const client = new ForgejoClient('https://forgejo.example.com', 'mock-token');
+
+      await client.getRepoContents('demo-user', 'demo-repo', 'small.md', 'main');
+      const bytesAfterSmall = repoContentsCacheBytesForTest();
+      expect(bytesAfterSmall).toBeGreaterThan(0);
+
+      await client.getRepoContents('demo-user', 'demo-repo', 'huge.md', 'main');
+
+      // The oversized listing is answered but not retained...
+      expect(repoContentsCacheBytesForTest()).toBe(bytesAfterSmall);
+      expect(repoContentsCacheBytesForTest()).toBeLessThanOrEqual(REPO_CONTENTS_CACHE_MAX_BYTES);
+      await client.getRepoContents('demo-user', 'demo-repo', 'huge.md', 'main');
+      expect(requests).toBe(3);
+
+      // ...and the entry that was already cached survived it.
+      await client.getRepoContents('demo-user', 'demo-repo', 'small.md', 'main');
+      expect(requests).toBe(3);
     });
 
     it('forgets the byte total when the memo is cleared', async () => {
@@ -2349,6 +2437,68 @@ describe('ForgejoClient with MSW', () => {
     });
   });
 
+  describe('Contents entries that are not regular files', () => {
+    /**
+     * Forgejo fills `content` only for a regular file. A symlink answers with
+     * `target` and a `size` equal to the *target's* length; a submodule answers
+     * with `submodule_git_url` and size 0. Deciding on `content`/`size` alone
+     * produced a withheld-payload notice for the symlink (a cause the server
+     * never gave) and an empty string for the submodule ("this file is empty").
+     */
+    function answerWith(entry: Record<string, unknown>): void {
+      mockServer.use(http.get('https://*/api/v1/repos/:owner/:repo/contents/:path', () => HttpResponse.json(entry)));
+    }
+
+    it('says a symlink is a symlink and names its target, not a payload limit', async () => {
+      answerWith({
+        name: 'link.md',
+        path: 'link.md',
+        type: 'symlink',
+        size: 'README.md'.length,
+        target: 'README.md',
+      });
+      const client = createClient();
+
+      const result = await client.getFileContentResult('demo-user', 'demo-repo', 'link.md');
+
+      expect(result.kind).toBe('symlink');
+      expect(result.text).toContain('link.md is a symlink');
+      expect(result.text).toContain('README.md');
+      expect(result.text).not.toContain('payload limit');
+    });
+
+    it('says a submodule is a submodule and names its git URL, not an empty file', async () => {
+      answerWith({
+        name: 'lib',
+        path: 'lib',
+        type: 'submodule',
+        size: 0,
+        submodule_git_url: 'https://forgejo.example.com/demo-user/upstream-lib.git',
+      });
+      const client = createClient();
+
+      const result = await client.getFileContentResult('demo-user', 'demo-repo', 'lib');
+
+      expect(result.kind).toBe('submodule');
+      expect(result.text).toContain('lib is a submodule');
+      expect(result.text).toContain('upstream-lib.git');
+      expect(result.text).not.toBe('');
+    });
+
+    it('keeps content the server did send, whatever the entry type says', async () => {
+      // Forgejo never populates `content` for a symlink or a submodule, so
+      // content that arrived is file content and must not be replaced by a
+      // notice about the declared type.
+      answerWith({ name: 'file.txt', path: 'file.txt', type: 'submodule', content: btoa('hello'), encoding: 'base64' });
+      const client = createClient();
+
+      await expect(client.getFileContentResult('demo-user', 'demo-repo', 'file.txt')).resolves.toEqual({
+        kind: 'file',
+        text: 'hello',
+      });
+    });
+  });
+
   describe('Files whose payload the instance withholds', () => {
     it('explains the withheld payload instead of reporting an empty file', async () => {
       // The contents API answers with the real size and no `content` above
@@ -2360,10 +2510,13 @@ describe('ForgejoClient with MSW', () => {
       );
       const client = createClient();
 
-      const content = await client.getFileContent('demo-user', 'demo-repo', 'huge.bin');
+      const result = await client.getFileContentResult('demo-user', 'demo-repo', 'huge.bin');
 
-      expect(content).toContain('did not return this file');
-      expect(content).toContain(String(12 * 1024 * 1024));
+      expect(result.kind).toBe('withheld');
+      expect(result.text).toContain('did not return this file');
+      expect(result.text).toContain(String(12 * 1024 * 1024));
+      // The string contract is unchanged for callers that only display it.
+      await expect(client.getFileContent('demo-user', 'demo-repo', 'huge.bin')).resolves.toBe(result.text);
     });
 
     it('still returns an empty string for a genuinely empty file', async () => {

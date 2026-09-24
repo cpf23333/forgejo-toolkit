@@ -3,7 +3,7 @@ import * as path from 'path';
 import type { ConfigManager } from '../config';
 import { detectLinkedRepository, getCurrentCommitSha } from '../worktree/gitOperations';
 import { encodePermalinkPath } from '../commands/permalink';
-import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
+import { stripUrlUserinfo } from '../utils/redactUrlUserinfo';
 import type { ForgejoToolkitViewProvider } from '../webview/viewProvider';
 
 export const COMMAND_CREATE_ISSUE_FROM_COMMENT = 'forgejoToolkit.createIssueFromComment';
@@ -115,9 +115,11 @@ export async function createIssueFromComment(
   const sha = await getCurrentCommitSha(linked.localPath);
   // This reference becomes the *body* of a new issue, so it is persisted
   // server-side and readable by everyone with repository access: a credential
-  // embedded in the configured instance URL must never be part of it.
+  // embedded in the configured instance URL must never be part of it. The
+  // userinfo is stripped rather than masked, so the body holds a URL the reader
+  // can actually open.
   const reference = sha
-    ? `${redactUrlUserinfo(instance.url).replace(/\/$/, '')}/${linked.owner}/${linked.repo}/blob/${sha}/${encodePermalinkPath(relativePath)}#L${lineNumber}`
+    ? `${stripUrlUserinfo(instance.url).replace(/\/$/, '')}/${linked.owner}/${linked.repo}/blob/${sha}/${encodePermalinkPath(relativePath)}#L${lineNumber}`
     : `${relativePath}#L${lineNumber}`;
 
   await vscode.commands.executeCommand('forgejoToolkitView.focus');

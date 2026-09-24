@@ -3,7 +3,7 @@ import * as path from 'path';
 import type { ConfigManager } from '../config';
 import { detectLinkedRepository, getCurrentCommitSha } from '../worktree/gitOperations';
 import { FORGEJO_PR_SCHEME, type ForgejoPrUriParams } from '../prFileSystemProvider';
-import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
+import { stripUrlUserinfo } from '../utils/redactUrlUserinfo';
 
 function parseForgejoPrUri(uri: vscode.Uri): ForgejoPrUriParams | undefined {
   if (uri.scheme !== FORGEJO_PR_SCHEME) {
@@ -95,10 +95,14 @@ export async function copyPermalink(config: ConfigManager): Promise<void> {
       vscode.window.showWarningMessage(vscode.l10n.t('Forgejo instance not found'));
       return;
     }
-    const normalizedUrl = redactUrlUserinfo(instance.url).replace(/\/$/, '');
     // The configured instance URL may embed a credential as userinfo, and this
-    // string goes to the clipboard: redact it so "Copy Permalink" never hands
-    // out a secret. Every other surface redacts the same value.
+    // string goes to the clipboard as a link someone else follows: the userinfo
+    // is stripped, not masked. A mask would leave `***@host` in the URL the user
+    // pastes, which is not a usable credential and breaks the link for them.
+    // The helper re-serializes an absolute URL (appending a trailing slash for a
+    // bare origin), so the trailing slash is trimmed afterwards to keep the join
+    // below from producing a double slash.
+    const normalizedUrl = stripUrlUserinfo(instance.url).replace(/\/$/, '');
     permalink = `${normalizedUrl}/${params.owner}/${params.repo}/blob/${params.ref}/${encodePermalinkPath(params.path)}${lineRangeFragment(selection)}`;
   } else if (uri.scheme === 'file') {
     // Attribute to the repository containing the target file so nested
@@ -123,7 +127,7 @@ export async function copyPermalink(config: ConfigManager): Promise<void> {
       vscode.window.showWarningMessage(vscode.l10n.t('The current file is outside the linked repository'));
       return;
     }
-    const normalizedUrl = redactUrlUserinfo(instance.url).replace(/\/$/, '');
+    const normalizedUrl = stripUrlUserinfo(instance.url).replace(/\/$/, '');
     permalink = `${normalizedUrl}/${linked.owner}/${linked.repo}/blob/${sha}/${encodePermalinkPath(relativePath)}${lineRangeFragment(selection)}`;
   } else {
     vscode.window.showWarningMessage(vscode.l10n.t('Permalink is not supported for this file type'));

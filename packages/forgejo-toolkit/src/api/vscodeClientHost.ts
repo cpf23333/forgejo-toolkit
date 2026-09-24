@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { ForgejoClientHost, InsufficientScopeDetails } from './clientHost';
 import { getServerVersion } from './serverVersion';
-import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
+import { redactUrlUserinfo, stripUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { isHttpUrl } from '../webview/connectionTest';
 import type { Logger } from '../logger';
 
@@ -15,6 +15,56 @@ const shownPermissionErrorKeys = new Set<string>();
 const shownUnsupportedVersionUrls = new Set<string>();
 
 /**
+ * The dedupe key for a permission toast.
+ *
+ * The URL alone is not enough. The actionable half of the toast is "Update the
+ * access token", and after the user replaces a dead credential with another bad
+ * one every request still 401s — but the key had not changed, so the toast that
+ * says what to do could never come back for the rest of the window. The
+ * credential carried by the URL is fingerprinted into the key, so a rotation
+ * re-arms it while a poller re-requesting with the same bad credential stays
+ * quiet.
+ *
+ * A URL without userinfo fingerprints as the empty credential: the token then
+ * lives in SecretStorage, which this module cannot read, and the host calls it
+ * with a fresh URL on every request, so there is nothing here that can change
+ * without a URL change anyway.
+ *
+ * The fingerprint is the cheap DJB2-and-length form the webview instance payload
+ * uses (`tokenFingerprint` in shared/webview/messages), kept local so this key
+ * does not depend on that module's build; the two never have to agree, they only
+ * have to notice a change.
+ */
+export function permissionErrorKey(url: string, reason: string, credential: string): string {
+  let hash = 5381;
+  for (let index = 0; index < credential.length; index += 1) {
+    hash = ((hash << 5) + hash + credential.charCodeAt(index)) | 0;
+  }
+  return `${url}|${reason}|${(hash >>> 0).toString(16)}-${credential.length}`;
+}
+
+/**
+ * The credential a URL carries as userinfo, for `permissionErrorKey`. Empty for
+ * a URL without userinfo, or one that cannot be parsed.
+ */
+function urlCredential(url: string): string {
+  if (!url.includes('@')) {
+    return '';
+  }
+  try {
+    const parsed = new URL(url);
+    return `${parsed.username}:${parsed.password}`;
+  } catch {
+    return '';
+  }
+}
+
+/** Test hook: the dedupe set is per-session state, so a suite has to reset it. */
+export function resetShownPermissionErrors(): void {
+  shownPermissionErrorKeys.clear();
+}
+
+/**
  * Extension-host implementation of the ForgejoClient host hooks: auth
  * failures surface as error toasts with actions that open the instance's
  * token settings page or the extension settings view.
@@ -24,9 +74,10 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
    * `displayUrl` is what every toast shows: the stored instance URL may carry
    * the token as userinfo, and a toast is a user-visible surface like any other.
    * `instanceUrl` keeps the real value, which only the "Open Token Settings"
-   * action needs.
+   * action needs. `reason` is the failure detail the toast is about.
    */
-  const notify = (key: string, displayUrl: string, instanceUrl: string, message: string) => {
+  const notify = (reason: string, displayUrl: string, instanceUrl: string, message: string) => {
+    const key = permissionErrorKey(displayUrl, reason, urlCredential(instanceUrl));
     if (shownPermissionErrorKeys.has(key)) {
       return;
     }
@@ -36,7 +87,11 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
     void vscode.window.showErrorMessage(message, openTokenSettings, openSettings).then(
       (choice) => {
         if (choice === openTokenSettings) {
-          const tokenSettingsUrl = `${instanceUrl.replace(/\/$/, '')}/user/settings/applications`;
+          // The userinfo is stripped, not merely masked: this URL is handed to
+          // the operating system's browser, and `:***@host` is not a URL the
+          // server can serve. The configured credential is already visible in
+          // Settings; it has no business in an external browser's history.
+          const tokenSettingsUrl = `${stripUrlUserinfo(instanceUrl).replace(/\/$/, '')}/user/settings/applications`;
           // Scheme allowlist before handing the URL to the OS: the instance URL
           // is stored data here, and the other three openExternal sites in the
           // extension refuse anything that is not http(s) for the same reason.
@@ -45,7 +100,21 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
             logger?.error(`Blocked openExternal for a non-http(s) instance URL: ${displayUrl}`);
             return;
           }
-          void vscode.env.openExternal(vscode.Uri.parse(tokenSettingsUrl));
+          // A `false` result and a rejection are both silent failures of the
+          // button: report them like the three sibling openExternal sites do, so
+          // "Open Token Settings" cannot quietly do nothing.
+          void vscode.env.openExternal(vscode.Uri.parse(tokenSettingsUrl)).then(
+            (opened) => {
+              if (!opened) {
+                logger?.error(`openExternal reported failure for the token settings page of ${displayUrl}`);
+              }
+            },
+            (error: unknown) => {
+              logger?.error(
+                `openExternal failed for the token settings page of ${displayUrl}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            },
+          );
         } else if (choice === openSettings) {
           void vscode.commands.executeCommand('forgejoToolkit.openSettings');
         }
@@ -63,7 +132,7 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
     notifyInvalidCredentials(instanceUrl: string): void {
       const displayUrl = redactUrlUserinfo(instanceUrl);
       notify(
-        `${displayUrl}|401`,
+        '401',
         displayUrl,
         instanceUrl,
         vscode.l10n.t('Invalid or expired credentials for {0}. Update the access token.', displayUrl),
@@ -85,7 +154,7 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
             displayUrl,
             details.body,
           );
-      notify(`${displayUrl}|${details.body}`, displayUrl, instanceUrl, message);
+      notify(details.body, displayUrl, instanceUrl, message);
     },
     notifyUnsupportedInstance(url: string, requiredVersion: string): void {
       if (shownUnsupportedVersionUrls.has(url)) {

@@ -418,6 +418,32 @@ describe('WorktreeManager cached repo cleanup', () => {
     expect(remaining).toHaveLength(CACHE_REPO_MAX_COUNT);
   });
 
+  it('never evicts a clone the caller is using, even under the count cap', async () => {
+    // The clone an operation just touched has no worktree record yet, so the
+    // sweep sees it as any other unreferenced clone: it can be a count-cap
+    // victim (or an age victim when its usage write has not been observed).
+    // Only the recorded worktrees protect a clone, so the caller names the clone
+    // it is working in.
+    const now = Date.now();
+    const usage: Record<string, number> = {};
+    const inUse = await makeCachedRepo('in-use.git');
+    usage[path.resolve(inUse)] = now;
+    for (let i = 0; i < CACHE_REPO_MAX_COUNT + 1; i++) {
+      const repoPath = await makeCachedRepo(`other-${String(i).padStart(2, '0')}.git`);
+      usage[path.resolve(repoPath)] = now - (CACHE_REPO_MAX_COUNT + 1 - i) * 1000;
+    }
+    const { manager, store } = createManager();
+    await seedUsage(store, usage);
+
+    const removed = await manager.cleanupCachedRepos(now, [inUse]);
+
+    expect(removed).not.toContain('in-use.git');
+    expect(await exists(inUse)).toBe(true);
+    expect(await fs.promises.readdir(path.join(cacheDir, 'repos'))).toHaveLength(CACHE_REPO_MAX_COUNT + 1);
+    // The clone an operation is not using stayed eligible.
+    expect(removed).toContain('other-00.git');
+  });
+
   it('ignores files and non-.git directories', async () => {
     const plainDir = path.join(cacheDir, 'repos', 'notes');
     await fs.promises.mkdir(plainDir, { recursive: true });

@@ -84,6 +84,30 @@ function failWithTokenInCommandLine() {
 }
 
 /**
+ * Makes `execFile` behave like the real `child_process` does when its abort
+ * signal fires: the child never calls back, and the promise rejects with an
+ * AbortError. Without this, a mock that ignores the signal makes the timeout
+ * race settle with the timer's own rejection, which is *not* what production
+ * sees: Node rejects the aborted child first, so the timer's error loses the
+ * race (see runGit's `timerFired`).
+ */
+function mockAbortableExecFile(): void {
+  mocks.execFile.mockImplementation((_file: string, _args: string[], options: { signal?: AbortSignal }) => {
+    let rejectChild!: (error: Error) => void;
+    const child = new Promise((_resolve, reject) => {
+      rejectChild = reject;
+    });
+    // runGit races this promise, which always attaches a handler. The catch is
+    // for tests that do not await the losing branch of the race.
+    child.catch(() => undefined);
+    options.signal?.addEventListener('abort', () => {
+      rejectChild(Object.assign(new Error('The operation was aborted'), { name: 'AbortError', code: 'ABORT_ERR' }));
+    });
+    return child;
+  });
+}
+
+/**
  * Answers `git rev-parse --verify <ref>^{commit}` with the given shas and leaves
  * every other command to succeed silently, which is what the worktree helpers
  * need to run their pre-flight checks. `revListCounts` answers the divergence
@@ -1110,6 +1134,44 @@ describe('revertMergeCommit branch guard and token push', () => {
     );
   });
 
+  it('localizes an option-like upstream remote name instead of surfacing the internal refusal', async () => {
+    // `branch.<name>.remote` is repository-controlled and can be `--all`, which
+    // `git remote get-url` reads as its own option (answering with *every*
+    // remote's URLs). getRemotePushUrls refuses such a name by throwing, and
+    // that message reaches the user verbatim from the revert reply — it names
+    // neither the repository nor a way to fix it, and it is not translatable.
+    mockGitSequence([
+      ['rev-parse HEAD', 'c0ffee1\n'],
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', '--all/main\n'],
+      ['config --get branch.main.remote', '--all\n'],
+      ['config --get branch.main.merge', 'refs/heads/main\n'],
+    ]);
+
+    const failure = await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl, {
+      owner: 'owner',
+      repo: 'repo',
+    }).catch((error: unknown) => error);
+
+    expect((failure as Error).message).toContain('--all');
+    expect((failure as Error).message).toContain('owner/repo');
+    // The internal refusal is never built: the guard runs before the push-URL
+    // lookup that would throw it.
+    expect((failure as Error).message).not.toContain('is not a usable git remote name"');
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['remote', 'get-url', '--push', '--all', '--all']),
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['push']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
   it('reports a pushed revert only when the push actually went through', async () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
@@ -1675,8 +1737,14 @@ describe('git timeouts', () => {
 
   it('kills a child that outlives its timeout and rejects with the localized message', async () => {
     let spawnOptions: { signal?: AbortSignal; killSignal?: string } | undefined;
-    mocks.execFile.mockImplementation((_file: string, _args: string[], options: typeof spawnOptions) => {
+    // The child refuses to exit and only reacts to the abort, so the abort's own
+    // AbortError rejection reaches the race before the timer's. The class the
+    // callers branch on must still be the timeout's.
+    mockAbortableExecFile();
+    const abortable = mocks.execFile.getMockImplementation()!;
+    mocks.execFile.mockImplementation((file: string, args: string[], options: typeof spawnOptions = {}) => {
       spawnOptions = options;
+      return abortable(file, args, options as { signal?: AbortSignal }, undefined as never);
     });
     vi.mocked(vscode.l10n.t).mockClear();
 
@@ -1684,6 +1752,9 @@ describe('git timeouts', () => {
 
     expect(failure).toBeInstanceOf(GitTimeoutError);
     expect((failure as Error).message).toMatch(/did not finish within/);
+    // A transfer command: the network / credential helper wording is the one
+    // that can actually be the cause here.
+    expect((failure as Error).message).toMatch(/credential helper/);
     // The child is killed through the abort signal, with SIGKILL: a wedged git
     // must not survive its own timeout.
     expect(spawnOptions?.signal?.aborted).toBe(true);
@@ -1691,6 +1762,59 @@ describe('git timeouts', () => {
     // Built by l10n.t so the bundle can translate it, and it names the
     // subcommand and the cap that was hit.
     expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith(expect.stringContaining('did not finish within'), 'fetch', 1);
+  });
+
+  it('blames the repository state, not the network, for a local command that timed out', async () => {
+    // 23 of runGit's 31 call sites are local plumbing under the two-minute cap
+    // (rev-parse, config, status, worktree list/prune, reset, rev-list, branch
+    // -D): "check the network connection or credential helper" sends the user
+    // after a cause that cannot be there.
+    mockAbortableExecFile();
+    vi.mocked(vscode.l10n.t).mockClear();
+
+    const failure = await runGit(['rev-parse', 'HEAD'], '/repo', undefined, 40).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(GitTimeoutError);
+    expect((failure as Error).message).toMatch(/did not finish within/);
+    expect((failure as Error).message).toMatch(/repository state/);
+    expect((failure as Error).message).not.toMatch(/credential helper/);
+    // Names the operation that hung, and still goes through l10n.t so the
+    // bundle can translate the local wording too.
+    expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith(expect.stringContaining('repository state'), 'rev-parse', 1);
+  });
+
+  it('keeps the network wording for the checkout worktree add performs', async () => {
+    // Classified from argv, not from the cap the caller passed: `worktree add`
+    // is the checkout whose stall is most likely a transfer or a credential
+    // prompt, so it keeps the transfer wording under a short injectable cap too.
+    mockAbortableExecFile();
+    vi.mocked(vscode.l10n.t).mockClear();
+
+    const failure = await runGit(['worktree', 'add', '--', '/cache/worktrees/x', 'main'], '/repo', undefined, 40).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(GitTimeoutError);
+    expect((failure as Error).message).toMatch(/credential helper/);
+    expect((failure as Error).message).not.toMatch(/repository state/);
+    expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith(
+      expect.stringContaining('credential helper'),
+      'worktree add',
+      1,
+    );
+  });
+
+  it('treats the local worktree subcommands as local plumbing', async () => {
+    // `worktree prune` shares the subcommand with the checkout `worktree add`
+    // but only touches local metadata, so it must not get transfer advice.
+    mockAbortableExecFile();
+    vi.mocked(vscode.l10n.t).mockClear();
+
+    const failure = await runGit(['worktree', 'prune'], '/repo', undefined, 40).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(GitTimeoutError);
+    expect((failure as Error).message).not.toMatch(/credential helper/);
+    expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith(expect.stringContaining('repository state'), 'worktree', 1);
   });
 
   it('releases the in-flight entry after a timeout so the next attempt runs', async () => {
@@ -1730,12 +1854,19 @@ describe('git timeouts', () => {
   it('reclaims the checkout a killed worktree add left behind', async () => {
     vi.useFakeTimers();
     let addSignal: AbortSignal | undefined;
+    // A real killed child rejects with an AbortError as its signal fires; the
+    // previous mock ignored the signal entirely, which is why this test passed
+    // while production reported an AbortError instead of a timeout.
+    mockAbortableExecFile();
+    const spawn = mocks.execFile.getMockImplementation()!;
+
     mocks.execFile.mockImplementation(
-      (_file: string, args: string[], options: { signal?: AbortSignal }, callback: ExecFileCallback) => {
+      (file: string, args: string[], options: { signal?: AbortSignal }, callback: ExecFileCallback) => {
         if (args[0] === 'worktree' && args[1] === 'add') {
           // Killed mid-checkout: the registration is written, the checkout is
-          // half-populated, and no callback is delivered for that child.
+          // half-populated, and the only callback delivered is the abort's.
           addSignal = options.signal;
+          spawn(file, args, options, callback);
           return;
         }
         callback(null, { stdout: '', stderr: '' } as unknown as string, '');
@@ -1747,6 +1878,7 @@ describe('git timeouts', () => {
     const failure = await settled;
 
     expect(failure).toBeInstanceOf(GitTimeoutError);
+    expect((failure as Error).message).toMatch(/did not finish within/);
     expect(addSignal?.aborted).toBe(true);
     // The registration and the partial checkout are reclaimed, so the next
     // attempt is not stuck on a worktree registered at a path that exists.
@@ -1777,6 +1909,95 @@ describe('git timeouts', () => {
       expect.anything(),
       expect.any(Function),
     );
+  });
+
+  it('removes the partial clone a killed clone left behind', async () => {
+    vi.useFakeTimers();
+    // The clone directory only appears once git is running, so the pre-call
+    // existence probe answers "absent" and the directory is this call's own.
+    vi.mocked(fs.promises.access).mockRejectedValue(
+      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
+    );
+    mockAbortableExecFile();
+
+    const settled = cloneRepository('https://forgejo.example.com/owner/repo.git', '/cache/repos/owner-repo.git').catch(
+      (error: unknown) => error,
+    );
+    await vi.advanceTimersByTimeAsync(900_000);
+    const failure = await settled;
+
+    expect(failure).toBeInstanceOf(GitTimeoutError);
+    expect((failure as Error).message).toMatch(/did not finish within/);
+    // The leftover cannot be mistaken for a usable cache clone on the next
+    // attempt (it has no remote.origin.url yet, so the retry's "which remote
+    // belongs to this repo" lookup would fail forever).
+    expect(vi.mocked(fs.promises.rm)).toHaveBeenCalledWith('/cache/repos/owner-repo.git', {
+      recursive: true,
+      force: true,
+    });
+  });
+
+  it('removes the partial clone a failed clone left behind', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(
+          Object.assign(new Error('fatal: could not read from remote repository'), {
+            stderr: 'fatal: could not read from remote repository',
+          }),
+          '',
+          'fatal: could not read from remote repository',
+        );
+      },
+    );
+
+    await expect(
+      cloneRepository('https://forgejo.example.com/owner/repo.git', '/cache/repos/owner-repo.git'),
+    ).rejects.toThrow('could not read from remote repository');
+
+    expect(vi.mocked(fs.promises.rm)).toHaveBeenCalledWith('/cache/repos/owner-repo.git', {
+      recursive: true,
+      force: true,
+    });
+  });
+
+  it('never removes a directory that already existed before the clone ran', async () => {
+    // The path was already there (a hand-made directory, or another window's
+    // clone): git refuses to clone into it, so this call did not create it and
+    // must not remove it.
+    vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(
+          Object.assign(new Error('fatal: destination path already exists'), {
+            stderr: 'fatal: destination path already exists',
+          }),
+          '',
+          'fatal: destination path already exists',
+        );
+      },
+    );
+
+    await expect(
+      cloneRepository('https://forgejo.example.com/owner/repo.git', '/cache/repos/hand-made.git'),
+    ).rejects.toThrow('already exists');
+
+    // A directory the user created by hand is out of scope: only the clone this
+    // call created may be reclaimed.
+    expect(vi.mocked(fs.promises.rm)).not.toHaveBeenCalled();
+  });
+
+  it('leaves a clone that finishes in time alone', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(null, { stdout: '', stderr: '' } as unknown as string, '');
+      },
+    );
+
+    await expect(
+      cloneRepository('https://forgejo.example.com/owner/repo.git', '/cache/repos/owner-repo.git'),
+    ).resolves.toBeUndefined();
+
+    expect(vi.mocked(fs.promises.rm)).not.toHaveBeenCalled();
   });
 });
 

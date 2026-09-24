@@ -133,6 +133,30 @@ describe('ConfigManager', () => {
     expect(fake.secretStore.size).toBe(0);
   });
 
+  it('refuses a URL that embeds a credential instead of storing one that cannot work', async () => {
+    // Node's `fetch` refuses to construct a request from a URL carrying
+    // credentials, so such an entry would be stored and then fail every request
+    // with a message blaming the instance ("check that it is running"). The
+    // credential belongs in the token field, which SecretStorage holds and the
+    // client sends as an Authorization header.
+    await expect(
+      config.addInstance({ ...instance, url: 'https://alice:token-1@forgejo.example.com', token: 'token-1' }),
+    ).rejects.toThrow('Enter a valid http(s) URL for the Forgejo instance.');
+    await expect(
+      config.addInstance({ ...instance, url: 'https://token-1@forgejo.example.com', token: 'token-1' }),
+    ).rejects.toThrow('Enter a valid http(s) URL for the Forgejo instance.');
+
+    expect(config.getInstances()).toHaveLength(0);
+    // Nothing was stored, not even the credential the URL carried.
+    expect(fake.secretStore.size).toBe(0);
+  });
+
+  it('accepts a URL whose path merely contains an `@`', async () => {
+    // `hasUrlUserinfo` must not mistake a path segment for userinfo.
+    await config.addInstance({ ...instance, url: 'https://forgejo.example.com/owner@example/repo' });
+    expect(config.getInstances()[0].url).toBe('https://forgejo.example.com/owner@example/repo');
+  });
+
   it('fails closed on an unparseable stored URL instead of reusing the stored secret', async () => {
     // A stored entry can predate the scheme/parse checks (hand-edited storage, an
     // older build), so the token path must still treat it as a different origin.
@@ -155,6 +179,27 @@ describe('ConfigManager', () => {
 
     await config.updateInstance(instance.id, { token: 'token-2' });
     expect(config.getInstances()[0].token).toBe('token-2');
+  });
+
+  it('refuses a URL update that embeds a credential, keeping the stored one', async () => {
+    // The other way a URL reaches the store, so the boundary check cannot live
+    // only in the sidebar's editInstance.
+    await config.addInstance(instance);
+
+    await expect(
+      config.updateInstance(instance.id, { url: 'https://alice:token-1@forgejo.example.com' }),
+    ).rejects.toThrow('Enter a valid http(s) URL for the Forgejo instance.');
+    await expect(config.updateInstance(instance.id, { url: 'file:///etc/passwd' })).rejects.toThrow(
+      'Enter a valid http(s) URL for the Forgejo instance.',
+    );
+
+    expect(config.getInstances()[0].url).toBe(instance.url);
+  });
+
+  it('still applies an update that does not touch the URL', async () => {
+    await config.addInstance(instance);
+    await config.updateInstance(instance.id, { syncApiUrlsToInstanceUrl: true });
+    expect(config.getInstances()[0].syncApiUrlsToInstanceUrl).toBe(true);
   });
 
   it('deletes the secret when the instance is removed', async () => {

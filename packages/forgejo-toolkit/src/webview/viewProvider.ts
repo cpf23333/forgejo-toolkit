@@ -55,6 +55,7 @@ import { missingPayloadNotice } from '../prFileSystemProvider';
 import { probeServerVersion } from '../api/versionProbe';
 import { clearServerVersion } from '../api/serverVersion';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
+import { redactUrlUserinfo, stripUrlUserinfo, hasUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { writeFileAtomically } from '../utils/atomicWrite';
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity, isSafeRepoNameSegment, isSafeRepoPath } from './repoIdentity';
@@ -159,6 +160,20 @@ function isSameOrigin(a: string, b: string): boolean {
 }
 
 /**
+ * True when a URL carries `redactUrlUserinfo`'s mask in its userinfo position
+ * (`https://***@host/`, `https://alice:***@host/`).
+ *
+ * The mask is what `toPublicInstance` sends to a webview for an instance whose
+ * stored URL embeds a credential, so a Settings form prefilled from it and
+ * posted back carries the mask instead of a URL. Matched only before the first
+ * `/`, `?` or `#`, so an ordinary path that happens to contain `***` is not
+ * mistaken for a redacted URL.
+ */
+function hasRedactedUserinfo(url: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*\*\*\*[^/?#]*@/i.test(url);
+}
+
+/**
  * Display label for a merge strategy, matching the webview's strategy picker.
  */
 function mergeStrategyLabel(strategy: 'merge' | 'rebase' | 'squash'): string {
@@ -217,6 +232,24 @@ function parseWorktreeTarget(message: {
  */
 export function instanceCacheSuffix(instance: { id: string; url: string }): string {
   return crypto.createHash('sha256').update(`${instance.id}|${instance.url}`).digest('hex').slice(0, 8);
+}
+
+/**
+ * The URL the bare cache clone is fetched from.
+ *
+ * The instance URL is *used* here, not displayed: `git clone --bare` receives it
+ * in a child process's argv, writes it into the clone's `remote.origin.url`
+ * (plaintext on disk), and quotes it back in its own failure message, which
+ * reaches the webview error and the log. So the userinfo is stripped, and the
+ * trailing slashes with it — `https://host//owner/repo.git` makes git/Forgejo
+ * answer a redirect or 404 the user cannot correct from the UI.
+ *
+ * Authentication does not go through this URL: it belongs to the
+ * authenticated-remote path, exactly as `cloneRepository`'s `authEnv` passes the
+ * token through git's environment instead of embedding it.
+ */
+export function worktreeCloneUrl(instance: Pick<ForgejoInstance, 'url'>, owner: string, repo: string): string {
+  return `${stripUrlUserinfo(instance.url).replace(/\/+$/, '')}/${owner}/${repo}.git`;
 }
 
 /**
@@ -390,8 +423,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   /**
    * Full instance entries (tokens included) from the latest import preview,
    * kept host-side so token values never cross into the webview. Single slot:
-   * a new preview overwrites it, and a confirmed or cancelled import clears
-   * it. The `importInstances` confirmation rehydrates selected entries by id.
+   * a new preview overwrites it, and a confirmed or cancelled import — or the
+   * view's disposal — clears it. The `importInstances` confirmation rehydrates
+   * selected entries by id.
    */
   private _pendingImportInstances: ForgejoInstance[] | undefined;
 
@@ -490,6 +524,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       if (this._view === webviewView) {
         this._view = undefined;
       }
+      // The import preview's stash holds the file's tokens in plaintext, and the
+      // webview that could still confirm it is gone: without this it would
+      // outlive the panel until the next preview overwrote it or the window
+      // closed.
+      this._pendingImportInstances = undefined;
     });
 
     webviewView.webview.onDidReceiveMessage(
@@ -568,13 +607,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // forever, so it gets the same startWorkResult shape as the handler's
       // invalid-payload path.
       if (message.command === 'startWorkOnIssue') {
+        // The identity fields are echoed exactly as they arrived (the webview
+        // builds its loading key by string interpolation of what it posted), so
+        // the reply reaches the spinner it is meant to clear even for a value
+        // this guard rejected. The request's `command` is stripped so it cannot
+        // overwrite the reply's.
+        const { command: _command, ...echoedIdentity } = message as Record<string, unknown>;
         this._reply('startWorkResult', {
-          instanceId: message.instanceId,
-          owner: message.owner,
-          repo: message.repo,
-          index: message.index,
+          ...echoedIdentity,
           error: vscode.l10n.t('The request could not be completed'),
-        });
+        } as Parameters<typeof this._reply<'startWorkResult'>>[1]);
         return;
       }
       // openPrWorktree is the same kind of plain (requestId-less) message, and
@@ -726,6 +768,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           });
           return;
         }
+        // A URL carrying credentials cannot be fetched at all (Node's `fetch`
+        // refuses to build a request from it), and the stored form of this URL
+        // is refused by ConfigManager.addInstance for the same reason. Refused
+        // here so the user gets the storage reason instead of a "cannot connect"
+        // message that blames the instance.
+        if (hasUrlUserinfo(url)) {
+          logger.error(`testConnection rejected an instance URL that embeds credentials`);
+          this._reply('testConnectionResult', {
+            success: false,
+            error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
+          });
+          return;
+        }
         // When editing an instance the token field is left empty to keep the
         // stored token (tokens are never sent to the webview); fall back to it
         // so testing the connection of a private instance does not fail. The
@@ -766,6 +821,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // scheme is refused before it is persisted. The setup wizard applies
         // the same check before calling this message.
         if (!isHttpUrl(url)) {
+          this._reply('saveInstanceResult', {
+            success: false,
+            error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
+          });
+          return;
+        }
+        // A credential embedded as userinfo is refused before the connection
+        // test, not after it: `addInstance` will not store such a URL (fetch
+        // cannot even request one), and testing it first would answer with a
+        // "cannot connect to the instance" message that names the wrong cause.
+        if (hasUrlUserinfo(url)) {
           this._reply('saveInstanceResult', {
             success: false,
             error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
@@ -817,6 +883,24 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           this._reply('saveInstanceResult', {
             success: false,
             error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
+          });
+          return;
+        }
+        // The Settings form is prefilled from `toPublicInstance`, which sends
+        // the *redacted* URL of an instance whose stored URL carries a
+        // credential (`https://***@host/`). Editing anything else on that
+        // instance posts that masked value straight back. It parses as
+        // http(s) and is same-origin, so nothing else here would stop it — the
+        // connection test would simply fail and blame the instance, and the
+        // stored credential would be replaced by a broken URL. `***` is not a
+        // credential: it is refused, naming the real problem (the URL field
+        // holds a mask, so the real URL has to be typed again) with the message
+        // that already means exactly that. No l10n key of its own is added
+        // because this change may not touch the bundles.
+        if (hasRedactedUserinfo(url)) {
+          this._reply('saveInstanceResult', {
+            success: false,
+            error: vscode.l10n.t('Changing the instance URL requires entering the access token again'),
           });
           return;
         }
@@ -992,14 +1076,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // (e.g. worktree directories) go through the validated
         // openWorktreePath message instead.
         if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-          logger.error(`Blocked openExternal with disallowed scheme "${uri.scheme}": ${url}`);
+          logger.error(`Blocked openExternal with disallowed scheme "${uri.scheme}": ${redactUrlUserinfo(url)}`);
           return;
         }
         try {
           await vscode.env.openExternal(uri);
         } catch (error) {
           const err = userFacingErrorMessage(error);
-          logger.error(`openExternal failed for ${url}: ${err}`);
+          logger.error(`openExternal failed for ${redactUrlUserinfo(url)}: ${err}`);
         }
         return;
       }
@@ -1555,17 +1639,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             return;
           }
         }
+        // Derived from the request before the try, so the catch can echo the
+        // action the failure belongs to: the shared contract documents
+        // `issueStopwatchChanged.action` as the requested action, and a failed
+        // stop/delete hardcoded to 'start' would mislead a consumer.
+        const action: 'start' | 'stop' | 'delete' =
+          message.command === 'startIssueStopwatch'
+            ? 'start'
+            : message.command === 'stopIssueStopwatch'
+              ? 'stop'
+              : 'delete';
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          let action: 'start' | 'stop' | 'delete';
           if (message.command === 'startIssueStopwatch') {
-            action = 'start';
             await client.startIssueStopwatch(owner, repo, index);
           } else if (message.command === 'stopIssueStopwatch') {
-            action = 'stop';
             await client.stopIssueStopwatch(owner, repo, index);
           } else {
-            action = 'delete';
             await client.deleteIssueStopwatch(owner, repo, index);
           }
           this._reply('issueStopwatchChanged', {
@@ -1583,7 +1673,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             owner,
             repo,
             index,
-            action: 'start',
+            action,
             error: err,
           });
         }
@@ -1844,9 +1934,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           });
           return;
         }
+        // Derived from the request before the try, so the catch can echo the
+        // action that failed ('add' for create, 'remove' for remove) instead of
+        // the hardcoded 'add' the shared contract does not allow.
+        const action = message.command === 'createIssueDependency' ? ('add' as const) : ('remove' as const);
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const action = message.command === 'createIssueDependency' ? ('add' as const) : ('remove' as const);
           if (message.command === 'createIssueDependency') {
             await client.createIssueDependency(owner, repo, index, dependencyIndex);
           } else {
@@ -1869,7 +1962,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             repo,
             index,
             dependencyIndex,
-            action: 'add',
+            action,
             error: err,
           });
         }
@@ -1945,7 +2038,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             repo,
             index,
             content,
-            action: 'add',
+            // The action the request carried, not a hardcoded 'add': a failed
+            // removal must not report itself as an addition.
+            action: add ? 'add' : 'remove',
             error: err,
           });
         }
@@ -2025,7 +2120,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             repo,
             commentId,
             content,
-            action: 'add',
+            // The action the request carried, not a hardcoded 'add': a failed
+            // removal must not report itself as an addition.
+            action: add ? 'add' : 'remove',
             error: err,
           });
         }
@@ -4312,6 +4409,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  /** Whether the import preview's plaintext-token stash is still held. Exported for tests. */
+  public hasPendingImportInstancesForTest(): boolean {
+    return this._pendingImportInstances !== undefined;
+  }
+
   public openSettings() {
     this._revealView();
     this._postOrQueue({ command: 'openSettings' });
@@ -5003,10 +5105,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     | { kind: 'cancelled' }
     | { kind: 'error'; message: string }
   > {
-    // Trailing slashes are stripped like everywhere else the instance URL is
-    // joined with a path: `https://host//owner/repo.git` makes git/Forgejo
-    // answer a redirect or 404 that the user cannot correct from the UI.
-    const cloneUrl = `${instance.url.replace(/\/+$/, '')}/${owner}/${repo}.git`;
+    // Trailing slashes and the userinfo are stripped by `worktreeCloneUrl`
+    // (see its doc comment): this URL reaches `git clone --bare`'s argv and the
+    // cache clone's `remote.origin.url`, so it may carry no credential.
+    const cloneUrl = worktreeCloneUrl(instance, owner, repo);
     const cacheDir = this._worktreeManager.getCacheDirectory();
 
     let sourceRepoPath = await isCurrentWorkspaceBaseRepo(instance.url, owner, repo);
@@ -5077,9 +5179,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         await this._worktreeManager.touchCachedRepo(cacheRepoPath);
         // Lazy LRU sweep of the bare clone cache (no timer): aged-out and
-        // over-cap repositories are removed while a worktree is created.
+        // over-cap repositories are removed while a worktree is created. The
+        // clone this call is about to work in is passed as protected because the
+        // sweep only knows about clones a *recorded* worktree references, and
+        // this one has no record yet — it is whatever the sweep decides about an
+        // unreferenced clone, whether that is an age eviction (when the touch
+        // has not been observed) or a count-cap victim.
         void this._worktreeManager
-          .cleanupCachedRepos()
+          .cleanupCachedRepos(Date.now(), [cacheRepoPath])
           .then((removed) => {
             if (removed.length > 0) {
               logger.info(`Cleaned up ${removed.length} unused cached repositories: ${removed.join(', ')}`);
@@ -5150,17 +5257,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       logger.error(`startWorkOnIssue ignored: invalid repository identity in the webview message`);
       // The webview sets its start-work spinner before posting and only clears
       // it on a `startWorkResult`; dropping the invalid target silently would
-      // leave that spinner running forever. Echo the identity fields so the
-      // reply is routed to the same loading key the request used (the webview
-      // builds that key by string interpolation, so it matches whatever it
-      // sent). The guard has already rejected non-string owner/repo values.
+      // leave that spinner running forever. The identity fields are echoed
+      // exactly as they arrived: the webview builds its loading key by string
+      // interpolation of what it posted, so substituting a placeholder here
+      // (''/0) would build a *different* key and the error would never reach the
+      // spinner it is meant to clear. The request's own `command` is stripped
+      // first: `_reply` prepends the reply's command and spreading the message
+      // last would put the request's back in its place.
+      const { command: _command, ...echoedIdentity } = message as Record<string, unknown>;
       this._reply('startWorkResult', {
-        instanceId: typeof message.instanceId === 'string' ? message.instanceId : '',
-        owner: typeof message.owner === 'string' ? message.owner : '',
-        repo: typeof message.repo === 'string' ? message.repo : '',
-        index: typeof message.index === 'number' ? message.index : 0,
+        ...echoedIdentity,
         error: vscode.l10n.t('The request could not be completed'),
-      });
+      } as Parameters<typeof this._reply<'startWorkResult'>>[1]);
       return;
     }
     const { instanceId, owner, repo, index } = target;
@@ -5791,11 +5899,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _resolveAvatarUrl(url: string, instance: ForgejoInstance): Promise<string> {
+    // The URL reaches this method from the server's payload, but a relative one
+    // is resolved against the instance URL — which may carry the token as
+    // userinfo — so every line below logs the redacted form. Only the URL is
+    // logged; the resolved value itself is fetched with the token as a header.
+    const logUrl = redactUrlUserinfo(url);
     if (!this._view) {
-      logger.debug(`[avatar] no view, returning original url: ${url}`);
+      logger.debug(`[avatar] no view, returning original url: ${logUrl}`);
       return url;
     }
-    logger.debug(`[avatar] resolving: ${url}`);
+    logger.debug(`[avatar] resolving: ${logUrl}`);
     try {
       // Only same-origin URLs are proxied through the host: avatars on private
       // instances (force-login) need the API token, and the token must never
@@ -5807,13 +5920,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // Non-http(s) schemes (e.g. data:) have origin "null" and pass through.
       const parsed = new URL(url, instance.url);
       if (!isSameOrigin(parsed.href, instance.url)) {
-        logger.debug(`[avatar] not same-origin, returning original url: ${url}`);
+        logger.debug(`[avatar] not same-origin, returning original url: ${logUrl}`);
         return url;
       }
       return (await this._fetchAvatarDataUrl(parsed.href, instance)) ?? url;
     } catch (error) {
       const err = userFacingErrorMessage(error);
-      logger.error(`[avatar] error resolving ${url}: ${err}`);
+      logger.error(`[avatar] error resolving ${logUrl}: ${err}`);
       return url;
     }
   }
@@ -5854,7 +5967,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return `data:${contentType};base64,${base64}`;
       } catch (error) {
         const err = userFacingErrorMessage(error);
-        logger.error(`[avatar] error resolving ${absoluteUrl}: ${err}`);
+        logger.error(`[avatar] error resolving ${redactUrlUserinfo(absoluteUrl)}: ${err}`);
         return null;
       }
     })();

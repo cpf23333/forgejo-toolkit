@@ -297,6 +297,22 @@ describe('sanitizeImportedInstances', () => {
     expect(dropped).toBe(3);
   });
 
+  it('drops an entry whose URL embeds a credential instead of storing one that cannot work', () => {
+    // Node's `fetch` refuses to build a request from a URL with credentials, so
+    // such an entry would be stored and then fail every call with a transport
+    // error the user reads as "the instance is down". The credential belongs in
+    // the file's `token` field.
+    const { valid, dropped } = sanitizeImportedInstances([
+      { id: 'ok', url: 'https://forgejo.example.com', token: 't', name: 'n', username: 'u' },
+      { id: 'password', url: 'https://alice:file-token@forgejo.example.com', token: 't', name: 'n', username: 'u' },
+      { id: 'token', url: 'https://file-token@forgejo.example.com', token: 't', name: 'n', username: 'u' },
+      // An `@` in the path is not userinfo and must not cost the entry.
+      { id: 'at-path', url: 'https://forgejo.example.com/owner@example/repo', token: 't', name: 'n', username: 'u' },
+    ]);
+    expect(valid.map((instance) => instance.id)).toEqual(['ok', 'at-path']);
+    expect(dropped).toBe(2);
+  });
+
   it('drops entries missing required string fields and counts them', () => {
     const { valid, dropped } = sanitizeImportedInstances([
       { id: 'a', url: 'https://forgejo.example.com', token: 't', name: 'n', username: 'u' },

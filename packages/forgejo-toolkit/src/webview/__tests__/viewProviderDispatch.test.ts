@@ -24,6 +24,18 @@ const clientMocks = vi.hoisted(() => ({
   getPullRequestFilesFromCompare: vi.fn(),
   getPullRequestCommentsAndTimeline: vi.fn(),
   searchRepoFiles: vi.fn(),
+  // The issue dependency / reaction / stopwatch mutations have no success-path
+  // test today; they are here so a test can drive their failure reply (see
+  // "failure replies echo the action the request carried").
+  createIssueDependency: vi.fn(),
+  removeIssueDependency: vi.fn(),
+  addIssueReaction: vi.fn(),
+  removeIssueReaction: vi.fn(),
+  addCommentReaction: vi.fn(),
+  removeCommentReaction: vi.fn(),
+  startIssueStopwatch: vi.fn(),
+  stopIssueStopwatch: vi.fn(),
+  deleteIssueStopwatch: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
@@ -49,6 +61,15 @@ vi.mock('../../api/client', () => ({
       getPullRequestFilesFromCompare: clientMocks.getPullRequestFilesFromCompare,
       getPullRequestCommentsAndTimeline: clientMocks.getPullRequestCommentsAndTimeline,
       searchRepoFiles: clientMocks.searchRepoFiles,
+      createIssueDependency: clientMocks.createIssueDependency,
+      removeIssueDependency: clientMocks.removeIssueDependency,
+      addIssueReaction: clientMocks.addIssueReaction,
+      removeIssueReaction: clientMocks.removeIssueReaction,
+      addCommentReaction: clientMocks.addCommentReaction,
+      removeCommentReaction: clientMocks.removeCommentReaction,
+      startIssueStopwatch: clientMocks.startIssueStopwatch,
+      stopIssueStopwatch: clientMocks.stopIssueStopwatch,
+      deleteIssueStopwatch: clientMocks.deleteIssueStopwatch,
     };
   }),
 }));
@@ -111,9 +132,11 @@ import {
   clearResolvedAvatarCache,
   instanceCacheSuffix,
   resolvedAvatarCacheBytesForTest,
+  worktreeCloneUrl,
 } from '../viewProvider';
 import { ForgejoClient } from '../../api/client';
 import { clearServerVersions, getServerVersion, setServerVersion } from '../../api/serverVersion';
+import { logger } from '../../logger';
 import {
   clearLinkedRepositoryCache,
   cloneRepository,
@@ -172,6 +195,7 @@ function createFakeContext() {
 function createFakeView() {
   const posted: unknown[] = [];
   let listener: MessageListener | undefined;
+  let disposeListener: (() => void) | undefined;
   const view = {
     visible: true,
     title: undefined as string | undefined,
@@ -190,13 +214,17 @@ function createFakeView() {
       },
       asWebviewUri: (uri: unknown) => uri,
     },
-    onDidDispose: () => ({ dispose: vi.fn() }),
+    onDidDispose: (l: () => void) => {
+      disposeListener = l;
+      return { dispose: vi.fn() };
+    },
     onDidChangeVisibility: () => ({ dispose: vi.fn() }),
   };
   return {
     view,
     posted,
     send: (message: unknown) => listener?.(message),
+    dispose: () => disposeListener?.(),
   };
 }
 
@@ -278,6 +306,15 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clientMocks.getPullRequestFilesFromCompare.mockReset();
     clientMocks.getPullRequestCommentsAndTimeline.mockReset();
     clientMocks.searchRepoFiles.mockReset();
+    clientMocks.createIssueDependency.mockReset().mockRejectedValue(new Error('API down'));
+    clientMocks.removeIssueDependency.mockReset().mockRejectedValue(new Error('API down'));
+    clientMocks.addIssueReaction.mockReset().mockRejectedValue(new Error('API down'));
+    clientMocks.removeIssueReaction.mockReset().mockRejectedValue(new Error('API down'));
+    clientMocks.addCommentReaction.mockReset().mockRejectedValue(new Error('API down'));
+    clientMocks.removeCommentReaction.mockReset().mockRejectedValue(new Error('API down'));
+    clientMocks.startIssueStopwatch.mockReset().mockRejectedValue(new Error('API down'));
+    clientMocks.stopIssueStopwatch.mockReset().mockRejectedValue(new Error('API down'));
+    clientMocks.deleteIssueStopwatch.mockReset().mockRejectedValue(new Error('API down'));
     clientMocks.invalidateRepoContentCaches.mockReset();
     vi.mocked(fetchBranch).mockReset();
     vi.mocked(createWorktreeWithNewBranch).mockReset();
@@ -2164,6 +2201,41 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       // Translated through l10n.t, so zh users do not see a raw English literal.
       expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('No valid instances found in file');
     });
+
+    it('reports an entry whose URL embeds a credential as dropped, not stored', async () => {
+      // Node's `fetch` refuses to build a request from a URL with credentials,
+      // so storing the entry would produce an instance that fails every call
+      // with a message blaming its availability.
+      const file = writeExportFile([
+        { id: 'ok', url: 'https://forgejo.example.com', token: 't', name: 'ok', username: 'user' },
+        { id: 'cred', url: 'https://alice:file-token@forgejo.example.com', token: 't', name: 'c', username: 'user' },
+      ]);
+      await previewExportFile(file);
+
+      const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+      expect(preview?.dropped).toBe(1);
+      const keptInstances = (preview?.instances ?? []) as Array<Record<string, unknown>>;
+      expect(keptInstances.map((i) => i.id)).toEqual(['ok']);
+    });
+
+    it('drops the plaintext-token stash when the view is disposed', async () => {
+      // The stash holds the picked file's tokens in the clear, kept host-side so
+      // they never cross into the webview. The webview that could still confirm
+      // the import is gone once the view is disposed, so the tokens must not
+      // outlive it — nothing else clears the slot until the next preview.
+      const file = writeExportFile([
+        { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'user' },
+      ]);
+      await previewExportFile(file);
+      expect(provider.hasPendingImportInstancesForTest()).toBe(true);
+
+      fake.dispose();
+
+      expect(provider.hasPendingImportInstancesForTest()).toBe(false);
+      // The tokens are gone with the stash: nothing can rehydrate them any more.
+      // (After disposal `_reply` has no view to post to, so the stash itself is
+      // the observable state — the confirm path cannot reach the file's tokens.)
+    });
   });
 
   it('replies worktreeError with the PR identity when removal fails, keeping the record', async () => {
@@ -2582,6 +2654,128 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     });
   });
 
+  describe('failure replies echo the action the request carried', () => {
+    // The shared contract documents `action` as echoed from the request. The
+    // handlers used to hardcode it ('add' for every dependency/reaction
+    // failure, 'start' for every failed stopwatch command), so a consumer
+    // routing a failure reply would read the wrong operation. No consumer
+    // reads the field today; these tests keep the contract honest for the one
+    // that starts to.
+    const failureCases: Array<{
+      command: string;
+      result: string;
+      message: Record<string, unknown>;
+      echo: Record<string, unknown>;
+      action: string;
+    }> = [
+      {
+        command: 'createIssueDependency',
+        result: 'issueDependencyChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6, action: 'add' },
+        action: 'add',
+      },
+      {
+        command: 'removeIssueDependency',
+        result: 'issueDependencyChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, dependencyIndex: 6, action: 'remove' },
+        action: 'remove',
+      },
+      {
+        command: 'changeIssueReaction',
+        result: 'issueReactionChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5, content: '+1', add: true },
+        echo: { owner: 'owner', repo: 'repo', index: 5, content: '+1', action: 'add' },
+        action: 'add',
+      },
+      {
+        command: 'changeIssueReaction',
+        result: 'issueReactionChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5, content: '+1', add: false },
+        echo: { owner: 'owner', repo: 'repo', index: 5, content: '+1', action: 'remove' },
+        action: 'remove',
+      },
+      {
+        command: 'changeCommentReaction',
+        result: 'commentReactionChanged',
+        message: { owner: 'owner', repo: 'repo', commentId: 7, content: 'heart', add: true },
+        echo: { owner: 'owner', repo: 'repo', commentId: 7, content: 'heart', action: 'add' },
+        action: 'add',
+      },
+      {
+        command: 'changeCommentReaction',
+        result: 'commentReactionChanged',
+        message: { owner: 'owner', repo: 'repo', commentId: 7, content: 'heart', add: false },
+        echo: { owner: 'owner', repo: 'repo', commentId: 7, content: 'heart', action: 'remove' },
+        action: 'remove',
+      },
+      {
+        command: 'startIssueStopwatch',
+        result: 'issueStopwatchChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, action: 'start' },
+        action: 'start',
+      },
+      {
+        command: 'stopIssueStopwatch',
+        result: 'issueStopwatchChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, action: 'stop' },
+        action: 'stop',
+      },
+      {
+        command: 'deleteIssueStopwatch',
+        result: 'issueStopwatchChanged',
+        message: { owner: 'owner', repo: 'repo', index: 5 },
+        echo: { owner: 'owner', repo: 'repo', index: 5, action: 'delete' },
+        action: 'delete',
+      },
+    ];
+
+    for (const { command, result, message, echo, action } of failureCases) {
+      it(`reports action "${action}" on a failed ${command}`, async () => {
+        fake.send({ command, instanceId: testInstance.id, ...message });
+        await flushDispatches();
+
+        const reply = postedMessages(fake.posted).find((m) => m.command === result);
+        expect(reply).toBeDefined();
+        expect(typeof reply?.error).toBe('string');
+        // The whole reply shape, so the echoed action cannot drift away from the
+        // rest of the request echo either.
+        expect(reply).toMatchObject({ instanceId: testInstance.id, ...echo });
+      });
+    }
+
+    it('resets the echoed action to the request, not to the previous reply', async () => {
+      // Two requests in flight, opposite actions, both fail: an
+      // implementation that remembered the last action instead of reading the
+      // request would answer the second with the first one's value.
+      fake.send({
+        command: 'changeIssueReaction',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        content: '+1',
+        add: true,
+      });
+      fake.send({
+        command: 'changeIssueReaction',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        content: '+1',
+        add: false,
+      });
+      await flushDispatches();
+
+      const replies = postedMessages(fake.posted).filter((m) => m.command === 'issueReactionChanged');
+      expect(replies.map((reply) => reply.action)).toEqual(['add', 'remove']);
+    });
+  });
+
   describe('getMyIssues/getMyPullRequests state echo', () => {
     it('echoes the requested state on myIssues replies', async () => {
       clientMocks.getUserIssues.mockResolvedValue([]);
@@ -2655,7 +2849,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
     it.each(hostileTargets)('ignores startWorkOnIssue with %j but replies so the spinner clears', async (target) => {
       fake.send({ command: 'startWorkOnIssue', instanceId: testInstance.id, ...target });
-      await flushDispatches();
+      // The invalid-target reply goes through the same in-flight queue as the
+      // real handler, so it is not necessarily posted within two macrotasks.
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
 
       expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
       expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
@@ -2665,15 +2861,31 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const replies = postedMessages(fake.posted).filter((m) => m.command === 'startWorkResult');
       expect(replies).toHaveLength(1);
       expect(replies[0]).toMatchObject({ error: 'The request could not be completed' });
-      // The reply echoes the identity fields so it routes to the same loading
-      // key the request used (`instanceId:owner/repo:start-work:index`); the
-      // webview always sends a numeric index, so a non-number is coerced.
+      // The reply echoes the identity fields exactly as they arrived, so it
+      // routes to the same loading key the request used
+      // (`instanceId:owner/repo:start-work:index`, built by string
+      // interpolation of what the webview posted). A substituted value would
+      // build a different key and the spinner would never clear.
       expect(replies[0]).toMatchObject({
         instanceId: testInstance.id,
         owner: target.owner,
         repo: target.repo,
-        index: typeof target.index === 'number' ? target.index : 0,
+        index: target.index,
       });
+    });
+
+    it('echoes a non-integer route index the way it arrived so the spinner key matches', async () => {
+      // The webview interpolates what it sent into its loading key; the reply
+      // must carry the same value, not a coerced 0 (which would leave the
+      // spinner running under the key the request actually used).
+      fake.send({ command: 'startWorkOnIssue', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: '1' });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
+
+      const replies = postedMessages(fake.posted).filter((m) => m.command === 'startWorkResult');
+      expect(replies).toHaveLength(1);
+      expect(replies[0]).toMatchObject({ instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: '1' });
+      expect(replies[0]?.index).not.toBe(0);
+      expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
     });
 
     it('still accepts an ordinary repository identity', async () => {
@@ -3849,6 +4061,30 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(resolved).toBe('data:image/png;base64,AQID');
     });
 
+    it('never logs a credential a relative avatar URL inherits from the instance URL', async () => {
+      // These lines reach the extension's output channel. A relative avatar_url
+      // resolves against the instance URL, so when that URL carries the token as
+      // userinfo the resolved absolute URL does too — and the failure path is
+      // where the URL is echoed. The token must be redacted there.
+      const debugSpy = vi.spyOn(logger, 'debug').mockImplementation(() => undefined);
+      const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('socket hang up')));
+      const credentialed = { ...testInstance, url: 'https://secret-token@forgejo.example.com' };
+
+      await (
+        provider as unknown as {
+          _resolveAvatarUrl: (url: string, instance: ForgejoInstance) => Promise<string>;
+        }
+      )._resolveAvatarUrl('/avatars/user.png', credentialed);
+
+      const lines = [...debugSpy.mock.calls, ...errorSpy.mock.calls].map((call) => String(call[0]));
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) {
+        expect(line).not.toContain('secret-token');
+      }
+      expect(lines.some((line) => line.includes('forgejo.example.com'))).toBe(true);
+    });
+
     it('fetches same-origin avatars through the configured proxy fetch', async () => {
       // An instance reachable only through the proxy would otherwise stall each
       // avatar until its 30 s timeout and then fall back to the raw URL.
@@ -4111,6 +4347,203 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       );
       expect(postedMessages(review.posted)).toContainEqual(
         expect.objectContaining({ command: 'setLocale', locale: 'zh' }),
+      );
+    });
+  });
+
+  describe('instance URLs that carry credentials', () => {
+    /** Prime the "clone to cache" flow for an instance URL injected via config. */
+    function primeCredentialCloneFlow(cacheDir: string) {
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue(undefined as never);
+      vi.mocked(inspectPrWorktree).mockResolvedValue({ state: 'missing' } as never);
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+      vi.spyOn(config, 'getWorktreeCacheDirectory').mockReturnValue(cacheDir);
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'abcdef1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(vscode.window.showQuickPick).mockImplementation(async (items) => {
+        const list = items as unknown as Array<{ value?: string }>;
+        return list.find((item) => item.value === 'clone') as never;
+      });
+      vi.mocked(getRefCommitSha).mockResolvedValue('abcdef1234567890');
+    }
+
+    it('builds the cache clone URL without the instance userinfo', async () => {
+      // The URL goes into `git clone --bare`'s argv and into the clone's
+      // `remote.origin.url` (plaintext on disk), and git quotes it back in its
+      // own failure message. The stored instance cannot hold such a URL any more
+      // (addInstance refuses it), so the credential-bearing form is injected
+      // directly: the stripping on this path must not depend on that refusal.
+      const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-cred-clone-'));
+      try {
+        const url = 'https://alice:secret-token@forgejo.example.com';
+        vi.spyOn(config, 'getInstances').mockReturnValue([{ ...testInstance, url }]);
+        primeCredentialCloneFlow(cacheDir);
+        vi.mocked(cloneRepository).mockImplementation(async (_cloneUrl: string, target: string) => {
+          await fs.promises.mkdir(target, { recursive: true });
+        });
+
+        fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+        await flushUntil(() => vi.mocked(cloneRepository).mock.calls.length > 0);
+
+        const cloneUrl = String(vi.mocked(cloneRepository).mock.calls[0][0]);
+        expect(cloneUrl).toBe('https://forgejo.example.com/owner/repo.git');
+        expect(cloneUrl).not.toContain('secret-token');
+        // A masked `alice:***@host` would be persisted as the remote and could
+        // never authenticate, so the whole userinfo has to be gone.
+        expect(cloneUrl).not.toContain('***');
+        expect(cloneUrl).not.toContain('@');
+      } finally {
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+      }
+    });
+
+    it('never echoes the credential through the clone failure path', async () => {
+      // git's own error text is what a failed `git clone --bare` reports, and it
+      // quotes the URL it was given. That text is rethrown into the webview
+      // error, the toast, and the log, so nothing on this path may put a
+      // credential back into the URL it quotes.
+      const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-cred-fail-'));
+      try {
+        const url = 'https://alice:secret-token@forgejo.example.com';
+        vi.spyOn(config, 'getInstances').mockReturnValue([{ ...testInstance, url }]);
+        primeCredentialCloneFlow(cacheDir);
+        vi.mocked(cloneRepository).mockImplementation(async (cloneUrl: string) => {
+          // What git itself does with a credential-bearing URL.
+          throw new Error(`unable to access '${cloneUrl}': The requested URL returned error: 403`);
+        });
+
+        fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+        await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeError'));
+
+        expect(vi.mocked(cloneRepository)).toHaveBeenCalled();
+        const cloneUrl = String(vi.mocked(cloneRepository).mock.calls[0][0]);
+        const errors = postedMessages(fake.posted)
+          .filter((m) => m.command === 'worktreeError')
+          .map((m) => String(m.error));
+        expect(cloneUrl).not.toContain('secret-token');
+        expect(errors.length).toBeGreaterThan(0);
+        for (const error of errors) {
+          expect(error).not.toContain('secret-token');
+          expect(error).not.toContain('***');
+        }
+      } finally {
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+      }
+    });
+
+    it('refuses to store an instance URL that embeds a credential', async () => {
+      // The storage boundary is where the URL becomes an instance every request
+      // is built from: a userinfo-bearing entry can never be fetched, and the
+      // message the user would otherwise get blames the instance's availability.
+      fake.send({
+        command: 'saveInstance',
+        url: 'https://alice:secret-token@forgejo.example.com',
+        token: 'secret-token',
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(reply?.success).toBe(false);
+      expect(String(reply?.error)).toContain('http');
+      expect(config.getInstances().map((i) => i.url)).toEqual([testInstance.url]);
+    });
+
+    it('refuses to test the connection of a URL that embeds a credential', async () => {
+      // Answered before the request: a refused URL must not reach the network,
+      // and the user must be told about the URL instead of being told the
+      // instance could not be reached.
+      fake.send({
+        command: 'testConnection',
+        url: 'https://alice:secret-token@forgejo.example.com',
+        token: 'secret-token',
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'testConnectionResult');
+      expect(reply?.success).toBe(false);
+    });
+
+    it('refuses the redacted URL the Settings form posts back on an edit', async () => {
+      // `toPublicInstance` sends `https://***@host/` to the webview, the form
+      // prefills it, and editing anything else posts that mask straight back.
+      // Same-origin and http(s), so nothing else here would stop it: the stored
+      // credential would be replaced by a URL nothing can authenticate against.
+      const updateSpy = vi.spyOn(config, 'updateInstance');
+      const instance = { ...testInstance, url: 'https://alice:secret-token@forgejo.example.com' };
+      vi.spyOn(config, 'getInstances').mockReturnValue([instance]);
+
+      fake.send({ command: 'editInstance', id: instance.id, url: 'https://***@forgejo.example.com/', token: '' });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(reply?.success).toBe(false);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('keeps a same-origin edit of a credential-free instance working', async () => {
+      // The guard above must not catch an ordinary edit.
+      clientMocks.getCurrentUser.mockResolvedValue({ login: 'user' });
+
+      fake.send({ command: 'editInstance', id: testInstance.id, url: 'https://forgejo.example.com', token: '' });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(reply).toBeDefined();
+      expect(reply?.success).toBe(true);
+    });
+
+    it('does not mistake a path containing `***` for a redacted userinfo', async () => {
+      // Only the userinfo position is a mask; a literal `***` in a path is just
+      // part of an instance installed under a sub-path.
+      clientMocks.getCurrentUser.mockResolvedValue({ login: 'user' });
+      const updateSpy = vi.spyOn(config, 'updateInstance').mockResolvedValue(undefined);
+
+      fake.send({
+        command: 'editInstance',
+        id: testInstance.id,
+        url: 'https://forgejo.example.com/***/git',
+        token: '',
+      });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(reply?.success).toBe(true);
+      expect(updateSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('navigating the sidebar', () => {
+    it('posts openDashboard after revealing the view', () => {
+      // openDashboard() is the two-step the onboarding guide's finish button
+      // borrows: revealing the container alone only brings back whatever route
+      // the sidebar was last on, which is never the dashboard after a first run.
+      fake.posted.length = 0;
+
+      provider.openDashboard();
+
+      expect(postedMessages(fake.posted).some((m) => m.command === 'openDashboard')).toBe(true);
+    });
+  });
+
+  describe('worktreeCloneUrl', () => {
+    it('strips the userinfo and the trailing slashes of the instance URL', () => {
+      expect(worktreeCloneUrl({ url: 'https://alice:secret-token@forgejo.example.com/' }, 'owner', 'repo')).toBe(
+        'https://forgejo.example.com/owner/repo.git',
+      );
+      expect(worktreeCloneUrl({ url: 'https://secret-token@forgejo.example.com' }, 'owner', 'repo')).toBe(
+        'https://forgejo.example.com/owner/repo.git',
+      );
+      expect(worktreeCloneUrl({ url: 'https://forgejo.example.com//' }, 'owner', 'repo')).toBe(
+        'https://forgejo.example.com/owner/repo.git',
+      );
+    });
+
+    it('keeps a sub-path instance URL so the clone lands on the right server path', () => {
+      expect(worktreeCloneUrl({ url: 'https://alice:pw@forgejo.example.com/git/' }, 'owner', 'repo')).toBe(
+        'https://forgejo.example.com/git/owner/repo.git',
       );
     });
   });

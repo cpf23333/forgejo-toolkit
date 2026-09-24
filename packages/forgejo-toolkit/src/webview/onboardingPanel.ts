@@ -18,6 +18,7 @@ import {
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity } from './repoIdentity';
 import { connectionFailureMessage, isHttpUrl } from './connectionTest';
+import { hasUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { userFacingErrorMessage } from '../api/errors';
 import { probeServerVersion } from '../api/versionProbe';
@@ -39,9 +40,9 @@ export class OnboardingWebviewPanel {
   /**
    * Full instance entries (tokens included) from the latest import preview,
    * kept host-side so token values never cross into the webview. Same
-   * single-slot lifecycle as the main panel: overwritten by the next
-   * preview, cleared on confirm or cancel; `importInstances` rehydrates the
-   * selected entries by id.
+   * single-slot lifecycle as the main panel: overwritten by the next preview,
+   * cleared on confirm, cancel, or the panel's disposal; `importInstances`
+   * rehydrates the selected entries by id.
    */
   private _pendingImportInstances: ForgejoInstance[] | undefined;
 
@@ -165,8 +166,12 @@ export class OnboardingWebviewPanel {
               }
               // Same guard as the sidebar: only http(s) targets may be reached,
               // so a compromised webview cannot aim the host at a `file:` URL or
-              // an intranet host.
-              if (!isHttpUrl(url)) {
+              // an intranet host. A URL that embeds a credential is refused for
+              // the sidebar's reason: `fetch` cannot request one, and the wizard
+              // stores through ConfigManager, which refuses such a URL — so
+              // testing it would only produce a "cannot connect" message that
+              // names the instance instead of the URL.
+              if (!isHttpUrl(url) || hasUrlUserinfo(url)) {
                 this._reply('testConnectionResult', {
                   success: false,
                   error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
@@ -472,7 +477,17 @@ export class OnboardingWebviewPanel {
               // maybeShowWelcomeOnboarding).
               await markWelcomeOnboardingShown(this._context);
               this._panel.dispose();
+              // The button is labelled "Open Dashboard", so it has to land
+              // there: focusing the view container alone only brings the
+              // sidebar's *last* route on screen, which after a first run is
+              // whatever the guide left behind. `openDashboard` is the same
+              // two-step the sidebar's own openDashboard() performs (reveal the
+              // view, then post the navigation message), and the registered
+              // command is the way to reach it from here — this panel has no
+              // reference to the view provider, and it queues the message until
+              // the view has been resolved if it was never shown.
               vscode.commands.executeCommand('forgejoToolkitView.focus');
+              vscode.commands.executeCommand('forgejoToolkit.openDashboard');
               return;
             }
           }
@@ -739,6 +754,10 @@ export class OnboardingWebviewPanel {
   private _dispose() {
     OnboardingWebviewPanel.currentPanel = undefined;
     this._panel.dispose();
+    // The import preview's stash holds the picked file's tokens in plaintext.
+    // The webview that could still confirm it is gone, so keeping it would leave
+    // those tokens in memory until the next preview overwrote them.
+    this._pendingImportInstances = undefined;
     while (this._disposables.length) {
       const disposable = this._disposables.pop();
       if (disposable) {

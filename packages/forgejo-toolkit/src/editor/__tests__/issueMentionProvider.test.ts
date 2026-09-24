@@ -360,7 +360,8 @@ describe('document link credential redaction', () => {
 
   it('strips a credential embedded in the instance URL from every link target', async () => {
     // A link target is opened in the browser, and the target string survives in
-    // the editor's link state: the configured token must not be in it.
+    // the editor's link state: the configured token must not be in it, and the
+    // link must still be openable — a masked `***@host` would not be.
     const provider = new ForgejoIssueMentionProvider(
       createConfig(['inst-r1'], 'https://alice:secret-token@forgejo.example.com'),
     );
@@ -373,9 +374,12 @@ describe('document link credential redaction', () => {
     expect(targets).toHaveLength(2);
     for (const target of targets) {
       expect(target).not.toContain('secret-token');
-      expect(target).toContain('forgejo.example.com');
-      expect(target).toContain('alice:***@');
+      expect(target).not.toContain('***');
+      expect(target).not.toContain('@');
+      expect(target.startsWith('https://forgejo.example.com/')).toBe(true);
     }
+    expect(targets).toContain('https://forgejo.example.com/owner/repo/issues/12');
+    expect(targets).toContain('https://forgejo.example.com/alice');
   });
 
   it('strips a token written in the username position', async () => {
@@ -391,6 +395,6 @@ describe('document link credential redaction', () => {
     expect(targets).toHaveLength(1);
     expect(targets[0]).not.toContain('secret-token');
     // The host stays, so the link still resolves to the right server.
-    expect(targets[0]).toBe('https://***@forgejo.example.com/owner/repo/issues/7');
+    expect(targets[0]).toBe('https://forgejo.example.com/owner/repo/issues/7');
   });
 });

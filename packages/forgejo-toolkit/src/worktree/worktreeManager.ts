@@ -293,18 +293,25 @@ export class WorktreeManager {
    * (`<cacheDir>/worktrees/*`). Triggered from worktree operations — never a
    * timer. Returns the removed names (repositories first, then worktrees).
    *
+   * `protectedPaths` names bare clones the caller is using right now (a clone it
+   * just touched, before it has a worktree record that would protect it). Such a
+   * path is never selected by the repository sweep: a clone whose usage entry is
+   * missing gets the sweep's own `now` as its stamp (see `_cleanupCachedRepos`),
+   * which sorts it *older* than the just-touched clone and would make it the
+   * first count-cap victim.
+   *
    * Both sweeps read the persisted records, so they run inside the module write
    * queue like the other globalState mutations (a concurrent touchCachedRepo
    * must not be overwritten by a stale usage snapshot).
    */
-  async cleanupCachedRepos(now: number = Date.now()): Promise<string[]> {
+  async cleanupCachedRepos(now: number = Date.now(), protectedPaths: readonly string[] = []): Promise<string[]> {
     return enqueueGlobalStateWrite(async () => [
-      ...(await this._cleanupCachedRepos(now)),
+      ...(await this._cleanupCachedRepos(now, protectedPaths)),
       ...(await this._cleanupWorktrees(now)),
     ]);
   }
 
-  private async _cleanupCachedRepos(now: number): Promise<string[]> {
+  private async _cleanupCachedRepos(now: number, protectedPaths: readonly string[]): Promise<string[]> {
     const reposDir = path.join(this.getCacheDirectory(), 'repos');
     const resolvedReposDir = path.resolve(reposDir);
     const entries = await fs.promises.readdir(reposDir, { withFileTypes: true }).catch(() => [] as fs.Dirent[]);
@@ -318,6 +325,9 @@ export class WorktreeManager {
       .map((entry) => path.resolve(reposDir, entry.name))
       .filter((repoPath) => path.dirname(repoPath) === resolvedReposDir);
     const activePaths = new Set(this.getWorktrees().map((w) => pathKey(w.sourceRepoPath)));
+    for (const protectedPath of protectedPaths) {
+      activePaths.add(pathKey(protectedPath));
+    }
 
     const usage = { ...this._getCacheRepoUsage() };
     // Repositories that predate usage tracking get a fresh timestamp instead

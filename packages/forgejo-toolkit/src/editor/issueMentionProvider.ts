@@ -4,7 +4,7 @@ import { ForgejoClient } from '../api/client';
 import { detectLinkedRepositories, isPathInsideFolder } from '../worktree/gitOperations';
 import type { LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { logger } from '../logger';
-import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
+import { stripUrlUserinfo } from '../utils/redactUrlUserinfo';
 
 interface RepoContext {
   instanceId: string;
@@ -93,10 +93,11 @@ async function getRepoContext(document: vscode.TextDocument, config: ConfigManag
       repo: linked.repo,
       // DocumentLink targets are opened in a browser, so the credentials a
       // configured instance URL may embed as userinfo are stripped here, once,
-      // before any link is built from them. The helper normalizes the URL (a
-      // trailing slash appears), so the trailing slash is trimmed here rather
+      // before any link is built from them — a masked `***@host` would leave a
+      // link the editor cannot open. The helper re-serializes an absolute URL
+      // (a trailing slash appears), so the trailing slash is trimmed here rather
       // than at each of the two concatenation sites.
-      instanceUrl: redactUrlUserinfo(instance.url).replace(/\/$/, ''),
+      instanceUrl: stripUrlUserinfo(instance.url).replace(/\/$/, ''),
     };
   }
 

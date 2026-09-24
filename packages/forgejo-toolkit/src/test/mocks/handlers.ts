@@ -108,6 +108,29 @@ function paginate<T>(request: Request, items: T[]): T[] {
  */
 export const MOCK_SERVER_VERSION = '16.0.5';
 
+/**
+ * Comment bodies the mocked issue indexer matches, keyed by issue/PR number,
+ * plus a keyword that appears *only* in one of them. Forgejo's issue indexer
+ * searches `title`, `content` and `comments` (see the bleve mapping in
+ * `modules/indexer/issues`), so a keyword that appears only in a comment is a
+ * real match; a mock that matched the title and body alone described a server
+ * that does not exist, and hid a listing bug where the client re-filtered the
+ * server's rows and dropped comment-only matches.
+ */
+export const MOCK_COMMENT_ONLY_KEYWORD = 'regression';
+
+const mockCommentBodies: Record<number, string[]> = {
+  1: ['Regression in the login form: a valid 2FA code is rejected.'],
+  2: ['Regression in the dark mode toggle: it resets on reload.'],
+};
+
+/** Whether the mocked server's issue indexer would match `item` for `query`. */
+function issueMatchesKeyword(item: { title?: string; body?: string; number?: number }, query: string): boolean {
+  const needle = query.toLowerCase();
+  const fields = [item.title, item.body, ...(mockCommentBodies[item.number ?? -1] ?? [])];
+  return fields.some((field) => typeof field === 'string' && field.toLowerCase().includes(needle));
+}
+
 export const handlers = [
   http.get('https://*/api/v1/user', () => json(mockUser)),
 
@@ -197,11 +220,18 @@ export const handlers = [
     const url = new URL(request.url);
     const type = url.searchParams.get('type');
     const state = url.searchParams.get('state') ?? 'open';
+    const q = url.searchParams.get('q');
     let data: typeof mockIssues | typeof mockPullRequests = [...mockIssues];
     if (type === 'pulls') {
       data = [...mockPullRequests];
     }
     data = data.filter((item) => state === 'all' || item.state === state);
+    if (q) {
+      // The same indexer as the repository listing below: title, body and
+      // comments. The instance-wide listing takes `q` too (see
+      // ForgejoClient.getUserIssues).
+      data = data.filter((item) => issueMatchesKeyword(item, q));
+    }
     return json(paginate(request, data));
   }),
 
@@ -238,8 +268,9 @@ export const handlers = [
     );
     data = data.filter((item) => state === 'all' || item.state === state);
     if (q) {
-      // The real API matches the query against title and body, case-insensitively.
-      data = data.filter((item) => item.title?.toLowerCase().includes(q) || item.body?.toLowerCase().includes(q));
+      // The real API runs the keyword through its issue indexer, which matches
+      // the title, the body and the comments (not the author).
+      data = data.filter((item) => issueMatchesKeyword(item, q));
     }
     return json(paginate(request, data));
   }),
@@ -532,6 +563,47 @@ export const handlers = [
   http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', () => json(mockReadmeContent)),
 
   http.get('https://*/api/v1/repos/:owner/:repo/contents/src/index.ts', () => json(mockIndexTsContent)),
+
+  // Paths that are not regular files. Forgejo fills `content` only for
+  // `type: 'file'`: a symlink answers with `target` and a `size` equal to the
+  // link target's length, a submodule with `submodule_git_url` and size 0, and a
+  // file above the instance's contents payload limit with its real size and no
+  // `content`. Each is a different answer, and the MCP `get_file_content` tool
+  // must not turn the first two into a withheld-payload notice or an empty
+  // string (see mcp/__tests__/tools.test.ts).
+  http.get('https://*/api/v1/repos/:owner/:repo/contents/docs/link.md', () =>
+    json({
+      name: 'link.md',
+      path: 'docs/link.md',
+      type: 'symlink',
+      sha: 'link-sha',
+      size: 'README.md'.length,
+      target: 'README.md',
+    }),
+  ),
+
+  http.get('https://*/api/v1/repos/:owner/:repo/contents/vendor/lib', () =>
+    json({
+      name: 'lib',
+      path: 'vendor/lib',
+      type: 'submodule',
+      sha: 'lib-submodule-sha',
+      size: 0,
+      submodule_git_url: 'https://forgejo.example.com/demo-user/upstream-lib.git',
+    }),
+  ),
+
+  http.get('https://*/api/v1/repos/:owner/:repo/contents/huge.bin', () =>
+    json({
+      name: 'huge.bin',
+      path: 'huge.bin',
+      type: 'file',
+      sha: 'huge-sha',
+      // Above the 10 MiB default `[api] DEFAULT_MAX_BLOB_SIZE`: the entry
+      // describes the file without carrying its payload.
+      size: 12 * 1024 * 1024,
+    }),
+  ),
 
   // Every other path in the fixture tree (see data/contents.ts). A directory
   // answers its listing, a file answers its body — a stored payload when the

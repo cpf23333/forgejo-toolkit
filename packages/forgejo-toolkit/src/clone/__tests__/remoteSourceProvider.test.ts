@@ -141,15 +141,25 @@ describe('toRemoteSource', () => {
       createRepo(),
     );
     expect(String(password.url[0])).not.toContain('secret-token');
-    // The username stays recognisable; only the secret is blanked.
-    expect(String(password.url[0])).toBe('https://alice:***@forgejo.example.com/owner/demo.git');
+    // The whole userinfo goes: a masked `alice:***@host` is not a credential, so
+    // the clone could only fail and git would persist the mask as the remote.
+    expect(String(password.url[0])).toBe('https://forgejo.example.com/owner/demo.git');
+    expect(String(password.url[0])).not.toContain('@');
 
     const tokenOnly = toRemoteSource(
       { ...testInstance, url: 'https://secret-token@forgejo.example.com' },
       createRepo(),
     );
     expect(String(tokenOnly.url[0])).not.toContain('secret-token');
-    expect(String(tokenOnly.url[0])).toBe('https://***@forgejo.example.com/owner/demo.git');
+    expect(String(tokenOnly.url[0])).toBe('https://forgejo.example.com/owner/demo.git');
+  });
+
+  it('keeps a sub-path instance url intact when it strips the userinfo', () => {
+    const source = toRemoteSource(
+      { ...testInstance, url: 'https://user:secret-token@forgejo.example.com/git/' },
+      createRepo(),
+    );
+    expect(String(source.url[0])).toBe('https://forgejo.example.com/git/owner/demo.git');
   });
 
   it('leaves a server-provided clone_url untouched', () => {

@@ -147,7 +147,9 @@ describe('copyPermalink credential redaction', () => {
 
     const copied = vi.mocked(vscode.env.clipboard.writeText).mock.calls[0][0];
     expect(copied).not.toContain(SECRET);
-    expect(copied).toContain('forgejo.example.com/owner/repo/blob/sha1/src/index.ts');
+    // The whole userinfo goes, not just the secret: the clipboard holds a link
+    // someone follows, and `alice:***@host` is not one that resolves.
+    expect(copied).toBe('https://forgejo.example.com/owner/repo/blob/sha1/src/index.ts#L1');
   });
 
   it('drops a token written in the username position of a workspace-file permalink', async () => {
@@ -164,6 +166,18 @@ describe('copyPermalink credential redaction', () => {
 
     const copied = vi.mocked(vscode.env.clipboard.writeText).mock.calls[0][0];
     expect(copied).not.toContain(SECRET);
-    expect(copied).toContain('forgejo.example.com/owner/repo/blob/abc123/src/index.ts');
+    expect(copied).toBe('https://forgejo.example.com/owner/repo/blob/abc123/src/index.ts#L1');
+  });
+
+  it('leaves a trailing-slash instance URL without a double slash after stripping', async () => {
+    // The stripping helper re-serializes an absolute URL, which appends a
+    // trailing slash; the call sites trim it so the join stays single-slashed.
+    (vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = prEditor();
+
+    await copyPermalink(createConfig(`https://alice:${SECRET}@forgejo.example.com/`));
+
+    const copied = vi.mocked(vscode.env.clipboard.writeText).mock.calls[0][0];
+    expect(copied).toBe('https://forgejo.example.com/owner/repo/blob/sha1/src/index.ts#L1');
+    expect(copied).not.toContain('//owner');
   });
 });

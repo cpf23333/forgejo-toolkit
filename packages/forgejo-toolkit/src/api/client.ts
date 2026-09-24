@@ -194,6 +194,18 @@ export const MAX_SEARCH_RESULTS = MAX_REPO_FILE_SEARCH_RESULTS;
 // that, a branch past the first ten reads as a branch that does not exist.
 export const REPO_DETAIL_LIST_LIMIT = 10;
 
+/**
+ * `getRepoDetail`'s result: the detail plus, for each capped list, whether it
+ * was actually cut. The flags are `true` only when the extra row requested
+ * beyond `REPO_DETAIL_LIST_LIMIT` came back, so `false`/absent means the list is
+ * complete. They are optional so a caller that builds a `ForgejoRepoDetail` by
+ * hand (tests, fixtures) stays valid.
+ */
+export interface ForgejoRepoDetailWithCaps extends ForgejoRepoDetail {
+  branchesTruncated?: boolean;
+  recentCommitsTruncated?: boolean;
+}
+
 /** Per-request timeout: a reachable-but-unresponsive instance must not hang. */
 export const API_REQUEST_TIMEOUT_MS = 30_000;
 
@@ -333,6 +345,11 @@ function purgeExpiredRepoContents(now: number): void {
  * and the byte budget hold. The oldest entry is dropped before the new one is
  * added, so a single payload larger than the budget still leaves the cache with
  * exactly that payload rather than an empty map.
+ *
+ * An entry that alone exceeds the whole budget is answered to its caller but
+ * never retained (the same guard the avatar and attachment-image caches use):
+ * caching it would evict every other entry and still leave the total above the
+ * budget.
  */
 function rememberRepoContents(key: string, value: ForgejoContentEntry[]): void {
   const now = Date.now();
@@ -342,6 +359,9 @@ function rememberRepoContents(key: string, value: ForgejoContentEntry[]): void {
   if (previous) {
     repoContentsCache.delete(key);
     repoContentsCacheBytes -= previous.bytes;
+  }
+  if (bytes > REPO_CONTENTS_CACHE_MAX_BYTES) {
+    return;
   }
   while (
     repoContentsCache.size > 0 &&
@@ -692,7 +712,7 @@ export class ForgejoClient {
     return createCurrentUserRepo(data, { client: this._client() });
   }
 
-  async getUserIssues(state: string = 'open'): Promise<ForgejoIssue[]> {
+  async getUserIssues(state: string = 'open', query?: string): Promise<ForgejoIssue[]> {
     const issues = await this._fetchAllPages(
       (page) =>
         issueSearchIssues(
@@ -707,6 +727,12 @@ export class ForgejoClient {
             assigned: true,
             mentioned: true,
             review_requested: true,
+            // The keyword goes to the server here too, so both `list_issues`
+            // branches filter with the same matcher (the issue indexer: title,
+            // body and comments). Filtering the returned rows locally instead
+            // dropped every issue that matched only through a comment — see
+            // mcp/tools.ts.
+            ...(query ? { q: query } : {}),
             page,
             limit: PAGE_SIZE,
           },
@@ -717,7 +743,7 @@ export class ForgejoClient {
     return issues as ForgejoIssue[];
   }
 
-  async getUserPullRequests(state: string = 'open'): Promise<ForgejoPullRequest[]> {
+  async getUserPullRequests(state: string = 'open', query?: string): Promise<ForgejoPullRequest[]> {
     const pulls = await this._fetchAllPages(
       (page) =>
         issueSearchIssues(
@@ -729,6 +755,8 @@ export class ForgejoClient {
             assigned: true,
             mentioned: true,
             review_requested: true,
+            // Same server-side keyword as getUserIssues.
+            ...(query ? { q: query } : {}),
             page,
             limit: PAGE_SIZE,
           },
@@ -1045,7 +1073,19 @@ export class ForgejoClient {
     return repository !== undefined;
   }
 
-  async getRepoDetail(owner: string, repo: string): Promise<ForgejoRepoDetail> {
+  /**
+   * Repository detail with its branch and commit lists capped at
+   * `REPO_DETAIL_LIST_LIMIT`.
+   *
+   * Whether a list was cut is reported by `branchesTruncated` /
+   * `recentCommitsTruncated` instead of being left to the caller's judgement:
+   * the endpoint is asked for one row beyond the cap, so the extra row's
+   * presence is proof of a cut, and the row itself is dropped before returning.
+   * A caller comparing the returned length against the cap cannot tell a
+   * repository with exactly `REPO_DETAIL_LIST_LIMIT` branches from one with
+   * more, and reported the former as an incomplete list.
+   */
+  async getRepoDetail(owner: string, repo: string): Promise<ForgejoRepoDetailWithCaps> {
     const repository = await repoGet(owner, repo, { client: this._client() });
     const isEmpty = (repository as { empty?: boolean }).empty ?? false;
 
@@ -1062,12 +1102,18 @@ export class ForgejoClient {
     // One entry fetch answers both questions: the text to show and, when the
     // contents API withheld the payload, the size the notice needs. Probing a
     // second time from the caller is what made a README-less repository issue
-    // `/contents/README.md` twice per detail load.
-    const [readmeEntry, branches, commits] = await Promise.all([
+    // `/contents/README.md` twice per detail load. The two list endpoints are
+    // asked for `REPO_DETAIL_LIST_LIMIT + 1` rows so the cut can be observed.
+    const [readmeEntry, branchPage, commitPage] = await Promise.all([
       this.getReadmeEntry(owner, repo),
-      repoListBranches(owner, repo, { limit: REPO_DETAIL_LIST_LIMIT }, { client: this._client() }),
-      repoGetAllCommits(owner, repo, { limit: REPO_DETAIL_LIST_LIMIT }, { client: this._client() }),
+      repoListBranches(owner, repo, { limit: REPO_DETAIL_LIST_LIMIT + 1 }, { client: this._client() }),
+      repoGetAllCommits(owner, repo, { limit: REPO_DETAIL_LIST_LIMIT + 1 }, { client: this._client() }),
     ]);
+    // Read off the raw page, not the filtered list: an entry the mapping below
+    // drops (a branch with no name) must not hide the extra row that proves the
+    // list was cut.
+    const branchesTruncated = (branchPage?.length ?? 0) > REPO_DETAIL_LIST_LIMIT;
+    const recentCommitsTruncated = (commitPage?.length ?? 0) > REPO_DETAIL_LIST_LIMIT;
 
     return {
       repository: repository as ForgejoRepository,
@@ -1080,8 +1126,12 @@ export class ForgejoClient {
         readmeEntry && readmeEntry.content === undefined && readmeEntry.size && readmeEntry.size > 0
           ? readmeEntry.size
           : undefined,
-      branches: branches?.map((branch) => branch.name ?? '').filter(Boolean) ?? [],
-      recentCommits: (commits ?? []).map(
+      branches: (branchPage ?? [])
+        .map((branch) => branch.name ?? '')
+        .filter(Boolean)
+        .slice(0, REPO_DETAIL_LIST_LIMIT),
+      branchesTruncated,
+      recentCommits: (commitPage ?? []).slice(0, REPO_DETAIL_LIST_LIMIT).map(
         (commit) =>
           ({
             sha: commit.sha ?? '',
@@ -1097,6 +1147,7 @@ export class ForgejoClient {
             html_url: commit.html_url ?? '',
           }) as ForgejoCommit,
       ),
+      recentCommitsTruncated,
     };
   }
 
@@ -1997,27 +2048,76 @@ export class ForgejoClient {
     return repoEditPullRequest(owner, repo, index, data, { client: this._client() }) as Promise<ForgejoPullRequest>;
   }
 
-  async getFileContent(owner: string, repo: string, filepath: string, ref?: string): Promise<string> {
+  /**
+   * Reads one path through the contents endpoint and reports what is actually
+   * there.
+   *
+   * Forgejo fills `content` only when the entry is a regular file. The other
+   * three kinds it can answer with carry no payload, and each needs a different
+   * answer than "here is the file":
+   *
+   * - `dir` answers with the directory's listing (an array), not an entry;
+   * - `symlink` answers with `target`, the path the link points at, and a `size`
+   *   equal to the *link target's* length — a size-only reading reported that as
+   *   "the payload was withheld above the instance's limit", a cause the server
+   *   never gave;
+   * - `submodule` answers with `submodule_git_url` and `size` 0 — a size-only
+   *   reading returned an empty string, which reads as "this file is empty".
+   *
+   * `kind` is what lets a caller act on the answer without parsing prose, and
+   * `text` is either the decoded content (`file`; empty for a genuinely empty
+   * file) or the honest sentence to answer with instead. Content the server did
+   * send is always file content, whatever the entry says.
+   */
+  async getFileContentResult(owner: string, repo: string, filepath: string, ref?: string): Promise<FileContentResult> {
     const params = ref ? { ref } : undefined;
     const response = await repoGetContents(owner, repo, encodeFilePath(filepath), params, { client: this._client() });
     if (Array.isArray(response)) {
-      // The contents endpoint answers a directory with its children; an empty
-      // string here would read as "this file is empty", which is a different (and
-      // wrong) answer. This method only serves the MCP `get_file_content` tool.
-      return `${filepath} is a directory, not a file: use list_repo_contents to list its entries.`;
+      return { kind: 'directory', text: directoryNotice(filepath) };
     }
-    const entry = response as { content?: string; size?: number };
-    if (!entry.content) {
-      // Forgejo withholds the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE`
-      // and reports the real size instead. Returning an empty string here told the
-      // MCP caller the file was empty, which is a different (and wrong) answer; this
-      // method only serves the MCP `get_file_content` tool, whose output is English.
-      if (entry.size && entry.size > 0) {
-        return `Forgejo did not return this file's content: at ${entry.size} bytes it is above the instance's contents API payload limit. Read it in the browser instead.`;
-      }
-      return '';
+    const entry = response as {
+      type?: string;
+      content?: string;
+      size?: number;
+      target?: string;
+      submodule_git_url?: string;
+    };
+    if (entry.content) {
+      return { kind: 'file', text: decodeBase64(entry.content) };
     }
-    return decodeBase64(entry.content);
+    switch (entry.type) {
+      case 'dir':
+        // Defensive: the endpoint answers a directory with an array, but a
+        // single `dir` entry must not fall through to the size-based branches.
+        return { kind: 'directory', text: directoryNotice(filepath) };
+      case 'symlink':
+        return { kind: 'symlink', text: symlinkNotice(filepath, entry.target) };
+      case 'submodule':
+        return { kind: 'submodule', text: submoduleNotice(filepath, entry.submodule_git_url) };
+      default:
+        break;
+    }
+    // Forgejo withholds the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE`
+    // and reports the real size instead. A positive size with no content is the
+    // only combination that means "withheld"; `type: 'file'` with size 0 is a
+    // genuinely empty file, whose content is the empty string.
+    if (entry.size && entry.size > 0) {
+      return {
+        kind: 'withheld',
+        text: `Forgejo did not return this file's content: at ${entry.size} bytes it is above the instance's contents API payload limit. Read it in the browser instead.`,
+      };
+    }
+    return { kind: 'file', text: '' };
+  }
+
+  /**
+   * The decoded text of a file, or the sentence that stands in for it when the
+   * path is not a regular file (see `getFileContentResult`). Callers that must
+   * tell content from a notice use `getFileContentResult`; this convenience
+   * keeps the string contract for callers that only display the answer.
+   */
+  async getFileContent(owner: string, repo: string, filepath: string, ref?: string): Promise<string> {
+    return (await this.getFileContentResult(owner, repo, filepath, ref)).text;
   }
 
   async getPullRequestFiles(owner: string, repo: string, index: number): Promise<ForgejoChangedFile[]> {
@@ -2697,6 +2797,51 @@ function decodeBase64(content: string): string {
     return Buffer.from(content, 'base64').toString('utf-8');
   }
   return atob(content);
+}
+
+/**
+ * The entry kinds the contents endpoint can answer with. `file` is the only one
+ * that carries content; `withheld` is a regular file whose payload the instance
+ * did not send, and `directory`/`symlink`/`submodule` are entries that never
+ * have a payload at all (see `ForgejoClient.getFileContentResult`).
+ */
+export type FileContentKind = 'file' | 'withheld' | 'directory' | 'symlink' | 'submodule';
+
+/**
+ * What `getFileContentResult` found at a path. `text` is the decoded content for
+ * `kind: 'file'` — the empty string for a genuinely empty file — and the
+ * sentence to answer with instead of content for every other kind.
+ */
+export interface FileContentResult {
+  kind: FileContentKind;
+  text: string;
+}
+
+/** The answer for a path that names a directory, whose response is its listing. */
+function directoryNotice(path: string): string {
+  return `${path} is a directory, not a file: use list_repo_contents to list its entries.`;
+}
+
+/**
+ * The answer for a symlink. The target is the API's `target` field; when a
+ * server omits it the sentence still says what the entry is rather than
+ * inventing a target (the `size` field is the *target's* length, not content).
+ */
+function symlinkNotice(path: string, target?: string): string {
+  return target
+    ? `${path} is a symlink, not a file: it points to ${target}. Request that path instead, or open the symlink in the Forgejo web UI.`
+    : `${path} is a symlink, not a file: it points elsewhere in the repository. Open it in the Forgejo web UI, or request the path it points to.`;
+}
+
+/**
+ * The answer for a submodule, whose own repository is named by the API's
+ * `submodule_git_url` field. Its `size` is 0, so the withheld-payload reading
+ * never applies and the old fallback returned an empty string.
+ */
+function submoduleNotice(path: string, gitUrl?: string): string {
+  return gitUrl
+    ? `${path} is a submodule, not a file: its own repository is at ${gitUrl}. Open the submodule in the Forgejo web UI, or clone that repository.`
+    : `${path} is a submodule, not a file: it is a separate repository, so it has no file content here. Open it in the Forgejo web UI.`;
 }
 
 // The generated API clients interpolate path parameters into the URL without

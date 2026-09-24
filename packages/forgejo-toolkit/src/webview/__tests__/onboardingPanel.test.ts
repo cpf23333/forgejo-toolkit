@@ -63,10 +63,14 @@ function createFakeContext() {
 function createFakePanel() {
   const posted: unknown[] = [];
   let listener: MessageListener | undefined;
+  let disposeListener: (() => void) | undefined;
   const panel = {
     reveal: vi.fn(),
     dispose: vi.fn(),
-    onDidDispose: () => ({ dispose: vi.fn() }),
+    onDidDispose: (l: () => void) => {
+      disposeListener = l;
+      return { dispose: vi.fn() };
+    },
     webview: {
       html: '',
       cspSource: '',
@@ -85,11 +89,23 @@ function createFakePanel() {
     panel,
     posted,
     send: (message: unknown) => listener?.(message),
+    dispose: () => disposeListener?.(),
   };
 }
 
 function postedMessages(posted: unknown[]): Array<Record<string, unknown>> {
   return posted as Array<Record<string, unknown>>;
+}
+
+/**
+ * The import preview's host-side token stash. Read directly: the panel exposes
+ * no accessor for it, and whether the plaintext tokens are still held is the
+ * observable behavior under test. Takes the panel explicitly because disposal
+ * clears `OnboardingWebviewPanel.currentPanel`, and the stash of the disposed
+ * panel is exactly what has to be empty.
+ */
+function pendingImportInstances(panel: OnboardingWebviewPanel): unknown {
+  return (panel as unknown as { _pendingImportInstances?: unknown })._pendingImportInstances;
 }
 
 async function flushDispatches() {
@@ -241,6 +257,61 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     await flushDispatches();
 
     expect(context.globalState.get('forgejoToolkit.hasShownWelcome')).toBe(true);
+  });
+
+  it('lands on the dashboard when the guide is finished', async () => {
+    // The finish button is labelled "Open Dashboard", so closing the panel
+    // alone is not enough: focusing the view container only brings back
+    // whatever route the sidebar was last on, which after a first run is not
+    // the dashboard. `openDashboard` is the two-step the sidebar's own
+    // openDashboard() performs (reveal, then post the navigation message).
+    const executeCommand = vi.mocked(vscode.commands.executeCommand);
+    executeCommand.mockClear();
+
+    fake.send({ command: 'closeOnboarding' });
+    await flushDispatches();
+
+    expect(executeCommand).toHaveBeenCalledWith('forgejoToolkit.openDashboard');
+    expect(executeCommand).toHaveBeenCalledWith('forgejoToolkitView.focus');
+  });
+
+  it('drops the plaintext-token stash when the panel is disposed', async () => {
+    // The stash holds the picked file's tokens in the clear, kept host-side so
+    // they never cross into the webview. The webview that could still confirm
+    // the import is gone once the panel is disposed, so the tokens must not
+    // outlive it.
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'onboarding-import-dispose-')), 'export.json');
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        instances: [
+          { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'u' },
+        ],
+      }),
+    );
+    vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file(file)] as never);
+    const panel = OnboardingWebviewPanel.currentPanel as OnboardingWebviewPanel;
+
+    fake.send({ command: 'previewImportInstances' });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'importInstancesPreview'));
+    expect(pendingImportInstances(panel)).toBeDefined();
+
+    fake.dispose();
+
+    expect(pendingImportInstances(panel)).toBeUndefined();
+  });
+
+  it('refuses a connection test URL that embeds a credential', async () => {
+    // The wizard's own save path stores through ConfigManager, which refuses a
+    // userinfo URL: answering before the request keeps the user from being told
+    // the instance is unreachable when the URL is the problem.
+    fake.send({ command: 'testConnection', url: 'https://alice:secret-token@forgejo.example.com', token: 'tok' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'testConnectionResult');
+    expect(result).toMatchObject({ success: false });
+    expect(String(result?.error)).toContain('http');
   });
 
   it('ignores malformed messages without throwing', async () => {

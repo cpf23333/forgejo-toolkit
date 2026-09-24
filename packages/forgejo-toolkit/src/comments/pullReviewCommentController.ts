@@ -119,6 +119,13 @@ export class PullReviewCommentController implements vscode.Disposable {
     sizeOf: (value) => estimateValueBytes(value.diff) + estimateValueBytes(value.reviews),
   });
   private readonly _reviewDataInFlight = new InFlightTasks();
+  /**
+   * Fingerprint of the incomplete review-id set the load warning was last shown
+   * for. Both the user and the editor can trigger a re-fetch (a mutation
+   * invalidates the review-data cache), so without this the same failure warns
+   * again every time the cache is refilled.
+   */
+  private _warnedIncompleteReviews: string | undefined;
   // VS Code's built-in comment-thread range decoration is an inline decoration:
   // the first line (the thread range always starts at column 0) and interior
   // lines get a full-width band via line-break fill, but the final line is
@@ -338,18 +345,18 @@ export class PullReviewCommentController implements vscode.Disposable {
     owner: string;
     repo: string;
     index: number;
-  }): Promise<PullRequestReviewCache> {
+  }): Promise<{ data: PullRequestReviewCache; fetched: boolean }> {
     const key = this._reviewDataCacheKey(params);
     const cached = this._reviewDataCache.get(key);
     if (cached) {
-      return Promise.resolve(cached);
+      return Promise.resolve({ data: cached, fetched: false });
     }
     // Coalesce concurrent loads of the same pull request (one per open
     // document when a multi-file diff opens) into a single fetch.
     return this._reviewDataInFlight.run(key, async () => {
       const data = await this._fetchReviewData(params);
       this._reviewDataCache.set(key, data);
-      return data;
+      return { data, fetched: true };
     });
   }
 
@@ -361,7 +368,9 @@ export class PullReviewCommentController implements vscode.Disposable {
   }): Promise<PullRequestReviewCache> {
     const instance = this._findInstance(params.instanceId);
     if (!instance) {
-      throw new Error(`Forgejo instance not found: ${params.instanceId}`);
+      // Localized like the "Forgejo instance not found" messages the rest of the
+      // extension shows: this one is surfaced in the load-failure toast below.
+      throw new Error(vscode.l10n.t('Forgejo instance not found: {0}', params.instanceId));
     }
 
     const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
@@ -444,18 +453,30 @@ export class PullReviewCommentController implements vscode.Disposable {
 
   private async _loadAndRender(document: vscode.TextDocument, params: ForgejoPrUriParams): Promise<void> {
     try {
-      const data = await this._loadReviewData(params);
+      const { data, fetched } = await this._loadReviewData(params);
       // A review whose comments failed to load is kept in `data.reviews` (so a
       // pending review stays visible, see _fetchReviewData) but its threads are
       // necessarily missing. Say so: otherwise the diff looks like a complete
       // picture of the discussion.
+      //
+      // Only when the data was actually fetched. `_loadAndRender` re-runs for
+      // every `onDidChangeActiveTextEditor` (opening the other side of a diff,
+      // focusing any document), and the 15 s cache answers then — before this
+      // guard, one transient per-review failure re-toasted the warning once per
+      // document opened and on every focus change. The id set is remembered too,
+      // so a later re-fetch that fails on the same reviews stays silent while a
+      // *different* set still warns.
       if (data.incompleteReviewIds.length > 0) {
-        vscode.window.showWarningMessage(
-          vscode.l10n.t(
-            'Some reviews could not be loaded, so their comments may be missing: {0}',
-            data.incompleteReviewIds.join(', '),
-          ),
-        );
+        const fingerprint = data.incompleteReviewIds.slice().sort().join(',');
+        if (fetched && fingerprint !== this._warnedIncompleteReviews) {
+          this._warnedIncompleteReviews = fingerprint;
+          vscode.window.showWarningMessage(
+            vscode.l10n.t(
+              'Some reviews could not be loaded, so their comments may be missing: {0}',
+              data.incompleteReviewIds.join(', '),
+            ),
+          );
+        }
       }
       // The document may have been closed while the load was in flight; the
       // close event then found no threads to dispose, so threads created now
@@ -763,7 +784,7 @@ export class PullReviewCommentController implements vscode.Disposable {
       extraLinesCount = end - start;
     }
 
-    const data = await this._loadReviewData(params).catch((error: unknown) => {
+    const loaded = await this._loadReviewData(params).catch((error: unknown) => {
       const err = userFacingErrorMessage(error);
       this._logger?.error(`Failed to load pull request diff for commenting: ${err}`);
       // The command comes from an editor context menu, so returning silently
@@ -773,9 +794,10 @@ export class PullReviewCommentController implements vscode.Disposable {
       void vscode.window.showErrorMessage(vscode.l10n.t('Could not load the pull request diff: {0}', err));
       return undefined;
     });
-    if (!data) {
+    if (!loaded) {
       return;
     }
+    const { data } = loaded;
 
     const fileMap = data.diff.files.get(params.path);
     if (!fileMap) {
@@ -859,7 +881,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     this._reviewDataCache.delete(this._reviewDataCacheKey(params));
     let data: PullRequestReviewCache;
     try {
-      data = await this._loadReviewData(params);
+      ({ data } = await this._loadReviewData(params));
     } catch (error) {
       const err = userFacingErrorMessage(error);
       this._logger?.error(
