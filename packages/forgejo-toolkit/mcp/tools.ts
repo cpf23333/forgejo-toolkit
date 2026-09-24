@@ -146,6 +146,29 @@ function filterByQuery<T extends { title?: string; body?: string; user?: { login
 }
 
 /**
+ * The sentence `ForgejoClient.getFileContent` answers with instead of content
+ * when the requested path names a directory: the contents endpoint answers a
+ * directory with its listing, and an empty string would read as "this file is
+ * empty" — a different and wrong answer.
+ *
+ * `callTool` only sets `isError` when a handler throws, so the tool layer has to
+ * recognise that notice itself; otherwise `get_file_content` answers
+ * `isError: false` with prose that is not file content. The sentence is built
+ * from the requested path, so the check is an exact match on that path: a real
+ * file is not mistaken for a notice unless its whole body is that sentence. The
+ * wording belongs to the client, and the MSW test behind `get_file_content`
+ * drives the real client, so re-wording the notice fails that test instead of
+ * silently disabling this guard. A client that threw where the notice is built
+ * would make the guard unnecessary.
+ */
+const DIRECTORY_NOTICE_SUFFIX = ' is a directory, not a file: use list_repo_contents to list its entries.';
+
+/** The directory notice `ForgejoClient.getFileContent` returns for `path`. */
+function directoryContentNotice(path: string): string {
+  return `${path}${DIRECTORY_NOTICE_SUFFIX}`;
+}
+
+/**
  * Plain async handlers behind the MCP tools, exported for unit tests: they
  * return the untruncated payload and let errors propagate. The MCP
  * registration (registerTools) adds truncation and error rendering on top.
@@ -234,7 +257,19 @@ export function buildToolHandlers(client: ForgejoClient) {
       client.getActionRunArtifacts(args.owner, args.repo, args.runId),
 
     // Code reading.
-    get_file_content: (args: FileContentArgs) => client.getFileContent(args.owner, args.repo, args.path, args.ref),
+    get_file_content: async (args: FileContentArgs) => {
+      const content = await client.getFileContent(args.owner, args.repo, args.path, args.ref);
+      // A directory path is a caller error, not file content, so the client's
+      // notice is rethrown: `callTool` then answers `isError: true` with the same
+      // sentence as the error text (see DIRECTORY_NOTICE_SUFFIX). The withheld
+      // >10 MiB payload notice stays a successful result on purpose: it is an
+      // accepted instance limitation that names what to do instead (see
+      // KNOWN_ISSUES.md), not a mistake in the request.
+      if (content === directoryContentNotice(args.path)) {
+        throw new Error(content);
+      }
+      return content;
+    },
 
     list_repo_contents: (args: ListRepoContentsArgs) =>
       client.getRepoContents(args.owner, args.repo, args.path ?? '', args.ref),
@@ -772,7 +807,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     'get_file_content',
     {
       description:
-        'Get the decoded text content of a file in a repository. Large files are truncated to ~10 KB by the tool result budget.',
+        'Get the decoded text content of a file in a repository. Large files are truncated to ~10 KB by the tool result budget. A path that names a directory is reported as an error pointing at list_repo_contents; a file whose payload the instance withholds (above its contents API payload limit) is answered with a notice naming its size instead of its content.',
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,

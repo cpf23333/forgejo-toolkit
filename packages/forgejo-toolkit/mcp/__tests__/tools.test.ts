@@ -58,6 +58,28 @@ describe('MCP tool handlers with MSW', () => {
   }
 
   /**
+   * Registers the tools against a stub MCP server and the given client, and
+   * hands back a caller for one registered tool. Tests pair this with the stubbed
+   * client below (no HTTP) or with a real `ForgejoClient` (driven through the
+   * mock HTTP server, as in the `get_file_content` tests).
+   */
+  function registerWith(client: unknown) {
+    const registered = new Map<
+      string,
+      (args: unknown, extra?: unknown) => Promise<{ isError?: boolean; content: { text: string }[] }>
+    >();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+    registerTools(server, client as never);
+
+    const call = (name: string, args: unknown) => registered.get(name)?.(args);
+    return { call };
+  }
+
+  /**
    * Registers the tools against a stub MCP server and a fully stubbed client, so
    * a test can drive the tool layer (notes, error rendering) without HTTP.
    *
@@ -82,18 +104,7 @@ describe('MCP tool handlers with MSW', () => {
         throw new Error(`stub client has no method ${property}`);
       },
     });
-    const registered = new Map<
-      string,
-      (args: unknown, extra?: unknown) => Promise<{ isError?: boolean; content: { text: string }[] }>
-    >();
-    const server = {
-      registerTool: (name: string, _config: unknown, handler: never) => {
-        registered.set(name, handler);
-      },
-    } as never;
-    registerTools(server, client as never);
-
-    const call = (name: string, args: unknown) => registered.get(name)?.(args);
+    const { call } = registerWith(client);
     return { call, calls };
   }
 
@@ -437,6 +448,69 @@ describe('MCP tool handlers with MSW', () => {
     const handlers = createHandlers();
     const diff = await handlers.get_pr_diff({ owner: 'demo-user', repo: 'demo-repo', index: 2 });
     expect(diff).toContain('diff --git a/src/index.ts');
+  });
+
+  it('get_file_content reports a directory path as an error, not as file content', async () => {
+    // The client can only say "this is a directory" with a notice string, and
+    // callTool sets isError only for a throw: without the tool-layer guard the
+    // handler handed the notice back as a successful result.
+    const handlers = createHandlers();
+    await expect(handlers.get_file_content({ owner: 'demo-user', repo: 'demo-repo', path: 'src' })).rejects.toThrow(
+      /is a directory/,
+    );
+  });
+
+  it('get_file_content still returns real file content', async () => {
+    const handlers = createHandlers();
+    const content = (await handlers.get_file_content({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      path: 'package.json',
+    })) as string;
+
+    expect(content.length).toBeGreaterThan(0);
+    expect(content).not.toContain('is a directory');
+  });
+
+  it('answers a directory path with isError instead of a successful notice', async () => {
+    // The MCP-facing signalling, driven through the real client and the mock HTTP
+    // server: a directory read is an error, so an agent caller does not have to
+    // read prose to notice that it did not receive file content.
+    const { call } = registerWith(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+    const result = await call('get_file_content', { owner: 'demo-user', repo: 'demo-repo', path: 'src' });
+
+    expect(result?.isError).toBe(true);
+    expect(result?.content[0].text ?? '').toContain('is a directory');
+    expect(result?.content[0].text ?? '').toContain('list_repo_contents');
+  });
+
+  it('does not mistake file content that merely quotes the notice for a directory', async () => {
+    // The guard matches the notice the client builds for the requested path, not
+    // the sentence anywhere in the answer, so a file that documents that notice
+    // is still returned as content.
+    const { call } = registerWithStubClient({
+      getFileContent: async () =>
+        'The tool answers "other.md is a directory, not a file: use list_repo_contents to list its entries." for a directory.\n',
+    });
+    const result = await call('get_file_content', { owner: 'demo-user', repo: 'demo-repo', path: 'notes.md' });
+
+    expect(result?.isError).toBeFalsy();
+    expect(result?.content[0].text ?? '').toContain('for a directory');
+  });
+
+  it('leaves the withheld-payload notice a successful result', async () => {
+    // A file above the instance's contents API payload limit is an accepted
+    // limitation, not a caller error (see KNOWN_ISSUES.md): the notice names the
+    // size and points at the browser, so it is passed through without isError.
+    // Only the directory case moved to an error.
+    const notice =
+      "Forgejo did not return this file's content: at 12884902 bytes it is above the instance's contents API payload limit. Read it in the browser instead.";
+    const { call } = registerWithStubClient({ getFileContent: async () => notice });
+    const result = await call('get_file_content', { owner: 'demo-user', repo: 'demo-repo', path: 'huge.bin' });
+
+    expect(result?.isError).toBeFalsy();
+    expect(result?.content[0].text ?? '').toContain('payload limit');
+    expect(result?.content[0].text ?? '').toContain('12884902');
   });
 
   it('get_pull_review_comments returns inline comments with path and position', async () => {
@@ -1080,6 +1154,16 @@ describe('tool descriptions and schemas', () => {
     expect(description).toContain(String(LIST_ITEM_LIMIT));
     expect(description).toContain('incomplete');
     expect(description).not.toContain('up to 50');
+  });
+
+  it('tells the caller how a directory path and a withheld payload are answered', () => {
+    // Neither answer is file content, and a description that only promised
+    // content left the caller to guess what it had received.
+    const description = captureConfigs().get('get_file_content')?.description ?? '';
+
+    expect(description).toContain('list_repo_contents');
+    expect(description).toMatch(/reported as an error/);
+    expect(description).toMatch(/payload limit/);
   });
 
   it('says which search types the state filter applies to', () => {
