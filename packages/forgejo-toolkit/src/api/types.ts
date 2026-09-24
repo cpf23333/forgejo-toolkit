@@ -181,6 +181,15 @@ export interface ForgejoRepoDetail {
   repository: ForgejoRepository;
   empty: boolean;
   readme?: string;
+  /**
+   * The real size of the README whose payload the contents API withheld.
+   *
+   * Undefined for a README that arrived, a genuinely empty one (size 0) and an
+   * absent one — exactly the cases with nothing to explain. Carrying it here is
+   * what lets a caller render the withheld-payload notice without re-probing
+   * `/contents/README.md`.
+   */
+  readmeSize?: number;
   branches: string[];
   recentCommits: ForgejoCommit[];
 }

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { toApiError } from '../api/errors';
+import { apiErrorUserMessage, toApiError } from '../api/errors';
 
 /**
  * The only schemes a connection test may reach. The URL comes from a webview,
@@ -26,15 +26,19 @@ export function isHttpUrl(value: string): boolean {
  * loading it — so the reply carries the failure kind (or bare status code)
  * instead of anything the remote server authored.
  *
+ * Non-HTTP failures (timeout, TLS, plain network) use the shared API-layer
+ * rendering, so a certificate problem is named as such rather than being
+ * flattened into the generic "check that it is running" advice.
+ *
  * Shared by the sidebar and the setup wizard: both test a webview-supplied URL.
  */
 export function connectionFailureMessage(error: unknown): string {
   const apiError = toApiError(error);
   switch (apiError.kind) {
     case 'timeout':
-      return vscode.l10n.t('The request timed out. The instance is not responding.');
+    case 'tls':
     case 'network':
-      return vscode.l10n.t('Cannot connect to the instance. Check that it is running and that the URL is correct.');
+      return apiErrorUserMessage(apiError);
     case 'http':
       return apiError.status === undefined
         ? vscode.l10n.t('The instance rejected the request.')

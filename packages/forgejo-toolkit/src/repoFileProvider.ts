@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ForgejoClient } from './api/client';
+import { apiErrorUserMessage, toApiError } from './api/errors';
 import { ConfigManager } from './config';
 import { logger } from './logger';
 import { missingPayloadNotice } from './utils/payloadNotice';
@@ -52,6 +53,40 @@ export function base64ToUint8Array(content: string): Uint8Array {
   return new Uint8Array(binary.buffer, binary.byteOffset, binary.byteLength);
 }
 
+/**
+ * The errors this provider throws for a path it has itself judged absent. They
+ * must pass through the catch below untouched, and a `FileSystemError` cannot
+ * carry a marker of ours, so the instances are tracked by identity.
+ */
+const absentPaths = new WeakSet<object>();
+
+function absentPathError(uri: vscode.Uri): vscode.FileSystemError {
+  const error = vscode.FileSystemError.FileNotFound(uri);
+  absentPaths.add(error);
+  return error;
+}
+
+/**
+ * Converts a failed contents request into the error the editor should show.
+ *
+ * A "file not found" answer is only truthful for a real 404 (or a path this
+ * provider itself judged absent); a revoked token, a rate limit or an outage
+ * must say so instead of looking like a missing file. `Unavailable` is used
+ * because VS Code surfaces a file-system provider error's message to the user,
+ * so the localized API reason actually reaches them.
+ */
+function repoFileReadFailure(uri: vscode.Uri, error: unknown): vscode.FileSystemError {
+  if (typeof error === 'object' && error !== null && absentPaths.has(error)) {
+    return error as vscode.FileSystemError;
+  }
+  const apiError = toApiError(error);
+  if (apiError.kind === 'http' && apiError.status === 404) {
+    return absentPathError(uri);
+  }
+  logger.error(`repo file request failed for ${uri.toString()}: ${apiError.rawMessage}`);
+  return vscode.FileSystemError.Unavailable(apiErrorUserMessage(apiError));
+}
+
 export class RepoFileSystemProvider implements vscode.FileSystemProvider {
   private readonly _onDidChangeFile = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   public readonly onDidChangeFile = this._onDidChangeFile.event;
@@ -78,7 +113,7 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
       const entries = await client.getRepoContents(params.owner, params.repo, params.path, params.ref);
 
       if (entries.length === 0) {
-        throw vscode.FileSystemError.FileNotFound(uri);
+        throw absentPathError(uri);
       }
 
       // The contents endpoint answers with the requested entry alone when the
@@ -105,9 +140,7 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
         size: entry.size ?? 0,
       };
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
-      logger.error(`stat failed for ${uri.toString()}: ${err}`);
-      throw vscode.FileSystemError.FileNotFound(uri);
+      throw repoFileReadFailure(uri, error);
     }
   }
 
@@ -131,9 +164,7 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
         entry.type === 'dir' ? vscode.FileType.Directory : vscode.FileType.File,
       ]);
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
-      logger.error(`readDirectory failed for ${uri.toString()}: ${err}`);
-      throw vscode.FileSystemError.FileNotFound(uri);
+      throw repoFileReadFailure(uri, error);
     }
   }
 
@@ -156,7 +187,7 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
       // A single entry is only this file when the API echoed the requested path;
       // otherwise the path named a directory with one child (see `stat`).
       if (!entry || entry.type !== 'file' || entry.path !== params.path) {
-        throw vscode.FileSystemError.FileNotFound(uri);
+        throw absentPathError(uri);
       }
 
       if (!entry.content) {
@@ -172,9 +203,7 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
 
       return base64ToUint8Array(entry.content);
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
-      logger.error(`readFile failed for ${uri.toString()}: ${err}`);
-      throw vscode.FileSystemError.FileNotFound(uri);
+      throw repoFileReadFailure(uri, error);
     }
   }
 

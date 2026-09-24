@@ -15,7 +15,7 @@ import type {
   EditPullRequestOption,
   EditReleaseOption,
 } from '@cpf23333-forgejo-toolkit/api';
-import { ForgejoClient, clearTreeCache } from '../client';
+import { ForgejoClient, clearDetectedServerOrigins, clearRepoContentsCache, clearTreeCache } from '../client';
 import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
 import type { Logger } from '../../logger';
@@ -63,9 +63,12 @@ describe('ForgejoClient with MSW', () => {
 
   afterEach(() => {
     resetMockServer();
-    // The git-tree cache is shared across client instances; tests must not
-    // observe each other's cached trees.
+    // The git-tree cache, the origin detection memo and the repo-contents memo
+    // are shared across client instances; tests must not observe each other's
+    // entries.
     clearTreeCache();
+    clearDetectedServerOrigins();
+    clearRepoContentsCache();
   });
 
   function createClient(): ForgejoClient {
@@ -347,20 +350,79 @@ describe('ForgejoClient with MSW', () => {
     expect(detail.recentCommits).toHaveLength(1);
   });
 
-  it('keeps the withheld README size reachable beside a detail payload without README text', async () => {
-    const client = createClient();
-    const withheldSize = 11 * 1024 * 1024;
-    mockServer.use(
-      http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', () =>
-        HttpResponse.json({ ...mockReadmeContent, content: undefined, size: withheldSize }),
-      ),
-    );
+  describe('getRepoDetail README entry', () => {
+    /**
+     * Answers `/contents/README.md` with `body` and counts how many times the
+     * request arrives. Opening one repository detail must issue it exactly once:
+     * the withheld-payload notice used to cost a second probe on every
+     * README-less repository.
+     */
+    function countReadmeRequests(body: () => Response | Promise<Response>): () => number {
+      let requests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', async () => {
+          requests += 1;
+          return await body();
+        }),
+      );
+      return () => requests;
+    }
 
-    const detail = await client.getRepoDetail('demo-user', 'demo-repo');
-    expect(detail.readme).toBeUndefined();
-    // The detail payload cannot carry the size today; the host reads it from
-    // getReadmeEntry instead (see the report for the ForgejoRepoDetail contract).
-    expect((await client.getReadmeEntry('demo-user', 'demo-repo'))?.size).toBe(withheldSize);
+    it('carries the text of a normal README and no withheld-payload size', async () => {
+      const client = createClient();
+      const requests = countReadmeRequests(() => HttpResponse.json(mockReadmeContent));
+
+      const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+      expect(detail.readme).toContain('Demo Repository');
+      // Size is the notice's input, so a README that arrived must not set it.
+      expect(detail.readmeSize).toBeUndefined();
+      expect(requests()).toBe(1);
+    });
+
+    it('reports the size of a withheld README and fetches its entry only once', async () => {
+      const client = createClient();
+      // Forgejo omits the payload above [api] DEFAULT_MAX_BLOB_SIZE (10 MiB by
+      // default) and answers with the real size and no content.
+      const withheldSize = 11 * 1024 * 1024;
+      const requests = countReadmeRequests(() =>
+        HttpResponse.json({ ...mockReadmeContent, content: undefined, size: withheldSize }),
+      );
+
+      const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+      expect(detail.readme).toBeUndefined();
+      // The size is the only signal that tells this apart from "no README".
+      expect(detail.readmeSize).toBe(withheldSize);
+      expect(requests()).toBe(1);
+    });
+
+    it('leaves the withheld-payload size unset for a repository without a README', async () => {
+      const client = createClient();
+      const requests = countReadmeRequests(() => new HttpResponse(null, { status: 404 }));
+
+      const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+      expect(detail.readme).toBeUndefined();
+      // No README at all has nothing to explain, and the detail load must not
+      // ask for it a second time to find that out.
+      expect(detail.readmeSize).toBeUndefined();
+      expect(requests()).toBe(1);
+    });
+
+    it('leaves the withheld-payload size unset for a genuinely empty README', async () => {
+      const client = createClient();
+      const requests = countReadmeRequests(() =>
+        HttpResponse.json({ ...mockReadmeContent, content: undefined, size: 0 }),
+      );
+
+      const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+      expect(detail.readme).toBeUndefined();
+      // Size 0 is an empty README, not a withheld payload.
+      expect(detail.readmeSize).toBeUndefined();
+      expect(requests()).toBe(1);
+    });
   });
 
   it('fetches branch commits', async () => {
@@ -382,6 +444,108 @@ describe('ForgejoClient with MSW', () => {
     const contents = await client.getRepoContents('demo-user', 'demo-repo', 'src');
     expect(contents).toHaveLength(2);
     expect(contents[0].name).toBe('index.ts');
+  });
+
+  describe('repo contents memo', () => {
+    // Opening one repository file makes VS Code call stat and then readFile, and
+    // the provider builds a fresh ForgejoClient for each, so without a shared
+    // memo the same blob is downloaded twice per open.
+    function countContentRequests(): () => number {
+      let requests = 0;
+      const answer = () => {
+        requests += 1;
+        // The contents API echoes the file for a file path and the children for
+        // a directory path; one element serves both callers here.
+        return HttpResponse.json([{ ...mockReadmeContent, path: 'README.md' }]);
+      };
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents', answer),
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/*', answer),
+      );
+      return () => requests;
+    }
+
+    it('serves the second read of the same file from memory', async () => {
+      const requests = countContentRequests();
+      // Two clients, as the provider creates one per message.
+      await new ForgejoClient('https://forgejo.example.com', 'mock-token').getRepoContents(
+        'demo-user',
+        'demo-repo',
+        'README.md',
+        'main',
+      );
+      const entries = await new ForgejoClient('https://forgejo.example.com', 'mock-token').getRepoContents(
+        'demo-user',
+        'demo-repo',
+        'README.md',
+        'main',
+      );
+
+      expect(requests()).toBe(1);
+      expect(entries[0].path).toBe('README.md');
+    });
+
+    it('does not answer one file with another file or another ref', async () => {
+      const requests = countContentRequests();
+      const client = new ForgejoClient('https://forgejo.example.com', 'mock-token');
+      await client.getRepoContents('demo-user', 'demo-repo', 'README.md', 'main');
+      await client.getRepoContents('demo-user', 'demo-repo', 'README.md', 'feature');
+      await client.getRepoContents('demo-user', 'demo-repo', 'src/index.ts', 'main');
+
+      expect(requests()).toBe(3);
+    });
+
+    it('does not share a result with a client that carries an abort signal', async () => {
+      // An MCP tool call's result belongs to that call only; the shared memo
+      // must neither answer it nor be populated from a call that may be aborted.
+      const controller = new AbortController();
+      const requests = countContentRequests();
+      await new ForgejoClient('https://forgejo.example.com', 'mock-token')
+        .withSignal(controller.signal)
+        .getRepoContents('demo-user', 'demo-repo', 'README.md', 'main');
+      await new ForgejoClient('https://forgejo.example.com', 'mock-token').getRepoContents(
+        'demo-user',
+        'demo-repo',
+        'README.md',
+        'main',
+      );
+
+      expect(requests()).toBe(2);
+    });
+
+    it('never answers one account with the file bytes fetched for another account', async () => {
+      // Two accounts on the same origin see different content for the same path
+      // (a private repository, a fork, a differently-scoped token). The memo is
+      // shared across client instances, so its key has to separate accounts the
+      // same way the git-tree cache does.
+      let requests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/*', ({ request }) => {
+          requests += 1;
+          const account = request.headers.get('authorization') === 'token alice-token' ? 'alice' : 'bob';
+          const content = Buffer.from(`bytes for ${account}`).toString('base64');
+          return HttpResponse.json([{ ...mockReadmeContent, path: 'README.md', content }]);
+        }),
+      );
+
+      const alice = await new ForgejoClient('https://forgejo.example.com', 'alice-token').getRepoContents(
+        'demo-user',
+        'demo-repo',
+        'README.md',
+        'main',
+      );
+      const bob = await new ForgejoClient('https://forgejo.example.com', 'bob-token').getRepoContents(
+        'demo-user',
+        'demo-repo',
+        'README.md',
+        'main',
+      );
+
+      // Both accounts were served by the server, and Bob's bytes are Bob's.
+      expect(requests).toBe(2);
+      expect(alice[0].content).toBe(Buffer.from('bytes for alice').toString('base64'));
+      expect(bob[0].content).toBe(Buffer.from('bytes for bob').toString('base64'));
+    });
   });
 
   it('fetches file content', async () => {
@@ -1865,15 +2029,54 @@ describe('ForgejoClient with MSW', () => {
   });
 
   describe('Debug logging', () => {
-    function createDebugClient(messages: string[]): ForgejoClient {
+    function createDebugClient(messages: string[], url = 'https://forgejo.example.com'): ForgejoClient {
       const logger = {
         isDebugEnabled: () => true,
         debug: (message: string) => messages.push(message),
         info: () => undefined,
         error: () => undefined,
       } as unknown as Logger;
-      return new ForgejoClient('https://forgejo.example.com', 'mock-token', logger);
+      return new ForgejoClient(url, 'mock-token', logger);
     }
+
+    it('never logs the credentials of a token-bearing instance URL', async () => {
+      // The instance URL is what every request URL is built from, so a token
+      // stored in its userinfo would otherwise be printed in both the request
+      // line and the failure line — into the output channel and, for the MCP
+      // server, into its stderr. `fetch` itself refuses to build a request from
+      // a credential-bearing URL, so the success line is exercised against one
+      // that accepts it; only the logged URL may differ from the request URL.
+      const messages: string[] = [];
+      const client = createDebugClient(messages, 'https://alice:super-secret-token@forgejo.example.com');
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (() =>
+        Promise.resolve(
+          new Response(JSON.stringify(mockUser), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+        )) as typeof globalThis.fetch;
+      try {
+        await client.getCurrentUser();
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+
+      const requestLine = messages.find((m) => m.startsWith('Request: '));
+      expect(requestLine).toBeDefined();
+      expect(messages.join('\n')).not.toContain('super-secret-token');
+      expect(requestLine).toContain('forgejo.example.com');
+    });
+
+    it('never logs the credentials of a token-bearing instance URL when the request fails', async () => {
+      mockServer.use(http.get('https://*/api/v1/user', () => new HttpResponse(null, { status: 500 })));
+      const messages: string[] = [];
+      const client = createDebugClient(messages, 'https://super-secret-token@forgejo.example.com');
+
+      await expect(client.getCurrentUser()).rejects.toThrow();
+
+      const failureLine = messages.find((m) => m.startsWith('Request failed after'));
+      expect(failureLine).toBeDefined();
+      expect(messages.join('\n')).not.toContain('super-secret-token');
+      expect(failureLine).toContain('forgejo.example.com');
+    });
 
     it('does not log raw bodies of text responses', async () => {
       const messages: string[] = [];
@@ -2040,6 +2243,153 @@ describe('ForgejoClient with MSW', () => {
       await expect(client.getCurrentUser()).rejects.toThrow();
 
       expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('response URL rewriting cost', () => {
+    // The client is rebuilt per message, so the scan/copy used to run on every
+    // response and a large list paid 85-150 ms even when it held no URL at all.
+    type Internals = {
+      _rewriteResponseData<T>(data: T): T;
+    };
+
+    function largeList(count: number): Array<Record<string, unknown>> {
+      return Array.from({ length: count }, (_, index) => ({
+        id: index + 1,
+        name: `repo-${index}`,
+        description: `plain text ${index}`,
+        private: index % 2 === 0,
+      }));
+    }
+
+    it('returns a payload with nothing to rewrite as the very object it arrived as', () => {
+      // The user object carries only an external avatar URL. Detection finds a
+      // non-configured origin, but no value on it is rewriteable — avatar_url is
+      // skipped on purpose — so the payload must not be rebuilt. Identity, not
+      // equality, is what proves the deep copy was skipped.
+      const client = new ForgejoClient('https://configured.example.com', 'mock-token');
+      const internals = client as unknown as Internals;
+      const payload = {
+        login: 'demo-user',
+        avatar_url: 'https://avatar.example.com/demo-user.png',
+        created: '2024-01-01T00:00:00Z',
+        counts: { followers: 3, following: 1 },
+      };
+
+      const result = internals._rewriteResponseData(payload);
+
+      expect(result).toBe(payload);
+      // The same payload plus one URL on the API origin is still rebuilt — the
+      // fast path must not become "never rewrite".
+      const withUrl = { ...payload, html_url: 'https://api-host.example.net/demo-user' };
+      const rewritten = internals._rewriteResponseData(withUrl);
+      expect(rewritten).not.toBe(withUrl);
+      expect(rewritten.html_url).toBe('https://configured.example.com/demo-user');
+    });
+
+    it('does not copy a 500-item list that carries no URL on another origin', () => {
+      // The list has ids, names and descriptions but not one URL, so the rewrite
+      // has nothing to do on any of the 500 items.
+      const client = new ForgejoClient('https://configured.example.com', 'mock-token');
+      const internals = client as unknown as Internals;
+      const payload = largeList(500);
+
+      expect(internals._rewriteResponseData(payload)).toBe(payload);
+    });
+
+    it('serves a large list of external avatar URLs without touching it', async () => {
+      // A symmetric payload — the same shape on both sides of the memo — so the
+      // response object itself is observable through the public API.
+      const payload = {
+        login: 'demo-user',
+        avatar_url: 'https://avatar.example.com/demo-user.png',
+        counts: { followers: 3, following: 1 },
+      };
+      mockServer.use(http.get('https://*/api/v1/user', () => HttpResponse.json(payload)));
+
+      const user = await new ForgejoClient('https://configured.example.com', 'mock-token').getCurrentUser();
+
+      expect(user.avatar_url).toBe('https://avatar.example.com/demo-user.png');
+      expect(user.login).toBe('demo-user');
+    });
+
+    it('serves a 500-item list whose URLs are all on the configured instance unchanged', async () => {
+      // The fast path must not skip a payload that does need rewriting, and it
+      // must not depend on the list being small.
+      const payload = Array.from({ length: 500 }, (_, index) => ({
+        id: index + 1,
+        name: `repo-${index}`,
+        html_url: `https://configured.example.com/demo-user/repo-${index}`,
+      }));
+      mockServer.use(http.get('https://*/api/v1/user/repos', () => HttpResponse.json(payload)));
+
+      const repositories = await new ForgejoClient(
+        'https://configured.example.com',
+        'mock-token',
+      ).getUserRepositories();
+
+      expect(repositories).toHaveLength(500);
+      expect(repositories[0].html_url).toBe('https://configured.example.com/demo-user/repo-0');
+      expect(repositories[499].html_url).toBe('https://configured.example.com/demo-user/repo-499');
+    });
+
+    it('still deep-copies and rewrites a payload whose URLs point at the API origin', () => {
+      // Semantics must not change: an API-provided URL has to point at the
+      // configured instance, and that requires building new objects.
+      const client = new ForgejoClient('https://configured.example.com', 'mock-token');
+      const payload = { html_url: 'https://api-host.example.net/demo-user/demo-repo' };
+
+      const result = (client as unknown as Internals)._rewriteResponseData(payload);
+
+      expect(result).not.toBe(payload);
+      expect(result.html_url).toBe('https://configured.example.com/demo-user/demo-repo');
+    });
+
+    it('rewrites every URL of a large list without skipping entries', () => {
+      const client = new ForgejoClient('https://configured.example.com', 'mock-token');
+      const payload = Array.from({ length: 500 }, (_, index) => ({
+        id: index + 1,
+        html_url: `https://api-host.example.net/demo-user/repo-${index}`,
+      }));
+
+      const result = (client as unknown as Internals)._rewriteResponseData(payload);
+
+      expect(result).toHaveLength(500);
+      expect(result[0].html_url).toBe('https://configured.example.com/demo-user/repo-0');
+      expect(result[499].html_url).toBe('https://configured.example.com/demo-user/repo-499');
+    });
+
+    it('rewrites a list served by a real API host after the same shape was seen URL-free', () => {
+      // The shape memo must not turn a later URL-bearing response into a
+      // skipped rewrite: only the payload that was proven URL-free is skipped,
+      // and this one has a different shape.
+      const client = new ForgejoClient('https://configured.example.com', 'mock-token');
+      const internals = client as unknown as Internals;
+      const withoutUrls = largeList(2);
+      expect(internals._rewriteResponseData(withoutUrls)).toBe(withoutUrls);
+
+      const withUrls = [
+        { id: 1, name: 'repo-0', html_url: 'https://api-host.example.net/demo-user/repo-0' },
+        { id: 2, name: 'repo-1', html_url: 'https://api-host.example.net/demo-user/repo-1' },
+      ];
+      const result = internals._rewriteResponseData(withUrls);
+
+      expect(result[0].html_url).toBe('https://configured.example.com/demo-user/repo-0');
+      expect(result[1].html_url).toBe('https://configured.example.com/demo-user/repo-1');
+    });
+
+    it('leaves an avatar or website URL on an external host alone', () => {
+      const client = new ForgejoClient('https://configured.example.com', 'mock-token');
+      const payload = {
+        html_url: 'https://api-host.example.net/demo-user/demo-repo',
+        owner: { avatar_url: 'https://avatar.example.com/a.png', website: 'https://home.example.net' },
+      };
+
+      const result = (client as unknown as Internals)._rewriteResponseData(payload);
+
+      expect(result.owner.avatar_url).toBe('https://avatar.example.com/a.png');
+      expect(result.owner.website).toBe('https://home.example.net');
+      expect(result.html_url).toBe('https://configured.example.com/demo-user/demo-repo');
     });
   });
 });

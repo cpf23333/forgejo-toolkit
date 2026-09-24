@@ -11,7 +11,7 @@ import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { getWebviewContent, toInstanceOrigins } from './content';
 import type { ReadmeContentProvider } from '../readmeProvider';
-import { openReadmePreview, withheldReadmeNotice } from '../readmeProvider';
+import { openReadmePreview } from '../readmeProvider';
 import { buildRepoFileUri } from '../repoFileProvider';
 import { WorktreeManager, WorktreeInfo, validateCacheDirectory } from '../worktree/worktreeManager';
 import { InFlightTasks } from '../worktree/inFlightTasks';
@@ -55,6 +55,8 @@ import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity, isSafeRepoNameSegment, isSafeRepoPath } from './repoIdentity';
 import { connectionFailureMessage, isHttpUrl } from './connectionTest';
+import { OnboardingWebviewPanel } from './onboardingPanel';
+import { PullReviewCommentPanel } from '../comments/pullReviewCommentPanel';
 
 /**
  * Load-type webview requests whose handlers reply with a result message the
@@ -133,6 +135,10 @@ const MUTATION_RESULT_COMMANDS: Record<string, string> = {
   downloadActionArtifact: 'actionArtifactDownloaded',
   editRepoRelease: 'repoReleaseEdited',
   deleteRepoRelease: 'repoReleaseDeleted',
+  createRepoBranch: 'repoBranchCreated',
+  deleteRepoBranch: 'repoBranchDeleted',
+  createRepoTag: 'repoTagCreated',
+  deleteRepoTag: 'repoTagDeleted',
 };
 
 /**
@@ -343,6 +349,24 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // In multi-repository workspaces the linked repository follows the
       // active editor; re-resolve when it changes (debounced).
       vscode.window.onDidChangeActiveTextEditor(() => this._scheduleLinkedRepositoryDetect()),
+      // `forgejoToolkit.locale` can also be changed from the Settings editor,
+      // while the in-panel picker posts `setLocale` itself. Without this the open
+      // view keeps the language it was rendered with and the title never follows
+      // the setting.
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (!event.affectsConfiguration('forgejoToolkit.locale')) {
+          return;
+        }
+        const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
+        const locale = resolveLocale(configured);
+        this._reply('setLocale', { locale });
+        this._updateViewTitle(locale);
+        // The sidebar is not the only webview that renders in this language: an
+        // open onboarding wizard or review-comment editor keeps the language it
+        // was created with unless the host pushes the change into it too.
+        OnboardingWebviewPanel.notifyLocaleChanged(locale);
+        PullReviewCommentPanel.notifyLocaleChanged(locale);
+      }),
       {
         dispose: () => {
           // Both timers run a git scan and a `setContext` on a disposed host if
@@ -1073,12 +1097,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const detail = await client.getRepoDetail(owner, repo);
-          // `detail.readme` is undefined both for a repository without a README
-          // and for a README above the contents API's payload limit, where the
-          // dashboard would otherwise show neither a README nor an explanation.
-          // Only the second case costs an extra entry probe, and only the second
-          // one has something to say.
-          const readme = detail.readme ?? (await withheldReadmeNotice(client, owner, repo));
+          // `readme` is undefined both for a repository without a README and for
+          // one whose README the contents API withheld; `detail.readmeSize` is
+          // set only in the second case (and only for a non-empty payload), so
+          // the notice needs no second `/contents/README.md` probe. The dashboard
+          // would otherwise show neither a README nor an explanation.
+          const readme =
+            detail.readme ?? (detail.readmeSize !== undefined ? missingPayloadNotice(detail.readmeSize) : undefined);
           const detailWithResolvedAvatars = await this._resolveCommitAvatars({ ...detail, readme }, instance);
           this._reply('repoDetail', {
             instanceId: instance.id,

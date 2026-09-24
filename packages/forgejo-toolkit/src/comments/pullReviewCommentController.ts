@@ -13,7 +13,7 @@ import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { toHardBreakMarkdown } from './commentBodyMarkdown';
 import { userFacingErrorMessage } from '../api/errors';
 import { InFlightTasks } from '../worktree/inFlightTasks';
-import { createTimedCache } from '../utils/timedCache';
+import { createTimedCache, estimateValueBytes } from '../utils/timedCache';
 
 interface PullReviewData {
   review: PullReview;
@@ -48,6 +48,13 @@ export const COMMAND_DELETE_COMMENT = 'forgejoToolkit.deletePullReviewComment';
 // Mutations invalidate explicitly, so staleness is bounded by the TTL.
 const REVIEW_DATA_CACHE_TTL_MS = 15_000;
 
+// A parsed diff is retained by this cache and a 10 MiB patch parses into several
+// MiB of line maps, so the TTL alone is not a bound: an entry is only released
+// when its key is read again after expiry. Keep only the few pull requests that
+// are actually open, and cap their combined footprint.
+const REVIEW_DATA_MAX_ENTRIES = 4;
+const REVIEW_DATA_MAX_BYTES = 32 * 1024 * 1024;
+
 // Gates the "Add Pull Review Comment" line-number menu entry. The stock
 // `resourceScheme` context key is not reliable inside diff editors, so the
 // controller maintains its own key instead.
@@ -64,7 +71,13 @@ export class PullReviewCommentController implements vscode.Disposable {
   private readonly _threads = new Map<string, vscode.CommentThread>();
   private readonly _commentContextMap = new Map<string, CommentContext>();
   private readonly _disposables: vscode.Disposable[] = [];
-  private readonly _reviewDataCache = createTimedCache<PullRequestReviewCache>(REVIEW_DATA_CACHE_TTL_MS);
+  private readonly _reviewDataCache = createTimedCache<PullRequestReviewCache>(REVIEW_DATA_CACHE_TTL_MS, {
+    maxEntries: REVIEW_DATA_MAX_ENTRIES,
+    maxBytes: REVIEW_DATA_MAX_BYTES,
+    // The maps dominate: every diff line is a Map entry, and each stores the
+    // path/line keys plus their line-type strings.
+    sizeOf: (value) => estimateValueBytes(value.diff) + estimateValueBytes(value.reviews),
+  });
   private readonly _reviewDataInFlight = new InFlightTasks();
   // VS Code's built-in comment-thread range decoration is an inline decoration:
   // the first line (the thread range always starts at column 0) and interior
@@ -206,6 +219,10 @@ export class PullReviewCommentController implements vscode.Disposable {
     }
     this._threads.clear();
     this._commentContextMap.clear();
+    // The cache holds parsed diffs (several MiB for a large patch) and lives for
+    // the controller's lifetime; release them with it instead of waiting for a
+    // TTL that nothing will read again.
+    this._reviewDataCache.clear();
     for (const disposable of this._disposables) {
       disposable.dispose();
     }

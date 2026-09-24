@@ -7,6 +7,7 @@ import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolki
 import { isSshOrGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import { ForgejoClient } from '../api/client';
 import { createTimedCache } from '../utils/timedCache';
+import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { logger } from '../logger';
 
 const execFile = promisify(cp.execFile);
@@ -15,19 +16,39 @@ const execFile = promisify(cp.execFile);
  * Run git with an argument array (no shell, so ref/path arguments cannot be
  * used for shell injection). On failure, cp.execFile errors embed the full
  * command line in error.message, so re-throw an error carrying only git's
- * stderr, which never echoes the command line.
+ * stderr, which never echoes the command line. When there is no stderr — the
+ * process could not be spawned at all — the reason is reported instead of a
+ * constant: a user with no git on the extension host's PATH (or a wrong
+ * `git.path`) otherwise gets no hint about what to fix.
+ *
+ * The binary is resolved from the editor's `git.path` setting on every call
+ * (git runs may be minutes apart, and the setting is live), falling back to
+ * `git` on PATH.
  */
 async function runGit(
   args: string[],
   cwd?: string,
   extraEnv?: NodeJS.ProcessEnv,
 ): Promise<{ stdout: string; stderr: string }> {
+  const configuredGitPath = vscode.workspace.getConfiguration('git').get<string>('path');
+  const gitPath = typeof configuredGitPath === 'string' && configuredGitPath.trim() ? configuredGitPath : 'git';
   try {
-    return await execFile('git', args, { cwd, env: extraEnv ? { ...process.env, ...extraEnv } : process.env });
+    return await execFile(gitPath, args, { cwd, env: extraEnv ? { ...process.env, ...extraEnv } : process.env });
   } catch (error) {
     const stderr = (error as { stderr?: unknown }).stderr;
-    const message = typeof stderr === 'string' && stderr.trim() ? stderr.trim() : 'Git operation failed';
-    throw new Error(message);
+    if (typeof stderr === 'string' && stderr.trim()) {
+      throw new Error(stderr.trim());
+    }
+    // No stderr: git never ran. error.message would repeat the command line
+    // (and any credential URL in it), so it is not surfaced; the spawn code and
+    // the binary name are what the user needs.
+    const code = (error as { code?: unknown }).code;
+    if (code === 'ENOENT') {
+      throw new Error(vscode.l10n.t('Git was not found at "{0}". Install Git or set the "git.path" setting.', gitPath));
+    }
+    throw new Error(
+      vscode.l10n.t('Failed to run Git at "{0}"{1}.', gitPath, typeof code === 'string' ? ` (${code})` : ''),
+    );
   }
 }
 
@@ -169,35 +190,25 @@ function assertRemoteName(value: string): void {
  *
  * `git remote -v` reports whatever the repository stores, including
  * `https://user:token@host/owner/repo.git`; that value reaches the dashboard and
- * the output channel. Only credential material is replaced: a password, and the
- * username of an http(s) URL that carries no password, where a token is commonly
- * written in the username position (`https://<token>@host/owner/repo.git`). A
- * plain ssh user (`ssh://git@host/...`) names the login, not a secret, and stays
- * visible, as do the host and path a user needs to recognise the remote.
+ * the output channel. The rule — and its single implementation — lives in
+ * `utils/redactUrlUserinfo.ts`, which the vscode-free API client and MCP bundle
+ * can import too; this name is kept for the callers that already use it.
  */
-export function redactRemoteUrl(url: string): string {
-  if (!url.includes('@')) {
-    return url;
-  }
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    // Not a URL: scp-like syntax (`user@host:path`) carries no password, so
-    // there is nothing to strip.
-    return url;
-  }
-  if (!parsed.username && !parsed.password) {
-    return url;
-  }
-  if (parsed.password) {
-    parsed.password = '***';
-  } else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-    // The username is the only userinfo here, so it is the functional
-    // equivalent of a password (a Forgejo access token).
-    parsed.username = '***';
-  }
-  return parsed.toString();
+export const redactRemoteUrl = redactUrlUserinfo;
+
+/**
+ * True when the URL's port is transport-level rather than the server's web port
+ * (see remoteComparisonKeys).
+ *
+ * `isSshOrGitRemote` from the shared package covers `ssh://`, `git://` and the
+ * scp form, but not git's explicit-SSH alias `git+ssh://`, which git treats the
+ * same way (its default transport port is SSH's 22, so a remote may name 2222
+ * while the instance's web UI runs on 3000). That alias is handled here rather
+ * than in the shared helper, which is owned elsewhere and re-exported to the
+ * webview.
+ */
+function isPortlessRemoteTransport(url: string): boolean {
+  return isSshOrGitRemote(url) || /^git\+ssh:\/\//i.test(url.trim());
 }
 
 /**
@@ -206,10 +217,11 @@ export function redactRemoteUrl(url: string): string {
  *
  * The same repository must compare equal whichever transport its URL uses:
  * `https://host/owner/repo.git`, `git@host:owner/repo.git`,
- * `ssh://git@host:2222/owner/repo.git` and `git://host:9418/owner/repo.git` all
- * name it, while normalizeGitUrl keeps the scheme and the transport user and so
- * never equates the first with any of the others. `hostPath` keeps an explicit
- * port, because an http(s) port identifies the server
+ * `ssh://git@host:2222/owner/repo.git`, `git+ssh://git@host:2222/owner/repo.git`
+ * and `git://host:9418/owner/repo.git` all name it, while normalizeGitUrl keeps
+ * the scheme and the transport user and so never equates the first with any of
+ * the others. `hostPath` keeps an explicit port, because an http(s) port
+ * identifies the server
  * (`https://host:3000/...` is a different target from `https://host/...`);
  * `hostPathWithoutPort` drops it, for the ssh/git transports whose port is
  * transport-level and unrelated to the instance's web port (a self-hosted
@@ -257,7 +269,7 @@ function remoteComparisonKeys(
   return {
     hostPath: normalizeGitUrl(`${parsed.host}${parsed.pathname}`),
     hostPathWithoutPort: normalizeGitUrl(`${parsed.hostname}${parsed.pathname}`),
-    compareWithoutPort: isSshOrGitRemote(withoutUserinfo),
+    compareWithoutPort: isPortlessRemoteTransport(withoutUserinfo),
   };
 }
 
@@ -267,11 +279,12 @@ function remoteComparisonKeys(
  * (see findLocalRepo, resolveRemoteForRepo, isCurrentWorkspaceBaseRepo).
  *
  * The comparison form is chosen for the pair, not for one side: when *either*
- * URL uses a portless transport (scp-style `host:path`, `ssh://`, `git://`), the
- * port is dropped from both, because an SSH/git port is transport-level and has
- * no relation to the instance's web port (a self-hosted server commonly serves
- * SSH on 2222 while the web UI runs on 3000). Only when both URLs are http(s)
- * does the port have to match exactly, because there it identifies the server.
+ * URL uses a portless transport (scp-style `host:path`, `ssh://`, `git://`,
+ * `git+ssh://`), the port is dropped from both, because an SSH/git port is
+ * transport-level and has no relation to the instance's web port (a self-hosted
+ * server commonly serves SSH on 2222 while the web UI runs on 3000). Only when
+ * both URLs are http(s) does the port have to match exactly, because there it
+ * identifies the server.
  *
  * Comparing `parseRemoteUrl(...).normalized` on both sides instead compares
  * different forms: an http(s) instance URL keeps its port while the ssh/scp
@@ -981,13 +994,12 @@ export async function openWorktree(
   openInNewWindow: boolean,
   beforeOpenInCurrentWindow?: () => Promise<void>,
 ): Promise<boolean> {
-  const uri = vscode.Uri.file(worktreePath);
+  const currentFolder = vscode.workspace.workspaceFolders?.[0];
+  const uri = worktreeFolderUri(worktreePath, currentFolder?.uri);
   if (openInNewWindow) {
-    await vscode.commands.executeCommand('vscode.openFolder', uri, true);
-    return true;
+    return openFolderInWindow(uri, true);
   }
-  const currentFolder = vscode.workspace.workspaceFolders?.[0]?.uri;
-  if (currentFolder && pathsEqual(currentFolder.fsPath, worktreePath)) {
+  if (currentFolder && pathsEqual(currentFolder.uri.fsPath, worktreePath)) {
     return true;
   }
   const openLabel = vscode.l10n.t('Open');
@@ -1003,8 +1015,53 @@ export async function openWorktree(
   // down this extension host, so anything that must still happen (persisting
   // the worktree record) has to run before the command, not after it.
   await beforeOpenInCurrentWindow?.();
-  await vscode.commands.executeCommand('vscode.openFolder', uri, false);
-  return true;
+  return openFolderInWindow(uri, false);
+}
+
+/**
+ * Runs `vscode.openFolder`, reporting whether a window was actually asked for:
+ * the command rejects when the target cannot be opened, and a caller that
+ * records the worktree as opened (or answers the webview `worktreeOpened`)
+ * would otherwise claim success for a folder that never opened.
+ */
+async function openFolderInWindow(uri: vscode.Uri, openInNewWindow: boolean): Promise<boolean> {
+  try {
+    await vscode.commands.executeCommand('vscode.openFolder', uri, openInNewWindow);
+    return true;
+  } catch (error) {
+    logger.error(
+      `Opening the worktree folder ${uri.toString()} failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return false;
+  }
+}
+
+/**
+ * URI for a path that exists on the extension host. Under Remote-SSH, WSL and
+ * dev containers that path is meaningful only to the remote server, while VS
+ * Code resolves a `file:` openable in the client process, where it does not
+ * exist: no window opens even though `vscode.openFolder` succeeds. Reusing the
+ * open workspace folder's scheme and authority keeps the path on the host that
+ * has it; a local (or absent) folder keeps `file:`.
+ */
+function worktreeFolderUri(worktreePath: string, folderUri: vscode.Uri | undefined): vscode.Uri {
+  if (!folderUri?.scheme || folderUri.scheme === 'file') {
+    return vscode.Uri.file(worktreePath);
+  }
+  return vscode.Uri.from({
+    scheme: folderUri.scheme,
+    authority: folderUri.authority,
+    path: toUriPath(worktreePath),
+  });
+}
+
+/**
+ * Host path in URI form: forward slashes, and a Windows drive letter behind a
+ * leading slash (`C:\a\b` → `/c:/a/b`), which is what `Uri.file` itself does.
+ */
+function toUriPath(fsPath: string): string {
+  const slashed = fsPath.replace(/\\/g, '/');
+  return /^[a-zA-Z]:/.test(slashed) ? `/${slashed[0].toLowerCase()}${slashed.slice(1)}` : slashed;
 }
 
 async function findGitRoot(startPath: string): Promise<string | undefined> {
@@ -1026,16 +1083,21 @@ async function findGitRoot(startPath: string): Promise<string | undefined> {
 /** True when filePath lies inside folderPath (both absolute). */
 export function isPathInsideFolder(folderPath: string, filePath: string): boolean {
   const relative = path.relative(folderPath, filePath);
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+  // Only `..` and `../…` escape: a real child of a directory whose name starts
+  // with two dots (`..cache/x`) has a relative form that also starts with `..`.
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 /**
- * Path equality that tolerates Windows drive-letter casing (`C:` vs `c:`):
- * the filesystem is case-insensitive there, so a strict string compare would
- * treat the same directory as different.
+ * Path equality on the platforms whose default filesystem is case-insensitive:
+ * Windows (NTFS) and macOS (APFS/HFS+). A strict string compare would treat the
+ * same directory as different, which for `openWorktree` means the destructive
+ * "replace the current workspace" modal for the folder that is already open.
+ * Other platforms keep the exact compare (the extension host's filesystem is
+ * case-sensitive there, so two spellings are two directories).
  */
 function pathsEqual(a: string, b: string): boolean {
-  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+  return process.platform === 'win32' || process.platform === 'darwin' ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 /**

@@ -32,6 +32,36 @@ describe('toApiError', () => {
     expect(toApiError(new Error('socket hang up')).kind).toBe('network');
   });
 
+  it('classifies a TLS certificate rejection as its own kind, not a network failure', () => {
+    // `fetch` wraps the real failure: the top-level TypeError only says
+    // "fetch failed", the certificate problem rides on `cause`.
+    for (const code of [
+      'DEPTH_ZERO_SELF_SIGNED_CERT',
+      'CERT_HAS_EXPIRED',
+      'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+      'ERR_TLS_CERT_ALTNAME_INVALID',
+      'SELF_SIGNED_CERT_IN_CHAIN',
+    ]) {
+      const cause = new Error('self-signed certificate') as Error & { code: string };
+      cause.code = code;
+      const error = new TypeError('fetch failed', { cause });
+      expect(toApiError(error).kind).toBe('tls');
+    }
+
+    // Undici sometimes reports the prose without a machine-readable code.
+    expect(toApiError(new TypeError('fetch failed: unable to verify the first certificate')).kind).toBe('tls');
+  });
+
+  it('keeps a plain DNS or refused-connection failure out of the certificate kind', () => {
+    const dnsCause = new Error('getaddrinfo ENOTFOUND forgejo.example.com') as Error & { code: string };
+    dnsCause.code = 'ENOTFOUND';
+    expect(toApiError(new TypeError('fetch failed', { cause: dnsCause })).kind).toBe('network');
+
+    const refusedCause = new Error('connect ECONNREFUSED forgejo.example.com:443') as Error & { code: string };
+    refusedCause.code = 'ECONNREFUSED';
+    expect(toApiError(new TypeError('fetch failed', { cause: refusedCause })).kind).toBe('network');
+  });
+
   it('falls back to unknown for anything else', () => {
     expect(toApiError(new Error('something odd happened')).kind).toBe('unknown');
     expect(toApiError('a string error').kind).toBe('unknown');
@@ -56,7 +86,7 @@ describe('extractApiErrorMessage', () => {
 });
 
 describe('apiErrorUserMessage', () => {
-  function messageFor(kind: 'network' | 'timeout' | 'http' | 'unknown', raw: string, status?: number): string {
+  function messageFor(kind: 'network' | 'timeout' | 'tls' | 'http' | 'unknown', raw: string, status?: number): string {
     return apiErrorUserMessage(new ApiError(kind, raw, status));
   }
 
@@ -66,6 +96,39 @@ describe('apiErrorUserMessage', () => {
 
   it('renders a network message without the raw text', () => {
     expect(messageFor('network', 'fetch failed')).toContain('Cannot connect');
+  });
+
+  it('names the certificate problem instead of telling the user to check that the instance is running', () => {
+    const message = messageFor('tls', 'fetch failed');
+    expect(message).toContain('certificate');
+    expect(message).not.toContain('Cannot connect');
+  });
+
+  it('never renders a certificate failure as a connectivity problem, and keeps the other failure messages', () => {
+    const certCause = Object.assign(new Error('self-signed certificate'), { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' });
+    const dnsCause = Object.assign(new Error('getaddrinfo ENOTFOUND forgejo.example.com'), { code: 'ENOTFOUND' });
+    const refusedCause = Object.assign(new Error('connect ECONNREFUSED forgejo.example.com:443'), {
+      code: 'ECONNREFUSED',
+    });
+
+    const certificate = toApiError(new TypeError('fetch failed', { cause: certCause })).userMessage;
+    const dns = toApiError(new TypeError('fetch failed', { cause: dnsCause })).userMessage;
+    const refused = toApiError(new TypeError('fetch failed', { cause: refusedCause })).userMessage;
+    const timeout = toApiError(
+      Object.assign(new Error('This operation was aborted'), { name: 'TimeoutError' }),
+    ).userMessage;
+
+    // Certificate, DNS, refused connection and timeout must each be recognizable
+    // as what they are — a certificate failure is not a connectivity failure.
+    expect(certificate).toContain('certificate');
+    expect(certificate).not.toContain('Cannot connect');
+    expect(dns).toContain('Cannot connect');
+    expect(refused).toContain('Cannot connect');
+    expect(timeout).toContain('timed out');
+    expect(new Set([certificate, dns, timeout]).size).toBe(3);
+    // The two genuine connectivity failures are the only pair allowed to share
+    // a message: both mean "we never reached the instance".
+    expect(refused).toBe(dns);
   });
 
   it('maps well-known HTTP statuses to specific messages', () => {

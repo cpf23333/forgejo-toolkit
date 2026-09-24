@@ -773,3 +773,32 @@ describe('PullReviewCommentController multi-line comments', () => {
     controller.dispose();
   });
 });
+
+describe('PullReviewCommentController review data cache lifetime', () => {
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.diffFetches = 0;
+  });
+
+  type CacheInternals = { _reviewDataCache: { size: number; byteSize(): number } };
+
+  it('releases the cached diffs when the controller is disposed', async () => {
+    // The controller lives as long as the extension host and holds parsed diffs
+    // of every pull request opened; without clearing on dispose, several MiB per
+    // large patch stay reachable even though no document can use them again.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false));
+
+    const cache = (controller as unknown as CacheInternals)._reviewDataCache;
+    expect(cache.size).toBe(1);
+    expect(cache.byteSize()).toBeGreaterThan(0);
+
+    controller.dispose();
+
+    expect(cache.size).toBe(0);
+    expect(cache.byteSize()).toBe(0);
+  });
+});

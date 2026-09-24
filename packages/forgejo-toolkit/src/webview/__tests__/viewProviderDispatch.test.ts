@@ -68,7 +68,9 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
     // Used by the worktree-path containment guard; keep the real semantics.
     isPathInsideFolder: (folderPath: string, filePath: string) => {
       const relative = path.relative(folderPath, filePath);
-      return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+      return (
+        relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+      );
     },
     listRemotes: vi.fn(async () => []),
     openWorktree: vi.fn(async () => true),
@@ -114,6 +116,8 @@ import {
 } from '../../worktree/gitOperations';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
+import { OnboardingWebviewPanel } from '../onboardingPanel';
+import { PullReviewCommentPanel } from '../../comments/pullReviewCommentPanel';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 type MessageListener = (message: unknown) => void;
@@ -309,6 +313,36 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       // These loaders carry no `_requestId`, so the requestError fallback
       // cannot answer them: the guard has to use the handler's own contract
       // (a result-shaped reply echoing the fields the loading gate keys on).
+      vi.mocked(ForgejoClient).mockClear();
+      fake.send({ command, instanceId: testInstance.id, owner: '..', repo: 'repo', ...extra });
+      await flushDispatches();
+
+      expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+      expect(postedMessages(fake.posted)).toContainEqual(
+        expect.objectContaining({
+          command: result,
+          instanceId: testInstance.id,
+          owner: '..',
+          repo: 'repo',
+          error: 'The request could not be completed',
+        }),
+      );
+      expect(postedMessages(fake.posted).some((m) => m.command === 'requestError')).toBe(false);
+    });
+
+    it.each([
+      {
+        command: 'createRepoBranch',
+        result: 'repoBranchCreated',
+        extra: { newBranchName: 'feature', oldRefName: 'main' },
+      },
+      { command: 'deleteRepoBranch', result: 'repoBranchDeleted', extra: { branch: 'feature' } },
+      { command: 'createRepoTag', result: 'repoTagCreated', extra: { tagName: 'v1.0.0', target: 'main' } },
+      { command: 'deleteRepoTag', result: 'repoTagDeleted', extra: { tag: 'v1.0.0' } },
+    ])('answers a rejected $command through its own reply so RepoRefs clears', async ({ command, result, extra }) => {
+      // These carry no `_requestId` either, and the webview's RepoRefs view
+      // shows nothing at all unless the guard replies through the mutation's
+      // own result contract.
       vi.mocked(ForgejoClient).mockClear();
       fake.send({ command, instanceId: testInstance.id, owner: '..', repo: 'repo', ...extra });
       await flushDispatches();
@@ -835,6 +869,19 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(result?.error).toBe('Cannot connect to the instance. Check that it is running and that the URL is correct.');
   });
 
+  it('testConnection reports an untrusted certificate as a certificate problem, not a wrong URL', async () => {
+    const cause = Object.assign(new Error('self-signed certificate'), { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' });
+    clientMocks.getCurrentUser.mockRejectedValue(new TypeError('fetch failed', { cause }));
+
+    fake.send({ command: 'testConnection', url: testInstance.url, token: 'tok' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'testConnectionResult');
+    expect(result).toMatchObject({ success: false });
+    expect(result?.error).toContain('certificate');
+    expect(result?.error).not.toContain('Cannot connect');
+  });
+
   it('editInstance keeps the stored token when the URL stays on the same origin', async () => {
     const client = vi.mocked(ForgejoClient);
     client.mockClear();
@@ -993,42 +1040,49 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
   describe('README payload notice', () => {
     function repoDetailReply() {
       return postedMessages(fake.posted).find((m) => m.command === 'repoDetail')?.detail as
-        | { readme?: string }
+        | { readme?: string; readmeSize?: number }
         | undefined;
     }
 
+    function sendRepoDetail() {
+      fake.send({ command: 'getRepoDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo' });
+    }
+
     it('explains a README whose payload the contents API withheld', async () => {
-      // `getRepoDetail` reports "no README" both for a repository without one and
-      // for a README above the contents API payload limit; the dashboard showed
-      // neither a README nor an explanation in the second case.
+      // `client.getRepoDetail` reports "no README" both for a repository without
+      // one and for a README above the contents API payload limit, and carries
+      // the withheld payload's size so the dashboard can explain the second case
+      // from the detail payload alone.
       clientMocks.getRepoDetail.mockResolvedValue({
         repository: { name: 'repo' },
         readme: undefined,
+        readmeSize: 12 * 1024 * 1024,
         branches: [],
         recentCommits: [],
       });
-      clientMocks.getReadmeEntry.mockResolvedValue({ size: 12 * 1024 * 1024 });
 
-      fake.send({ command: 'getRepoDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo' });
+      sendRepoDetail();
       await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
 
       expect(repoDetailReply()?.readme).toContain('MiB');
-      expect(clientMocks.getReadmeEntry).toHaveBeenCalledWith('owner', 'repo');
+      // The size is already in the detail payload: probing the entry again is
+      // what duplicated `/contents/README.md` for every README-less repository.
+      expect(clientMocks.getReadmeEntry).not.toHaveBeenCalled();
     });
 
     it('keeps a README the API returned instead of replacing it with a notice', async () => {
       clientMocks.getRepoDetail.mockResolvedValue({
         repository: { name: 'repo' },
         readme: '# Hello',
+        readmeSize: undefined,
         branches: [],
         recentCommits: [],
       });
 
-      fake.send({ command: 'getRepoDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo' });
+      sendRepoDetail();
       await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
 
       expect(repoDetailReply()?.readme).toBe('# Hello');
-      // A README that arrived needs no size probe.
       expect(clientMocks.getReadmeEntry).not.toHaveBeenCalled();
     });
 
@@ -1036,15 +1090,33 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       clientMocks.getRepoDetail.mockResolvedValue({
         repository: { name: 'repo' },
         readme: undefined,
+        readmeSize: undefined,
         branches: [],
         recentCommits: [],
       });
-      clientMocks.getReadmeEntry.mockResolvedValue(undefined);
 
-      fake.send({ command: 'getRepoDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo' });
+      sendRepoDetail();
       await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
 
       expect(repoDetailReply()?.readme).toBeUndefined();
+      expect(clientMocks.getReadmeEntry).not.toHaveBeenCalled();
+    });
+
+    it('stays silent for a genuinely empty README', async () => {
+      clientMocks.getRepoDetail.mockResolvedValue({
+        repository: { name: 'repo' },
+        readme: undefined,
+        readmeSize: 0,
+        branches: [],
+        recentCommits: [],
+      });
+
+      sendRepoDetail();
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      // Size 0 is an empty README, not a withheld payload.
+      expect(repoDetailReply()?.readme).toBeUndefined();
+      expect(clientMocks.getReadmeEntry).not.toHaveBeenCalled();
     });
   });
 
@@ -1919,6 +1991,30 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         message: { owner: 'owner', repo: 'repo', id: 2 },
         echo: { owner: 'owner', repo: 'repo' },
       },
+      {
+        command: 'createRepoBranch',
+        result: 'repoBranchCreated',
+        message: { owner: 'owner', repo: 'repo', newBranchName: 'feature', oldRefName: 'main' },
+        echo: { owner: 'owner', repo: 'repo' },
+      },
+      {
+        command: 'deleteRepoBranch',
+        result: 'repoBranchDeleted',
+        message: { owner: 'owner', repo: 'repo', branch: 'feature' },
+        echo: { owner: 'owner', repo: 'repo' },
+      },
+      {
+        command: 'createRepoTag',
+        result: 'repoTagCreated',
+        message: { owner: 'owner', repo: 'repo', tagName: 'v1.0.0', target: 'main' },
+        echo: { owner: 'owner', repo: 'repo' },
+      },
+      {
+        command: 'deleteRepoTag',
+        result: 'repoTagDeleted',
+        message: { owner: 'owner', repo: 'repo', tag: 'v1.0.0' },
+        echo: { owner: 'owner', repo: 'repo' },
+      },
     ];
 
     for (const { command, result, message, echo } of cases) {
@@ -2169,6 +2265,39 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const error = postedMessages(fake.posted).find((message) => message.command === 'worktreeError');
       expect(String(error?.error)).toContain('does not match');
       expect(vi.mocked(resolveRemoteForRepo)).not.toHaveBeenCalled();
+    });
+
+    it('follows the locale setting when it is changed outside the panel', async () => {
+      // The in-panel picker posts `setLocale`; the Settings editor only changes
+      // the configuration, so the host has to push the new language to the open
+      // view (and refresh its title) itself.
+      const listener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.at(-1)?.[0] as
+        | ((event: { affectsConfiguration(key: string): boolean }) => void)
+        | undefined;
+      expect(listener).toBeTypeOf('function');
+      vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+        get: (key: string) => (key === 'locale' ? 'zh' : undefined),
+        update: vi.fn(),
+      } as never);
+
+      listener?.({ affectsConfiguration: (key: string) => key === 'forgejoToolkit.locale' });
+      await flushDispatches();
+
+      expect(postedMessages(fake.posted)).toContainEqual(
+        expect.objectContaining({ command: 'setLocale', locale: 'zh' }),
+      );
+    });
+
+    it('ignores unrelated configuration changes', async () => {
+      const listener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.at(-1)?.[0] as
+        | ((event: { affectsConfiguration(key: string): boolean }) => void)
+        | undefined;
+      const before = postedMessages(fake.posted).length;
+
+      listener?.({ affectsConfiguration: () => false });
+      await flushDispatches();
+
+      expect(postedMessages(fake.posted)).toHaveLength(before);
     });
 
     it('runs a single bare clone when two PRs of the same repository are opened concurrently', async () => {
@@ -2979,6 +3108,81 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       vi.advanceTimersByTime(61_000);
       expect(await resolveAvatar(url)).toBe(url);
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('locale changes outside the sidebar reach every open panel', () => {
+    function createFakeWebviewPanel() {
+      const posted: unknown[] = [];
+      const panel = {
+        title: '',
+        reveal: vi.fn(),
+        dispose: vi.fn(),
+        onDidDispose: () => ({ dispose: vi.fn() }),
+        webview: {
+          html: '',
+          cspSource: '',
+          asWebviewUri: (uri: unknown) => uri,
+          postMessage: (message: unknown) => {
+            posted.push(message);
+            return Promise.resolve(true);
+          },
+          onDidReceiveMessage: () => ({ dispose: vi.fn() }),
+        },
+      };
+      return { panel, posted };
+    }
+
+    afterEach(() => {
+      OnboardingWebviewPanel.currentPanel = undefined;
+      PullReviewCommentPanel.currentPanel = undefined;
+    });
+
+    it('pushes the new language into an open onboarding panel and review editor', async () => {
+      let locale = 'en';
+      vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
+        () => ({ get: (key: string) => (key === 'locale' ? locale : undefined), update: vi.fn() }) as never,
+      );
+      const onboarding = createFakeWebviewPanel();
+      const review = createFakeWebviewPanel();
+      vi.mocked(vscode.window.createWebviewPanel)
+        .mockReturnValueOnce(onboarding.panel as never)
+        .mockReturnValueOnce(review.panel as never);
+
+      OnboardingWebviewPanel.createOrShow(
+        context as never,
+        context.extensionUri as never,
+        config,
+        new ReadmeContentProvider(),
+      );
+      PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as never, config, {
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 1,
+        path: 'src/index.ts',
+        position: 1,
+        isBase: false,
+        lineNumber: 0,
+        mode: 'review',
+      });
+
+      // The Settings editor changes the configuration without posting anything
+      // to a webview; only the host can tell the panels already open about it.
+      locale = 'zh';
+      const listener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.at(-1)?.[0] as
+        | ((event: { affectsConfiguration(key: string): boolean }) => void)
+        | undefined;
+      expect(listener).toBeTypeOf('function');
+      listener?.({ affectsConfiguration: (key: string) => key === 'forgejoToolkit.locale' });
+      await flushDispatches();
+
+      expect(postedMessages(onboarding.posted)).toContainEqual(
+        expect.objectContaining({ command: 'setLocale', locale: 'zh' }),
+      );
+      expect(postedMessages(review.posted)).toContainEqual(
+        expect.objectContaining({ command: 'setLocale', locale: 'zh' }),
+      );
     });
   });
 });

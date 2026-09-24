@@ -25,26 +25,12 @@ export const mockPullRequestDetail: ForgejoPullRequestDetail = {
   merged: false,
   mergeable: true,
   draft: false,
-  assets: [],
-  // repoPermissions / mergeBlockers / statusChecks are not real API fields;
-  // they are baked in for walkthroughs of the detail view's computed UI.
-  repoPermissions: { admin: true, push: true, pull: true },
-  mergeBlockers: [],
-  statusChecks: {
-    state: 'success',
-    statuses: [
-      {
-        id: 1,
-        context: 'ci/build',
-        description: 'Build passed',
-        status: 'success',
-        target_url: 'https://forgejo.example.com/demo-user/demo-repo/actions/runs/1',
-        created_at: '2026-08-17T09:00:00Z',
-        updated_at: '2026-08-17T09:10:00Z',
-      },
-    ],
-  },
   repository: { full_name: 'demo-user/demo-repo' },
+  // `repoPermissions`, `mergeBlockers`, `statusChecks` and `assets` are
+  // deliberately absent: the pulls endpoint never sends them (the branch
+  // protection, combined-status, repo and issues endpoints do). The client
+  // computes them from those requests, so a fixture that pre-filled them could
+  // make a client that stopped computing them still look correct.
 };
 
 export const mockPullRequests: ForgejoPullRequest[] = [mockPullRequest];

@@ -55,6 +55,37 @@ export function encodePathSegment(value: string | number): string {
 
 const MAX_ERROR_BODY_LENGTH = 500;
 
+const TRUNCATION_SUFFIX = ' (truncated)';
+
+/** Media type without parameters, lowercased (`text/html; charset=utf-8` → `text/html`). */
+function mediaType(response: Response): string {
+  const value = response.headers.get('content-type');
+  return value ? (value.split(';')[0] ?? '').trim().toLowerCase() : '';
+}
+
+function describedMediaType(response: Response): string {
+  return mediaType(response) || 'unknown content type';
+}
+
+function describedBody(response: Response, text: string): string {
+  if (!text) {
+    return `empty response body (HTTP ${response.status}, ${describedMediaType(response)})`;
+  }
+  // A reverse proxy answering with an HTML error page used to dump a truncated
+  // blob of markup into the message. Name the shape of the response instead:
+  // the caller gets something actionable and no more of the body than before.
+  if (mediaType(response) !== 'application/json') {
+    return `non-JSON response body (HTTP ${response.status}, ${describedMediaType(response)})`;
+  }
+  const truncated =
+    text.length > MAX_ERROR_BODY_LENGTH ? text.slice(0, MAX_ERROR_BODY_LENGTH) + TRUNCATION_SUFFIX : text;
+  return `${response.statusText} (${truncated})`;
+}
+
+function nonJsonSuccessBodyError(response: Response, text: string): Error {
+  return new Error(`Forgejo API error ${response.status}: ${describedBody(response, text)}`);
+}
+
 export type Client = <TResponseData, _TError = unknown, TRequestData = unknown>(
   config: RequestConfig<TRequestData>,
 ) => Promise<ResponseConfig<TResponseData>>;
@@ -143,10 +174,9 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     // Error responses can be huge (e.g. an HTML page from a reverse proxy),
-    // so the body embedded in the error message is capped.
-    const truncated =
-      text.length > MAX_ERROR_BODY_LENGTH ? `${text.slice(0, MAX_ERROR_BODY_LENGTH)} (truncated)` : text;
-    throw new Error(`Forgejo API error ${response.status}: ${truncated || response.statusText}`);
+    // so the body embedded in the error message is capped — and a body that is
+    // not JSON is described rather than quoted.
+    throw new Error(`Forgejo API error ${response.status}: ${describedBody(response, text)}`);
   }
 
   let data: TResponseData;
@@ -166,7 +196,17 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
       data = (await response.blob()) as unknown as TResponseData;
     } else {
       const text = await response.text();
-      data = text ? (JSON.parse(text) as unknown as TResponseData) : ({} as TResponseData);
+      if (!text) {
+        data = {} as TResponseData;
+      } else {
+        try {
+          data = JSON.parse(text) as unknown as TResponseData;
+        } catch {
+          // A 200 that is not JSON (a proxy's HTML page, a plain-text body) is
+          // a failure the caller must see, not a silent `undefined`.
+          throw nonJsonSuccessBodyError(response, text);
+        }
+      }
     }
   }
 

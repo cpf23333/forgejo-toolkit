@@ -117,6 +117,16 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     return PullReviewCommentPanel.currentPanel;
   }
 
+  /**
+   * Push a `forgejoToolkit.locale` change made outside this panel (the Settings
+   * editor, the sidebar, another panel) into the open webview: it renders in
+   * the language it was created with until it receives `setLocale`, which the
+   * shared webview composable already handles.
+   */
+  public static notifyLocaleChanged(locale: 'en' | 'zh'): void {
+    PullReviewCommentPanel.currentPanel?._reply('setLocale', { locale });
+  }
+
   private static _title(reviewContext: PullReviewCommentContext): string {
     const firstLine = reviewContext.lineNumber + 1;
     if (reviewContext.extraLinesCount && reviewContext.extraLinesCount > 0) {

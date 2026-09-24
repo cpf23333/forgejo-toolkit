@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
@@ -47,6 +47,7 @@ import {
   getRefCommitSha,
   inspectPrWorktree,
   isCurrentWorkspaceBaseRepo,
+  isPathInsideFolder,
   isSafeRemoteName,
   listRemotes,
   listWorkspaceRepositories,
@@ -543,6 +544,37 @@ describe('sameRepositoryUrl', () => {
     );
   });
 
+  it('matches a git+ssh remote against the instance https URL', () => {
+    // `git+ssh://` is git's explicit-SSH alias and carries SSH's port, which is
+    // as unrelated to the instance's web port as an `ssh://` remote's is. Kept
+    // as a portless transport, the :2222 remote matches an instance on :3000.
+    expect(
+      sameRepositoryUrl(
+        'git+ssh://git@forgejo.example.com:2222/owner/repo.git',
+        'https://forgejo.example.com/owner/repo.git',
+      ),
+    ).toBe(true);
+    expect(
+      sameRepositoryUrl(
+        'git+ssh://git@forgejo.example.com:2222/owner/repo.git',
+        'https://forgejo.example.com:3000/owner/repo.git',
+      ),
+    ).toBe(true);
+    // The host and repository still have to match.
+    expect(
+      sameRepositoryUrl(
+        'git+ssh://git@other.example.com:2222/owner/repo.git',
+        'https://forgejo.example.com/owner/repo.git',
+      ),
+    ).toBe(false);
+    expect(
+      sameRepositoryUrl(
+        'git+ssh://git@forgejo.example.com:2222/owner/other.git',
+        'https://forgejo.example.com/owner/repo.git',
+      ),
+    ).toBe(false);
+  });
+
   it('keeps the instance sub-path in the comparison', () => {
     expect(
       sameRepositoryUrl(
@@ -1035,9 +1067,28 @@ describe('revertMergeCommit branch guard and token push', () => {
 });
 
 describe('openWorktree', () => {
+  let restoreUriFrom: (() => void) | undefined;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // The shared `vscode` mock's `Uri.from` drops `authority` — exactly the
+    // component the remote case is about — so install a faithful one here and
+    // restore the shared implementation afterwards.
+    const shared = vi.mocked(vscode.Uri.from).getMockImplementation();
+    restoreUriFrom = () => {
+      if (shared) {
+        vi.mocked(vscode.Uri.from).mockImplementation(shared as never);
+      }
+    };
+    vi.mocked(vscode.Uri.from).mockImplementation(
+      (components: { scheme: string; authority?: string; path?: string; query?: string }) =>
+        ({ ...components, fsPath: components.path }) as never,
+    );
     (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [];
+  });
+
+  afterEach(() => {
+    restoreUriFrom?.();
   });
 
   it('opens in a new window without asking', async () => {
@@ -1062,6 +1113,154 @@ describe('openWorktree', () => {
     (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/wt' } }];
     await expect(openWorktree('/wt', false)).resolves.toBe(true);
     expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+  });
+
+  it('opens a local worktree through a file: URI', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
+      { uri: { fsPath: '/ws/project', scheme: 'file' } },
+    ];
+
+    await expect(openWorktree('/wt', true)).resolves.toBe(true);
+
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+      'vscode.openFolder',
+      expect.objectContaining({ scheme: 'file', fsPath: '/wt' }),
+      true,
+    );
+  });
+
+  it('opens a remote worktree on the workspace folder’s remote host', async () => {
+    // Under Remote-SSH/WSL/dev containers the worktree path exists only on the
+    // extension host. A `file:` URI is resolved by the client process, where the
+    // path does not exist, so no window opens even though the command succeeds.
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
+      { uri: { fsPath: '/home/u/project', scheme: 'vscode-remote', authority: 'ssh-remote+host' } },
+    ];
+
+    await expect(openWorktree('/home/u/.cache/wt', true)).resolves.toBe(true);
+
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+      'vscode.openFolder',
+      expect.objectContaining({
+        scheme: 'vscode-remote',
+        authority: 'ssh-remote+host',
+        path: '/home/u/.cache/wt',
+      }),
+      true,
+    );
+  });
+
+  it('addresses a Windows path on a remote host in URI form', async () => {
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
+      { uri: { fsPath: 'C:\\Users\\u\\project', scheme: 'vscode-remote', authority: 'wsl+Ubuntu' } },
+    ];
+
+    await expect(openWorktree('C:\\Users\\u\\wt', true)).resolves.toBe(true);
+
+    // A URI path uses forward slashes and keeps the drive letter addressable.
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+      'vscode.openFolder',
+      expect.objectContaining({ scheme: 'vscode-remote', authority: 'wsl+Ubuntu', path: '/c:/Users/u/wt' }),
+      true,
+    );
+  });
+
+  it('falls back to a file: URI when no folder is open', async () => {
+    await expect(openWorktree('/wt', true)).resolves.toBe(true);
+
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+      'vscode.openFolder',
+      expect.objectContaining({ scheme: 'file', fsPath: '/wt' }),
+      true,
+    );
+  });
+
+  it('reports failure when opening the folder throws', async () => {
+    vi.mocked(vscode.commands.executeCommand).mockRejectedValueOnce(new Error('no such folder'));
+
+    await expect(openWorktree('/wt', true)).resolves.toBe(false);
+  });
+
+  it('treats a case-different path as the same folder on macOS', async () => {
+    // APFS is case-insensitive, so `/Users/u/Worktree` and `/users/u/worktree`
+    // are one directory; without this the user gets the destructive
+    // "replace the current workspace" modal for the folder that is already open.
+    const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+    try {
+      (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [
+        { uri: { fsPath: '/Users/u/Worktree', scheme: 'file' } },
+      ];
+
+      await expect(openWorktree('/users/u/worktree', false)).resolves.toBe(true);
+      expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(process, 'platform', descriptor);
+      }
+    }
+  });
+});
+
+describe('isPathInsideFolder', () => {
+  it('accepts a child of a directory whose name starts with two dots', () => {
+    // `..cache` is an ordinary directory name; only `..` and `../…` escape.
+    expect(isPathInsideFolder(path.join('/cache'), path.join('/cache', '..cache', 'x'))).toBe(true);
+  });
+
+  it('rejects the parent directory and paths under it', () => {
+    expect(isPathInsideFolder('/cache', '/cache/..')).toBe(false);
+    expect(isPathInsideFolder(path.join('/cache'), path.join('/cache', '..', 'x'))).toBe(false);
+  });
+
+  it('rejects the folder itself', () => {
+    expect(isPathInsideFolder('/cache', '/cache')).toBe(false);
+  });
+});
+
+describe('runGit', () => {
+  afterEach(() => {
+    // The shared vscode mock returns a fresh configuration object for every
+    // call; restore that shape so later tests do not inherit this git.path.
+    vi.mocked(vscode.workspace.getConfiguration).mockImplementation(() => ({ get: vi.fn(), update: vi.fn() }) as never);
+  });
+
+  it('runs the binary named by git.path, re-reading the setting on every call', async () => {
+    let configuredPath: string | undefined = '/opt/git/bin/git';
+    vi.mocked(vscode.workspace.getConfiguration).mockImplementation(
+      () => ({ get: (key: string) => (key === 'path' ? configuredPath : undefined), update: vi.fn() }) as never,
+    );
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(null, '', '');
+      },
+    );
+
+    await pushBranch('/repo', 'origin', 'main');
+    // A changed setting is picked up by the next call: the value must not be
+    // cached from the first spawn.
+    configuredPath = '/opt/other/git';
+    await pushBranch('/repo', 'origin', 'main');
+
+    expect(mocks.execFile.mock.calls.map((call) => call[0])).toEqual(['/opt/git/bin/git', '/opt/other/git']);
+  });
+
+  it('names the git binary when spawning it fails (ENOENT)', async () => {
+    // A user with no git on the extension host's PATH (a remote or dev
+    // container without git, or a wrong git.path) otherwise sees only
+    // "Git operation failed".
+    mocks.execFile.mockImplementation(
+      (file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(Object.assign(new Error(`spawn ${file} ENOENT`), { code: 'ENOENT' }), '', '');
+      },
+    );
+
+    const failure = await pushBranch('/repo', 'origin', 'main').catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain('git');
+    expect((failure as Error).message).toContain('not found');
+    expect((failure as Error).message).not.toBe('Git operation failed');
   });
 });
 

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { logger } from '../logger';
 import { deleteBranch, removeWorktreeAndPrune } from './gitOperations';
 
 export interface WorktreeInfo {
@@ -54,6 +55,14 @@ function enqueueGlobalStateWrite<T>(task: () => Promise<T>): Promise<T> {
 export const CACHE_REPO_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 /** Beyond this many cached bare repositories, the least recently used are deleted. */
 export const CACHE_REPO_MAX_COUNT = 20;
+/**
+ * Worktree checkouts abandoned for this long are deleted by the same lazy sweep.
+ * A checkout of a large repository costs tens to hundreds of MiB, and a record
+ * that was forgotten (or whose source clone was swept) leaves nothing else that
+ * could ever clean it up. The age is read from the newest mtime among the
+ * checkout's directory and its immediate entries (see isAgedOut).
+ */
+export const WORKTREE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * Verify that a directory can serve as the worktree cache: create it when it
@@ -189,20 +198,20 @@ export class WorktreeManager {
   }
 
   /**
-   * LRU sweep for the bare clone cache (`<cacheDir>/repos/*.git`), which is
-   * otherwise never cleaned. Deletes repositories unused for
-   * CACHE_REPO_MAX_AGE_MS and, when more than CACHE_REPO_MAX_COUNT remain,
-   * the least recently used ones. Repositories referenced by a recorded
-   * worktree are never deleted (their worktrees' git metadata points into
-   * them), and deletion is restricted to direct `*.git` children of the
-   * repos directory. Triggered lazily from worktree operations — no timer.
-   * Returns the names of the removed repositories. The sweep reads the
-   * worktree records and rewrites the usage map, so it runs inside the module
-   * write queue like the other globalState mutations (a concurrent
-   * touchCachedRepo must not be overwritten by a stale usage snapshot).
+   * Lazily removes what the cache directory accumulated: bare clones
+   * (`<cacheDir>/repos/*.git`) and abandoned worktree checkouts
+   * (`<cacheDir>/worktrees/*`). Triggered from worktree operations — never a
+   * timer. Returns the removed names (repositories first, then worktrees).
+   *
+   * Both sweeps read the persisted records, so they run inside the module write
+   * queue like the other globalState mutations (a concurrent touchCachedRepo
+   * must not be overwritten by a stale usage snapshot).
    */
   async cleanupCachedRepos(now: number = Date.now()): Promise<string[]> {
-    return enqueueGlobalStateWrite(() => this._cleanupCachedRepos(now));
+    return enqueueGlobalStateWrite(async () => [
+      ...(await this._cleanupCachedRepos(now)),
+      ...(await this._cleanupWorktrees(now)),
+    ]);
   }
 
   private async _cleanupCachedRepos(now: number): Promise<string[]> {
@@ -218,7 +227,7 @@ export class WorktreeManager {
     const repos = candidates
       .map((entry) => path.resolve(reposDir, entry.name))
       .filter((repoPath) => path.dirname(repoPath) === resolvedReposDir);
-    const activePaths = new Set(this.getWorktrees().map((w) => path.resolve(w.sourceRepoPath)));
+    const activePaths = new Set(this.getWorktrees().map((w) => pathKey(w.sourceRepoPath)));
 
     const usage = { ...this._getCacheRepoUsage() };
     // Repositories that predate usage tracking get a fresh timestamp instead
@@ -229,7 +238,7 @@ export class WorktreeManager {
       return { repoPath, lastUsed };
     });
 
-    const removable = tracked.filter(({ repoPath }) => !activePaths.has(repoPath));
+    const removable = tracked.filter(({ repoPath }) => !activePaths.has(pathKey(repoPath)));
     const victims = new Set(
       removable.filter(({ lastUsed }) => now - lastUsed > CACHE_REPO_MAX_AGE_MS).map(({ repoPath }) => repoPath),
     );
@@ -264,5 +273,220 @@ export class WorktreeManager {
     }
     await this.context.globalState.update(CACHE_REPO_USAGE_KEY, usage);
     return removed;
+  }
+
+  /**
+   * Deletes worktree checkouts under `<cacheDir>/worktrees` that the extension
+   * created, that no record references and that are old enough to be abandoned
+   * (WORKTREE_MAX_AGE_MS). Called from cleanupCachedRepos, so it is lazy like
+   * the repository sweep and never a timer.
+   *
+   * The deletion rule is deliberately narrow, because `<cacheDir>/worktrees` is
+   * a plain directory a user or another tool can put anything into. A direct
+   * child is deleted only when *all* of these hold:
+   *
+   * 1. no persisted record resolves to that path (compared the way the
+   *    platform compares paths, see pathKey);
+   * 2. its `.git` entry is the linked-worktree marker `git worktree add`
+   *    writes — a *file* holding `gitdir: <repo>/.git/worktrees/<name>` for a
+   *    normal clone or `gitdir: <bare>.git/worktrees/<name>` for a bare one;
+   * 3. the source repository that marker names is *definitively* absent
+   *    (ENOENT/ENOTDIR, see isDefinitelyGone); and
+   * 4. neither the directory nor any of its immediate entries has been
+   *    modified for WORKTREE_MAX_AGE_MS (see isAgedOut).
+   *
+   * Everything else is left alone, however old: a `.git` directory (a real
+   * checkout), no `.git` entry at all (a plain directory such as notes or a
+   * script), any other `.git` shape (a submodule's `<super>/.git/modules/<name>`
+   * pointer, a hand-written file), a source that cannot be probed, and any path
+   * a record references.
+   */
+  private async _cleanupWorktrees(now: number): Promise<string[]> {
+    const worktreesDir = path.join(this.getCacheDirectory(), 'worktrees');
+    const resolvedWorktreesDir = path.resolve(worktreesDir);
+    const entries = await fs.promises.readdir(worktreesDir, { withFileTypes: true }).catch(() => [] as fs.Dirent[]);
+    const candidates = entries.filter((entry) => entry.isDirectory());
+    if (candidates.length === 0) {
+      return [];
+    }
+
+    // Defense in depth: only ever delete direct children of the worktrees dir,
+    // and never one a record still points at.
+    const referenced = new Set(this.getWorktrees().map((w) => pathKey(w.worktreePath)));
+    const removed: string[] = [];
+    for (const entry of candidates) {
+      const worktreePath = path.resolve(worktreesDir, entry.name);
+      if (path.dirname(worktreePath) !== resolvedWorktreesDir || referenced.has(pathKey(worktreePath))) {
+        continue;
+      }
+      const stats = await fs.promises.lstat(worktreePath).catch(() => undefined);
+      if (!stats || !stats.isDirectory() || !(await isAgedOut(worktreePath, stats.mtimeMs, now))) {
+        continue;
+      }
+      if (!(await isAbandonedWorktree(worktreePath))) {
+        continue;
+      }
+      try {
+        await fs.promises.rm(worktreePath, { recursive: true, force: true });
+        removed.push(entry.name);
+      } catch {
+        // A directory that cannot be deleted stays; the next sweep retries.
+      }
+    }
+    return removed;
+  }
+}
+
+/**
+ * Identity of a path for set membership. Windows compares paths
+ * case-insensitively (`C:\cache` and `c:\cache` are one directory), so an exact
+ * string compare would let the "never a referenced path" guard miss — the
+ * record keeps whatever casing the cache-directory setting had, while the
+ * directory being swept carries the casing of the recomputed path.
+ */
+function pathKey(target: string): string {
+  const resolved = path.resolve(target);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+/**
+ * Whether a checkout has been untouched for WORKTREE_MAX_AGE_MS.
+ *
+ * The newest mtime of the directory *and of its immediate entries* is what
+ * counts, not the root's alone: a linked worktree's root mtime only moves when
+ * an entry is added to or removed from the root itself, while editing
+ * `src/file.ts` updates `src`'s mtime. Reading the root alone would age out a
+ * checkout its owner still works in. Only immediate entries are read, so a
+ * `node_modules`-sized tree is never walked.
+ *
+ * Anything unreadable counts as recent: the age is what decides a deletion, so
+ * a directory whose state cannot be determined must never be deleted on the
+ * strength of a failed probe.
+ */
+async function isAgedOut(dir: string, ownMtimeMs: number, now: number): Promise<boolean> {
+  let entries: string[];
+  try {
+    entries = await fs.promises.readdir(dir);
+  } catch {
+    return false;
+  }
+  let newest = ownMtimeMs;
+  for (const name of entries) {
+    const stats = await fs.promises.lstat(path.join(dir, name)).catch(() => undefined);
+    if (!stats) {
+      return false;
+    }
+    newest = Math.max(newest, stats.mtimeMs);
+  }
+  return now - newest > WORKTREE_MAX_AGE_MS;
+}
+
+/**
+ * Whether a directory under `<cacheDir>/worktrees` is a checkout this extension
+ * created and that nothing will ever use again (see _cleanupWorktrees).
+ *
+ * The extension only creates checkouts through `git worktree add`, which leaves
+ * a linked-worktree marker in the directory: a `.git` *file* holding
+ * `gitdir: <source>/.git/worktrees/<name>` (a normal clone) or
+ * `gitdir: <bare>.git/worktrees/<name>` (a bare clone) — never a `.git`
+ * directory. Requiring that marker is what keeps a plain directory the user
+ * put there from being mistaken for a leftover, so a directory without it is
+ * never deleted.
+ *
+ * The checkout is abandoned when the source repository the marker names no
+ * longer exists: the gitdir it points at lives inside that repository, so once
+ * the repository is gone the checkout cannot be committed to, diffed or even
+ * read as a repository — it is unusable and drops out of every cleanup path.
+ */
+async function isAbandonedWorktree(worktreePath: string): Promise<boolean> {
+  const gitDir = await readLinkedWorktreeGitDir(worktreePath);
+  if (!gitDir) {
+    return false;
+  }
+  return isDefinitelyGone(sourceRepoPathForGitDir(gitDir), worktreePath);
+}
+
+/**
+ * The linked-worktree gitdir a checkout's `.git` entry points at, or undefined
+ * when that entry is not the marker `git worktree add` writes.
+ *
+ * The marker is validated structurally rather than trusted: the gitdir must sit
+ * in a directory literally named `worktrees` whose parent is the source
+ * repository's `.git` directory or the bare clone (`<name>.git`). A
+ * submodule's `.git` file (`gitdir: <super>/.git/modules/<name>`) and any other
+ * hand-written pointer fail that shape check.
+ */
+async function readLinkedWorktreeGitDir(worktreePath: string): Promise<string | undefined> {
+  const dotGit = path.join(worktreePath, '.git');
+  const stats = await fs.promises.lstat(dotGit).catch(() => undefined);
+  if (!stats || stats.isDirectory()) {
+    // A `.git` directory is a real checkout, and a missing entry is not proof
+    // of anything; neither is a marker this sweep may act on.
+    return undefined;
+  }
+  const contents = await fs.promises.readFile(dotGit, 'utf8').catch(() => undefined);
+  if (contents === undefined) {
+    return undefined;
+  }
+  const match = /^gitdir:\s*(.+)$/m.exec(contents);
+  if (!match) {
+    return undefined;
+  }
+  const gitDir = path.resolve(worktreePath, match[1].trim());
+  const worktreesDir = path.dirname(gitDir);
+  if (path.basename(worktreesDir) !== 'worktrees') {
+    return undefined;
+  }
+  const sourceDirName = path.basename(path.dirname(worktreesDir));
+  if (sourceDirName !== '.git' && !sourceDirName.endsWith('.git')) {
+    return undefined;
+  }
+  return gitDir;
+}
+
+/**
+ * The source repository a validated linked-worktree gitdir belongs to, so the
+ * sweep can tell whether that repository still exists.
+ *
+ * `git worktree add` records `<source>/.git/worktrees/<name>` for a normal
+ * clone — the gitdir is inside the source's `.git` directory — and
+ * `<bare>.git/worktrees/<name>` for a bare one, where the gitdir is a direct
+ * child of the bare repository directory. Deriving the source as
+ * `dirname(dirname(dirname(gitDir)))` only fits the first shape: for a bare
+ * cache clone it trimmed one directory too many and produced
+ * `<cacheDir>/repos`, which always exists, so a checkout whose bare clone had
+ * been swept was never recognised as abandoned — the exact case this sweep was
+ * added for.
+ */
+function sourceRepoPathForGitDir(gitDir: string): string {
+  const repoDir = path.dirname(path.dirname(gitDir));
+  return path.basename(repoDir) === '.git' ? path.dirname(repoDir) : repoDir;
+}
+
+/**
+ * Whether a path is definitively absent from the filesystem.
+ *
+ * Only ENOENT ("no such file or directory") and ENOTDIR ("a path component is
+ * not a directory") prove that: every other failure — EACCES/EPERM, an I/O
+ * error, a timeout or a dropped connection on a network drive — says nothing
+ * about whether the path exists. Reading those as "gone" would delete the
+ * checkout of a source repository that is merely unreachable, so they keep the
+ * directory and are logged.
+ */
+async function isDefinitelyGone(target: string, worktreePath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(target);
+    return false;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') {
+      return true;
+    }
+    logger.error(
+      `Worktree sweep: cannot tell whether the source repository of ${worktreePath} still exists (${target}): ${
+        code ?? String(error)
+      }; leaving the checkout alone`,
+    );
+    return false;
   }
 }

@@ -13,10 +13,9 @@ export const mockIssue: ForgejoIssue = {
   created_at: '2026-08-15T10:00:00Z',
   updated_at: '2026-08-17T10:00:00Z',
   repository: mockRepository,
+  // The API marks a pull request by carrying `pull_request`; the client derives
+  // `is_pull` from it (the field itself is not part of the API response).
   pull_request: undefined,
-  // is_pull is not a real API field; it is baked in for walkthroughs of list
-  // items that distinguish issues from pull requests.
-  is_pull: false,
 };
 
 export const mockIssueDetail: ForgejoIssueDetail = {
@@ -35,8 +34,8 @@ export const mockIssueDetail: ForgejoIssueDetail = {
   ],
   repository: { full_name: 'demo-user/demo-repo' },
   assets: [],
-  // Not a real API field; baked in for walkthroughs of permission-gated UI.
-  repoPermissions: { admin: true, push: true, pull: true },
+  // No `repoPermissions`: the issues endpoint does not send them, the client
+  // computes them from the repository endpoint.
 };
 
 export const mockIssues: ForgejoIssue[] = [mockIssue];

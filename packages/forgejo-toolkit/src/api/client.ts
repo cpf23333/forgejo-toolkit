@@ -7,6 +7,7 @@ import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { toApiError } from './errors-core';
 import { getForgejoClientHost } from './clientHost';
 import { assertActionsSupported } from './serverVersion';
+import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 import type { Client, RequestConfig, RequestFetch, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
 import {
   createCurrentUserRepo,
@@ -227,6 +228,97 @@ const MAX_TREE_CACHE_ENTRIES = 50;
 /** Clear the shared git-tree cache. Exported for tests. */
 export function clearTreeCache(): void {
   treeCache.clear();
+}
+
+/**
+ * Short-lived memo of `getRepoContents` answers, for the repository file
+ * provider: VS Code calls `stat` and then `readFile` for the same URI, and
+ * because that provider builds a ForgejoClient per call, the second call used to
+ * download the same blob again. The memo is module-level for exactly that
+ * reason, and keyed by instance + repo + path + ref so it cannot answer a
+ * different file.
+ *
+ * Never consulted for a client bound to an AbortSignal (`withSignal`), whose
+ * result belongs to one MCP tool call, and never populated with a failure.
+ */
+interface RepoContentsCacheEntry {
+  value: ForgejoContentEntry[];
+  expiresAt: number;
+}
+
+const repoContentsCache = new Map<string, RepoContentsCacheEntry>();
+const REPO_CONTENTS_TTL_MS = 5_000;
+const MAX_REPO_CONTENTS_CACHE_ENTRIES = 64;
+
+/** Clear the shared repo-contents memo. Exported for tests. */
+export function clearRepoContentsCache(): void {
+  repoContentsCache.clear();
+}
+
+/**
+ * Server origin detected for a configured instance, keyed by that instance's
+ * origin, and the response shapes already proven to need no rewriting.
+ *
+ * Both are module-level for the same reason as `treeCache`: the view provider
+ * constructs a ForgejoClient per message, so per-instance state dies with each
+ * request and the scan/copy would run again on every response. Keyed by
+ * configured origin, so two accounts on different instances never share a
+ * verdict. Both memos are small — one entry per configured instance origin, one
+ * per response shape — and the shape memo is capped at `MAX_ORIGIN_MEMO_ENTRIES`.
+ */
+const detectedOriginByConfigured = new Map<string, string>();
+const noRewriteShapes = new Set<string>();
+const MAX_ORIGIN_MEMO_ENTRIES = 64;
+
+/** Records a payload shape as needing no rewrite, keeping the memo bounded. */
+function rememberShape(shape: string): void {
+  while (noRewriteShapes.size >= MAX_ORIGIN_MEMO_ENTRIES) {
+    const oldest = noRewriteShapes.values().next().value;
+    if (oldest === undefined) {
+      break;
+    }
+    noRewriteShapes.delete(oldest);
+  }
+  noRewriteShapes.add(shape);
+}
+
+/** Clear the shared URL-rewrite memoization. Exported for tests. */
+export function clearDetectedServerOrigins(): void {
+  detectedOriginByConfigured.clear();
+  noRewriteShapes.clear();
+}
+
+/**
+ * A cheap structural fingerprint of a JSON response: property names and array
+ * lengths, sampling at most `SHAPE_SAMPLE_ITEMS` items and `SHAPE_MAX_DEPTH`
+ * levels. Two responses of the same endpoint share it, so the verdict "this
+ * shape carries no URL to rewrite" is reusable.
+ *
+ * Sampling — rather than hashing every value — is what makes it cheaper than the
+ * scan it replaces on a 500-item list, and it stays faithful because a verdict
+ * is only reused when the remote server answered the same shape as before: a
+ * response that suddenly carries URLs is a different login/instance and has its
+ * own `configuredOrigin` key.
+ */
+const SHAPE_SAMPLE_ITEMS = 2;
+const SHAPE_MAX_DEPTH = 4;
+
+function _shapeFingerprint(value: unknown, depth = 0): string {
+  if (depth > SHAPE_MAX_DEPTH) {
+    return '...';
+  }
+  if (Array.isArray(value)) {
+    const sampled = value
+      .slice(0, SHAPE_SAMPLE_ITEMS)
+      .map((item) => _shapeFingerprint(item, depth + 1))
+      .join(',');
+    return `[${value.length}:${sampled}]`;
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([key, item]) => `${key}=${_shapeFingerprint(item, depth + 1)}`).join(';')}}`;
+  }
+  return typeof value;
 }
 
 /**
@@ -774,7 +866,9 @@ export class ForgejoClient {
    * content knows the payload was withheld and can say so (the host renders
    * the localized notice from its `utils/payloadNotice.ts`) instead of showing
    * a README-less repository. `content` is the decoded text, exactly what
-   * `getReadme` returns when it is present.
+   * `getReadme` returns when it is present. `getRepoDetail` calls this once and
+   * exposes the result as `readme`/`readmeSize`, so a detail load needs no
+   * second probe.
    */
   async getReadmeEntry(
     owner: string,
@@ -844,8 +938,12 @@ export class ForgejoClient {
       };
     }
 
-    const [readme, branches, commits] = await Promise.all([
-      this.getReadme(owner, repo),
+    // One entry fetch answers both questions: the text to show and, when the
+    // contents API withheld the payload, the size the notice needs. Probing a
+    // second time from the caller is what made a README-less repository issue
+    // `/contents/README.md` twice per detail load.
+    const [readmeEntry, branches, commits] = await Promise.all([
+      this.getReadmeEntry(owner, repo),
       repoListBranches(owner, repo, { limit: 10 }, { client: this._client() }),
       repoGetAllCommits(owner, repo, { limit: 10 }, { client: this._client() }),
     ]);
@@ -853,7 +951,14 @@ export class ForgejoClient {
     return {
       repository: repository as ForgejoRepository,
       empty: false,
-      readme,
+      readme: readmeEntry?.content,
+      // A positive size with no content is the only combination that means
+      // "withheld": size 0 is a genuinely empty README and no entry at all is an
+      // absent one, and both must leave this undefined.
+      readmeSize:
+        readmeEntry && readmeEntry.content === undefined && readmeEntry.size && readmeEntry.size > 0
+          ? readmeEntry.size
+          : undefined,
       branches: branches?.map((branch) => branch.name ?? '').filter(Boolean) ?? [],
       recentCommits: (commits ?? []).map(
         (commit) =>
@@ -929,15 +1034,55 @@ export class ForgejoClient {
     );
   }
 
+  /**
+   * One contents-API read, served from the shared short-lived memo when the same
+   * file was already read a moment ago.
+   *
+   * The provider that opens repository files asks twice per open — `stat` for
+   * the size and `readFile` for the blob — with a fresh client each time, so
+   * without the memo the same blob is downloaded twice per file open. A caller
+   * with an AbortSignal (an MCP tool call, via `withSignal`) never shares the
+   * memo: its result belongs to that call, and the shared cache must not be
+   * left holding a result the caller never received.
+   */
   async getRepoContents(owner: string, repo: string, path: string, ref?: string): Promise<ForgejoContentEntry[]> {
     const params = ref ? { ref } : undefined;
-    if (!path) {
-      const entries = await repoGetContentsList(owner, repo, params, { client: this._client() });
-      return (entries ?? []) as ForgejoContentEntry[];
+    // The key carries the token hash for the same reason the tree cache does
+    // (see `_getRepoTree`): two accounts on one origin see different bytes for
+    // the same path, and this memo is shared across client instances.
+    const cacheKey = this.abortSignal
+      ? undefined
+      : `${this.configuredOrigin}|${this.tokenCacheKey}|${owner}/${repo}|${path}|${ref ?? ''}`;
+    if (cacheKey) {
+      const cached = repoContentsCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.value;
+      }
+      repoContentsCache.delete(cacheKey);
     }
-    const result = await repoGetContents(owner, repo, encodeFilePath(path), params, { client: this._client() });
-    const entries = Array.isArray(result) ? result : [result];
-    return entries as ForgejoContentEntry[];
+
+    let entries: ForgejoContentEntry[];
+    if (!path) {
+      entries = ((await repoGetContentsList(owner, repo, params, { client: this._client() })) ??
+        []) as ForgejoContentEntry[];
+    } else {
+      const result = await repoGetContents(owner, repo, encodeFilePath(path), params, { client: this._client() });
+      entries = (Array.isArray(result) ? result : [result]) as ForgejoContentEntry[];
+    }
+
+    if (cacheKey) {
+      // Bounded oldest-first, like the tree cache: this is a coalescing memo,
+      // not a store.
+      while (repoContentsCache.size >= MAX_REPO_CONTENTS_CACHE_ENTRIES) {
+        const oldest = repoContentsCache.keys().next().value;
+        if (oldest === undefined) {
+          break;
+        }
+        repoContentsCache.delete(oldest);
+      }
+      repoContentsCache.set(cacheKey, { value: entries, expiresAt: Date.now() + REPO_CONTENTS_TTL_MS });
+    }
+    return entries;
   }
 
   /**
@@ -1984,15 +2129,77 @@ export class ForgejoClient {
       return data;
     }
 
-    if (this.detectedServerOrigin === undefined) {
-      const detected = this._detectServerOrigin(data);
-      if (!detected) {
-        return data;
-      }
-      this.detectedServerOrigin = detected;
+    // Per response shape, not per client instance: the view provider builds a
+    // ForgejoClient for every message, so an instance field alone never spares
+    // the next request the scan. The fingerprint below only samples the first
+    // few items of each array, so it stays cheap on a 500-item list.
+    const shape = `${this.configuredOrigin}|${_shapeFingerprint(data)}`;
+    if (noRewriteShapes.has(shape)) {
+      return data;
     }
 
-    return this._rewriteUrls(data, this.detectedServerOrigin, this.configuredOrigin);
+    const detected = this._serverOriginFor(data);
+    if (!detected) {
+      // The payload names no server origin at all: nothing can be rewritten.
+      rememberShape(shape);
+      return data;
+    }
+
+    if (!this._hasUrlOnOrigin(data, detected)) {
+      // Nothing in the payload points at the detected origin, so the rewrite
+      // would change no value. Returning the payload as it arrived skips the
+      // deep copy that used to be paid on every response — 85-150 ms for a
+      // 500-item list.
+      rememberShape(shape);
+      return data;
+    }
+
+    this.detectedServerOrigin = detected;
+    return this._rewriteUrls(data, detected, this.configuredOrigin);
+  }
+
+  /**
+   * The server origin a payload's API-provided URLs point at, or undefined when
+   * it holds none.
+   *
+   * Detection walks the payload, so its result is memoized per configured origin
+   * in `detectedOriginByConfigured`; that memo, not the `detectedServerOrigin`
+   * instance field, is what survives the per-message client rebuild.
+   */
+  private _serverOriginFor(data: unknown): string | undefined {
+    const memoized = detectedOriginByConfigured.get(this.configuredOrigin);
+    if (memoized !== undefined) {
+      return memoized;
+    }
+    const detected = this._detectServerOrigin(data);
+    if (!detected) {
+      return undefined;
+    }
+    detectedOriginByConfigured.set(this.configuredOrigin, detected);
+    this.detectedServerOrigin = detected;
+    return detected;
+  }
+
+  /** True when any string value is a URL on `origin` (the same keys detection skips). */
+  private _hasUrlOnOrigin(data: unknown, origin: string): boolean {
+    const visit = (value: unknown, key?: string): boolean => {
+      if (typeof value === 'string') {
+        if (key === 'avatar_url' || key === 'website' || key === 'original_url') {
+          return false;
+        }
+        const parsed = this._parseUrl(value);
+        return parsed !== undefined && parsed.origin === origin;
+      }
+      if (Array.isArray(value)) {
+        return value.some((item) => visit(item));
+      }
+      if (value && typeof value === 'object') {
+        return Object.entries(value).some(([childKey, item]) => visit(item, childKey));
+      }
+      return false;
+    };
+
+    return visit(data);
   }
 
   private _detectServerOrigin(data: unknown): string | undefined {
@@ -2092,9 +2299,15 @@ export class ForgejoClient {
       // Serialize via the same helper the base client uses, so the logged URL
       // matches the actual request (array params repeat the key).
       const targetUrl = buildUrl({ ...config, baseURL });
+      // A configured instance URL may embed the access token
+      // (`https://user:token@host`), and buildUrl carries that userinfo into
+      // every request URL. These lines reach the output channel and the MCP
+      // server's stderr, so the userinfo is blanked before logging. The request
+      // itself is unaffected: the token travels in the Authorization header.
+      const logUrl = redactUrlUserinfo(targetUrl);
       const debugEnabled = this.logger?.isDebugEnabled() ?? false;
       const start = debugEnabled ? Date.now() : 0;
-      this.logger?.debug(`Request: ${method} ${targetUrl}`);
+      this.logger?.debug(`Request: ${method} ${logUrl}`);
 
       try {
         const dispatcher = this.requestDispatcher ?? defaultRequestDispatcher;
@@ -2134,7 +2347,7 @@ export class ForgejoClient {
       } catch (error) {
         if (debugEnabled) {
           const duration = Date.now() - start;
-          this.logger?.debug(`Request failed after ${duration}ms: ${method} ${targetUrl}`);
+          this.logger?.debug(`Request failed after ${duration}ms: ${method} ${logUrl}`);
         }
         if (error instanceof Error) {
           this._notifyIfPermissionError(error.message);

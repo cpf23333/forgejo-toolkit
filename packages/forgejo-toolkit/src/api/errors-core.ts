@@ -1,6 +1,15 @@
 import { passthroughTranslate, type TranslateFn } from './translate';
 
-export type ApiErrorKind = 'network' | 'timeout' | 'http' | 'unknown';
+export type ApiErrorKind = 'network' | 'timeout' | 'tls' | 'http' | 'unknown';
+
+/**
+ * Node/undici error codes and messages that mean "the TLS handshake failed
+ * because the server certificate is not trusted", as opposed to "the instance
+ * is unreachable". They are deliberately matched on both the message (undici
+ * surfaces prose such as `self-signed certificate`) and `cause.code`.
+ */
+const TLS_FAILURE_PATTERN =
+  /certificate|CERT_|DEPTH_ZERO|UNABLE_TO_VERIFY|SELF_SIGNED|ERR_TLS|ERR_SSL|_SSL_|TLS_|self[- ]signed|unable to verify the first certificate|Hostname\/IP does not match/i;
 
 // Localization is injected by the vscode-bound wrapper (errors.ts); headless
 // consumers (the MCP server process) keep the English passthrough default.
@@ -32,10 +41,32 @@ export class ApiError extends Error {
 }
 
 /**
- * Classify an error thrown by the shared fetch client. Timeouts (AbortSignal)
- * and network failures (instance down, DNS, refused connection) are told apart
- * from HTTP error statuses so the UI can show a meaningful localized message
- * instead of a raw `fetch failed`.
+ * Collects `message` and `code` from an error plus its `cause` chain. Node's
+ * fetch wraps the underlying failure in a `TypeError('fetch failed')` whose
+ * `cause` carries the real code (e.g. `DEPTH_ZERO_SELF_SIGNED_CERT`), so the
+ * top-level message alone cannot tell a certificate problem from an outage.
+ */
+function describeErrorChain(error: unknown): string {
+  const parts: string[] = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current instanceof Error && !seen.has(current)) {
+    seen.add(current);
+    parts.push(current.message);
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === 'string') {
+      parts.push(code);
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return parts.join(' ');
+}
+
+/**
+ * Classify an error thrown by the shared fetch client. Timeouts (AbortSignal),
+ * certificate/TLS failures and network failures (instance down, DNS, refused
+ * connection) are told apart from HTTP error statuses so the UI can show a
+ * meaningful localized message instead of a raw `fetch failed`.
  */
 export function toApiError(error: unknown): ApiError {
   if (error instanceof ApiError) {
@@ -49,6 +80,12 @@ export function toApiError(error: unknown): ApiError {
   const httpMatch = raw.match(/Forgejo API error (\d+):/);
   if (httpMatch) {
     return new ApiError('http', raw, Number(httpMatch[1]));
+  }
+  // Checked before the generic network branch: a certificate failure is also a
+  // `TypeError('fetch failed')`, and calling it "check that the instance is
+  // running and the URL is correct" sends the user after the wrong problem.
+  if (TLS_FAILURE_PATTERN.test(describeErrorChain(error))) {
+    return new ApiError('tls', raw);
   }
   if (
     error instanceof TypeError ||
@@ -86,6 +123,10 @@ export function apiErrorUserMessage(error: ApiError): string {
       return translate('The request timed out. The instance is not responding.');
     case 'network':
       return translate('Cannot connect to the instance. Check that it is running and that the URL is correct.');
+    case 'tls':
+      return translate(
+        'The instance certificate is not trusted. The server presented a self-signed, expired or otherwise unverifiable certificate; install a trusted certificate on the instance, or add its certificate to your system trust store.',
+      );
     case 'http':
       switch (error.status) {
         case 401:

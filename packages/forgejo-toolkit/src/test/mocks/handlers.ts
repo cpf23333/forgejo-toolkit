@@ -11,13 +11,18 @@ import {
   mockPullRequestDetail,
   mockRootContents,
   mockSrcContents,
+  mockDocsContents,
+  mockContentFilePaths,
+  mockContentFileTexts,
+  mockContentListings,
+  mockPlaceholderFileText,
   mockReadmeContent,
   mockIndexTsContent,
-  mockActionRun,
   mockActionRuns,
   mockActionRunJob,
   mockActionArtifact,
   mockDispatchWorkflowRun,
+  mockDispatchedActionRun,
   mockBranch,
   mockTag,
   mockRelease,
@@ -138,6 +143,7 @@ export const handlers = [
     const url = new URL(request.url);
     // Forgejo uses collectionFormat: multi — array params arrive as repeated keys.
     const statusTypes = url.searchParams.getAll('status-types');
+    const subjectTypes = url.searchParams.getAll('subject-type');
     let result = mockNotifications;
     if (statusTypes.length > 0 && !statusTypes.includes('all')) {
       result = result.filter((notification) => {
@@ -147,7 +153,29 @@ export const handlers = [
         return false;
       });
     }
-    return json(result);
+    if (subjectTypes.length > 0) {
+      // The filter is spelled in the API's own values: `issue`, `pull`,
+      // `repository` map onto the subject's `Issue`, `Pull`, `Repository`.
+      const wanted = subjectTypes.map((type) => type.toLowerCase());
+      result = result.filter((notification) => {
+        const subject = notification.subject?.type?.toLowerCase();
+        if (!subject) return false;
+        if (wanted.includes(subject)) return true;
+        // `pull` is the API's value; accept the spelling some clients send.
+        return subject === 'pull' && wanted.includes('pullrequest');
+      });
+    }
+    const before = url.searchParams.get('before');
+    if (before) {
+      // `before` is the page cursor: only threads updated before that instant.
+      result = result.filter((notification) => (notification.updated_at ?? '') < before);
+    }
+    // Newest first, then one page: the webview pages with `before` set to the
+    // oldest entry it holds and stops when a page comes back short.
+    const ordered = [...result].sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+    const requestedLimit = Number(url.searchParams.get('limit'));
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : ordered.length;
+    return json(ordered.slice(0, limit));
   }),
 
   http.patch('https://*/api/v1/notifications', () => json([])),
@@ -270,17 +298,34 @@ export const handlers = [
     () => new HttpResponse(null, { status: 204 }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/times', ({ request }) => {
-    const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
-    return json(page > 1 ? [] : trackedTimes);
-  }),
+  // Paginated like every other list endpoint: the client pages with `page` and
+  // `limit`, so a handler that answered the whole list on page 1 would make the
+  // client's "short page means the end" rule depend on the fixture's size.
+  http.get('https://*/api/v1/repos/:owner/:repo/issues/:index/times', ({ request }) =>
+    json(paginate(request, trackedTimes)),
+  ),
 
   http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/times', async ({ request }) => {
-    const body = (await request.json()) as { time?: number };
-    return json({ ...mockTrackedTime, time: body.time ?? mockTrackedTime.time });
+    const body = (await request.json()) as { time?: number; created?: string };
+    const created = {
+      ...mockTrackedTime,
+      // A real server assigns the next id, stamps the entry and stores it; a
+      // response that was not stored made "add time" and a cancelled add look
+      // identical on the next read.
+      id: trackedTimes.reduce((max, entry) => Math.max(max, entry.id ?? 0), 0) + 1,
+      time: body.time ?? mockTrackedTime.time,
+      created: body.created ?? new Date().toISOString(),
+    };
+    trackedTimes = [...trackedTimes, created];
+    return json(created);
   }),
 
-  http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index/times', () => new HttpResponse(null, { status: 204 })),
+  http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index/times', () => {
+    // `issueResetTime` deletes every tracked time of the calling user; the mock
+    // has a single user, so the whole list goes.
+    trackedTimes = [];
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   http.delete('https://*/api/v1/repos/:owner/:repo/issues/:index/times/:id', ({ params }) => {
     trackedTimes = trackedTimes.filter((entry) => String(entry.id) !== String(params.id));
@@ -482,20 +527,35 @@ export const handlers = [
 
   http.get('https://*/api/v1/repos/:owner/:repo/contents/src', () => json(mockSrcContents)),
 
+  http.get('https://*/api/v1/repos/:owner/:repo/contents/docs', () => json(mockDocsContents)),
+
   http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', () => json(mockReadmeContent)),
 
   http.get('https://*/api/v1/repos/:owner/:repo/contents/src/index.ts', () => json(mockIndexTsContent)),
 
-  // Catch-all for paths without a dedicated fixture: return placeholder
-  // content instead of 404 so walkthroughs can open any file (diff editor old/
-  // new versions, repo browser). The requested `ref` is echoed into the
-  // content so different branches stay visually distinguishable.
+  // Every other path in the fixture tree (see data/contents.ts). A directory
+  // answers its listing, a file answers its body — a stored payload when the
+  // fixture has one, otherwise a generated placeholder that echoes the requested
+  // `ref`, so the diff editor's old/new halves stay distinguishable. A path
+  // outside the tree is a 404, like the real API: the old catch-all invented a
+  // file for *any* path, which hid 404s (and the directory guard, since `src`
+  // answered a file instead of its children).
   http.get('https://*/api/v1/repos/:owner/:repo/contents/*', ({ request }) => {
     const url = new URL(request.url);
     const ref = url.searchParams.get('ref');
     const filepath = decodeURIComponent(url.pathname.split('/contents/')[1] ?? '');
+
+    const listing = mockContentListings[filepath];
+    if (listing) {
+      return json(listing);
+    }
+
+    if (!mockContentFilePaths.includes(filepath)) {
+      return json({ message: 'not found' }, 404);
+    }
+
     const name = filepath.split('/').pop() ?? filepath;
-    const text = `// Mock content for ${filepath}\n// ref: ${ref ?? 'default branch'}\n`;
+    const text = mockContentFileTexts[filepath] ?? mockPlaceholderFileText(filepath, ref ?? undefined);
     return json({
       name,
       path: filepath,
@@ -523,10 +583,12 @@ export const handlers = [
 
   http.delete('https://*/api/v1/repos/:owner/:repo/branches/:branch', () => new HttpResponse(null, { status: 204 })),
 
+  // `structs.BranchProtection` names the branch `branch_name` (there is no
+  // `name`, and no `protected` flag on this endpoint); the merge status reads
+  // the approval and status-check requirements from here.
   http.get('https://*/api/v1/repos/:owner/:repo/branch_protections/:name', () =>
     json({
-      name: 'main',
-      protected: true,
+      branch_name: 'main',
       required_approvals: 1,
       enable_status_check: true,
       status_check_contexts: ['ci/build'],
@@ -534,9 +596,14 @@ export const handlers = [
     }),
   ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/commits/:ref/status', () =>
+  // The combined status a merge-blocker check reads: it always names the commit
+  // it describes (the client asks for the PR head's sha) and counts the statuses
+  // it returns.
+  http.get('https://*/api/v1/repos/:owner/:repo/commits/:ref/status', ({ params }) =>
     json({
+      sha: params.ref,
       state: 'success',
+      total_count: 1,
       statuses: [
         {
           id: 1,
@@ -655,13 +722,28 @@ export const handlers = [
     });
   }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id', () => json(mockActionRun)),
+  // The run the caller asked for, from the runs the fixtures declare (the list
+  // plus the run a dispatch mints, which the view opens immediately): answering
+  // every id with run 42 made a walkthrough of run #2 show run #1's title and
+  // URLs. An id no fixture declares is a 404, like the API's.
+  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id', ({ params }) => {
+    const requestedId = Number(params.run_id);
+    const run = [...mockActionRuns, mockDispatchedActionRun].find((candidate) => candidate.id === requestedId);
+    return run ? json(run) : json({ message: 'not found' }, 404);
+  }),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/jobs', () => json({ jobs: [mockActionRunJob] })),
+  // A bare array: `structs.ActionRunJobList` is an array, not an envelope (the
+  // generated client only tolerates `{ jobs }` for older servers). The job's
+  // `run_id` follows the run that was asked for, so the fixture stays one run.
+  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/jobs', ({ params }) =>
+    json([{ ...mockActionRunJob, run_id: Number(params.run_id) }]),
+  ),
 
-  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/artifacts', ({ request }) => {
+  http.get('https://*/api/v1/repos/:owner/:repo/actions/runs/:run_id/artifacts', ({ request, params }) => {
     const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
-    return json({ artifacts: page > 1 ? [] : [mockActionArtifact] });
+    // Also a bare array (`structs.ActionArtifactList`), with `run_id` following
+    // the requested run like the jobs above.
+    return json(page > 1 ? [] : [{ ...mockActionArtifact, run_id: Number(params.run_id) }]);
   }),
 
   http.get(
@@ -669,12 +751,8 @@ export const handlers = [
     () => new HttpResponse('build log output', { status: 200, headers: { 'Content-Type': 'text/plain' } }),
   ),
 
-  http.post(
-    'https://*/api/v1/repos/:owner/:repo/actions/workflows/:workflowfilename/dispatches',
-    async ({ request }) => {
-      const body = (await request.json()) as { ref?: string };
-      return json({ ...mockDispatchWorkflowRun, head_branch: body.ref ?? 'main' });
-    },
+  http.post('https://*/api/v1/repos/:owner/:repo/actions/workflows/:workflowfilename/dispatches', () =>
+    json(mockDispatchWorkflowRun),
   ),
 
   http.post(

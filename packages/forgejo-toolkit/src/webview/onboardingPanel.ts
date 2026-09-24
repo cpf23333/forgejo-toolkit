@@ -78,6 +78,16 @@ export class OnboardingWebviewPanel {
     return OnboardingWebviewPanel.currentPanel;
   }
 
+  /**
+   * Push a `forgejoToolkit.locale` change made outside this panel (the Settings
+   * editor, another panel) into the open webview: it renders in the language it
+   * was created with until it receives `setLocale`, which the shared webview
+   * composable already handles.
+   */
+  public static notifyLocaleChanged(locale: 'en' | 'zh'): void {
+    OnboardingWebviewPanel.currentPanel?._reply('setLocale', { locale });
+  }
+
   private constructor(
     panel: vscode.WebviewPanel,
     private readonly _context: vscode.ExtensionContext,

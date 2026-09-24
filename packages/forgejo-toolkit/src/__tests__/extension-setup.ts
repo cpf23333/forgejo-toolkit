@@ -105,10 +105,11 @@ vi.mock('vscode', () => ({
     from: vi.fn(),
   },
   FileSystemError: {
-    // Real instances carry a `code`; the tests only assert that a read provider
-    // reports "not found" as a rejection.
-    FileNotFound: (uri?: unknown) => new Error(`FileNotFound: ${String(uri)}`),
-    NoPermissions: () => new Error('NoPermissions'),
+    // Real instances carry a `code`; tests assert on the code so a provider
+    // cannot silently downgrade "unavailable" into "not found".
+    FileNotFound: (uri?: unknown) => Object.assign(new Error(`FileNotFound: ${String(uri)}`), { code: 'FileNotFound' }),
+    Unavailable: (message?: unknown) => Object.assign(new Error(String(message)), { code: 'Unavailable' }),
+    NoPermissions: () => Object.assign(new Error('NoPermissions'), { code: 'NoPermissions' }),
   },
   FileType: { Unknown: 0, File: 1, Directory: 2, SymbolicLink: 64 },
 }));

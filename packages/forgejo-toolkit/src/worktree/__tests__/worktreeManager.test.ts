@@ -14,7 +14,14 @@ vi.mock('../gitOperations', () => ({
 }));
 
 import * as vscode from 'vscode';
-import { WorktreeManager, WorktreeInfo, CACHE_REPO_MAX_AGE_MS, CACHE_REPO_MAX_COUNT } from '../worktreeManager';
+import { logger } from '../../logger';
+import {
+  WorktreeManager,
+  WorktreeInfo,
+  CACHE_REPO_MAX_AGE_MS,
+  CACHE_REPO_MAX_COUNT,
+  WORKTREE_MAX_AGE_MS,
+} from '../worktreeManager';
 
 const WORKTREES_KEY = 'forgejoToolkit.worktrees';
 const USAGE_KEY = 'forgejoToolkit.cacheRepoUsage';
@@ -402,5 +409,365 @@ describe('WorktreeManager cached repo cleanup', () => {
     } finally {
       await fs.promises.rm(emptyDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('WorktreeManager worktree cleanup', () => {
+  let cacheDir: string;
+
+  beforeEach(async () => {
+    cacheDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'worktree-sweep-'));
+    // cleanupCachedRepos sweeps both directories, so the repos sibling must
+    // exist for the worktree half to be reached.
+    await fs.promises.mkdir(path.join(cacheDir, 'repos'), { recursive: true });
+    await fs.promises.mkdir(path.join(cacheDir, 'worktrees'), { recursive: true });
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await fs.promises.rm(cacheDir, { recursive: true, force: true });
+  });
+
+  function createManager(initial: WorktreeInfo[] = []) {
+    const { context, store } = createContext(initial);
+    return { manager: new WorktreeManager(context, () => cacheDir), store };
+  }
+
+  function exists(target: string): Promise<boolean> {
+    return fs.promises.access(target).then(
+      () => true,
+      () => false,
+    );
+  }
+
+  /** A checkout holding `leftover.txt` so its removal is observable. */
+  async function makeDir(name: string): Promise<string> {
+    const target = path.join(cacheDir, 'worktrees', name);
+    await fs.promises.mkdir(target, { recursive: true });
+    await fs.promises.writeFile(path.join(target, 'leftover.txt'), 'stale');
+    return target;
+  }
+
+  /**
+   * Ages a directory and its immediate entries. Must run last: writing the
+   * `.git` marker inside a directory updates that directory's mtime, and the
+   * sweep reads the newest mtime among the directory and its immediate
+   * entries, so every entry has to be aged for the checkout to look abandoned.
+   */
+  async function age(target: string, now: number, ageMs: number): Promise<void> {
+    const when = new Date(now - ageMs);
+    for (const name of await fs.promises.readdir(target)) {
+      await fs.promises.utimes(path.join(target, name), when, when);
+    }
+    await fs.promises.utimes(target, when, when);
+  }
+
+  /**
+   * A checkout of a *normal* clone: `git worktree add` leaves a `.git` *file*
+   * holding `gitdir: <source>/.git/worktrees/<name>` (the gitdir lives inside
+   * the source's `.git`), not a `.git` directory. Returns the source clone
+   * path so a test can delete it, as the repository cache sweep does, leaving
+   * the checkout unusable and unreachable.
+   */
+  async function addNonBareWorktree(target: string, sourceRepoPath: string): Promise<string> {
+    const gitDir = path.join(sourceRepoPath, '.git', 'worktrees', path.basename(target));
+    await fs.promises.mkdir(gitDir, { recursive: true });
+    await fs.promises.writeFile(path.join(target, '.git'), `gitdir: ${gitDir}\n`);
+    return sourceRepoPath;
+  }
+
+  /**
+   * A checkout of the shared *bare* cache clone: the gitdir is a direct child
+   * of the bare repository directory (`<bare>.git/worktrees/<name>`, as git
+   * 2.55 writes it), so there is no nested `.git` — a fixture that creates one
+   * describes a layout git never produces. Returns the bare clone path.
+   */
+  async function addBareWorktree(target: string, bareRepoPath: string): Promise<string> {
+    const gitDir = path.join(bareRepoPath, 'worktrees', path.basename(target));
+    await fs.promises.mkdir(gitDir, { recursive: true });
+    await fs.promises.writeFile(path.join(target, '.git'), `gitdir: ${gitDir}\n`);
+    return bareRepoPath;
+  }
+
+  /** The shared bare clone of a repository, as `_resolveWorktreeSourceRepo` builds it. */
+  function cacheClone(name: string): string {
+    return path.join(cacheDir, 'repos', `${name}.git`);
+  }
+
+  /** A plain clone the user selected as the worktree source. */
+  function localClone(name: string): string {
+    return path.join(cacheDir, 'clones', name);
+  }
+
+  it('removes an unreferenced worktree whose bare cache clone was swept', async () => {
+    const now = Date.now();
+    const target = await makeDir('owner-repo-deadbeef-pr-1');
+    const sourceRepoPath = await addBareWorktree(target, cacheClone('owner-repo-deadbeef'));
+    // The clone was deleted or swept: nothing can use this checkout again.
+    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual(['owner-repo-deadbeef-pr-1']);
+    expect(await exists(target)).toBe(false);
+  });
+
+  it('removes an unreferenced worktree whose non-bare source clone was deleted', async () => {
+    const now = Date.now();
+    const target = await makeDir('owner-repo-deadbeef-pr-2');
+    const sourceRepoPath = await addNonBareWorktree(target, localClone('owner-repo-deadbeef'));
+    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual(['owner-repo-deadbeef-pr-2']);
+    expect(await exists(target)).toBe(false);
+  });
+
+  it('keeps an unreferenced worktree whose bare cache clone is still there', async () => {
+    // Without a record it cannot be opened again, but its git metadata is live
+    // and its contents are the user's; only the extension's own abandoned
+    // checkouts are swept.
+    const now = Date.now();
+    const target = await makeDir('owner-repo-live-pr-1');
+    await addBareWorktree(target, cacheClone('owner-repo-live'));
+    await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual([]);
+    expect(await exists(target)).toBe(true);
+  });
+
+  it('keeps an unreferenced worktree whose non-bare source clone is still there', async () => {
+    const now = Date.now();
+    const target = await makeDir('owner-repo-live-pr-2');
+    await addNonBareWorktree(target, localClone('owner-repo-live'));
+    await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual([]);
+    expect(await exists(target)).toBe(true);
+  });
+
+  it('never removes a worktree a record still references', async () => {
+    const now = Date.now();
+    const target = await makeDir('owner-repo-deadbeef-pr-3');
+    const sourceRepoPath = await addBareWorktree(target, cacheClone('owner-repo-deadbeef'));
+    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+    const { manager, store } = createManager([makeWorktree({ worktreePath: target })]);
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual([]);
+    expect(await exists(target)).toBe(true);
+    expect(store.get(WORKTREES_KEY)).toHaveLength(1);
+  });
+
+  // Windows compares paths case-insensitively, so a record whose path differs
+  // from the directory only in casing still references it — the deletion guard
+  // must not miss it (a user retyping the cache-directory setting with a
+  // different drive-letter casing is enough to produce that).
+  it.skipIf(process.platform !== 'win32')(
+    'never removes a worktree a record references under a different casing',
+    async () => {
+      const now = Date.now();
+      const target = await makeDir('owner-repo-deadbeef-pr-4');
+      const sourceRepoPath = await addNonBareWorktree(target, localClone('owner-repo-deadbeef'));
+      await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+      await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+      const { manager } = createManager([makeWorktree({ worktreePath: target.toUpperCase() })]);
+
+      const removed = await manager.cleanupCachedRepos(now);
+
+      expect(removed).toEqual([]);
+      expect(await exists(target)).toBe(true);
+    },
+  );
+
+  it('leaves an aged worktree younger than the age bound alone', async () => {
+    const now = Date.now();
+    const target = await makeDir('owner-repo-deadbeef-pr-5');
+    const sourceRepoPath = await addBareWorktree(target, cacheClone('owner-repo-deadbeef'));
+    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await age(target, now, WORKTREE_MAX_AGE_MS - 60_000);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual([]);
+    expect(await exists(target)).toBe(true);
+  });
+
+  it('leaves a checkout created moments ago alone even when its source is gone', async () => {
+    // The sweep can run while a worktree is being created: the create path only
+    // enters the globalState write queue when it records the worktree, so the
+    // sweep may see a fresh directory no record points at yet. The age bound is
+    // what makes that overlap safe — a just-created checkout is never "abandoned".
+    const target = await makeDir('owner-repo-deadbeef-fresh');
+    const sourceRepoPath = await addNonBareWorktree(target, localClone('owner-repo-deadbeef'));
+    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(Date.now());
+
+    expect(removed).toEqual([]);
+    expect(await exists(target)).toBe(true);
+  });
+
+  it('keeps an aged checkout that was touched inside recently', async () => {
+    // A linked worktree's root mtime only moves when an entry is added to or
+    // removed from the root itself: editing `src/file.ts` updates `src`, not
+    // the root, so the root alone would age out a checkout its owner still
+    // works in.
+    const now = Date.now();
+    const target = await makeDir('owner-repo-deadbeef-pr-6');
+    const sourceRepoPath = await addNonBareWorktree(target, localClone('owner-repo-deadbeef'));
+    await fs.promises.mkdir(path.join(target, 'src'));
+    await fs.promises.writeFile(path.join(target, 'src', 'index.ts'), 'work in progress');
+    await fs.promises.rm(sourceRepoPath, { recursive: true, force: true });
+    await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+    await fs.promises.utimes(path.join(target, 'src'), new Date(now), new Date(now));
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual([]);
+    expect(await exists(target)).toBe(true);
+  });
+
+  it('keeps an aged plain directory the extension did not create', async () => {
+    // `<cacheDir>/worktrees` is a plain directory a user can drop notes, a
+    // script or another tool's checkout into. Without a linked-worktree marker
+    // there is no proof the extension created what is about to be deleted.
+    const now = Date.now();
+    const target = await makeDir('notes');
+    await age(target, now, WORKTREE_MAX_AGE_MS * 3);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual([]);
+    expect(await exists(target)).toBe(true);
+  });
+
+  it('keeps an aged directory whose .git file is not a linked-worktree marker', async () => {
+    // A submodule checkout's `.git` is a file too, but it points at
+    // `<super>/.git/modules/<name>`. The marker is git's `worktrees/<name>`
+    // shape, so a dangling pointer like this one is not the extension's.
+    const now = Date.now();
+    const target = await makeDir('sub-checkout');
+    const gitDir = path.join(cacheDir, 'repos', 'gone-super', '.git', 'modules', 'sub-checkout');
+    await fs.promises.writeFile(path.join(target, '.git'), `gitdir: ${gitDir}\n`);
+    await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual([]);
+    expect(await exists(target)).toBe(true);
+  });
+
+  it('keeps an aged checkout whose source repository cannot be probed', async () => {
+    // An unreachable source (offline network drive, permissions, I/O error)
+    // says nothing about whether it still exists: only a definitive "not
+    // found" may mark the checkout as abandoned.
+    const now = Date.now();
+    const failingCodes = ['EACCES', 'EPERM', 'EIO'];
+    const targets: string[] = [];
+    const unreadable = new Map<string, string>();
+    for (const [index, code] of failingCodes.entries()) {
+      const target = await makeDir(`owner-repo-unreachable-${index}`);
+      const sourceRepoPath = await addNonBareWorktree(target, localClone(`owner-repo-unreachable-${index}`));
+      await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+      unreadable.set(path.resolve(sourceRepoPath), code);
+      targets.push(target);
+    }
+    const realAccess = fs.promises.access;
+    const accessSpy = vi
+      .spyOn(fs.promises, 'access')
+      .mockImplementation(async (candidate: fs.PathLike, mode?: number) => {
+        const code = unreadable.get(path.resolve(String(candidate)));
+        if (code) {
+          throw Object.assign(new Error(`${code}: simulated source probe failure`), { code });
+        }
+        return realAccess(candidate, mode);
+      });
+    const logSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(accessSpy).toHaveBeenCalled();
+    expect(removed).toEqual([]);
+    for (const target of targets) {
+      expect(await exists(target)).toBe(true);
+    }
+    expect(logSpy).toHaveBeenCalledTimes(failingCodes.length);
+    const messages = logSpy.mock.calls.map((call) => String(call[0]));
+    for (const code of failingCodes) {
+      expect(messages.some((message) => message.includes(code))).toBe(true);
+    }
+  });
+
+  it('removes an abandoned checkout whose source path cannot exist', async () => {
+    // A file where a directory must be makes the derived source path
+    // definitively absent (ENOENT on Windows, ENOTDIR on POSIX) — unlike an
+    // unreadable source, that does prove the checkout is abandoned.
+    const now = Date.now();
+    const blockingFile = path.join(cacheDir, 'repos', 'stray.git');
+    await fs.promises.writeFile(blockingFile, 'not a repository');
+    const target = await makeDir('owner-repo-deadbeef-pr-8');
+    const gitDir = path.join(blockingFile, 'inner', '.git', 'worktrees', path.basename(target));
+    await fs.promises.writeFile(path.join(target, '.git'), `gitdir: ${gitDir}\n`);
+    await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual(['owner-repo-deadbeef-pr-8']);
+    expect(await exists(target)).toBe(false);
+  });
+
+  it('leaves a foreign git checkout under the same parent alone', async () => {
+    // A real repository someone put in the cache directory: its `.git` is a
+    // directory, which the extension never creates there.
+    const now = Date.now();
+    const repoPath = path.join(cacheDir, 'worktrees', 'my-own-checkout');
+    await fs.promises.mkdir(path.join(repoPath, '.git'), { recursive: true });
+    await fs.promises.writeFile(path.join(repoPath, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    await age(repoPath, now, WORKTREE_MAX_AGE_MS * 3);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual([]);
+    expect(await exists(repoPath)).toBe(true);
+  });
+
+  it('sweeps worktrees and cached repositories in one pass', async () => {
+    const now = Date.now();
+    const repoPath = path.join(cacheDir, 'repos', 'old.git');
+    await fs.promises.mkdir(repoPath, { recursive: true });
+    const target = await makeDir('owner-repo-deadbeef-pr-7');
+    const worktreeSource = await addBareWorktree(target, cacheClone('owner-repo-deadbeef'));
+    await fs.promises.rm(worktreeSource, { recursive: true, force: true });
+    await age(target, now, WORKTREE_MAX_AGE_MS + 60_000);
+    const { manager, store } = createManager();
+    store.set(USAGE_KEY, { [path.resolve(repoPath)]: now - CACHE_REPO_MAX_AGE_MS - 1_000 });
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(removed).toEqual(['old.git', 'owner-repo-deadbeef-pr-7']);
+    expect(await exists(repoPath)).toBe(false);
+    expect(await exists(target)).toBe(false);
   });
 });

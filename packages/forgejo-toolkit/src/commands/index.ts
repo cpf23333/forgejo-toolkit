@@ -21,6 +21,30 @@ import { userFacingErrorMessage } from '../api/errors';
 // trigger is dropped silently (the first run still owns the UI).
 let publishToForgejoInFlight = false;
 
+/**
+ * Resolves the 1-based editor line an invocation referred to, from the shapes a
+ * contributed command can be called with:
+ *
+ * - `({ lineNumber, uri })` — what `editor/lineNumber/context` sends today: the
+ *   menu forwards its `arg` as one argument.
+ * - `(uri, lineNumbers, ...)` — the documented order for that menu, where
+ *   `lineNumbers` is an array whose first entry is the line nearest the click.
+ * - `undefined` when neither argument names a line (editor context menu or
+ *   command palette), which lets the caller fall back to the selection.
+ *
+ * Exported for tests.
+ */
+export function toLineNumber(first?: unknown, second?: unknown): number | undefined {
+  const candidate = isLineNumberArgument(first) ? first.lineNumber : Array.isArray(second) ? second[0] : undefined;
+  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined;
+}
+
+function isLineNumberArgument(value: unknown): value is { lineNumber: number } {
+  return (
+    typeof value === 'object' && value !== null && typeof (value as { lineNumber?: unknown }).lineNumber === 'number'
+  );
+}
+
 export function registerCommands(
   context: vscode.ExtensionContext,
   config: ConfigManager,
@@ -85,14 +109,23 @@ export function registerCommands(
       },
     ),
 
-    vscode.commands.registerCommand(COMMAND_ADD_COMMENT, (uri?: vscode.Uri, lineNumber?: number) => {
+    vscode.commands.registerCommand(COMMAND_ADD_COMMENT, (first?: unknown, second?: unknown) => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         vscode.window.showWarningMessage(vscode.l10n.t('No active editor'));
         return;
       }
-      // editor/lineNumber/context passes the 1-based line number; convert to 0-based for the API.
-      const line = typeof lineNumber === 'number' ? lineNumber - 1 : editor.selection.active.line;
+      // The 1-based line the invocation named, if any. `editor/lineNumber/context`
+      // is documented as running the command with (uri, lineNumbers, ...), but the
+      // host action currently forwards its `arg` instead, i.e. the single object
+      // `{ lineNumber, uri }` (see editorLineNumberMenu.ts / MenuItemAction.run).
+      // `toLineNumber` accepts both so the clicked line is honored either way.
+      const lineNumber = toLineNumber(first, second);
+      // A line number (line-number context menu) always wins: the user
+      // right-clicked that line, and a stale non-empty selection elsewhere must
+      // not redirect the anchor. The selection is only consulted when no line
+      // number was passed (editor context menu / command palette).
+      const line = lineNumber === undefined ? editor.selection.active.line : lineNumber - 1;
       pullReviewCommentController.addComment(editor, line).catch((error: unknown) => {
         const err = userFacingErrorMessage(error);
         logger.error(`[addComment] ${err}`);

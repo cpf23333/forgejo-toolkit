@@ -171,7 +171,7 @@ describe('client', () => {
         baseURL: 'http://example.com',
         url: '/api/repos',
       }),
-    ).rejects.toThrow('Forgejo API error 404: Not found');
+    ).rejects.toThrow(/Forgejo API error 404: non-JSON response body \(HTTP 404, text\/plain\)/);
   });
 
   it('uses the fetch that understands a configured dispatcher', async () => {
@@ -209,9 +209,13 @@ describe('client', () => {
     expect(result.data).toEqual({ ok: true });
   });
 
-  it('truncates oversized error bodies', async () => {
+  it('describes an oversized non-JSON error body instead of embedding it', async () => {
     const htmlBody = `<html><body>${'x'.repeat(2000)}</body></html>`;
-    mockServer.use(http.get('http://example.com/api/repos', () => HttpResponse.html(htmlBody, { status: 502 })));
+    mockServer.use(
+      http.get('http://example.com/api/repos', () =>
+        HttpResponse.html(htmlBody, { status: 502, statusText: 'Bad Gateway' }),
+      ),
+    );
 
     let error: Error | undefined;
     try {
@@ -225,9 +229,92 @@ describe('client', () => {
 
     expect(error).toBeInstanceOf(Error);
     expect(error!.message).toContain('Forgejo API error 502:');
-    expect(error!.message).toContain('(truncated)');
-    // 500 body chars + prefix + suffix, well below the original body size.
-    expect(error!.message.length).toBeLessThan(600);
+    // The reverse proxy's HTML page must not be quoted into the message...
+    expect(error!.message).not.toContain('<html>');
+    expect(error!.message).not.toContain('(truncated)');
+    // ...but the shape of the response is named, with its status and type.
+    expect(error!.message).toContain('non-JSON');
+    expect(error!.message).toContain('text/html');
+    // Well below the old 500-character body dump.
+    expect(error!.message.length).toBeLessThan(200);
+  });
+
+  it('reports an HTML error page as a non-JSON body without leaking the request token', async () => {
+    mockServer.use(
+      http.get('http://example.com/api/repos', () =>
+        HttpResponse.html('<html><body>502 Bad Gateway</body></html>', { status: 502 }),
+      ),
+    );
+
+    let error: Error | undefined;
+    try {
+      await client({
+        baseURL: 'http://example.com',
+        url: '/api/repos',
+        headers: { Authorization: 'Bearer secret-token-9f8e' },
+      });
+    } catch (e) {
+      error = e as Error;
+    }
+
+    expect(error!.message).toContain('Forgejo API error 502');
+    expect(error!.message).toContain('non-JSON');
+    expect(error!.message).not.toContain('secret-token-9f8e');
+    expect(error!.message).not.toContain('<html>');
+  });
+
+  it('throws instead of returning undefined when a 200 body is not JSON', async () => {
+    mockServer.use(
+      http.get('http://example.com/api/repos', () => HttpResponse.html('<html><body>maintenance</body></html>')),
+    );
+
+    await expect(
+      client({
+        baseURL: 'http://example.com',
+        url: '/api/repos',
+      }),
+    ).rejects.toThrow(/Forgejo API error 200: non-JSON response body \(HTTP 200, text\/html\)/);
+  });
+
+  it('describes an empty error body instead of quoting the status text as content', async () => {
+    mockServer.use(
+      http.get(
+        'http://example.com/api/repos',
+        () => new HttpResponse(null, { status: 503, statusText: 'Unavailable' }),
+      ),
+    );
+
+    await expect(
+      client({
+        baseURL: 'http://example.com',
+        url: '/api/repos',
+      }),
+    ).rejects.toThrow(/Forgejo API error 503: empty response body \(HTTP 503/);
+  });
+
+  it('still returns an empty object for an empty 200 body', async () => {
+    mockServer.use(http.get('http://example.com/api/repos', () => new HttpResponse(null, { status: 200 })));
+
+    const result = await client({
+      baseURL: 'http://example.com',
+      url: '/api/repos',
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.data).toEqual({});
+  });
+
+  it('returns valid JSON that does not match the expected shape as-is', async () => {
+    // The request layer only decodes; shape validation belongs to the caller,
+    // so a syntactically valid body must not become an "unknown" error.
+    mockServer.use(http.get('http://example.com/api/repos', () => HttpResponse.json(['unexpected', 'shape'])));
+
+    const result = await client({
+      baseURL: 'http://example.com',
+      url: '/api/repos',
+    });
+
+    expect(result.data).toEqual(['unexpected', 'shape']);
   });
 
   it('returns an empty object for 204 responses', async () => {
