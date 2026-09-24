@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useI18n } from 'vue-i18n';
 import { useAppState, repoRefsKey } from '../composables/useAppState';
 import RepoRefFormDialog, { type RepoRefFormMode } from './RepoRefFormDialog.vue';
@@ -20,6 +21,11 @@ const { t } = useI18n();
 const state = useAppState();
 
 const activeTab = ref<'branches' | 'tags' | 'releases'>('branches');
+
+// Branches, tags and releases are paged lists with a hard cap and no total, so the
+// active tab says when its list was cut off.
+const activeList = computed<unknown[]>(() => (data.value?.[activeTab.value] ?? []) as unknown[]);
+const listTruncated = computed(() => isListTruncated(activeList.value));
 const tabs: Array<{ key: 'branches' | 'tags' | 'releases'; label: string }> = [
   { key: 'branches', label: t('dashboard.repoRefs.branches') },
   { key: 'tags', label: t('dashboard.repoRefs.tags') },
@@ -252,6 +258,9 @@ function removeRelease(id?: number) {
       <div v-if="error" class="status error">
         {{ error }}
         <button type="button" class="link-button" @click="retryLoad">{{ t('dashboard.retry') }}</button>
+      </div>
+      <div v-if="listTruncated" class="list-truncated">
+        {{ t('dashboard.repoRefs.truncated') }}
       </div>
       <div v-if="activeTab === 'branches'" class="ref-list">
         <div class="ref-actions">

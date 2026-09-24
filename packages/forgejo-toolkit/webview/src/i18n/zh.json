@@ -192,7 +192,8 @@
       "publishRelease": "发布版本",
       "attachmentsLabel": "附件",
       "addAttachment": "添加附件",
-      "attachmentUploadFailed": "{count} 个附件上传失败。Release 已创建，再次提交将只重试剩余附件。"
+      "attachmentUploadFailed": "{count} 个附件上传失败。Release 已创建，再次提交将只重试剩余附件。",
+      "truncated": "这里只显示前 500 项。"
     },
     "branches": "分支",
     "defaultBranch": "默认",

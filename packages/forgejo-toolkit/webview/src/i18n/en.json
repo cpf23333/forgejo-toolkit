@@ -192,7 +192,8 @@
       "publishRelease": "Publish release",
       "attachmentsLabel": "Attachments",
       "addAttachment": "Add attachment",
-      "attachmentUploadFailed": "{count} attachment(s) failed to upload. The release was created; submit again to retry only the remaining attachments."
+      "attachmentUploadFailed": "{count} attachment(s) failed to upload. The release was created; submit again to retry only the remaining attachments.",
+      "truncated": "Only the first 500 entries are shown."
     },
     "branches": "Branches",
     "defaultBranch": "default",

@@ -112,3 +112,27 @@ describe('RepoRefs release attachment upload', () => {
     expect(stateMock.uploadReleaseAttachment).not.toHaveBeenCalled();
   });
 });
+
+describe('RepoRefs truncation notice', () => {
+  it('says when the active reference list was cut off at the cap', async () => {
+    const branch = (index: number) => ({ name: `branch-${index}`, commit: { id: 'abc' }, protected: false });
+    stateMock.repoRefs.value.set('inst-1:owner/repo:refs', {
+      branches: Array.from({ length: 500 }, (_, index) => branch(index)),
+      tags: [],
+      releases: [],
+    });
+
+    const capped = mountRepoRefs();
+    await nextTick();
+    expect(capped.find('.list-truncated').exists()).toBe(true);
+
+    stateMock.repoRefs.value.set('inst-1:owner/repo:refs', {
+      branches: Array.from({ length: 499 }, (_, index) => branch(index)),
+      tags: [],
+      releases: [],
+    });
+    const below = mountRepoRefs();
+    await nextTick();
+    expect(below.find('.list-truncated').exists()).toBe(false);
+  });
+});
