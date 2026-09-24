@@ -16,7 +16,9 @@ jobs:
     runs-on: docker
     container:
       # Node 22 LTS: the toolchain (TypeScript 6, Vite 8, Vitest 4) requires
-      # Node ≥ 20.19/22.12, and the local development runtime is newer.
+      # Node ≥ 20.19/22.12, and the pinned pnpm (npm install -g pnpm@11.8.0
+      # below) requires ≥ 22.13 — the same floor the root package.json engine
+      # states, and what the local development runtime uses.
       image: node:22
     # A hung install (registry trouble, a stuck native build) must not pin the
     # runner forever.

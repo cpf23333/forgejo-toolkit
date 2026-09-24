@@ -2,10 +2,11 @@ name: Release (manual)
 
 # Publishing is a deliberate human action. This workflow has a manual trigger
 # only — there is no tag/push/schedule trigger, so nothing in this repository
-# releases on its own. It validates the commit, builds the .vsix and (unless
-# `dry_run` is turned off) creates the Codeberg release with that asset
-# attached. It never commits, pushes branches, or merges; the release's own tag
-# is created by the Codeberg API at the validated commit.
+# releases on its own. It validates the commit, builds the .vsix, and creates the
+# Codeberg release with that asset attached only when `dry_run` is turned off
+# (with the default `dry_run: true` it stops after uploading the .vsix as a
+# workflow artifact). It never commits, pushes branches, or merges; the release's
+# own tag is created by the Codeberg API at the validated commit.
 #
 # Marketplace / Open VSX publishing stays manual (it needs publisher
 # credentials) — see docs/release.md.
