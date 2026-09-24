@@ -7,7 +7,11 @@
 - [ ] 推送 `main`：领先 `codeberg` / `origin`，条数以 `git rev-list --count <remote>/main..main` 为准（不写死，避免过期）
 - [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **8 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`
 - [ ] 商店发布（需凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，步骤见 `docs/release.md` 的 Checklist
-- [ ] MCP 激活的实机确认（约 1 分钟）：在自己配好实例的 VS Code 里，**不要**打开 Forgejo Dashboard → 新开窗口 → 打开 Chat → 打开工具选择器（或输入 `#tools`）→ 看是否出现 `Forgejo: <实例名>`。机制已核实（见下），只差这一步实机证据；看不到再补 `onStartupFinished`（代价：每次开窗都激活）
+- [x] MCP 激活（2026-09-24，已修 + 已复测）：dev host 实测表明 VS Code 1.139 **不会**只因为扩展贡献了 `mcpServerDefinitionProviders` 就为取定义而激活它 —— Reload 后不开 Dashboard 时，`cpf23333.forgejo-toolkit` 不在「正在运行的扩展」里（`shots/running-after-reload.png`、`shots/running3.png`），当天的 `profile/logs/<最新>/mcpGateway.log` 只有 `Initialized` 与 client disconnect（没有 forgejo server），打开 Chat 的 `#` 工具选择器也没触发激活。
+  - **修法**：`activationEvents` 增加 `"onStartupFinished"`（`packages/forgejo-toolkit/package.json`）。
+  - **复测（同一 dev host，未打开 Dashboard，只打开命令面板）**：`cpf23333.forgejo-toolkit 0.0.1` 出现在「正在运行的扩展」，**Activation 90 ms**（`shots/running-onstartupfinished.png`；此前通过 Dashboard 激活时是 91 ms）。代价是每次开窗都激活，实测约 90 ms，可接受。
+  - **端到端确认（2026-09-24，用户在真实 VS Code 里的「配置工具」截图）**：Chat 的工具列表里出现 `forgejo-toolkit` → `Forgejo: cpf23333@<host>:3004`，并列出 `get_issue` / `get_pr_timeline` / `get_pull_request` / `get_repo` / `list_issues` / `list_notifications` / `list_pull_requests` / `search`（该列表可滚动，总数以服务端实际注册为准）。这证明「清单贡献 → 扩展被激活 → 启动 `out/mcp-server.js` → 完成握手并列出工具」整条链路正常，也间接证明**实例的 token 确实存在**（否则 provider 会返回 `[]`、列表里不会有这一组）。
+  - 与本次的 `onStartupFinished` 复测（不开 Dashboard 也会在启动时激活，90 ms）合起来，MCP 工具的可发现性闭环完成。若某次名单里看不到这一组，排查顺序：实例是否有 token → MCP server 是否处于待批准状态 → 扩展是否被激活。
 - [ ] 发布后回填：README 安装段与 `docs/release.md` 对齐实际发布渠道；复核 `KNOWN_ISSUES` 中与版本相关的条目
 
 ## 0.0.1 之后
