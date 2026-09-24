@@ -39,7 +39,7 @@ Token 存储在 VS Code 内置的 `SecretStorage` 中，该存储使用操作系
 
 ### 为什么 PR diff 编辑器不显示 M/R 徽章？
 
-VS Code 的 diff 编辑器在虚拟文件系统的标题区域不会暴露新增/修改/删除徽章。这是 [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) 中记录的已知限制。
+VS Code 的 diff 编辑器对新增文件会原生显示 **A** 徽章、删除文件会原生显示 **D** 徽章，因为 diff 的一侧为空。修改或重命名文件的 **M**/**R** 徽章通常由内置 Git 扩展解析，而这要求仓库已经作为工作区文件夹打开；没有本地 checkout 直接查看时，diff 的两侧仍会正确渲染，但文件名旁不会显示 **M**/**R** 徽章。这是 [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) 中记录的已知限制。
 
 ### 创建 Release 时可以上传附件吗？
 

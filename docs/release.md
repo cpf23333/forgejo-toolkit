@@ -143,18 +143,23 @@ run — it never triggers on a push, tag or schedule:
    API checklist coverage audit (`node tools/api-audit/check.mjs`) and both test
    suites.
 2. Build and package the extension (`pnpm --filter forgejo-toolkit package`),
-   then check the `.vsix` for nine entries — the paths as they appear inside
+   then check the `.vsix` for eleven entries — the paths as they appear inside
    the archive, matched case-insensitively because `vsce` writes the changelog
    copy as `extension/changelog.md` regardless of the repository spelling:
    `extension/package.json`, `extension/out/extension.js`,
    `extension/out/mcp-server.js`, `extension/LICENSE.txt`, `extension/NOTICE`,
    `extension/changelog.md`, `extension/l10n/bundle.l10n.json`,
-   `extension/walkthrough/addInstance.md` and
-   `extension/out/webview/index.html`. The list lives in the "Check the
+   `extension/walkthrough/addInstance.md`, `extension/out/webview/index.html`,
+   `extension/out/webview/codicon.css` and
+   `extension/out/webview/codicon.ttf`. The list lives in the "Check the
    packaged .vsix" step of `.forgejo/workflows/release.yml`; a missing entry
-   fails the run. `NOTICE` is checked because it is not only attribution: it
-   carries the Apache-2.0 license text of DOMPurify, the one bundled component
-   that is not MIT-licensed, and that text has to travel with the distribution.
+   fails the run. The two codicon assets are checked because the webview only
+   links them at runtime: `webview/vite.config.ts`'s `copyCodicons` hook copies
+   them next to the bundle, so a build in which that hook stops running still
+   succeeds while shipping no icons at all. `NOTICE` is checked because it is not
+   only attribution: it carries the Apache-2.0 license text of DOMPurify, the one
+   bundled component that is not MIT-licensed, and that text has to travel with
+   the distribution.
 3. Upload the `.vsix` as a workflow artifact (so it can be downloaded without
    creating a release).
 4. Create the Codeberg release and attach the `.vsix` — only when `dry_run` is

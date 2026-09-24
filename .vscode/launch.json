@@ -7,8 +7,12 @@
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": [
-        // Uncomment the next line to disable all other extensions while debugging.
-        "--disable-extensions",
+        // Uncomment the next line to run the extension host with every other
+        // extension disabled. It stays commented out by default: the built-in Git
+        // extension is needed for the clone sources and the SCM menu items, so an
+        // isolated host would break parts of a real-instance dev loop — use the
+        // tools/ui-review harness when a clean profile is what you want.
+        // "--disable-extensions",
         "--extensionDevelopmentPath=${workspaceFolder}/packages/forgejo-toolkit"
       ],
       "outFiles": ["${workspaceFolder}/packages/forgejo-toolkit/out/**/*.js"],

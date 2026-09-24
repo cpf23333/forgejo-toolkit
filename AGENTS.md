@@ -120,9 +120,12 @@ To keep the project welcome on Codeberg:
 
 Keep these documents in sync with the actual codebase. Do not let them drift.
 
-- `TODO.md` — short-term task list.
-  - Move items from **进行中** to **已完成** when they ship.
-  - Move dropped ideas to **已完成** with a note, or remove them.
+- `TODO.md` — short-term task list. It keeps only unfinished items and the
+  context still needed; finished details live in the file's git log, and
+  `ROADMAP.md`'s **已完成** section is the delivered-feature record.
+  - Remove an item when it ships — `TODO.md` intentionally has no **已完成**
+    section.
+  - Record a dropped idea's decision inline in its entry, or remove the item.
 - `ROADMAP.md` — high-level feature overview.
   - Move completed features to the **已完成** section.
   - Remove or rephrase items that are no longer planned.

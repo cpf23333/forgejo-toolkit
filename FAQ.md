@@ -39,7 +39,7 @@ Make sure `codicon.css` is loaded in the webview. The extension registers the re
 
 ### Why does the PR diff editor not show M/R badges?
 
-VS Code's diff editor does not expose added/modified/removed badges in the title area for virtual file systems. This is a known limitation documented in [KNOWN_ISSUES.md](./KNOWN_ISSUES.md).
+VS Code's diff editor shows **A** (added) and **D** (deleted) badges natively, because one side of the diff is empty. The **M**/**R** badge for a modified or renamed file is normally resolved by the built-in Git extension, which needs the repository open as a workspace folder; viewed without a local checkout, both sides of the diff still render correctly but no **M**/**R** badge appears next to the file name. This is a known limitation documented in [KNOWN_ISSUES.md](./KNOWN_ISSUES.md).
 
 ### Can I upload attachments when creating a Release?
 

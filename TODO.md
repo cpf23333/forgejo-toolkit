@@ -5,7 +5,7 @@
 ## 发布 0.0.1（代码侧已完成，等待人工步骤）
 
 - [ ] 推送 `main`：领先 `codeberg` / `origin`，条数以 `git rev-list --count <remote>/main..main` 为准（不写死，避免过期）
-- [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **9 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断；`extension/NOTICE` 那条是本次新增，用于确认 DOMPurify 的 Apache-2.0 许可文本随包发出），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`
+- [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **11 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断；`extension/NOTICE` 那条用于确认 DOMPurify 的 Apache-2.0 许可文本随包发出；`extension/out/webview/codicon.css` 与 `codicon.ttf` 两条是本次新增，用于确认 webview 的图标字体确实随包发出——只跑 webview 构建不会发现该 hook 失效），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`
 - [ ] 商店发布（需凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，步骤见 `docs/release.md` 的 Checklist
 - [ ] 发布后回填：① 把根 `CHANGELOG.md` 的 `## [Unreleased]` 改成 `## [0.0.1] - <发布日期>`，并原样复制到 `packages/forgejo-toolkit/CHANGELOG.md`（`packagingFiles.test.ts` 要求两份逐字节一致）；② 删掉 `README.md` / `README.zh.md` 安装段的「Not published yet / 尚未发布」提示，把 Marketplace 与 Open VSX 链接恢复成正常入口，并与 `docs/release.md` 的实际发布渠道对齐；③ 复核 `KNOWN_ISSUES` 中与版本相关的条目
 
@@ -22,9 +22,6 @@
 - [ ] P4 「创建 PR」状态栏仍会拉取整个打开中 PR 列表（上限 500 条 ≈ 10 次请求）才能回答分支查询。正确但浪费：要真正减少请求数需要在 `client.ts` 暴露分页方法（例如 `getRepoPullRequests(owner, repo, state, { page, limit })`），再由状态栏只取第一页。当前实现会在达到 500 条上限时写一条明确的警告日志，因此计数不会悄悄出错。改动涉及共享 API 面，留到发版后
 - [ ] P5 已知代价（仅记录）：`API_REQUEST_TIMEOUT_MS`（30 s）约束的是**每一页请求**，而不是整次分页操作——`client.ts` 的分页辅助 `_fetchAllPages` 每页各发一次请求、超时按页重新计时，所以一次达到 500 条上限的分页读取在慢实例上累计可能持续数分钟（约 10 页 × 30 s）。需要整体上限的调用方必须自己传 `AbortSignal`
 - [ ] P4 多窗口重复轮询/探测（每个窗口各跑一份通知轮询与版本探测，首次运行向导标记也存在竞态）已作为平台代价记录在 `KNOWN_ISSUES.md`；若之后要收敛，可选方向是用 globalState 时间戳做「一个窗口主导」的租约
-- [ ] P4 两处已确认但发版前未修的低危问题（2026-09-23 第二轮审查）：① 依赖选择器读的是非响应式的 `TimedCache` 标记（`useAppState.ts` 的 `repoIssuesFetchedAt`），所以 `IssueDetail.vue`/`PullRequestDetail.vue` 里「无可选依赖」的提示永远不会渲染，且 `ensureRepoIssuesLoaded` 是空实现（按需加载从未发生）；② `Settings.vue` 的 `saveInstanceResult` 未按实例区分，实例 A 的保存回包落在用户正在编辑的实例 B 表单上会清空 B 已输入的 URL/token 并提示已保存
-- [ ] P4 仓库详情对「没有 README」的仓库会多发一次 `/contents/README.md` 请求（`viewProvider.ts` 的 README 提示探测，而 `client.getRepoDetail` 已经取过同一份内容）。做法：给 `ForgejoRepoDetail` 加 `readmeSize?: number`（`src/api/types.ts` 与 `webview/src/types/api.ts` 两处镜像），`getRepoDetail` 复用已取到的 entry（`readme: entry?.content`、`readmeSize: entry?.content === undefined ? entry?.size : undefined`），`viewProvider` 改为读 `detail.readmeSize` 并在本地化提示里用该尺寸，即可去掉第二次请求并让提示继续生效
-- [ ] P5 已确认但发版前未修的低危项（2026-09-23 第五轮审查）：① 导入设置只做类型断言不做校验，预览界面可能渲染原始 i18n key（`src/webview/instanceImport.ts` 的 `sanitizeImportedInstances` 附近；要按 locale / worktreeOpenMode / 轮询开关与间隔 / debug 等已知字段校验取值，未知值丢弃或回退）；② `host:/srv/git/repo.git` 这类带绝对路径的 scp 远端会被归一化成 `host/srv/git/repo` 并解析出 owner/repo（`gitOperations.ts` 的 `remoteComparisonKeys`），当前选择是“去掉前导斜杠后继续解析”而不是拒绝——需要决定按哪种语义处理（Forgejo 的仓库路径必然是 `/owner/repo.git`，因此拒绝更贴近真实）
 - [ ] 已知的平台代价（无解，仅记录）：贡献 `mcpServerDefinitionProviders` 后，VS Code 会为查询 MCP 定义而**主动激活**扩展（上游 issue microsoft/vscode#266221「MCP server 导致扩展在所有工作区、连空工作区都被激活」）。官方激活事件清单里没有 MCP 条目（`onStartupFinished` 本身是标准事件），所以既不需要也无法声明专门事件；这一条只是记录代价本身——激活事件的实际取法（已补 `onStartupFinished`）与实测数据见下方「走查与实测」
 
 ## 走查与实测

@@ -15,12 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      fallback for the release body. While the release is unpublished its notes
      stay under `## [Unreleased]`; cutting the release renames that heading to
      `## [<version>] - <date>` (post-release step of the checklist in
-     `docs/release.md`). -->
+     `docs/release.md`). 0.0.1 is prepared but not published yet: there is no
+     Codeberg release, Marketplace listing or Open VSX listing until it is cut.
+     The READMEs carry the matching user-facing notice, which post-release step 7
+     flips back to store links. -->
 
 ## [Unreleased]
 
-First public release, prepared as 0.0.1 but **not published yet**: there is no
-Codeberg release, Marketplace listing or Open VSX listing until it is cut.
+First public release (0.0.1). Forgejo Toolkit brings Forgejo and Codeberg into
+VS Code: a multi-instance dashboard, repository browsing, Issues and pull
+requests, PR review in the native diff editor, PR worktrees, notifications,
+search, Actions, and a read-only MCP server for AI agents.
 
 ### Added
 
