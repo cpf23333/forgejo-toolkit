@@ -157,6 +157,60 @@ describe('per-command host request timeouts', () => {
     }
   });
 
+  it('does not replay a testConnection whose reply lands after its own timeout', async () => {
+    // The host's round trip outliving the webview's budget used to duplicate the
+    // request: the timeout zeroed the in-flight token while the latest args
+    // stayed set, so the late real reply read as "superseded" and the identical
+    // probe was posted a second time.
+    const { state } = await createState();
+    vscodeApiMock.postMessage.mockClear();
+    vi.useFakeTimers();
+    try {
+      state.testConnection('https://forgejo.example.com', 'tok');
+      expect(vscodeApiMock.postMessage).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(state.testConnectionResult.value?.success).toBe(false);
+
+      // The real reply finally lands. It answers the request the timeout already
+      // freed the slot for, so it must neither be replayed nor overwrite the
+      // result the user is already looking at.
+      dispatchMessage({ command: 'testConnectionResult', success: true, username: 'user' });
+      expect(vscodeApiMock.postMessage).toHaveBeenCalledTimes(1);
+      expect(state.testConnectionResult.value?.success).toBe(false);
+
+      // A genuine new attempt still goes out: the slot is free.
+      state.testConnection('https://forgejo.example.com', 'tok2');
+      expect(vscodeApiMock.postMessage).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not replay a saveInstance whose reply lands after its own timeout', async () => {
+    // The same bookkeeping for the instance write: replaying it would create (or
+    // edit) the instance a second time.
+    const { state } = await createState();
+    vscodeApiMock.postMessage.mockClear();
+    vi.useFakeTimers();
+    try {
+      state.saveInstance('https://forgejo.example.com', 'tok');
+      expect(vscodeApiMock.postMessage).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(state.saveInstanceResult.value?.success).toBe(false);
+
+      dispatchMessage({ command: 'saveInstanceResult', success: true });
+      expect(vscodeApiMock.postMessage).toHaveBeenCalledTimes(1);
+      expect(state.saveInstanceResult.value?.success).toBe(false);
+
+      state.saveInstance('https://forgejo.example.com', 'tok2');
+      expect(vscodeApiMock.postMessage).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('rejects renderMarkdown at the default 60 s when the host never answers', async () => {
     const { state } = await createState();
     vscodeApiMock.postMessage.mockClear();

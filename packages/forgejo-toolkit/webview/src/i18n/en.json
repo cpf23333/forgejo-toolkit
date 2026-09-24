@@ -1,7 +1,8 @@
 {
   "app": {
     "back": "← Back",
-    "viewTitleDashboard": "Dashboard"
+    "viewTitleDashboard": "Dashboard",
+    "viewTitleSettings": "Settings"
   },
   "common": {
     "confirm": "Confirm",
@@ -155,6 +156,7 @@
     },
     "notifications": {
       "title": "Notifications",
+      "labelWithUnread": "Notifications, {count} unread",
       "empty": "No notifications match the selected filters.",
       "pollFailed": "Failed to refresh notifications: {message}",
       "noInstances": "No Forgejo instances configured. Add an instance in Settings first.",

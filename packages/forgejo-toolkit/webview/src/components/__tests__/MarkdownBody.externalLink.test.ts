@@ -52,4 +52,42 @@ describe('MarkdownBody links the host can open', () => {
     expect(wrapper.get('.markdown-content').text()).toContain('dev@example.com');
     expect(wrapper.emitted('openExternal')).toBeUndefined();
   });
+
+  it('renders a neutralized href as plain text instead of a dead live-looking link', async () => {
+    // A dangerous-scheme href kept its anchor (rewritten to `javascript:void(0)`
+    // with no `data-href`), so it rendered in link colour and stayed a tab stop
+    // while activating it did nothing.
+    const wrapper = mountBody('<p>see <a href="javascript:void(0)">the docs</a> for it</p>');
+
+    expect(wrapper.find('.markdown-content a').exists()).toBe(false);
+    expect(wrapper.get('.markdown-content').text()).toContain('see the docs for it');
+    expect(wrapper.emitted('openExternal')).toBeUndefined();
+  });
+
+  it('lets a fragment link keep jumping inside the body', async () => {
+    const wrapper = mountBody('<p><a href="#section">jump</a></p>');
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+    wrapper.get('.markdown-content a').element.dispatchEvent(event);
+
+    // The browser's own in-page jump, not something the handler swallows.
+    expect(event.defaultPrevented).toBe(false);
+    expect(wrapper.emitted('openExternal')).toBeUndefined();
+  });
+
+  it('stops an anchor with no destination that reached the DOM anyway', async () => {
+    // The sanitizer unwraps these, so this is the backstop: markup that landed in
+    // the DOM regardless must not run its placeholder href on activation.
+    const wrapper = mountBody('<p>text</p>');
+    const anchor = document.createElement('a');
+    anchor.setAttribute('href', 'javascript:void(0)');
+    anchor.textContent = 'dead';
+    wrapper.get('.markdown-content').element.appendChild(anchor);
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+    anchor.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(wrapper.emitted('openExternal')).toBeUndefined();
+  });
 });

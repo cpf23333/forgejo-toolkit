@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import Notifications from '../Notifications.vue';
 import { useAppState, NOTIFICATIONS_LIMIT, notificationsKey } from '../../composables/useAppState';
 import { vscode } from '../../composables/vscode';
@@ -206,6 +207,32 @@ describe('Notifications paging', () => {
     await loadMoreButton(wrapper)!.trigger('click');
 
     expect(lastGetNotifications()).toMatchObject({ before: first[NOTIFICATIONS_LIMIT - 1].updated_at });
+  });
+});
+
+/**
+ * The status/type filters debounce their reload by 300 ms. `keep-alive :max="10"`
+ * unmounts an evicted view, and the shell's dashboard reopen remounts the current
+ * view in place, so a timer armed just before that still fired: the view posted a
+ * notifications request after it was gone.
+ */
+describe('Notifications filter debounce across unmount', () => {
+  it('does not post a debounced filter reload for an unmounted view', async () => {
+    const wrapper = mountNotifications();
+    await dispatchNotifications([{ id: 1, unread: true, subject: { title: 'Mention' } }]);
+
+    const statusFilter = wrapper.get('#notification-status-filter');
+    (statusFilter.element as unknown as { value: string }).value = 'all';
+    await statusFilter.trigger('change');
+    await nextTick();
+
+    postMessageMock.mockClear();
+    wrapper.unmount();
+
+    // Past the 300 ms window the debounced reload would have fired.
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    expect(postedMessages().filter((message) => message.command === 'getNotifications')).toHaveLength(0);
   });
 });
 

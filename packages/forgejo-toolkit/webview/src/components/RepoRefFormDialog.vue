@@ -418,7 +418,21 @@ function title(): string {
           <div v-if="attachmentError" class="attachment-error">{{ attachmentError }}</div>
           <ul v-if="release && attachments.length" class="attachment-list">
             <li v-for="att in attachments" :key="att.id" class="attachment-item">
-              <a :href="att.browser_download_url" target="_blank" class="attachment-name">{{ att.name }}</a>
+              <!-- The server writes `browser_download_url`, so it is untrusted
+                   input: a raw `:href` (with `target="_blank"`) let middle-click
+                   and the context menu's "open link" navigate to whatever scheme
+                   it carries, around the host's http/https allowlist. The app's
+                   other attachment rows are a link-styled control that asks the
+                   host to open the URL (see AttachmentList). -->
+              <span
+                class="attachment-name"
+                role="link"
+                tabindex="0"
+                @click="state.openExternal(att.browser_download_url ?? '')"
+                @keydown.enter="state.openExternal(att.browser_download_url ?? '')"
+                @keydown.space.prevent="state.openExternal(att.browser_download_url ?? '')"
+                >{{ att.name }}</span
+              >
               <span class="attachment-size">{{ formatBytes(att.size) }}</span>
               <button
                 type="button"
@@ -589,6 +603,9 @@ function title(): string {
 .attachment-name {
   color: var(--vscode-textLink-foreground);
   text-decoration: none;
+  /* The row is a link-styled control, not an `<a>` any more (see the template):
+     the pointer is what still says it can be activated. */
+  cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

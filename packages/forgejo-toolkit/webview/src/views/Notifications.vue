@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, ref, watch } from 'vue';
+import { computed, onActivated, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState, notificationsKey } from '../composables/useAppState';
@@ -316,6 +316,14 @@ watch([statusFilter, typeFilter], () => {
 // the manual refresh button.
 onActivated(() => {
   loadAll();
+});
+
+// `keep-alive :max="10"` evicts the least recently used view once the cache is
+// full, which unmounts it. A debounce armed just before that would still fire
+// and post a request for a view that no longer exists (and, with the params it
+// captured, for a repository the user has left).
+onUnmounted(() => {
+  clearTimeout(filterDebounceTimer);
 });
 </script>
 

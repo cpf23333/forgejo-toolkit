@@ -51,6 +51,15 @@ function handleClick(event: MouseEvent) {
 
     const href = anchor.getAttribute('data-href');
     if (!href) {
+      // No destination: an anchor the sanitizer neutralized (`javascript:`) or
+      // left href-less. The sanitizer unwraps those into plain text, so this is
+      // the backstop for markup that reached the DOM anyway — activating it must
+      // do nothing at all rather than run the placeholder href. A `#fragment`
+      // href is a real destination and stays the browser's own business.
+      const raw = anchor.getAttribute('href') ?? '';
+      if (!raw.startsWith('#')) {
+        event.preventDefault();
+      }
       return;
     }
     event.preventDefault();

@@ -1631,6 +1631,38 @@ describe('useAppState', () => {
       expect(vscodePostMessage()).toHaveBeenCalledTimes(2);
     });
 
+    it('renderMarkdown keeps two repositories apart for identical comment text', async () => {
+      // `#123`, `@user` and relative links resolve against the repository the
+      // comment belongs to, so the same body is a different render in another
+      // repository. Keyed without the context, the second repository's comment
+      // would be served the first one's HTML.
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+
+      const first = state.renderMarkdown('inst-1', 'see #123', 'owner/repoA');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      const firstCall = vscodePostMessage().mock.calls;
+      const firstRequestId = (firstCall[firstCall.length - 1][0] as { _requestId: string })._requestId;
+      dispatchMessage({ command: 'renderedMarkdown', _requestId: firstRequestId, html: '<p>repo A</p>' });
+      await expect(first).resolves.toBe('<p>repo A</p>');
+      vscodePostMessage().mockClear();
+
+      const second = state.renderMarkdown('inst-1', 'see #123', 'owner/repoB');
+      expect(vscodePostMessage()).toHaveBeenCalledTimes(1);
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: 'renderMarkdown',
+          instanceId: 'inst-1',
+          text: 'see #123',
+          context: 'owner/repoB',
+        }),
+      );
+      const secondCall = vscodePostMessage().mock.calls;
+      const secondRequestId = (secondCall[secondCall.length - 1][0] as { _requestId: string })._requestId;
+      dispatchMessage({ command: 'renderedMarkdown', _requestId: secondRequestId, html: '<p>repo B</p>' });
+      await expect(second).resolves.toBe('<p>repo B</p>');
+    });
+
     it('renderMarkdown deduplicates concurrent calls for the same cacheKey', async () => {
       const { state } = await createState();
       vscodePostMessage().mockClear();

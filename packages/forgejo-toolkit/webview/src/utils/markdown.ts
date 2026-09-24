@@ -17,6 +17,11 @@ const dangerousTags = [
 ];
 const dangerousSchemes = /^javascript:|data:text\/html|^data:image\/svg/i;
 const absoluteUrlPattern = /^[a-z][a-z0-9+.-]*:/i;
+// What a rewritten href is left holding: everything real moves to `data-href`,
+// so the surviving `href` is inert. A link neutralized this way (a dangerous
+// scheme) has no `data-href` at all and is unwrapped like one the host cannot
+// open (see unwrapUnopenableAnchors).
+const NEUTRALIZED_HREF = 'javascript:void(0)';
 
 function resolveUrl(value: string, baseUrl?: string): string {
   if (!baseUrl || absoluteUrlPattern.test(value) || value.startsWith('#')) {
@@ -40,12 +45,12 @@ function rewriteUrlAttributes(root: ParentNode, baseUrl?: string): void {
       if (name === 'href' || name.endsWith(':href')) {
         const value = attr.value.trim();
         if (dangerousSchemes.test(value)) {
-          element.setAttribute(attr.name, 'javascript:void(0)');
+          element.setAttribute(attr.name, NEUTRALIZED_HREF);
         } else if (value.startsWith('#')) {
           element.setAttribute(attr.name, value);
         } else {
           element.setAttribute('data-href', resolveUrl(value, baseUrl));
-          element.setAttribute(attr.name, 'javascript:void(0)');
+          element.setAttribute(attr.name, NEUTRALIZED_HREF);
         }
         continue;
       }
@@ -90,18 +95,34 @@ export function isOpenableUrl(value: string): boolean {
 }
 
 /**
- * Replaces an anchor the host cannot open with its own content, so the text
- * stays and the link stops looking live. Such an anchor used to keep its
- * `data-href`, render with link styling and the click handler emitted
- * `openExternal` for a `mailto:`/`file:`/`vscode:` target the host then refused:
- * the user clicked and nothing happened, with no explanation anywhere in the UI.
- * Fragment (`#…`) and neutralized (`javascript:void(0)`) anchors carry no
- * `data-href` and are left to their existing handling.
+ * Replaces an anchor the host cannot open — or one the sanitizer neutralized —
+ * with its own content, so the text stays and the link stops looking live.
+ *
+ * An anchor whose `data-href` the host would refuse used to keep rendering with
+ * link styling while the click handler emitted `openExternal` for a
+ * `mailto:`/`file:`/`vscode:` target the host then refused: the user clicked and
+ * nothing happened, with no explanation anywhere in the UI.
+ *
+ * A dangerous-scheme href (`javascript:`, `data:text/html`, …) has no
+ * `data-href` at all — the rewrite above already replaced it with
+ * `javascript:void(0)` — so nothing unwrapped it: it rendered in link colour,
+ * stayed a tab stop, and did nothing at all when activated. Such an anchor is
+ * unwrapped on the same evidence (its surviving href is the neutralized
+ * placeholder). A fragment (`#…`) href is the one inert href that is a real
+ * destination, and it is kept.
  */
 function unwrapUnopenableAnchors(root: ParentNode): void {
   for (const anchor of Array.from(root.querySelectorAll('a'))) {
     const target = anchor.getAttribute('data-href');
-    if (target === null || isOpenableUrl(target)) {
+    if (target !== null && isOpenableUrl(target)) {
+      continue;
+    }
+    const hrefs = anchorHrefValues(anchor);
+    // No href at all is inert already (and may be an `id`/`name` target), so
+    // only an anchor that really carries the neutralized placeholder is a link
+    // this webview produced and can undo.
+    const deadLink = target !== null || (hrefs.length > 0 && hrefs.every((value) => value === NEUTRALIZED_HREF));
+    if (!deadLink) {
       continue;
     }
     const parent = anchor.parentNode;
@@ -113,6 +134,16 @@ function unwrapUnopenableAnchors(root: ParentNode): void {
     }
     parent.removeChild(anchor);
   }
+}
+
+/** Every `href`-ish value an anchor carries (`href` and SVG's `xlink:href`). */
+function anchorHrefValues(anchor: Element): string[] {
+  return Array.from(anchor.attributes)
+    .filter((attr) => {
+      const name = attr.name.toLowerCase();
+      return name === 'href' || name.endsWith(':href');
+    })
+    .map((attr) => attr.value.trim());
 }
 
 function unwrapImageAnchors(root: ParentNode): void {
@@ -146,7 +177,9 @@ function unwrapImageAnchors(root: ParentNode): void {
  * - Unwraps `<a>` tags that only contain an `<img>` so images are not clickable,
  *   and `<a>` tags whose target the host cannot open (see isOpenableUrl) so a
  *   `mailto:`/`file:`/`vscode:` link renders as plain text instead of a live
- *   looking link that does nothing.
+ *   looking link that does nothing — and, the same way, an anchor the rewrite
+ *   above neutralized (a dangerous-scheme href), which used to keep link colour
+ *   and a tab stop while activating it did nothing.
  */
 export function sanitizeMarkdownHtml(html: string, baseUrl?: string): string {
   const parser = new DOMParser();

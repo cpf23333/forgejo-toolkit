@@ -86,6 +86,23 @@ function reportImageUploadError(message: string) {
   imageUploadError.value = message;
 }
 
+/**
+ * The editor's failure line — one message, stating the failure once.
+ *
+ * A call site with a real reason hands the reason over and it is shown after the
+ * banner's own prefix (`editor.imageUploadFailed`: "Image upload failed:
+ * {message}"). A call site with no reason of its own hands over the generic
+ * failure sentence (`common.imageUploadFailed`, "Failed to upload image") — the
+ * no-URL path of `IssueDetail`/`PullRequestDetail`/`CommentTimeline` does — and
+ * prefixing *that* rendered "Image upload failed: Failed to upload image": the
+ * same failure twice, the second half saying nothing the first did not. The
+ * generic sentence is the whole message then.
+ */
+function imageUploadErrorText(message: string | undefined): string {
+  const generic = t('common.imageUploadFailed');
+  return message && message !== generic ? t('editor.imageUploadFailed', { message }) : generic;
+}
+
 const mentionsEnabled = computed(
   () => props.instanceId !== undefined && props.owner !== undefined && props.repo !== undefined,
 );
@@ -782,7 +799,7 @@ watch(() => [props.label, props.placeholder], applyEditorLabel);
          is off and its error callback is ours (see imageUploadError). -->
     <div v-if="imageUploadError" class="image-upload-error" role="alert">
       <vscode-icon name="error" />
-      <span>{{ t('editor.imageUploadFailed', { message: imageUploadError }) }}</span>
+      <span>{{ imageUploadErrorText(imageUploadError) }}</span>
     </div>
   </div>
 </template>

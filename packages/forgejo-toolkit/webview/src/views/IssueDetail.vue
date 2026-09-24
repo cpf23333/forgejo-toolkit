@@ -239,6 +239,14 @@ watch(
 const issueUrl = computed(() => detail.value?.html_url ?? '');
 const isEditing = ref(false);
 const editFormDirty = ref(false);
+// Remounts the edit form for every edit session. The dialog is a native
+// `<dialog>`, so closing it keeps its content mounted and `IssueForm` kept the
+// abandoned draft: discarding an edit closed the dialog but reopening it showed
+// the typed title again — already dirty, so every later close asked for the
+// discard confirmation again, and Save re-applied what the user had discarded.
+// The sibling composers re-seed the same way (`RepoIssues`'s
+// `createFormResetKey`, `CommentTimeline`'s body reset).
+const editFormResetKey = ref(0);
 // Guards the Cancel path's discard prompt so a double click cannot open two of
 // them (see confirmCancelEdit).
 let cancelEditConfirmInFlight = false;
@@ -423,6 +431,10 @@ function openEdit() {
   // (rather than on close) is what lets `closeEdit` keep the marks of a save
   // that is already in flight: the save's reply still has to delete them.
   pendingDeleteAttachmentIds.value = [];
+  // A new session starts from the stored issue, not from whatever the last one
+  // left in the form (see editFormResetKey).
+  editFormResetKey.value += 1;
+  editFormDirty.value = false;
   isEditing.value = true;
 }
 
@@ -1385,6 +1397,7 @@ function reloadIssue() {
         @close="closeEdit"
       >
         <IssueForm
+          :key="editFormResetKey"
           mode="edit"
           :initial-title="detail.title"
           :initial-body="detail.body"

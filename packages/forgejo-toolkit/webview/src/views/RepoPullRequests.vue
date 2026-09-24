@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, ref, watch } from 'vue';
+import { computed, onActivated, onUnmounted, ref, watch } from 'vue';
 import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -169,6 +169,14 @@ watch(searchInput, () => {
     }
     applySearchQuery();
   }, 300);
+});
+
+// `keep-alive :max="10"` evicts the least recently used view once the cache is
+// full, which unmounts it. A debounce armed before that would still fire and
+// post a search for a view that no longer exists (with the params it captured,
+// for a repository the user has left).
+onUnmounted(() => {
+  clearTimeout(searchDebounceTimer);
 });
 
 const states = ['open', 'closed', 'all'];

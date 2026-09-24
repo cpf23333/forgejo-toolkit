@@ -257,3 +257,62 @@ describe('PullRequestDetail sidebar panels', () => {
     wrapper.unmount();
   });
 });
+
+/**
+ * `statusChecks.statuses[].target_url` is server data. Rendering it as the
+ * anchor's `href` sent the click through the host (which allows http/https only)
+ * but left middle-click and the context menu's "open link" following the raw
+ * scheme — a `javascript:` target_url was one middle-click away from running.
+ */
+describe('PullRequestDetail status check links', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    state.errors.clear();
+    state.loading.clear();
+    state.pullRequestDetails.value.clear();
+    state.pullRequestComments.value.set(keyFor('inst-1', 'owner', 'repo', 1), []);
+    state.pullRequestDetails.value.set(keyFor('inst-1', 'owner', 'repo', 1), {
+      ...pullRequestDetail(1),
+      statusChecks: {
+        state: 'success',
+        statuses: [
+          {
+            id: 1,
+            context: 'ci/build',
+            status: 'success',
+            description: 'all good',
+            target_url: 'https://ci.example.com/runs/1',
+          },
+        ],
+      },
+    });
+  });
+
+  it('asks the host to open a check instead of linking to its raw URL', async () => {
+    const wrapper = await mountView();
+
+    const row = wrapper.get('.checks-list .check-row');
+    // No anchor and no href: the server's own scheme is never a navigation
+    // target, only an argument to the host's allowlist.
+    expect(row.element.tagName.toLowerCase()).toBe('button');
+    expect(row.attributes('href')).toBeUndefined();
+
+    await row.trigger('click');
+    expect(state.openExternal).toHaveBeenCalledWith('https://ci.example.com/runs/1');
+    wrapper.unmount();
+  });
+
+  it('keeps a check the server gave no URL for as plain text', async () => {
+    state.pullRequestDetails.value.set(keyFor('inst-1', 'owner', 'repo', 1), {
+      ...pullRequestDetail(1),
+      statusChecks: { state: 'success', statuses: [{ id: 2, context: 'ci/docs', status: 'success' }] },
+    });
+
+    const wrapper = await mountView();
+
+    const row = wrapper.get('.checks-list .check-row');
+    expect(row.element.tagName.toLowerCase()).toBe('div');
+    expect(row.text()).toContain('ci/docs');
+    wrapper.unmount();
+  });
+});

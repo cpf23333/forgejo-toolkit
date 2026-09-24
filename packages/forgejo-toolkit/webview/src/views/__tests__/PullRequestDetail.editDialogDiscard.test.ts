@@ -268,6 +268,38 @@ describe('PullRequestDetail edit dialog Cancel discard confirmation', () => {
   });
 
   /**
+   * Discarding has to discard. The dialog is a native `<dialog>`, so closing it
+   * kept its content mounted and the form kept the abandoned draft: reopening the
+   * dialog showed the typed title again, already dirty (so every later close
+   * asked again), and Save re-applied what the user had just discarded.
+   */
+  it('reopens on the stored pull request after a confirmed discard', async () => {
+    const wrapper = mountView();
+    await nextTick();
+    await openEditDialog(wrapper);
+    await typeTitle(wrapper, 'a renamed pull request');
+    expect(editDialog(wrapper).props('isDirty')).toBe(true);
+
+    await cancelButton(wrapper).trigger('click');
+    await flushPromises();
+    expect(editDialog(wrapper).props('open')).toBe(false);
+
+    await openEditDialog(wrapper);
+    await flushPromises();
+
+    // The form is seeded from the pull request again, so the dialog is not dirty
+    // and nothing of the discarded edit can be saved.
+    expect(editForm(wrapper).find('vscode-textfield').attributes('value')).toBe('a pull request');
+    expect(editDialog(wrapper).props('isDirty')).toBe(false);
+
+    // ...and the next close does not ask again.
+    await cancelButton(wrapper).trigger('click');
+    await flushPromises();
+    expect(state.showConfirm).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
+  /**
    * An image upload in flight is unsaved work too: the editor inserts its
    * markdown only when the request returns. `PullRequestForm`'s own dirty output
    * does not count it, so the dialog mirrors the upload here (like

@@ -35,6 +35,15 @@ const instances = computed(() => state.instances.value);
 const linkedRepository = computed(() => state.activeLinkedRepository.value);
 const linkedRepositories = computed(() => state.linkedRepositories.value);
 
+// The bell's accessible name carries the unread count. It has to: `aria-label`
+// replaces the button's own content for assistive technology, so the badge's
+// count — the only place the number is written — was never announced, and the
+// visible label it replaced is hidden at narrow widths anyway.
+const notificationButtonLabel = computed(() => {
+  const count = state.unreadNotificationCount.value;
+  return count > 0 ? t('dashboard.notifications.labelWithUnread', { count }) : t('dashboard.notifications.title');
+});
+
 function selectLinkedRepository(localPath: string) {
   state.selectLinkedRepository(localPath);
 }
@@ -144,7 +153,7 @@ watch(instances, loadUnreadBadges);
           <vscode-button
             icon="bell"
             :title="t('dashboard.notifications.title')"
-            :aria-label="t('dashboard.notifications.title')"
+            :aria-label="notificationButtonLabel"
             @click="openNotifications"
             secondary
           >

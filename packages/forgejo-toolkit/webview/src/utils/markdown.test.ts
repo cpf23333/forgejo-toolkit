@@ -33,25 +33,39 @@ describe('sanitizeMarkdownHtml', () => {
   });
 
   describe('dangerous href schemes', () => {
-    it('neutralizes javascript: hrefs instead of keeping them', () => {
+    it('unwraps a javascript: href into plain text instead of a dead live-looking link', () => {
+      // Rewriting the href to `javascript:void(0)` without a `data-href` left the
+      // anchor rendering in link colour and as a tab stop while activating it did
+      // nothing at all — the same dead link the mailto:/file:/vscode: case fixed.
       const result = sanitizeMarkdownHtml('<a href="javascript:alert(1)">click</a>');
-      expect(result).toContain('href="javascript:void(0)"');
+      expect(result).not.toContain('<a');
+      expect(result).not.toContain('javascript:');
       expect(result).not.toContain('alert');
-      expect(result).not.toContain('data-href');
+      expect(result).toContain('click');
     });
 
-    it('neutralizes data:text/html hrefs', () => {
+    it('unwraps data:text/html hrefs', () => {
       const result = sanitizeMarkdownHtml('<a href="data:text/html,<script>alert(1)</script>">click</a>');
-      expect(result).toContain('href="javascript:void(0)"');
+      expect(result).not.toContain('<a');
       expect(result).not.toContain('data:text/html');
+      expect(result).not.toContain('javascript:');
+      expect(result).toContain('click');
+    });
+
+    it('keeps the text of a neutralized link inside a paragraph', () => {
+      const result = sanitizeMarkdownHtml('<p>see <a href="javascript:void(0)">the docs</a> for it</p>');
+      expect(result).toContain('see the docs for it');
+      expect(result).not.toContain('<a');
     });
   });
 
   describe('SVG xlink:href', () => {
-    it('neutralizes javascript: xlink:href on SVG anchors', () => {
+    it('unwraps javascript: xlink:href on SVG anchors', () => {
       const result = sanitizeMarkdownHtml('<svg><a xlink:href="javascript:alert(1)"><text>x</text></a></svg>');
-      expect(result).toContain('xlink:href="javascript:void(0)"');
+      expect(result).not.toContain('<a');
+      expect(result).not.toContain('javascript:');
       expect(result).not.toContain('alert');
+      expect(result).toContain('<text>x</text>');
     });
 
     it('moves safe xlink:href values to data-href like regular hrefs', () => {

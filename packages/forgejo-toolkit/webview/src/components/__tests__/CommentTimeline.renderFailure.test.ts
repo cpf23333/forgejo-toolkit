@@ -89,7 +89,7 @@ describe('CommentTimeline markdown render failures', () => {
     const wrapper = mountTimeline([comment(BODY)]);
     await flushPromises();
 
-    expect(stateMock.renderMarkdown).toHaveBeenCalledWith('inst-1', BODY);
+    expect(stateMock.renderMarkdown).toHaveBeenCalledWith('inst-1', BODY, 'owner/repo');
 
     const failed = wrapper.find('.comment-body-render-failed');
     expect(failed.exists()).toBe(true);

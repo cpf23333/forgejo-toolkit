@@ -245,6 +245,54 @@ describe('useAppState refresh over an in-flight repository list', () => {
     ]);
   });
 
+  it('applies the reply of an issue list whose pre-refresh count a save dropped', async () => {
+    // Saving or deleting an issue drops the repository's issue lists, and the
+    // pull request path drops its "pre-refresh reply" counts with them. The
+    // issue path did not, so the count survived the save: the next genuine reply
+    // was read as predating the refresh, the list blanked, and the very same
+    // request went out once more.
+    const { state, mod } = await createState();
+    dispatchMessage({ command: 'instances', data: [INSTANCE] });
+    await nextTick();
+    const key = mod.repoIssuesKey(INSTANCE.id, 'owner', 'repo', 'open');
+    state.repoIssues.value.set(key, [issue(1, 'stale')]);
+    state.loadRepoIssues(INSTANCE.id, 'owner', 'repo', 'open');
+    await nextTick();
+    vscodeApiMock.postMessage.mockClear();
+
+    // A refresh while the request is in flight counts its reply.
+    dispatchMessage({ command: 'refreshData' });
+    expect(postedIssueRequests()).toHaveLength(0);
+
+    // The user saves an issue: the repository's issue lists are dropped (and,
+    // with them, everything remembered about the lists that were in flight).
+    dispatchMessage({
+      command: 'issueCreated',
+      instanceId: INSTANCE.id,
+      owner: 'owner',
+      repo: 'repo',
+      index: 7,
+      item: issue(7, 'a new issue'),
+    });
+    await nextTick();
+
+    // The answer to the request that was on the wire is applied like any other:
+    // it is the reply the list is waiting for, not a leftover of the refresh.
+    dispatchMessage({
+      command: 'repoIssues',
+      instanceId: INSTANCE.id,
+      owner: 'owner',
+      repo: 'repo',
+      state: 'open',
+      issues: [issue(2, 'after the save')],
+    });
+    await nextTick();
+
+    expect(state.repoIssues.value.get(key)?.map((row) => row.title)).toEqual(['after the save']);
+    expect(state.loading.get(key)).toBe(false);
+    expect(postedIssueRequests()).toHaveLength(0);
+  });
+
   it('discards one in-flight reply and re-issues each list exactly once', async () => {
     // The counterpart of the settled case below: when a request really is in
     // flight, the refresh must still drop its reply and issue one replacement.

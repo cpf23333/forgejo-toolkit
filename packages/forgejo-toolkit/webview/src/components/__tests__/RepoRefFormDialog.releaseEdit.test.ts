@@ -8,6 +8,7 @@ const { stateMock } = vi.hoisted(() => ({
   stateMock: {
     uploadReleaseAttachment: vi.fn(),
     deleteReleaseAttachment: vi.fn(),
+    openExternal: vi.fn(),
   },
 }));
 
@@ -36,11 +37,24 @@ const release = {
   hide_archive_links: true,
 };
 
+/** The same release, with the attachment URL the server wrote for it. */
+const releaseWithAttachment = {
+  ...release,
+  assets: [
+    {
+      id: 9,
+      name: 'bundle.zip',
+      size: 2048,
+      browser_download_url: 'https://codeberg.org/owner/repo/releases/download/v1.2.0/bundle.zip',
+    },
+  ],
+};
+
 /**
  * The fields are seeded when the dialog opens, so it is mounted closed and
  * opened like RepoRefs does.
  */
-async function mountDialog() {
+async function mountDialog(target: Record<string, unknown> = release) {
   const wrapper = mount(RepoRefFormDialog, {
     props: {
       mode: 'release' as const,
@@ -51,7 +65,7 @@ async function mountDialog() {
       defaultBranch: 'main',
       branches: ['main', 'develop'],
       tags: [],
-      release,
+      release: target,
     },
     global: {
       plugins: [createTestI18n('en')],
@@ -100,6 +114,38 @@ describe('RepoRefFormDialog release edit seeds its own target and archive-link f
     const payload = wrapper.emitted('submit')?.[0]?.[0] as Record<string, unknown>;
     expect(payload.targetCommitish).toBe('main');
     expect(payload.hideArchiveLinks).toBe(false);
+    wrapper.unmount();
+  });
+});
+
+/**
+ * `browser_download_url` is server data. Rendering it as the row's `href` (with
+ * `target="_blank"`) meant the host's http/https allowlist only ever saw the
+ * click path: middle-click and the context menu's "open link" followed whatever
+ * scheme the URL carried. The app's other attachment rows are a link-styled
+ * control that hands the URL to `openExternal` instead.
+ */
+describe('RepoRefFormDialog release attachments', () => {
+  it('asks the host to open a release attachment instead of linking to its URL', async () => {
+    const wrapper = await mountDialog(releaseWithAttachment);
+
+    const row = wrapper.get('.attachment-item');
+    // No anchor at all: the URL is never a navigation target of its own.
+    expect(row.find('a').exists()).toBe(false);
+    const name = row.get('.attachment-name');
+    expect(name.attributes('href')).toBeUndefined();
+    expect(name.attributes('role')).toBe('link');
+    expect(name.attributes('tabindex')).toBe('0');
+
+    await name.trigger('click');
+    expect(stateMock.openExternal).toHaveBeenCalledWith(
+      'https://codeberg.org/owner/repo/releases/download/v1.2.0/bundle.zip',
+    );
+
+    // The keyboard reaches it the way the other attachment rows do.
+    stateMock.openExternal.mockClear();
+    await name.trigger('keydown', { key: 'Enter' });
+    expect(stateMock.openExternal).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
 });

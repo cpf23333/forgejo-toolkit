@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
 import EasyMdeEditor from '../EasyMdeEditor.vue';
+import en from '../../i18n/en.json';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
 
 // jsdom has no IntersectionObserver; EasyMdeEditor uses one to refresh
@@ -141,6 +142,46 @@ describe('EasyMdeEditor image upload failures', () => {
     expect(wrapper.find('.image-upload-error').exists()).toBe(false);
     expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toContain('![image](/attachments/uuid-1)');
 
+    wrapper.unmount();
+  });
+
+  /**
+   * The line the user reads is the editor's own, and it has to state the failure
+   * once. The guard tests around the call sites only assert the reason the view
+   * hands over, so these render the real editor.
+   */
+  it('shows an Error-derived reason once, after the banner prefix', async () => {
+    const uploadImage = vi.fn<UploadHandler>((_file, _onSuccess, onError) => {
+      const failure = new Error('403: token is missing the write:issue scope');
+      onError(failure instanceof Error ? failure.message : String(failure));
+    });
+    const wrapper = mountEditor(uploadImage);
+
+    await pickImage(wrapper, new File(['x'], 'shot.png', { type: 'image/png' }));
+    await flushPromises();
+
+    expect(wrapper.get('.image-upload-error').text()).toBe(
+      'Image upload failed: 403: token is missing the write:issue scope',
+    );
+    wrapper.unmount();
+  });
+
+  it('states a failure with no reason of its own once, instead of doubling it', async () => {
+    // The no-URL path hands over `common.imageUploadFailed` ("Failed to upload
+    // image"), which the banner's own prefix turned into "Image upload failed:
+    // Failed to upload image".
+    const generic = en.common.imageUploadFailed;
+    const uploadImage = vi.fn<UploadHandler>((_file, _onSuccess, onError) => {
+      onError(generic);
+    });
+    const wrapper = mountEditor(uploadImage);
+
+    await pickImage(wrapper, new File(['x'], 'shot.png', { type: 'image/png' }));
+    await flushPromises();
+
+    const text = wrapper.get('.image-upload-error').text();
+    expect(text).toBe(generic);
+    expect(text).not.toContain('Image upload failed:');
     wrapper.unmount();
   });
 });

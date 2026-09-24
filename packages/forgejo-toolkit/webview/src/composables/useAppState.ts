@@ -305,7 +305,23 @@ interface NotificationRequest {
   badge: boolean;
   isMore: boolean;
   cursor: string;
+  /** When the request went out; bounds how long an entry may stay unanswered. */
+  sentAt: number;
 }
+
+/**
+ * How long an outstanding `getNotifications` request may stay in the queue.
+ *
+ * The host answers every request it dispatches — a success or the `error` catch
+ * — but a request that is never answered (a host build that drops it, a round
+ * trip that outlives the window) would otherwise keep its entry queued forever.
+ * For the badge's own entry that is a hard block: at most one badge request may
+ * be in flight, so the badge would never be asked for again for the rest of the
+ * session. Twice the webview's own request budget is long enough that no real
+ * reply is dropped and short enough that a stranded entry cannot outlive it by
+ * much.
+ */
+const NOTIFICATION_REQUEST_MAX_AGE_MS = DEFAULT_REQUEST_TIMEOUT_MS * 2;
 
 // A first-page `getNotifications` request has no server cursor of its own, so it
 // is sent with a minted one to be identifiable by the reply (see
@@ -415,8 +431,20 @@ function createAppState() {
   // How many times an instance's identity changed. A request records the epoch
   // it was sent under, so one sent before an edit is recognizably old even when
   // the identity returns to a value it had earlier (url a -> url b -> url a),
-  // which comparing identity strings alone cannot see.
-  const notificationIdentityEpoch = new Map<string, number>();
+  // which comparing identity strings alone cannot see. Both the notification
+  // queue and the dashboard list requests read it (see notificationRequests and
+  // instanceListRequests).
+  const instanceIdentityEpoch = new Map<string, number>();
+  // Which server each dashboard list request was sent for, keyed the same way as
+  // its loading slot (`repos-${id}`, `issues-${id}-${state}`,
+  // `pulls-${id}-${state}`). The reply carries no identity at all, and an edit
+  // keeps the instance id, so without this the previous server's reply would be
+  // written under the id the new configuration uses. Only those three loaders
+  // write here, which also makes this map the exact list of slots
+  // `clearInstancePayloads` has to clear on an identity change: the clear has to
+  // free the loading flag too, or the mandated reload below is deduped away by
+  // it.
+  const instanceListRequests = new Map<string, { instanceId: string; identity: string; epoch: number }>();
   // Per-instance poll failures (expired token, unreachable instance) so the
   // notifications view can show an error instead of a misleading empty state.
   const notificationPollErrors = ref<Map<string, string>>(new Map());
@@ -639,9 +667,16 @@ function createAppState() {
   // superseded, and the latest intent is sent instead.
   let testConnectionToken = 0;
   let testConnectionInFlightToken = 0;
+  // Whether the request occupying the slot is still waiting for its reply. The
+  // synthetic timeout answers that request and frees the slot, but the host's
+  // own reply may still land afterwards (the round trip was only slow): without
+  // this flag the late reply read as "superseded" and the identical request was
+  // posted again — a duplicate instance write, or a repeated probe.
+  let testConnectionAwaitingReply = false;
   let testConnectionLatestArgs: { url: string; token: string; instanceId?: string } | undefined;
   let saveInstanceToken = 0;
   let saveInstanceInFlightToken = 0;
+  let saveInstanceAwaitingReply = false;
   type SaveInstanceMessage =
     | { command: 'saveInstance'; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean }
     | { command: 'editInstance'; id: string; url: string; token: string; syncApiUrlsToInstanceUrl?: boolean };
@@ -886,7 +921,7 @@ function createAppState() {
           // Any outstanding notification request was sent for the server this
           // edit replaced and its reply can still be in flight: the epoch makes
           // those replies recognizably old (see notificationRequests).
-          notificationIdentityEpoch.set(instanceId, (notificationIdentityEpoch.get(instanceId) ?? 0) + 1);
+          instanceIdentityEpoch.set(instanceId, (instanceIdentityEpoch.get(instanceId) ?? 0) + 1);
           clearInstancePayloads(instanceId);
           reloadInstanceLists(instanceId);
         }
@@ -1872,9 +1907,53 @@ function createAppState() {
     }
   }
 
+  /**
+   * Whether a dashboard list reply answers a request sent for the server the
+   * instance points at now.
+   *
+   * Instead of the notifications queue's per-request cursor, `getRepositories`,
+   * `getMyIssues` and `getMyPullRequests` echo nothing back, so a reply can only
+   * be checked against the request recorded for its key. That record is the
+   * request still outstanding for the key, which an identity change replaces
+   * when it re-issues the load (see clearInstancePayloads): what this catches is
+   * the request the change left behind with no reload to take its place (the
+   * instance was removed from the list, or its reload was never issued). Then
+   * the reply describes a server this webview no longer shows and must not write
+   * its rows under the id the new configuration uses.
+   *
+   * A key with no recorded request is not stale: hand-built replies that answer
+   * no request of ours still flow through.
+   */
+  function instanceListReplyIsStale(key: string, instanceId: string): boolean {
+    const sent = instanceListRequests.get(key);
+    if (!sent || sent.instanceId !== instanceId) {
+      return false;
+    }
+    return (
+      sent.identity !== instanceIdentityOf(instanceId) || sent.epoch !== (instanceIdentityEpoch.get(instanceId) ?? 0)
+    );
+  }
+
+  /** Records which server one dashboard list request is sent for (see the map). */
+  function recordInstanceListRequest(key: string, instanceId: string) {
+    instanceListRequests.set(key, {
+      instanceId,
+      identity: instanceIdentityOf(instanceId),
+      epoch: instanceIdentityEpoch.get(instanceId) ?? 0,
+    });
+  }
+
   function handleRepositories(data: { instanceId: string; repositories?: ForgejoRepository[]; error?: string }) {
     const key = `repos-${data.instanceId}`;
+    // Answers a request sent for the server this instance no longer is: its rows
+    // must not be written under the id the new configuration uses. The loading
+    // slot is still freed, or the key would spin forever waiting for an answer
+    // it will never get.
+    const stale = instanceListReplyIsStale(key, data.instanceId);
     loading.set(key, false);
+    if (stale) {
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -1890,7 +1969,11 @@ function createAppState() {
     // replies from a host build that predates the echo.
     const state = data.state ?? 'open';
     const key = `issues-${data.instanceId}-${state}`;
+    const stale = instanceListReplyIsStale(key, data.instanceId);
     loading.set(key, false);
+    if (stale) {
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -1909,7 +1992,11 @@ function createAppState() {
   }) {
     const state = data.state ?? 'open';
     const key = `pulls-${data.instanceId}-${state}`;
+    const stale = instanceListReplyIsStale(key, data.instanceId);
     loading.set(key, false);
+    if (stale) {
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -3384,19 +3471,51 @@ function createAppState() {
     error?: string;
   }) {
     const key = notificationsKey(data.instanceId);
+    const currentIdentity = instanceIdentityOf(data.instanceId);
+    const currentEpoch = instanceIdentityEpoch.get(data.instanceId) ?? 0;
     // The reply answers the request whose cursor it echoes (see
     // notificationRequests); that entry decides both whether the page may fill
     // the badge and whether it came from the server the user has since replaced.
-    // A reply carrying a cursor no outstanding request knows — a pre-contract
-    // host or a fixture, neither of which echoes one — falls back to the oldest
-    // entry still unanswered. Two entries can share a real cursor only when the
-    // same "load more" cursor was sent again after an identity change; the
-    // oldest of them answers first, which is the order they went out in.
-    const queue = notificationRequests.get(data.instanceId) ?? [];
-    const matchedIndex =
-      typeof data.before === 'string' ? queue.findIndex((entry) => entry.cursor === data.before) : -1;
-    const answeredIndex = matchedIndex >= 0 ? matchedIndex : 0;
-    const answered = queue.length > 0 ? queue[answeredIndex] : undefined;
+    // A request that waited past the queue's bound is dropped first: its reply
+    // can no longer be told apart from the next request's, and leaving the entry
+    // queued would strand the badge (see pruneNotificationRequests).
+    const queue = pruneNotificationRequests(data.instanceId);
+    // Attribution has to be by the request the reply can actually belong to. The
+    // host echoes the cursor a request was sent with, so a cursor-carrying reply
+    // names its own request; a cursor no outstanding request knows belongs to a
+    // request that was already answered or has expired, and no entry may claim
+    // its page — writing it would present a page nobody asked for, possibly the
+    // replaced server's, as the current one's.
+    //
+    // The failure reply echoes no cursor at all (viewProvider's `getNotifications`
+    // catch), so there the entry has to be one the server the reply came from
+    // could have been asked for: the oldest entry sent for the identity still
+    // configured. Falling back to the oldest entry *period* handed a failure to
+    // the request of a replaced server — the failure's own request stayed queued
+    // (blocking every later badge request), and the replaced server's page, once
+    // its cursor-carrying reply arrived and matched nothing, landed in the view
+    // and in the badge. A reply that is neither cursored nor a failure is what a
+    // host that echoes no cursor at all sends: position (send order, which is
+    // the order such a host answers in) is the only evidence there is.
+    let answeredIndex = -1;
+    if (typeof data.before === 'string') {
+      answeredIndex = queue.findIndex((entry) => entry.cursor === data.before);
+      if (answeredIndex < 0 && queue.length > 0) {
+        // An outstanding request is recorded and the cursor names none of them:
+        // this reply belongs to a request that was already answered or has
+        // expired, and writing its page would present a page nobody asked for —
+        // possibly the replaced server's — as the current one's. With nothing
+        // outstanding there is no request to mis-attribute instead, so the reply
+        // is read the way a host that echoes cursors this webview never minted
+        // has always been read.
+        return;
+      }
+    } else if (data.error) {
+      answeredIndex = queue.findIndex((entry) => entry.identity === currentIdentity && entry.epoch === currentEpoch);
+    } else if (queue.length > 0) {
+      answeredIndex = 0;
+    }
+    const answered = answeredIndex >= 0 ? queue[answeredIndex] : undefined;
     if (answered) {
       queue.splice(answeredIndex, 1);
     }
@@ -3405,8 +3524,6 @@ function createAppState() {
     } else {
       notificationRequests.delete(data.instanceId);
     }
-    const currentIdentity = instanceIdentityOf(data.instanceId);
-    const currentEpoch = notificationIdentityEpoch.get(data.instanceId) ?? 0;
     const replyIsStale =
       answered !== undefined && (answered.identity !== currentIdentity || answered.epoch !== currentEpoch);
     // Only a plain first page can be the badge's own reply: it asks without a
@@ -3671,10 +3788,19 @@ function createAppState() {
   let testConnectionTimeout: ReturnType<typeof setTimeout> | undefined;
   let saveInstanceTimeout: ReturnType<typeof setTimeout> | undefined;
 
-  function handleTestConnectionResult(message: { success: boolean; username?: string; error?: string }) {
+  function handleTestConnectionResult(
+    message: { success: boolean; username?: string; error?: string },
+    origin: 'reply' | 'timeout' = 'reply',
+  ) {
     if (testConnectionTimeout !== undefined) {
       clearTimeout(testConnectionTimeout);
       testConnectionTimeout = undefined;
+    }
+    if (origin === 'reply' && !testConnectionAwaitingReply) {
+      // The wait for this request already ended in the synthetic timeout: the
+      // reply is late, not superseded. Dropping it here is what keeps it from
+      // being read as a superseded response and replayed as a fresh request.
+      return;
     }
     if (testConnectionInFlightToken !== testConnectionToken && testConnectionLatestArgs) {
       // This response answers a superseded request; drop it and send the
@@ -3685,6 +3811,7 @@ function createAppState() {
       return;
     }
     testConnectionInFlightToken = 0;
+    testConnectionAwaitingReply = false;
     // Stamp the reply with the form the intent it answers was sent for, the
     // same way a save reply is stamped: without it, testing one instance and
     // then opening another leaves "Connected as <the first user>" on the form
@@ -3696,15 +3823,25 @@ function createAppState() {
     if (testConnectionTimeout !== undefined) {
       clearTimeout(testConnectionTimeout);
     }
+    testConnectionAwaitingReply = true;
     testConnectionTimeout = setTimeout(() => {
-      handleTestConnectionResult({ success: false, error: t('common.requestTimeout') });
+      handleTestConnectionResult({ success: false, error: t('common.requestTimeout') }, 'timeout');
     }, DEFAULT_REQUEST_TIMEOUT_MS);
   }
 
-  function handleSaveInstanceResult(message: { success: boolean; error?: string }) {
+  function handleSaveInstanceResult(
+    message: { success: boolean; error?: string },
+    origin: 'reply' | 'timeout' = 'reply',
+  ) {
     if (saveInstanceTimeout !== undefined) {
       clearTimeout(saveInstanceTimeout);
       saveInstanceTimeout = undefined;
+    }
+    if (origin === 'reply' && !saveInstanceAwaitingReply) {
+      // A late reply to a request whose wait already ended in the synthetic
+      // timeout: applying it would resurrect a result the user has moved past,
+      // and replaying it would post the same instance write a second time.
+      return;
     }
     if (saveInstanceInFlightToken !== saveInstanceToken && saveInstanceLatestArgs) {
       saveInstanceInFlightToken = saveInstanceToken;
@@ -3713,6 +3850,7 @@ function createAppState() {
       return;
     }
     saveInstanceInFlightToken = 0;
+    saveInstanceAwaitingReply = false;
     // Stamp the reply with the target of the intent it answers (the latest
     // one: a superseded response was dropped and replayed above, and the
     // target is read from the args that request was sent with).
@@ -3723,8 +3861,9 @@ function createAppState() {
     if (saveInstanceTimeout !== undefined) {
       clearTimeout(saveInstanceTimeout);
     }
+    saveInstanceAwaitingReply = true;
     saveInstanceTimeout = setTimeout(() => {
-      handleSaveInstanceResult({ success: false, error: t('common.requestTimeout') });
+      handleSaveInstanceResult({ success: false, error: t('common.requestTimeout') }, 'timeout');
     }, DEFAULT_REQUEST_TIMEOUT_MS);
   }
 
@@ -5225,6 +5364,7 @@ function createAppState() {
       return;
     }
     beginLoading(key);
+    recordInstanceListRequest(key, instanceId);
     postMessage({ command: 'getRepositories', instanceId });
   }
 
@@ -5307,6 +5447,7 @@ function createAppState() {
   function invalidateRepoIssueLists(prefix: string): void {
     clearByPrefix(repoIssues.value, `${prefix}:issues:`);
     clearWhere(repoIssuesFetchedAt, (key) => key.startsWith(`${prefix}:issues:`));
+    clearWhere(preRefreshReplies, (key) => key.startsWith(`${prefix}:issues:`));
   }
 
   /** Same as `invalidateRepoIssueLists` for the pull request lists. */
@@ -5386,6 +5527,22 @@ function createAppState() {
     // stale spinner or error for a server the user just replaced.
     clearWhere(loading, inScope);
     clearWhere(errors, inScope);
+    // The three dashboard lists key their loading/error slots differently
+    // (`repos-${id}`, `issues-${id}-${state}`, `pulls-${id}-${state}`), which the
+    // `${id}:` prefix above does not reach. They have to go with the payloads:
+    // the loaders dedupe on their loading flag, so a flag left set made the
+    // mandated reload below a no-op — the instance then sat on an empty list,
+    // and the reply of the request still in flight wrote the replaced server's
+    // rows back under the id the new configuration uses (see
+    // recordInstanceListRequest).
+    for (const [key, sent] of Array.from(instanceListRequests)) {
+      if (sent.instanceId !== instanceId) {
+        continue;
+      }
+      instanceListRequests.delete(key);
+      loading.delete(key);
+      errors.delete(key);
+    }
     // A badge request still in flight is deliberately left in place: its reply
     // has to be attributable, and the cursor it was sent with is what keeps it
     // apart from the requests the new configuration sends (see
@@ -5575,6 +5732,7 @@ function createAppState() {
       return;
     }
     beginLoading(key);
+    recordInstanceListRequest(key, instanceId);
     postMessage({ command: 'getMyIssues', instanceId, state });
   }
 
@@ -5587,6 +5745,7 @@ function createAppState() {
       return;
     }
     beginLoading(key);
+    recordInstanceListRequest(key, instanceId);
     postMessage({ command: 'getMyPullRequests', instanceId, state });
   }
 
@@ -5664,6 +5823,11 @@ function createAppState() {
    * slot (see handleNotifications).
    */
   function loadNotificationBadge(instanceId: string) {
+    // Entries that can no longer be answered are dropped first, and with them
+    // the loading slot they left behind: that slot is checked just below, so a
+    // request the host never answered would otherwise keep the badge from ever
+    // being asked for again (see pruneNotificationRequests).
+    pruneNotificationRequests(instanceId);
     const key = notificationsKey(instanceId);
     if (
       polledNotifications.value.has(instanceId) ||
@@ -5691,17 +5855,49 @@ function createAppState() {
     const queue = notificationRequests.get(instanceId) ?? [];
     queue.push({
       identity: instanceIdentityOf(instanceId),
-      epoch: notificationIdentityEpoch.get(instanceId) ?? 0,
+      epoch: instanceIdentityEpoch.get(instanceId) ?? 0,
       badge: request.badge,
       isMore: request.isMore,
       cursor: request.cursor,
+      sentAt: Date.now(),
     });
     notificationRequests.set(instanceId, queue);
   }
 
+  /**
+   * Drops the entries of one instance's queue whose request can no longer be
+   * answered (see NOTIFICATION_REQUEST_MAX_AGE_MS) and returns what is left.
+   *
+   * A stranded entry is not just dead weight: the badge's own entry is what
+   * keeps the next badge request waiting, so an entry that can never be
+   * attributed has to expire or the badge is stuck for the rest of the session.
+   */
+  function pruneNotificationRequests(instanceId: string): NotificationRequest[] {
+    const queue = notificationRequests.get(instanceId);
+    if (!queue || queue.length === 0) {
+      notificationRequests.delete(instanceId);
+      return [];
+    }
+    const cutoff = Date.now() - NOTIFICATION_REQUEST_MAX_AGE_MS;
+    const live = queue.filter((entry) => entry.sentAt > cutoff);
+    if (live.length === queue.length) {
+      return queue;
+    }
+    if (live.length > 0) {
+      notificationRequests.set(instanceId, live);
+    } else {
+      notificationRequests.delete(instanceId);
+      // Nothing is outstanding for this instance any more, so its loading slot
+      // cannot belong to a request still on the wire: leaving it set would make
+      // the next ask dedupe against a request that no longer exists.
+      loading.set(notificationsKey(instanceId), false);
+    }
+    return live;
+  }
+
   /** Whether one instance's badge request is still waiting for its reply. */
   function hasBadgeRequestInFlight(instanceId: string): boolean {
-    return (notificationRequests.get(instanceId) ?? []).some((entry) => entry.badge);
+    return pruneNotificationRequests(instanceId).some((entry) => entry.badge);
   }
 
   /**

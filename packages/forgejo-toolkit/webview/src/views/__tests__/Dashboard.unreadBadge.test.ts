@@ -68,4 +68,31 @@ describe('Dashboard unread badge', () => {
     expect(wrapper.find('.notification-badge').text()).toBe('3');
     wrapper.unmount();
   });
+
+  /**
+   * The button's `aria-label` replaces its content for assistive technology, so
+   * the badge's count — the only place the number is written — was never
+   * announced. It also cannot be read off the visible label: that one is hidden
+   * at narrow widths, where the bell is icon and badge only.
+   */
+  it('announces the unread count in the bell’s accessible name', async () => {
+    stateMock.unreadNotificationCount.value = 3;
+
+    const wrapper = mountView();
+    await nextTick();
+
+    const bell = wrapper.findAll('vscode-button').find((button) => button.attributes('icon') === 'bell');
+    expect(bell, 'notification bell').toBeTruthy();
+    expect(bell!.attributes('aria-label')).toBe('Notifications, 3 unread');
+    wrapper.unmount();
+  });
+
+  it('keeps the plain name when nothing is unread', async () => {
+    const wrapper = mountView();
+    await nextTick();
+
+    const bell = wrapper.findAll('vscode-button').find((button) => button.attributes('icon') === 'bell');
+    expect(bell!.attributes('aria-label')).toBe('Notifications');
+    wrapper.unmount();
+  });
 });

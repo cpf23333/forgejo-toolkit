@@ -31,10 +31,18 @@ const HeadinglessView = defineComponent({
   setup: () => () => h('div', [h('p', 'Instances')]),
 });
 
+// A view whose first heading is a section heading *inside* it — Settings opens
+// with `<h2>Language</h2>` — so nothing inside names the view as a whole.
+const SectionHeadingView = defineComponent({
+  name: 'SectionHeadingView',
+  setup: () => () => h('div', [h('h2', 'Language'), h('p', 'body')]),
+});
+
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'first', component: FirstView },
   { path: '/second', name: 'second', component: SecondView },
   { path: '/dashboard', name: 'dashboard', component: HeadinglessView },
+  { path: '/settings', name: 'settings', component: SectionHeadingView },
 ];
 
 const wrappers: VueWrapper[] = [];
@@ -118,21 +126,71 @@ describe('App navigation focus and announcement', () => {
     expect(announcement(wrapper)).toBe('Dashboard');
   });
 
-  it('prefers the heading the view renders over the route title', async () => {
-    // The same route name as the heading-less route, but this view names itself:
-    // what the user is looking at wins over the registered fallback.
-    const HeadingView = defineComponent({
-      name: 'HeadingView',
-      setup: () => () => h('div', [h('h2', 'Instance list')]),
+  it('announces the route title when the first heading is a section heading', async () => {
+    const { wrapper, router } = await mountApp();
+
+    await router.push('/settings');
+    await flushPromises();
+
+    // Settings' first heading is `<h2>Language</h2>` — a section inside the view,
+    // not its title — so the view used to be announced as "Language". The title
+    // its route is registered under outranks a section heading.
+    expect(document.activeElement).toBe(wrapper.get('main').element);
+    expect(announcement(wrapper)).toBe('Settings');
+  });
+
+  it('prefers the view’s own title over the route title', async () => {
+    // The same route name as the heading-less route, but this view names itself
+    // with its own top-level heading: what the user is looking at wins over the
+    // registered fallback.
+    const OwnTitleView = defineComponent({
+      name: 'OwnTitleView',
+      setup: () => () => h('div', [h('h1', 'Instance list')]),
     });
     const { wrapper, router } = await mountApp([
       { path: '/', name: 'home', component: HeadinglessView },
-      { path: '/dashboard', name: 'dashboard', component: HeadingView },
+      { path: '/dashboard', name: 'dashboard', component: OwnTitleView },
     ]);
 
     await router.push('/dashboard');
     await flushPromises();
 
     expect(announcement(wrapper)).toBe('Instance list');
+  });
+
+  /**
+   * The host's "open dashboard" does not navigate: it remounts the view in place
+   * (a keep-alive key bump), so the route watcher never ran and neither focus nor
+   * the announcement moved. And a live region announces a *change* of its text,
+   * so reopening a view whose title is the one already announced — the dashboard
+   * one is on — said nothing at all.
+   */
+  it('focuses and re-announces the dashboard when the host reopens it in place', async () => {
+    const { wrapper, router } = await mountApp();
+    await router.push('/dashboard');
+    await flushPromises();
+    const region = wrapper.get('[role="status"]').element;
+    const changes: string[] = [];
+    const observer = new MutationObserver(() => {
+      changes.push(region.textContent ?? '');
+    });
+    observer.observe(region, { characterData: true, childList: true, subtree: true });
+
+    // Reopening the view the user is already on remounts it in place.
+    window.dispatchEvent(new MessageEvent('message', { data: { command: 'openDashboard' } }));
+    await flushPromises();
+    expect(document.activeElement).toBe(wrapper.get('main').element);
+    expect(announcement(wrapper)).toBe('Dashboard');
+
+    // The same title again: the region has to be emptied in between, or the
+    // second open announces nothing.
+    changes.length = 0;
+    window.dispatchEvent(new MessageEvent('message', { data: { command: 'openDashboard' } }));
+    await flushPromises();
+    observer.disconnect();
+
+    expect(document.activeElement).toBe(wrapper.get('main').element);
+    expect(announcement(wrapper)).toBe('Dashboard');
+    expect(changes).toContain('');
   });
 });

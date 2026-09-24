@@ -360,4 +360,78 @@ describe('useAppState notification badge request identity', () => {
 
     expect(state.notifications.value.get(key)?.map((entry) => entry.id)).toEqual([1, 2]);
   });
+
+  it('attributes a failure reply to the request of the server now configured, not the replaced one', async () => {
+    // The failure reply echoes no cursor at all (`viewProvider`'s
+    // `getNotifications` catch), so position was the only evidence left and the
+    // oldest queued entry claimed it. With the replaced server's view request
+    // (A) still queued in front of the badge request (B), B's failure popped A:
+    // A's own, cursor-carrying reply then matched nothing and fell through to B,
+    // whose identity was current — so the replaced server's page filled the view
+    // list *and* the badge, while B's entry stayed queued with no reply to free
+    // it, blocking every later badge request.
+    const { state, mod } = await createState();
+    const notificationsKey = mod.notificationsKey;
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+
+    // A: the view's request, for the server about to be replaced.
+    state.loadNotifications(INSTANCE_A.id, ['unread', 'pinned']);
+    const viewCursor = cursorsSent()[0];
+    await repointInstance();
+    // B: the badge's request, for the server now configured. Only it is counted
+    // from here.
+    vscodeApiMock.postMessage.mockClear();
+    await state.loadNotificationBadge(INSTANCE_A.id);
+    expect(badgeRequests()).toHaveLength(1);
+
+    // B fails. The reply names no request, so it can only belong to an entry
+    // sent for the identity still configured — B.
+    dispatchMessage({ command: 'notifications', instanceId: INSTANCE_A.id, error: 'instance unreachable' });
+    await nextTick();
+    expect(state.errors.get(notificationsKey(INSTANCE_A.id))).toBe('instance unreachable');
+
+    // The replaced server then answers A, whose cursor names it.
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: INSTANCE_A.id,
+      notifications: [{ id: 1, unread: true }],
+      before: viewCursor,
+    });
+    await nextTick();
+
+    // Its page may fill neither the badge...
+    expect(state.polledNotifications.value.has(INSTANCE_A.id)).toBe(false);
+    expect(state.unreadNotificationCount.value).toBe(0);
+    // ...nor the view.
+    expect(state.notifications.value.has(notificationsKey(INSTANCE_A.id))).toBe(false);
+    expect(state.notificationsHasMore.value.has(notificationsKey(INSTANCE_A.id))).toBe(false);
+
+    // B's entry was the one the failure popped, so the badge can be asked for
+    // again instead of being blocked for the rest of the session.
+    vscodeApiMock.postMessage.mockClear();
+    await state.loadNotificationBadge(INSTANCE_A.id);
+    expect(badgeRequests()).toHaveLength(1);
+  });
+
+  it('lets a badge request go out once an unanswered one outlives the queue bound', async () => {
+    // A request the host never answers keeps its entry — and, for the badge,
+    // keeps every later badge request waiting. The entry expires so the badge
+    // cannot be stuck for the rest of the session.
+    const { state } = await createState();
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+    state.loadNotificationBadge(INSTANCE_A.id);
+    expect(badgeRequests()).toHaveLength(1);
+
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(Date.now() + 121_000);
+      vscodeApiMock.postMessage.mockClear();
+      await state.loadNotificationBadge(INSTANCE_A.id);
+      expect(badgeRequests()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

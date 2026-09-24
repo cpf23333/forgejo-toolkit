@@ -1,7 +1,8 @@
 {
   "app": {
     "back": "← 返回",
-    "viewTitleDashboard": "仪表盘"
+    "viewTitleDashboard": "仪表盘",
+    "viewTitleSettings": "设置"
   },
   "common": {
     "confirm": "确定",
@@ -155,6 +156,7 @@
     },
     "notifications": {
       "title": "通知",
+      "labelWithUnread": "通知，{count} 条未读",
       "empty": "没有符合当前筛选条件的通知。",
       "pollFailed": "刷新通知失败：{message}",
       "noInstances": "尚未配置 Forgejo 实例，请先前往设置添加。",

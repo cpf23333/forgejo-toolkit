@@ -198,6 +198,56 @@ describe('useAppState instance identity changes', () => {
     expect(state.notifications.value.get(`${INSTANCE_A.id}:notifications`)).toHaveLength(1);
   });
 
+  /**
+   * The dashboard's three lists key their loading/error slots as
+   * `repos-${id}` / `issues-${id}-${state}` / `pulls-${id}-${state}`, which the
+   * `${id}:` prefix `clearInstancePayloads` clears by does not reach. The
+   * payloads and caches were dropped but the slots were not, and the loaders
+   * dedupe on their loading flag: the mandated `reloadInstanceLists` was skipped
+   * by a flag left set, so the instance sat on an empty list, and the reply of
+   * the replaced server's still-in-flight request wrote its rows back under the
+   * id the new configuration uses (or left its error on screen).
+   */
+  describe('useAppState dashboard list slots across an identity change', () => {
+    const lists = [
+      { label: 'repositories', key: `repos-${INSTANCE_A.id}`, command: 'getRepositories' },
+      { label: 'issues', key: `issues-${INSTANCE_A.id}-open`, command: 'getMyIssues' },
+      { label: 'pull requests', key: `pulls-${INSTANCE_A.id}-open`, command: 'getMyPullRequests' },
+    ];
+
+    for (const list of lists) {
+      it(`frees the ${list.label} slot so the reload is not deduped away`, async () => {
+        const { state } = await createState();
+        dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+        await nextTick();
+        // A load per dashboard list is on the wire (the dashboard asks on mount).
+        state.loadRepositories(INSTANCE_A.id, true);
+        state.loadMyIssues(INSTANCE_A.id, 'open', true);
+        state.loadMyPullRequests(INSTANCE_A.id, 'open', true);
+        expect(state.loading.get(list.key)).toBe(true);
+        // One of them already failed: its error must not outlive the server it
+        // was reported for.
+        state.errors.set(list.key, 'the previous server failed');
+        vscodeApiMock.postMessage.mockClear();
+
+        dispatchMessage({
+          command: 'instances',
+          data: [{ ...INSTANCE_A, url: 'https://forgejo.example.com/beta' }],
+        });
+        await nextTick();
+
+        // The list is requested again for the server now configured.
+        expect(vscodeApiMock.postMessage).toHaveBeenCalledWith(
+          expect.objectContaining({ command: list.command, instanceId: INSTANCE_A.id }),
+        );
+        // The replaced server's error is gone with it.
+        expect(state.errors.has(list.key)).toBe(false);
+        // The reload's own request is what the slot now waits for.
+        expect(state.loading.get(list.key)).toBe(true);
+      });
+    }
+  });
+
   it('leaves another instance untouched', async () => {
     const other = {
       id: 'inst-b',

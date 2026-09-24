@@ -108,7 +108,13 @@ async function renderComment(comment: ForgejoTimelineComment) {
     return;
   }
   try {
-    const html = await state.renderMarkdown(props.instanceId, comment.body);
+    // The repository is part of the render: `#123`, `@user` and relative links in
+    // a comment resolve against the repository it was written in, which is what
+    // every other render site passes (`IssueDetail`, `PullRequestDetail`,
+    // `EasyMdeEditor`). Without it those references stayed plain text, and —
+    // because the render cache is keyed by the context too — two repositories'
+    // identical comment text shared one rendered entry.
+    const html = await state.renderMarkdown(props.instanceId, comment.body, `${props.owner}/${props.repo}`);
     renderedBodies[key] = html;
     // Only here is the source recorded as rendered. Recording it from `finally`
     // (as this used to, together with storing the body itself as the HTML) made
