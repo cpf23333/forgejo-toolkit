@@ -33,6 +33,10 @@ const localeLabel = computed(() => {
 // The host answers a corrupt/wrong-password file with `error` and empty
 // arrays: that is a failure, not an empty import.
 const previewError = computed(() => preview.value?.error);
+// Entries the host could not use are absent from `instances`, so a preview that
+// silently skipped them looked like a complete file. Absent (an older host) and
+// zero both mean there is nothing to report.
+const droppedCount = computed(() => preview.value?.dropped ?? 0);
 
 const currentInstancesById = computed(() => {
   const map = new Map<string, CurrentForgejoInstance>();
@@ -48,6 +52,40 @@ function getCurrentInstance(instance: ForgejoInstance): CurrentForgejoInstance |
 
 function hasTokenConflict(index: number): boolean {
   return tokenConflicts.value[index] === true;
+}
+
+/**
+ * The location of one instance URL: scheme, host, port, path, query and hash,
+ * with any userinfo dropped.
+ */
+function instanceLocation(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    // `URL` re-serializes an empty path as `/`, which the redacted form goes
+    // through and a raw `https://host` does not; the trailing slashes are not
+    // part of the location.
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, '')}${parsed.search}${parsed.hash}`;
+  } catch {
+    // Not an absolute URL (a hand-edited file): nothing to compare by parts.
+    return undefined;
+  }
+}
+
+/**
+ * Whether two instance URLs name the same place.
+ *
+ * The instance list carries a userinfo-redacted URL - `toPublicInstance` blanks
+ * a stored credential to `https://***@host/...` before it crosses into the
+ * webview - while the imported file holds the raw one. Comparing the strings
+ * directly reported a URL change that never happened (`https://***@host` to
+ * `https://token@host`), telling the user the import would repoint their
+ * instance. Only the location decides, so the redacted and raw forms of one URL
+ * compare equal. A value that does not parse falls back to an exact match.
+ */
+function sameInstanceLocation(current: string, imported: string): boolean {
+  const left = instanceLocation(current);
+  const right = instanceLocation(imported);
+  return left !== undefined && right !== undefined ? left === right : current === imported;
 }
 
 const allSelected = computed(
@@ -130,6 +168,14 @@ watch(
     </div>
 
     <div v-else>
+      <!-- Above the list on purpose: the entries it names are missing from
+           `instances` below, so a user counting rows sees fewer than the file
+           holds and has to be told why before confirming. -->
+      <div v-if="droppedCount > 0" class="dropped-warning" role="status">
+        <vscode-icon name="warning" />
+        <span>{{ t('settings.importPreview.dropped', { count: droppedCount }) }}</span>
+      </div>
+
       <div v-if="settings" class="settings-summary">
         <h3 class="settings-summary-title">{{ t('settings.importPreview.settingsTitle') }}</h3>
         <ul class="settings-summary-list">
@@ -160,7 +206,7 @@ watch(
               <div class="instance-url">{{ instance.url }}</div>
               <div v-if="isExisting(instance)" class="instance-diff">
                 <template v-for="current in [getCurrentInstance(instance)]" :key="current?.id">
-                  <div v-if="current && current.url !== instance.url" class="diff-line">
+                  <div v-if="current && !sameInstanceLocation(current.url, instance.url)" class="diff-line">
                     {{ t('instance.url') }}: {{ current.url }} → {{ instance.url }}
                   </div>
                   <div v-if="current && current.username !== instance.username" class="diff-line">
@@ -236,6 +282,18 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.dropped-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  background-color: var(--vscode-warningBackground, var(--vscode-editor-inactiveSelectionBackground));
+  color: var(--vscode-warningForeground, var(--vscode-foreground));
 }
 
 .instance-item {

@@ -222,6 +222,13 @@ function changeState(newState: string) {
 }
 
 function openCreateIssue(prefill?: { title?: string; body?: string }) {
+  // The repository can have issues turned off (or be a mirror). The view already
+  // says so instead of the list; opening the form anyway would let the user fill
+  // in an issue whose labels/assignees/milestones cannot even be loaded
+  // (`loadListData` is gated on the same flag) only to have the server reject it.
+  if (!hasIssues.value) {
+    return;
+  }
   createInitialTitle.value = prefill?.title ?? '';
   createInitialBody.value = prefill?.body ?? '';
   createFormResetKey.value += 1;
@@ -379,7 +386,9 @@ async function handleCreateSubmit(data: {
           :label="t('dashboard.repoIssues.searchPlaceholder')"
           @input="searchInput = ($event.target as HTMLInputElement).value"
         />
-        <vscode-button icon="add" @click="openCreateIssue()">
+        <!-- The disabled-state message below already explains why; the action
+             itself is only offered when the repository can take a new issue. -->
+        <vscode-button v-if="hasIssues" icon="add" @click="openCreateIssue()">
           {{ t('dashboard.actions.newIssue') }}
         </vscode-button>
         <div class="state-filter">

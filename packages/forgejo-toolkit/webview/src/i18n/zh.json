@@ -16,6 +16,7 @@
     "releaseCreationFailed": "创建 Release 失败"
   },
   "editor": {
+    "imageUploadFailed": "图片上传失败：{message}",
     "toolbar": {
       "heading": "标题",
       "bold": "粗体",
@@ -125,6 +126,7 @@
       "searchNoResults": "没有匹配的文件。",
       "searchNotRun": "尚未在该分支和版本上执行此搜索。",
       "searchTruncated": "仓库文件树过大，无法完整读取，结果可能不全。请缩小搜索范围。",
+      "searchTruncatedByMatches": "仅显示前 {limit} 个匹配结果，请缩小搜索范围以查看其余结果。",
       "clearSearch": "清除搜索",
       "showMore": "再显示 {count} 项",
       "history": "文件历史",
@@ -328,10 +330,12 @@
       "openPullRequest": "在浏览器打开 Pull Request",
       "copyLink": "复制链接",
       "renderingBody": "正在渲染描述...",
+      "markdownRenderFailed": "无法渲染该评论的格式：{message}。已按原文显示。",
       "attachments": "附件",
       "attachmentsNotDeleted": "有 {count} 个附件未删除：已取消确认。",
       "attachmentsDeleteFailed": "有 {count} 个附件删除失败。",
       "commentAttachmentUploadFailed": "有 {count} 个附件上传失败。评论已发布，再次提交只会补传剩余附件。",
+      "attachmentsUnavailable": "附件列表加载失败：附件可能仍然存在，只是未能在此显示。",
       "subscription": "通知",
       "subscribe": "订阅",
       "unsubscribe": "取消订阅",
@@ -380,6 +384,7 @@
           "conflicts": "存在冲突，无法自动合并",
           "required_approvals": "需要 {count} 个审查通过",
           "required_status_checks": "状态检查未通过（当前状态：{state}）",
+          "required_status_checks_no_state": "状态检查未通过（无法读取检查状态）",
           "unknown": "此 PR 存在无法识别的合并阻碍"
         }
       },
@@ -563,7 +568,8 @@
       "importSelected": "导入选中 ({count})",
       "settingsTitle": "包含的设置",
       "tokenUpdated": "Token 将会被更新",
-      "tokenConflict": "Token 已存在"
+      "tokenConflict": "Token 已存在",
+      "dropped": "该文件中有 {count} 项无法使用，已被跳过。"
     },
     "worktree": {
       "title": "PR Worktree",

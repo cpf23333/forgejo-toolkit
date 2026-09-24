@@ -13,6 +13,12 @@ const props = withDefaults(
     deletingIds?: number[];
     pendingDeleteIds?: number[];
     showHeader?: boolean;
+    /**
+     * The attachment lookup failed, so an empty `assets` list is not an answer.
+     * The list then renders a notice saying it could not be loaded instead of
+     * hiding the section, which used to read as "this item has no attachments".
+     */
+    attachmentsUnavailable?: boolean;
   }>(),
   {
     showHeader: true,
@@ -68,13 +74,20 @@ function formatFileSize(bytes?: number): string {
 </script>
 
 <template>
-  <div v-if="assets?.length || allowUpload" class="detail-section">
+  <div v-if="attachmentsUnavailable || assets?.length || allowUpload" class="detail-section">
     <div v-if="showHeader" class="attachment-header">
       <h3>{{ t('dashboard.detail.attachments') }}</h3>
       <button v-if="allowUpload" type="button" class="upload-button" :disabled="uploading" @click="triggerFileInput">
         {{ uploading ? t('dashboard.form.saving') : t('dashboard.actions.uploadAttachment') }}
       </button>
       <input ref="fileInputRef" type="file" multiple class="file-input" @change="handleFileChange" />
+    </div>
+    <!-- A failed lookup arrives as an empty list: without this the section said
+         the item has no attachments, so a user whose attachment was still there
+         concluded it had been deleted. -->
+    <div v-if="attachmentsUnavailable" class="attachment-unavailable" role="status">
+      <vscode-icon name="warning" />
+      <span>{{ t('dashboard.detail.attachmentsUnavailable') }}</span>
     </div>
     <ul v-if="assets?.length" class="attachment-list">
       <li
@@ -129,6 +142,14 @@ function formatFileSize(bytes?: number): string {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.attachment-unavailable {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
 }
 
 .upload-button {

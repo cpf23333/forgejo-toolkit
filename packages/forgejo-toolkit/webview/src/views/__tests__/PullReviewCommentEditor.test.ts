@@ -144,6 +144,30 @@ describe('PullReviewCommentEditor draft-state query', () => {
   });
 });
 
+describe('PullReviewCommentEditor review conclusion label', () => {
+  /**
+   * The conclusion radio group's label was a sibling `<span>`, so the group
+   * itself was announced unnamed. The element exposes no `label` prop (unlike the
+   * selects elsewhere in the webview), so the span is associated by id.
+   */
+  it('associates the visible label with the review conclusion group', () => {
+    const wrapper = mountEditor(createContext({ mode: 'review', pendingReviewId: 5 }));
+
+    const group = wrapper.get('vscode-radio-group');
+    const labelledBy = group.attributes('aria-labelledby');
+    expect(labelledBy).toBe('pull-review-event-label');
+    expect(wrapper.get(`#${labelledBy}`).text()).toBe('Review conclusion');
+    wrapper.unmount();
+  });
+
+  it('leaves the group unrendered outside review mode', () => {
+    const wrapper = mountEditor(createContext({ mode: 'single' }));
+
+    expect(wrapper.find('vscode-radio-group').exists()).toBe(false);
+    wrapper.unmount();
+  });
+});
+
 describe('PullReviewCommentEditor line label', () => {
   it('shows a single line for single-line comments', () => {
     const wrapper = mountEditor(createContext({ lineNumber: 4 }));

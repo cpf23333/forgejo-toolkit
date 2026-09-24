@@ -321,6 +321,39 @@ describe('useAppState', () => {
       expect(state.pullRequestDetails.value.get(key)).toEqual(fakePullRequestDetail);
     });
 
+    it('pullRequestDetail carries a failed attachment lookup onto the stored detail', async () => {
+      const { state, mod } = await createState();
+      dispatchMessage({
+        command: 'pullRequestDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+        // The host's own field, sitting beside `detail` rather than inside it.
+        detail: { ...fakePullRequestDetail, assets: [] },
+        attachmentsUnavailable: true,
+      });
+      await nextTick();
+
+      const key = mod.pullRequestDetailKey('inst-1', 'owner', 'repo', 2);
+      const stored = state.pullRequestDetails.value.get(key);
+      // Without this the empty `assets` list reads as "this PR has no
+      // attachments", which is the false conclusion the flag exists to prevent.
+      expect(stored?.attachmentsUnavailable).toBe(true);
+
+      // A later reply without the flag is a real answer and must clear it.
+      dispatchMessage({
+        command: 'pullRequestDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+        detail: { ...fakePullRequestDetail, assets: [] },
+      });
+      await nextTick();
+      expect(state.pullRequestDetails.value.get(key)?.attachmentsUnavailable).toBeUndefined();
+    });
+
     it('pullRequestReviewSubmitted force-reloads the detail when it is loaded', async () => {
       await createState();
       dispatchMessage({
@@ -770,6 +803,62 @@ describe('useAppState', () => {
 
       const key = mod.pullRequestCommentsKey('inst-1', 'owner', 'repo', 2);
       expect(state.pullRequestComments.value.get(key)).toEqual([fakeTimelineComment]);
+    });
+
+    it('pullRequestCommentsAndTimeline keeps the per-comment attachment lookup failure', async () => {
+      const { state, mod } = await createState();
+      dispatchMessage({
+        command: 'pullRequestCommentsAndTimeline',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+        comments: [
+          // The host's per-comment flag, on a comment whose list came back empty.
+          { ...fakeTimelineComment, assets: [], attachmentsUnavailable: true },
+          { ...fakeTimelineComment, id: 2, assets: [] },
+        ],
+      });
+      await nextTick();
+
+      const key = mod.pullRequestCommentsKey('inst-1', 'owner', 'repo', 2);
+      const stored = state.pullRequestComments.value.get(key) ?? [];
+      // Without the flag the two comments are indistinguishable (both have an
+      // empty `assets` list), and the failed one reads as "no attachments".
+      expect(stored[0]?.attachmentsUnavailable).toBe(true);
+      expect(stored[1]?.attachmentsUnavailable).toBeUndefined();
+    });
+
+    it('an edit reply keeps the attachment lookup failure of the row it replaces', async () => {
+      const { state, mod } = await createState();
+      const key = mod.pullRequestCommentsKey('inst-1', 'owner', 'repo', 2);
+      const commentId = fakeTimelineComment.id as number;
+      dispatchMessage({
+        command: 'pullRequestCommentsAndTimeline',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+        comments: [{ ...fakeTimelineComment, assets: [], attachmentsUnavailable: true }],
+      });
+      await nextTick();
+
+      // The host's edit reply carries the new body and no attachment listing.
+      dispatchMessage({
+        command: 'issueCommentEdited',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        commentId,
+        comment: { ...fakeTimelineComment, body: 'edited' },
+      });
+      await nextTick();
+
+      const stored = state.pullRequestComments.value.get(key) ?? [];
+      // The row is rebuilt from the reply: unless the failure marker is carried
+      // over with the assets, an empty list silently becomes "no attachments".
+      expect(stored[0]?.body).toBe('edited');
+      expect(stored[0]?.attachmentsUnavailable).toBe(true);
     });
 
     it('pullRequestCommits updates pullRequestCommits Map', async () => {
@@ -2457,9 +2546,46 @@ describe('useAppState', () => {
       });
       await nextTick();
 
-      expect(state.repoFileSearchTruncated.value.get(truncatedKey)).toBe(true);
+      // An incomplete result with no named cause keeps the conservative tree
+      // wording rather than being dropped.
+      expect(state.repoFileSearchTruncated.value.get(truncatedKey)).toBe('tree');
       // A reply without the flag is a complete tree, not a stale "truncated".
-      expect(state.repoFileSearchTruncated.value.get(completeKey)).toBe(false);
+      expect(state.repoFileSearchTruncated.value.get(completeKey)).toBeUndefined();
+    });
+
+    it('repoFilesSearchResult carries which cap the host applied', async () => {
+      const { state, mod } = await createState();
+      const matchesKey = mod.repoFileSearchKey('inst-1', 'owner', 'repo', 'main', 'e');
+      const treeKey = mod.repoFileSearchKey('inst-1', 'owner', 'repo', 'main', 'deep');
+
+      dispatchMessage({
+        command: 'repoFilesSearchResult',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        ref: 'main',
+        query: 'e',
+        files: [{ path: 'src/e.ts' }],
+        truncated: true,
+        truncatedBy: 'matches',
+      });
+      dispatchMessage({
+        command: 'repoFilesSearchResult',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        ref: 'main',
+        query: 'deep',
+        files: [{ path: 'src/deep.ts' }],
+        truncated: true,
+        truncatedBy: 'tree',
+      });
+      await nextTick();
+
+      // The cause reaches the view: "narrow the search" and "the tree could not
+      // be read" are different claims and only the first is actionable.
+      expect(state.repoFileSearchTruncated.value.get(matchesKey)).toBe('matches');
+      expect(state.repoFileSearchTruncated.value.get(treeKey)).toBe('tree');
     });
 
     it('errors evicts the oldest entry beyond 500 entries', async () => {

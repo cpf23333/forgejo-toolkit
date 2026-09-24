@@ -188,8 +188,13 @@ function uploadImage(file: File, onSuccess: (url: string) => void, onError: (err
       :repo="context.repo"
     />
     <div v-if="isReviewMode && hasPendingReview" class="review-event">
-      <span class="review-event-label">{{ t('pullReviewCommentEditor.reviewEvent') }}</span>
-      <vscode-radio-group variant="vertical">
+      <!-- The group takes no `label` prop, so the visible label is associated
+           through `aria-labelledby`; without it the group was announced
+           unnamed. -->
+      <span id="pull-review-event-label" class="review-event-label">
+        {{ t('pullReviewCommentEditor.reviewEvent') }}
+      </span>
+      <vscode-radio-group variant="vertical" aria-labelledby="pull-review-event-label">
         <vscode-radio value="COMMENT" :checked="reviewEvent === 'COMMENT'" @change="reviewEvent = 'COMMENT'">
           {{ t('pullReviewCommentEditor.eventComment') }}
         </vscode-radio>

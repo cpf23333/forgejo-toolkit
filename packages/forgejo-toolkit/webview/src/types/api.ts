@@ -141,6 +141,13 @@ export interface ForgejoIssueDetail {
   milestone?: ForgejoMilestone;
   repository?: { full_name?: string };
   assets?: ForgejoIssueAttachment[];
+  /**
+   * Set when the host could not load this issue's/PR's attachment list. `assets`
+   * is then empty for a failed lookup, not because the item has no attachments,
+   * so the view has to say the list could not be loaded instead of rendering the
+   * empty list as "no attachments".
+   */
+  attachmentsUnavailable?: boolean;
   repoPermissions?: ForgejoRepoPermissions;
 }
 
@@ -244,6 +251,12 @@ export interface ForgejoTimelineComment {
   new_ref?: string;
   old_ref?: string;
   assets?: ForgejoIssueAttachment[];
+  /**
+   * Set when the host could not load this comment's attachment list (the lookup
+   * runs per comment and a failure leaves `assets` empty). Only present when
+   * true, so its absence means the empty `assets` list is the real answer.
+   */
+  attachmentsUnavailable?: boolean;
 }
 
 export interface ForgejoPullRequestCommit extends ForgejoCommit {

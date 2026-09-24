@@ -416,11 +416,19 @@ async function handleCommentSubmit() {
 function openEdit() {
   state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value);
   attachmentDeleteNotice.value = undefined;
+  // A new edit session starts with no marked deletions. Clearing them here
+  // (rather than on close) is what lets `closeEdit` keep the marks of a save
+  // that is already in flight: the save's reply still has to delete them.
+  pendingDeleteAttachmentIds.value = [];
   isEditing.value = true;
 }
 
 function closeEdit() {
-  pendingDeleteAttachmentIds.value = [];
+  // The marks deliberately survive closing the dialog: a save whose edit was
+  // already dispatched still runs its deletions when the host answers. Clearing
+  // them here is what used to make Save-then-Cancel drop the user's marked
+  // attachments without reporting anything. `openEdit` clears them for the next
+  // session, and the save reply clears them once they were applied.
   isEditing.value = false;
 }
 
@@ -446,6 +454,13 @@ async function handleEditSubmit(data: {
     } finally {
       isAwaitingUploads.value = false;
     }
+  }
+  // The dialog may have been cancelled while the uploads were being awaited;
+  // dispatching then would land an edit the user already abandoned. The
+  // Cancel/X/Esc paths are blocked while the dialog is busy, so this covers a
+  // close that got through anyway (a programmatic one, or a host-side close).
+  if (!isEditing.value) {
+    return;
   }
   state.editIssue(target.instanceId, target.owner, target.repo, target.index, {
     title: data.title,
@@ -1169,6 +1184,7 @@ function reloadIssue() {
               type="button"
               class="link-button"
               :title="t('dashboard.actions.copyUrl')"
+              :aria-label="t('dashboard.actions.copyUrl')"
               @click="state.copyToClipboard(issueReference)"
             >
               <vscode-icon name="copy" />

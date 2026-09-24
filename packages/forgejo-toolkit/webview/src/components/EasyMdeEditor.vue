@@ -63,6 +63,28 @@ const mentionSearchTimers = new Map<'user' | 'issue', ReturnType<typeof setTimeo
 const renderedHtml = ref('');
 const previewRendering = ref(false);
 const isFullscreen = ref(false);
+// Why the last image upload attempt produced nothing, or undefined.
+//
+// A failed upload used to be reported nowhere: EasyMDE's own surfaces are both
+// off here (`status: false` hides the status bar the error would be written to,
+// and `errorCallback` was overridden with an empty body on the belief that the
+// host toasts permission errors - it does not, it answers
+// `issueAttachmentCreated` with `error` and never notifies). The editor renders
+// this line itself, so every call site gets the feedback without having to pass
+// its own error handler.
+const imageUploadError = ref<string | undefined>(undefined);
+
+/**
+ * Records one failed image upload for the editor's own error line.
+ *
+ * EasyMDE routes both its `imageUploadFunction` failures and the size/type
+ * checks it does itself through `options.errorCallback`, so this is the single
+ * place the message has to land. Nothing here writes a toast: the failure
+ * belongs next to the editor the image was dropped into.
+ */
+function reportImageUploadError(message: string) {
+  imageUploadError.value = message;
+}
 
 const mentionsEnabled = computed(
   () => props.instanceId !== undefined && props.owner !== undefined && props.repo !== undefined,
@@ -620,19 +642,20 @@ onMounted(async () => {
             onError(t('dashboard.form.imageOnly'));
             return;
           }
+          // A new attempt clears the previous failure: the line describes the
+          // last upload, not every one this editor has seen.
+          imageUploadError.value = undefined;
           props.uploadImage!(
             file,
             (url) => {
+              imageUploadError.value = undefined;
               easyMDE?.codemirror.replaceSelection(`![image](${url})`);
             },
             onError,
           );
         }
       : undefined,
-    errorCallback: () => {
-      // Suppress the default alert() which is blocked in VS Code webviews.
-      // Permission errors are reported via the extension host notification.
-    },
+    errorCallback: reportImageUploadError,
     onToggleFullScreen(active) {
       isFullscreen.value = active;
       if (active) {
@@ -755,12 +778,27 @@ watch(() => [props.label, props.placeholder], applyEditorLabel);
 <template>
   <div ref="wrapperRef" class="easy-mde-editor" :class="{ 'is-fullscreen': isFullscreen }">
     <textarea ref="textareaRef" :aria-label="label || placeholder"></textarea>
+    <!-- The only visible report of a failed image upload: EasyMDE's status bar
+         is off and its error callback is ours (see imageUploadError). -->
+    <div v-if="imageUploadError" class="image-upload-error" role="alert">
+      <vscode-icon name="error" />
+      <span>{{ t('editor.imageUploadFailed', { message: imageUploadError }) }}</span>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .easy-mde-editor {
   position: relative;
+}
+
+.image-upload-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.85em;
+  color: var(--vscode-errorForeground, var(--vscode-foreground));
 }
 
 .easy-mde-editor :deep(.EasyMDEContainer) {

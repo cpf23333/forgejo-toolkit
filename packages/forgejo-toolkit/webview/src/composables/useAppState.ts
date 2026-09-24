@@ -332,9 +332,12 @@ function createAppState() {
     new Map(),
   );
   const repoFileSearchResults = ref<Map<string, GitEntry[]>>(new Map());
-  // Per search: the host could not read the whole repository tree, so matches
-  // may be missing. Keyed like the results so a new query starts clean.
-  const repoFileSearchTruncated = ref<Map<string, boolean>>(new Map());
+  // Per search: the result list is incomplete and why — `'tree'` when the
+  // repository tree could not be read fully (matches may be missing), `'matches'`
+  // when a readable tree simply had more matches than the host returns (the user
+  // can narrow the query). Absent means the answer is complete. Keyed like the
+  // results so a new query starts clean.
+  const repoFileSearchTruncated = ref<Map<string, 'matches' | 'tree'>>(new Map());
   const fileHistories = ref<Map<string, ForgejoCommit[]>>(new Map());
   const globalSearchResults = ref<Map<string, GlobalSearchResult>>(new Map());
   const globalSearchActiveScope = ref<'all' | 'repositories' | 'issues' | 'pullRequests'>('all');
@@ -348,13 +351,20 @@ function createAppState() {
   const notificationsBefore = ref<Map<string, string>>(new Map());
   const notificationsHasMore = ref<Map<string, boolean>>(new Map());
   const polledNotifications = ref<Map<string, ForgejoNotification[]>>(new Map());
-  // Instances with a one-shot badge request in flight (see
-  // loadNotificationBadge). The host's `notifications` reply carries no request
-  // identity, so the webview records the instance identity the request was sent
-  // with (see instanceCacheIdentity) and compares it on reply: a page that
-  // answers a server/account the user has since replaced must not fill the badge
-  // and must not be taken for the fresh request's own reply.
-  const badgeNotificationRequests = new Map<string, { identity: string }>();
+  // The `getNotifications` requests this webview has sent and has not seen an
+  // answer to yet, in send order, per instance. The host's `notifications` reply
+  // carries no request identity, so a reply is attributed to the request at the
+  // front of this queue — the oldest one still unanswered — and only the entry
+  // flagged `badge` may fill the unread badge. The entry also records the
+  // instance identity the request was sent with (see instanceCacheIdentity), so
+  // a page answering a server/account the user has since replaced can be
+  // dropped and the badge asked again for the one now configured.
+  //
+  // Ordering, not a bare identity, is what stops a reply from satisfying a
+  // request that was sent after it: re-arming the badge pushes its entry behind
+  // every request already in flight (see requestNotificationBadge), so an older
+  // request's late reply can never claim the fresh marker.
+  const notificationRequests = new Map<string, { identity: string; badge: boolean }[]>();
   // Per-instance poll failures (expired token, unreachable instance) so the
   // notifications view can show an error instead of a misleading empty state.
   const notificationPollErrors = ref<Map<string, string>>(new Map());
@@ -472,6 +482,12 @@ function createAppState() {
    * asked for. A refresh therefore counts those replies; `applyRepoListReply`
    * drops each of them and re-issues the load, until the refreshed request is
    * the one that answers.
+   *
+   * Only a request that is genuinely in flight when the refresh is pressed is
+   * counted (`loading.get(key)`), because only that one cannot be cancelled and
+   * re-issued. With nothing in flight the refresh's own request is the only one
+   * on the wire, so counting it would discard the reply the refresh is waiting
+   * for and send the identical request a second time.
    */
   const preRefreshReplies = new Map<string, number>();
 
@@ -554,6 +570,12 @@ function createAppState() {
         tokenConflicts?: boolean[];
         settings?: ExportSettings;
         error?: string;
+        /**
+         * How many entries in the file the host could not use (missing or wrongly
+         * typed required fields). Absent on replies that predate the field, which
+         * means "nothing was reported dropped" rather than a known zero.
+         */
+        dropped?: number;
       }
     | undefined
   >(undefined);
@@ -1115,6 +1137,7 @@ function createAppState() {
             repo: string;
             index: number;
             detail?: ForgejoPullRequestDetail;
+            attachmentsUnavailable?: boolean;
             error?: string;
           },
         );
@@ -1772,6 +1795,7 @@ function createAppState() {
           tokenConflicts?: boolean[];
           settings?: ExportSettings;
           error?: string;
+          dropped?: number;
         };
         importPreview.value = {
           instances: previewMessage.instances ?? [],
@@ -1781,6 +1805,11 @@ function createAppState() {
           // A failed read arrives with empty arrays; keep the error so the
           // preview view can explain the failure instead of looking empty.
           error: previewMessage.error,
+          // Entries the host had to skip never appear in `instances`, so without
+          // this the preview silently looked complete. Absent stays absent: an
+          // old host did not report a count, and the view treats a missing count
+          // as "nothing to warn about".
+          dropped: previewMessage.dropped,
         };
         break;
       }
@@ -2282,6 +2311,12 @@ function createAppState() {
     repo: string;
     index: number;
     detail?: ForgejoPullRequestDetail;
+    /**
+     * The host could not load this PR's attachments. `detail.assets` is empty in
+     * that case, which is not the same as a PR that has none: carried into the
+     * stored detail so the view can say the list could not be loaded.
+     */
+    attachmentsUnavailable?: boolean;
     error?: string;
   }) {
     const key = pullRequestDetailKey(data.instanceId, data.owner, data.repo, data.index);
@@ -2290,8 +2325,11 @@ function createAppState() {
       setError(key, data.error);
     } else if (data.detail) {
       errors.delete(key);
-      setPayloadEntry(pullRequestDetails.value, key, data.detail);
-      pullRequestDetailCache.set(key, data.detail);
+      // Only added when the host reports it: writing `false` over a cached detail
+      // would turn a known failure into a silent "no attachments".
+      const detail = data.attachmentsUnavailable ? { ...data.detail, attachmentsUnavailable: true } : data.detail;
+      setPayloadEntry(pullRequestDetails.value, key, detail);
+      pullRequestDetailCache.set(key, detail);
     }
   }
 
@@ -2505,7 +2543,17 @@ function createAppState() {
       }
       const index = comments.findIndex((c) => c.id === data.commentId);
       if (index !== -1) {
-        comments[index] = { ...data.comment, type: 'comment', assets: comments[index].assets };
+        const existing = comments[index];
+        // The host's edit reply is the comment's body and metadata, not a fresh
+        // attachment listing: `assets` is kept from the row on screen, and the
+        // "the lookup failed" marker has to be kept with it. Rebuilding from the
+        // reply alone left an empty asset list that read as "no attachments".
+        comments[index] = {
+          ...data.comment,
+          type: 'comment',
+          assets: existing.assets,
+          ...(existing.attachmentsUnavailable ? { attachmentsUnavailable: true } : {}),
+        };
         setPayloadEntry(pullRequestComments.value, key, [...comments]);
         break;
       }
@@ -2792,6 +2840,9 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
+      // Each comment may carry the host's per-comment `attachmentsUnavailable`
+      // flag; the list is stored as it arrives, with the type (see
+      // `ForgejoTimelineComment`) keeping the field on the payload.
       const list = data.comments ?? [];
       setPayloadEntry(pullRequestComments.value, key, list);
       pullRequestCommentsCache.set(key, list);
@@ -3205,6 +3256,7 @@ function createAppState() {
     query: string;
     files?: GitEntry[];
     truncated?: boolean;
+    truncatedBy?: 'matches' | 'tree';
     error?: string;
   }) {
     const key = repoFileSearchKey(data.instanceId, data.owner, data.repo, data.ref, data.query);
@@ -3215,9 +3267,17 @@ function createAppState() {
     } else {
       errors.delete(key);
       setBoundedEntry(repoFileSearchResults.value, key, data.files ?? [], MAX_SEARCH_ENTRIES);
-      // The host reports an incomplete repository tree; the view says the
-      // results may be missing matches instead of showing them as exhaustive.
-      setBoundedEntry(repoFileSearchTruncated.value, key, data.truncated === true, MAX_SEARCH_ENTRIES);
+      // Which cap produced the incomplete list decides what the view may claim:
+      // a capped match list means "narrow the search", an unreadable tree means
+      // matches may be missing. The host names the cause; a payload that says
+      // only `truncated` (hand-built callers) keeps the tree wording, which is
+      // the conservative one.
+      setBoundedEntry(
+        repoFileSearchTruncated.value,
+        key,
+        data.truncated ? (data.truncatedBy ?? 'tree') : undefined,
+        MAX_SEARCH_ENTRIES,
+      );
     }
   }
 
@@ -3262,29 +3322,37 @@ function createAppState() {
     error?: string;
   }) {
     const key = notificationsKey(data.instanceId);
-    // The badge's own one-shot load (see loadNotificationBadge): its page is the
-    // unfiltered `['unread', 'pinned']` list the poller would have pushed, so it
-    // fills the badge slot as well as the view slot. The reply is attributed by
-    // the instance identity the request was sent with, so a reply from a server
-    // the user has since replaced cannot claim the fresh request's marker.
-    const badgeRequest = badgeNotificationRequests.get(data.instanceId);
-    badgeNotificationRequests.delete(data.instanceId);
-    const badgeReplyIsStale =
-      badgeRequest !== undefined && badgeRequest.identity !== instanceIdentityOf(data.instanceId);
+    // The reply answers the oldest request still on the wire for this instance
+    // (see notificationRequests); that entry decides both whether the page may
+    // fill the badge and whether it came from the server the user has since
+    // replaced. A reply with no outstanding request (a pre-contract host, a
+    // fixture) is treated as an unattributed view page.
+    const queue = notificationRequests.get(data.instanceId) ?? [];
+    const answered = queue.shift();
+    if (queue.length > 0) {
+      notificationRequests.set(data.instanceId, queue);
+    } else {
+      notificationRequests.delete(data.instanceId);
+    }
+    const currentIdentity = instanceIdentityOf(data.instanceId);
+    const replyIsStale = answered !== undefined && answered.identity !== currentIdentity;
     // Only a plain page can be the badge's own reply: it asks without a cursor
     // and a failure is not a page at all. A cursor-bearing reply answers "load
     // more" and an error answers a failure, so both belong to the view's own
-    // request and stay applicable whatever the badge marker says.
+    // request and stay applicable whatever the badge entry says.
     const isBadgePage = data.before === undefined && !data.error;
-    const staleBadgePage = badgeReplyIsStale && isBadgePage;
-    if (badgeRequest && !badgeReplyIsStale && isBadgePage) {
+    const stalePage = replyIsStale && isBadgePage;
+    if (answered?.badge === true && !replyIsStale && isBadgePage) {
       setPayloadEntry(polledNotifications.value, data.instanceId, data.notifications ?? []);
     }
     loading.set(key, false);
-    if (badgeReplyIsStale) {
+    if (answered?.badge === true && replyIsStale) {
       // Drop the replaced server's page and ask again for the one now
       // configured, so the badge is not left on the old list (or empty for the
       // rest of the session when the reply lands before the badge is asked for).
+      // Only the badge request's own entry re-arms: while it is still queued the
+      // fresh request has to wait, or two indistinguishable requests would be in
+      // flight and an older reply could satisfy the fresh marker.
       requestNotificationBadge(data.instanceId);
     }
     // Replay the latest intent if filters changed while this request was in
@@ -3299,7 +3367,7 @@ function createAppState() {
       loadNotifications(data.instanceId, pending.statusTypes, pending.subjectType);
       return;
     }
-    if (staleBadgePage) {
+    if (stalePage) {
       // The page came from the server the user has replaced. The identity change
       // cleared the view slot the badge page would otherwise also fill, so
       // writing it back would present the old server's notifications as the new
@@ -4488,6 +4556,11 @@ function createAppState() {
    * its way so it cannot satisfy the refresh (see `preRefreshReplies`). The load
    * re-issued after such a reply is dropped passes `force` alone — it *is* the
    * refreshed request, so its own reply must be applied.
+   *
+   * `preRefreshReply` therefore only counts when a request for that key is in
+   * flight. A refresh pressed on a settled list is the normal case: the dedupe
+   * below has nothing to drop, so this call is the refreshed request itself and
+   * must reach the host and have its reply applied once.
    */
   function loadRepoIssues(
     instanceId: string,
@@ -4500,7 +4573,10 @@ function createAppState() {
   ) {
     const key = repoIssuesKey(instanceId, owner, repo, state, query);
     if (preRefreshReply) {
-      preRefreshReplies.set(key, (preRefreshReplies.get(key) ?? 0) + 1);
+      if (loading.get(key)) {
+        preRefreshReplies.set(key, (preRefreshReplies.get(key) ?? 0) + 1);
+        return;
+      }
     } else if (
       !force &&
       repoIssues.value.has(key) &&
@@ -4778,7 +4854,13 @@ function createAppState() {
   ) {
     const key = repoPullRequestsKey(instanceId, owner, repo, state, query);
     if (preRefreshReply) {
-      preRefreshReplies.set(key, (preRefreshReplies.get(key) ?? 0) + 1);
+      // Same rule as `loadRepoIssues`: count the reply already on its way only
+      // when a request is in flight, or the refresh's own reply is discarded and
+      // the identical request is sent twice.
+      if (loading.get(key)) {
+        preRefreshReplies.set(key, (preRefreshReplies.get(key) ?? 0) + 1);
+        return;
+      }
     } else if (
       !force &&
       repoPullRequests.value.has(key) &&
@@ -5226,7 +5308,8 @@ function createAppState() {
     // has to be attributable, and sending a fresh request now would leave two
     // indistinguishable `notifications` requests in flight (see
     // requestNotificationBadge). handleNotifications drops the replaced server's
-    // page by the identity recorded here and asks again for the new one.
+    // page by the identity its queue entry recorded and asks again for the new
+    // one.
   }
 
   /** Reactive payload maps whose keys are all instance-scoped. */
@@ -5469,6 +5552,7 @@ function createAppState() {
     }
     beginLoading(key);
     inFlightNotificationArgs.set(instanceId, JSON.stringify({ statusTypes, subjectType }));
+    queueNotificationRequest(instanceId, false);
     postMessage({
       command: 'getNotifications',
       instanceId,
@@ -5501,7 +5585,7 @@ function createAppState() {
       polledNotifications.value.has(instanceId) ||
       notifications.value.has(key) ||
       loading.get(key) ||
-      badgeNotificationRequests.has(instanceId)
+      hasBadgeRequestInFlight(instanceId)
     ) {
       return;
     }
@@ -5515,21 +5599,38 @@ function createAppState() {
   }
 
   /**
+   * Records one `getNotifications` request as outstanding for its instance (see
+   * notificationRequests). Sent before the post: the reply may land before the
+   * caller's next statement.
+   */
+  function queueNotificationRequest(instanceId: string, badge: boolean) {
+    const queue = notificationRequests.get(instanceId) ?? [];
+    queue.push({ identity: instanceIdentityOf(instanceId), badge });
+    notificationRequests.set(instanceId, queue);
+  }
+
+  /** Whether one instance's badge request is still waiting for its reply. */
+  function hasBadgeRequestInFlight(instanceId: string): boolean {
+    return (notificationRequests.get(instanceId) ?? []).some((entry) => entry.badge);
+  }
+
+  /**
    * Sends one instance's unfiltered first notification page, recording the
-   * instance identity it was sent for (see badgeNotificationRequests).
+   * instance identity it was sent for (see notificationRequests).
    *
-   * At most one badge request per instance is in flight: the marker is what
-   * tells handleNotifications that a `notifications` reply is the badge's own,
-   * and the host's reply carries no request id to tell two of them apart. The
-   * request is therefore left in place across an instance edit too - a fresh
-   * request would be indistinguishable from it on the wire.
+   * At most one badge request per instance is in flight: the `badge` entry is
+   * what tells handleNotifications that a `notifications` reply is the badge's
+   * own, and the host's reply carries no request id to tell two of them apart.
+   * The request is therefore left in place across an instance edit too - a fresh
+   * request would be indistinguishable from it on the wire - and a re-arm while
+   * the entry is still queued would claim that older request's reply instead.
    */
   function requestNotificationBadge(instanceId: string) {
-    if (!instances.value.some((entry) => entry.id === instanceId)) {
+    if (!instances.value.some((entry) => entry.id === instanceId) || hasBadgeRequestInFlight(instanceId)) {
       return;
     }
     beginLoading(notificationsKey(instanceId));
-    badgeNotificationRequests.set(instanceId, { identity: instanceIdentityOf(instanceId) });
+    queueNotificationRequest(instanceId, true);
     postMessage({
       command: 'getNotifications',
       instanceId,

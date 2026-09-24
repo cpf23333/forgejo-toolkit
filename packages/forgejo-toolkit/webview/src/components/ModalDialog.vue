@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted } from 'vue';
+import { nextTick, ref, watch, onMounted, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppState } from '../composables/useAppState';
 
@@ -31,6 +31,13 @@ const { t } = useI18n();
 const state = useAppState();
 
 const dialogRef = ref<HTMLDialogElement | null>(null);
+
+// A `<dialog>` has no accessible name unless it references one: the visible
+// title is the heading, so point `aria-labelledby` at that heading's own id.
+// `useId()` is stable across renders and unique per component instance. The id
+// is only referenced while a title is rendered, so the attribute never points at
+// a missing element when the `title` prop is omitted.
+const titleId = useId();
 
 function updateDialog(open: boolean) {
   if (open) {
@@ -129,9 +136,16 @@ function handleClose() {
 </script>
 
 <template>
-  <dialog ref="dialogRef" class="modal-dialog" @click="handleClick" @cancel="handleCancel" @close="handleClose">
+  <dialog
+    ref="dialogRef"
+    class="modal-dialog"
+    :aria-labelledby="title ? titleId : undefined"
+    @click="handleClick"
+    @cancel="handleCancel"
+    @close="handleClose"
+  >
     <div class="modal-header">
-      <h3 v-if="title" class="modal-title">{{ title }}</h3>
+      <h3 v-if="title" :id="titleId" class="modal-title">{{ title }}</h3>
       <button
         v-if="!loading"
         type="button"

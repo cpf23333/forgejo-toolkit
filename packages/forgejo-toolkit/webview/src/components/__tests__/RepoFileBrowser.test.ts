@@ -10,7 +10,9 @@ const { stateMock } = vi.hoisted(() => ({
     errors: new Map<string, string>(),
     repoContents: { value: new Map<string, unknown[]>() },
     repoFileSearchResults: { value: new Map<string, unknown[]>() },
-    repoFileSearchTruncated: { value: new Map<string, boolean>() },
+    // The cause of an incomplete search result, not a boolean: the wording
+    // differs between a capped match list and an unreadable tree.
+    repoFileSearchTruncated: { value: new Map<string, 'matches' | 'tree'>() },
     loadRepoContents: vi.fn(),
     loadRepoFileSearch: vi.fn(),
     openRepoFile: vi.fn(),
@@ -113,34 +115,91 @@ describe('RepoFileBrowser debounced search under keep-alive', () => {
 });
 
 describe('RepoFileBrowser truncated search', () => {
+  const KEY = 'inst-1:owner/repo:main:search:foo';
+
   beforeEach(() => {
     stateMock.loadRepoFileSearch.mockClear();
     stateMock.repoFileSearchResults.value.clear();
     stateMock.repoFileSearchTruncated.value.clear();
   });
 
-  it('warns that matches may be missing when the tree could not be read fully', async () => {
-    const wrapper = mountHost();
-    await typeSearch(wrapper, 'foo');
-    const key = 'inst-1:owner/repo:main:search:foo';
-
-    // Write through the reactive state the component reads: mutating the raw
-    // Map behind it would not invalidate the already-evaluated computed.
+  function setTruncated(cause: 'matches' | 'tree' | undefined) {
     const state = useAppState() as unknown as {
       repoFileSearchResults: { value: Map<string, unknown[]> };
-      repoFileSearchTruncated: { value: Map<string, boolean> };
+      repoFileSearchTruncated: { value: Map<string, 'matches' | 'tree'> };
     };
-    state.repoFileSearchResults.value.set(key, [{ path: 'src/foo.ts', sha: 'sha-1' }]);
-    state.repoFileSearchTruncated.value.set(key, true);
+    // Write through the reactive state the component reads: mutating the raw
+    // Map behind it would not invalidate the already-evaluated computed.
+    state.repoFileSearchResults.value.set(KEY, [{ path: 'src/foo.ts', sha: 'sha-1' }]);
+    if (cause === undefined) {
+      state.repoFileSearchTruncated.value.delete(KEY);
+    } else {
+      state.repoFileSearchTruncated.value.set(KEY, cause);
+    }
+  }
+
+  it('names the capped match list, not an unreadable tree, when matches were capped', async () => {
+    const wrapper = mountHost();
+    await typeSearch(wrapper, 'foo');
+    setTruncated('matches');
     await nextTick();
 
     expect(wrapper.text()).toContain('src/foo.ts');
-    expect(wrapper.text()).toContain('dashboard.fileBrowser.searchTruncated');
+    // The common case: a perfectly readable tree with more than the cap worth of
+    // matches. "The tree is too large to read" is false here and nothing the
+    // user can act on; the cap itself is the cause.
+    expect(wrapper.text()).toContain('dashboard.fileBrowser.searchTruncatedByMatches');
+    // The hint is exactly the capped-matches sentence: `searchTruncated` is a
+    // prefix of `searchTruncatedByMatches`, so a substring check cannot tell the
+    // two apart.
+    expect(wrapper.get('.tree-status').text()).toBe('dashboard.fileBrowser.searchTruncatedByMatches');
 
-    // A complete tree (or a fresh search) shows no hint.
-    state.repoFileSearchTruncated.value.set(key, false);
+    wrapper.unmount();
+  });
+
+  it('keeps the tree wording when the tree itself could not be read', async () => {
+    const wrapper = mountHost();
+    await typeSearch(wrapper, 'foo');
+    setTruncated('tree');
     await nextTick();
-    expect(wrapper.text()).not.toContain('dashboard.fileBrowser.searchTruncated');
+
+    expect(wrapper.get('.tree-status').text()).toBe('dashboard.fileBrowser.searchTruncated');
+    expect(wrapper.text()).not.toContain('dashboard.fileBrowser.searchTruncatedByMatches');
+
+    wrapper.unmount();
+  });
+
+  it('falls back to the default wording when truncatedBy is absent', async () => {
+    // What a reply without `truncatedBy` stores (hand-built payloads): the hint
+    // must default to today's tree wording instead of disappearing or rendering a
+    // raw key. `useAppState` maps a bare `truncated: true` to `'tree'`; this is
+    // the defensive default in the view for any other writer.
+    const wrapper = mountHost();
+    await typeSearch(wrapper, 'foo');
+    const state = useAppState() as unknown as {
+      repoFileSearchResults: { value: Map<string, unknown[]> };
+      repoFileSearchTruncated: { value: Map<string, string> };
+    };
+    state.repoFileSearchResults.value.set(KEY, [{ path: 'src/foo.ts', sha: 'sha-1' }]);
+    // A value the union does not know about stands in for an absent/unknown cause.
+    state.repoFileSearchTruncated.value.set(KEY, 'unexpected');
+    await nextTick();
+
+    expect(wrapper.get('.tree-status').text()).toBe('dashboard.fileBrowser.searchTruncated');
+
+    wrapper.unmount();
+  });
+
+  it('shows no hint for a complete result', async () => {
+    const wrapper = mountHost();
+    await typeSearch(wrapper, 'foo');
+    setTruncated(undefined);
+    await nextTick();
+
+    expect(wrapper.text()).toContain('src/foo.ts');
+    expect(wrapper.find('.tree-status').exists()).toBe(false);
+
+    wrapper.unmount();
   });
 });
 

@@ -153,6 +153,25 @@ function hasResults(): boolean {
   return false;
 }
 
+/**
+ * Whether at least one targeted instance actually answered the query — with hits
+ * or with an empty page. An error is not an answer: a query the user never got a
+ * result for has not "found nothing", and claiming it did hides the per-instance
+ * error and its Retry (they live in the results branch).
+ */
+function hasAnswered(): boolean {
+  const q = displayQuery();
+  if (!q) {
+    return false;
+  }
+  for (const instance of targetInstances.value) {
+    if (state.globalSearchResults.value.has(globalSearchKey(instance.id, activeTab.value, q, stateFilter.value))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // The server caps each category at GLOBAL_SEARCH_LIMIT results; a list that
 // exactly fills the cap is likely truncated, so say so instead of letting
 // older results vanish silently.
@@ -390,7 +409,10 @@ watch(stateFilter, () => {
       {{ t('dashboard.loading') }}
     </div>
 
-    <div v-else-if="hasQueried() && !hasResults() && !isLoading()" class="empty-state">
+    <!-- "No results found." is reserved for a query that really ran and matched
+         nothing. A query that only failed has an answer per instance below, with
+         its error and Retry, so it must not be short-circuited into this claim. -->
+    <div v-else-if="hasAnswered() && !hasResults() && !isLoading()" class="empty-state">
       {{ t('dashboard.search.noResults') }}
     </div>
 

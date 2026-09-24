@@ -56,11 +56,16 @@ const AttachmentListStub = defineComponent({
   template: '<div class="attachment-list-stub" />',
 });
 
-// Captures the busy state the modal is given, so a test can see whether the X
-// and Escape are inert while an upload runs.
+// Captures the busy state and the close guard the modal is given, so a test can
+// see whether the X and Escape are inert - and whether closing would ask first -
+// while an upload runs.
 const ModalDialogStub = defineComponent({
   name: 'ModalDialog',
-  props: { open: { type: Boolean, default: false }, loading: { type: Boolean, default: false } },
+  props: {
+    open: { type: Boolean, default: false },
+    loading: { type: Boolean, default: false },
+    isDirty: { type: Boolean, default: false },
+  },
   template: '<div class="modal-dialog-stub"><slot /></div>',
 });
 
@@ -200,7 +205,7 @@ describe('CommentTimeline edit uploads stay on the comment they started from', (
     wrapper.unmount();
   });
 
-  it('keeps the modal from being dismissed while the upload is in flight', async () => {
+  it('keeps the dialog closable - with a confirmation - while the upload is in flight', async () => {
     let resolveUpload!: (attachment: { id: number; uuid: string }) => void;
     stateMock.uploadIssueCommentAttachment.mockImplementation(
       () =>
@@ -218,12 +223,17 @@ describe('CommentTimeline edit uploads stay on the comment they started from', (
     editAttachmentList(wrapper).vm.$emit('upload', new File(['x'], 'shot.png', { type: 'image/png' }));
     await nextTick();
 
-    // The modal's X/Escape are inert while `loading` is set.
-    expect(modal.props('loading')).toBe(true);
+    // An upload in flight must not put the modal into its submit state: `loading`
+    // hides the X and swallows Esc, which left the user with no way out of the
+    // dialog until the request timed out (up to 60 s). It is unsaved work all the
+    // same - its markdown is inserted when it answers - so closing asks first.
+    expect(modal.props('loading')).toBe(false);
+    expect(modal.props('isDirty')).toBe(true);
 
     resolveUpload({ id: 3, uuid: 'uuid-c' });
     await flushPromises();
     expect(modal.props('loading')).toBe(false);
+    expect(modal.props('isDirty')).toBe(false);
     wrapper.unmount();
   });
 });

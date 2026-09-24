@@ -208,3 +208,124 @@ describe('Notifications paging', () => {
     expect(lastGetNotifications()).toMatchObject({ before: first[NOTIFICATIONS_LIMIT - 1].updated_at });
   });
 });
+
+describe('Notifications failure banner', () => {
+  function page(count: number, firstId = 1): Array<Record<string, unknown>> {
+    const base = Date.UTC(2026, 8, 20, 12, 0, 0);
+    return Array.from({ length: count }, (_, index) => ({
+      id: firstId + index,
+      unread: true,
+      updated_at: new Date(base - index * 60_000).toISOString(),
+      subject: { title: `Notification ${firstId + index}` },
+    }));
+  }
+
+  // The composable is a module-level singleton shared by every test in this
+  // file; the slots this describe writes are cleared so one case cannot leave a
+  // banner (or a cursor) behind for the next one.
+  beforeEach(() => {
+    const state = useAppState();
+    state.errors.delete(notificationsKey('inst-1'));
+    state.notificationPollErrors.value.clear();
+    state.notifications.value.delete(notificationsKey('inst-1'));
+    state.notificationsHasMore.value.delete(notificationsKey('inst-1'));
+    state.loading.delete(notificationsKey('inst-1'));
+  });
+
+  /** The banner's own lines, one per failing cause. */
+  function bannerLines(wrapper: ReturnType<typeof mountNotifications>): string[] {
+    return wrapper.findAll('.error-line').map((line) => line.text());
+  }
+
+  function bannerRetry(wrapper: ReturnType<typeof mountNotifications>) {
+    return wrapper.findAll('.icon-action-button').find((button) => button.attributes('aria-label') === 'Retry');
+  }
+
+  function loadMoreButton(wrapper: ReturnType<typeof mountNotifications>) {
+    return wrapper.findAll('vscode-button').find((candidate) => candidate.text().includes('Load more'));
+  }
+
+  it('states a load failure once, with only the load wrapper', async () => {
+    const wrapper = mountNotifications();
+    dispatchMessage({
+      command: 'initialState',
+      instances: [{ id: 'inst-1', url: 'https://forgejo.example.com' }],
+      locale: 'en',
+    });
+    dispatchMessage({ command: 'notifications', instanceId: 'inst-1', error: 'instance unreachable' });
+    await flushPromises();
+
+    expect(bannerLines(wrapper)).toEqual(['Failed to load: instance unreachable']);
+    wrapper.unmount();
+  });
+
+  it('states a poll failure once, with only the poll wrapper', async () => {
+    const wrapper = mountNotifications();
+    dispatchMessage({
+      command: 'initialState',
+      instances: [{ id: 'inst-1', url: 'https://forgejo.example.com' }],
+      locale: 'en',
+    });
+    dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', error: 'instance unreachable' });
+    await flushPromises();
+
+    expect(bannerLines(wrapper)).toEqual(['Failed to refresh notifications: instance unreachable']);
+    wrapper.unmount();
+  });
+
+  it('states a load failure and a poll failure each once when both are recorded', async () => {
+    const wrapper = mountNotifications();
+    await dispatchNotifications([{ id: 1, unread: true, subject: { title: 'Mention' } }]);
+    dispatchMessage({ command: 'notifications', instanceId: 'inst-1', error: 'token rejected' });
+    dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', error: 'instance unreachable' });
+    await flushPromises();
+
+    // Neither cause hides the other, and neither is wrapped inside the other.
+    expect(bannerLines(wrapper)).toEqual([
+      'Failed to load: token rejected',
+      'Failed to refresh notifications: instance unreachable',
+    ]);
+    wrapper.unmount();
+  });
+
+  it('dismisses the poll-failure banner when its own Retry runs', async () => {
+    const wrapper = mountNotifications();
+    await dispatchNotifications([{ id: 1, unread: true, subject: { title: 'Mention' } }]);
+    dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', error: 'instance unreachable' });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Failed to refresh notifications: instance unreachable');
+
+    postMessageMock.mockClear();
+    await bannerRetry(wrapper)!.trigger('click');
+    await flushPromises();
+
+    // The retry re-requests the list and drops the recorded poll failure, so the
+    // banner does not survive a successful retry.
+    expect(postedMessages()).toContainEqual(
+      expect.objectContaining({ command: 'getNotifications', instanceId: 'inst-1' }),
+    );
+    expect(wrapper.text()).not.toContain('Failed to refresh notifications: instance unreachable');
+    wrapper.unmount();
+  });
+
+  it('keeps an instance with another page reachable when the filters hide the loaded rows', async () => {
+    const wrapper = mountNotifications();
+    const first = page(NOTIFICATIONS_LIMIT);
+    await dispatchNotifications(first);
+
+    // The poller reports every loaded row read, so the (client-side) unread
+    // filter now hides the whole page — but another page still exists.
+    dispatchMessage({
+      command: 'polledNotifications',
+      instanceId: 'inst-1',
+      notifications: [],
+      coveredIds: first.map((notification) => notification.id),
+    });
+    await flushPromises();
+
+    expect(wrapper.find('.notifications-list').exists()).toBe(true);
+    expect(loadMoreButton(wrapper)).toBeTruthy();
+    expect(wrapper.text()).toContain('No notifications match the selected filters.');
+    wrapper.unmount();
+  });
+});

@@ -26,11 +26,14 @@ const activeTab = ref<'branches' | 'tags' | 'releases'>('branches');
 // active tab says when its list was cut off.
 const activeList = computed<unknown[]>(() => (data.value?.[activeTab.value] ?? []) as unknown[]);
 const listTruncated = computed(() => isListTruncated(activeList.value));
-const tabs: Array<{ key: 'branches' | 'tags' | 'releases'; label: string }> = [
-  { key: 'branches', label: t('dashboard.repoRefs.branches') },
-  { key: 'tags', label: t('dashboard.repoRefs.tags') },
-  { key: 'releases', label: t('dashboard.repoRefs.releases') },
-];
+// Computed, not a constant built once in setup: a constant captured the labels
+// through `t(...)` at setup time, so a runtime locale change left the three tabs
+// in the old language while the rest of the view re-rendered.
+const tabs = computed(() => [
+  { key: 'branches' as const, label: t('dashboard.repoRefs.branches') },
+  { key: 'tags' as const, label: t('dashboard.repoRefs.tags') },
+  { key: 'releases' as const, label: t('dashboard.repoRefs.releases') },
+]);
 
 const key = computed(() => repoRefsKey(props.instanceId, props.owner, props.repo));
 const data = computed(() => state.repoRefs.value.get(key.value));
@@ -42,6 +45,11 @@ const dialogMode = ref<RepoRefFormMode>('branch');
 const editingRelease = ref<ForgejoRelease | undefined>(undefined);
 const isSubmitting = ref(false);
 const submitError = ref<string | undefined>(undefined);
+// Mirrors the open dialog's own dirty state so Esc/× and Cancel ask before
+// discarding typed input (the dialog reports it through `dirty`).
+const dialogDirty = ref(false);
+// Guards against two discard prompts while one is pending.
+let cancelConfirmInFlight = false;
 const pendingReleaseAttachments = ref<File[]>([]);
 const uploadingReleaseAttachmentCount = ref(0);
 const isUploadingReleaseAttachments = ref(false);
@@ -58,11 +66,28 @@ watch(
 );
 
 watch(loading, (value) => {
-  if (!value && isSubmitting.value && !isUploadingReleaseAttachments.value) {
+  if (value) {
+    return;
+  }
+  if (isSubmitting.value && !isUploadingReleaseAttachments.value) {
+    // The refs request this submit triggered has answered and there is no error
+    // to show on the dialog: the operation is over, whether it succeeded or the
+    // host answered without a message (a declined host-side confirmation).
     isSubmitting.value = false;
     if (!error.value) {
       closeDialog();
     }
+  }
+});
+
+// A failed create only sets an error: it never reloads the refs, so `loading`
+// stays false and the watcher above never runs. Without this the dialog stayed
+// busy forever after a failure, and the next refs reload (e.g. when the user
+// retried and the list was refreshed) hit the `!loading && isSubmitting` branch
+// and closed a dialog the user still had open.
+watch(error, (value) => {
+  if (value && isSubmitting.value) {
+    isSubmitting.value = false;
   }
 });
 
@@ -109,15 +134,43 @@ function openDialog(mode: RepoRefFormMode, release?: ForgejoRelease) {
   pendingReleaseAttachments.value = [];
   submitError.value = undefined;
   createdReleaseId.value = undefined;
+  dialogDirty.value = false;
   dialogOpen.value = true;
 }
 
 function closeDialog() {
   dialogOpen.value = false;
+  dialogDirty.value = false;
   editingRelease.value = undefined;
   pendingReleaseAttachments.value = [];
   submitError.value = undefined;
   createdReleaseId.value = undefined;
+  isSubmitting.value = false;
+}
+
+/**
+ * Cancel in the dialog routes here instead of closing directly: like Esc and ×,
+ * it must ask before discarding typed input. The prompt is the same
+ * `common.discardChangesConfirm` the modal's own Esc/× path uses — the dialog's
+ * Cancel button is its own control, so it cannot go through `ModalDialog`'s
+ * private `requestClose`.
+ */
+async function confirmCancelDialog() {
+  if (!dialogDirty.value) {
+    closeDialog();
+    return;
+  }
+  if (cancelConfirmInFlight) {
+    return;
+  }
+  cancelConfirmInFlight = true;
+  try {
+    if (await state.showConfirm(t('common.discardChangesConfirm'))) {
+      closeDialog();
+    }
+  } finally {
+    cancelConfirmInFlight = false;
+  }
 }
 
 function handleReleaseAttachmentUpload(file: File) {
@@ -129,22 +182,28 @@ function removePendingReleaseAttachment(index: number) {
 }
 
 async function handleSubmit(data: Record<string, unknown>) {
+  // Capture the target before the first await. Creating the release and
+  // uploading its attachments are separate round-trips, and `props` follows the
+  // parent: reading the owner/repo again after an await would post the remaining
+  // attachments to whatever repository the user navigated to — with the old
+  // release id.
+  const target = { instanceId: props.instanceId, owner: props.owner, repo: props.repo };
   isSubmitting.value = true;
   switch (dialogMode.value) {
     case 'branch':
       state.createRepoBranch(
-        props.instanceId,
-        props.owner,
-        props.repo,
+        target.instanceId,
+        target.owner,
+        target.repo,
         String(data.newBranchName),
         data.oldRefName ? String(data.oldRefName) : undefined,
       );
       break;
     case 'tag':
       state.createRepoTag(
-        props.instanceId,
-        props.owner,
-        props.repo,
+        target.instanceId,
+        target.owner,
+        target.repo,
         String(data.tagName),
         data.target ? String(data.target) : undefined,
         data.message ? String(data.message) : undefined,
@@ -152,7 +211,7 @@ async function handleSubmit(data: Record<string, unknown>) {
       break;
     case 'release':
       if (editingRelease.value?.id !== undefined) {
-        state.editRepoRelease(props.instanceId, props.owner, props.repo, editingRelease.value.id, {
+        state.editRepoRelease(target.instanceId, target.owner, target.repo, editingRelease.value.id, {
           tag_name: String(data.tagName),
           name: data.name ? String(data.name) : undefined,
           target_commitish: data.targetCommitish ? String(data.targetCommitish) : undefined,
@@ -168,9 +227,9 @@ async function handleSubmit(data: Record<string, unknown>) {
           let releaseId = createdReleaseId.value;
           if (releaseId === undefined) {
             const release = await state.createRepoRelease(
-              props.instanceId,
-              props.owner,
-              props.repo,
+              target.instanceId,
+              target.owner,
+              target.repo,
               String(data.tagName),
               data.name ? String(data.name) : undefined,
               data.body ? String(data.body) : undefined,
@@ -191,9 +250,9 @@ async function handleSubmit(data: Record<string, unknown>) {
                 try {
                   const buffer = await file.arrayBuffer();
                   await state.uploadReleaseAttachment(
-                    props.instanceId,
-                    props.owner,
-                    props.repo,
+                    target.instanceId,
+                    target.owner,
+                    target.repo,
                     releaseId,
                     file.name,
                     new Uint8Array(buffer),
@@ -215,7 +274,7 @@ async function handleSubmit(data: Record<string, unknown>) {
           }
           pendingReleaseAttachments.value = [];
           createdReleaseId.value = undefined;
-          state.loadRepoRefs(props.instanceId, props.owner, props.repo, true);
+          state.loadRepoRefs(target.instanceId, target.owner, target.repo, true);
         } catch (err) {
           submitError.value = err instanceof Error && err.message ? err.message : String(err);
           isSubmitting.value = false;
@@ -397,9 +456,11 @@ function removeRelease(id?: number) {
       :tags="data?.tags.map((t) => t.name ?? '').filter(Boolean)"
       :pending-attachments="pendingReleaseAttachments"
       @close="closeDialog"
+      @cancel="confirmCancelDialog"
       @submit="handleSubmit"
       @upload-pending="handleReleaseAttachmentUpload"
       @remove-pending="removePendingReleaseAttachment"
+      @dirty="dialogDirty = $event"
     />
   </div>
 </template>

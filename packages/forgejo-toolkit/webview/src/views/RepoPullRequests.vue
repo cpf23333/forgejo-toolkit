@@ -216,6 +216,12 @@ function changeState(newState: string) {
 }
 
 function openCreatePullRequest(head = '') {
+  // The repository can have pull requests turned off (or be a mirror). The view
+  // already says so instead of the list; opening the form anyway would offer a
+  // create that cannot succeed.
+  if (!hasPullRequests.value) {
+    return;
+  }
   createInitialHead.value = head;
   createFormResetKey.value += 1;
   // A fresh form creates a fresh pull request.
@@ -378,7 +384,10 @@ async function handleCreateSubmit(data: {
           :label="t('dashboard.repoPullRequests.searchPlaceholder')"
           @input="searchInput = ($event.target as HTMLInputElement).value"
         />
-        <vscode-button icon="add" @click="openCreatePullRequest()">
+        <!-- The disabled-state message below already explains why; the action
+             itself is only offered when the repository can take a new pull
+             request. -->
+        <vscode-button v-if="hasPullRequests" icon="add" @click="openCreatePullRequest()">
           {{ t('dashboard.actions.newPullRequest') }}
         </vscode-button>
         <div class="state-filter">

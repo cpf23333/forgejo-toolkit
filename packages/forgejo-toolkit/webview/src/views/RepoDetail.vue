@@ -305,7 +305,13 @@ function reloadBranchCommits() {
 
           <section v-if="detail.branches.length" class="section">
             <h3>{{ t('dashboard.branches') }}</h3>
-            <vscode-single-select filter="fuzzy" :value="selectedBranch" class="branch-select" @change="onBranchChange">
+            <vscode-single-select
+              filter="fuzzy"
+              :value="selectedBranch"
+              class="branch-select"
+              :label="t('dashboard.branches')"
+              @change="onBranchChange"
+            >
               <vscode-option
                 v-for="branch in detail.branches"
                 :key="branch"

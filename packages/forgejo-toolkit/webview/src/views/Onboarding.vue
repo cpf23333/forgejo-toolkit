@@ -63,6 +63,14 @@ watch(
   },
 );
 
+// The directory new worktrees will actually go to. The store value is the one
+// the host confirmed; the local field only differs while a typed path is being
+// applied or was just rejected, which is why the closing summary reads this
+// instead of the field (a rejected path must not be reported as in use).
+const cacheDirectoryInUse = computed(
+  () => state.worktreeCacheDirectory.value ?? state.worktreeCacheDirectoryDefault.value ?? '',
+);
+
 const canTest = computed(() => url.value.trim() && token.value.trim());
 const canSaveInstance = computed(() => canTest.value && connectionStatusType.value === 'success');
 const canFinish = computed(() => true);
@@ -232,7 +240,15 @@ function handleWorktreeCacheDirectoryChange(event: Event) {
 }
 
 function applyWorktreeCacheDirectory() {
+  // The host validates the directory and answers with `worktreeCacheDirectory`
+  // only when it accepted it: a rejected path gets a native error and no reply
+  // at all. Put the directory that is actually in use back on screen, so a
+  // rejected path cannot keep looking applied while new worktrees still go to
+  // the previous one; the reply of an accepted path re-syncs the field (and the
+  // "Complete" summary reads the same source).
+  const inUse = state.worktreeCacheDirectory.value ?? state.worktreeCacheDirectoryDefault.value ?? '';
   state.setWorktreeCacheDirectory(worktreeCacheDirectory.value.trim());
+  worktreeCacheDirectory.value = inUse;
 }
 
 function browseWorktreeCacheDirectory() {
@@ -498,7 +514,7 @@ watch(
             </li>
             <li>
               {{ t('settings.worktree.cacheDirectory') }}:
-              {{ worktreeCacheDirectory || t('settings.worktree.defaultDirectory') }}
+              {{ cacheDirectoryInUse || t('settings.worktree.defaultDirectory') }}
             </li>
           </ul>
         </section>

@@ -92,17 +92,71 @@ const tree = ref<FileTreeNodeType[]>([]);
  * array itself rebuilt the tree (unchecking files, re-expanding collapsed
  * directories) whenever an unrelated part of the view re-rendered. Only a real
  * change to the files rebuilds it.
+ *
+ * The line stats are part of that identity because the rows render them
+ * (`FileTreeNode` reads `additions`/`deletions` off the file object the tree
+ * keeps): a refetch whose stats changed without any name or status change used
+ * to leave stale +/− badges. Widening the signature means such a refetch now
+ * rebuilds the tree, so {@link captureTreeState} / {@link restoreTreeState} keep
+ * the user's per-path checked/expanded state across the rebuild.
  */
 function filesSignature(files: ForgejoChangedFile[]): string {
   return files
-    .map((file) => `${file.filename ?? ''}\u0000${file.status ?? ''}\u0000${file.previous_filename ?? ''}`)
+    .map(
+      (file) =>
+        `${file.filename ?? ''}\u0000${file.status ?? ''}\u0000${file.previous_filename ?? ''}` +
+        `\u0000${file.additions ?? ''}\u0000${file.deletions ?? ''}`,
+    )
     .join('\u0001');
+}
+
+/**
+ * Checked/expanded state of the tree the user is looking at, keyed by path.
+ * `buildFileTree` sets every directory expanded and every checkbox unchecked, so
+ * without this a rebuild would also discard the user's own state.
+ */
+function captureTreeState(
+  nodes: FileTreeNodeType[],
+  state = new Map<string, { checked: boolean; expanded: boolean }>(),
+) {
+  for (const node of nodes) {
+    state.set(node.path, { checked: node.checked, expanded: node.expanded });
+    if (node.type === 'dir') {
+      captureTreeState(node.children, state);
+    }
+  }
+  return state;
+}
+
+/** Re-applies captured state to the fresh tree, then re-derives directory state. */
+function restoreTreeState(nodes: FileTreeNodeType[], state: Map<string, { checked: boolean; expanded: boolean }>) {
+  for (const node of nodes) {
+    const saved = state.get(node.path);
+    if (saved) {
+      if (node.type === 'file') {
+        // Only files carry a user choice of their own; a directory's is derived
+        // from its children below, so a stale value could never disagree with
+        // them.
+        node.checked = saved.checked;
+        node.indeterminate = false;
+      }
+      node.expanded = saved.expanded;
+    }
+    if (node.type === 'dir') {
+      restoreTreeState(node.children, state);
+      node.checked = node.children.length > 0 && node.children.every((child) => child.checked);
+      node.indeterminate = node.children.some((child) => child.checked || child.indeterminate);
+    }
+  }
 }
 
 watch(
   () => filesSignature(props.files),
   () => {
-    tree.value = sortTreeRecursively(buildFileTree(props.files));
+    const previous = captureTreeState(tree.value);
+    const rebuilt = sortTreeRecursively(buildFileTree(props.files));
+    restoreTreeState(rebuilt, previous);
+    tree.value = rebuilt;
   },
   { immediate: true },
 );

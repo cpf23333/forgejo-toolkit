@@ -383,6 +383,12 @@ describe('IssueDetail save waits for in-flight image uploads', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // jsdom's `<dialog>` has no showModal/close, and the edit dialog is opened
+    // for real here (its form is what the save comes from).
+    if (typeof HTMLDialogElement !== 'undefined') {
+      HTMLDialogElement.prototype.showModal = vi.fn();
+      HTMLDialogElement.prototype.close = vi.fn();
+    }
     appState().issueDetails.value.clear();
     appState().errors.clear();
     appState().issueDetails.value.set(keyFor('inst-1', 'owner', 'repo', 5), {
@@ -397,7 +403,12 @@ describe('IssueDetail save waits for in-flight image uploads', () => {
 
   function editDialog(wrapper: ReturnType<typeof mountEditorView>) {
     // The comment box renders an editor of its own; the edit dialog's form is
-    // the one whose submit handler saves the issue.
+    // the one whose submit handler saves the issue. The dialog is opened first:
+    // a submit that the user cancelled while the upload was in flight must not
+    // dispatch the edit (see IssueDetail.editDialogCancel.test.ts), so the save
+    // only happens for an open dialog.
+    const view = wrapper.vm as unknown as { isEditing: boolean };
+    view.isEditing = true;
     const form = wrapper.findAll('form').find((candidate) => candidate.classes().includes('issue-form'));
     expect(form, 'edit dialog form').toBeTruthy();
     return form!;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ModalDialog from './ModalDialog.vue';
 import EasyMdeEditor from './EasyMdeEditor.vue';
@@ -30,9 +30,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   close: [];
+  cancel: [];
   submit: [data: Record<string, unknown>];
   'upload-pending': [file: File];
   'remove-pending': [index: number];
+  dirty: [dirty: boolean];
 }>();
 
 const { t } = useI18n();
@@ -53,15 +55,42 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const state = useAppState();
 
-watch(
-  () => props.open,
-  (open) => {
-    if (open) {
-      reset();
-    }
-  },
-);
+/**
+ * The typed input this dialog would throw away when it closes. Compared against
+ * the snapshot taken when the dialog seeded itself (see {@link reset}) rather
+ * than against the props: the parent re-renders while the dialog is open (its
+ * own `dirty` emit re-renders the parent), so live props are not a stable
+ * baseline. The queued attachments count as input too.
+ */
+const pristine = ref('');
 
+function currentState(): string {
+  return JSON.stringify({
+    mode: props.mode,
+    name: name.value,
+    oldRef: oldRef.value,
+    tagTarget: tagTarget.value,
+    tagMessage: tagMessage.value,
+    releaseName: releaseName.value,
+    releaseTarget: releaseTarget.value,
+    releaseBody: releaseBody.value,
+    releasePrerelease: releasePrerelease.value,
+    releaseDraft: releaseDraft.value,
+    hideArchiveLinks: hideArchiveLinks.value,
+    attachments: attachments.value.map((attachment) => attachment.id ?? attachment.name ?? ''),
+    pending: props.pendingAttachments.map((file) => file.name),
+  });
+}
+
+const isDirty = computed(() => currentState() !== pristine.value);
+
+/**
+ * Seeds every field from the props and captures the resulting state as the
+ * "clean" baseline. Called once during setup for a dialog that mounts already
+ * open, and again by the open watcher below: it must run before
+ * {@link isDirty} is first observed, or a freshly opened dialog would report
+ * itself dirty.
+ */
 function reset() {
   attachmentError.value = '';
   if (props.mode === 'release' && props.release) {
@@ -79,20 +108,34 @@ function reset() {
     releaseDraft.value = props.release.draft ?? false;
     hideArchiveLinks.value = props.release.hide_archive_links ?? false;
     attachments.value = props.release.assets ?? [];
-    return;
+  } else {
+    name.value = '';
+    oldRef.value = props.defaultBranch ?? '';
+    tagTarget.value = props.defaultBranch ?? '';
+    tagMessage.value = '';
+    releaseName.value = '';
+    releaseTarget.value = targetOptionValue(props.defaultBranch ?? '');
+    releaseBody.value = '';
+    releasePrerelease.value = false;
+    releaseDraft.value = false;
+    hideArchiveLinks.value = false;
+    attachments.value = [];
   }
-  name.value = '';
-  oldRef.value = props.defaultBranch ?? '';
-  tagTarget.value = props.defaultBranch ?? '';
-  tagMessage.value = '';
-  releaseName.value = '';
-  releaseTarget.value = targetOptionValue(props.defaultBranch ?? '');
-  releaseBody.value = '';
-  releasePrerelease.value = false;
-  releaseDraft.value = false;
-  hideArchiveLinks.value = false;
-  attachments.value = [];
+  // The seeded state is what "clean" means for this session; everything the
+  // user types or queues afterwards is what Cancel would discard.
+  pristine.value = currentState();
 }
+
+reset();
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      reset();
+    }
+  },
+);
 
 function targetOptionValue(value: string): string {
   if (!value) {
@@ -100,6 +143,28 @@ function targetOptionValue(value: string): string {
   }
   const allTargets = [...(props.branches ?? []), ...(props.tags ?? [])];
   return allTargets.includes(value) ? value : '';
+}
+
+watch(
+  isDirty,
+  (dirty) => {
+    if (props.open) {
+      emit('dirty', dirty);
+    }
+  },
+  { immediate: true },
+);
+
+/**
+ * Cancel routes through the same close request Esc and × use, so the parent asks
+ * before discarding typed input. A direct `close` (what this used to emit)
+ * bypassed that confirmation entirely: a typed branch name, tag message or
+ * release body disappeared without a word. For an edit-in-progress this only
+ * guards the dialog's own state; uploads or deletions that already reached the
+ * server are a separate concern, handled where they were issued.
+ */
+function requestCancel() {
+  emit('cancel');
 }
 
 function handleSubmit() {
@@ -155,14 +220,24 @@ async function handleAttachmentSelected(event: Event) {
     input.value = '';
     return;
   }
+  // Capture the target before the first await. Uploading into an existing
+  // release spans one request per file, and `props` follows the parent, so
+  // reading the owner/repo/release id again after an await would upload the
+  // remaining files into whatever release the parent shows by then.
+  const target = {
+    instanceId: props.instanceId,
+    owner: props.owner,
+    repo: props.repo,
+    releaseId: props.release.id,
+  };
   for (const file of files) {
     try {
       const buffer = await file.arrayBuffer();
       const attachment = await state.uploadReleaseAttachment(
-        props.instanceId,
-        props.owner,
-        props.repo,
-        props.release.id,
+        target.instanceId,
+        target.owner,
+        target.repo,
+        target.releaseId,
         file.name,
         new Uint8Array(buffer),
       );
@@ -182,14 +257,23 @@ async function removeAttachment(attachment: ForgejoReleaseAttachment) {
   if (!props.release?.id || attachment.id === undefined) {
     return;
   }
+  // Same capture as the upload path: the delete is awaited, and the parent may
+  // have moved to another repository by the time it runs.
+  const target = {
+    instanceId: props.instanceId,
+    owner: props.owner,
+    repo: props.repo,
+    releaseId: props.release.id,
+    attachmentId: attachment.id,
+  };
   attachmentError.value = '';
   try {
     const deleted = await state.deleteReleaseAttachment(
-      props.instanceId,
-      props.owner,
-      props.repo,
-      props.release.id,
-      attachment.id,
+      target.instanceId,
+      target.owner,
+      target.repo,
+      target.releaseId,
+      target.attachmentId,
     );
     // A declined host-side confirmation resolves to false: the attachment is
     // still on the server, so it stays listed.
@@ -230,7 +314,14 @@ function title(): string {
 </script>
 
 <template>
-  <ModalDialog :open="open" :title="title()" :loading="loading" @close="emit('close')">
+  <ModalDialog
+    :open="open"
+    :title="title()"
+    :loading="loading"
+    :confirm-close-if-dirty="true"
+    :is-dirty="isDirty"
+    @close="emit('close')"
+  >
     <form class="ref-form" @submit.prevent="handleSubmit">
       <div v-if="mode !== 'release'" class="form-field">
         <label>{{ t('dashboard.repoRefs.nameLabel') }}</label>
@@ -393,7 +484,7 @@ function title(): string {
             }}
           </vscode-button>
         </template>
-        <vscode-button type="button" secondary @click="emit('close')">
+        <vscode-button type="button" secondary @click="requestCancel">
           {{ t('dashboard.form.cancel') }}
         </vscode-button>
       </div>

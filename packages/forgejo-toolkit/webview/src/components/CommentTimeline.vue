@@ -35,6 +35,11 @@ const renderedBodies = reactive<Record<string, string>>({});
 // Body each rendered HTML was produced from: a comment keeps its id across
 // edits, so the cache must re-render when the body changes.
 const renderedBodySources = reactive<Record<string, string>>({});
+// Rows whose markdown render failed, with the body that failed and the host's
+// reason. A failure must not be recorded as a successful render of that source
+// (nor be shown as the rendered form): the row says the formatting failed and
+// shows the body as written, and a Retry (or the next refresh) asks again.
+const renderFailures = reactive<Record<string, { source: string; message: string }>>({});
 // Rows whose markdown has been queued or is being rendered. The render queue
 // only runs MAX_MARKDOWN_RENDERS_IN_FLIGHT renders at a time, so a row waiting
 // for a slot has no HTML yet and must show the loading placeholder: feeding an
@@ -75,9 +80,20 @@ const editFormKey = computed(() => {
 });
 const editLoading = computed(() => (editFormKey.value ? (state.loading.get(editFormKey.value) ?? false) : false));
 const editError = computed(() => (editFormKey.value ? state.errors.get(editFormKey.value) : undefined));
-// The modal's busy state: the save request itself, the attachment list's own
-// uploads, and an in-flight editor image upload the save is waiting for.
+// Every reason the edit form is busy: the save request itself, the attachment
+// list's own uploads, and the uploads a save is waiting for.
 const editBusy = computed(() => editLoading.value || uploadingCommentCount.value > 0 || isAwaitingEditUploads.value);
+// The busy state that blocks closing the dialog: a submit already on its way
+// (the save request, or a save waiting for the uploads it must include). Only
+// this is passed to ModalDialog as `loading`, which hides the X and swallows
+// Esc. A mere image upload used to be included, so the dialog could not be
+// closed at all until the request timed out (up to 60 s).
+const editSubmitting = computed(() => editLoading.value || isSavingEdit.value || isAwaitingEditUploads.value);
+// An upload in flight is unsaved work too - its markdown is inserted into the
+// body only when it answers - so closing while one runs asks for the same
+// confirmation as closing with an edited body (see requestEditClose).
+const editUploadsInFlight = computed(() => uploadingCommentCount.value > 0);
+const editCloseNeedsConfirm = computed(() => editDirty.value || editUploadsInFlight.value);
 
 function commentKey(comment: ForgejoTimelineComment): string {
   return String(comment.id ?? `${comment.type ?? 'event'}-${comment.created_at ?? ''}-${comment.user?.login ?? ''}`);
@@ -94,11 +110,56 @@ async function renderComment(comment: ForgejoTimelineComment) {
   try {
     const html = await state.renderMarkdown(props.instanceId, comment.body);
     renderedBodies[key] = html;
-  } catch {
-    renderedBodies[key] = comment.body;
-  } finally {
+    // Only here is the source recorded as rendered. Recording it from `finally`
+    // (as this used to, together with storing the body itself as the HTML) made
+    // the "already rendered" tests above pass for a *failed* render, so the row
+    // showed raw markdown with no error line for the rest of the session: a
+    // refresh re-sends the same bodies, the stale cache still matched, and only
+    // a remount cleared it.
     renderedBodySources[key] = comment.body;
+    delete renderFailures[key];
+  } catch (error) {
+    // Not presented as the rendered form, and not cached as one: the row shows
+    // the failure notice and the body as written (see the template). Nothing
+    // records this source as rendered, so `requestCommentData` queues it again
+    // whenever the timeline changes - the next refresh, and the next "show more"
+    // as well as the row's own Retry button (see retryCommentRender).
+    delete renderedBodies[key];
+    delete renderedBodySources[key];
+    renderFailures[key] = {
+      source: comment.body,
+      message: error instanceof Error ? error.message : String(error),
+    };
   }
+}
+
+/**
+ * The failure reason for a row, or undefined while it is rendering or rendered.
+ *
+ * Matched on the body: a comment keeps its id across edits, and the notice of a
+ * previous body must not label the new one as failed before its render returns.
+ */
+function renderFailureFor(comment: ForgejoTimelineComment): { source: string; message: string } | undefined {
+  const failure = renderFailures[commentKey(comment)];
+  return failure && comment.body !== undefined && failure.source === comment.body ? failure : undefined;
+}
+
+/**
+ * Re-queues one row's markdown render after a failure. The failure record is
+ * dropped first so the row leaves the failed state behind; it is restored with
+ * the new reason if this attempt fails too. Nothing needs clearing beyond that:
+ * a failed render is not cached as a rendered source (see renderComment), and
+ * the host's own markdown cache only ever holds successes.
+ */
+function retryCommentRender(comment: ForgejoTimelineComment) {
+  const key = commentKey(comment);
+  delete renderFailures[key];
+  if (pendingRenderIds.value.has(key)) {
+    return;
+  }
+  pendingRenderIds.value.add(key);
+  queuedCommentRenders.push(comment);
+  pumpCommentRenders();
 }
 
 const sortOrder = ref<'asc' | 'desc'>('asc');
@@ -369,6 +430,27 @@ function closeEdit() {
   isSavingEdit.value = false;
 }
 
+/**
+ * Closes the edit dialog on the user's explicit request (the Cancel button).
+ *
+ * While an image upload is in flight the upload's reply would be discarded - its
+ * markdown is inserted into the body only when it answers - so the user is asked
+ * first, with the same confirmation ModalDialog gives the X, Esc and backdrop
+ * paths through `confirmCloseIfDirty` (see `editCloseNeedsConfirm`). The dialog
+ * is deliberately not left in ModalDialog's `loading` state for an upload:
+ * `loading` hides the X and swallows Esc, which left the user with no way to
+ * close the dialog until the request timed out. Only a submit already on its way
+ * (`editSubmitting`) blocks closing, and a late upload reply after a close is
+ * dropped by `handleUploadImageForEdit`, which checks that the editor still
+ * holds the comment the upload was started from.
+ */
+async function requestEditClose() {
+  if (editUploadsInFlight.value && !(await state.showConfirm(t('common.discardChangesConfirm')))) {
+    return;
+  }
+  closeEdit();
+}
+
 async function saveEdit() {
   // The editor inserts the uploaded image's markdown from the upload's success
   // callback, so a save that reads the body first would store a comment without
@@ -609,6 +691,20 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         <div v-if="pendingRenderIds.has(commentKey(comment))" class="loading">
           {{ t('dashboard.detail.renderingBody') }}
         </div>
+        <!-- A failed render is not the rendered body: saying nothing (or showing
+             the raw markdown as if it were the result) hid the failure, and the
+             row stayed like that for the session. The body is shown as written,
+             labelled, with a Retry that re-requests the render. -->
+        <div v-else-if="renderFailureFor(comment)" class="comment-body-render-failed">
+          <div class="render-failed-notice">
+            <vscode-icon name="warning" />
+            <span>{{
+              t('dashboard.detail.markdownRenderFailed', { message: renderFailureFor(comment)?.message })
+            }}</span>
+            <vscode-button secondary @click="retryCommentRender(comment)">{{ t('dashboard.retry') }}</vscode-button>
+          </div>
+          <pre class="render-failed-source">{{ comment.body }}</pre>
+        </div>
         <MarkdownBody
           v-else
           :html="renderedBodies[commentKey(comment)] ?? ''"
@@ -621,7 +717,14 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         <span v-if="comment.ref_commit_sha" class="commit-ref">{{ comment.ref_commit_sha.slice(0, 7) }}</span>
         <span v-else-if="comment.ref_comment" class="comment-ref">#{{ comment.ref_comment.id }}</span>
       </div>
-      <div v-if="comment.id !== undefined && comment.assets?.length" class="comment-attachments">
+      <!-- The attachment lookup for this comment failed, so the empty list is not
+           an answer: saying nothing read as "this comment has no attachments"
+           and the user concluded their attachment had been deleted. -->
+      <div v-if="comment.attachmentsUnavailable" class="comment-attachments comment-attachments-unavailable">
+        <vscode-icon name="warning" />
+        <span>{{ t('dashboard.detail.attachmentsUnavailable') }}</span>
+      </div>
+      <div v-else-if="comment.id !== undefined && comment.assets?.length" class="comment-attachments">
         <AttachmentList
           :assets="comment.assets"
           :allow-upload="false"
@@ -649,9 +752,9 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
     <ModalDialog
       :open="editingComment !== undefined"
       :title="t('dashboard.detail.editComment')"
-      :loading="editBusy"
+      :loading="editSubmitting"
       :confirm-close-if-dirty="true"
-      :is-dirty="editDirty"
+      :is-dirty="editCloseNeedsConfirm"
       @close="closeEdit"
     >
       <div class="edit-comment-form">
@@ -683,7 +786,10 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           <vscode-button :disabled="editBusy" @click="saveEdit">
             {{ editBusy ? t('dashboard.form.saving') : t('dashboard.form.save') }}
           </vscode-button>
-          <vscode-button secondary :disabled="editBusy" @click="closeEdit">
+          <!-- Not `editBusy`: an upload in flight must not trap the user in the
+               dialog. Closing then asks for confirmation (see requestEditClose);
+               only a submit already on its way disables Cancel. -->
+          <vscode-button secondary :disabled="editSubmitting" @click="requestEditClose">
             {{ t('dashboard.form.cancel') }}
           </vscode-button>
         </div>
@@ -770,6 +876,34 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
   font-size: 0.95em;
 }
 
+.comment-body-render-failed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.render-failed-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground));
+}
+
+.render-failed-source {
+  margin: 0;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.9em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  background-color: var(--vscode-textCodeBlock-background, var(--vscode-editor-inactiveSelectionBackground));
+  color: var(--vscode-foreground);
+}
+
 .loading {
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
@@ -818,6 +952,14 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--vscode-panel-border);
+}
+
+.comment-attachments-unavailable {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
 }
 
 .upload-error {

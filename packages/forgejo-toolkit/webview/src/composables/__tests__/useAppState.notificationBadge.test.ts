@@ -170,4 +170,56 @@ describe('useAppState notification badge request identity', () => {
 
     expect(state.polledNotifications.value.has(INSTANCE_A.id)).toBe(false);
   });
+
+  it('does not attribute a reply sent before the badge request to that request', async () => {
+    // The interleaving the bare identity marker could not tell apart: the view's
+    // own request is on the wire, the instance is repointed at another server
+    // (which clears the loading slot but cannot cancel the request), and the
+    // dashboard then asks for the badge. Two `notifications` requests are in
+    // flight, and the host's reply carries no request id.
+    const { state, mod } = await createState();
+    const notificationsKey = mod.notificationsKey;
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+
+    state.loadNotifications(INSTANCE_A.id, ['unread', 'pinned']);
+    dispatchMessage({
+      command: 'instances',
+      data: [{ ...INSTANCE_A, url: 'https://forgejo.example.com/beta' }],
+    });
+    await nextTick();
+    // Only the badge's own request is counted from here.
+    vscodeApiMock.postMessage.mockClear();
+
+    await state.loadNotificationBadge(INSTANCE_A.id);
+    expect(badgeRequests()).toHaveLength(1);
+
+    // The replaced server answers the *older* request first. Its page belongs to
+    // the request that was sent before the badge request, so it must not fill the
+    // badge: doing so took the fresh marker and left the badge request's own
+    // reply to be written into the view slot instead.
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: INSTANCE_A.id,
+      notifications: [{ id: 1, unread: true }],
+    });
+    await nextTick();
+
+    expect(state.polledNotifications.value.has(INSTANCE_A.id)).toBe(false);
+    expect(state.notifications.value.has(notificationsKey(INSTANCE_A.id))).toBe(false);
+
+    // The badge request's own reply fills it, for the server now configured.
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: INSTANCE_A.id,
+      notifications: [
+        { id: 2, unread: true },
+        { id: 3, unread: true },
+      ],
+    });
+    await nextTick();
+
+    expect(state.polledNotifications.value.get(INSTANCE_A.id)?.map((entry) => entry.id)).toEqual([2, 3]);
+    expect(state.unreadNotificationCount.value).toBe(2);
+  });
 });

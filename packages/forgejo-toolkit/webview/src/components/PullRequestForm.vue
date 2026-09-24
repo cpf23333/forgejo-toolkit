@@ -375,7 +375,10 @@ async function handleSubmit() {
       >
         {{ loading ? t('dashboard.form.saving') : submitLabel }}
       </vscode-button>
-      <vscode-button type="button" secondary @click="emit('cancel')">
+      <!-- Disabled while saving for the same reason as Submit: the save waits
+           for in-flight image uploads, so a Cancel in that window would close a
+           dialog whose edit is already on its way to the server. -->
+      <vscode-button type="button" :disabled="loading" @click="emit('cancel')" secondary>
         {{ t('dashboard.form.cancel') }}
       </vscode-button>
     </div>

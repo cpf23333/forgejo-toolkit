@@ -18,6 +18,12 @@ const props = defineProps<{
   branch?: string;
 }>();
 
+// The host caps a file search at `MAX_SEARCH_RESULTS` in `src/api/client.ts`
+// (200) and reports the cause as `truncatedBy: 'matches'`. The number is written
+// out rather than imported: that module is host-side (it pulls in `vscode` and
+// `undici`) and cannot be part of the webview bundle.
+const HOST_SEARCH_RESULT_CAP = 200;
+
 const state = useAppState();
 
 const selectedRef = ref(props.defaultBranch);
@@ -64,7 +70,17 @@ const searchResults = computed(() => state.repoFileSearchResults.value.get(searc
 // cached page), so no request has been sent for this query+ref yet and "No
 // matching files" would claim a search that never ran.
 const searchResultsKnown = computed(() => state.repoFileSearchResults.value.has(searchKey.value));
-const searchTruncated = computed(() => state.repoFileSearchTruncated.value.get(searchKey.value) === true);
+// Why the list is incomplete, or undefined when the answer is complete: the host
+// names the cause it applied. A payload that only sets `truncated` (hand-built
+// callers) carries no cause and keeps the tree wording, which is the
+// conservative one — it does not promise the user that every match is on screen.
+const searchTruncation = computed(() => state.repoFileSearchTruncated.value.get(searchKey.value));
+const searchTruncationMessage = computed(() => {
+  if (searchTruncation.value === 'matches') {
+    return state.t('dashboard.fileBrowser.searchTruncatedByMatches', { limit: HOST_SEARCH_RESULT_CAP });
+  }
+  return state.t('dashboard.fileBrowser.searchTruncated');
+});
 const searchLoading = computed(() => state.loading.get(searchKey.value) ?? false);
 const searchError = computed(() => state.errors.get(searchKey.value));
 const hasSearchQuery = computed(() => searchQuery.value.trim().length > 0);
@@ -326,8 +342,8 @@ onUnmounted(() => {
                 <span class="search-result-path">{{ file.path }}</span>
               </li>
             </ul>
-            <div v-if="searchTruncated" class="tree-status">
-              {{ state.t('dashboard.fileBrowser.searchTruncated') }}
+            <div v-if="searchTruncation" class="tree-status">
+              {{ searchTruncationMessage }}
             </div>
           </template>
         </template>

@@ -37,6 +37,45 @@ describe('ModalDialog', () => {
     expect(wrapper.text()).toContain('body content');
   });
 
+  describe('accessible name', () => {
+    it('points aria-labelledby at the visible title heading', () => {
+      const wrapper = mountDialog({ props: { open: false, title: 'Test Title' } });
+
+      const labelledBy = wrapper.find('dialog').attributes('aria-labelledby');
+      expect(labelledBy).toBeTruthy();
+
+      const heading = wrapper.find(`[id="${labelledBy}"]`);
+      expect(heading.exists()).toBe(true);
+      expect(heading.element.tagName).toBe('H3');
+      expect(heading.text()).toBe('Test Title');
+    });
+
+    it('gives two dialogs in one view distinct heading ids', () => {
+      // `useId()` is per app instance: two dialogs rendered in the same view
+      // must not share a heading id, or the label would resolve to the first.
+      const wrapper = mount(
+        {
+          components: { ModalDialog },
+          template: '<div><ModalDialog title="First" /><ModalDialog title="Second" /></div>',
+        },
+        { global: { plugins: [createTestI18n('en')] } },
+      );
+
+      const ids = wrapper.findAll('.modal-title').map((heading) => heading.attributes('id'));
+      expect(ids).toHaveLength(2);
+      expect(ids[0]).toBeTruthy();
+      expect(ids[1]).toBeTruthy();
+      expect(ids[0]).not.toBe(ids[1]);
+    });
+
+    it('does not reference a missing element when there is no title', () => {
+      const wrapper = mountDialog({ props: { open: false } });
+
+      expect(wrapper.find('dialog').attributes('aria-labelledby')).toBeUndefined();
+      expect(wrapper.find('.modal-title').exists()).toBe(false);
+    });
+  });
+
   it('calls showModal when open becomes true', async () => {
     const wrapper = mountDialog({ props: { open: false } });
 

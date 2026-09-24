@@ -244,4 +244,110 @@ describe('useAppState refresh over an in-flight repository list', () => {
       },
     ]);
   });
+
+  it('discards one in-flight reply and re-issues each list exactly once', async () => {
+    // The counterpart of the settled case below: when a request really is in
+    // flight, the refresh must still drop its reply and issue one replacement.
+    // Counting the reply only here is what makes the two cases differ.
+    const { state, mod } = await createState();
+    dispatchMessage({ command: 'instances', data: [INSTANCE] });
+    await nextTick();
+    const issueKey = mod.repoIssuesKey(INSTANCE.id, 'owner', 'repo', 'open');
+    const pullKey = mod.repoPullRequestsKey(INSTANCE.id, 'owner', 'repo', 'open');
+    state.repoIssues.value.set(issueKey, [issue(1, 'stale')]);
+    state.loadRepoIssues(INSTANCE.id, 'owner', 'repo', 'open');
+    state.repoPullRequests.value.set(pullKey, [{ id: 1, index: 1, title: 'stale' }] as never);
+    state.loadRepoPullRequests(INSTANCE.id, 'owner', 'repo', 'open');
+    await nextTick();
+    vscodeApiMock.postMessage.mockClear();
+
+    dispatchMessage({ command: 'refreshData' });
+    expect(postedIssueRequests()).toHaveLength(0);
+    expect(postedPullRequests()).toHaveLength(0);
+
+    dispatchMessage({
+      command: 'repoIssues',
+      instanceId: INSTANCE.id,
+      owner: 'owner',
+      repo: 'repo',
+      state: 'open',
+      issues: [issue(1, 'stale')],
+    });
+    dispatchMessage({
+      command: 'repoPullRequests',
+      instanceId: INSTANCE.id,
+      owner: 'owner',
+      repo: 'repo',
+      state: 'open',
+      pullRequests: [{ id: 1, index: 1, title: 'stale' }],
+    });
+    await nextTick();
+
+    expect(state.repoIssues.value.has(issueKey)).toBe(false);
+    expect(state.repoPullRequests.value.has(pullKey)).toBe(false);
+    expect(postedIssueRequests()).toHaveLength(1);
+    expect(postedPullRequests()).toHaveLength(1);
+  });
+});
+
+/**
+ * The normal refresh: the list the user is looking at is loaded and settled, so
+ * nothing is in flight when Refresh is pressed. The refresh's own request is then
+ * the only one on the wire, and its reply is the refreshed answer.
+ *
+ * It used to be counted as a "pre-refresh reply" anyway (the counter was
+ * incremented before the in-flight dedupe that would have found nothing), so
+ * `applyRepoListReply` threw the reply away, deleted the payload and mark it had
+ * just written, and posted the identical request again. A 500-row list cost 20
+ * paged requests instead of 10, and the panel stayed empty until the second
+ * answer landed.
+ */
+describe('useAppState refresh over a settled repository list', () => {
+  it('issues exactly one request per list and applies its reply', async () => {
+    const { state, mod } = await createState();
+    dispatchMessage({ command: 'instances', data: [INSTANCE] });
+    await nextTick();
+    const issueKey = mod.repoIssuesKey(INSTANCE.id, 'owner', 'repo', 'open');
+    const pullKey = mod.repoPullRequestsKey(INSTANCE.id, 'owner', 'repo', 'open');
+    // Both lists are loaded and served as fresh: nothing is in flight.
+    state.repoIssues.value.set(issueKey, [issue(1, 'loaded')]);
+    state.repoIssuesFetchedAt.set(issueKey, Date.now());
+    state.repoPullRequests.value.set(pullKey, [{ id: 1, index: 1, title: 'loaded' }] as never);
+    state.repoPullRequestsFetchedAt.set(pullKey, Date.now());
+    vscodeApiMock.postMessage.mockClear();
+
+    dispatchMessage({ command: 'refreshData' });
+    await nextTick();
+
+    // One request per list - the refresh's own.
+    expect(postedIssueRequests()).toHaveLength(1);
+    expect(postedPullRequests()).toHaveLength(1);
+
+    dispatchMessage({
+      command: 'repoIssues',
+      instanceId: INSTANCE.id,
+      owner: 'owner',
+      repo: 'repo',
+      state: 'open',
+      issues: [issue(2, 'fresh')],
+    });
+    dispatchMessage({
+      command: 'repoPullRequests',
+      instanceId: INSTANCE.id,
+      owner: 'owner',
+      repo: 'repo',
+      state: 'open',
+      pullRequests: [{ id: 2, index: 2, title: 'fresh' }],
+    });
+    await nextTick();
+
+    // The reply is applied, the spinner stops, and no second, identical request
+    // was posted to replace the one that was thrown away.
+    expect(state.repoIssues.value.get(issueKey)?.map((row) => row.title)).toEqual(['fresh']);
+    expect(state.repoPullRequests.value.get(pullKey)?.map((row) => row.title)).toEqual(['fresh']);
+    expect(state.loading.get(issueKey)).toBe(false);
+    expect(state.loading.get(pullKey)).toBe(false);
+    expect(postedIssueRequests()).toHaveLength(1);
+    expect(postedPullRequests()).toHaveLength(1);
+  });
 });

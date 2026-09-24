@@ -452,16 +452,39 @@ const hasMergeBlockers = computed(() => mergeBlockers.value.length > 0);
 // the status above cannot claim the PR is ready to merge.
 const protectionUnknown = computed(() => detail.value?.protectionUnknown === true);
 
+/**
+ * The localized wording for one status-check state.
+ *
+ * The blocker line used to print the raw Forgejo enum (`failure`, `pending`,
+ * ...) while the checks panel one screen above translated the very same values
+ * through `dashboard.detail.checksState.*`, so one state read differently
+ * depending on where the user looked. A value this webview has no wording for
+ * falls back to the neutral `unknown` label instead of the missing key.
+ */
+function statusStateLabel(state: string): string {
+  const key = `dashboard.detail.checksState.${state}`;
+  const label = t(key);
+  return label === key ? t('dashboard.detail.checksState.unknown') : label;
+}
+
 function blockerText(blocker: MergeBlocker): string {
   switch (blocker.type) {
     case 'required_approvals':
       return t('dashboard.detail.mergeableStatus.blocker.required_approvals', {
         count: blocker.requiredApprovals ?? 0,
       });
-    case 'required_status_checks':
+    case 'required_status_checks': {
+      const state = blocker.statusState;
+      // The sibling host fix drops this blocker when the status probe failed, so
+      // an absent state should not happen. If it still does, say so honestly
+      // rather than printing a bare "-" that reads like a real state.
+      if (!state) {
+        return t('dashboard.detail.mergeableStatus.blocker.required_status_checks_no_state');
+      }
       return t('dashboard.detail.mergeableStatus.blocker.required_status_checks', {
-        state: blocker.statusState ?? '-',
+        state: statusStateLabel(state),
       });
+    }
     default:
       return t(`dashboard.detail.mergeableStatus.blocker.${blocker.type}`);
   }
@@ -519,11 +542,19 @@ function openEdit() {
   state.loadRepoDetail(instanceId.value, owner.value, repo.value);
   state.loadPullRequestDetail(instanceId.value, owner.value, repo.value, index.value);
   attachmentDeleteNotice.value = undefined;
+  // A new edit session starts with no marked deletions. Clearing them here
+  // (rather than on close) is what lets `closeEdit` keep the marks of a save
+  // that is already in flight: the save's reply still has to delete them.
+  pendingDeleteAttachmentIds.value = [];
   isEditing.value = true;
 }
 
 function closeEdit() {
-  pendingDeleteAttachmentIds.value = [];
+  // The marks deliberately survive closing the dialog: a save whose edit was
+  // already dispatched still runs its deletions when the host answers. Clearing
+  // them here is what used to make Save-then-Cancel drop the user's marked
+  // attachments without reporting anything. `openEdit` clears them for the next
+  // session, and the save reply clears them once they were applied.
   isEditing.value = false;
 }
 
@@ -549,6 +580,14 @@ async function handleEditSubmit(data: {
     } finally {
       isAwaitingUploads.value = false;
     }
+  }
+  // The dialog may have been cancelled while the uploads were being awaited;
+  // dispatching then would land an edit the user already abandoned. The
+  // Cancel/X/Esc paths are blocked while the dialog is busy (see `formLoading`),
+  // so this covers a close that got through anyway (a programmatic one, or a
+  // host-side close).
+  if (!isEditing.value) {
+    return;
   }
   state.editPullRequest(target.instanceId, target.owner, target.repo, target.index, {
     title: data.title,
@@ -1360,7 +1399,11 @@ function reloadPullRequest() {
           />
         </div>
 
-        <AttachmentList :assets="detail.assets" @open-external="state.openExternal($event)" />
+        <AttachmentList
+          :assets="detail.assets"
+          :attachments-unavailable="detail.attachmentsUnavailable === true"
+          @open-external="state.openExternal($event)"
+        />
 
         <div v-if="detail.merged_by" class="detail-section">
           <h3>{{ t('dashboard.detail.mergedBy') }}</h3>

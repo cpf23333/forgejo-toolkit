@@ -6,6 +6,7 @@ import { useAppState, notificationsKey } from '../composables/useAppState';
 import type { ForgejoNotification } from '../types/api';
 import type { ForgejoInstance } from '../types/instance';
 import IconActionButton from '../components/IconActionButton.vue';
+import { activateTreeRowFromKey, TREE_ROW_ACTION_SELECTOR } from '../utils/treeRowActivation';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -102,12 +103,17 @@ function hasLoaded(): boolean {
   return false;
 }
 
-// Instances with content, a view error, or a poll failure get a card — a
-// token-expired instance must not collapse into the global empty state.
+// Instances with content, a view error, a poll failure or another page to load
+// get a card — a token-expired instance must not collapse into the global empty
+// state, and an instance whose loaded page is hidden by the filters must keep
+// its "Load more" reachable.
 function visibleInstances(): ForgejoInstance[] {
   return instances.value.filter(
     (instance) =>
-      filteredList(instance.id).length > 0 || errors.value.has(key(instance.id)) || pollErrors.value.has(instance.id),
+      filteredList(instance.id).length > 0 ||
+      errors.value.has(key(instance.id)) ||
+      pollErrors.value.has(instance.id) ||
+      canLoadMore(instance.id),
   );
 }
 
@@ -117,12 +123,51 @@ function loadAll() {
   }
 }
 
-function formatError(instanceId: string): string {
+/**
+ * The banner's lines, one per cause that is actually known to be wrong.
+ *
+ * The host sends a complete user-facing sentence for both a failed load
+ * (`getNotifications`) and a failed background poll (`pushNotificationError`),
+ * so each cause gets exactly one webview wrapper — "Failed to load: …" for the
+ * view's own request, "Failed to refresh notifications: …" for the poller's —
+ * and neither is ever wrapped on top of the other. A view error and a poll
+ * error can both be present (the poller keeps failing while the user's retry
+ * fails too), and both are stated instead of the poll cause being dropped.
+ */
+function bannerErrorLines(instanceId: string): string[] {
+  const lines: string[] = [];
   const viewError = errors.value.get(key(instanceId));
   if (viewError) {
-    return t('dashboard.error', { message: viewError });
+    lines.push(t('dashboard.error', { message: viewError }));
   }
-  return t('dashboard.notifications.pollFailed', { message: pollErrors.value.get(instanceId) ?? '' });
+  const pollError = pollErrors.value.get(instanceId);
+  if (pollError) {
+    lines.push(t('dashboard.notifications.pollFailed', { message: pollError }));
+  }
+  return lines;
+}
+
+/**
+ * Retry for the banner's per-instance refresh. The composable's reply handling
+ * clears the view error on a successful load, but the poll failure lives in a
+ * slot only the poller writes, so it has to be cleared here: otherwise the
+ * banner would stay on screen after a successful retry, reporting a failure
+ * that is no longer true.
+ */
+function retryInstance(instanceId: string) {
+  state.notificationPollErrors.value.delete(instanceId);
+  state.loadNotifications(instanceId, statusTypes.value, subjectType.value);
+}
+
+// The tree consumes Enter/Space on the focused tree item before the browser can
+// activate anything inside it (see utils/treeRowActivation), so a notification
+// row would only ever be selected, never opened. The capture-phase listener runs
+// before the tree's own and activates the row.
+function onTreeKeydownCapture(event: KeyboardEvent) {
+  if (activateTreeRowFromKey(event, TREE_ROW_ACTION_SELECTOR)) {
+    event.stopImmediatePropagation();
+    event.preventDefault();
+  }
 }
 
 function notificationTypeIcon(notification: ForgejoNotification): string {
@@ -352,12 +397,18 @@ onActivated(() => {
     </div>
 
     <div v-else class="notifications-list">
-      <vscode-tree v-for="instance in visibleInstances()" :key="instance.id" indent-guides="onHover">
+      <vscode-tree
+        v-for="instance in visibleInstances()"
+        :key="instance.id"
+        indent-guides="onHover"
+        @keydown.capture="onTreeKeydownCapture"
+      >
         <vscode-tree-item branch open>
           {{ instance.url }} · {{ instance.username }}
           <vscode-tree-item
             v-for="notification in filteredList(instance.id)"
             :key="notification.id ?? notification.subject?.html_url"
+            data-tree-row-action
             @click.capture="openNotification($event, notification, instance.id)"
           >
             <span class="notification-title" :class="{ unread: notification.unread }">
@@ -382,6 +433,12 @@ onActivated(() => {
               />
             </span>
           </vscode-tree-item>
+          <!-- The instance stays visible for its error rows or another page; when
+               the filters hide every loaded row, say so instead of letting the
+               instance look empty. -->
+          <vscode-tree-item v-if="listFor(instance.id).length > 0 && filteredList(instance.id).length === 0">
+            <span class="filter-empty">{{ t('dashboard.notifications.empty') }}</span>
+          </vscode-tree-item>
           <vscode-tree-item v-if="canLoadMore(instance.id)">
             <span class="load-more">
               <vscode-button
@@ -394,12 +451,16 @@ onActivated(() => {
             </span>
           </vscode-tree-item>
           <vscode-tree-item v-if="errors.get(key(instance.id)) || pollErrors.get(instance.id)">
-            <span class="error">{{ formatError(instance.id) }}</span>
+            <span class="error">
+              <span v-for="(line, index) in bannerErrorLines(instance.id)" :key="index" class="error-line">
+                {{ line }}
+              </span>
+            </span>
             <span slot="actions">
               <IconActionButton
                 name="refresh"
                 :label="t('dashboard.retry')"
-                @click.stop.prevent="state.loadNotifications(instance.id, statusTypes, subjectType)"
+                @click.stop.prevent="retryInstance(instance.id)"
               />
             </span>
           </vscode-tree-item>
@@ -543,6 +604,17 @@ onActivated(() => {
 
 .error {
   color: var(--vscode-testing-iconFailed);
+  font-size: 0.9em;
+}
+
+/* One line per failing cause: a load failure and a poll failure are different
+   causes and each is stated on its own line. */
+.error-line {
+  display: block;
+}
+
+.filter-empty {
+  color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
 }
 
