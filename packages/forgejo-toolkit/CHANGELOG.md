@@ -8,13 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- Maintainers: the `## [<version>]` section is extracted verbatim and published
      as the Codeberg release body (see `.forgejo/workflows/release.yml`), so keep
      it user-facing and up to date — never place maintainer notes inside a
-     version section. The release checklist is in `docs/release.md`. -->
+     version section. This root file is the authoritative release-notes source,
+     and it is also the copy that ships with the extension
+     (`packages/forgejo-toolkit/CHANGELOG.md`, kept byte-for-byte identical by a
+     test); the per-package changelog `pnpm run version-packages` writes is only a
+     fallback for the release body. While the release is unpublished its notes
+     stay under `## [Unreleased]`; cutting the release renames that heading to
+     `## [<version>] - <date>` (post-release step of the checklist in
+     `docs/release.md`). -->
 
 ## [Unreleased]
 
-## [0.0.1] - 2026-09-23
-
-First public release.
+First public release, prepared as 0.0.1 but **not published yet**: there is no
+Codeberg release, Marketplace listing or Open VSX listing until it is cut.
 
 ### Added
 

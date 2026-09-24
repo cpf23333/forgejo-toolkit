@@ -41,26 +41,31 @@ A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-
 
 ## Installation
 
-### From the Marketplace
-
-Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=cpf23333.forgejo-toolkit)
-(search for "Forgejo Toolkit"), or from [Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit)
-for editors that use it, such as VSCodium. If a store does not carry the current
-release yet, use the `.vsix` below.
+> **Not published yet.** Forgejo Toolkit has not been released: there is no
+> Marketplace or Open VSX listing, and no Codeberg release with a `.vsix`
+> attached. The store links below only start working once the first release is
+> published, so build the `.vsix` yourself for now.
 
 ### From a VSIX
 
-Every release attaches the packaged `.vsix` to its
-[Codeberg release](https://codeberg.org/cpf23333/forgejo-toolkit/releases).
-Download it there and click **Extensions → ... → Install from VSIX**.
-
-To build the `.vsix` yourself:
+Once released, every version attaches the packaged `.vsix` to its
+[Codeberg release](https://codeberg.org/cpf23333/forgejo-toolkit/releases) page;
+until then, build it yourself:
 
 ```bash
 pnpm --filter forgejo-toolkit package
 ```
 
 The file is written to `packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix`.
+Install it with **Extensions → ... → Install from VSIX**.
+
+### From a store (after the first release)
+
+After 0.0.1 is published, the extension can be installed from the
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=cpf23333.forgejo-toolkit)
+(search for "Forgejo Toolkit"), or from
+[Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) for editors
+that use it, such as VSCodium.
 
 ## Usage
 
@@ -170,6 +175,11 @@ pnpm run version-packages
 ```
 
 `pnpm run release` is used for npm package publishing; the VS Code extension itself is packaged into a `.vsix` via `pnpm --filter forgejo-toolkit package`.
+
+Changesets writes the per-package `packages/forgejo-toolkit/CHANGELOG.md`; the root
+`CHANGELOG.md` is the curated, user-facing changelog and the source of the Codeberg
+release notes, so it is written by hand and kept in step with the packaged copy
+(see `docs/release.md`).
 
 ## Project Status
 

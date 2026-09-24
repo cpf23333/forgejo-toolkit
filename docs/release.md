@@ -4,12 +4,20 @@ This document describes how to publish Forgejo Toolkit.
 
 ## Checklist
 
-The order below is what the 0.0.1 release actually used; the sections after it
-explain each step.
+The order below is what the 0.0.1 release uses; nothing has been published yet
+(the Codeberg release, the Marketplace listing and the Open VSX listing all still
+have to be created), so a first-time releaser can follow it top to bottom. The
+sections after it explain each step.
 
-1. **Write the changelog section.** `CHANGELOG.md` carries `## [<version>] - <date>`
-   for the version being released — the release workflow uses it verbatim as the
-   Codeberg release body.
+1. **Write the changelog section.** The root `CHANGELOG.md` is the authoritative
+   release-notes source: the release workflow extracts the section whose heading
+   names the version being released (`## [<version>] - <date>`) and publishes it
+   verbatim as the Codeberg release body. Before the first release the notes live
+   under `## [Unreleased]`, which the workflow falls back to; that heading is
+   renamed to `## [<version>] - <date>` at release time (post-release step 7).
+   `pnpm run version-packages` maintains `packages/forgejo-toolkit/CHANGELOG.md`
+   instead, a mechanical per-package record that is only a fallback for the
+   release body — the curated root section is still the one to write.
 2. **Validate the commit.** `pnpm check`, `pnpm lint`, `pnpm format` and
    `pnpm --filter forgejo-toolkit test` locally, or dispatch the manual
    `Verify (manual)` workflow on the self-hosted Forgejo (`origin`).
@@ -24,16 +32,26 @@ explain each step.
    off; it validates, packages, creates the release for `v<version>` at the
    dispatched commit and attaches the `.vsix`.
 6. **Publish to the stores.** VS Code Marketplace and Open VSX, both manual (they
-   need publisher credentials) — see sections 4 and 5.
-7. **Backfill the docs.** Align the README installation section and this document
-   with the channels actually used, and re-check the version-related entries in
-   `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`.
+   need publisher credentials) — see sections 4 and 5. Neither listing exists yet;
+   this is the step that creates them.
+7. **Backfill the docs.** Rename the released section in `CHANGELOG.md` from
+   `## [Unreleased]` to `## [<version>] - <date>` (edit the root file and copy it
+   over `packages/forgejo-toolkit/CHANGELOG.md` — a test keeps the two byte for
+   byte identical), flip the "not published yet" wording in `README.md` /
+   `README.zh.md` back to plain store links now that they resolve, and re-check
+   the version-related entries in `KNOWN_ISSUES.md` / `KNOWN_ISSUES.zh.md`.
 
 ## Prerequisites
 
 - A [Codeberg](https://codeberg.org) account with push access to `https://codeberg.org/cpf23333/forgejo-toolkit`.
-- A [VS Code Marketplace](https://marketplace.visualstudio.com/) publisher account — the extension is published under `cpf23333` (already configured in `packages/forgejo-toolkit/package.json`); you need a Personal Access Token for that publisher.
-- An [Open VSX](https://open-vsx.org/) account if you want to publish for VSCodium users.
+- For store publishing only (checklist step 6, sections 4 and 5): a
+  [VS Code Marketplace](https://marketplace.visualstudio.com/) publisher account —
+  the extension will be published under the `cpf23333` publisher id already set in
+  `packages/forgejo-toolkit/package.json`, and you need a Personal Access Token for
+  it — and an [Open VSX](https://open-vsx.org/) account if you want to publish for
+  VSCodium users. **Neither store carries the extension yet**, so the Marketplace
+  and Open VSX listing URLs in the READMEs do not resolve until that step has run
+  once; the READMEs state that instead of linking readers to a 404.
 
 ## Release workflow
 
@@ -55,12 +73,16 @@ When you are ready to release, bump versions and update changelogs:
 pnpm run version-packages
 ```
 
-This updates `package.json` versions and generates `CHANGELOG.md` entries automatically.
+This updates `package.json` versions and writes `packages/forgejo-toolkit/CHANGELOG.md`.
 
-Then make sure `CHANGELOG.md` has a section for the version being released
-(`## [<version>] - <date>`): the release workflow uses that section verbatim as
-the Codeberg release body, so what is written there is what users read. Writing it
-by hand is fine — Changesets only automates the mechanical part.
+Then make sure the root `CHANGELOG.md` has a section for the version being released
+(`## [<version>] - <date>`, or `## [Unreleased]` while the version is still
+unreleased — the workflow accepts both spellings and falls back to `[Unreleased]`):
+the release workflow uses that section verbatim as the Codeberg release body, so
+what is written there is what users read. Writing it by hand is fine — Changesets
+only automates the mechanical part, and its per-package file is not the release
+body. The two `CHANGELOG.md` files are kept byte-identical by a test; when the
+version heading is added or renamed, do it in the root file and copy it over.
 
 ### 3. Build and package the VSIX
 
@@ -72,10 +94,13 @@ The generated file is located at `packages/forgejo-toolkit/forgejo-toolkit-<vers
 
 ### 4. Publish to VS Code Marketplace
 
-`@vscode/vsce` is already included as a dev dependency, so you can publish directly:
+`@vscode/vsce` is a dev dependency of the extension package, *not* of the workspace
+root, so `pnpm exec vsce …` from the repository root fails with a "command not
+found". Run it inside the package with `pnpm --filter`, where the path is the
+`.vsix` file name relative to `packages/forgejo-toolkit`:
 
 ```bash
-pnpm exec vsce publish --packagePath packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix
+pnpm --filter forgejo-toolkit exec vsce publish --packagePath forgejo-toolkit-<version>.vsix
 ```
 
 Or publish directly from source:
@@ -110,16 +135,18 @@ run — it never triggers on a push, tag or schedule:
 
 1. Typecheck and run the test suites on the dispatched commit.
 2. Build and package the extension (`pnpm --filter forgejo-toolkit package`),
-   then check the `.vsix` for eight entries — the paths as they appear inside
+   then check the `.vsix` for nine entries — the paths as they appear inside
    the archive, matched case-insensitively because `vsce` writes the changelog
    copy as `extension/changelog.md` regardless of the repository spelling:
    `extension/package.json`, `extension/out/extension.js`,
-   `extension/out/mcp-server.js`, `extension/LICENSE.txt`,
+   `extension/out/mcp-server.js`, `extension/LICENSE.txt`, `extension/NOTICE`,
    `extension/changelog.md`, `extension/l10n/bundle.l10n.json`,
    `extension/walkthrough/addInstance.md` and
    `extension/out/webview/index.html`. The list lives in the "Check the
    packaged .vsix" step of `.forgejo/workflows/release.yml`; a missing entry
-   fails the run.
+   fails the run. `NOTICE` is checked because it is not only attribution: it
+   carries the Apache-2.0 license text of DOMPurify, the one bundled component
+   that is not MIT-licensed, and that text has to travel with the distribution.
 3. Upload the `.vsix` as a workflow artifact (so it can be downloaded without
    creating a release).
 4. Create the Codeberg release and attach the `.vsix` — only when `dry_run` is
@@ -127,14 +154,20 @@ run — it never triggers on a push, tag or schedule:
    `packages/forgejo-toolkit/package.json`, and the tag is pinned to the
    dispatched commit rather than the branch head.
 
-The release body comes from `CHANGELOG.md`: the section matching the released
-version (`## [<version>]`), falling back to `## [Unreleased]`, and only if both
-are empty to a capped commit log (40 commits, or everything since the newest
-`v*` tag). That is why step 2 of this document insists on the changelog section
-being written — an empty section silently degrades the release notes. The
-extracted lines are published verbatim, so the section must read as user-facing
-release notes: keep maintainer instructions (how or when to update the file, for
-example) outside it — at the top of the changelog or in this document.
+The release body comes from the root `CHANGELOG.md` first — the section whose
+heading names the released version, then `## [Unreleased]` — and then from
+`packages/forgejo-toolkit/CHANGELOG.md`, the record
+`@changesets/apply-release-plan` maintains, with the same two headings. The
+step logs which file and section it used. A heading is matched by the version
+inside it, so both spellings work: the root file's Keep-a-Changelog
+`## [0.0.1] - <date>` and changesets' plain `## 0.0.1`. Only if all four are
+empty does it fall back to a capped commit log (40 commits, or everything since
+the newest `v*` tag). That is why step 1 of this document insists on the
+changelog section being written — an empty section silently degrades the release
+notes. The extracted lines are published verbatim, so the section must read as
+user-facing release notes: keep maintainer instructions (how or when to update
+the file, for example) outside it — at the top of the changelog or in this
+document.
 
 Inputs: `tag` (override the tag), `prerelease` (mark the release as a
 prerelease), `dry_run` (defaults to `true`, so the first run only builds).
@@ -206,6 +239,24 @@ Then install it in VS Code:
 
 - Do not store release artifacts in git; attach them to Codeberg Releases.
 - Keep the git repository small by not committing build outputs or dependencies.
+
+### Package manager pin
+
+pnpm is pinned in two places and they have to agree:
+
+- the root `package.json`'s `packageManager` field
+  (`"packageManager": "pnpm@11.8.0"`) — the authoritative pin, which also lets
+  Corepack reproduce the same pnpm for anyone who enables it;
+- the `npm install -g pnpm@<version>` step of `.forgejo/workflows/ci.yml` and
+  `.forgejo/workflows/release.yml`.
+
+The pinned version is the one the local checkout and `pnpm-lock.yaml` were
+generated with, so the workflows install exactly the tool that produced the
+lockfile. When the pin changes, change both workflows and the root field together
+(and regenerate the lockfile with the new version). The extension manifest
+(`packages/forgejo-toolkit/package.json`) is a workspace member, not the
+workspace root: its own `packageManager` field is ignored by pnpm/Corepack and
+should be removed rather than kept in step, so the pin has a single source.
 
 ## Troubleshooting
 

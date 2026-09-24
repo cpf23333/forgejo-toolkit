@@ -5,9 +5,9 @@
 ## 发布 0.0.1（代码侧已完成，等待人工步骤）
 
 - [ ] 推送 `main`：领先 `codeberg` / `origin`，条数以 `git rev-list --count <remote>/main..main` 为准（不写死，避免过期）
-- [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **8 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`
+- [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **9 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断；`extension/NOTICE` 那条是本次新增，用于确认 DOMPurify 的 Apache-2.0 许可文本随包发出），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`
 - [ ] 商店发布（需凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，步骤见 `docs/release.md` 的 Checklist
-- [ ] 发布后回填：README 安装段与 `docs/release.md` 对齐实际发布渠道；复核 `KNOWN_ISSUES` 中与版本相关的条目
+- [ ] 发布后回填：① 把根 `CHANGELOG.md` 的 `## [Unreleased]` 改成 `## [0.0.1] - <发布日期>`，并原样复制到 `packages/forgejo-toolkit/CHANGELOG.md`（`packagingFiles.test.ts` 要求两份逐字节一致）；② 删掉 `README.md` / `README.zh.md` 安装段的「Not published yet / 尚未发布」提示，把 Marketplace 与 Open VSX 链接恢复成正常入口，并与 `docs/release.md` 的实际发布渠道对齐；③ 复核 `KNOWN_ISSUES` 中与版本相关的条目
 
 ## 0.0.1 之后
 
@@ -43,13 +43,14 @@
 
 （空）
 
-## 第六/七轮审查后待修（2026-09-23，按优先级）
+## 第八轮审查后待修（2026-09-23；第六、七轮的确认项已全部修复并验证）
 
-- [ ] **high** Settings 的 `testConnectionResult` 目标归属回归：在「新增实例」表单上第一次 Test Connection 会被目标守卫丢掉，状态卡在 Testing，错误 token 也永不显示（`webview/src/views/Settings.vue` 的 `handleTest` / `submittedTarget` 初始化）
-- [ ] **high** 保存与进行中的图片上传竞态：`handleEditSubmit` 不等附件上传（`formLoading` 未涵盖 upload），已插入的图片进不了保存后的正文（`views/IssueDetail.vue`、`views/PullRequestDetail.vue`、`components/EasyMdeEditor.vue`）
-- [ ] **medium** 详情保存守卫把「我是当前路由」当成归属：当前显示 issue A 的视图会拿 A 的待删附件去删「被保存的 B」（`IssueDetail.vue`、`PullRequestDetail.vue` 的 watcher 守卫）
-- [ ] **medium** 非 JSON 错误体改写后 `extractApiErrorMessage` 变死代码，409/422 现在直接显示原始 JSON（`src/api/errors-core.ts`、`packages/shared/src/request/index.ts`）
-- [ ] **medium** 运行详情轮询在无法加载该 run 时永不停止；派发按钮/错误键用未 trim 的 workflow 值导致错误消失且按钮不禁用（`views/ActionRunDetail.vue`、`components/RepoActions.vue`）
-- [ ] **medium** 实例编辑沿用同一 id 且不清 webview 缓存，上一账号的仓库/议题/文件仍可见；状态栏默认分支缓存无 TTL 且实例编辑后不清（`src/webview/viewProvider.ts`、`webview/src/composables/useAppState.ts`、`src/statusBar/createPrStatusBar.ts`）
-- [ ] **medium** 发布流程：`version-packages` 写的是包内 CHANGELOG，而 release workflow 读根 CHANGELOG；`docs/release.md` 的 `pnpm exec vsce` 在仓库根不可用（vsce 只在扩展包内）；README 的商店安装链接在发布前是 404
-- [ ] **low** diff 树 role 语义（treeitem 被 li 包裹、嵌套 ul 缺 role=group、ArrowRight 对折叠目录无效）、worktree 删除失败仍丢记录、Toast 标记全部已读后已打开的 Notifications 视图与徽标不一致、Start work 的 issue worktree 不出现在设置列表、缺商店 icon、根 package.json 缺 packageManager 固定、DOMPurify 的 Apache-2.0 许可文本未随包、评审刷新会加入变更前的在途加载并回写旧线程、合并后树/内容缓存不失效（Refresh 也不清）、`getRepoContents` 记忆键用 `|` 拼接可被路径/ref 中的 `|` 混淆
+- [ ] **medium** 评论/评审编辑器保存时仍未等待进行中的图片上传（第七轮只覆盖了两个编辑表单）：`views/IssueDetail.vue`、`views/PullRequestDetail.vue`、`components/CommentTimeline.vue`、`views/PullReviewCommentEditor.vue`
+- [ ] **medium** 通知对账把「超出轮询 50 条一页」的视图行误标为已读（`useAppState.ts` 的 reconcile 用 `unreadIds`，而宿主只取一页）
+- [ ] **medium** `clearInstancePayloads` 忘记清 `repoIssuesFetchedAt`/`repoPullRequestsFetchedAt` 标记，被丢弃的列表不会重新拉取
+- [ ] **medium** 宿主 Refresh 清了 memo，但 webview 的仓库级缓存仍会命中最多 30 s
+- [ ] **medium** 设置向导只测 `/user` 就放行，权限不足的 token 也能保存，随后仪表盘显示「Failed to load: Permission denied」+「No repositories」，首用者会以为实例是空的
+- [ ] **medium** 仪表盘空状态只有裸标签，且在加载失败（403 等）时也显示；文案缺少下一步引导
+- [ ] **medium** revert merge 不可回滚也不校验：push 失败会留下本地 revert 提交、冲突会留下 mid-revert 状态，调用方仍回 success:true
+- [ ] **medium** `ConfigManager.init()` 的 token 迁移写实例数组时没有用 add/remove 那套跨窗口合并
+- [ ] **low** 向导「从文件导入」失败无任何提示（错误只由 Settings 渲染）；向导可在零实例时宣告「初始设置完成」；完成页「打开仪表盘」按钮不导航；实例导出就地截断目标文件（中断会毁掉上一次导出）；删除实例不清理其 worktree 记录与缓存裸克隆

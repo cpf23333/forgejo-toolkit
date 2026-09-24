@@ -55,8 +55,11 @@ jobs:
           # tag and HEAD, so the default shallow clone is not enough.
           fetch-depth: 0
 
+      # Pinned to the root package.json's `packageManager` field and the
+      # dependency set in the lockfile, so the release builds with the same pnpm
+      # as the verified checkout (see docs/release.md's "Package manager pin").
       - name: Install pnpm
-        run: npm install -g pnpm@11.18.0
+        run: npm install -g pnpm@11.8.0
 
       - name: Install build tools
         env:
@@ -186,6 +189,11 @@ jobs:
           # localized l10n/walkthrough files and the webview entry point (a
           # webview build that silently stopped running would otherwise ship as a
           # .vsix that opens to an empty panel).
+          #
+          # NOTICE is in the list because it is not only attribution: it carries
+          # the Apache-2.0 license text of the one bundled component that is not
+          # MIT-licensed (DOMPurify), which has to travel with the distribution.
+          #
           # vsce writes the packaged copy as `extension/changelog.md` (its
           # ChangelogProcessor hardcodes that lower-case name, regardless of the
           # repository spelling), so match case-insensitively — the previous
@@ -196,6 +204,7 @@ jobs:
             extension/out/extension.js \
             extension/out/mcp-server.js \
             extension/LICENSE.txt \
+            extension/NOTICE \
             extension/changelog.md \
             extension/l10n/bundle.l10n.json \
             extension/walkthrough/addInstance.md \
@@ -213,23 +222,55 @@ jobs:
           NOTES_FILE=/tmp/release-notes.md
           # Curated notes win: the CHANGELOG.md section for this version (or
           # [Unreleased]) is what the release body should contain, so preparing
-          # that section is part of the release checklist. `index(...) == 1` is a
-          # prefix test on purpose — it needs no escaping for the dots and
-          # brackets in the heading, and including the closing bracket keeps
-          # 0.0.1 from matching a 0.0.10 section.
-          extract() {
-            awk -v heading="$1" '
-              index($0, heading) == 1 { capture=1; next }
-              capture && /^## \[/ { exit }
+          # that section is part of the release checklist (see docs/release.md).
+          #
+          # The root CHANGELOG.md is the authoritative source — it is the curated,
+          # user-facing changelog, and it is the exact copy that ships as the
+          # packaged changelog (enforced by a test in
+          # packages/forgejo-toolkit/src/__tests__/packagingFiles.test.ts).
+          # `pnpm run version-packages` (@changesets/apply-release-plan) writes
+          # its own mechanical record into packages/forgejo-toolkit/CHANGELOG.md
+          # instead, so that file is read only as a fallback: a release prepared
+          # by changesets alone still gets real notes rather than a commit dump.
+          #
+          # A section is found by the version inside its heading rather than by
+          # the spelling of the heading: the root file uses Keep-a-Changelog's
+          # `## [0.0.1] - <date>` while changesets writes `## 0.0.1`. Comparing
+          # the extracted version is also what keeps 0.0.1 from matching a 0.0.10
+          # section.
+          extract_from() {
+            awk -v version="$2" '
+              function heading_version(line,   rest, at) {
+                if (substr(line, 1, 3) != "## ") return ""
+                rest = substr(line, 4)
+                if (substr(rest, 1, 1) == "[") {
+                  at = index(rest, "]")
+                  return at == 0 ? "" : substr(rest, 2, at - 2)
+                }
+                # Plain changesets spelling: the version ends at the first space.
+                at = index(rest, " ")
+                return at == 0 ? rest : substr(rest, 1, at - 1)
+              }
+              capture && /^## / { exit }
+              heading_version($0) == version { capture = 1; next }
               capture { print }
-            ' CHANGELOG.md
+            ' "$1"
           }
-          extract "## [${VERSION}]" > "$NOTES_FILE"
-          if ! grep -q '[^[:space:]]' "$NOTES_FILE"; then
-            extract '## [Unreleased]' > "$NOTES_FILE"
+          # No version sources when VERSION is empty: an empty `version` would
+          # match every non-heading line and publish the whole file.
+          SOURCES="CHANGELOG.md:Unreleased packages/forgejo-toolkit/CHANGELOG.md:Unreleased"
+          if [ -n "$VERSION" ]; then
+            SOURCES="CHANGELOG.md:${VERSION} ${SOURCES} packages/forgejo-toolkit/CHANGELOG.md:${VERSION}"
           fi
+          for source in $SOURCES; do
+            extract_from "${source%%:*}" "${source#*:}" > "$NOTES_FILE"
+            if grep -q '[^[:space:]]' "$NOTES_FILE"; then
+              echo "Release notes taken from ${source%%:*}, section ${source#*:}." >&2
+              break
+            fi
+          done
           if ! grep -q '[^[:space:]]' "$NOTES_FILE"; then
-            echo "No CHANGELOG section for ${VERSION} or [Unreleased]; falling back to the commit log." >&2
+            echo "No CHANGELOG section for ${VERSION} or [Unreleased] in either changelog; falling back to the commit log." >&2
             # `git describe` only finds tags that are ancestors, which is exactly
             # what breaks after a history rewrite; look the newest release tag up
             # by name instead, and cap the fallback so a repository without any
