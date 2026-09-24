@@ -53,6 +53,8 @@ export interface IssueRefArgs extends RepoRefArgs {
 export interface ListNotificationsArgs {
   statusTypes?: NotificationStatus[];
   limit?: number;
+  /** Page cursor: only notifications updated before this instant (RFC 3339). */
+  before?: string;
 }
 
 export interface SearchArgs {
@@ -193,8 +195,15 @@ export function buildToolHandlers(client: ForgejoClient) {
     get_pr_timeline: (args: IssueRefArgs) =>
       client.getPullRequestCommentsAndTimeline(args.owner, args.repo, args.index),
 
+    // One page of up to `limit` rows. `before` is the API's own page cursor
+    // (only threads updated before that instant; see `getNotifications`), so a
+    // caller can fetch the next page with the `updated_at` of the oldest row it
+    // received. The client does not page to `LIST_ITEM_LIMIT` here — the page
+    // size is the caller's own choice — so `PAGED_LISTS` stays silent for this
+    // tool (as it does for `list_action_runs`, whose page is also caller-sized)
+    // and the description, not a note, tells the caller what a full page means.
     list_notifications: (args: ListNotificationsArgs) =>
-      client.getNotifications(args.statusTypes ?? ['unread', 'pinned'], undefined, args.limit ?? 50),
+      client.getNotifications(args.statusTypes ?? ['unread', 'pinned'], undefined, args.limit ?? 50, args.before),
 
     get_repo: (args: RepoRefArgs) => client.getRepoDetail(args.owner, args.repo),
 
@@ -378,10 +387,12 @@ const NO_PAGED_LISTS: readonly string[] = [];
  *
  * Length alone cannot decide this: several tools return a list read in a single
  * request — `list_repo_contents` lists a whole directory, `list_commits` asks
- * for 10, `search_repo_files` applies its own cap and reports `truncated` — and
- * a complete one of those that happens to hold `LIST_ITEM_LIMIT` rows must not
- * be announced as truncated. Every tool is listed explicitly so a new one is a
- * compile error until its lists have been classified.
+ * for 10, `search_repo_files` applies its own cap and reports `truncated`, and
+ * `list_notifications` returns one caller-sized page (it is paged with its own
+ * `before` cursor, not to the shared cap) — and a complete one of those that
+ * happens to hold `LIST_ITEM_LIMIT` rows must not be announced as truncated.
+ * Every tool is listed explicitly so a new one is a compile error until its
+ * lists have been classified.
  */
 const PAGED_LISTS: Record<ToolName, readonly string[]> = {
   list_issues: PAGED_RESULT,
@@ -401,7 +412,7 @@ const PAGED_LISTS: Record<ToolName, readonly string[]> = {
   list_branches: PAGED_RESULT,
   list_tags: PAGED_RESULT,
   list_commits: NO_PAGED_LISTS,
-  get_file_history: NO_PAGED_LISTS,
+  get_file_history: PAGED_RESULT,
   search_repo_files: NO_PAGED_LISTS,
   get_pr_diff: NO_PAGED_LISTS,
   get_pull_review_comments: NO_PAGED_LISTS,
@@ -429,6 +440,8 @@ const PAGED_LISTS: Record<ToolName, readonly string[]> = {
  * narrower slice of the history, and which pages up to the shared 500-commit
  * cap): none of them has a filter or a page to pass, so listing them here
  * would have the note tell the caller to narrow a query it cannot send.
+ * `get_file_history` is in `PAGED_LISTS`, so reaching that cap is still
+ * announced — as an incomplete answer, not as something to narrow.
  */
 const NARROWABLE_TOOLS: ReadonlySet<ToolName> = new Set<ToolName>([
   'list_issues',
@@ -640,7 +653,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
   server.registerTool(
     'list_notifications',
     {
-      description: 'List Forgejo notifications for the authenticated user.',
+      description: `List one page of Forgejo notifications for the authenticated user. A page holds at most \`limit\` notifications (default 50, max 100); a page that fills the limit is not necessarily the whole list. To fetch the next page, call the tool again with \`before\` set to the \`updated_at\` of the oldest notification in the previous page.`,
       inputSchema: {
         statusTypes: z
           .array(z.enum(['unread', 'read', 'pinned']))
@@ -653,6 +666,12 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
           .max(100)
           .optional()
           .describe('Maximum number of notifications (default: 50).'),
+        before: z
+          .string()
+          .optional()
+          .describe(
+            'Paging cursor: only notifications updated before this instant (RFC 3339). Set it to the `updated_at` of the oldest notification in the previous page to fetch the next page.',
+          ),
       },
       annotations: readOnly,
     },
@@ -675,11 +694,14 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
   server.registerTool(
     'search',
     {
-      description: 'Search issues, pull requests, or repositories across the instance.',
+      description:
+        'Search issues, pull requests, or repositories across the instance. The state filter applies to type "issues" and "pull_requests" only: repositories have no state, so it is ignored for type "repositories".',
       inputSchema: {
         query: z.string().describe('Search keywords.'),
         type: z.enum(['issues', 'pull_requests', 'repositories']).describe('What to search.'),
-        state: stateSchema,
+        state: stateSchema.describe(
+          'State filter (default: open). Applies to type "issues" and "pull_requests" only: repositories have no state, so the value is ignored for type "repositories".',
+        ),
         limit: z.number().int().positive().max(50).optional().describe('Maximum number of results (default: 20).'),
       },
       annotations: readOnly,
@@ -814,7 +836,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
   server.registerTool(
     'get_file_history',
     {
-      description: 'List the commits that touched a file (up to 50).',
+      description: `List the commits that touched a file, paged up to the shared list cap of ${LIST_ITEM_LIMIT} commits. A result that reaches ${LIST_ITEM_LIMIT} commits is reported as incomplete: \`ref\` selects the revision to walk from, not a narrower slice of the history, so this tool has no filter or page to fetch the rest.`,
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,

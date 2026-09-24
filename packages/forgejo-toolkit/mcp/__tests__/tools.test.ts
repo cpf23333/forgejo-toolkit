@@ -216,6 +216,39 @@ describe('MCP tool handlers with MSW', () => {
     expect(notifications[0].unread).toBe(false);
   });
 
+  it('list_notifications pages with the before cursor, as the webview does', async () => {
+    // The client passes `before` through as the API's page cursor (only threads
+    // updated before that instant), and the cursor a caller has to send is the
+    // `updated_at` of the oldest row of the previous page — the same value the
+    // webview pages with.
+    const handlers = createHandlers();
+    const firstPage = (await handlers.list_notifications({
+      statusTypes: ['unread', 'pinned', 'read'],
+      limit: 1,
+    })) as typeof mockNotifications;
+    expect(firstPage.map((notification) => notification.id)).toEqual([101]);
+
+    const secondPage = (await handlers.list_notifications({
+      statusTypes: ['unread', 'pinned', 'read'],
+      limit: 10,
+      before: firstPage[0].updated_at,
+    })) as typeof mockNotifications;
+
+    // 101 is outside the cursor's window now: the page after it holds 102 and 103.
+    expect(secondPage.map((notification) => notification.id)).toEqual([102, 103]);
+  });
+
+  it('forwards the notification cursor to the client instead of dropping it', async () => {
+    // The schema now carries the cursor; the handler must hand it to
+    // `getNotifications`, whose fourth parameter is `before`.
+    const { call, calls } = registerWithStubClient({ getNotifications: async () => [] });
+    await call('list_notifications', { limit: 5, before: '2026-08-17T10:00:00Z' });
+
+    expect(calls).toEqual([
+      { name: 'getNotifications', args: [['unread', 'pinned'], undefined, 5, '2026-08-17T10:00:00Z'] },
+    ]);
+  });
+
   it('get_repo returns the repository detail', async () => {
     const handlers = createHandlers();
     const detail = (await handlers.get_repo({ owner: 'demo-user', repo: 'demo-repo' })) as {
@@ -887,13 +920,14 @@ describe('list truncation reporting', () => {
     expect(text).not.toContain('narrow the query');
   });
 
-  it('does not describe get_file_history as narrowable, so its cap is never given query advice', async () => {
-    // The client pages up to the shared 500-commit cap and the schema's `ref`
-    // selects the revision to walk from, not a narrower slice of the history:
-    // there is no filter or page for the caller to pass. The tool is therefore
-    // not in NARROWABLE_TOOLS, which is observable in two ways: a capped reply
-    // gets the incompleteness wording (this test), and the narrowable tools that
-    // really can refetch keep the query advice (the test above).
+  it('reports the real get_file_history list cap as incompleteness, never as narrowing advice', async () => {
+    // The client pages up to the shared cap and the schema's `ref` selects the
+    // revision to walk from, not a narrower slice of the history: there is no
+    // filter or page for the caller to pass. The tool is therefore in
+    // PAGED_LISTS but not in NARROWABLE_TOOLS, which is observable in two ways:
+    // a capped reply gets the incompleteness wording (this test), and the
+    // narrowable tools that really can refetch keep the query advice (the test
+    // above).
     const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ sha: `sha-${i}` }));
     const client = { getFileHistory: async () => capped } as never;
     const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
@@ -911,10 +945,34 @@ describe('list truncation reporting', () => {
     });
     const text = result?.content[0].text ?? '';
 
-    // The cap the client applies is reported by the client, not by a paged-list
-    // note (get_file_history is NO_PAGED_LISTS), so the answer carries its rows
-    // and no narrowing advice either way.
+    // A 500-row list cap is a list truncation, not the 64 KB output budget: the
+    // note names the cap the client actually applies and says the answer is
+    // incomplete, with no advice the caller cannot act on.
+    expect(text).toContain('incomplete');
+    expect(text).toContain(String(LIST_ITEM_LIMIT));
     expect(text).not.toContain('narrow the query');
+  });
+
+  it('stays silent on a get_file_history result below the cap', async () => {
+    // The note must follow the list length, not the tool: a short history is
+    // complete and must not be announced as cut off.
+    const short = Array.from({ length: LIST_ITEM_LIMIT - 1 }, (_, i) => ({ sha: `sha-${i}` }));
+    const client = { getFileHistory: async () => short } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('get_file_history')?.({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      path: 'README.md',
+    });
+
+    expect(result?.content[0].text).not.toContain('truncated at');
   });
 
   it('blames the match cap only when the match list reached it', async () => {
@@ -988,5 +1046,63 @@ describe('list truncation reporting', () => {
     expect(repoSearchTruncationNote(full)).toContain('matches capped');
     // Without the signal the note cannot claim the cap caused the cut.
     expect(repoSearchTruncationNote({ files: full.files, truncated: true })).toContain('tree could not be read');
+  });
+});
+
+describe('tool descriptions and schemas', () => {
+  interface ToolConfig {
+    description?: string;
+    inputSchema?: Record<string, { description?: string }>;
+  }
+
+  /**
+   * Registers the tools against a stub server that keeps each tool's config, so
+   * a test can read what the model is told. Registering touches no client
+   * method, so an empty client suffices.
+   */
+  function captureConfigs(): Map<string, ToolConfig> {
+    const configs = new Map<string, ToolConfig>();
+    const server = {
+      registerTool: (name: string, config: ToolConfig, _handler: never) => {
+        configs.set(name, config);
+      },
+    } as never;
+    registerTools(server, {} as never);
+    return configs;
+  }
+
+  it('names the real list cap in the get_file_history description', () => {
+    // The description said "(up to 50)" while the client pages to the shared
+    // cap, so a caller that reached the cap could only conclude the 64 KB output
+    // budget had cut the answer: the list cap went unnamed.
+    const description = captureConfigs().get('get_file_history')?.description ?? '';
+
+    expect(description).toContain(String(LIST_ITEM_LIMIT));
+    expect(description).toContain('incomplete');
+    expect(description).not.toContain('up to 50');
+  });
+
+  it('says which search types the state filter applies to', () => {
+    // `state` sits in the schema for all three types, but only the issues and
+    // pull request branches read it: `searchRepositories` has no state concept.
+    // A raw Zod shape cannot make a field conditional on another field's value,
+    // so the qualification belongs in the description and in the field's own
+    // description.
+    const config = captureConfigs().get('search');
+
+    expect(config?.description).toMatch(/state filter applies to type "issues" and "pull_requests"/);
+    expect(config?.description).toContain('repositories have no state');
+    expect(config?.inputSchema?.state?.description ?? '').toContain('repositories have no state');
+  });
+
+  it('documents how to obtain the list_notifications page cursor', () => {
+    // The tool returns one caller-sized page and the client takes a `before`
+    // cursor; without both in the interface a caller whose page filled up had no
+    // way to see the rest and no sign that more rows existed.
+    const config = captureConfigs().get('list_notifications');
+
+    expect(config?.description).toContain('next page');
+    expect(config?.description).toContain('updated_at');
+    expect(config?.inputSchema?.before?.description ?? '').toContain('updated_at');
   });
 });
