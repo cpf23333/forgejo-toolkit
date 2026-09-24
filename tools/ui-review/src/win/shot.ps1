@@ -3,7 +3,8 @@
 # The CDP driver can only see the webview, and `dialog.ps1`'s CopyFromScreen grab
 # is affected by whatever happens to be on top. `PrintWindow` asks the window to
 # render itself into a bitmap, which is what makes the state of a stubborn native
-# dialog (its file-name box included) inspectable.
+# dialog (its file-name box included) inspectable. The PNG is that render; a
+# screen grab is used only when PrintWindow fails, and the output says so.
 #
 #   powershell -File src/win/shot.ps1 [-Dialog] [-OutFile path.png]
 #   -Dialog  capture the visible #32770 dialog instead of the main window
@@ -88,8 +89,15 @@ public class DevHostShot {
     return result.ToArray();
   }
 
-  /** PrintWindow renders the window itself; the screen blit fills in what it skips. */
-  public static IntPtr Capture(IntPtr hWnd, out int width, out int height, out bool printed) {
+  /**
+   * PrintWindow renders the window itself, occluded parts included, so it is the
+   * capture that is actually of the target. The screen blit is only a fallback
+   * for when PrintWindow fails (it reports false), because it copies whatever
+   * window happens to be on top of that screen area — which is how a dialog
+   * capture could show another window. `screenFallback` tells the caller the
+   * bitmap is that weaker capture.
+   */
+  public static IntPtr Capture(IntPtr hWnd, out int width, out int height, out bool printed, out bool screenFallback) {
     RECT r; GetWindowRect(hWnd, out r);
     width = r.Right - r.Left; height = r.Bottom - r.Top;
     IntPtr screenDc = GetWindowDC(IntPtr.Zero);
@@ -97,7 +105,11 @@ public class DevHostShot {
     IntPtr bmp = CreateCompatibleBitmap(screenDc, width, height);
     IntPtr old = SelectObject(memDc, bmp);
     printed = PrintWindow(hWnd, memDc, 2);
-    BitBlt(memDc, 0, 0, width, height, screenDc, r.Left, r.Top, 0x00CC0020);
+    screenFallback = false;
+    if (!printed) {
+      screenFallback = true;
+      BitBlt(memDc, 0, 0, width, height, screenDc, r.Left, r.Top, 0x00CC0020);
+    }
     SelectObject(memDc, old); DeleteDC(memDc); ReleaseDC(IntPtr.Zero, screenDc);
     return bmp;
   }
@@ -119,11 +131,18 @@ $handle = [DevHostShot]::Handles[$index]
 $width = 0
 $height = 0
 $printed = $false
-$bitmap = [DevHostShot]::Capture($handle, [ref]$width, [ref]$height, [ref]$printed)
+$screenFallback = $false
+$bitmap = [DevHostShot]::Capture($handle, [ref]$width, [ref]$height, [ref]$printed, [ref]$screenFallback)
 $image = [System.Drawing.Image]::FromHbitmap($bitmap)
 if (-not $OutFile) {
   $OutFile = Join-Path (Join-Path $PSScriptRoot '..\..\shots') $(if ($Dialog) { 'winapi-dialog.png' } else { 'winapi-devhost.png' })
 }
 $image.Save($OutFile, [System.Drawing.Imaging.ImageFormat]::Png)
 $image.Dispose()
-Write-Output "saved $OutFile ($width x $height, printWindow=$printed)"
+if ($screenFallback) {
+  # Say so instead of presenting a screen grab as the PrintWindow render: the
+  # screen grab copies whatever is on top of that screen area, which may be
+  # another window.
+  Write-Output 'note: PrintWindow failed, so this capture is a screen grab and may show whatever window is on top'
+}
+Write-Output "saved $OutFile ($width x $height, printWindow=$printed, screenFallback=$screenFallback)"

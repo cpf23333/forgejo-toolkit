@@ -60,6 +60,13 @@ powershell -File src/win/dialog.ps1 -Keys '{ENTER}'   # Confirm (default)
 powershell -File src/win/dialog.ps1 -Keys '{ESC}'     # Cancel
 ```
 
+`dialog.ps1` refuses to guess which dialog to talk to: add `-Title '<regex>'` when
+more than one `#32770` is visible, and it also refuses when the only candidate is
+owned by another process or cannot be brought to the foreground, instead of
+sending keys to whatever it found first. `fileDialog.ps1 -Cancel` dismisses the
+file picker with Escape (falling back to `WM_CLOSE`, which it reports) and never
+touches the file row — the row is only clicked for `-Pick`.
+
 Both helpers locate the dev-host window by the isolated `--user-data-dir` of this
 harness (`src/win/devhost.ps1`), not by window title, so they also work with a
 localized UI (e.g. `UI_LOCALE=zh-cn`, where the title is `[扩展开发宿主] …`).
@@ -170,9 +177,12 @@ Two harness limits worth knowing before planning a flow:
   attach to the foreground thread so it can be activated, then click and
   double-click the file's row. Two consequences: the file must be in the folder
   the dialog already shows, and the row position has to be read from a capture —
-  `src/win/shot.ps1 -Dialog` prints the geometry and saves a PNG via
-  `PrintWindow`, which is the most reliable way to see this dialog's state.
-  Leftover dialogs are closed with `WM_CLOSE` on every visible `#32770` window.
+  `src/win/shot.ps1 -Dialog` prints the geometry and saves a PNG of the
+  `PrintWindow` render, which is the most reliable way to see this dialog's state.
+  Only when `PrintWindow` fails does the script fall back to grabbing the screen
+  area, and it says so in its summary line (`screenFallback=true`) so a capture
+  that might show another window is never mistaken for the dialog's own render.
+  Leftover dialogs are closed with `WM_CLOSE` on the dialog the caller selected.
 - **Some UI actions are instance-wide.** "Mark all notifications read" sends its
   `PUT …/notifications?all=true` to _every_ configured instance. If the profile
   also holds a real instance (e.g. because a walkthrough needed one), that action
