@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 
 vi.mock('../../worktree/gitOperations', async (importOriginal) => {
-  // Keep remoteMatchesInstance real: the multi-account selection logic depends
-  // on genuine host matching.
+  // Keep remoteMatchesInstance, parseRemoteUrl and redactRemoteUrl real: the
+  // multi-account selection logic depends on genuine host matching and genuine
+  // owner/repo parsing, and the log/quick-pick path strips stored credentials
+  // with the real redaction.
   const original = await importOriginal<typeof import('../../worktree/gitOperations')>();
   return {
     addRemote: vi.fn(),
@@ -13,7 +15,9 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
     getUpstreamBranch: vi.fn(),
     listRemotes: vi.fn(),
     listWorkspaceRepositories: vi.fn(),
+    parseRemoteUrl: original.parseRemoteUrl,
     pushBranch: vi.fn(),
+    redactRemoteUrl: original.redactRemoteUrl,
     remoteMatchesInstance: original.remoteMatchesInstance,
   };
 });
@@ -40,6 +44,7 @@ import {
   pushBranch,
 } from '../../worktree/gitOperations';
 import type { ConfigManager } from '../../config';
+import { logger } from '../../logger';
 import type { ForgejoToolkitViewProvider } from '../../webview/viewProvider';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
@@ -278,6 +283,37 @@ describe('publishToForgejo', () => {
 
     expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
     expect(pushBranch).toHaveBeenCalledWith('/repo', 'origin', 'main', 'tok-bob', false, INSTANCE_URL);
+  });
+
+  it('parses the owner out of an scp remote whose login is not "git"', async () => {
+    // `alice@host:owner/repo.git` is a legal remote, but the shared URL parser
+    // only recognises the `git@` spelling: without the transport-agnostic parse
+    // the owner lookup fails and the account cannot be disambiguated.
+    setupWorkspace('alice@forgejo.example.com:bob/repo.git');
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    vi.mocked(getUpstreamBranch).mockResolvedValue('origin/main');
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok-alice'), instance('b', 'bob', 'tok-bob')]));
+
+    expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
+    expect(pushBranch).toHaveBeenCalledWith('/repo', 'origin', 'main', 'tok-bob', false, INSTANCE_URL);
+  });
+
+  it('redacts stored credentials from the remote URL it logs', async () => {
+    // `git remote -v` reports whatever the repository stores, so the remote may
+    // embed `user:token@`; the output channel must never receive that token.
+    setupWorkspace('https://bob:secret-token@forgejo.example.com/bob/repo.git');
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    vi.mocked(getUpstreamBranch).mockResolvedValue('origin/main');
+    const infoSpy = vi.spyOn(logger, 'info');
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok-alice'), instance('b', 'bob', 'tok-bob')]));
+
+    const logged = infoSpy.mock.calls.map((call) => String(call[0])).join('\n');
+    infoSpy.mockRestore();
+    expect(logged).toContain('accounts match');
+    expect(logged).toContain('forgejo.example.com/bob/repo.git');
+    expect(logged).not.toContain('secret-token');
   });
 
   // Push failures must propagate to the command registration's catch

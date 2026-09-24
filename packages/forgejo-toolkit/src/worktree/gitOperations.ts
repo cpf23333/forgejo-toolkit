@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { promisify } from 'util';
 import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { isSshOrGitRemote, normalizeGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
+import { isSshOrGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import { ForgejoClient } from '../api/client';
 import { createTimedCache } from '../utils/timedCache';
 import { logger } from '../logger';
@@ -59,24 +59,32 @@ function authEnv(token?: string): NodeJS.ProcessEnv | undefined {
  * instance's web port (self-hosted servers often serve SSH on 2222 while the
  * web UI runs on 3000), so for them the instance URL's port is ignored;
  * http(s) remotes keep the strict host-plus-port comparison.
+ *
+ * The host may be named in any transport form a repository stores —
+ * `https://host/...`, `ssh://git@host:2222/...`, `git://host:9418/...`, or
+ * scp-style `user@host:path` with *any* login, because git's scp syntax does
+ * not require the user to be `git` (`forgejo@host:owner/repo.git` and
+ * `alice@host:owner/repo.git` are ordinary remotes); parseRemoteUrl handles all
+ * of them, including normalizeGitRemote's structural rule that the remote names
+ * a repository under the instance (host plus at least owner and repo).
  */
 export function remoteMatchesInstance(remoteUrl: string, instanceUrl: string): boolean {
-  const remoteInfo = normalizeGitRemote(remoteUrl);
-  if (!remoteInfo) {
+  const remote = parseRemoteUrl(remoteUrl);
+  if (!remote) {
     return false;
   }
   let instanceHostPaths: string[];
   try {
     const parsed = new URL(instanceUrl);
     instanceHostPaths = [normalizeGitUrl(`${parsed.host}${parsed.pathname}`)];
-    if (isSshOrGitRemote(remoteUrl)) {
+    if (remote.compareWithoutPort) {
       instanceHostPaths.push(normalizeGitUrl(`${parsed.hostname}${parsed.pathname}`));
     }
   } catch {
     return false;
   }
   return instanceHostPaths.some(
-    (hostPath) => remoteInfo.normalized === hostPath || remoteInfo.normalized.startsWith(`${hostPath}/`),
+    (hostPath) => remote.normalized === hostPath || remote.normalized.startsWith(`${hostPath}/`),
   );
 }
 
@@ -134,11 +142,19 @@ export interface GitRemoteEntry {
  * `git` reads any argument starting with `-` as an option, and a repository can
  * define a remote whose name looks like one (`git remote add --force …`). Such a
  * name would turn a fetch into a different command while the caller still hands
- * it the instance token, so only ordinary remote names are accepted: they are
- * ignored by detection and refused by the fetch helpers.
+ * it the instance token, so a name starting with `-` is ignored by detection and
+ * refused by the fetch helpers. Everything else git accepts is accepted here:
+ * the remote name becomes a path component of `refs/remotes/<name>/…`, so only
+ * the shapes that can never be a ref are refused — whitespace and control
+ * characters, and `..`. Characters a user may legitimately type are therefore
+ * kept (`my+fork`, `fork@2024`, a leading `_` such as the `_forgejo` remote the
+ * publish prompt offers, `my/fork`); rejecting them would hide a remote the user
+ * can create and pick. A name git itself refuses for another reason (e.g. `a:b`)
+ * simply fails in git, which is not a security boundary because the name is
+ * always passed as a single argv entry.
  */
 export function isSafeRemoteName(value: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value);
+  return value.length > 0 && !value.startsWith('-') && !/[\s\p{Cc}]/u.test(value) && !value.includes('..');
 }
 
 /** Refuses an unusable remote name instead of handing it to `git` as an option. */
@@ -153,26 +169,175 @@ function assertRemoteName(value: string): void {
  *
  * `git remote -v` reports whatever the repository stores, including
  * `https://user:token@host/owner/repo.git`; that value reaches the dashboard and
- * the output channel, so the userinfo is replaced before either sees it. The
- * host and path stay, which is what a user needs to recognise the remote.
+ * the output channel. Only credential material is replaced: a password, and the
+ * username of an http(s) URL that carries no password, where a token is commonly
+ * written in the username position (`https://<token>@host/owner/repo.git`). A
+ * plain ssh user (`ssh://git@host/...`) names the login, not a secret, and stays
+ * visible, as do the host and path a user needs to recognise the remote.
  */
 export function redactRemoteUrl(url: string): string {
   if (!url.includes('@')) {
     return url;
   }
+  let parsed: URL;
   try {
-    const parsed = new URL(url);
-    if (!parsed.username && !parsed.password) {
-      return url;
-    }
-    parsed.username = '***';
-    parsed.password = '';
-    return parsed.toString();
+    parsed = new URL(url);
   } catch {
     // Not a URL: scp-like syntax (`user@host:path`) carries no password, so
     // there is nothing to strip.
     return url;
   }
+  if (!parsed.username && !parsed.password) {
+    return url;
+  }
+  if (parsed.password) {
+    parsed.password = '***';
+  } else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+    // The username is the only userinfo here, so it is the functional
+    // equivalent of a password (a Forgejo access token).
+    parsed.username = '***';
+  }
+  return parsed.toString();
+}
+
+/**
+ * The repository identities a URL stands for, as `<host>[:port]/<path>` with
+ * the `.git` suffix dropped, the case folded and the userinfo removed.
+ *
+ * The same repository must compare equal whichever transport its URL uses:
+ * `https://host/owner/repo.git`, `git@host:owner/repo.git`,
+ * `ssh://git@host:2222/owner/repo.git` and `git://host:9418/owner/repo.git` all
+ * name it, while normalizeGitUrl keeps the scheme and the transport user and so
+ * never equates the first with any of the others. `hostPath` keeps an explicit
+ * port, because an http(s) port identifies the server
+ * (`https://host:3000/...` is a different target from `https://host/...`);
+ * `hostPathWithoutPort` drops it, for the ssh/git transports whose port is
+ * transport-level and unrelated to the instance's web port (a self-hosted
+ * server commonly serves SSH on 2222 while the web UI runs on 3000) — the same
+ * distinction remoteMatchesInstance draws. The userinfo names a credential, not
+ * the repository, so it is dropped from the remote *and* the configured
+ * instance URL: a remote or an instance stored as
+ * `https://user:token@host/...` is still the same repository.
+ *
+ * Undefined when the value names no host and path at all, e.g. a local-path
+ * remote (`/home/me/repo`, `D:\repos\my repo`).
+ */
+function remoteComparisonKeys(
+  url: string,
+): { hostPath: string; hostPathWithoutPort: string; compareWithoutPort: boolean } | undefined {
+  const withoutUserinfo = url.replace(/^([A-Za-z][A-Za-z0-9+.-]*:\/\/)[^/?#]*@/, '$1');
+  if (!withoutUserinfo.includes('://')) {
+    // A Windows drive path (`D:\repos\x`, `D:/repos/x`) is a local path, not
+    // git's scp form: git only reads `<host>:<path>` as a remote when the first
+    // two characters are not a DOS drive prefix (`has_dos_drive_prefix` in
+    // git's url_is_local_not_ssh), so `D:` must stay a local path here too.
+    if (/^[A-Za-z]:/.test(withoutUserinfo)) {
+      return undefined;
+    }
+    // scp-style (`git@host:owner/repo.git`, and git's login-less
+    // `host:owner/repo.git`): there is no scheme for the URL parser to consume,
+    // and the login before `@` — when there is one — is the transport user,
+    // never a web credential. git's scp syntax does not require a login, so the
+    // bare form is a remote too and must be parsed rather than dropped. git also
+    // accepts an absolute path there (`git@host:/owner/repo.git`), whose leading
+    // slash is not a separator.
+    const scp = /^(?:[^/@:]+@)?([^/:]+):(.+)$/.exec(withoutUserinfo);
+    if (!scp) {
+      return undefined;
+    }
+    const hostPath = normalizeGitUrl(`${scp[1]}/${scp[2].replace(/^\/+/, '')}`);
+    return { hostPath, hostPathWithoutPort: hostPath, compareWithoutPort: true };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(withoutUserinfo);
+  } catch {
+    return undefined;
+  }
+  return {
+    hostPath: normalizeGitUrl(`${parsed.host}${parsed.pathname}`),
+    hostPathWithoutPort: normalizeGitUrl(`${parsed.hostname}${parsed.pathname}`),
+    compareWithoutPort: isSshOrGitRemote(withoutUserinfo),
+  };
+}
+
+/**
+ * True when two URLs name the same repository on the same host — with the remote
+ * on one side and an expected `${instanceUrl}/${owner}/${repo}` URL on the other
+ * (see findLocalRepo, resolveRemoteForRepo, isCurrentWorkspaceBaseRepo).
+ *
+ * The comparison form is chosen for the pair, not for one side: when *either*
+ * URL uses a portless transport (scp-style `host:path`, `ssh://`, `git://`), the
+ * port is dropped from both, because an SSH/git port is transport-level and has
+ * no relation to the instance's web port (a self-hosted server commonly serves
+ * SSH on 2222 while the web UI runs on 3000). Only when both URLs are http(s)
+ * does the port have to match exactly, because there it identifies the server.
+ *
+ * Comparing `parseRemoteUrl(...).normalized` on both sides instead compares
+ * different forms: an http(s) instance URL keeps its port while the ssh/scp
+ * remote drops it, so an instance deployed on a non-default port would reject
+ * every ssh/scp remote as "not the PR base repository". Both sides always name a
+ * host and a path here; the structural "host plus at least owner and repo" rule
+ * parseRemoteUrl applies to a single URL is not needed, because the expected URL
+ * is constructed from instance URL plus owner/repo. Credentials in either
+ * URL's userinfo are ignored and the `.git` suffix is not part of the key (see
+ * remoteComparisonKeys).
+ */
+export function sameRepositoryUrl(remoteUrl: string, expectedUrl: string): boolean {
+  const remote = remoteComparisonKeys(remoteUrl);
+  const expected = remoteComparisonKeys(expectedUrl);
+  if (!remote || !expected) {
+    return false;
+  }
+  return remote.compareWithoutPort || expected.compareWithoutPort
+    ? remote.hostPathWithoutPort === expected.hostPathWithoutPort
+    : remote.hostPath === expected.hostPath;
+}
+
+/**
+ * A remote URL parsed into the repository it names, transport-independently
+ * (see parseRemoteUrl, which is what callers outside this module should use).
+ */
+export interface ParsedRemoteUrl {
+  /**
+   * Host-plus-path comparison key: an http(s) port is kept (it identifies the
+   * server), an ssh/git/scp transport port is dropped.
+   */
+  normalized: string;
+  /** True when `normalized` has no port because the transport's port is irrelevant. */
+  compareWithoutPort: boolean;
+  owner: string;
+  repo: string;
+}
+
+/**
+ * The repository a remote URL names, in the shape the shared normalizeGitRemote
+ * returns but for every transport form.
+ *
+ * normalizeGitRemote is limited to the URLs its parser accepts plus the `git@`
+ * spelling of the scp form: `new URL('alice@host:owner/repo.git')` throws, so a
+ * repository whose remote uses any other scp login comes back undefined and is
+ * dropped *before* matching — leaving the repository looking unlinked and
+ * offered as a publish candidate again. Parsing through remoteComparisonKeys
+ * accepts `user@host:path` for every login, and keeps normalizeGitRemote's
+ * structural rule: the URL must name host plus at least owner and repo.
+ */
+export function parseRemoteUrl(url: string): ParsedRemoteUrl | undefined {
+  const keys = remoteComparisonKeys(url);
+  if (!keys) {
+    return undefined;
+  }
+  const normalized = keys.compareWithoutPort ? keys.hostPathWithoutPort : keys.hostPath;
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length < 3) {
+    return undefined;
+  }
+  return {
+    normalized,
+    compareWithoutPort: keys.compareWithoutPort,
+    owner: parts[parts.length - 2],
+    repo: parts[parts.length - 1],
+  };
 }
 
 /**
@@ -237,9 +402,7 @@ export async function findLocalRepo(instanceUrl: string, owner: string, repo: st
   for (const candidate of candidates) {
     if (await isGitRepository(candidate)) {
       const remotes = await listRemotes(candidate);
-      const matches = remotes.some((remote) =>
-        expectedUrls.some((url) => normalizeGitUrl(remote.url) === normalizeGitUrl(url)),
-      );
+      const matches = remotes.some((remote) => expectedUrls.some((url) => sameRepositoryUrl(remote.url, url)));
       if (matches) {
         return candidate;
       }
@@ -255,6 +418,8 @@ export async function findLocalRepo(instanceUrl: string, owner: string, repo: st
  * must go through the matching remote rather than a hardcoded 'origin':
  * with several remotes, 'origin' may point at a fork or a different host.
  * listRemotes orders 'origin' first, so it wins when several remotes match.
+ * The remote may name the repository in any transport form (https, ssh://,
+ * scp-style git@host:owner/repo.git); see sameRepositoryUrl.
  */
 export async function resolveRemoteForRepo(
   dirPath: string,
@@ -263,13 +428,9 @@ export async function resolveRemoteForRepo(
   repo: string,
 ): Promise<string | undefined> {
   const normalizedInstanceUrl = instanceUrl.replace(/\/$/, '');
-  const expectedUrls = new Set(
-    [`${normalizedInstanceUrl}/${owner}/${repo}.git`, `${normalizedInstanceUrl}/${owner}/${repo}`].map((url) =>
-      normalizeGitUrl(url),
-    ),
-  );
+  const expectedUrls = [`${normalizedInstanceUrl}/${owner}/${repo}.git`, `${normalizedInstanceUrl}/${owner}/${repo}`];
   const remotes = await listRemotes(dirPath);
-  return remotes.find((remote) => expectedUrls.has(normalizeGitUrl(remote.url)))?.name;
+  return remotes.find((remote) => expectedUrls.some((url) => sameRepositoryUrl(remote.url, url)))?.name;
 }
 
 export async function addRemote(dirPath: string, remote: string, url: string): Promise<void> {
@@ -312,6 +473,12 @@ export async function getUpstreamBranch(dirPath: string): Promise<string | undef
  * alone is not enough here: `remote.<name>.pushurl` and
  * `url.<base>.pushInsteadOf` make git push somewhere the fetch URL does not
  * mention.
+ *
+ * The remote name reaches git as an argv entry here and in the push-target
+ * resolution above, so it is guarded like the fetch helpers guard theirs: a name
+ * starting with `-` would be read as an option (`--force`, `--upload-pack=…`).
+ * Callers derive it from the upstream (`@{upstream}`) or from a user prompt, so
+ * it is not necessarily one this module chose.
  */
 export async function pushBranch(
   dirPath: string,
@@ -321,6 +488,7 @@ export async function pushBranch(
   setUpstream = false,
   tokenInstanceUrl?: string,
 ): Promise<void> {
+  assertRemoteName(remote);
   if (token && tokenInstanceUrl) {
     const pushUrls = await getRemotePushUrls(dirPath, remote);
     if (pushUrls === undefined) {
@@ -474,10 +642,20 @@ export async function fetchBranch(repoPath: string, remote: string, branch: stri
  * right after fetchBranch, which works in bare caches and regular checkouts
  * alike). `-B` also resets a leftover branch of the same name, so retrying a
  * previously failed start-work flow cannot get stuck on "branch already
- * exists" — but only when that branch still points at the same commit. A
- * leftover issue branch that has moved on carries work of its own (removing the
- * worktree keeps the branch on purpose), and resetting it would discard those
- * commits without a prompt, so that case fails loudly instead.
+ * exists" — but only when that reset loses nothing. A leftover branch that
+ * still points at startPoint, or that is merely behind it (an ancestor, e.g.
+ * the branch a previous attempt created from an older fetch), is reset
+ * silently. A leftover issue branch that has moved on past startPoint carries
+ * work of its own (removing the worktree keeps the branch on purpose), and
+ * resetting it would discard those commits without a prompt, so that case
+ * fails loudly instead.
+ *
+ * The guard fails closed when it cannot be evaluated: a start point that does
+ * not resolve while the branch exists means the divergence is unknown (the
+ * branch might carry commits of its own), so the reset is refused rather than
+ * run unguarded. When the branch does not exist there is nothing to reset
+ * (`-B` creates it) and an unresolvable start point is left to git, which needs
+ * that same value to create the branch and fails the command if it is bad.
  */
 export async function createWorktreeWithNewBranch(
   repoPath: string,
@@ -492,14 +670,42 @@ export async function createWorktreeWithNewBranch(
     getRefCommitSha(repoPath, `refs/heads/${newBranch}`),
     getRefCommitSha(repoPath, startPoint),
   ]);
-  if (existingSha && startSha && existingSha !== startSha) {
-    throw new Error(
-      `branch "${newBranch}" already exists at ${existingSha.slice(0, 7)} and has commits of its own; delete the branch before starting work on it again`,
-    );
+  if (existingSha) {
+    if (!startSha) {
+      throw new Error(
+        `branch "${newBranch}" already exists and the start point "${startPoint}" cannot be resolved; refusing to reset it without knowing what it would lose`,
+      );
+    }
+    // Commits the leftover branch has that startPoint does not reach. Zero
+    // covers "same commit" and "behind startPoint" (both resettable); a
+    // positive count — or a rev-list git cannot complete, which must not be
+    // read as "nothing to lose" — means the branch carries its own work.
+    const ownCommits = await countCommitsNotReachableFrom(repoPath, existingSha, startSha);
+    if (ownCommits === undefined || ownCommits > 0) {
+      throw new Error(
+        `branch "${newBranch}" already exists at ${existingSha.slice(0, 7)} and has commits of its own; delete the branch before starting work on it again`,
+      );
+    }
   }
   const { stderr } = await runGit(['worktree', 'add', '-B', newBranch, '--', worktreePath, startPoint], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
+  }
+}
+
+/**
+ * Commits reachable from `tip` but not from `from` (`git rev-list --count
+ * from..tip`). Undefined when git cannot answer: a caller deciding whether a
+ * reset is destructive must treat that as "cannot prove it is safe", not as
+ * zero.
+ */
+async function countCommitsNotReachableFrom(repoPath: string, tip: string, from: string): Promise<number | undefined> {
+  try {
+    const { stdout } = await runGit(['rev-list', '--count', `${from}..${tip}`], repoPath);
+    const count = Number.parseInt(stdout.trim(), 10);
+    return Number.isNaN(count) || count < 0 ? undefined : count;
+  } catch {
+    return undefined;
   }
 }
 
@@ -655,9 +861,7 @@ export async function isCurrentWorkspaceBaseRepo(
   }
   const normalizedInstanceUrl = instanceUrl.replace(/\/$/, '');
   const expectedUrls = [`${normalizedInstanceUrl}/${owner}/${repo}.git`, `${normalizedInstanceUrl}/${owner}/${repo}`];
-  const matches = remotes.some((remote) =>
-    expectedUrls.some((url) => normalizeGitUrl(remote.url) === normalizeGitUrl(url)),
-  );
+  const matches = remotes.some((remote) => expectedUrls.some((url) => sameRepositoryUrl(remote.url, url)));
   if (matches) {
     return candidate;
   }
@@ -746,7 +950,7 @@ export async function revertMergeCommit(
     // of them to be the pull request's own repository (Forgejo owner/repo names
     // are case-insensitive).
     const isExpectedRepo = (url: string): boolean => {
-      const info = normalizeGitRemote(url);
+      const info = parseRemoteUrl(url);
       return (
         info !== undefined &&
         info.owner.toLowerCase() === expectedRepo.owner.toLowerCase() &&
@@ -1032,7 +1236,9 @@ async function doScanLinkedRepositories(
   folders: vscode.WorkspaceFolder[],
 ): Promise<LinkedRepositoryScan> {
   logger.debug(`[detectLinkedRepository] workspace folders: ${folders.map((f) => f.uri.fsPath).join(', ')}`);
-  logger.debug(`[detectLinkedRepository] instances: ${instances.map((i) => `${i.id}=${i.url}`).join(', ')}`);
+  logger.debug(
+    `[detectLinkedRepository] instances: ${instances.map((i) => `${i.id}=${redactRemoteUrl(i.url)}`).join(', ')}`,
+  );
 
   const candidates = new Set<string>();
   for (const folder of folders) {
@@ -1059,9 +1265,12 @@ async function doScanLinkedRepositories(
     logger.debug(
       `[detectLinkedRepository] remotes for ${dirPath}: ${remotes.map((r) => `${r.name}=${redactRemoteUrl(r.url)}`).join(', ') || 'none'}`,
     );
-    const remoteInfos: { entry: GitRemoteEntry; info: NonNullable<ReturnType<typeof normalizeGitRemote>> }[] = [];
+    const remoteInfos: { entry: GitRemoteEntry; info: ParsedRemoteUrl }[] = [];
     for (const entry of remotes) {
-      const info = normalizeGitRemote(entry.url);
+      // parseRemoteUrl, not the shared normalizeGitRemote: an scp-style remote
+      // with a login other than `git` must not be filtered out here, or it
+      // never reaches the host match below and the repository looks unlinked.
+      const info = parseRemoteUrl(entry.url);
       logger.debug(`[detectLinkedRepository] normalized remote ${entry.name}: ${info?.normalized ?? 'invalid'}`);
       if (info) {
         remoteInfos.push({ entry, info });
@@ -1079,7 +1288,9 @@ async function doScanLinkedRepositories(
     for (const { entry, info } of remoteInfos) {
       const matched = instances.filter((instance) => {
         const matchesInstance = remoteMatchesInstance(entry.url, instance.url);
-        logger.debug(`[detectLinkedRepository] compare ${info.normalized} vs ${instance.url}: ${matchesInstance}`);
+        logger.debug(
+          `[detectLinkedRepository] compare ${info.normalized} vs ${redactRemoteUrl(instance.url)}: ${matchesInstance}`,
+        );
         return matchesInstance;
       });
       if (matched.length === 0) {

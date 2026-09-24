@@ -42,19 +42,23 @@ import {
   discardStalePrWorktree,
   fetchBranch,
   fetchPullRequestHead,
+  findLocalRepo,
   getRemoteUrl,
   getRefCommitSha,
   inspectPrWorktree,
+  isCurrentWorkspaceBaseRepo,
   isSafeRemoteName,
   listRemotes,
   listWorkspaceRepositories,
   openWorktree,
+  parseRemoteUrl,
   preferOwnNamespaceInstance,
   pushBranch,
   redactRemoteUrl,
   remoteMatchesInstance,
   resolveRemoteForRepo,
   revertMergeCommit,
+  sameRepositoryUrl,
 } from '../gitOperations';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -77,14 +81,22 @@ function failWithTokenInCommandLine() {
 /**
  * Answers `git rev-parse --verify <ref>^{commit}` with the given shas and leaves
  * every other command to succeed silently, which is what the worktree helpers
- * need to run their pre-flight checks.
+ * need to run their pre-flight checks. `revListCounts` answers the divergence
+ * guard's `git rev-list --count <from>..<tip>`: the key is the range git
+ * receives, and a range that is absent counts as zero (the leftover branch has
+ * nothing the start point does not reach).
  */
-function mockRevParseShas(shasByRef: Record<string, string>) {
+function mockRevParseShas(shasByRef: Record<string, string>, revListCounts: Record<string, number> = {}) {
   mocks.execFile.mockImplementation((_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
     if (args[0] === 'rev-parse' && args[1] === '--verify') {
       const ref = String(args[2] ?? '').replace(/\^\{commit\}$/, '');
       const sha = shasByRef[ref];
       callback(null, { stdout: sha ? `${sha}\n` : '', stderr: '' } as unknown as string, '');
+      return;
+    }
+    if (args[0] === 'rev-list' && args[1] === '--count') {
+      const count = revListCounts[String(args[2] ?? '')] ?? 0;
+      callback(null, { stdout: `${count}\n`, stderr: '' } as unknown as string, '');
       return;
     }
     callback(null, '', '');
@@ -362,6 +374,212 @@ describe('remoteMatchesInstance', () => {
       remoteMatchesInstance('https://forgejo.example.com/owner/repo.git', 'https://forgejo.example.com:3000'),
     ).toBe(false);
   });
+
+  it('matches scp-style remotes whose login is not "git"', () => {
+    // git's scp syntax allows any login (`user@host:path`), and the login names
+    // the transport user, not the repository: a remote stored as
+    // forgejo@host:... or alice@host:... must host-match the instance like the
+    // git@ spelling does. The shared normalizeGitRemote (not used here anymore)
+    // only recognises `git@`, which left those repositories looking unlinked.
+    expect(remoteMatchesInstance('alice@forgejo.example.com:owner/repo.git', 'https://forgejo.example.com')).toBe(true);
+    expect(remoteMatchesInstance('forgejo@forgejo.example.com:owner/repo.git', 'https://forgejo.example.com')).toBe(
+      true,
+    );
+    // The transport rule is unchanged: an scp remote ignores the instance's web
+    // port, because SSH's port is not the web port.
+    expect(remoteMatchesInstance('alice@forgejo.example.com:owner/repo.git', 'https://forgejo.example.com:3000')).toBe(
+      true,
+    );
+    // The instance may be deployed under a sub-path, and the scp path carries it
+    // like any other transport does.
+    expect(
+      remoteMatchesInstance('alice@forgejo.example.com:forgejo/owner/repo.git', 'https://forgejo.example.com/forgejo'),
+    ).toBe(true);
+  });
+
+  it('rejects scp-style remotes of another host or outside the instance sub-path', () => {
+    expect(remoteMatchesInstance('alice@other.example.com:owner/repo.git', 'https://forgejo.example.com')).toBe(false);
+    // A remote under a different path of the same host is not that instance.
+    expect(
+      remoteMatchesInstance(
+        'alice@forgejo.example.com:elsewhere/owner/repo.git',
+        'https://forgejo.example.com/forgejo',
+      ),
+    ).toBe(false);
+    // A remote that names no repository (host plus a single path segment) is not
+    // an instance repository, exactly as normalizeGitRemote required before.
+    expect(remoteMatchesInstance('alice@forgejo.example.com:owner', 'https://forgejo.example.com')).toBe(false);
+  });
+
+  it('keeps the http(s) host-plus-port rule for http remotes next to scp ones', () => {
+    expect(
+      remoteMatchesInstance('https://forgejo.example.com/owner/repo.git', 'https://forgejo.example.com:3000'),
+    ).toBe(false);
+    expect(
+      remoteMatchesInstance('https://forgejo.example.com:3000/owner/repo.git', 'https://forgejo.example.com:3000'),
+    ).toBe(true);
+  });
+
+  it('matches when the configured instance URL carries credentials or a sub-path', () => {
+    // publish.ts matches a remote against each configured instance URL, which is
+    // user input: parsed.host/parsed.pathname never contain the userinfo, so an
+    // instance stored as https://user:token@host is still recognised, for scp
+    // and http remotes alike.
+    expect(
+      remoteMatchesInstance('alice@forgejo.example.com:owner/repo.git', 'https://alice:token@forgejo.example.com'),
+    ).toBe(true);
+    expect(
+      remoteMatchesInstance('https://forgejo.example.com/owner/repo.git', 'https://alice:token@forgejo.example.com'),
+    ).toBe(true);
+    // The .git suffix is not part of the host/path key, so both https spellings
+    // of the same remote match equally.
+    expect(remoteMatchesInstance('https://forgejo.example.com/owner/repo', 'https://forgejo.example.com')).toBe(true);
+    // The instance's deployment sub-path is part of the key, so an scp remote
+    // matches it too — and a remote outside it does not.
+    expect(
+      remoteMatchesInstance('alice@forgejo.example.com:sub/owner/repo.git', 'https://forgejo.example.com/sub'),
+    ).toBe(true);
+    expect(
+      remoteMatchesInstance('alice@forgejo.example.com:other/owner/repo.git', 'https://forgejo.example.com/sub'),
+    ).toBe(false);
+  });
+});
+
+describe('parseRemoteUrl', () => {
+  it('parses a login-less scp remote', () => {
+    // git's scp syntax does not require a login: `host:owner/repo.git` is an
+    // ordinary remote (git only requires the part before the colon to contain no
+    // `/`). Dropping it left those repositories unlinked, so the worktree flows
+    // reported no matching remote.
+    expect(parseRemoteUrl('forgejo.example.com:owner/repo.git')).toEqual({
+      normalized: 'forgejo.example.com/owner/repo',
+      compareWithoutPort: true,
+      owner: 'owner',
+      repo: 'repo',
+    });
+  });
+
+  it('keeps parsing the scp forms that carry a login', () => {
+    expect(parseRemoteUrl('git@forgejo.example.com:owner/repo.git')?.normalized).toBe('forgejo.example.com/owner/repo');
+    expect(parseRemoteUrl('alice@forgejo.example.com:owner/repo.git')?.normalized).toBe(
+      'forgejo.example.com/owner/repo',
+    );
+    // An absolute repository path (a leading slash after the colon) is not a
+    // separator and stays accepted, as before.
+    expect(parseRemoteUrl('git@forgejo.example.com:/owner/repo.git')?.normalized).toBe(
+      'forgejo.example.com/owner/repo',
+    );
+  });
+
+  it('still rejects local paths, including Windows drive paths', () => {
+    // Accepting the bare `host:path` form must not turn a local path into a
+    // remote: git reads a leading `<letter>:` as a DOS drive prefix
+    // (has_dos_drive_prefix), so `D:\repos\x` and `D:/repos/x` are local, and a
+    // path without a colon (or with a `/` before it) never matched anyway.
+    expect(parseRemoteUrl('D:\\repos\\x')).toBeUndefined();
+    expect(parseRemoteUrl('D:/repos/x')).toBeUndefined();
+    expect(parseRemoteUrl('/home/me/repo')).toBeUndefined();
+    expect(parseRemoteUrl('./repos/x')).toBeUndefined();
+    expect(parseRemoteUrl('repos/x')).toBeUndefined();
+  });
+
+  it('rejects a host:path that names no repository', () => {
+    expect(parseRemoteUrl('forgejo.example.com:owner')).toBeUndefined();
+    expect(parseRemoteUrl('forgejo.example.com:')).toBeUndefined();
+  });
+});
+
+describe('sameRepositoryUrl', () => {
+  it('matches an ssh remote against an instance URL that carries a port', () => {
+    // The SSH port is transport-level and unrelated to the web port, so an
+    // instance on :3000 must still recognise its own ssh remote. Comparing
+    // parseRemoteUrl(...).normalized on both sides kept the port on the instance
+    // URL and dropped it on the remote, which rejected every ssh/scp remote.
+    expect(
+      sameRepositoryUrl(
+        'ssh://git@forgejo.example.com:2222/owner/repo.git',
+        'https://forgejo.example.com:3000/owner/repo.git',
+      ),
+    ).toBe(true);
+    expect(
+      sameRepositoryUrl('git@forgejo.example.com:owner/repo.git', 'https://forgejo.example.com:3000/owner/repo.git'),
+    ).toBe(true);
+  });
+
+  it('matches an https remote against an instance URL on the same port', () => {
+    expect(
+      sameRepositoryUrl(
+        'https://forgejo.example.com:8443/owner/repo.git',
+        'https://forgejo.example.com:8443/owner/repo.git',
+      ),
+    ).toBe(true);
+    // The port is only irrelevant when one side is a portless transport; two
+    // http(s) URLs without an explicit port still match.
+    expect(
+      sameRepositoryUrl('https://forgejo.example.com/owner/repo.git', 'https://forgejo.example.com/owner/repo'),
+    ).toBe(true);
+  });
+
+  it('rejects an https remote on a different port', () => {
+    // The web port identifies the server, so it must match exactly when both
+    // sides are http(s) — including an explicit port against the default one.
+    expect(
+      sameRepositoryUrl(
+        'https://forgejo.example.com:8443/owner/repo.git',
+        'https://forgejo.example.com:3000/owner/repo.git',
+      ),
+    ).toBe(false);
+    expect(
+      sameRepositoryUrl(
+        'https://forgejo.example.com/owner/repo.git',
+        'https://forgejo.example.com:3000/owner/repo.git',
+      ),
+    ).toBe(false);
+  });
+
+  it('matches a login-less scp remote against an instance URL without a port', () => {
+    expect(sameRepositoryUrl('forgejo.example.com:owner/repo.git', 'https://forgejo.example.com/owner/repo.git')).toBe(
+      true,
+    );
+  });
+
+  it('keeps the instance sub-path in the comparison', () => {
+    expect(
+      sameRepositoryUrl(
+        'git@forgejo.example.com:forgejo/owner/repo.git',
+        'https://forgejo.example.com/forgejo/owner/repo.git',
+      ),
+    ).toBe(true);
+    expect(
+      sameRepositoryUrl('git@forgejo.example.com:owner/repo.git', 'https://forgejo.example.com/forgejo/owner/repo.git'),
+    ).toBe(false);
+  });
+
+  it('ignores credentials on the remote and on the instance URL', () => {
+    expect(
+      sameRepositoryUrl(
+        'https://alice:token_abc123@forgejo.example.com/owner/repo.git',
+        'https://forgejo.example.com/owner/repo.git',
+      ),
+    ).toBe(true);
+    expect(
+      sameRepositoryUrl(
+        'ssh://git@forgejo.example.com:2222/owner/repo.git',
+        'https://alice:token_abc123@forgejo.example.com:3000/owner/repo.git',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a different host or repository and unparseable URLs', () => {
+    expect(
+      sameRepositoryUrl('git@other.example.com:owner/repo.git', 'https://forgejo.example.com/owner/repo.git'),
+    ).toBe(false);
+    expect(
+      sameRepositoryUrl('git@forgejo.example.com:owner/other.git', 'https://forgejo.example.com/owner/repo.git'),
+    ).toBe(false);
+    expect(sameRepositoryUrl('not a url', 'https://forgejo.example.com/owner/repo.git')).toBe(false);
+    expect(sameRepositoryUrl('D:\\repos\\x', 'https://forgejo.example.com/owner/repo.git')).toBe(false);
+  });
 });
 
 describe('gitOperations argument passing', () => {
@@ -383,6 +601,16 @@ describe('gitOperations argument passing', () => {
       expect.anything(),
       expect.any(Function),
     );
+  });
+
+  it('pushBranch refuses a remote name git would read as an option', async () => {
+    // The remote name may come from the upstream (`@{upstream}`) or from a user
+    // prompt, so it is not necessarily one this module chose; `git push --force
+    // …` would run something else than the caller asked for. The fetch helpers
+    // guard their remote the same way.
+    await expect(pushBranch('/repo', '--force', 'main')).rejects.toThrow(/is not a usable git remote name/);
+    await expect(pushBranch('/repo', '-u', 'main')).rejects.toThrow(/is not a usable git remote name/);
+    expect(mocks.execFile).not.toHaveBeenCalled();
   });
 
   it('cloneRepository passes --quiet so clone progress does not overflow stderr maxBuffer', async () => {
@@ -485,11 +713,20 @@ describe('gitOperations argument passing', () => {
 
   it('refuses to reset a leftover issue branch that has commits of its own', async () => {
     // Removing a worktree keeps its branch on purpose, so `-B` would reset it to
-    // the freshly fetched tip and silently drop those commits.
-    mockRevParseShas({ 'refs/heads/issue-1': 'aaaaaaa1', FETCH_HEAD: 'bbbbbbb2' });
+    // the freshly fetched tip and silently drop those commits. The leftover
+    // branch carries a commit the new start point does not reach, so the
+    // divergence count is positive.
+    mockRevParseShas({ 'refs/heads/issue-1': 'aaaaaaa1', FETCH_HEAD: 'bbbbbbb2' }, { 'bbbbbbb2..aaaaaaa1': 1 });
 
     await expect(createWorktreeWithNewBranch('/repo', '/cache/worktrees/x', 'issue-1', 'FETCH_HEAD')).rejects.toThrow(
       /commits of its own/,
+    );
+    // The guard asks git whether startPoint reaches the leftover branch.
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['rev-list', '--count', 'bbbbbbb2..aaaaaaa1'],
+      expect.anything(),
+      expect.any(Function),
     );
     expect(mocks.execFile).not.toHaveBeenCalledWith(
       'git',
@@ -503,6 +740,84 @@ describe('gitOperations argument passing', () => {
     // The retry path: a previous start-work attempt left the branch at the tip
     // the fetch just produced, so re-creating the worktree is not destructive.
     mockRevParseShas({ 'refs/heads/issue-1': 'aaaaaaa1', FETCH_HEAD: 'aaaaaaa1' });
+
+    await createWorktreeWithNewBranch('/repo', '/cache/worktrees/x', 'issue-1', 'FETCH_HEAD');
+
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['worktree', 'add', '-B', 'issue-1', '--', '/cache/worktrees/x', 'FETCH_HEAD'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('still resets a leftover branch that is merely behind the start point', async () => {
+    // The branch a previous attempt created from an older fetch is an ancestor
+    // of the freshly fetched tip, so resetting it forward discards no commit
+    // (git reports zero commits startPoint does not already reach). This is the
+    // benign retry the previous same-sha-only guard wrongly refused.
+    mockRevParseShas({ 'refs/heads/issue-1': 'aaaaaaa1', FETCH_HEAD: 'bbbbbbb2' }, { 'bbbbbbb2..aaaaaaa1': 0 });
+
+    await createWorktreeWithNewBranch('/repo', '/cache/worktrees/x', 'issue-1', 'FETCH_HEAD');
+
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['worktree', 'add', '-B', 'issue-1', '--', '/cache/worktrees/x', 'FETCH_HEAD'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('refuses when the divergence of the leftover branch cannot be determined', async () => {
+    // `git rev-list` failing must not be read as "nothing to lose": the guard
+    // fails closed and lets the user delete the branch deliberately.
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'rev-parse' && args[1] === '--verify') {
+          const ref = String(args[2] ?? '').replace(/\^\{commit\}$/, '');
+          const sha = { 'refs/heads/issue-1': 'aaaaaaa1', FETCH_HEAD: 'bbbbbbb2' }[ref] ?? '';
+          callback(null, { stdout: sha ? `${sha}\n` : '', stderr: '' } as unknown as string, '');
+          return;
+        }
+        if (args[0] === 'rev-list') {
+          const error = new Error('Command failed: git rev-list') as Error & { stderr: string };
+          error.stderr = 'fatal: bad revision';
+          callback(error, '', error.stderr);
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+
+    await expect(createWorktreeWithNewBranch('/repo', '/cache/worktrees/x', 'issue-1', 'FETCH_HEAD')).rejects.toThrow(
+      /commits of its own/,
+    );
+  });
+
+  it('refuses to reset a leftover branch whose start point does not resolve', async () => {
+    // The branch exists but the start point (an empty cache's missing
+    // FETCH_HEAD, or any other unresolvable value) does not: the divergence is
+    // unknown, so the branch might carry commits `-B` would drop. The guard
+    // must fail closed instead of skipping the check because one rev-parse came
+    // back empty.
+    mockRevParseShas({ 'refs/heads/issue-1': 'aaaaaaa1' });
+
+    await expect(createWorktreeWithNewBranch('/repo', '/cache/worktrees/x', 'issue-1', 'FETCH_HEAD')).rejects.toThrow(
+      /cannot be resolved/,
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['worktree', 'add']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('creates the branch when there is no leftover branch to reset', async () => {
+    // The empty bare cache: nothing points at the new branch name, so `-B`
+    // creates it from the start point and the divergence guard has nothing to
+    // protect.
+    mockRevParseShas({ FETCH_HEAD: 'bbbbbbb2' });
 
     await createWorktreeWithNewBranch('/repo', '/cache/worktrees/x', 'issue-1', 'FETCH_HEAD');
 
@@ -682,6 +997,28 @@ describe('revertMergeCommit branch guard and token push', () => {
         'remote get-url --push --all origin',
         'https://forgejo.example.com/Owner/Repo.git\nssh://git@forgejo.example.com:2222/owner/repo.git\n',
       ],
+    ]);
+
+    await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl, { owner: 'owner', repo: 'repo' });
+
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['push', 'origin', 'HEAD:main'],
+      expect.objectContaining({
+        env: expect.objectContaining({ GIT_CONFIG_VALUE_0: `Authorization: token ${token}` }),
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it('accepts an scp push target whose login is not "git"', async () => {
+    // Both guards in this flow must read the owner/repo out of the scp form
+    // (isExpectedRepo here, remoteMatchesInstance inside pushBranch): git's scp
+    // syntax allows any login, and normalizeGitRemote parsed only `git@`.
+    mockGitSequence([
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote get-url --push --all origin', 'alice@forgejo.example.com:owner/repo.git\n'],
     ]);
 
     await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl, { owner: 'owner', repo: 'repo' });
@@ -917,6 +1254,26 @@ describe('detectLinkedRepository', () => {
     expect(linked?.remoteUrl).toBe('https://forgejo.example.com/alice/repo.git');
     // The second remote host-matches in the cheap pass, so no repo-path
     // fallback probe is needed for the non-matching origin.
+    expect(clientMocks.probeRepository).not.toHaveBeenCalled();
+  });
+
+  it('links a repository whose remote uses an scp login other than "git"', async () => {
+    // git's scp syntax allows any login, not just `git`. The shared
+    // normalizeGitRemote parses only `git@` (new URL() rejects
+    // alice@host:owner/repo.git), so such a remote used to be dropped before
+    // matching: the repository looked unlinked and was offered as a publish
+    // candidate again.
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/a' } }];
+    mockRemotes({ '/ws/a': 'alice@forgejo.example.com:alice/repo.git' });
+
+    const result = await detectLinkedRepositories([instanceAlice]);
+
+    expect(result.linked?.localPath).toBe('/ws/a');
+    expect(result.linked?.instanceId).toBe('host-alice');
+    expect(result.linked?.owner).toBe('alice');
+    expect(result.linked?.repo).toBe('repo');
+    expect(result.unpublished).toEqual([]);
+    // The host matched in the cheap pass, so no repo-path fallback probe ran.
     expect(clientMocks.probeRepository).not.toHaveBeenCalled();
   });
 
@@ -1546,20 +1903,71 @@ describe('isSafeRemoteName', () => {
     expect(isSafeRemoteName('')).toBe(false);
     expect(isSafeRemoteName('remote with space')).toBe(false);
   });
+
+  it('accepts a name with a leading underscore, which the publish prompt offers', () => {
+    // `_forgejo` (and any other name in git's character set) can be created by
+    // the publish prompt's validateRemoteName, so detection must not skip it.
+    expect(isSafeRemoteName('_forgejo')).toBe(true);
+    expect(isSafeRemoteName('_')).toBe(true);
+    expect(isSafeRemoteName('_upstream/fork-2')).toBe(true);
+  });
+
+  it('still refuses every name git would read as an option', () => {
+    expect(isSafeRemoteName('-')).toBe(false);
+    expect(isSafeRemoteName('-_forgejo')).toBe(false);
+    expect(isSafeRemoteName('--upload-pack=evil')).toBe(false);
+  });
+
+  it('accepts the rest of the characters git allows in a remote name', () => {
+    // A remote name becomes a component of `refs/remotes/<name>/…`, and
+    // `git check-ref-format refs/remotes/my+fork/main` succeeds: `+`, `@` and a
+    // leading `_` are all legal there. Rejecting them would hide a remote the
+    // user created from git itself (and the publish prompt can create).
+    expect(isSafeRemoteName('my+fork')).toBe(true);
+    expect(isSafeRemoteName('fork@2024')).toBe(true);
+    expect(isSafeRemoteName('_forgejo+fork')).toBe(true);
+    expect(isSafeRemoteName('a/b+c_d.e-f')).toBe(true);
+  });
+
+  it('refuses names that cannot be a ref component', () => {
+    expect(isSafeRemoteName('a..b')).toBe(false);
+    expect(isSafeRemoteName('..')).toBe(false);
+    expect(isSafeRemoteName('my fork')).toBe(false);
+    expect(isSafeRemoteName('my\tfork')).toBe(false);
+    expect(isSafeRemoteName('my\nfork')).toBe(false);
+    expect(isSafeRemoteName('my\u0000fork')).toBe(false);
+  });
 });
 
 describe('redactRemoteUrl', () => {
-  it('strips credentials while keeping host and path recognisable', () => {
+  it('blanks the password and keeps the http username recognisable', () => {
     expect(redactRemoteUrl('https://alice:s3cret@forgejo.example.com/alice/repo.git')).toBe(
-      'https://***@forgejo.example.com/alice/repo.git',
-    );
-    // A token in the username position is a credential too.
-    expect(redactRemoteUrl('https://ghp_example@forgejo.example.com/alice/repo.git')).toBe(
-      'https://***@forgejo.example.com/alice/repo.git',
+      'https://alice:***@forgejo.example.com/alice/repo.git',
     );
   });
 
-  it('leaves credential-free and ssh remotes untouched', () => {
+  it('blanks a username that is the only userinfo of an http(s) url', () => {
+    // Forgejo users commonly write the token in the username position
+    // (`https://<token>@host/...`), so that username is a credential too.
+    expect(redactRemoteUrl('https://ghp_example@forgejo.example.com/alice/repo.git')).toBe(
+      'https://***@forgejo.example.com/alice/repo.git',
+    );
+    expect(redactRemoteUrl('https://token@forgejo.example.com/x.git')).toBe('https://***@forgejo.example.com/x.git');
+  });
+
+  it('keeps a plain ssh user visible instead of blanking the userinfo', () => {
+    expect(redactRemoteUrl('ssh://git@forgejo.example.com/owner/repo.git')).toBe(
+      'ssh://git@forgejo.example.com/owner/repo.git',
+    );
+  });
+
+  it('still blanks a password on an ssh url', () => {
+    expect(redactRemoteUrl('ssh://git:pw@forgejo.example.com/owner/repo.git')).toBe(
+      'ssh://git:***@forgejo.example.com/owner/repo.git',
+    );
+  });
+
+  it('leaves credential-free and scp-style remotes untouched', () => {
     expect(redactRemoteUrl('https://forgejo.example.com/alice/repo.git')).toBe(
       'https://forgejo.example.com/alice/repo.git',
     );
@@ -1616,6 +2024,67 @@ describe('resolveRemoteForRepo', () => {
     );
   });
 
+  it('matches a remote URL that carries credentials', async () => {
+    // A remote written as https://user:token@host/... is the same repository on
+    // the same instance as its credential-free form; comparing the raw userinfo
+    // would make detection and pushing silently skip that user's repository.
+    mockRemoteV({ origin: 'https://alice:token_abc123@forgejo.example.com/alice/repo.git' });
+
+    await expect(resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo')).resolves.toBe('origin');
+  });
+
+  it('matches when the configured instance URL carries credentials too', async () => {
+    // Both sides of the comparison can hold userinfo (the instance URL is user
+    // input, the remote is whatever the repository stores); the credential is
+    // not part of the repository identity on either side, so both are stripped.
+    mockRemoteV({ origin: 'https://forgejo.example.com/alice/repo.git' });
+
+    await expect(
+      resolveRemoteForRepo('/repo', 'https://alice:token_abc123@forgejo.example.com', 'alice', 'repo'),
+    ).resolves.toBe('origin');
+  });
+
+  it('matches an scp-style remote against the instance web URL', async () => {
+    // git@host:owner/repo.git names the same repository as
+    // https://host/owner/repo.git; a raw or normalizeGitUrl comparison keeps
+    // the scheme and the login and would never equate them.
+    mockRemoteV({ origin: 'git@forgejo.example.com:alice/repo.git' });
+
+    await expect(resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo')).resolves.toBe('origin');
+  });
+
+  it('matches an ssh:// remote and ignores its transport port', async () => {
+    mockRemoteV({ origin: 'ssh://git@forgejo.example.com:2222/alice/repo.git' });
+
+    await expect(resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo')).resolves.toBe('origin');
+    // SSH on 2222 has no relation to the instance's web port 3000.
+    await expect(resolveRemoteForRepo('/repo', 'https://forgejo.example.com:3000', 'alice', 'repo')).resolves.toBe(
+      'origin',
+    );
+  });
+
+  it('does not match an ssh remote of another host or another repository', async () => {
+    mockRemoteV({ origin: 'git@git.example.com:alice/repo.git' });
+    await expect(
+      resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo'),
+    ).resolves.toBeUndefined();
+
+    mockRemoteV({ origin: 'git@forgejo.example.com:alice/other.git' });
+    await expect(
+      resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('still requires the port to match for http(s) remotes', async () => {
+    // Dropping the port for ssh remotes must not make http(s) matching lax: the
+    // web port identifies the server.
+    mockRemoteV({ origin: 'https://forgejo.example.com/alice/repo.git' });
+
+    await expect(
+      resolveRemoteForRepo('/repo', 'https://forgejo.example.com:3000', 'alice', 'repo'),
+    ).resolves.toBeUndefined();
+  });
+
   it('prefers origin when several remotes match', async () => {
     mockRemoteV({
       upstream: 'https://forgejo.example.com/alice/repo.git',
@@ -1631,6 +2100,78 @@ describe('resolveRemoteForRepo', () => {
     await expect(
       resolveRemoteForRepo('/repo', 'https://forgejo.example.com', 'alice', 'repo'),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('workspace repository matching across transports', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (vscode.workspace as { workspaceFolders?: unknown[] }).workspaceFolders = [{ uri: { fsPath: '/ws/repo' } }];
+    // Every candidate directory (the folder and its parent) is a repository.
+    (fs.promises.access as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => undefined);
+  });
+
+  function mockRemoteV(lines: string[]) {
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        if (args[0] === 'remote' && args[1] === '-v') {
+          const stdout = lines.length > 0 ? `${lines.join('\n')}\n` : '';
+          callback(null, { stdout, stderr: '' } as unknown as string, '');
+          return;
+        }
+        callback(null, '', '');
+      },
+    );
+  }
+
+  function remoteLines(url: string): string[] {
+    return [`origin\t${url} (fetch)`, `origin\t${url} (push)`];
+  }
+
+  it('findLocalRepo matches an scp-style remote of the requested repository', async () => {
+    mockRemoteV(remoteLines('git@forgejo.example.com:alice/repo.git'));
+
+    await expect(findLocalRepo('https://forgejo.example.com', 'alice', 'repo')).resolves.toBe('/ws/repo');
+  });
+
+  it('findLocalRepo matches an ssh:// remote on an instance with a non-default web port', async () => {
+    mockRemoteV(remoteLines('ssh://git@forgejo.example.com:2222/alice/repo.git'));
+
+    await expect(findLocalRepo('https://forgejo.example.com:3000', 'alice', 'repo')).resolves.toBe('/ws/repo');
+  });
+
+  it('findLocalRepo matches when the configured instance URL carries credentials', async () => {
+    mockRemoteV(remoteLines('https://forgejo.example.com/alice/repo.git'));
+
+    await expect(findLocalRepo('https://alice:token_abc123@forgejo.example.com', 'alice', 'repo')).resolves.toBe(
+      '/ws/repo',
+    );
+  });
+
+  it('findLocalRepo does not match an ssh remote of another host or another repository', async () => {
+    mockRemoteV(remoteLines('git@git.example.com:alice/repo.git'));
+    await expect(findLocalRepo('https://forgejo.example.com', 'alice', 'repo')).resolves.toBeUndefined();
+
+    mockRemoteV(remoteLines('git@forgejo.example.com:alice/other.git'));
+    await expect(findLocalRepo('https://forgejo.example.com', 'alice', 'repo')).resolves.toBeUndefined();
+  });
+
+  it('isCurrentWorkspaceBaseRepo matches scp-style and ssh:// remotes', async () => {
+    mockRemoteV(remoteLines('git@forgejo.example.com:alice/repo.git'));
+    await expect(isCurrentWorkspaceBaseRepo('https://forgejo.example.com', 'alice', 'repo')).resolves.toBe('/ws/repo');
+
+    mockRemoteV(remoteLines('ssh://git@forgejo.example.com:2222/alice/repo.git'));
+    await expect(isCurrentWorkspaceBaseRepo('https://forgejo.example.com:3000', 'alice', 'repo')).resolves.toBe(
+      '/ws/repo',
+    );
+  });
+
+  it('isCurrentWorkspaceBaseRepo matches when the configured instance URL carries credentials', async () => {
+    mockRemoteV(remoteLines('https://forgejo.example.com/alice/repo.git'));
+
+    await expect(
+      isCurrentWorkspaceBaseRepo('https://alice:token_abc123@forgejo.example.com', 'alice', 'repo'),
+    ).resolves.toBe('/ws/repo');
   });
 });
 

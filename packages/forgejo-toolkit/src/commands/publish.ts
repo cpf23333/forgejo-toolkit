@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import { normalizeGitRemote } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import type { ConfigManager } from '../config';
 import { ForgejoClient } from '../api/client';
 // Single implementation lives in the shared API error helpers; re-exported
@@ -19,6 +18,7 @@ import {
   getUpstreamBranch,
   listRemotes,
   listWorkspaceRepositories,
+  parseRemoteUrl,
   pushBranch,
   redactRemoteUrl,
   remoteMatchesInstance,
@@ -324,7 +324,7 @@ async function pickInstanceForRemote(
   remoteUrl: string,
   matched: ForgejoInstance[],
 ): Promise<ForgejoInstance | undefined> {
-  const remoteInfo = normalizeGitRemote(remoteUrl);
+  const remoteInfo = parseRemoteUrl(remoteUrl);
   const ownMatches = remoteInfo
     ? matched.filter(
         (instance) => instance.username && instance.username.toLowerCase() === remoteInfo.owner.toLowerCase(),
@@ -332,7 +332,7 @@ async function pickInstanceForRemote(
     : [];
   if (ownMatches.length === 1) {
     logger.info(
-      `[publishToForgejo] ${matched.length} accounts match ${remoteUrl}; using ${ownMatches[0].id} (owner match)`,
+      `[publishToForgejo] ${matched.length} accounts match ${redactRemoteUrl(remoteUrl)}; using ${ownMatches[0].id} (owner match)`,
     );
     return ownMatches[0];
   }
