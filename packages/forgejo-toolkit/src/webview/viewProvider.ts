@@ -47,12 +47,14 @@ import {
   stripInstanceTokens,
 } from './instanceImport';
 import { userFacingErrorMessage } from '../api/errors';
+import { getProxyFetch } from '../api/proxy';
 import { missingPayloadNotice } from '../prFileSystemProvider';
 import { probeServerVersion } from '../api/versionProbe';
 import { clearServerVersion } from '../api/serverVersion';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { resolveLocale } from '../utils/resolveLocale';
-import { isSafeRepoIdentity, isSafeRepoNameSegment } from './repoIdentity';
+import { isSafeRepoIdentity, isSafeRepoNameSegment, isSafeRepoPath } from './repoIdentity';
+import { connectionFailureMessage, isHttpUrl } from './connectionTest';
 
 /**
  * Load-type webview requests whose handlers reply with a result message the
@@ -146,7 +148,9 @@ function isSameOrigin(a: string, b: string): boolean {
   }
 }
 
-/** Display label for a merge strategy, matching the webview's strategy picker. */
+/**
+ * Display label for a merge strategy, matching the webview's strategy picker.
+ */
 function mergeStrategyLabel(strategy: 'merge' | 'rebase' | 'squash'): string {
   switch (strategy) {
     case 'squash':
@@ -156,6 +160,17 @@ function mergeStrategyLabel(strategy: 'merge' | 'rebase' | 'squash'): string {
     default:
       return vscode.l10n.t('Create a merge commit');
   }
+}
+
+/**
+ * Destructive confirmations must name their target: the repository a command
+ * acts on is carried by the webview message and every dialog otherwise reads
+ * the same generic "Delete this …?" text, so a mis-click can destroy the wrong
+ * repository's branch, worktree, or issue. Kept together so a new destructive
+ * command reuses the wording instead of inventing another generic prompt.
+ */
+function confirmInstanceScope(instance: Pick<ForgejoInstance, 'name'>, owner: string, repo: string): string {
+  return `${instance.name} (${owner}/${repo})`;
 }
 
 /**
@@ -328,7 +343,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // In multi-repository workspaces the linked repository follows the
       // active editor; re-resolve when it changes (debounced).
       vscode.window.onDidChangeActiveTextEditor(() => this._scheduleLinkedRepositoryDetect()),
-      { dispose: () => clearTimeout(this._linkedRepoDetectTimer) },
+      {
+        dispose: () => {
+          // Both timers run a git scan and a `setContext` on a disposed host if
+          // they are left pending; the cold-start one fires 2 s after
+          // activation, which is well within a short-lived or reloaded session.
+          clearTimeout(this._linkedRepoDetectTimer);
+          clearTimeout(this._initialDetectTimer);
+        },
+      },
     );
 
     // Cold-start detection: the user may never open a file or the sidebar,
@@ -337,10 +360,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     // not held open. Failures are swallowed inside
     // _detectAndSendLinkedRepository, so this never becomes an unhandled
     // rejection.
-    const initialDetectTimer = setTimeout(() => {
+    this._initialDetectTimer = setTimeout(() => {
       void this._detectAndSendLinkedRepository();
     }, 2000);
-    initialDetectTimer.unref?.();
+    this._initialDetectTimer.unref?.();
   }
 
   public resolveWebviewView(
@@ -436,6 +459,22 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       logger.error(
         `Ignoring webview message "${message.command}" with an unsafe owner/repo identity: ${String(message.owner)}/${String(message.repo)}`,
       );
+      // startWorkOnIssue is a plain (requestId-less) message whose result is
+      // routed by the coordinates it carries, and the webview sets its
+      // start-work spinner before posting. Answering it with `requestError`
+      // (which it cannot route) or not at all would leave that spinner running
+      // forever, so it gets the same startWorkResult shape as the handler's
+      // invalid-payload path.
+      if (message.command === 'startWorkOnIssue') {
+        this._reply('startWorkResult', {
+          instanceId: message.instanceId,
+          owner: message.owner,
+          repo: message.repo,
+          index: message.index,
+          error: vscode.l10n.t('The request could not be completed'),
+        });
+        return;
+      }
       const requestId = typeof message._requestId === 'string' ? (message._requestId as string) : undefined;
       if (requestId) {
         this._reply('requestError', {
@@ -529,7 +568,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       case 'testConnection': {
         const { url, token, instanceId } = message;
         if (typeof url !== 'string' || typeof token !== 'string') {
-          this._reply('testConnectionResult', { success: false, error: 'Invalid input' });
+          this._reply('testConnectionResult', {
+            success: false,
+            error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
+          });
+          return;
+        }
+        // See isHttpUrl: the target is chosen by the webview, so only web URLs
+        // may be reached. The setup wizard stays free to test any instance.
+        if (!isHttpUrl(url)) {
+          logger.error(`testConnection rejected a non-http(s) URL`);
+          this._reply('testConnectionResult', {
+            success: false,
+            error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
+          });
           return;
         }
         // When editing an instance the token field is left empty to keep the
@@ -553,7 +605,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`testConnection failed: ${err}`);
-          this._reply('testConnectionResult', { success: false, error: err });
+          // Transport/HTTP failures reply with a status-only message: the raw
+          // response body is authored by the remote server and must not be
+          // reflected into the webview (see connectionFailureMessage).
+          this._reply('testConnectionResult', { success: false, error: connectionFailureMessage(error) });
         }
         return;
       }
@@ -1157,7 +1212,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         // Explicit cancel reply (like the import preview): the webview's
         // loading state for this command would never clear otherwise.
-        if (!(await this._confirmDestructive(vscode.l10n.t('Delete issue #{0}? This cannot be undone.', index)))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t(
+              'Delete issue #{0} in {1}? This cannot be undone.',
+              index,
+              confirmInstanceScope(instance, owner, repo),
+            ),
+          ))
+        ) {
           this._reply('issueDeleted', { instanceId: instance.id, owner, repo, index, cancelled: true });
           return;
         }
@@ -1219,7 +1282,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           typeof owner !== 'string' ||
           typeof repo !== 'string' ||
           typeof index !== 'number' ||
-          typeof user !== 'string'
+          // `user` becomes the last path segment of a subscription route; a value
+          // like `../..` would retarget a prompt-free unsubscribe at another API
+          // path, so it is held to the same rule as a repository name.
+          !isSafeRepoNameSegment(user)
         ) {
           return;
         }
@@ -1265,7 +1331,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // even construct a request. Start/stop are not destructive, so only the
         // delete action prompts.
         if (message.command === 'deleteIssueStopwatch') {
-          if (!(await this._confirmDestructive(vscode.l10n.t('Cancel the running timer for issue #{0}?', index)))) {
+          if (
+            !(await this._confirmDestructive(
+              vscode.l10n.t(
+                'Discard the running timer for issue #{0} in {1}?',
+                index,
+                confirmInstanceScope(instance, owner, repo),
+              ),
+            ))
+          ) {
             // Answer with `cancelled` so the webview clears its pending state
             // without treating the decline as a failure.
             this._reply('issueStopwatchChanged', {
@@ -1413,6 +1487,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof index !== 'number') {
           return;
         }
+        // The same host-enforced confirmation as the single-entry
+        // deleteIssueTime below: DELETE .../times drops every tracked-time
+        // entry of the issue at once, which is strictly more destructive than
+        // the confirmed single-entry delete. The webview must not add its own
+        // prompt (that would double-prompt).
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t(
+              'Delete all tracked time entries for issue #{0} in {1}? This cannot be undone.',
+              index,
+              confirmInstanceScope(instance, owner, repo),
+            ),
+          ))
+        ) {
+          this._reply('issueTimeReset', { instanceId: instance.id, owner, repo, index, cancelled: true });
+          return;
+        }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           await client.resetIssueTime(owner, repo, index);
@@ -1449,7 +1540,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         ) {
           return;
         }
-        if (!(await this._confirmDestructive(vscode.l10n.t('Delete this tracked time entry?')))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t('Delete this tracked time entry in {0}?', confirmInstanceScope(instance, owner, repo)),
+          ))
+        ) {
           this._reply('issueTimeDeleted', { instanceId: instance.id, owner, repo, index, id, cancelled: true });
           return;
         }
@@ -1527,7 +1622,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // Only removal is destructive; creation needs no confirmation.
         if (
           message.command === 'removeIssueDependency' &&
-          !(await this._confirmDestructive(vscode.l10n.t('Remove the dependency on #{0}?', dependencyIndex)))
+          !(await this._confirmDestructive(
+            vscode.l10n.t(
+              'Remove the dependency on #{0} for issue #{1} in {2}?',
+              dependencyIndex,
+              index,
+              confirmInstanceScope(instance, owner, repo),
+            ),
+          ))
         ) {
           this._reply('issueDependencyChanged', {
             instanceId: instance.id,
@@ -1867,7 +1969,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof commentId !== 'number') {
           return;
         }
-        if (!(await this._confirmDestructive(vscode.l10n.t('Are you sure you want to delete this comment?')))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t('Delete comment #{0} in {1}?', commentId, confirmInstanceScope(instance, owner, repo)),
+          ))
+        ) {
           this._reply('issueCommentDeleted', { instanceId: instance.id, owner, repo, commentId, cancelled: true });
           return;
         }
@@ -1907,7 +2013,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         ) {
           return;
         }
-        if (!(await this._confirmDestructive(vscode.l10n.t('Delete this attachment?')))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t(
+              'Delete attachment #{0} of comment #{1} in {2}?',
+              attachmentId,
+              commentId,
+              confirmInstanceScope(instance, owner, repo),
+            ),
+          ))
+        ) {
           this._reply('issueCommentAttachmentDeleted', {
             instanceId: instance.id,
             owner,
@@ -1974,7 +2089,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           if (
             !(await this._confirmDestructive(
               vscode.l10n.t(
-                'Merge this pull request using "{0}"? This cannot be undone.',
+                'Merge pull request #{0} in {1} using "{2}"? This cannot be undone.',
+                index,
+                confirmInstanceScope(instance, owner, repo),
                 mergeStrategyLabel(strategy as 'merge' | 'rebase' | 'squash'),
               ),
             ))
@@ -2022,7 +2139,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           if (
             !(await this._confirmDestructive(
               vscode.l10n.t(
-                'Are you sure you want to revert this merge commit? This will create a new commit on the base branch.',
+                'Revert the merge commit of pull request #{0} in {1}? This will create a new commit on the base branch.',
+                index,
+                confirmInstanceScope(instance, owner, repo),
               ),
             ))
           ) {
@@ -2092,6 +2211,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             owner,
             repo,
             index,
+            // The numeric id is what the delete command needs; without it an
+            // attachment uploaded into the editor could not be removed again.
+            id: attachment.id,
             uuid: attachment.uuid,
             name: attachment.name,
             size: attachment.size,
@@ -2126,7 +2248,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         ) {
           return;
         }
-        if (!(await this._confirmDestructive(vscode.l10n.t('Delete this attachment?')))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t(
+              'Delete attachment #{0} of issue #{1} in {2}?',
+              attachmentId,
+              index,
+              confirmInstanceScope(instance, owner, repo),
+            ),
+          ))
+        ) {
           this._reply('issueAttachmentDeleted', {
             instanceId: instance.id,
             owner,
@@ -2637,7 +2768,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         const { username, _requestId } = message;
-        if (typeof username !== 'string' || typeof _requestId !== 'string') {
+        // `username` is interpolated into `/users/${username}`: without this the
+        // host would issue an arbitrary authenticated GET for a forged value and
+        // hand the body back to the webview.
+        if (!isSafeRepoNameSegment(username) || typeof _requestId !== 'string') {
           return;
         }
         try {
@@ -2864,7 +2998,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         if (
-          !(await this._confirmDestructive(vscode.l10n.t('Run workflow "{0}" on ref "{1}"?', workflowfilename, ref)))
+          !(await this._confirmDestructive(
+            vscode.l10n.t(
+              'Run workflow "{0}" on ref "{1}" in {2}?',
+              workflowfilename,
+              ref,
+              confirmInstanceScope(instance, owner, repo),
+            ),
+          ))
         ) {
           this._reply('actionRunDispatched', {
             instanceId: instance.id,
@@ -2914,7 +3055,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (typeof owner !== 'string' || typeof repo !== 'string' || typeof runId !== 'number') {
           return;
         }
-        if (!(await this._confirmDestructive(vscode.l10n.t('Cancel this run? In-progress jobs will be stopped.')))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t(
+              'Cancel run #{0} in {1}? In-progress jobs will be stopped.',
+              runId,
+              confirmInstanceScope(instance, owner, repo),
+            ),
+          ))
+        ) {
           this._reply('actionRunCancelled', { instanceId: instance.id, owner, repo, runId, cancelled: true });
           return;
         }
@@ -2952,7 +3101,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         if (
           !(await this._confirmDestructive(
-            vscode.l10n.t('Are you sure you want to delete this run? This cannot be undone.'),
+            vscode.l10n.t(
+              'Delete run #{0} in {1}? This cannot be undone.',
+              runId,
+              confirmInstanceScope(instance, owner, repo),
+            ),
           ))
         ) {
           this._reply('actionRunDeleted', { instanceId: instance.id, owner, repo, runId, cancelled: true });
@@ -2996,7 +3149,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         try {
-          const defaultName = name.endsWith('.zip') ? name : `${name}.zip`;
+          // The artifact name is webview-supplied and lands in the save
+          // dialog's default path: without stripping any directory part a
+          // hostile name (`../../.ssh/authorized_keys` or `/etc/cron.d/x`)
+          // would pre-fill an arbitrary location and one Enter would write
+          // there. Taking the last segment of either separator (rather than
+          // `path.basename`, whose treatment of `\` is platform-dependent)
+          // leaves only the file name; the `.zip` extension the filter expects
+          // is preserved.
+          const safeName = name.split(/[\\/]/).pop() || `artifact-${artifactId}.zip`;
+          const defaultName = safeName.endsWith('.zip') ? safeName : `${safeName}.zip`;
           const uri = await vscode.window.showSaveDialog({
             defaultUri: vscode.Uri.file(defaultName),
             filters: { 'ZIP Archive': ['zip'] },
@@ -3075,7 +3237,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (
           typeof owner !== 'string' ||
           typeof repo !== 'string' ||
-          typeof path !== 'string' ||
+          // The path is interpolated into the contents route; a `..` segment would
+          // let the URL parser walk out of it and reach another API endpoint.
+          !isSafeRepoPath(path) ||
           typeof ref !== 'string'
         ) {
           return;
@@ -3122,7 +3286,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           typeof instanceId !== 'string' ||
           typeof owner !== 'string' ||
           typeof repo !== 'string' ||
-          typeof path !== 'string' ||
+          !isSafeRepoPath(path) ||
           typeof ref !== 'string'
         ) {
           return;
@@ -3189,12 +3353,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         const { owner, repo, path, ref } = message;
-        if (
-          typeof owner !== 'string' ||
-          typeof repo !== 'string' ||
-          typeof path !== 'string' ||
-          typeof ref !== 'string'
-        ) {
+        if (typeof owner !== 'string' || typeof repo !== 'string' || !isSafeRepoPath(path) || typeof ref !== 'string') {
           return;
         }
         try {
@@ -3228,7 +3387,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           typeof instanceId !== 'string' ||
           typeof owner !== 'string' ||
           typeof repo !== 'string' ||
-          typeof path !== 'string' ||
+          !isSafeRepoPath(path) ||
           typeof baseRef !== 'string' ||
           typeof headRef !== 'string'
         ) {
@@ -3309,7 +3468,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!instance) {
           return;
         }
-        if (!(await this._confirmDestructive(vscode.l10n.t('Delete branch "{0}"?', branch)))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t('Delete branch "{0}" in {1}?', branch, confirmInstanceScope(instance, owner, repo)),
+          ))
+        ) {
           this._reply('repoBranchDeleted', { instanceId, owner, repo, branch, cancelled: true });
           return;
         }
@@ -3367,7 +3530,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!instance) {
           return;
         }
-        if (!(await this._confirmDestructive(vscode.l10n.t('Delete tag "{0}"?', tag)))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t('Delete tag "{0}" in {1}?', tag, confirmInstanceScope(instance, owner, repo)),
+          ))
+        ) {
           this._reply('repoTagDeleted', { instanceId, owner, repo, tag, cancelled: true });
           return;
         }
@@ -3456,7 +3623,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!instance) {
           return;
         }
-        if (!(await this._confirmDestructive(vscode.l10n.t('Delete release #{0}?', id)))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t('Delete release #{0} in {1}?', id, confirmInstanceScope(instance, owner, repo)),
+          ))
+        ) {
           this._reply('repoReleaseDeleted', { instanceId, owner, repo, release: String(id), cancelled: true });
           return;
         }
@@ -3565,7 +3736,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!instance) {
           return;
         }
-        if (!(await this._confirmDestructive(vscode.l10n.t('Delete this attachment?')))) {
+        if (
+          !(await this._confirmDestructive(
+            vscode.l10n.t(
+              'Delete attachment #{0} of release #{1} in {2}?',
+              attachmentId,
+              id,
+              confirmInstanceScope(instance, owner, repo),
+            ),
+          ))
+        ) {
           this._reply('releaseAttachmentDeleted', {
             instanceId,
             owner,
@@ -3852,8 +4032,17 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     if (!this._view) {
       return;
     }
-    const title = locale === 'zh' ? '仪表盘' : 'Dashboard';
-    this._view.title = title;
+    // The `locale` argument is kept because callers pass the selected locale
+    // (the user's `forgejoToolkit.locale` can differ from the display
+    // language); the text itself is resolved by l10n so the host has a single
+    // source of truth for user-facing strings instead of a hard-coded zh/en
+    // pair. TODO: the contributed view name in
+    // packages/forgejo-toolkit/package.json is still the literal
+    // `"name": "Dashboard"`; it needs a `%key%` reference backed by
+    // package.nls.json / package.nls.zh-cn.json so the activity bar label is
+    // localized before the view is ever opened.
+    void locale;
+    this._view.title = vscode.l10n.t('Dashboard');
   }
 
   private _sendInstances() {
@@ -4217,6 +4406,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   private _linkedRepoDetectTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Cold-start detection timer; cleared on dispose so a disposed host never scans git. */
+  private _initialDetectTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Debounced: rapid tab switches must not spawn a git subprocess burst.
   private _scheduleLinkedRepositoryDetect(): void {
@@ -4438,21 +4629,36 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     index: number;
     title?: string;
   }) {
-    // Same double-click guard as openPrWorktree.
+    // The guard key is built from the raw fields on purpose: `_doStartWorkOnIssue`
+    // echoes them back for an invalid target, and reusing the same parts keeps
+    // the in-flight entry and the reply's loading key in sync.
     const key = `start-work:${message.instanceId}:${message.owner}/${message.repo}#${message.index}`;
     await this._worktreeInFlight.run(key, () => this._doStartWorkOnIssue(message));
   }
 
   private async _doStartWorkOnIssue(message: {
-    instanceId: string;
-    owner: string;
-    repo: string;
-    index: number;
+    instanceId: unknown;
+    owner: unknown;
+    repo: unknown;
+    index: unknown;
     title?: string;
   }) {
     const target = parseWorktreeTarget(message);
     if (!target) {
       logger.error(`startWorkOnIssue ignored: invalid repository identity in the webview message`);
+      // The webview sets its start-work spinner before posting and only clears
+      // it on a `startWorkResult`; dropping the invalid target silently would
+      // leave that spinner running forever. Echo the identity fields so the
+      // reply is routed to the same loading key the request used (the webview
+      // builds that key by string interpolation, so it matches whatever it
+      // sent). The guard has already rejected non-string owner/repo values.
+      this._reply('startWorkResult', {
+        instanceId: typeof message.instanceId === 'string' ? message.instanceId : '',
+        owner: typeof message.owner === 'string' ? message.owner : '',
+        repo: typeof message.repo === 'string' ? message.repo : '',
+        index: typeof message.index === 'number' ? message.index : 0,
+        error: vscode.l10n.t('The request could not be completed'),
+      });
       return;
     }
     const { instanceId, owner, repo, index } = target;
@@ -4995,7 +5201,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS),
           headers: { Authorization: `token ${instance.token}` },
         };
-        const response = await fetch(absoluteUrl, init);
+        // Route through the configured proxy like every other host-side
+        // request: without it an instance reachable only through the proxy
+        // makes every avatar stall until the 30 s timeout and then fall back to
+        // the raw URL. A dispatcher is only understood by the undici fetch that
+        // created it, hence the paired helper.
+        const response = await (getProxyFetch() ?? fetch)(absoluteUrl, init);
         logger.debug(`[avatar] response status: ${response.status} ${response.statusText}`);
         if (!response.ok) {
           logger.error(`[avatar] fetch failed: ${response.status} ${response.statusText}`);

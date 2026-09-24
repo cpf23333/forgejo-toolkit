@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { LIST_ITEM_LIMIT, isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { ForgejoClient } from '../api/client';
 import type { ForgejoPullRequest } from '../api/types';
 import type { ConfigManager } from '../config';
@@ -176,8 +177,17 @@ export class CreatePrStatusBarController implements vscode.Disposable {
         if (isStale()) {
           return;
         }
-        // Only the first page of open pull requests is checked; a PR for this
-        // branch beyond the default page size will not be detected.
+        // Walk the first page only: a PR for this branch beyond the default page
+        // size is not detected, and a full page would mean up to 10 requests on
+        // every refresh just to answer "is there a PR for this branch?". The list
+        // length is the only completeness signal the endpoint offers, so a page
+        // that reaches the shared cap is reported as a possible miss instead of
+        // silently paging through the rest (isListTruncated).
+        if (isListTruncated(pulls)) {
+          logger.error(
+            `[createPrStatusBar] open pull request list for ${linked.owner}/${linked.repo} reached the ${LIST_ITEM_LIMIT}-item cap; a pull request for "${branch}" beyond it will not be detected`,
+          );
+        }
         const match = pulls.find((pr) => isOpenPrForBranch(pr, branch, linked.owner, linked.repo));
         this._openPrCache.set(prKey, { value: match?.number, expiresAt: Date.now() + OPEN_PR_CACHE_TTL_MS });
       }

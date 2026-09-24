@@ -211,7 +211,7 @@
         {
           "type": "webview",
           "id": "forgejoToolkitView",
-          "name": "Dashboard",
+          "name": "%view.dashboard.name%",
           "icon": "$(repo)",
           "when": "true"
         }

@@ -501,6 +501,22 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       return;
     }
 
+    // The index becomes a path segment of the upload route. A non-integer or
+    // non-positive value (e.g. '1/assets/../../releases/5') would let a forged
+    // message post the host's bytes somewhere else on the same origin, so it is
+    // rejected here as the sidebar handler already does.
+    if (!Number.isInteger(index) || index <= 0) {
+      this._reply('issueAttachmentCreated', {
+        instanceId: instance.id,
+        owner,
+        repo,
+        index,
+        error: 'Invalid attachment target',
+        _requestId: requestId,
+      });
+      return;
+    }
+
     if (typeof data.name !== 'string' || !Array.isArray(data.data)) {
       this._reply('issueAttachmentCreated', {
         instanceId: instance.id,

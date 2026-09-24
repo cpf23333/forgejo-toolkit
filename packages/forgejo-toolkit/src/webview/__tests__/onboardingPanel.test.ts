@@ -160,6 +160,21 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     expect(fallback?._requestId).toBe('req-throw');
   });
 
+  it('rejects a non-http(s) connection test before reaching the network', async () => {
+    // The wizard tests a webview-supplied URL; without the scheme check a
+    // compromised panel could aim the host at `file:`/`data:`/intranet targets.
+    const { ForgejoClient } = await import('../../api/client');
+    vi.mocked(ForgejoClient).mockClear();
+
+    fake.send({ command: 'testConnection', url: 'file:///etc/passwd', token: 'tok', _requestId: 'req-scheme' });
+    await flushDispatches();
+
+    const answer = postedMessages(fake.posted).find((m) => m.command === 'testConnectionResult');
+    expect(answer?.success).toBe(false);
+    expect(String(answer?.error)).toContain('http');
+    expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+  });
+
   it('does not send a fallback reply when the handler answered the request', async () => {
     fake.send({
       command: 'renderMarkdown',

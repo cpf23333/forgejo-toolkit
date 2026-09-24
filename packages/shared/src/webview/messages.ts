@@ -726,6 +726,8 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       index: number;
+      /** The user declined the host-side confirmation; nothing was reset. */
+      cancelled?: boolean;
       error?: string;
     }
   | {

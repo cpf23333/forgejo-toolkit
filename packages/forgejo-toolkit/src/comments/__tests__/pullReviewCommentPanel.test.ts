@@ -482,6 +482,30 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     );
   });
 
+  it('rejects an attachment upload whose index is not a positive integer', async () => {
+    // The index becomes a path segment of the upload route: '1/assets/../../releases/5'
+    // would post the host's bytes to another same-origin endpoint.
+    const { fakePanel, send } = openPanel();
+    await send({
+      command: 'createIssueAttachment',
+      instanceId: 'demo',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: '1/assets/../../releases/5',
+      name: 'shot.png',
+      data: [1, 2, 3],
+      _requestId: 'req-att-index',
+    });
+
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'issueAttachmentCreated',
+        _requestId: 'req-att-index',
+        error: expect.stringContaining('Invalid attachment target'),
+      }),
+    );
+  });
+
   it('rejects a mention search carrying a hostile owner', async () => {
     const { fakePanel, send } = openPanel();
     clientMocks.searchMentions.mockClear();

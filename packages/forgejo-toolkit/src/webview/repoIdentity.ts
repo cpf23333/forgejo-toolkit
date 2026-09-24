@@ -32,3 +32,29 @@ export function isSafeRepoIdentity(owner: unknown, repo: unknown): boolean {
   const absentOrSafe = (value: unknown): boolean => value === undefined || value === '' || isSafeRepoNameSegment(value);
   return absentOrSafe(owner) && absentOrSafe(repo);
 }
+
+/**
+ * True when a repository file path from the webview is safe to interpolate into
+ * the contents API route.
+ *
+ * Unlike a name segment, a path keeps its `/` separators, so only the dangerous
+ * shapes are rejected: absolute or drive-relative prefixes, backslashes,
+ * empty/`.`/`..` segments (whose percent-encoded forms the URL parser also
+ * resolves), and characters that would end the path (`?`, `#`).
+ */
+export function isSafeRepoPath(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 4096) {
+    return false;
+  }
+  // The repository root is addressed with an empty path.
+  if (value === '') {
+    return true;
+  }
+  if (value.startsWith('/') || value.startsWith('\\') || /^[A-Za-z]:/.test(value)) {
+    return false;
+  }
+  if (value.includes('\\') || value.includes('?') || value.includes('#')) {
+    return false;
+  }
+  return value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
+}

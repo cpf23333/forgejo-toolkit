@@ -17,6 +17,7 @@ import {
 } from './instanceImport';
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity } from './repoIdentity';
+import { connectionFailureMessage, isHttpUrl } from './connectionTest';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { userFacingErrorMessage } from '../api/errors';
 import { probeServerVersion } from '../api/versionProbe';
@@ -151,6 +152,16 @@ export class OnboardingWebviewPanel {
                 this._reply('testConnectionResult', { success: false, error: 'Invalid input' });
                 return;
               }
+              // Same guard as the sidebar: only http(s) targets may be reached,
+              // so a compromised webview cannot aim the host at a `file:` URL or
+              // an intranet host.
+              if (!isHttpUrl(url)) {
+                this._reply('testConnectionResult', {
+                  success: false,
+                  error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
+                });
+                return;
+              }
               // Remember the URL being tested so the next HTML regeneration
               // includes its origin in the CSP (it is not saved yet).
               this._editingInstanceUrl = url;
@@ -161,7 +172,7 @@ export class OnboardingWebviewPanel {
                 void probeServerVersion(url, token, logger);
                 this._reply('testConnectionResult', { success: true, username: user.login });
               } catch (error) {
-                const err = userFacingErrorMessage(error);
+                const err = connectionFailureMessage(error);
                 logger.error(`onboarding testConnection failed: ${err}`);
                 this._reply('testConnectionResult', { success: false, error: err });
               }

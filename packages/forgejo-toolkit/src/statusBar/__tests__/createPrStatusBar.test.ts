@@ -311,6 +311,58 @@ describe('CreatePrStatusBarController', () => {
     });
   });
 
+  it('uses a single open-PR request to answer the branch lookup', async () => {
+    const item = createController();
+    await controller!.refresh();
+
+    // One request answers "is there a PR for this branch?"; paging through the
+    // whole list (up to the 500-item cap) would issue up to 10 requests per
+    // refresh for a status bar that only needs the first page.
+    expect(getRepoPullRequests).toHaveBeenCalledTimes(1);
+    expect(getRepoPullRequests).toHaveBeenCalledWith('owner', 'repo', 'open');
+    expect(item.text).toBe('$(git-pull-request-create) Create PR');
+  });
+
+  it('keeps the PR number correct when the open-PR list spans several pages', async () => {
+    // The branch's PR sits beyond the first server page; the count shown must
+    // still be its real number rather than a first-page-only guess.
+    const manyPulls = Array.from({ length: 120 }, (_unused, index) => ({
+      number: index + 1,
+      head: { ref: `other-${index}`, repo: { full_name: 'owner/repo' } },
+    }));
+    getRepoPullRequests.mockResolvedValue([
+      ...manyPulls,
+      { number: 987, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } },
+    ]);
+
+    const item = createController();
+    await controller!.refresh();
+
+    expect(item.text).toBe('$(git-pull-request) PR #987');
+    expect(item.command).toEqual({
+      command: 'forgejoToolkit.createPrFromCurrentBranch',
+      title: 'Open Pull Request',
+      arguments: [{ index: 987 }],
+    });
+  });
+
+  it('still reports the create variant when the open-PR list is truncated at the shared cap', async () => {
+    // isListTruncated(LIST_ITEM_LIMIT = 500): a list at the cap may be missing
+    // the branch's PR, and the controller must not throw or mis-attribute a
+    // number from the rows it did receive.
+    const cappedPulls = Array.from({ length: 500 }, (_unused, index) => ({
+      number: index + 1,
+      head: { ref: `other-${index}`, repo: { full_name: 'owner/repo' } },
+    }));
+    getRepoPullRequests.mockResolvedValue(cappedPulls);
+
+    const item = createController();
+    await controller!.refresh();
+
+    expect(item.text).toBe('$(git-pull-request-create) Create PR');
+    expect(item.show).toHaveBeenCalled();
+  });
+
   it('clears the linked repository detection cache when instances change', () => {
     // A token-only instance change keeps the same detection cache key, so the
     // controller must drop the shared cache explicitly on onInstancesChanged.

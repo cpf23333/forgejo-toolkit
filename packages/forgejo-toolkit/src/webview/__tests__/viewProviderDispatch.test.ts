@@ -14,6 +14,10 @@ const clientMocks = vi.hoisted(() => ({
   getUserIssues: vi.fn(),
   getUserPullRequests: vi.fn(),
   mergePullRequest: vi.fn(),
+  getCurrentUser: vi.fn(),
+  resetIssueTime: vi.fn(),
+  deleteIssueTime: vi.fn(),
+  downloadActionArtifactToFile: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
@@ -21,7 +25,7 @@ vi.mock('../../api/client', () => ({
   ForgejoClient: vi.fn().mockImplementation(function () {
     return {
       searchMentions: vi.fn().mockRejectedValue(new Error('network down')),
-      getCurrentUser: vi.fn().mockResolvedValue({ login: 'user' }),
+      getCurrentUser: clientMocks.getCurrentUser,
       editIssue: clientMocks.editIssue,
       replaceIssueLabels: clientMocks.replaceIssueLabels,
       getRepoDetail: clientMocks.getRepoDetail,
@@ -30,6 +34,9 @@ vi.mock('../../api/client', () => ({
       getUserIssues: clientMocks.getUserIssues,
       getUserPullRequests: clientMocks.getUserPullRequests,
       mergePullRequest: clientMocks.mergePullRequest,
+      resetIssueTime: clientMocks.resetIssueTime,
+      deleteIssueTime: clientMocks.deleteIssueTime,
+      downloadActionArtifactToFile: clientMocks.downloadActionArtifactToFile,
     };
   }),
 }));
@@ -64,6 +71,15 @@ vi.mock('../../worktree/gitOperations', async () => {
     sanitizeForPath: vi.fn((value: string) => value),
     removeWorktreeAndPrune: vi.fn(),
   };
+});
+
+const proxyMocks = vi.hoisted(() => ({ getProxyFetch: vi.fn() }));
+vi.mock('../../api/proxy', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api/proxy')>();
+  // Undefined by default (no proxy installed), so host-side requests fall back
+  // to global fetch exactly as before; tests install a proxy fetch to assert it
+  // is preferred.
+  return { ...actual, getProxyFetch: proxyMocks.getProxyFetch };
 });
 
 import { ForgejoToolkitViewProvider, clearResolvedAvatarCache, instanceCacheSuffix } from '../viewProvider';
@@ -191,6 +207,10 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clientMocks.getUserIssues.mockReset();
     clientMocks.getUserPullRequests.mockReset();
     clientMocks.mergePullRequest.mockReset();
+    clientMocks.getCurrentUser.mockReset().mockResolvedValue({ login: 'user' });
+    clientMocks.resetIssueTime.mockReset().mockResolvedValue(undefined);
+    clientMocks.deleteIssueTime.mockReset().mockResolvedValue(undefined);
+    clientMocks.downloadActionArtifactToFile.mockReset().mockResolvedValue(undefined);
     vi.mocked(fetchBranch).mockReset();
     vi.mocked(createWorktreeWithNewBranch).mockReset();
     vi.mocked(isCurrentWorkspaceBaseRepo).mockReset();
@@ -204,6 +224,8 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     vi.mocked(revertMergeCommit).mockReset();
     clearServerVersions();
     vi.mocked(vscode.window.showQuickPick).mockReset();
+    vi.mocked(vscode.window.showSaveDialog).mockReset();
+    proxyMocks.getProxyFetch.mockReset();
     context = createFakeContext();
     config = new ConfigManager(context as never);
     provider = new ForgejoToolkitViewProvider(
@@ -266,6 +288,84 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
 
       expect(clientMocks.getRepoDetail).toHaveBeenCalledWith('demo-user', 'demo.repo_1');
+    });
+  });
+
+  describe('path parameter guard', () => {
+    // `path`, `user` and `username` end up in API routes of their own. The URL
+    // parser resolves dot segments, so a forged value would retarget a
+    // repository-scoped command at another same-origin endpoint.
+    const hostilePaths = ['../admin/users', 'src/../../user', '/etc/passwd', 'src\\..\\secret', 'src?ref=main', 'a//b'];
+
+    it.each(hostilePaths)('ignores getRepoContents with path %j', async (path) => {
+      vi.mocked(ForgejoClient).mockClear();
+      fake.send({
+        command: 'getRepoContents',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        path,
+        ref: 'main',
+      });
+      await flushDispatches();
+
+      expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+      expect(clientMocks.getRepoContents).not.toHaveBeenCalled();
+    });
+
+    it('still lists the repository root and an ordinary path', async () => {
+      clientMocks.getRepoContents.mockResolvedValue([]);
+      fake.send({
+        command: 'getRepoContents',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        path: '',
+        ref: 'main',
+      });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoContents'));
+      clientMocks.getRepoContents.mockClear();
+
+      fake.send({
+        command: 'getRepoContents',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        path: 'src/components',
+        ref: 'main',
+      });
+      await flushUntil(() => clientMocks.getRepoContents.mock.calls.length > 0);
+
+      expect(clientMocks.getRepoContents).toHaveBeenCalledWith('owner', 'repo', 'src/components', 'main');
+    });
+
+    it.each(['..', '../..', 'admin/user', 'user?x=1'])('ignores a subscription change for user %j', async (user) => {
+      vi.mocked(ForgejoClient).mockClear();
+      fake.send({
+        command: 'changeIssueSubscription',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 1,
+        user,
+        subscribe: false,
+      });
+      await flushDispatches();
+
+      expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
+    });
+
+    it.each(['..', '../user/keys', 'user?x=1'])('ignores a user preview for username %j', async (username) => {
+      vi.mocked(ForgejoClient).mockClear();
+      fake.send({
+        command: 'getUserPreview',
+        instanceId: testInstance.id,
+        username,
+        _requestId: 'req-user',
+      });
+      await flushDispatches();
+
+      expect(vi.mocked(ForgejoClient)).not.toHaveBeenCalled();
     });
   });
 
@@ -445,14 +545,65 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(client).toHaveBeenCalledWith('https://evil.example.com', '', expect.anything());
   });
 
-  it('testConnection treats an unparseable URL as a different origin', async () => {
+  it.each([
+    'not a url',
+    'file:///etc/passwd',
+    'javascript:alert(1)',
+    'ftp://forgejo.example.com',
+    '//forgejo.example.com',
+    '',
+  ])('testConnection rejects the non-http(s) URL %j without any request', async (url) => {
     const client = vi.mocked(ForgejoClient);
     client.mockClear();
 
-    fake.send({ command: 'testConnection', url: 'not a url', token: '', instanceId: testInstance.id });
+    fake.send({ command: 'testConnection', url, token: 'tok', instanceId: testInstance.id });
     await flushDispatches();
 
-    expect(client).toHaveBeenCalledWith('not a url', '', expect.anything());
+    // A webview-chosen target must be a web URL; anything else would let the
+    // view point the extension host at an arbitrary URL (SSRF/port scan).
+    expect(client).not.toHaveBeenCalled();
+    const result = postedMessages(fake.posted).find((m) => m.command === 'testConnectionResult');
+    expect(result).toMatchObject({ success: false });
+    expect(typeof result?.error).toBe('string');
+    expect(result?.error).not.toBe('Invalid input');
+  });
+
+  it('testConnection still reaches an arbitrary http(s) instance for the setup wizard', async () => {
+    const client = vi.mocked(ForgejoClient);
+    client.mockClear();
+
+    fake.send({ command: 'testConnection', url: 'https://other.example.com/base/', token: 'tok' });
+    await flushDispatches();
+
+    expect(client).toHaveBeenCalledWith('https://other.example.com/base/', 'tok', expect.anything());
+  });
+
+  it('testConnection replies with a status-only message instead of the upstream response body', async () => {
+    const secret = 'internal-detail-9f8e';
+    clientMocks.getCurrentUser.mockRejectedValue(
+      new Error(`Forgejo API error 422: {"message":"${secret}","url":"https://forgejo.example.com/api/v1"}`),
+    );
+
+    fake.send({ command: 'testConnection', url: testInstance.url, token: 'tok' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'testConnectionResult');
+    expect(result).toMatchObject({ success: false });
+    // Status-only: the body authored by the remote server must not be reflected
+    // into the webview (its CSP forbids loading that content).
+    expect(result?.error).toContain('422');
+    expect(result?.error).not.toContain(secret);
+  });
+
+  it('testConnection maps a transport failure to the localized connectivity message', async () => {
+    clientMocks.getCurrentUser.mockRejectedValue(new TypeError('fetch failed'));
+
+    fake.send({ command: 'testConnection', url: testInstance.url, token: 'tok' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'testConnectionResult');
+    expect(result).toMatchObject({ success: false });
+    expect(result?.error).toBe('Cannot connect to the instance. Check that it is running and that the URL is correct.');
   });
 
   it('editInstance keeps the stored token when the URL stays on the same origin', async () => {
@@ -825,6 +976,189 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const records = context.globalState.get('forgejoToolkit.worktrees') as unknown[];
       expect(records).toHaveLength(1);
     });
+
+    describe('confirmations name their target', () => {
+      // Every destructive prompt has to identify the repository (and the
+      // instance, when the command is instance-scoped): the same generic
+      // "Delete …?" text for every repository lets a mis-click destroy the
+      // wrong one.
+      function lastConfirmMessage(): string {
+        const calls = vi.mocked(vscode.window.showWarningMessage).mock.calls;
+        return String(calls[calls.length - 1]?.[0] ?? '');
+      }
+
+      it('names the instance and repository for a repository-scoped command', async () => {
+        fake.send({
+          command: 'deleteRepoBranch',
+          instanceId: testInstance.id,
+          owner: 'acme',
+          repo: 'widgets',
+          branch: 'feature',
+        });
+        await flushDispatches();
+
+        const message = lastConfirmMessage();
+        expect(message).toContain('acme/widgets');
+        expect(message).toContain(testInstance.name);
+        expect(message).toContain('feature');
+      });
+
+      it('names the instance and repository for an issue-scoped command', async () => {
+        fake.send({ command: 'deleteIssue', instanceId: testInstance.id, owner: 'acme', repo: 'widgets', index: 42 });
+        await flushDispatches();
+
+        const message = lastConfirmMessage();
+        expect(message).toContain('acme/widgets');
+        expect(message).toContain(testInstance.name);
+        // The issue number is interpolated (the shared l10n mock appends args).
+        expect(message).toContain('42');
+      });
+
+      it('names the instance and repository for an action-run command', async () => {
+        fake.send({
+          command: 'deleteActionRun',
+          instanceId: testInstance.id,
+          owner: 'acme',
+          repo: 'widgets',
+          runId: 7,
+        });
+        await flushDispatches();
+
+        const message = lastConfirmMessage();
+        expect(message).toContain('acme/widgets');
+        expect(message).toContain(testInstance.name);
+      });
+    });
+
+    it('resetIssueTime asks for confirmation before the API call and cancels cleanly', async () => {
+      const client = vi.mocked(ForgejoClient);
+      client.mockClear();
+      declineNextConfirm();
+
+      fake.send({ command: 'resetIssueTime', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
+      await flushDispatches();
+
+      // DELETE .../times drops every tracked-time entry of the issue at once,
+      // so it is confirmed host-side exactly like the single-entry delete.
+      expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'issueTimeReset');
+      expect(reply).toMatchObject({
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        cancelled: true,
+      });
+      expect(reply?.error).toBeUndefined();
+      expect(clientMocks.resetIssueTime).not.toHaveBeenCalled();
+      expect(client).not.toHaveBeenCalled();
+    });
+
+    it('resetIssueTime deletes every tracked time entry once confirmed', async () => {
+      fake.send({ command: 'resetIssueTime', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
+      await flushDispatches();
+
+      expect(clientMocks.resetIssueTime).toHaveBeenCalledWith('owner', 'repo', 5);
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'issueTimeReset');
+      expect(reply).toMatchObject({ instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
+      expect(reply?.cancelled).toBeUndefined();
+    });
+  });
+
+  describe('cold-start linked-repository detection', () => {
+    it('clears the pending detection timer on dispose so a disposed host never scans git', async () => {
+      vi.useFakeTimers();
+      try {
+        const localContext = createFakeContext();
+        const provider = new ForgejoToolkitViewProvider(
+          localContext as never,
+          localContext.extensionUri as never,
+          new ConfigManager(localContext as never),
+          new ReadmeContentProvider(),
+        );
+        // Assert on this instance rather than on the module mock: providers built
+        // by earlier tests leave real 2 s timers behind, and a full-suite run can
+        // let one of those fire inside the advance window below.
+        const detectSpy = vi.spyOn(
+          provider as unknown as { _detectAndSendLinkedRepository: () => Promise<void> },
+          '_detectAndSendLinkedRepository',
+        );
+
+        // The timer is registered as a context subscription; disposing the
+        // provider's subscriptions is what the extension host does on shutdown.
+        // (The mocked EventEmitter returns no disposable for the config
+        // listener, so only real entries are disposed.)
+        const disposables = localContext.subscriptions.filter(
+          (entry): entry is { dispose(): void } => Boolean(entry) && typeof entry.dispose === 'function',
+        );
+        expect(disposables.length).toBeGreaterThan(0);
+        for (const disposable of disposables) {
+          disposable.dispose();
+        }
+        await vi.advanceTimersByTimeAsync(10_000);
+
+        expect(detectSpy).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('downloadActionArtifact save path', () => {
+    it('reduces a hostile artifact name to its basename for the save dialog', async () => {
+      vi.mocked(vscode.window.showSaveDialog).mockResolvedValue({ fsPath: '/tmp/out.zip' } as never);
+
+      fake.send({
+        command: 'downloadActionArtifact',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        artifactId: 3,
+        name: '../../../../.ssh/authorized_keys',
+      });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'actionArtifactDownloaded'));
+
+      // The save dialog must not be pre-filled with an arbitrary path: a single
+      // Enter would otherwise write outside the chosen folder.
+      expect(vscode.window.showSaveDialog).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultUri: expect.objectContaining({ fsPath: 'authorized_keys.zip' }) }),
+      );
+      expect(clientMocks.downloadActionArtifactToFile).toHaveBeenCalledWith(
+        'owner',
+        'repo',
+        3,
+        '/tmp/out.zip',
+        expect.anything(),
+      );
+    });
+
+    it('strips an absolute directory and keeps the zip extension', async () => {
+      vi.mocked(vscode.window.showSaveDialog).mockResolvedValue({ fsPath: '/tmp/out.zip' } as never);
+
+      fake.send({
+        command: 'downloadActionArtifact',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        artifactId: 4,
+        name: '/etc/cron.d/build.zip',
+      });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'actionArtifactDownloaded'));
+
+      expect(vscode.window.showSaveDialog).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultUri: expect.objectContaining({ fsPath: 'build.zip' }) }),
+      );
+    });
+  });
+
+  it('derives the view title through l10n instead of a hard-coded locale pair', async () => {
+    // A user whose forgejoToolkit.locale is zh but whose VS Code display
+    // language is en must still get the localized (English) title: the string
+    // goes through the l10n bundle rather than a literal zh value.
+    fake.send({ command: 'setLocale', locale: 'zh' });
+    await flushDispatches();
+
+    expect(fake.view.title).toBe('Dashboard');
   });
 
   it('answers previewImportInstances with cancelled when the file picker is dismissed', async () => {
@@ -1359,14 +1693,27 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened')).toHaveLength(0);
     });
 
-    it.each(hostileTargets)('ignores startWorkOnIssue with %j', async (target) => {
+    it.each(hostileTargets)('ignores startWorkOnIssue with %j but replies so the spinner clears', async (target) => {
       fake.send({ command: 'startWorkOnIssue', instanceId: testInstance.id, ...target });
       await flushDispatches();
 
       expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
       expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
       expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
-      expect(postedMessages(fake.posted).filter((m) => m.command === 'startWorkResult')).toHaveLength(0);
+      // The webview started its start-work spinner before posting and only a
+      // startWorkResult clears it; a silent drop would leave it spinning.
+      const replies = postedMessages(fake.posted).filter((m) => m.command === 'startWorkResult');
+      expect(replies).toHaveLength(1);
+      expect(replies[0]).toMatchObject({ error: 'The request could not be completed' });
+      // The reply echoes the identity fields so it routes to the same loading
+      // key the request used (`instanceId:owner/repo:start-work:index`); the
+      // webview always sends a numeric index, so a non-number is coerced.
+      expect(replies[0]).toMatchObject({
+        instanceId: testInstance.id,
+        owner: target.owner,
+        repo: target.repo,
+        index: typeof target.index === 'number' ? target.index : 0,
+      });
     });
 
     it('still accepts an ordinary repository identity', async () => {
@@ -2084,6 +2431,32 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const [target, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(target).toBe(`${testInstance.url}/avatars/user.png`);
       expect((init.headers as Record<string, string>).Authorization).toBe('token secret-token');
+      expect(resolved).toBe('data:image/png;base64,AQID');
+    });
+
+    it('fetches same-origin avatars through the configured proxy fetch', async () => {
+      // An instance reachable only through the proxy would otherwise stall each
+      // avatar until its 30 s timeout and then fall back to the raw URL.
+      const proxyFetch = stubAvatarFetch();
+      proxyMocks.getProxyFetch.mockReturnValue(proxyFetch);
+      const globalFetch = vi.fn();
+      vi.stubGlobal('fetch', globalFetch);
+
+      const resolved = await resolveAvatar(`${testInstance.url}/avatars/user.png`);
+
+      expect(proxyFetch).toHaveBeenCalledTimes(1);
+      expect(globalFetch).not.toHaveBeenCalled();
+      expect(resolved).toBe('data:image/png;base64,AQID');
+    });
+
+    it('falls back to global fetch when no proxy is configured', async () => {
+      const globalFetch = stubAvatarFetch();
+      vi.stubGlobal('fetch', globalFetch);
+
+      const resolved = await resolveAvatar(`${testInstance.url}/avatars/user.png`);
+
+      expect(proxyMocks.getProxyFetch).toHaveBeenCalled();
+      expect(globalFetch).toHaveBeenCalledTimes(1);
       expect(resolved).toBe('data:image/png;base64,AQID');
     });
 
