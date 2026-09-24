@@ -193,6 +193,61 @@ export class WorktreeManager {
     });
   }
 
+  /**
+   * Drop every worktree record belonging to an instance that is being removed
+   * from the configuration, and forget the cache-usage entries of the bare
+   * clones only those records referenced.
+   *
+   * A record left behind after its instance is gone can never be acted on: the
+   * dashboard no longer lists that instance, so there is no entry point to
+   * remove the worktree — and because `_cleanupWorktrees` treats every recorded
+   * path as in-use, the record also protects the orphaned checkout from the
+   * lazy sweep forever.
+   *
+   * The directories on disk are deliberately *not* deleted here: a checkout may
+   * hold the user's uncommitted work, and this runs as part of a config change
+   * with no confirmation of its own. Once the records are gone the lazy sweep
+   * can reclaim them (a linked-worktree checkout whose source repository still
+   * exists is only swept once it has been untouched for WORKTREE_MAX_AGE_MS),
+   * and the bare clones lose their active-protection and age out like any
+   * other unused clone. Returns how many records were dropped.
+   */
+  async forgetInstanceWorktrees(instanceId: string): Promise<number> {
+    return enqueueGlobalStateWrite(async () => {
+      const worktrees = this.getWorktrees();
+      const removed = worktrees.filter((w) => w.instanceId === instanceId);
+      if (removed.length === 0) {
+        return 0;
+      }
+      const remaining = worktrees.filter((w) => w.instanceId !== instanceId);
+      await this.context.globalState.update(WORKTREES_KEY, remaining);
+
+      // A bare clone still referenced by another instance's record is not
+      // orphaned, so its usage entry stays.
+      const stillReferenced = new Set(remaining.map((w) => pathKey(w.sourceRepoPath)));
+      const usage = { ...this._getCacheRepoUsage() };
+      // Usage keys are stored resolved (`touchCachedRepo`), so the same identity
+      // rule applies here; on this platform that resolves the POSIX-looking
+      // paths of records written elsewhere the way the sweep would.
+      const usageKey = (target: string): string | undefined => {
+        const resolved = path.resolve(target);
+        return resolved in usage ? resolved : Object.keys(usage).find((key) => pathKey(key) === pathKey(target));
+      };
+      let usageChanged = false;
+      for (const record of removed) {
+        const key = usageKey(record.sourceRepoPath);
+        if (key !== undefined && !stillReferenced.has(pathKey(record.sourceRepoPath))) {
+          delete usage[key];
+          usageChanged = true;
+        }
+      }
+      if (usageChanged) {
+        await this.context.globalState.update(CACHE_REPO_USAGE_KEY, usage);
+      }
+      return removed.length;
+    });
+  }
+
   getCacheDirectory(): string {
     const custom = this.getCustomCacheDirectory?.();
     if (custom && custom.trim()) {

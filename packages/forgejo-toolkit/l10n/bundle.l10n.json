@@ -212,5 +212,13 @@
   "Delete run #{0} in {1}? This cannot be undone.": "Delete run #{0} in {1}? This cannot be undone.",
   "Delete branch \"{0}\" in {1}?": "Delete branch \"{0}\" in {1}?",
   "Delete tag \"{0}\" in {1}?": "Delete tag \"{0}\" in {1}?",
-  "Delete release #{0} in {1}?": "Delete release #{0} in {1}?"
+  "Delete release #{0} in {1}?": "Delete release #{0} in {1}?",
+  "Revert aborted: could not determine the current commit of the repository": "Revert aborted: could not determine the current commit of the repository",
+  "Revert failed and was undone with no local commit left behind: {0}. The repository is back at {1}; untracked files the revert wrote are not removed.": "Revert failed and was undone with no local commit left behind: {0}. The repository is back at {1}; untracked files the revert wrote are not removed.",
+  "Revert failed: {0}. The repository could not be restored automatically — it is still in the state left by the failed revert; run \"git revert --abort\" or \"git reset --hard {1}\" to undo it.": "Revert failed: {0}. The repository could not be restored automatically — it is still in the state left by the failed revert; run \"git revert --abort\" or \"git reset --hard {1}\" to undo it.",
+  "Revert could not be pushed and was undone: {0}. No local commit and no remote change was left behind; the repository is back at {1}.": "Revert could not be pushed and was undone: {0}. No local commit and no remote change was left behind; the repository is back at {1}.",
+  "Revert could not be pushed: {0}. The local revert commit {1} is still there and was NOT pushed; run \"git reset --hard {2}\" to undo it.": "Revert could not be pushed: {0}. The local revert commit {1} is still there and was NOT pushed; run \"git reset --hard {2}\" to undo it.",
+  "{0}. The repository is still in the middle of the revert, so nothing was reverted or pushed; run \"git revert --abort\" in the local repository to undo it.": "{0}. The repository is still in the middle of the revert, so nothing was reverted or pushed; run \"git revert --abort\" in the local repository to undo it.",
+  "Removed instance {0} along with its {1} worktree record(s).": "Removed instance {0} along with its {1} worktree record(s).",
+  "Importing instance {0} failed: {1}": "Importing instance {0} failed: {1}"
 }

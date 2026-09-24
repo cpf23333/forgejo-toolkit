@@ -921,12 +921,66 @@ export async function deleteBranch(repoPath: string, branch: string): Promise<vo
 }
 
 /**
+ * The git directory holding a working tree's state (`.git` for an ordinary
+ * checkout, the `worktrees/<name>` directory for a linked one), resolved by git
+ * itself so worktrees are handled correctly. Undefined when git cannot report
+ * it (not a repository, git missing), in which case state files cannot be
+ * inspected and callers must not claim the state is clean.
+ */
+export async function resolveGitDir(repoPath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await runGit(['rev-parse', '--absolute-git-dir'], repoPath);
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * True when the repository is in the middle of a `git revert`: the sequencer
+ * writes REVERT_HEAD for a conflicted revert and removes it once the revert is
+ * committed or aborted. Used both by `revertMergeCommit`'s fail-safe cleanup and
+ * by callers that must tell the user what state they are looking at.
+ */
+export async function isRevertInProgress(repoPath: string): Promise<boolean> {
+  const gitDir = await resolveGitDir(repoPath);
+  if (!gitDir) {
+    return false;
+  }
+  return await fs.promises.access(path.join(gitDir, 'REVERT_HEAD')).then(
+    () => true,
+    () => false,
+  );
+}
+
+export interface RevertMergeCommitResult {
+  /**
+   * `pushed`: the revert commit was created and pushed — the only state in
+   * which the caller may report success. `conflict`: `git revert` failed, so
+   * the revert was undone and nothing was pushed. `reverted-not-pushed`: the
+   * revert commit was created but the push failed; the commit was removed
+   * locally again (unless the cleanup itself failed, which the thrown error
+   * says), so the remote is unchanged.
+   */
+  status: 'pushed' | 'conflict' | 'reverted-not-pushed';
+}
+
+/**
  * Revert a merged PR's merge commit and push the result.
  *
  * When `expectedBranch` is given, the current branch must match it — reverting
  * on the wrong branch would push the revert to the wrong place. The push goes
  * through `pushBranch` with the instance token, so the remote is re-validated
  * against the instance (TOCTOU) and credentials are never sent to another host.
+ *
+ * Fail-safe: the local revert is not left behind. The commit HEAD pointed at
+ * before the revert is recorded first, and on any later failure (a conflict, or
+ * a rejected push) the working tree is reset back to it, so a failed revert
+ * leaves the repository as it was instead of a bogus local revert commit or a
+ * mid-revert state. The returned status (and the thrown message) describe the
+ * state precisely, because a caller that reports "success" for an unpushed
+ * revert would be lying. Undoing a revert only restores tracked content, so the
+ * conflict message names any untracked files `git revert` may have written.
  */
 export async function revertMergeCommit(
   repoPath: string,
@@ -935,7 +989,7 @@ export async function revertMergeCommit(
   token?: string,
   tokenInstanceUrl?: string,
   expectedRepo?: { owner: string; repo: string },
-): Promise<void> {
+): Promise<RevertMergeCommitResult> {
   if (expectedBranch) {
     const currentBranch = await getCurrentBranch(repoPath);
     if (currentBranch !== expectedBranch) {
@@ -947,10 +1001,13 @@ export async function revertMergeCommit(
   // The SHA comes from the API; a non-hex value would be parsed as an option
   // (`-m`/`--strategy`…) rather than a commit.
   assertCommitSha(mergeCommitSha);
-  const revertResult = await runGit(['revert', '-m', '1', '--no-edit', '--', mergeCommitSha], repoPath);
-  if (revertResult.stderr && revertResult.stderr.toLowerCase().includes('error')) {
-    throw new Error(revertResult.stderr);
+  const originalSha = await getCurrentCommitSha(repoPath);
+  if (!originalSha) {
+    // Without the pre-revert commit there is no way back, and a failed revert
+    // would strand the repository in a state this flow cannot report.
+    throw new Error(vscode.l10n.t('Revert aborted: could not determine the current commit of the repository'));
   }
+
   const upstream = await getUpstreamBranch(repoPath);
   const remote = upstream && upstream.includes('/') ? upstream.split('/')[0] : 'origin';
   const remoteBranch = upstream && upstream.includes('/') ? upstream.split('/').slice(1).join('/') : undefined;
@@ -961,7 +1018,8 @@ export async function revertMergeCommit(
     // actually push to — `remote.<name>.pushurl` and `url.<base>.pushInsteadOf`
     // change the target without changing the fetch URL — and require every one
     // of them to be the pull request's own repository (Forgejo owner/repo names
-    // are case-insensitive).
+    // are case-insensitive). This runs before the revert so a rejected target
+    // costs nothing locally.
     const isExpectedRepo = (url: string): boolean => {
       const info = parseRemoteUrl(url);
       return (
@@ -982,11 +1040,74 @@ export async function revertMergeCommit(
       );
     }
   }
-  if (remoteBranch) {
-    await pushBranch(repoPath, remote, `HEAD:${remoteBranch}`, token, false, tokenInstanceUrl);
-  } else {
-    await pushBranch(repoPath, 'origin', 'HEAD', token, false, tokenInstanceUrl);
+
+  /**
+   * Undo the local revert. `git checkout -- .` restores tracked content only, so
+   * ignored/untracked files `git revert` wrote stay — the messages say so.
+   */
+  const undoLocalRevert = async (): Promise<boolean> => {
+    try {
+      await runGit(['reset', '--hard', originalSha], repoPath);
+      await runGit(['checkout', '--', '.'], repoPath);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  /** The conflict message, naming the original commit and how to get back. */
+  const revertFailedError = async (reason: string): Promise<Error> => {
+    const undone = await undoLocalRevert();
+    return new Error(
+      undone
+        ? vscode.l10n.t(
+            'Revert failed and was undone with no local commit left behind: {0}. The repository is back at {1}; untracked files the revert wrote are not removed.',
+            reason,
+            originalSha.slice(0, 7),
+          )
+        : vscode.l10n.t(
+            'Revert failed: {0}. The repository could not be restored automatically — it is still in the state left by the failed revert; run "git revert --abort" or "git reset --hard {1}" to undo it.',
+            reason,
+            originalSha,
+          ),
+    );
+  };
+
+  let revertResult: { stdout: string; stderr: string };
+  try {
+    revertResult = await runGit(['revert', '-m', '1', '--no-edit', '--', mergeCommitSha], repoPath);
+  } catch (error) {
+    throw await revertFailedError(error instanceof Error ? error.message : String(error));
   }
+  if (revertResult.stderr && revertResult.stderr.toLowerCase().includes('error')) {
+    throw await revertFailedError(revertResult.stderr);
+  }
+
+  try {
+    if (remoteBranch) {
+      await pushBranch(repoPath, remote, `HEAD:${remoteBranch}`, token, false, tokenInstanceUrl);
+    } else {
+      await pushBranch(repoPath, 'origin', 'HEAD', token, false, tokenInstanceUrl);
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    const undone = await undoLocalRevert();
+    throw new Error(
+      undone
+        ? vscode.l10n.t(
+            'Revert could not be pushed and was undone: {0}. No local commit and no remote change was left behind; the repository is back at {1}.',
+            reason,
+            originalSha.slice(0, 7),
+          )
+        : vscode.l10n.t(
+            'Revert could not be pushed: {0}. The local revert commit {1} is still there and was NOT pushed; run "git reset --hard {2}" to undo it.',
+            reason,
+            remoteBranch ?? 'HEAD',
+            originalSha,
+          ),
+    );
+  }
+  return { status: 'pushed' };
 }
 
 export async function openWorktree(

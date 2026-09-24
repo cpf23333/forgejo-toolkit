@@ -233,6 +233,17 @@ function loadingKey(): string {
   }
   return `pulls-${instanceId.value}-open`;
 }
+
+/**
+ * Whether the tab's list is known to be empty. A failed load leaves the payload
+ * unset, and an unset payload is not an empty one: the error is already shown
+ * above, and "No repositories" underneath it would claim the account has none.
+ * The empty state is therefore only shown for a successful, empty load — the
+ * payload slot exists and holds no rows.
+ */
+function isEmptyList(entry: unknown[] | undefined): boolean {
+  return entry !== undefined && entry.length === 0;
+}
 </script>
 
 <template>
@@ -251,8 +262,11 @@ function loadingKey(): string {
           <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
         </vscode-tree-item>
       </template>
-      <template v-else-if="!repositories?.length">
-        <vscode-tree-item>{{ t('dashboard.noRepositories') }}</vscode-tree-item>
+      <template v-else-if="isEmptyList(repositories)">
+        <vscode-tree-item class="empty-state">
+          <span class="empty-title">{{ t('dashboard.noRepositories') }}</span>
+          <span class="empty-hint" slot="description">{{ t('dashboard.noRepositoriesHint') }}</span>
+        </vscode-tree-item>
       </template>
       <template v-else>
         <vscode-tree-item
@@ -292,8 +306,11 @@ function loadingKey(): string {
           <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
         </vscode-tree-item>
       </template>
-      <template v-else-if="!myIssues?.length">
-        <vscode-tree-item>{{ t('dashboard.noIssues') }}</vscode-tree-item>
+      <template v-else-if="isEmptyList(myIssues)">
+        <vscode-tree-item class="empty-state">
+          <span class="empty-title">{{ t('dashboard.noIssues') }}</span>
+          <span class="empty-hint" slot="description">{{ t('dashboard.noIssuesHint') }}</span>
+        </vscode-tree-item>
       </template>
       <template v-else>
         <vscode-tree-item v-for="issue in myIssues" :key="issue.id" @click.capture="openIssue($event, issue)">
@@ -320,8 +337,11 @@ function loadingKey(): string {
           <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
         </vscode-tree-item>
       </template>
-      <template v-else-if="!myPullRequests?.length">
-        <vscode-tree-item>{{ t('dashboard.noPullRequests') }}</vscode-tree-item>
+      <template v-else-if="isEmptyList(myPullRequests)">
+        <vscode-tree-item class="empty-state">
+          <span class="empty-title">{{ t('dashboard.noPullRequests') }}</span>
+          <span class="empty-hint" slot="description">{{ t('dashboard.noPullRequestsHint') }}</span>
+        </vscode-tree-item>
       </template>
       <template v-else>
         <vscode-tree-item v-for="pr in myPullRequests" :key="pr.id" @click.capture="openPullRequest($event, pr)">
@@ -370,6 +390,18 @@ function loadingKey(): string {
   color: var(--vscode-testing-iconFailed);
   font-size: 0.9em;
   padding: 4px 0;
+}
+
+/* Empty state: the label alone reads like a broken row, so it carries a next
+   step in the description slot (the dashboard's no-instance state does the
+   same with its hint). */
+.empty-state .empty-title {
+  font-size: 0.9em;
+}
+
+.empty-state .empty-hint {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
 }
 
 .tree-repo-name,

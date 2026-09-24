@@ -273,6 +273,21 @@ const uploadingCommentAttachmentCount = ref(0);
 // editing the body afterwards means a new comment is intended.
 const createdCommentId = ref<number | undefined>(undefined);
 const createdCommentBody = ref<string | undefined>(undefined);
+// Images still uploading from the comment editor. The editor inserts
+// `![image](url)` into the body only when the upload returns, so a comment
+// posted meanwhile would carry a body that predates the image (see
+// handleCommentImageUpload and handleCommentSubmit).
+const pendingCommentUploads = createPendingUploads();
+// Mirrors the tracker so the form can show that the post is waiting on an
+// upload instead of appearing to do nothing.
+const uploadingCommentImageCount = ref(0);
+// True while a post is waiting for those uploads; keeps the form busy.
+const isAwaitingCommentUploads = ref(false);
+// The post button's busy state: the comment request itself, the attachment
+// list's own uploads, and the editor's in-flight image uploads.
+const commentFormBusy = computed(
+  () => commentLoading.value || uploadingCommentAttachmentCount.value > 0 || isAwaitingCommentUploads.value,
+);
 
 const manualTimeHours = ref(0);
 const manualTimeMinutes = ref(0);
@@ -293,6 +308,12 @@ async function handleCommentImageUpload(
   onSuccess: (url: string) => void,
   onError: (error: string) => void,
 ) {
+  const upload = pendingCommentUploads.begin();
+  uploadingCommentImageCount.value += 1;
+  const settle = () => {
+    pendingCommentUploads.end(upload);
+    uploadingCommentImageCount.value = Math.max(0, uploadingCommentImageCount.value - 1);
+  };
   try {
     const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
     const url = attachment.uuid ? `/attachments/${attachment.uuid}` : (attachment.browser_download_url ?? '');
@@ -303,10 +324,25 @@ async function handleCommentImageUpload(
     onSuccess(url);
   } catch (error) {
     onError(error instanceof Error ? error.message : String(error));
+  } finally {
+    // The editor inserts the markdown inside `onSuccess`, so the upload must
+    // stay pending until that has run.
+    settle();
   }
 }
 
 async function handleCommentSubmit() {
+  // The uploads insert their markdown into the editor only when their request
+  // returns. Waiting for them before reading the body is what keeps a post
+  // issued while an image was still uploading from dropping that image.
+  if (pendingCommentUploads.isPending()) {
+    isAwaitingCommentUploads.value = true;
+    try {
+      await pendingCommentUploads.waitForIdle();
+    } finally {
+      isAwaitingCommentUploads.value = false;
+    }
+  }
   const body = commentBody.value.trim();
   if (!body) {
     return;
@@ -1343,11 +1379,7 @@ function reloadPullRequest() {
                 :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
                 @click="handleCommentSubmit"
               >
-                {{
-                  commentLoading || uploadingCommentAttachmentCount > 0
-                    ? t('dashboard.form.saving')
-                    : t('dashboard.detail.postComment')
-                }}
+                {{ commentFormBusy ? t('dashboard.form.saving') : t('dashboard.detail.postComment') }}
               </vscode-button>
             </div>
             <div v-if="commentError" class="error">{{ t('dashboard.error', { message: commentError }) }}</div>

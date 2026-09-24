@@ -92,12 +92,114 @@ function handleTest() {
   state.testConnection(url.value.trim(), token.value.trim());
 }
 
+/**
+ * A token can pass the host's `/user` check (and be saved) while missing the
+ * read scopes the dashboard needs, which then shows "Permission denied" with no
+ * repositories. The setup guide therefore probes the repositories call the
+ * dashboard starts with; the status reports the missing scope instead of
+ * claiming a connection that cannot show any data.
+ */
+const pendingVerificationUrl = ref('');
+const verifiedInstanceId = ref<string | undefined>(undefined);
+const verificationLoadingKey = computed(() =>
+  verifiedInstanceId.value ? `repos-${verifiedInstanceId.value}` : undefined,
+);
+const dashboardNeedsLoading = computed(() => {
+  const key = verificationLoadingKey.value;
+  return key ? (state.loading.get(key) ?? false) : false;
+});
+const dashboardNeedsError = computed(() => {
+  const key = verificationLoadingKey.value;
+  return key ? state.errors.get(key) : undefined;
+});
+// Whether a probe is the thing those two slots describe. `verifiedInstanceId`
+// outlives a probe (the status stays applied), so without this flag a later
+// unrelated load of the same repositories slot would rewrite the status.
+const probeActive = ref(false);
+// The scope the probe needs, named for the failure text. The probe can only
+// tell that listing repositories was refused; the dashboard's repository list
+// is what `read:repository` gates, and the host's message carries the rest.
+const missingScopeName = computed(() => t('settings.status.permissionRepository'));
+
+/** Applies the probe's outcome to the connection status. */
+function reportProbeOutcome() {
+  if (!probeActive.value) {
+    return;
+  }
+  probeActive.value = false;
+  const error = dashboardNeedsError.value;
+  if (error) {
+    // Name the scope the probe needed and keep the host's own message, which
+    // carries the server's detail (status code, refused scope) verbatim.
+    setConnectionStatus(
+      t('settings.status.permissionSaved', { permission: missingScopeName.value, message: error }),
+      'error',
+    );
+  } else {
+    setConnectionStatus(t('settings.status.successSaved'), 'success');
+  }
+}
+
+// The verdict is read when the load stops being busy *or* as soon as the failure
+// lands: a load can start and fail between two watch runs, and a fast host may
+// never be observed as busy at all.
+watch(dashboardNeedsLoading, (isLoading, wasLoading) => {
+  if (!isLoading && wasLoading) {
+    reportProbeOutcome();
+  }
+});
+watch(dashboardNeedsError, (error) => {
+  if (error !== undefined) {
+    reportProbeOutcome();
+  }
+});
+
+/**
+ * Starts the repositories probe for the instance the successful save just
+ * created. The reply that lists the instances carries the host-assigned id,
+ * which is what the probe has to be addressed to. Both the save reply and the
+ * instance list push can be the event that makes the id known, so whichever
+ * arrives first wins; the other falls through to reporting the save.
+ */
+function startDashboardNeedsProbe(): boolean {
+  const url = pendingVerificationUrl.value;
+  if (!url) {
+    return false;
+  }
+  const saved = state.instances.value.find((instance) => instance.url.replace(/\/+$/, '') === url);
+  const instanceId = saved?.id;
+  if (instanceId === undefined) {
+    return false;
+  }
+  pendingVerificationUrl.value = '';
+  // Force: a previously probed/saved instance may still be cached, and this
+  // probe is what decides whether the token is usable.
+  verifiedInstanceId.value = instanceId;
+  probeActive.value = true;
+  state.loadRepositories(instanceId, true);
+  return true;
+}
+
+/** Reports the save, starting the scope probe first when its target is known. */
+function reportSavedInstance() {
+  if (!startDashboardNeedsProbe()) {
+    // The id is not known yet (or there is nothing to probe): say the save
+    // succeeded rather than leaving the status blank. The probe still runs if
+    // the instance list arrives later.
+    setConnectionStatus(t('settings.status.successSaved'), 'success');
+  }
+}
+
 function handleSave() {
   if (!canSaveInstance.value) {
     return;
   }
   saving.value = true;
   setConnectionStatus(t('settings.status.testing'));
+  // The instance id is assigned host-side, so the scope probe below has to wait
+  // for the save reply (or the instance list push) to learn it; only its url is
+  // known here.
+  pendingVerificationUrl.value = url.value.trim().replace(/\/+$/, '');
   state.saveInstance(url.value.trim(), token.value.trim());
 }
 
@@ -184,11 +286,16 @@ watch(
     }
     saving.value = false;
     if (result.success) {
-      setConnectionStatus(t('settings.status.successSaved'), 'success');
+      // The save only proves the token can read the account. Probe what the
+      // dashboard actually needs (its first repositories call) before claiming
+      // the instance is usable; the status follows once that reply lands (see
+      // the verification watcher above).
+      reportSavedInstance();
       url.value = '';
       token.value = '';
       connectionStatusType.value = 'idle';
     } else {
+      pendingVerificationUrl.value = '';
       setConnectionStatus(result.error ?? t('settings.status.errorSaved'), 'error');
     }
   },
@@ -200,7 +307,9 @@ watch(
     if (saving.value) {
       saving.value = false;
       if (state.instances.value.length > 0) {
-        setConnectionStatus(t('settings.status.successSaved'), 'success');
+        // The saved instance is only usable if its token can list repositories;
+        // the verification watcher reports the outcome.
+        reportSavedInstance();
       } else {
         setConnectionStatus(t('settings.status.errorSaved'), 'error');
       }

@@ -83,8 +83,11 @@
       "actions": "Actions"
     },
     "noRepositories": "No repositories",
+    "noRepositoriesHint": "Publish a local repository with \"Publish to Forgejo\", or create one on the instance.",
     "noIssues": "No issues assigned to you",
+    "noIssuesHint": "Open the Issues tab of one of your repositories to create an issue.",
     "noPullRequests": "No pull requests related to you",
+    "noPullRequestsHint": "Open a repository from the Repositories tab to find its pull requests.",
     "emptyRepository": "This repository is empty. Push some commits to get started.",
     "loading": "Loading...",
     "error": "Failed to load: {message}",
@@ -525,7 +528,9 @@
       "successConnection": "Connection OK. Username: {username}",
       "successSaved": "Instance saved successfully",
       "errorConnection": "Connection failed",
-      "errorSaved": "Failed to save instance"
+      "errorSaved": "Failed to save instance",
+      "permissionSaved": "Instance saved, but the token is missing the {permission} scope, so the dashboard cannot list your repositories: {message}",
+      "permissionRepository": "read:repository"
     },
     "exportInstances": "Export",
     "importInstances": "Import",

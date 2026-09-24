@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as path from 'path';
 import { ConfigManager } from '../config';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
@@ -22,6 +23,7 @@ function createFakeContext() {
           store.set(key, value);
         },
       },
+      globalStorageUri: { fsPath: '/global-storage' },
       secrets: {
         get: async (key: string) => secretStore.get(key),
         store: async (key: string, value: string) => {
@@ -254,5 +256,67 @@ describe('ConfigManager', () => {
     const ids = (fake.store.get('forgejoToolkit.instances') as ForgejoInstance[]).map((i) => i.id);
     expect(ids).toContain('other-window-instance');
     expect(ids).not.toContain(instance.id);
+  });
+
+  it('preserves an instance added by another window during the legacy-token migration', async () => {
+    // init() rewrites the whole list to strip the migrated plaintext token; a
+    // plain globalState.update would drop whatever another window added between
+    // that read and the write.
+    await fake.context.globalState.update('forgejoToolkit.instances', [instance]);
+    const concurrent: ForgejoInstance = {
+      id: 'other-window-instance',
+      url: 'https://forgejo.example.com',
+      token: 'other-window-token',
+      name: 'other',
+      username: 'other',
+    };
+    const restore = injectConcurrentAdd(concurrent);
+
+    await config.init();
+    restore();
+
+    const stored = fake.store.get('forgejoToolkit.instances') as ForgejoInstance[];
+    expect(stored.map((i) => i.id)).toEqual([instance.id, 'other-window-instance']);
+    // The migrated entry keeps no plaintext token, and neither does the entry
+    // the merge picked up from the store.
+    expect(stored.every((i) => i.token === '')).toBe(true);
+  });
+
+  it('drops the worktree records of the removed instance and their cache-usage entries', async () => {
+    await config.addInstance(instance);
+    const record = (id: string, sourceRepoPath: string) => ({
+      id,
+      instanceId: instance.id,
+      owner: 'owner',
+      repo: 'repo',
+      prIndex: 1,
+      prTitle: 'title',
+      headBranch: 'feature',
+      headSha: 'abc1234',
+      baseBranch: 'main',
+      sourceRepoPath,
+      worktreePath: `/cache/worktrees/${id}`,
+      createdAt: 0,
+    });
+    await fake.context.globalState.update('forgejoToolkit.worktrees', [
+      record('w1', '/cache/repos/owner-repo.git'),
+      record('w2', '/other/repo.git'),
+      { ...record('w3', '/cache/repos/other.git'), id: 'w3', instanceId: 'another-instance' },
+    ]);
+    await fake.context.globalState.update('forgejoToolkit.cacheRepoUsage', {
+      '/cache/repos/owner-repo.git': 1,
+      '/other/repo.git': 2,
+      '/cache/repos/other.git': 3,
+    });
+
+    const removed = await config.removeInstance(instance.id);
+
+    expect(removed).toBe(2);
+    const worktrees = fake.context.globalState.get('forgejoToolkit.worktrees', []) as Array<{ id: string }>;
+    expect(worktrees.map((w) => w.id)).toEqual(['w3']);
+    // Only the clones no surviving record references lose their usage entry:
+    // the shared one stays tracked.
+    const usage = fake.context.globalState.get('forgejoToolkit.cacheRepoUsage', {}) as Record<string, number>;
+    expect(Object.keys(usage).map((key) => path.posix.basename(key.replace(/\\/g, '/')))).toEqual(['other.git']);
   });
 });

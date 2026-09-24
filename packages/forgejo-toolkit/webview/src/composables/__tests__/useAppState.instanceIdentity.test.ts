@@ -85,6 +85,11 @@ function seedInstanceData(state: AppState) {
   state.errors.set(`${INSTANCE_A.id}:owner/repo:actions`, 'boom');
   state.repositoriesCache.set(INSTANCE_A.id, [{ id: 1, name: 'repo' }] as never);
   state.myIssuesCache.set(`${INSTANCE_A.id}:open`, [] as never);
+  // The repo-scoped lists carry a "fetched at" mark that guards them from
+  // being refetched; it is part of the payload pair `clearInstancePayloads`
+  // has to drop.
+  state.repoIssues.value.set(`${INSTANCE_A.id}:owner/repo:issues:open`, [] as never);
+  state.repoIssuesFetchedAt.set(`${INSTANCE_A.id}:owner/repo:issues:open`, Date.now());
 }
 
 /**
@@ -121,6 +126,9 @@ describe('useAppState instance identity changes', () => {
     // cache hit whose payload was just dropped.
     expect(state.repositoriesCache.has(INSTANCE_A.id)).toBe(false);
     expect(state.myIssuesCache.has(`${INSTANCE_A.id}:open`)).toBe(false);
+    // The repo list marks guard their refetch, so a mark left behind would keep
+    // serving the replaced server's list as fresh.
+    expect(state.repoIssuesFetchedAt.has(`${INSTANCE_A.id}:owner/repo:issues:open`)).toBe(false);
     // A stale spinner/error for the replaced server would otherwise stick.
     expect(state.loading.has(`${INSTANCE_A.id}:owner/repo:actions`)).toBe(false);
     expect(state.errors.has(`${INSTANCE_A.id}:owner/repo:actions`)).toBe(false);
@@ -197,5 +205,68 @@ describe('useAppState instance identity changes', () => {
     await nextTick();
 
     expect(state.repositories.value.get(INSTANCE_A.id)).toHaveLength(1);
+  });
+});
+
+/**
+ * The repo-scoped issue/PR lists are guarded by a "fetched at" mark: the loader
+ * serves the list while the mark is fresh and only refetches once both are
+ * gone. Dropping the list without its mark therefore leaves a fresh mark with
+ * no list, and the loader keeps answering "fresh" for the rest of the mark's
+ * TTL — the list the user just lost is never refetched.
+ */
+describe('useAppState instance payload clearing and repo list marks', () => {
+  function listKey(instanceId: string, owner: string, repo: string): string {
+    return `${instanceId}:${owner}/${repo}:issues:open`;
+  }
+
+  it('drops the repo list marks of a replaced instance, so its lists are refetched', async () => {
+    const { state } = await createState();
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+    seedInstanceData(state);
+    const issuesKey = listKey(INSTANCE_A.id, 'owner', 'repo');
+    vscodeApiMock.postMessage.mockClear();
+
+    dispatchMessage({
+      command: 'instances',
+      data: [{ ...INSTANCE_A, url: 'https://forgejo.example.com/beta' }],
+    });
+    await nextTick();
+
+    // Both halves of the pair are gone...
+    expect(state.repoIssues.value.has(issuesKey)).toBe(false);
+    expect(state.repoIssuesFetchedAt.has(issuesKey)).toBe(false);
+    // ...so the next visit actually asks the server again.
+    state.loadRepoIssues(INSTANCE_A.id, 'owner', 'repo', 'open');
+    expect(vscodeApiMock.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'getRepoIssues',
+        instanceId: INSTANCE_A.id,
+        owner: 'owner',
+        repo: 'repo',
+      }),
+    );
+  });
+
+  it('refetches a repo issue list whose mark was dropped with its payload', async () => {
+    // The other direction: while both halves are present the loader answers from
+    // the payload, and only the pair being gone makes it ask the server again.
+    const { state } = await createState();
+    const key = listKey(INSTANCE_A.id, 'owner', 'repo');
+    state.repoIssues.value.set(key, [] as never);
+    state.repoIssuesFetchedAt.set(key, Date.now());
+    vscodeApiMock.postMessage.mockClear();
+
+    state.loadRepoIssues(INSTANCE_A.id, 'owner', 'repo', 'open');
+    expect(vscodeApiMock.postMessage).not.toHaveBeenCalled();
+
+    // Dropping the mark alone already refetches; the payload alone does not.
+    state.repoIssuesFetchedAt.delete(key);
+    state.loadRepoIssues(INSTANCE_A.id, 'owner', 'repo', 'open');
+
+    expect(vscodeApiMock.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'getRepoIssues', instanceId: INSTANCE_A.id, owner: 'owner', repo: 'repo' }),
+    );
   });
 });

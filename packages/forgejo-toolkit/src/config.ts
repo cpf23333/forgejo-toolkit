@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { isSameOriginUrl } from './webview/instanceImport';
+import { WorktreeManager } from './worktree/worktreeManager';
 import { logger } from './logger';
 
 export type { ForgejoInstance };
@@ -16,8 +17,23 @@ export class ConfigManager {
   private readonly _onInstancesChanged = new vscode.EventEmitter<ForgejoInstance[]>();
   readonly onInstancesChanged = this._onInstancesChanged.event;
   private readonly _tokens = new Map<string, string>();
+  /**
+   * Used only to reach the persisted worktree records when an instance that
+   * owns some is removed (see `removeInstance`); created lazily so activation
+   * does not need it.
+   */
+  private _worktreeManager?: WorktreeManager;
 
   constructor(private context: vscode.ExtensionContext) {}
+
+  private get _worktrees(): WorktreeManager {
+    this._worktreeManager ??= new WorktreeManager(
+      this.context,
+      () => this.getWorktreeCacheDirectory(),
+      () => this.getDefaultWorktreeCacheDirectory(),
+    );
+    return this._worktreeManager;
+  }
 
   // Loads tokens from SecretStorage into memory and migrates legacy plaintext
   // tokens out of globalState. Must be called once during extension activation.
@@ -37,9 +53,16 @@ export class ConfigManager {
       }
     }
     if (migrated) {
-      await this.context.globalState.update(
-        INSTANCES_KEY,
+      // Go through the merged write like add/remove/update: the migration
+      // rewrites the whole instance list from this window's snapshot, and a
+      // plain update would drop an instance another window added between the
+      // read above and this write. `stripTokens` drops the plaintext token from
+      // every entry of the merged list, including one the merge picked up from
+      // the store, so no credential survives in globalState.
+      await this._writeInstancesMerged(
         stored.map((instance) => ({ ...instance, token: '' })),
+        undefined,
+        true,
       );
     }
     // Keep the in-memory token table in sync with SecretStorage: other windows
@@ -122,12 +145,25 @@ export class ConfigManager {
     this._onInstancesChanged.fire(this.getInstances());
   }
 
-  async removeInstance(id: string): Promise<void> {
+  /**
+   * Remove an instance: its stored token and its configuration entry.
+   *
+   * The instance's worktree records are dropped with it (see
+   * `WorktreeManager.forgetInstanceWorktrees`): once the instance is gone the
+   * dashboard can no longer offer to remove those worktrees, and a surviving
+   * record would keep its orphaned checkout out of the lazy sweep for good. The
+   * checkout directories themselves are left on disk — they may hold
+   * uncommitted work and this runs without a confirmation of its own — so the
+   * caller can tell the user. Returns how many worktree records were removed.
+   */
+  async removeInstance(id: string): Promise<number> {
     this._tokens.delete(id);
     await this.context.secrets.delete(this._tokenSecretKey(id));
     const instances = this._getStoredInstances().filter((i) => i.id !== id);
     await this._writeInstancesMerged(instances, id);
+    const forgottenWorktrees = await this._worktrees.forgetInstanceWorktrees(id);
     this._onInstancesChanged.fire(this.getInstances());
+    return forgottenWorktrees;
   }
 
   /**
@@ -138,8 +174,18 @@ export class ConfigManager {
    * this call intentionally removed (`removedId`) stay removed. The merge
    * cannot close the race entirely (get→update is not atomic), but it shrinks
    * the window to the synchronous span between the two calls.
+   *
+   * `stripMergedTokens` drops the plaintext token from every entry of the
+   * merged list, including an entry the merge picked up from the store. The
+   * migration uses it: every instance in a migrated list was either just moved
+   * into SecretStorage or added by a window that already stores its token
+   * there, so nothing legitimate loses a credential.
    */
-  private async _writeInstancesMerged(instances: ForgejoInstance[], removedId?: string): Promise<void> {
+  private async _writeInstancesMerged(
+    instances: ForgejoInstance[],
+    removedId?: string,
+    stripMergedTokens = false,
+  ): Promise<void> {
     const fresh = this._getStoredInstances();
     const known = new Set(instances.map((i) => i.id));
     const merged = [...instances];
@@ -148,7 +194,10 @@ export class ConfigManager {
         merged.push(instance);
       }
     }
-    await this.context.globalState.update(INSTANCES_KEY, merged);
+    await this.context.globalState.update(
+      INSTANCES_KEY,
+      stripMergedTokens ? merged.map((instance) => ({ ...instance, token: '' })) : merged,
+    );
   }
 
   private _getStoredInstances(): ForgejoInstance[] {

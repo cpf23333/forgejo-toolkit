@@ -212,5 +212,13 @@
   "Delete run #{0} in {1}? This cannot be undone.": "确定删除 {1} 中的运行 #{0} 吗？此操作无法撤销。",
   "Delete branch \"{0}\" in {1}?": "确定删除 {1} 中的分支 \"{0}\" 吗？",
   "Delete tag \"{0}\" in {1}?": "确定删除 {1} 中的标签 \"{0}\" 吗？",
-  "Delete release #{0} in {1}?": "确定删除 {1} 中的版本 #{0} 吗？"
+  "Delete release #{0} in {1}?": "确定删除 {1} 中的版本 #{0} 吗？",
+  "Revert aborted: could not determine the current commit of the repository": "已中止 revert：无法确定仓库当前的提交",
+  "Revert failed and was undone with no local commit left behind: {0}. The repository is back at {1}; untracked files the revert wrote are not removed.": "revert 失败且已撤销，没有留下任何本地提交：{0}。仓库已回到 {1}；revert 写入的未跟踪文件不会被删除。",
+  "Revert failed: {0}. The repository could not be restored automatically — it is still in the state left by the failed revert; run \"git revert --abort\" or \"git reset --hard {1}\" to undo it.": "revert 失败：{0}。仓库无法自动恢复——它仍处于失败 revert 留下的状态；请运行 \"git revert --abort\" 或 \"git reset --hard {1}\" 撤销。",
+  "Revert could not be pushed and was undone: {0}. No local commit and no remote change was left behind; the repository is back at {1}.": "revert 无法推送，已撤销：{0}。没有留下本地提交，也没有改动远程；仓库已回到 {1}。",
+  "Revert could not be pushed: {0}. The local revert commit {1} is still there and was NOT pushed; run \"git reset --hard {2}\" to undo it.": "revert 无法推送：{0}。本地 revert 提交 {1} 仍然存在且未推送；请运行 \"git reset --hard {2}\" 撤销。",
+  "{0}. The repository is still in the middle of the revert, so nothing was reverted or pushed; run \"git revert --abort\" in the local repository to undo it.": "{0}。仓库仍处于 revert 过程中，因此没有撤销也没有推送；请在本地仓库运行 \"git revert --abort\" 撤销。",
+  "Removed instance {0} along with its {1} worktree record(s).": "已移除实例 {0} 及其 {1} 条 worktree 记录。",
+  "Importing instance {0} failed: {1}": "导入实例 {0} 失败：{1}"
 }

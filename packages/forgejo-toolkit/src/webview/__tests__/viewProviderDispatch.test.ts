@@ -67,6 +67,7 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
     inspectPrWorktree: vi.fn(),
     isCurrentWorkspaceBaseRepo: vi.fn(),
     isGitRepository: vi.fn(),
+    isRevertInProgress: vi.fn(async () => false),
     // Used by the worktree-path containment guard; keep the real semantics.
     isPathInsideFolder: (folderPath: string, filePath: string) => {
       const relative = path.relative(folderPath, filePath);
@@ -110,6 +111,7 @@ import {
   inspectPrWorktree,
   isCurrentWorkspaceBaseRepo,
   isGitRepository,
+  isRevertInProgress,
   listRemotes,
   openWorktree,
   removeWorktreeAndPrune,
@@ -240,6 +242,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     vi.mocked(clearLinkedRepositoryCache).mockReset();
     vi.mocked(findLocalRepo).mockReset();
     vi.mocked(revertMergeCommit).mockReset();
+    vi.mocked(isRevertInProgress).mockReset().mockResolvedValue(false);
     clearServerVersions();
     vi.mocked(vscode.window.showQuickPick).mockReset();
     vi.mocked(vscode.window.showSaveDialog).mockReset();
@@ -1002,8 +1005,8 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     let finishRevert!: () => void;
     vi.mocked(revertMergeCommit).mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
-          finishRevert = resolve;
+        new Promise((resolve) => {
+          finishRevert = () => resolve({ status: 'pushed' });
         }),
     );
 
@@ -1023,6 +1026,77 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(vi.mocked(revertMergeCommit)).toHaveBeenCalledTimes(1);
     expect(postedMessages(fake.posted).filter((m) => m.command === 'revertMergeCommitResult')).toHaveLength(1);
   });
+
+  describe('revertMergeCommit result reporting', () => {
+    function sendRevert() {
+      fake.send({ command: 'revertMergeCommit', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
+    }
+
+    beforeEach(() => {
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        merged: true,
+        merge_commit_sha: 'abc123',
+        base: { ref: 'main' },
+      });
+      vi.mocked(findLocalRepo).mockResolvedValue('/src/repo');
+    });
+
+    it('reports success only after a revert that was pushed', async () => {
+      vi.mocked(revertMergeCommit).mockResolvedValue({ status: 'pushed' });
+
+      sendRevert();
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'revertMergeCommitResult'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'revertMergeCommitResult');
+      expect(reply?.success).toBe(true);
+      expect(reply?.error).toBeUndefined();
+      expect(reply?.cancelled).toBeUndefined();
+    });
+
+    it('reports the failed push reason instead of a success', async () => {
+      vi.mocked(revertMergeCommit).mockRejectedValue(
+        new Error('Revert could not be pushed and was undone: rejected (non-fast-forward).'),
+      );
+
+      sendRevert();
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'revertMergeCommitResult'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'revertMergeCommitResult');
+      expect(reply).not.toHaveProperty('success');
+      expect(reply?.error).toContain('could not be pushed');
+    });
+
+    it('tells the user the repository is mid-revert when a failure left it that way', async () => {
+      // Nothing local was recorded (the failure happened before the git flow,
+      // e.g. in the API call) but the repository is in a revert state left by an
+      // earlier attempt: the reply has to name that state, or the user is left
+      // with a broken repository and no explanation.
+      vi.mocked(revertMergeCommit).mockRejectedValue(new Error('Forgejo request failed'));
+      vi.mocked(isRevertInProgress).mockResolvedValue(true);
+
+      sendRevert();
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'revertMergeCommitResult'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'revertMergeCommitResult');
+      expect(reply?.error).toContain('Forgejo request failed');
+      expect(reply?.error).toContain('middle of the revert');
+      expect(reply?.error).toContain('git revert --abort');
+    });
+
+    it('does not add the mid-revert notice when the failure message already explains it', async () => {
+      vi.mocked(revertMergeCommit).mockRejectedValue(
+        new Error('Revert failed: conflict. run "git revert --abort" to undo it.'),
+      );
+      vi.mocked(isRevertInProgress).mockResolvedValue(true);
+
+      sendRevert();
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'revertMergeCommitResult'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'revertMergeCommitResult');
+      expect(reply?.error).toBe('Revert failed: conflict. run "git revert --abort" to undo it.');
+    });
+  });
+
   it('explains a file whose payload the contents API withheld', async () => {
     // The API answers `content: ""` with the real size for files above its payload
     // limit; without the notice the viewer and the README preview show nothing.
@@ -1177,6 +1251,29 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
     const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesExported');
     expect(reply).toMatchObject({ success: false, cancelled: true });
+  });
+
+  it('keeps the previous export file when the atomic rename fails', async () => {
+    // The export writes a `.part` sibling and renames it into place (like the
+    // artifact download), so a failed export must leave the previous export
+    // file exactly as it was — not truncated.
+    const target = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'export-atomic-')), 'export.json');
+    fs.writeFileSync(target, 'previous export');
+    vi.mocked(vscode.window.showSaveDialog).mockResolvedValueOnce({ fsPath: target } as never);
+    vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('EPERM: operation not permitted'));
+
+    try {
+      fake.send({ command: 'exportInstances', ids: [testInstance.id] });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesExported'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesExported');
+      expect(reply?.success).toBe(false);
+      expect(reply?.error).toContain('EPERM');
+      expect(fs.readFileSync(target, 'utf8')).toBe('previous export');
+      expect(fs.existsSync(`${target}.part`)).toBe(false);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   describe('host-enforced confirmations for destructive commands', () => {

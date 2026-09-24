@@ -95,6 +95,10 @@ function mockRevParseShas(shasByRef: Record<string, string>, revListCounts: Reco
       callback(null, { stdout: sha ? `${sha}\n` : '', stderr: '' } as unknown as string, '');
       return;
     }
+    if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+      callback(null, { stdout: 'c0ffee1\n', stderr: '' } as unknown as string, '');
+      return;
+    }
     if (args[0] === 'rev-list' && args[1] === '--count') {
       const count = revListCounts[String(args[2] ?? '')] ?? 0;
       callback(null, { stdout: `${count}\n`, stderr: '' } as unknown as string, '');
@@ -883,7 +887,15 @@ describe('gitOperations argument passing', () => {
 
   it('revertMergeCommit passes the merge sha as a single argv entry', async () => {
     const sha = 'abc1234';
-    await revertMergeCommit('/repo', sha);
+    // Only the pre-revert commit has to answer; everything else succeeds empty,
+    // so the revert is created and the plain origin push goes through.
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        const stdout = args[0] === 'rev-parse' && args[1] === 'HEAD' ? 'c0ffee1\n' : '';
+        callback(null, { stdout, stderr: '' } as unknown as string, '');
+      },
+    );
+    await expect(revertMergeCommit('/repo', sha)).resolves.toEqual({ status: 'pushed' });
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
       ['revert', '-m', '1', '--no-edit', '--', sha],
@@ -898,12 +910,36 @@ describe('gitOperations argument passing', () => {
       expect.any(Function),
     );
   });
+
+  it('revertMergeCommit refuses to start when the pre-revert commit cannot be read', async () => {
+    // Without the pre-revert commit a failed revert could not be undone, so the
+    // flow must not touch the repository at all.
+    await expect(revertMergeCommit('/repo', 'abc1234')).rejects.toThrow(/could not determine the current commit/);
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['revert']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
 });
 
-function mockGitSequence(handlers: Array<[string, string]>) {
+function mockGitSequence(handlers: Array<[string, string]>, failures: Array<[string, string]> = []) {
+  // Every revert flow starts by recording the pre-revert commit and, on
+  // failure, restores it, so both commands answer by default; tests that care
+  // about them pass their own handler, and the first matching prefix wins.
+  const withDefaults: Array<[string, string]> = [['rev-parse HEAD', 'c0ffee1\n'], ['reset --hard', ''], ...handlers];
   mocks.execFile.mockImplementation((_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
     const cmd = args.join(' ');
-    for (const [prefix, stdout] of handlers) {
+    for (const [prefix, stderr] of failures) {
+      if (cmd.startsWith(prefix)) {
+        // promisify(cp.execFile) rejects with the first callback value, and
+        // runGit re-throws git's stderr from it.
+        callback(Object.assign(new Error(`Command failed: git ${cmd}`), { stderr }), '', stderr);
+        return;
+      }
+    }
+    for (const [prefix, stdout] of withDefaults) {
       if (cmd.startsWith(prefix)) {
         callback(null, { stdout, stderr: '' } as unknown as string, '');
         return;
@@ -953,6 +989,98 @@ describe('revertMergeCommit branch guard and token push', () => {
           GIT_CONFIG_VALUE_0: `Authorization: token ${token}`,
         }),
       }),
+      expect.any(Function),
+    );
+  });
+
+  it('reports a pushed revert only when the push actually went through', async () => {
+    mockGitSequence([
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
+    ]);
+
+    await expect(revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl)).resolves.toEqual({
+      status: 'pushed',
+    });
+    // A pushed revert needs no cleanup: neither the pre-revert commit is
+    // restored nor is the repository touched again.
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['reset']),
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['revert', '--abort']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('undoes a conflicted revert instead of leaving the repository mid-revert', async () => {
+    mockGitSequence(
+      [
+        ['rev-parse --abbrev-ref HEAD', 'main\n'],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
+      ],
+      [['revert -m 1', 'error: could not revert abc123... hint: after resolving the conflicts']],
+    );
+
+    const failure = await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl).catch(
+      (error: unknown) => error,
+    );
+
+    // The message says the local revert was undone and where the repository is.
+    expect(failure).toBeInstanceOf(Error);
+    const message = (failure as Error).message;
+    expect(message).toContain('could not revert');
+    expect(message).toContain('undone');
+    expect(message).toContain('c0ffee1');
+    // The cleanup is a reset back to the recorded commit, not `git revert
+    // --abort`: the recorded commit also clears a mid-revert REVERT_HEAD.
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['reset', '--hard', 'c0ffee1'],
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['push']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('removes the local revert commit when the push fails', async () => {
+    // The cleanup reset must actually succeed for the "undone" message, so this
+    // test needs the mocked `git reset` to answer like a real one.
+    mockGitSequence(
+      [
+        ['rev-parse --abbrev-ref HEAD', 'main\n'],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
+      ],
+      [['push origin HEAD:main', 'error: failed to push some refs (non-fast-forward)']],
+    );
+
+    const failure = await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(Error);
+    const message = (failure as Error).message;
+    expect(message).toContain('was undone');
+    expect(message).toContain('non-fast-forward');
+    // The bogus local commit is gone: the repository is back where it started,
+    // so a failed push leaves nothing behind that looks like a revert.
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['reset', '--hard', 'c0ffee1'],
+      expect.anything(),
       expect.any(Function),
     );
   });

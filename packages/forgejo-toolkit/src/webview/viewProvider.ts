@@ -31,6 +31,7 @@ import {
   isCurrentWorkspaceBaseRepo,
   isGitRepository,
   isPathInsideFolder,
+  isRevertInProgress,
   listRemotes,
   openWorktree,
   resolveRemoteForRepo,
@@ -52,6 +53,7 @@ import { missingPayloadNotice } from '../prFileSystemProvider';
 import { probeServerVersion } from '../api/versionProbe';
 import { clearServerVersion } from '../api/serverVersion';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
+import { writeFileAtomically } from '../utils/atomicWrite';
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity, isSafeRepoNameSegment, isSafeRepoPath } from './repoIdentity';
 import { connectionFailureMessage, isHttpUrl } from './connectionTest';
@@ -785,7 +787,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!(await this._confirmDestructive(vscode.l10n.t('Remove instance "{0}"?', instance.name)))) {
           return;
         }
-        await this._config.removeInstance(id);
+        const removedWorktrees = await this._config.removeInstance(id);
+        if (removedWorktrees > 0) {
+          // The checkouts are still on disk (they may hold uncommitted work);
+          // say so instead of letting the user believe they were deleted.
+          void vscode.window.showInformationMessage(
+            vscode.l10n.t(
+              'Removed instance {0} along with its {1} worktree record(s).',
+              instance.name,
+              removedWorktrees,
+            ),
+          );
+        }
         this._sendInstances();
         this._detectAndSendLinkedRepository();
         return;
@@ -2256,12 +2269,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           } catch (error) {
             const err = userFacingErrorMessage(error);
             logger.error(`revertMergeCommit failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
+            // `revertMergeCommit` reports the state it left behind in its own
+            // message (the local revert is undone on failure). This only covers
+            // a failure that happened outside its cleanup — e.g. the API call or
+            // the local-repository lookup failing after a manual `git revert`
+            // left the repository mid-revert — so the user is never told a
+            // success for a revert that never happened, nor left wondering why
+            // the repository is in a revert state.
+            const localRepo = await findLocalRepo(instance.url, owner, repo).catch(() => undefined);
+            const midRevert =
+              localRepo !== undefined &&
+              (await isRevertInProgress(localRepo).catch(() => false)) &&
+              !err.includes('git revert --abort');
             this._reply('revertMergeCommitResult', {
               instanceId: message.instanceId,
               owner,
               repo,
               index,
-              error: err,
+              error: midRevert
+                ? vscode.l10n.t(
+                    '{0}. The repository is still in the middle of the revert, so nothing was reverted or pushed; run "git revert --abort" in the local repository to undo it.',
+                    err,
+                  )
+                : err,
             });
           }
         });
@@ -4281,7 +4311,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       if (password) {
         data = this._encryptExportData(data, password);
       }
-      await fs.promises.writeFile(uri.fsPath, JSON.stringify(data, null, 2), 'utf8');
+      // Atomic write: an export interrupted halfway (a full disk, a crash) must
+      // not destroy the export file that is already at that path.
+      await writeFileAtomically(uri.fsPath, JSON.stringify(data, null, 2));
       this._reply('instancesExported', { success: true, path: uri.fsPath });
     } catch (error) {
       const err = userFacingErrorMessage(error);
@@ -4488,7 +4520,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     }
     try {
       for (const instance of instances) {
-        await this._config.addInstance(instance);
+        try {
+          await this._config.addInstance(instance);
+        } catch (error) {
+          // Same contract as the onboarding guide: the failure reply names the
+          // instance, because "the import failed" alone gives the user nothing
+          // to act on.
+          throw new Error(
+            vscode.l10n.t(
+              'Importing instance {0} failed: {1}',
+              instance.name || instance.url,
+              userFacingErrorMessage(error),
+            ),
+          );
+        }
       }
       await this._applyImportSettings(settings);
       this._sendInstances();
@@ -4605,7 +4650,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   public pushNotifications(instanceId: string, notifications: unknown[]): void {
     // Poller results feed the unread badge/toast slot only; the filtered
     // notifications view is written exclusively by getNotifications replies.
-    this._reply('polledNotifications', { instanceId, notifications });
+    // `coveredIds` tells the view which rows this poll actually examined: only
+    // those may be reconciled as read, so a row beyond the fetched page is never
+    // silently marked read.
+    const coveredIds = notifications
+      .map((notification) => (notification as { id?: unknown })?.id)
+      .filter((id): id is number => typeof id === 'number');
+    this._reply('polledNotifications', { instanceId, notifications, coveredIds });
   }
 
   public pushNotificationError(instanceId: string, error: string): void {

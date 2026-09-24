@@ -1309,6 +1309,75 @@ describe('useAppState', () => {
       );
     });
 
+    it('refreshData drops the repository-scoped caches and reloads their lists', async () => {
+      const { state } = await createState();
+      // The state is shared with the tests before this one, so the reply below
+      // is what puts this test's own entry into the repository contents cache
+      // (and clears any busy flag an earlier test left on the same slot).
+      dispatchMessage({
+        command: 'repoContents',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        ref: 'main',
+        path: '',
+        entries: [fakeContentEntry],
+      });
+      dispatchMessage({
+        command: 'repoIssues',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        state: 'open',
+        issues: [fakeIssue],
+      });
+      await nextTick();
+
+      // The contents are served from the cache before the refresh: the combined
+      // load posts nothing when the entry it holds is still live.
+      vscodePostMessage().mockClear();
+      state.loadRepoContents('inst-1', 'owner', 'repo', '', 'main');
+      expect(vscodePostMessage()).not.toHaveBeenCalled();
+
+      dispatchMessage({
+        command: 'instances',
+        data: [
+          { id: 'inst-1', url: 'https://forgejo.example.com', name: 'user@forgejo.example.com', username: 'user' },
+        ],
+      });
+      await nextTick();
+      vscodePostMessage().mockClear();
+
+      dispatchMessage({ command: 'refreshData' });
+      await nextTick();
+
+      // The TTL caches no longer answer, so the loads go back to the host
+      // instead of serving data that is up to a minute old. The contents call
+      // is the combined load, so its post is what proves the cache is gone.
+      state.loadRepoContents('inst-1', 'owner', 'repo', '', 'main');
+      state.loadRepoIssues('inst-1', 'owner', 'repo', 'open');
+
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: 'getRepoContents',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo: 'repo',
+          ref: 'main',
+          path: '',
+        }),
+      );
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: 'getRepoIssues',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo: 'repo',
+          state: 'open',
+        }),
+      );
+    });
+
     it('loadRepoContents uses cache on repeat calls', async () => {
       const { state, mod } = await createState();
       vscodePostMessage().mockClear();

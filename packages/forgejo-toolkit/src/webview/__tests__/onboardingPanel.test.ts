@@ -228,6 +228,15 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     expect(config.getInstances()).toHaveLength(1);
   });
 
+  it('records the welcome flag when the guide is completed', async () => {
+    // Finishing the guide is what stops the automatic reopen on later
+    // activations (with zero instances the flag is otherwise never written).
+    fake.send({ command: 'closeOnboarding' });
+    await flushDispatches();
+
+    expect(context.globalState.get('forgejoToolkit.hasShownWelcome')).toBe(true);
+  });
+
   it('ignores malformed messages without throwing', async () => {
     fake.send(undefined);
     fake.send('not-an-object');
@@ -245,6 +254,48 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     expect(result).toMatchObject({ success: true });
     expect(getServerVersion('https://new.example.com')).toBeUndefined();
     expect(vi.mocked(clearLinkedRepositoryCache)).toHaveBeenCalled();
+  });
+
+  it('names the failing instance when an imported entry cannot be saved', async () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'onboarding-import-fail-')), 'export.json');
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        instances: [
+          { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'u' },
+        ],
+      }),
+    );
+    vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file(file)] as never);
+    vi.spyOn(config, 'addInstance').mockRejectedValueOnce(new Error('storage is read-only'));
+
+    fake.send({ command: 'importInstances' });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesImported'));
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+    // The setup guide renders this reply's `error`; a bare "failed" would leave
+    // the user with nothing to act on. (The shared l10n mock keeps the raw
+    // placeholders and appends the arguments, so the parts are asserted.)
+    expect(reply?.success).toBe(false);
+    expect(reply?.cancelled).toBeUndefined();
+    expect(reply?.error).toContain('Importing instance {0} failed');
+    expect(reply?.error).toContain('one');
+    expect(reply?.error).toContain('storage is read-only');
+  });
+
+  it('reports the parse failure of a corrupt import file through the same reply', async () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'onboarding-import-corrupt-')), 'export.json');
+    fs.writeFileSync(file, '{ this is not json');
+    vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file(file)] as never);
+
+    fake.send({ command: 'importInstances' });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesImported'));
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+    expect(reply?.success).toBe(false);
+    expect(typeof reply?.error).toBe('string');
+    expect(String(reply?.error ?? '').length).toBeGreaterThan(0);
   });
 
   it('strips tokens from the import preview and rehydrates them from the stash on confirm', async () => {

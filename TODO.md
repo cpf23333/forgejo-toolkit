@@ -51,6 +51,7 @@
 - [ ] **medium** 宿主 Refresh 清了 memo，但 webview 的仓库级缓存仍会命中最多 30 s
 - [ ] **medium** 设置向导只测 `/user` 就放行，权限不足的 token 也能保存，随后仪表盘显示「Failed to load: Permission denied」+「No repositories」，首用者会以为实例是空的
 - [ ] **medium** 仪表盘空状态只有裸标签，且在加载失败（403 等）时也显示；文案缺少下一步引导
-- [ ] **medium** revert merge 不可回滚也不校验：push 失败会留下本地 revert 提交、冲突会留下 mid-revert 状态，调用方仍回 success:true
-- [ ] **medium** `ConfigManager.init()` 的 token 迁移写实例数组时没有用 add/remove 那套跨窗口合并
-- [ ] **low** 向导「从文件导入」失败无任何提示（错误只由 Settings 渲染）；向导可在零实例时宣告「初始设置完成」；完成页「打开仪表盘」按钮不导航；实例导出就地截断目标文件（中断会毁掉上一次导出）；删除实例不清理其 worktree 记录与缓存裸克隆
+- [ ] **medium**（宿主部分已修，只剩 webview 渲染）向导「从文件导入」失败仍无任何提示：宿主已在 `instancesImported` 回复里带上具体原因（导入失败时形如「Importing instance {0} failed: {1}」，解析失败时是文件/密码原因），但 `webview/src/views/Onboarding.vue` 的 `state.importInstancesResult` watcher 只处理 `success`，需要像 `Settings.vue` 那样在失败时渲染 `result.error`（`webview/src/**` 由另一 agent 负责）
+- [ ] **low** 完成页「打开仪表盘」按钮不导航（`Onboarding.vue` 的 `finish()` 在非面板模式下只 `router.push`，需确认完成页按钮的实际行为）；向导仍可在零实例时被“完成”（宿主现在据此不写欢迎标记，所以下次激活会重新给出向导，是否要直接拦住 finish 由 webview 侧决定）
+
+以下 2026-09-23 第八轮宿主侧确认项已修复（细节见 git 日志）：revert merge 改为失败安全（push 失败会撤销本地 revert 提交、冲突会重置回原提交并如实报错，只有真正推送成功才回 `success:true`）；`ConfigManager.init()` 的 token 迁移改用跨窗口合并写入；实例导出改为「写 `.part` 再 rename」的原子写（剪贴板路径不变）；删除实例会一并清理其 worktree 记录与相应缓存用量项（worktree 目录留在磁盘上，由惰性清理按 30 天回收）；首次激活不再因“用户跳过向导”而写入欢迎标记（改为有实例或真正完成向导时才写）。

@@ -11,6 +11,7 @@ import IconActionButton from './IconActionButton.vue';
 import type { ForgejoTimelineComment, ForgejoIssueAttachment } from '../types/api';
 import { useAppState, issueCommentEditFormKey, commentReactionsKey } from '../composables/useAppState';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
+import { createPendingUploads } from '../utils/pendingUploads';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -43,6 +44,12 @@ const listTruncated = computed(() => isListTruncated(props.comments));
 const pendingDeleteAttachmentIds = ref<number[]>([]);
 const deletingAttachmentIds = ref<Set<number>>(new Set());
 const isSavingEdit = ref(false);
+// Images still uploading from the comment editor. The editor inserts
+// `![image](url)` into the body only when the upload returns, so a save issued
+// meanwhile would send a body that predates the image (see
+// handleUploadImageForEdit and the save handler below).
+const pendingEditUploads = createPendingUploads();
+const isAwaitingEditUploads = ref(false);
 // Feedback for attachments that survived the comment edit: the host asks for a
 // confirmation per attachment, so a declined one must not vanish silently.
 const attachmentDeleteNotice = ref<string | undefined>(undefined);
@@ -59,6 +66,9 @@ const editFormKey = computed(() => {
 });
 const editLoading = computed(() => (editFormKey.value ? (state.loading.get(editFormKey.value) ?? false) : false));
 const editError = computed(() => (editFormKey.value ? state.errors.get(editFormKey.value) : undefined));
+// The modal's busy state: the save request itself, the attachment list's own
+// uploads, and an in-flight editor image upload the save is waiting for.
+const editBusy = computed(() => editLoading.value || uploadingCommentCount.value > 0 || isAwaitingEditUploads.value);
 
 function commentKey(comment: ForgejoTimelineComment): string {
   return String(comment.id ?? `${comment.type ?? 'event'}-${comment.created_at ?? ''}-${comment.user?.login ?? ''}`);
@@ -329,6 +339,18 @@ function closeEdit() {
 }
 
 async function saveEdit() {
+  // The editor inserts the uploaded image's markdown from the upload's success
+  // callback, so a save that reads the body first would store a comment without
+  // the image the user had just inserted. The button is disabled meanwhile, but
+  // a save that still gets through must wait for the uploads.
+  if (pendingEditUploads.isPending()) {
+    isAwaitingEditUploads.value = true;
+    try {
+      await pendingEditUploads.waitForIdle();
+    } finally {
+      isAwaitingEditUploads.value = false;
+    }
+  }
   const commentId = editingComment.value?.id;
   if (commentId === undefined) {
     return;
@@ -389,6 +411,10 @@ async function uploadAttachmentForEdit(file: File): Promise<ForgejoIssueAttachme
     return undefined;
   }
   uploadingCommentCount.value += 1;
+  // Registered like the editor's own upload: a save issued while this request
+  // runs must wait for it, or it would close the form on a comment that does
+  // not list the attachment the user just added (see saveEdit).
+  const upload = pendingEditUploads.begin();
   delete uploadErrors[commentId];
   try {
     const attachment = await state.uploadIssueCommentAttachment(
@@ -407,6 +433,9 @@ async function uploadAttachmentForEdit(file: File): Promise<ForgejoIssueAttachme
     uploadErrors[commentId] = error instanceof Error ? error.message : String(error);
     return undefined;
   } finally {
+    // Released after the list above has been updated: a save waiting for this
+    // upload must see the attachment it added.
+    pendingEditUploads.end(upload);
     uploadingCommentCount.value -= 1;
   }
 }
@@ -416,6 +445,10 @@ async function handleUploadImageForEdit(
   onSuccess: (url: string) => void,
   onError: (error: string) => void,
 ) {
+  // Registered so a save issued while the upload runs waits for it (the editor
+  // inserts the image markdown from `onSuccess`, so saving first would store a
+  // body without it — see saveEdit).
+  const upload = pendingEditUploads.begin();
   try {
     const attachment = await uploadAttachmentForEdit(file);
     const url = attachment?.uuid ? `/attachments/${attachment.uuid}` : (attachment?.browser_download_url ?? '');
@@ -426,6 +459,10 @@ async function handleUploadImageForEdit(
     onSuccess(url);
   } catch (error) {
     onError(error instanceof Error ? error.message : String(error));
+  } finally {
+    // The editor inserts the markdown inside `onSuccess`, so the upload stays
+    // pending until that has run.
+    pendingEditUploads.end(upload);
   }
 }
 
@@ -575,10 +612,10 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         </div>
         <div v-if="editError" class="error">{{ t('dashboard.error', { message: editError }) }}</div>
         <div class="edit-comment-actions">
-          <vscode-button :disabled="editLoading" @click="saveEdit">
-            {{ editLoading ? t('dashboard.form.saving') : t('dashboard.form.save') }}
+          <vscode-button :disabled="editBusy" @click="saveEdit">
+            {{ editBusy ? t('dashboard.form.saving') : t('dashboard.form.save') }}
           </vscode-button>
-          <vscode-button secondary :disabled="editLoading" @click="closeEdit">
+          <vscode-button secondary :disabled="editBusy" @click="closeEdit">
             {{ t('dashboard.form.cancel') }}
           </vscode-button>
         </div>

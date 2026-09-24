@@ -83,8 +83,11 @@
       "actions": "Actions"
     },
     "noRepositories": "没有仓库",
+    "noRepositoriesHint": "使用“发布到 Forgejo”发布本地仓库，或在实例上创建一个仓库。",
     "noIssues": "没有与你相关的 Issues",
+    "noIssuesHint": "打开某个仓库的 Issues 标签页即可创建 Issue。",
     "noPullRequests": "没有与你相关的 Pull Requests",
+    "noPullRequestsHint": "在“仓库”标签页中打开一个仓库，即可查看它的 Pull Requests。",
     "emptyRepository": "该仓库为空。推送一些提交后即可开始使用。",
     "loading": "加载中...",
     "error": "加载失败：{message}",
@@ -525,7 +528,9 @@
       "successConnection": "连接成功。用户名：{username}",
       "successSaved": "实例保存成功",
       "errorConnection": "连接失败",
-      "errorSaved": "保存实例失败"
+      "errorSaved": "保存实例失败",
+      "permissionSaved": "实例已保存，但 Token 缺少 {permission} 权限，仪表盘无法列出你的仓库：{message}",
+      "permissionRepository": "read:repository"
     },
     "exportInstances": "导出",
     "importInstances": "导入",

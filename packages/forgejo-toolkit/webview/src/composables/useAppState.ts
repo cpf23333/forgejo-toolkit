@@ -1434,7 +1434,12 @@ function createAppState() {
       case 'polledNotifications': {
         // Poller pushes go to a dedicated slot so they never clobber the
         // user's filtered view; the unread badge reads from this slot.
-        const data = message as { instanceId: string; notifications?: ForgejoNotification[]; error?: string };
+        const data = message as {
+          instanceId: string;
+          notifications?: ForgejoNotification[];
+          coveredIds?: number[];
+          error?: string;
+        };
         if (data.error) {
           setPayloadEntry(notificationPollErrors.value, data.instanceId, data.error);
         } else {
@@ -1447,7 +1452,9 @@ function createAppState() {
           // keeps an open Notifications view from contradicting the badge (its
           // rows are written exclusively by getNotifications replies, so a
           // "Mark all as read" from the host toast left them unread).
-          reconcileViewNotifications(data.instanceId, polled);
+          // `coveredIds` names the rows the poll actually examined; see
+          // reconcileViewNotifications for what happens without it.
+          reconcileViewNotifications(data.instanceId, polled, data.coveredIds);
         }
         break;
       }
@@ -3177,13 +3184,25 @@ function createAppState() {
 
   /**
    * Align the view's notification slot with the unread set the poller just
-   * fetched. The poller asks for `['unread', 'pinned']`, so an id missing from
-   * `polled` is read on the server; marking it read locally is what keeps an
+   * fetched. The poller asks for `['unread', 'pinned']`, so a covered id missing
+   * from `polled` is read on the server; marking it read locally is what keeps an
    * open Notifications view consistent with the badge after a "Mark all as
    * read" (the host's toast path never writes the view slot). The view's rows
    * themselves are untouched: only the `unread` flag moves.
+   *
+   * The poller's request is a *page* (the host clamps it to `NOTIFICATIONS_LIMIT`
+   * and `limit` is the client's own default), so a row missing from `polled` is
+   * only known to be read when the poller actually examined it. `coveredIds` is
+   * the host's report of exactly which ids this poll looked at. Without one, the
+   * page speaks for the rows the poller did return; a full page is then treated
+   * as possibly truncated, and only its own rows are reconciled. A page that hit
+   * the host's cap is where "absent means read" would be a guess.
    */
-  function reconcileViewNotifications(instanceId: string, polled: ForgejoNotification[]) {
+  function reconcileViewNotifications(
+    instanceId: string,
+    polled: ForgejoNotification[],
+    coveredIds?: readonly number[],
+  ) {
     const key = notificationsKey(instanceId);
     const list = notifications.value.get(key);
     if (!list || list.length === 0) {
@@ -3192,9 +3211,16 @@ function createAppState() {
     const unreadIds = new Set(
       polled.filter((notification) => notification.unread).map((notification) => notification.id),
     );
+    // The ids the poller actually examined. With an explicit report that is the
+    // report; without one, the page's own rows are what it can speak for.
+    const examined =
+      coveredIds !== undefined ? new Set(coveredIds) : new Set(polled.map((notification) => notification.id));
     let changed = false;
     const reconciled = list.map((notification) => {
-      const unread = notification.id !== undefined && unreadIds.has(notification.id);
+      if (notification.id === undefined || !examined.has(notification.id)) {
+        return notification;
+      }
+      const unread = unreadIds.has(notification.id);
       if (unread === notification.unread) {
         return notification;
       }
@@ -4979,6 +5005,14 @@ function createAppState() {
     for (const map of instanceScopedPayloads()) {
       clearWhere(map, inScope);
     }
+    // The "list is fresh" marks of the repo-scoped issue/PR lists are part of
+    // the instance's data too (they carry the same `${instanceId}:` prefix).
+    // Leaving them behind is worse than leaving the lists: the list slot is
+    // gone, so the loader would find a fresh mark without a list and keep
+    // serving the deleted (previous server's) list as fresh for the rest of the
+    // mark's TTL. `clearRepoPayloads` drops both for the same reason.
+    clearWhere(repoIssuesFetchedAt, inScope);
+    clearWhere(repoPullRequestsFetchedAt, inScope);
     repositoriesCache.delete(instanceId);
     myIssuesCache.deleteWhere(inScope);
     myPullRequestsCache.deleteWhere(inScope);
@@ -5046,12 +5080,61 @@ function createAppState() {
   }
 
   /**
+   * Every repository scope the webview currently holds a payload for. Read off
+   * the payload maps rather than from the route: a repository whose payload was
+   * already released has nothing left to drop, while one kept in the
+   * keep-alive cache (another tab of the same instance, a repository peeked at
+   * and left) still answers from its TTL cache.
+   *
+   * Keys put their scope (`${instanceId}:${owner}/${repo}`) before the first
+   * `:`/`#` suffix the key builder appends, but an instance id may itself
+   * contain a `/` (an instance configured at a sub-path), so the boundary is
+   * found by matching a known instance id rather than by scanning for the first
+   * slash.
+   */
+  function heldRepoScopes(): string[] {
+    // Longest first: one id may be a prefix of another (`inst` / `inst-2`), and
+    // the shorter one would otherwise claim the longer one's keys.
+    const instanceIds = instances.value.map((instance) => instance.id).sort((a, b) => b.length - a.length);
+    const scopes = new Set<string>();
+    const addScope = (key: string) => {
+      for (const instanceId of instanceIds) {
+        const prefix = `${instanceId}:`;
+        if (!key.startsWith(prefix)) {
+          continue;
+        }
+        // Everything after the instance id up to the key builder's first
+        // suffix separator is the `owner/repo` scope.
+        const rest = key.slice(prefix.length);
+        const separator = rest.search(/[:#]/);
+        if (separator > 0) {
+          scopes.add(prefix + rest.slice(0, separator));
+        }
+        return;
+      }
+    };
+    for (const map of instanceScopedPayloads()) {
+      for (const key of map.keys()) {
+        addScope(key);
+      }
+    }
+    return [...scopes];
+  }
+
+  /**
    * Handle the host "refresh instances" command: drop the instance-level TTL
    * caches and the payload slots they back, then force-reload the dashboard lists
    * (repositories, my issues, my pull requests) for every known instance.
    * Without dropping the payloads a refresh would leave the stale list on screen
    * while the forced request is in flight. In-flight requests are left alone —
    * the load functions dedupe on their loading keys.
+   *
+   * The repository-scoped caches go too (`repoContentsCache`, `repoDetailsCache`,
+   * `repoRefsCache`, the issue/PR list marks, ...): a refresh is the escape hatch
+   * for a repository that changed behind the extension, and those caches answer
+   * for up to a minute. Their payloads are kept so the view keeps showing the
+   * last known list while the refreshed request is in flight; the force-reload
+   * below replaces them as soon as the replies land.
    */
   function refreshInstanceData() {
     repositoriesCache.clear();
@@ -5060,10 +5143,26 @@ function createAppState() {
     repositories.value.clear();
     myIssues.value.clear();
     myPullRequests.value.clear();
+    const prefixes = heldRepoScopes();
+    if (prefixes.length > 0) {
+      const inScope = (key: string) => prefixes.some((prefix) => isInRepoScope(key, prefix));
+      for (const cache of instanceScopedCaches()) {
+        cache.deleteWhere(inScope);
+      }
+      clearWhere(repoIssuesFetchedAt, inScope);
+      clearWhere(repoPullRequestsFetchedAt, inScope);
+    }
     for (const instance of instances.value) {
       loadRepositories(instance.id, true);
       loadMyIssues(instance.id, 'open', true);
       loadMyPullRequests(instance.id, 'open', true);
+    }
+    // The repository-scoped lists have no force flag: dropping the payload and
+    // its mark (above) is what makes the loaders ask the server again, so the
+    // views re-issue them as they re-render.
+    for (const prefix of prefixes) {
+      clearByPrefix(repoIssues.value, `${prefix}:issues:`);
+      clearByPrefix(repoPullRequests.value, `${prefix}:pulls:`);
     }
   }
 

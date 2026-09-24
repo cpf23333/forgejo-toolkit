@@ -24,6 +24,7 @@ import { probeServerVersion } from '../api/versionProbe';
 import { clearServerVersion } from '../api/serverVersion';
 import { clearLinkedRepositoryCache } from '../worktree/gitOperations';
 import { validateCacheDirectory } from '../worktree/worktreeManager';
+import { markWelcomeOnboardingShown } from '../welcome';
 
 export class OnboardingWebviewPanel {
   public static readonly viewType = 'forgejoToolkitOnboarding';
@@ -244,8 +245,19 @@ export class OnboardingWebviewPanel {
                 if (!(await this._confirmDestructive(vscode.l10n.t('Remove instance "{0}"?', instance.name)))) {
                   return;
                 }
-                await this._config.removeInstance(id);
+                const removedWorktrees = await this._config.removeInstance(id);
                 this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
+                if (removedWorktrees > 0) {
+                  // Same notice as the sidebar: the worktree records are gone but
+                  // their checkouts stay on disk.
+                  void vscode.window.showInformationMessage(
+                    vscode.l10n.t(
+                      'Removed instance {0} along with its {1} worktree record(s).',
+                      instance.name,
+                      removedWorktrees,
+                    ),
+                  );
+                }
               }
               return;
             }
@@ -415,6 +427,10 @@ export class OnboardingWebviewPanel {
               return;
             }
             case 'closeOnboarding': {
+              // The guide only sends this once the user got through it, which is
+              // what suppresses the automatic reopen on later activations (see
+              // maybeShowWelcomeOnboarding).
+              await markWelcomeOnboardingShown(this._context);
               this._panel.dispose();
               vscode.commands.executeCommand('forgejoToolkitView.focus');
               return;
@@ -548,7 +564,20 @@ export class OnboardingWebviewPanel {
     }
     try {
       for (const instance of instances) {
-        await this._config.addInstance(instance);
+        try {
+          await this._config.addInstance(instance);
+        } catch (error) {
+          // The setup guide only renders the failure reply when it names the
+          // reason; without the instance identity a rejected entry (an invalid
+          // URL, a storage failure) reads as "nothing happened".
+          throw new Error(
+            vscode.l10n.t(
+              'Importing instance {0} failed: {1}',
+              instance.name || instance.url,
+              userFacingErrorMessage(error),
+            ),
+          );
+        }
       }
       await this._applyImportSettings(settings);
       this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
@@ -556,6 +585,9 @@ export class OnboardingWebviewPanel {
     } catch (error) {
       const err = userFacingErrorMessage(error);
       logger.error(`onboarding importInstances failed: ${err}`);
+      // The wizard shows this string next to the import step, so it names what
+      // failed (the instance, or the corrupt file / wrong password from the
+      // parse above) instead of failing silently.
       this._reply('instancesImported', { success: false, error: err });
     }
   }

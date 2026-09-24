@@ -245,9 +245,15 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       index: number;
+      /** True only when the revert commit was created *and* pushed. */
       success?: boolean;
       /** The user declined the host-side confirmation; nothing was reverted. */
       cancelled?: boolean;
+      /**
+       * Why the revert did not happen, plus the state the local repository was
+       * left in. The host never reports a failure through `success` without a
+       * reason here, so a failed revert cannot look like a silent no-op.
+       */
       error?: string;
     }
   | {
@@ -640,6 +646,12 @@ export type HostToWebviewMessage =
       command: 'polledNotifications';
       instanceId: string;
       notifications?: unknown[];
+      /**
+       * The ids this poll actually fetched (the page it asked for). A view may
+       * only treat a row as read when the poller examined it, so rows beyond the
+       * fetched page are never reconciled away.
+       */
+      coveredIds?: number[];
       /** Set when the poll itself failed (e.g. invalid token, instance down). */
       error?: string;
     }
