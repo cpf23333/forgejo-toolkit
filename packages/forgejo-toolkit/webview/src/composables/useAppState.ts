@@ -349,10 +349,12 @@ function createAppState() {
   const notificationsHasMore = ref<Map<string, boolean>>(new Map());
   const polledNotifications = ref<Map<string, ForgejoNotification[]>>(new Map());
   // Instances with a one-shot badge request in flight (see
-  // loadNotificationBadge). The host's `notifications` reply carries no origin,
-  // so this is what tells handleNotifications that the page it just received is
-  // the badge's own unfiltered one and belongs in the badge slot too.
-  const badgeNotificationRequests = new Set<string>();
+  // loadNotificationBadge). The host's `notifications` reply carries no request
+  // identity, so the webview records the instance identity the request was sent
+  // with (see instanceCacheIdentity) and compares it on reply: a page that
+  // answers a server/account the user has since replaced must not fill the badge
+  // and must not be taken for the fresh request's own reply.
+  const badgeNotificationRequests = new Map<string, { identity: string }>();
   // Per-instance poll failures (expired token, unreachable instance) so the
   // notifications view can show an error instead of a misleading empty state.
   const notificationPollErrors = ref<Map<string, string>>(new Map());
@@ -455,6 +457,23 @@ function createAppState() {
   const REPO_LIST_MARKS_TTL_MS = 30_000;
   const repoIssuesFetchedAt = reactive(new Map<string, number>());
   const repoPullRequestsFetchedAt = reactive(new Map<string, number>());
+
+  /**
+   * Per repository issue/PR list, how many replies still on their way predate an
+   * explicit refresh (`refreshData`).
+   *
+   * The refresh drops a list's payload and its "fetched at" mark and re-issues
+   * the load, but the loader dedupes against a request that was already in
+   * flight when the refresh was pressed (`loading.get(key)`), so that older
+   * request cannot be cancelled and its reply lands *after* the refresh. The
+   * reply is the pre-refresh answer, and applying it would rewrite the payload
+   * with a fresh `fetchedAt`, leaving the loader to serve it as "fresh" for the
+   * rest of `REPO_LIST_MARKS_TTL_MS` — silently skipping the refresh the user
+   * asked for. A refresh therefore counts those replies; `applyRepoListReply`
+   * drops each of them and re-issues the load, until the refreshed request is
+   * the one that answers.
+   */
+  const preRefreshReplies = new Map<string, number>();
 
   const issueDetailCache = createTimedCache<ForgejoIssueDetail>(5_000);
   const pullRequestDetailCache = createTimedCache<ForgejoPullRequestDetail>(5_000);
@@ -2808,15 +2827,59 @@ function createAppState() {
     issues?: ForgejoIssue[];
     error?: string;
   }) {
-    const key = repoIssuesKey(data.instanceId, data.owner, data.repo, data.state, data.query);
+    applyRepoListReply(
+      repoIssuesKey(data.instanceId, data.owner, data.repo, data.state, data.query),
+      data,
+      data.issues ?? [],
+      repoIssues.value,
+      repoIssuesFetchedAt,
+      (request) => loadRepoIssues(request.instanceId, request.owner, request.repo, request.state, request.query, true),
+    );
+  }
+
+  /**
+   * Applies one issue/PR list reply to its payload slot and "fetched at" mark,
+   * after dropping the pre-refresh replies described on `preRefreshReplies`.
+   *
+   * A reply counted as predating a refresh is discarded — payload and mark stay
+   * as the refresh left them (absent) — and the load is re-issued for the
+   * refreshed data. The loader's own in-flight dedupe cannot do that here: the
+   * request it would trust is the very one that just answered. The refreshed
+   * request's own reply is not counted, so it is applied normally.
+   */
+  function applyRepoListReply<
+    TReply extends { instanceId: string; owner: string; repo: string; state: string; query?: string; error?: string },
+    TItem,
+  >(
+    key: string,
+    data: TReply,
+    items: TItem[],
+    payloads: Map<string, TItem[]>,
+    marks: Map<string, number>,
+    reissue: (request: TReply) => void,
+  ) {
     loading.set(key, false);
+    const stale = preRefreshReplies.get(key) ?? 0;
+    if (stale > 0) {
+      // Discarded even when the reply carries an error: the refresh still has to
+      // reach the host, and re-issuing is what does it.
+      if (stale > 1) {
+        preRefreshReplies.set(key, stale - 1);
+      } else {
+        preRefreshReplies.delete(key);
+      }
+      payloads.delete(key);
+      marks.delete(key);
+      reissue(data);
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
-    } else {
-      errors.delete(key);
-      setPayloadEntry(repoIssues.value, key, data.issues ?? []);
-      repoIssuesFetchedAt.set(key, Date.now());
+      return;
     }
+    errors.delete(key);
+    setPayloadEntry(payloads, key, items);
+    marks.set(key, Date.now());
   }
 
   function handleRepoPullRequests(data: {
@@ -2828,15 +2891,15 @@ function createAppState() {
     pullRequests?: ForgejoPullRequest[];
     error?: string;
   }) {
-    const key = repoPullRequestsKey(data.instanceId, data.owner, data.repo, data.state, data.query);
-    loading.set(key, false);
-    if (data.error) {
-      setError(key, data.error);
-    } else {
-      errors.delete(key);
-      setPayloadEntry(repoPullRequests.value, key, data.pullRequests ?? []);
-      repoPullRequestsFetchedAt.set(key, Date.now());
-    }
+    applyRepoListReply(
+      repoPullRequestsKey(data.instanceId, data.owner, data.repo, data.state, data.query),
+      data,
+      data.pullRequests ?? [],
+      repoPullRequests.value,
+      repoPullRequestsFetchedAt,
+      (request) =>
+        loadRepoPullRequests(request.instanceId, request.owner, request.repo, request.state, request.query, true),
+    );
   }
 
   function handleActionRuns(data: {
@@ -3201,13 +3264,29 @@ function createAppState() {
     const key = notificationsKey(data.instanceId);
     // The badge's own one-shot load (see loadNotificationBadge): its page is the
     // unfiltered `['unread', 'pinned']` list the poller would have pushed, so it
-    // fills the badge slot as well as the view slot. The marker is dropped here
-    // whatever the reply says, so a later filtered reply can never be mistaken
-    // for it.
-    if (badgeNotificationRequests.delete(data.instanceId) && data.before === undefined && !data.error) {
+    // fills the badge slot as well as the view slot. The reply is attributed by
+    // the instance identity the request was sent with, so a reply from a server
+    // the user has since replaced cannot claim the fresh request's marker.
+    const badgeRequest = badgeNotificationRequests.get(data.instanceId);
+    badgeNotificationRequests.delete(data.instanceId);
+    const badgeReplyIsStale =
+      badgeRequest !== undefined && badgeRequest.identity !== instanceIdentityOf(data.instanceId);
+    // Only a plain page can be the badge's own reply: it asks without a cursor
+    // and a failure is not a page at all. A cursor-bearing reply answers "load
+    // more" and an error answers a failure, so both belong to the view's own
+    // request and stay applicable whatever the badge marker says.
+    const isBadgePage = data.before === undefined && !data.error;
+    const staleBadgePage = badgeReplyIsStale && isBadgePage;
+    if (badgeRequest && !badgeReplyIsStale && isBadgePage) {
       setPayloadEntry(polledNotifications.value, data.instanceId, data.notifications ?? []);
     }
     loading.set(key, false);
+    if (badgeReplyIsStale) {
+      // Drop the replaced server's page and ask again for the one now
+      // configured, so the badge is not left on the old list (or empty for the
+      // rest of the session when the reply lands before the badge is asked for).
+      requestNotificationBadge(data.instanceId);
+    }
     // Replay the latest intent if filters changed while this request was in
     // flight (subjectType is filtered server-side, so the response that just
     // landed may not match the current filters). The stale response must not
@@ -3218,6 +3297,14 @@ function createAppState() {
     inFlightNotificationArgs.delete(data.instanceId);
     if (pending && JSON.stringify(pending) !== inFlightArgs) {
       loadNotifications(data.instanceId, pending.statusTypes, pending.subjectType);
+      return;
+    }
+    if (staleBadgePage) {
+      // The page came from the server the user has replaced. The identity change
+      // cleared the view slot the badge page would otherwise also fill, so
+      // writing it back would present the old server's notifications as the new
+      // one's. Dropping it leaves the view empty (not loading: the spinner was
+      // cleared above) until its own request answers.
       return;
     }
     if (data.error) {
@@ -4392,9 +4479,33 @@ function createAppState() {
     loadRepoIssues(instanceId, owner, repo, state);
   }
 
-  function loadRepoIssues(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
+  /**
+   * Loads one repository issue list.
+   *
+   * `force` and `preRefreshReply` are for an explicit refresh only (see
+   * `refreshInstanceData`): `force` bypasses the freshness mark, which the
+   * refresh has just dropped, and `preRefreshReply` counts the reply already on
+   * its way so it cannot satisfy the refresh (see `preRefreshReplies`). The load
+   * re-issued after such a reply is dropped passes `force` alone — it *is* the
+   * refreshed request, so its own reply must be applied.
+   */
+  function loadRepoIssues(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    state = 'open',
+    query?: string,
+    force = false,
+    preRefreshReply = false,
+  ) {
     const key = repoIssuesKey(instanceId, owner, repo, state, query);
-    if (repoIssues.value.has(key) && isMarkFresh(repoIssuesFetchedAt.get(key), REPO_LIST_MARKS_TTL_MS)) {
+    if (preRefreshReply) {
+      preRefreshReplies.set(key, (preRefreshReplies.get(key) ?? 0) + 1);
+    } else if (
+      !force &&
+      repoIssues.value.has(key) &&
+      isMarkFresh(repoIssuesFetchedAt.get(key), REPO_LIST_MARKS_TTL_MS)
+    ) {
       return;
     }
     if (loading.get(key)) {
@@ -4655,9 +4766,24 @@ function createAppState() {
     return pending;
   }
 
-  function loadRepoPullRequests(instanceId: string, owner: string, repo: string, state = 'open', query?: string) {
+  /** Same as `loadRepoIssues` for the pull request lists, force/pre-refresh included. */
+  function loadRepoPullRequests(
+    instanceId: string,
+    owner: string,
+    repo: string,
+    state = 'open',
+    query?: string,
+    force = false,
+    preRefreshReply = false,
+  ) {
     const key = repoPullRequestsKey(instanceId, owner, repo, state, query);
-    if (repoPullRequests.value.has(key) && isMarkFresh(repoPullRequestsFetchedAt.get(key), REPO_LIST_MARKS_TTL_MS)) {
+    if (preRefreshReply) {
+      preRefreshReplies.set(key, (preRefreshReplies.get(key) ?? 0) + 1);
+    } else if (
+      !force &&
+      repoPullRequests.value.has(key) &&
+      isMarkFresh(repoPullRequestsFetchedAt.get(key), REPO_LIST_MARKS_TTL_MS)
+    ) {
       return;
     }
     if (loading.get(key)) {
@@ -4844,7 +4970,11 @@ function createAppState() {
   }
 
   function setWorktreeCacheDirectory(directory: string) {
-    worktreeCacheDirectory.value = directory;
+    // The host validates the directory before persisting it and replies with
+    // `worktreeCacheDirectory` only when it accepted the path; a rejected one is
+    // answered with a native error and no reply at all. Writing the request here
+    // made a rejected path indistinguishable from an applied one, so the state
+    // keeps the host's directory until the host reports a new one.
     postMessage({ command: 'setWorktreeCacheDirectory', directory });
   }
 
@@ -5001,6 +5131,7 @@ function createAppState() {
     repoMilestonesCache.deleteWhere(inScope);
     clearWhere(repoIssuesFetchedAt, inScope);
     clearWhere(repoPullRequestsFetchedAt, inScope);
+    clearWhere(preRefreshReplies, inScope);
   }
 
   /**
@@ -5018,6 +5149,7 @@ function createAppState() {
   function invalidateRepoPullRequestLists(prefix: string): void {
     clearByPrefix(repoPullRequests.value, `${prefix}:pulls:`);
     clearWhere(repoPullRequestsFetchedAt, (key) => key.startsWith(`${prefix}:pulls:`));
+    clearWhere(preRefreshReplies, (key) => key.startsWith(`${prefix}:pulls:`));
   }
 
   // The repository the route currently points at. Navigating to another one
@@ -5079,6 +5211,7 @@ function createAppState() {
     // mark's TTL. `clearRepoPayloads` drops both for the same reason.
     clearWhere(repoIssuesFetchedAt, inScope);
     clearWhere(repoPullRequestsFetchedAt, inScope);
+    clearWhere(preRefreshReplies, inScope);
     repositoriesCache.delete(instanceId);
     myIssuesCache.deleteWhere(inScope);
     myPullRequestsCache.deleteWhere(inScope);
@@ -5089,9 +5222,11 @@ function createAppState() {
     // stale spinner or error for a server the user just replaced.
     clearWhere(loading, inScope);
     clearWhere(errors, inScope);
-    // A badge request still in flight for the replaced server must not claim
-    // the next reply for that id (see loadNotificationBadge).
-    badgeNotificationRequests.delete(instanceId);
+    // A badge request still in flight is deliberately left in place: its reply
+    // has to be attributable, and sending a fresh request now would leave two
+    // indistinguishable `notifications` requests in flight (see
+    // requestNotificationBadge). handleNotifications drops the replaced server's
+    // page by the identity recorded here and asks again for the new one.
   }
 
   /** Reactive payload maps whose keys are all instance-scoped. */
@@ -5246,10 +5381,10 @@ function createAppState() {
       clearByPrefix(repoPullRequests.value, `${prefix}:pulls:`);
     }
     for (const request of heldIssues) {
-      loadRepoIssues(request.instanceId, request.owner, request.repo, request.state, request.query);
+      loadRepoIssues(request.instanceId, request.owner, request.repo, request.state, request.query, true, true);
     }
     for (const request of heldPulls) {
-      loadRepoPullRequests(request.instanceId, request.owner, request.repo, request.state, request.query);
+      loadRepoPullRequests(request.instanceId, request.owner, request.repo, request.state, request.query, true, true);
     }
   }
 
@@ -5370,8 +5505,31 @@ function createAppState() {
     ) {
       return;
     }
-    beginLoading(key);
-    badgeNotificationRequests.add(instanceId);
+    requestNotificationBadge(instanceId);
+  }
+
+  /** Identity of a configured instance as the reply handler can see it. */
+  function instanceIdentityOf(instanceId: string): string {
+    const instance = instances.value.find((entry) => entry.id === instanceId);
+    return instance ? instanceCacheIdentity(instance) : '';
+  }
+
+  /**
+   * Sends one instance's unfiltered first notification page, recording the
+   * instance identity it was sent for (see badgeNotificationRequests).
+   *
+   * At most one badge request per instance is in flight: the marker is what
+   * tells handleNotifications that a `notifications` reply is the badge's own,
+   * and the host's reply carries no request id to tell two of them apart. The
+   * request is therefore left in place across an instance edit too - a fresh
+   * request would be indistinguishable from it on the wire.
+   */
+  function requestNotificationBadge(instanceId: string) {
+    if (!instances.value.some((entry) => entry.id === instanceId)) {
+      return;
+    }
+    beginLoading(notificationsKey(instanceId));
+    badgeNotificationRequests.set(instanceId, { identity: instanceIdentityOf(instanceId) });
     postMessage({
       command: 'getNotifications',
       instanceId,
@@ -5421,6 +5579,7 @@ function createAppState() {
     repoIssues,
     repoIssuesFetchedAt,
     repoPullRequests,
+    repoPullRequestsFetchedAt,
     actionRuns,
     actionRunsPage,
     actionRunsHasMore,

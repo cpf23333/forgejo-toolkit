@@ -123,6 +123,7 @@
       "refresh": "Refresh",
       "searchPlaceholder": "Search files by name",
       "searchNoResults": "No matching files.",
+      "searchNotRun": "This search has not run for this branch and ref yet.",
       "searchTruncated": "The repository tree is too large to read completely, so matches may be missing. Narrow the search.",
       "clearSearch": "Clear search",
       "showMore": "Show {count} more entries",
@@ -139,6 +140,7 @@
         "all": "All"
       },
       "hint": "Enter a keyword and press Enter or click Search.",
+      "pendingQuery": "Not searched yet. Press Enter or click Search to run it.",
       "noResults": "No results found.",
       "noInstances": "No Forgejo instances configured. Add an instance in Settings first.",
       "noInstanceSelected": "Select at least one instance to search.",
@@ -160,7 +162,8 @@
       "all": "All",
       "allTypes": "All types",
       "markAsRead": "Mark as read",
-      "markAllAsRead": "Mark all as read",
+      "markAllAsRead": "Mark all as read (all instances)",
+      "markAllAsReadHint": "Marks every unread notification as read on all configured Forgejo instances.",
       "untitled": "Untitled",
       "loadMore": "Load more",
       "types": {

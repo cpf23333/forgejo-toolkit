@@ -74,6 +74,19 @@ function markAllDisabled(wrapper: ReturnType<typeof mountNotifications>): boolea
 }
 
 describe('Notifications mark all as read', () => {
+  it('says that one click affects every configured instance', async () => {
+    // The button loops over all configured instances and posts the command for
+    // each; the host confirms destructive commands itself, so the label and the
+    // hint are what tell the user the click is not scoped to this instance.
+    const wrapper = mountNotifications();
+    await dispatchNotifications([{ id: 1, unread: true, subject: { title: 'Mention' } }]);
+
+    const button = markAllButton(wrapper);
+    expect(button.text()).toContain('all instances');
+    expect(button.attributes('title')).toContain('all configured');
+    wrapper.unmount();
+  });
+
   it('is enabled from the loaded list when notification polling never ran', async () => {
     const wrapper = mountNotifications();
     await dispatchNotifications([

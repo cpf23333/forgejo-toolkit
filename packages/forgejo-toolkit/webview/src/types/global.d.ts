@@ -128,11 +128,17 @@ type VscodeTreeItemProps = Pick<
   'active' | 'branch' | 'hasActiveItem' | 'hasSelectedItem' | 'open' | 'level' | 'selected'
 >;
 
-/** data-* attributes read back via `dataset` in the tree select handler (RepoFileBrowser.onTreeSelect). */
+/**
+ * data-* attributes read back via `dataset` in the tree select handler
+ * (RepoFileBrowser.onTreeSelect), plus the marker `utils/treeRowActivation`
+ * looks for to tell a row that has a primary action of its own (the dashboard
+ * and global search rows) from one that only nests a control.
+ */
 type VscodeTreeItemDataProps = {
   dataFilePath?: string;
   dataType?: string;
   dataSize?: number;
+  dataTreeRowAction?: boolean | string;
 };
 
 declare module 'vue' {

@@ -3,6 +3,7 @@ import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ModalDialog from './ModalDialog.vue';
 import { useAppState, fileHistoryKey } from '../composables/useAppState';
+import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import type { ForgejoCommit } from '../types/api';
 
 interface Props {
@@ -29,6 +30,9 @@ const key = computed(() => fileHistoryKey(props.instanceId, props.owner, props.r
 const commits = computed(() => state.fileHistories.value.get(key.value) ?? []);
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
+// The host pages file history up to the shared list cap, so a full list may be
+// missing older commits; say so instead of presenting it as the whole history.
+const truncated = computed(() => isListTruncated(commits.value));
 
 watch(
   () => props.open,
@@ -83,26 +87,31 @@ function onItemClick(commit: ForgejoCommit) {
       <div v-else-if="!commits.length" class="history-status">
         {{ state.t('dashboard.fileBrowser.noHistory') }}
       </div>
-      <ul v-else class="history-list">
-        <li
-          v-for="commit in commits"
-          :key="commit.sha"
-          class="history-item"
-          tabindex="0"
-          @click="onItemClick(commit)"
-          @keydown.enter="onItemClick(commit)"
-          @keydown.space.prevent="onItemClick(commit)"
-        >
-          <div class="history-message" :title="commit.commit?.message">
-            {{ truncateMessage(commit.commit?.message ?? '') }}
-          </div>
-          <div class="history-meta">
-            <span class="history-author">{{ commit.commit?.author?.name }}</span>
-            <span class="history-date">{{ formatDate(commit.commit?.author?.date ?? '') }}</span>
-            <code class="history-sha">{{ commit.sha.slice(0, 7) }}</code>
-          </div>
-        </li>
-      </ul>
+      <template v-else>
+        <div v-if="truncated" class="history-status list-truncated">
+          {{ t('dashboard.detail.commitsTruncated') }}
+        </div>
+        <ul class="history-list">
+          <li
+            v-for="commit in commits"
+            :key="commit.sha"
+            class="history-item"
+            tabindex="0"
+            @click="onItemClick(commit)"
+            @keydown.enter="onItemClick(commit)"
+            @keydown.space.prevent="onItemClick(commit)"
+          >
+            <div class="history-message" :title="commit.commit?.message">
+              {{ truncateMessage(commit.commit?.message ?? '') }}
+            </div>
+            <div class="history-meta">
+              <span class="history-author">{{ commit.commit?.author?.name }}</span>
+              <span class="history-date">{{ formatDate(commit.commit?.author?.date ?? '') }}</span>
+              <code class="history-sha">{{ commit.sha.slice(0, 7) }}</code>
+            </div>
+          </li>
+        </ul>
+      </template>
     </div>
   </ModalDialog>
 </template>
@@ -168,11 +177,5 @@ function onItemClick(commit: ForgejoCommit) {
   background-color: var(--vscode-editor-inactiveSelectionBackground);
   padding: 2px 6px;
   border-radius: 3px;
-}
-
-.history-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 4px;
 }
 </style>

@@ -85,10 +85,24 @@ function sortTreeRecursively(nodes: FileTreeNodeType[]): FileTreeNodeType[] {
 
 const tree = ref<FileTreeNodeType[]>([]);
 
+/**
+ * Identity of the files the tree was built from. Callers such as
+ * `CommitDiffList` build their array inside their template, so a new array
+ * holding the very same files arrives on every parent render; watching the
+ * array itself rebuilt the tree (unchecking files, re-expanding collapsed
+ * directories) whenever an unrelated part of the view re-rendered. Only a real
+ * change to the files rebuilds it.
+ */
+function filesSignature(files: ForgejoChangedFile[]): string {
+  return files
+    .map((file) => `${file.filename ?? ''}\u0000${file.status ?? ''}\u0000${file.previous_filename ?? ''}`)
+    .join('\u0001');
+}
+
 watch(
-  () => props.files,
-  (files) => {
-    tree.value = sortTreeRecursively(buildFileTree(files));
+  () => filesSignature(props.files),
+  () => {
+    tree.value = sortTreeRecursively(buildFileTree(props.files));
   },
   { immediate: true },
 );

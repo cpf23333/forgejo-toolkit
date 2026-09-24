@@ -123,6 +123,7 @@
       "refresh": "刷新",
       "searchPlaceholder": "按文件名搜索",
       "searchNoResults": "没有匹配的文件。",
+      "searchNotRun": "尚未在该分支和版本上执行此搜索。",
       "searchTruncated": "仓库文件树过大，无法完整读取，结果可能不全。请缩小搜索范围。",
       "clearSearch": "清除搜索",
       "showMore": "再显示 {count} 项",
@@ -139,6 +140,7 @@
         "all": "全部"
       },
       "hint": "输入关键词后按回车或点击搜索按钮。",
+      "pendingQuery": "尚未搜索，请按回车或点击搜索按钮执行。",
       "noResults": "未找到结果。",
       "noInstances": "尚未配置 Forgejo 实例，请先前往设置添加。",
       "noInstanceSelected": "请至少选择一个实例后再搜索。",
@@ -160,7 +162,8 @@
       "all": "全部",
       "allTypes": "全部类型",
       "markAsRead": "标记为已读",
-      "markAllAsRead": "全部已读",
+      "markAllAsRead": "全部标为已读（所有实例）",
+      "markAllAsReadHint": "将已配置的所有 Forgejo 实例上的未读通知全部标为已读。",
       "untitled": "无标题",
       "loadMore": "加载更多",
       "types": {

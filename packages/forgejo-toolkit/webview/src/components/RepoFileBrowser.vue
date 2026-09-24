@@ -59,6 +59,11 @@ const searchKey = computed(() =>
   repoFileSearchKey(props.instanceId, props.owner, props.repo, selectedRef.value, searchQuery.value.trim()),
 );
 const searchResults = computed(() => state.repoFileSearchResults.value.get(searchKey.value) ?? []);
+// Whether an answer exists for the search the panel is showing. A missing
+// payload is not an empty one: the branch changed (or keep-alive dropped the
+// cached page), so no request has been sent for this query+ref yet and "No
+// matching files" would claim a search that never ran.
+const searchResultsKnown = computed(() => state.repoFileSearchResults.value.has(searchKey.value));
 const searchTruncated = computed(() => state.repoFileSearchTruncated.value.get(searchKey.value) === true);
 const searchLoading = computed(() => state.loading.get(searchKey.value) ?? false);
 const searchError = computed(() => state.errors.get(searchKey.value));
@@ -297,6 +302,12 @@ onUnmounted(() => {
         <template v-if="hasSearchQuery">
           <div v-if="searchLoading" class="tree-status">{{ state.t('dashboard.loading') }}</div>
           <div v-else-if="searchError" class="tree-status error">{{ searchError }}</div>
+          <div v-else-if="!searchResultsKnown" class="tree-status search-not-run">
+            <span>{{ state.t('dashboard.fileBrowser.searchNotRun') }}</span>
+            <button type="button" class="search-run-button" @click="runSearch">
+              {{ state.t('dashboard.search.searchButton') }}
+            </button>
+          </div>
           <div v-else-if="!searchResults.length" class="tree-status">
             {{ state.t('dashboard.fileBrowser.searchNoResults') }}
           </div>
@@ -468,6 +479,28 @@ onUnmounted(() => {
 
 .tree-status.error {
   color: var(--vscode-testing-iconFailed);
+}
+
+.search-not-run {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.search-run-button {
+  background: transparent;
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+  border-radius: 3px;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.95em;
+  padding: 2px 8px;
+}
+
+.search-run-button:hover {
+  background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .tree-show-more {

@@ -283,8 +283,8 @@ onActivated(() => {
           <vscode-button
             icon="check-all"
             :disabled="isLoading() || unreadCount === 0"
-            :title="t('dashboard.notifications.markAllAsRead')"
-            :aria-label="t('dashboard.notifications.markAllAsRead')"
+            :title="t('dashboard.notifications.markAllAsReadHint')"
+            :aria-label="t('dashboard.notifications.markAllAsReadHint')"
             @click="markAllAsRead"
             secondary
           >

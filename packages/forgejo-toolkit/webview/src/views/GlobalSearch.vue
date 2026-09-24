@@ -7,6 +7,7 @@ import type { ForgejoInstance } from '../types/instance';
 import { stateLabel } from '../utils/stateLabel';
 import ViewTabs from '../components/ViewTabs.vue';
 import IconActionButton from '../components/IconActionButton.vue';
+import { activateTreeRowFromKey, TREE_ROW_ACTION_SELECTOR } from '../utils/treeRowActivation';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -15,6 +16,14 @@ type Tab = 'all' | 'repositories' | 'issues' | 'pullRequests';
 
 const activeTab = ref<Tab>('all');
 const query = ref('');
+/**
+ * The query whose results are on screen. A search only runs on Enter/Search (or
+ * a filter change) but the hits are keyed by query text, so deriving the view
+ * from the live input blanked the panel on the first keystroke of an edit: no
+ * branch matched the not-yet-searched text and an empty results container
+ * replaced the hits. `null` means nothing has been searched (or shown) yet.
+ */
+const displayedQuery = ref<string | null>(null);
 const stateFilter = ref<'open' | 'closed' | 'all'>('all');
 
 const instances = computed(() => state.instances.value);
@@ -51,8 +60,47 @@ function currentQuery(): string {
   return query.value.trim();
 }
 
+/** The query the rendered results belong to (empty when nothing is shown yet). */
+function displayQuery(): string {
+  return displayedQuery.value ?? '';
+}
+
+/** Whether one of the targeted instances already has a result, error or request for `query`. */
+function hasEntriesFor(query: string): boolean {
+  if (!query) {
+    return false;
+  }
+  for (const instance of targetInstances.value) {
+    const key = globalSearchKey(instance.id, activeTab.value, query, stateFilter.value);
+    if (state.globalSearchResults.value.has(key) || errors.value.has(key) || loading.value.get(key)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Whether the text on screen is not the one the shown results belong to. */
+function isSearchPending(): boolean {
+  const q = currentQuery();
+  return q !== '' && q !== displayQuery();
+}
+
+// Results are keyed by query text, so going back to a query that was already
+// searched shows its cached hits again; clearing the box returns to the
+// "type a keyword" state instead of stranding the previous search on screen.
+watch(query, (value) => {
+  const q = value.trim();
+  if (!q) {
+    displayedQuery.value = null;
+    return;
+  }
+  if (hasEntriesFor(q)) {
+    displayedQuery.value = q;
+  }
+});
+
 function searchKey(instanceId: string): string {
-  return globalSearchKey(instanceId, activeTab.value, currentQuery(), stateFilter.value);
+  return globalSearchKey(instanceId, activeTab.value, displayQuery(), stateFilter.value);
 }
 
 function resultFor(instanceId: string): GlobalSearchResult | undefined {
@@ -60,7 +108,7 @@ function resultFor(instanceId: string): GlobalSearchResult | undefined {
 }
 
 function isLoading(): boolean {
-  const q = currentQuery();
+  const q = displayQuery();
   if (!q) {
     return false;
   }
@@ -73,7 +121,7 @@ function isLoading(): boolean {
 }
 
 function hasQueried(): boolean {
-  const q = currentQuery();
+  const q = displayQuery();
   if (!q) {
     return false;
   }
@@ -128,6 +176,8 @@ function runSearch() {
   if (!q || targetInstances.value.length === 0) {
     return;
   }
+  // The results now belong to this query, whether or not the host has answered.
+  displayedQuery.value = q;
   for (const instance of targetInstances.value) {
     state.loadGlobalSearch(instance.id, activeTab.value, q, stateFilter.value);
   }
@@ -136,6 +186,17 @@ function runSearch() {
 function handleInputKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter') {
     runSearch();
+  }
+}
+
+// The tree consumes Enter/Space on the focused tree item before the browser can
+// activate anything inside it (see utils/treeRowActivation), so a result row
+// would only ever be selected, never opened. The capture-phase listener runs
+// before the tree's own and activates the row.
+function onTreeKeydownCapture(event: KeyboardEvent) {
+  if (activateTreeRowFromKey(event, TREE_ROW_ACTION_SELECTOR)) {
+    event.stopImmediatePropagation();
+    event.preventDefault();
   }
 }
 
@@ -195,7 +256,7 @@ function formatError(instanceId: string): string {
 }
 
 function visibleInstances(): ForgejoInstance[] {
-  const q = currentQuery();
+  const q = displayQuery();
   if (!q) {
     return [];
   }
@@ -318,6 +379,12 @@ watch(stateFilter, () => {
       {{ t('dashboard.search.hint') }}
     </div>
 
+    <!-- The text on screen has not been searched and there is nothing from an
+         earlier search to show, so an empty results panel would say nothing. -->
+    <div v-else-if="isSearchPending() && !hasResults() && !isLoading()" class="empty-state">
+      {{ t('dashboard.search.pendingQuery') }}
+    </div>
+
     <div v-else-if="isLoading() && !hasResults()" class="empty-state">
       <vscode-progress-ring class="search-loading-ring" />
       {{ t('dashboard.loading') }}
@@ -328,7 +395,17 @@ watch(stateFilter, () => {
     </div>
 
     <div v-else class="results">
-      <vscode-tree v-for="instance in visibleInstances()" :key="instance.id" indent-guides="onHover">
+      <!-- The hits below belong to the previous query: say so rather than
+           letting them pass for the text now in the box. -->
+      <div v-if="isSearchPending()" class="pending-search-hint">
+        {{ t('dashboard.search.pendingQuery') }}
+      </div>
+      <vscode-tree
+        v-for="instance in visibleInstances()"
+        :key="instance.id"
+        indent-guides="onHover"
+        @keydown.capture="onTreeKeydownCapture"
+      >
         <vscode-tree-item branch open>
           {{ instance.url }} · {{ instance.username }}
           <template v-if="errors.get(searchKey(instance.id))">
@@ -349,6 +426,7 @@ watch(stateFilter, () => {
                 <vscode-tree-item
                   v-for="repo in resultFor(instance.id)!.repositories"
                   :key="`repo-${repo.id}`"
+                  data-tree-row-action
                   @click.capture="openRepo($event, instance.id, repo)"
                 >
                   <span class="result-title">{{ repo.full_name }}</span>
@@ -371,6 +449,7 @@ watch(stateFilter, () => {
                 v-for="repo in resultFor(instance.id)!.repositories"
                 v-else
                 :key="`repo-${repo.id}`"
+                data-tree-row-action
                 @click.capture="openRepo($event, instance.id, repo)"
               >
                 <span class="result-title">{{ repo.full_name }}</span>
@@ -397,6 +476,7 @@ watch(stateFilter, () => {
                 <vscode-tree-item
                   v-for="issue in resultFor(instance.id)!.issues"
                   :key="`issue-${issue.id}`"
+                  data-tree-row-action
                   @click.capture="openIssue($event, instance.id, issue)"
                 >
                   <span class="result-title">#{{ issue.number }} {{ issue.title }}</span>
@@ -419,6 +499,7 @@ watch(stateFilter, () => {
                 v-for="issue in resultFor(instance.id)!.issues"
                 v-else
                 :key="`issue-${issue.id}`"
+                data-tree-row-action
                 @click.capture="openIssue($event, instance.id, issue)"
               >
                 <span class="result-title">#{{ issue.number }} {{ issue.title }}</span>
@@ -449,6 +530,7 @@ watch(stateFilter, () => {
                 <vscode-tree-item
                   v-for="pr in resultFor(instance.id)!.pullRequests"
                   :key="`pr-${pr.id}`"
+                  data-tree-row-action
                   @click.capture="openPullRequest($event, instance.id, pr)"
                 >
                   <span class="result-title">#{{ pr.number }} {{ pr.title }}</span>
@@ -471,6 +553,7 @@ watch(stateFilter, () => {
                 v-for="pr in resultFor(instance.id)!.pullRequests"
                 v-else
                 :key="`pr-${pr.id}`"
+                data-tree-row-action
                 @click.capture="openPullRequest($event, instance.id, pr)"
               >
                 <span class="result-title">#{{ pr.number }} {{ pr.title }}</span>
@@ -603,6 +686,12 @@ watch(stateFilter, () => {
 
 .result-title {
   font-size: 0.9em;
+}
+
+.pending-search-hint {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
 }
 
 .result-meta {

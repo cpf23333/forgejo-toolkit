@@ -189,6 +189,20 @@ function cancelEdit() {
   setStatus('');
 }
 
+// Removing an instance (the host re-sends `instances` after the removal) used to
+// leave the edit form bound to a record that no longer exists, so its Update and
+// Test buttons answered "Instance not found" (see the host's `editInstance`
+// handler). The form closes together with its instance.
+watch(
+  () => state.instances.value,
+  (instances) => {
+    const editing = editingInstance.value;
+    if (editing && !instances.some((instance) => instance.id === editing.id)) {
+      cancelEdit();
+    }
+  },
+);
+
 // Removal is confirmed host-side (the host re-prompts before executing);
 // the webview must not add its own confirmation.
 function removeInstance(id: string) {
@@ -269,7 +283,14 @@ function handleWorktreeCacheDirectoryChange(event: Event) {
 }
 
 function applyWorktreeCacheDirectory() {
+  // The host validates the directory and answers with `worktreeCacheDirectory`
+  // only when it accepted it: a rejected path gets a native error and no reply
+  // at all. Put the directory that is actually in use back on screen, so a
+  // rejected path cannot keep looking applied while new worktrees still go to
+  // the previous one; the reply of an accepted path re-syncs the field.
+  const inUse = state.worktreeCacheDirectory.value ?? state.worktreeCacheDirectoryDefault.value ?? '';
   state.setWorktreeCacheDirectory(worktreeCacheDirectory.value.trim());
+  worktreeCacheDirectory.value = inUse;
 }
 
 function browseWorktreeCacheDirectory() {
@@ -294,13 +315,60 @@ function deleteWorktree(id: string) {
 }
 
 // Failed removals surface through the host's worktreeError reply (the record
-// is kept so the user can retry).
+// is kept so the user can retry). A later *successful* removal only answers
+// `worktreeRemoved`/`worktreesList`, so the message is tied to the record it
+// belongs to and dropped once that record is gone: otherwise the red text
+// stayed under a list that no longer contained the row.
 const worktreeError = ref('');
+let failedRemovalKey: string | null = null;
+
+/** Identity of a worktree record, shared by the list and a removal error. */
+function worktreeIdentityKey(identity: {
+  instanceId?: string;
+  owner?: string;
+  repo?: string;
+  prIndex?: number;
+}): string | null {
+  if (
+    identity.instanceId === undefined ||
+    identity.owner === undefined ||
+    identity.repo === undefined ||
+    identity.prIndex === undefined
+  ) {
+    return null;
+  }
+  return `${identity.instanceId}:${identity.owner}/${identity.repo}#${identity.prIndex}`;
+}
+
 watch(
   () => state.lastWorktreeError.value,
   (result) => {
-    if (result?.operation === 'remove') {
-      worktreeError.value = result.error;
+    if (result?.operation !== 'remove') {
+      return;
+    }
+    worktreeError.value = result.error;
+    // An error the host sent without an identity (the record was already
+    // unknown to it) cannot be attributed to a row, so it is left alone.
+    failedRemovalKey = worktreeIdentityKey({
+      instanceId: result.instanceId,
+      owner: result.owner,
+      repo: result.repo,
+      prIndex: result.index,
+    });
+  },
+);
+
+watch(
+  () => state.worktrees.value,
+  (worktrees) => {
+    if (!worktreeError.value || failedRemovalKey === null) {
+      return;
+    }
+    // A failed removal keeps the record and re-sends the list with it; a
+    // successful one drops it.
+    if (!worktrees.some((worktree) => worktreeIdentityKey(worktree) === failedRemovalKey)) {
+      worktreeError.value = '';
+      failedRemovalKey = null;
     }
   },
 );

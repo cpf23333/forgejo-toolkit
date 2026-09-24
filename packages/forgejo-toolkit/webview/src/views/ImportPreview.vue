@@ -20,6 +20,16 @@ const existingIds = computed(() => new Set(preview.value?.existingIds ?? []));
 // the webview, so the check cannot run here.
 const tokenConflicts = computed(() => preview.value?.tokenConflicts ?? []);
 const settings = computed(() => preview.value?.settings);
+// `settings` is a raw cast of the imported file (the host only checks the values
+// when it applies them, see `src/webview/instanceImport.ts`), so `locale` can be
+// any string. Building the key from it rendered the key itself for an unknown
+// locale — vue-i18n falls back to the key when the message is missing — so the
+// name is looked up only for the locales this webview actually ships.
+const KNOWN_LOCALES: readonly string[] = ['en', 'zh'];
+const localeLabel = computed(() => {
+  const locale = settings.value?.locale;
+  return locale && KNOWN_LOCALES.includes(locale) ? t(`locales.${locale}`) : '';
+});
 // The host answers a corrupt/wrong-password file with `error` and empty
 // arrays: that is a failure, not an empty import.
 const previewError = computed(() => preview.value?.error);
@@ -123,7 +133,7 @@ watch(
       <div v-if="settings" class="settings-summary">
         <h3 class="settings-summary-title">{{ t('settings.importPreview.settingsTitle') }}</h3>
         <ul class="settings-summary-list">
-          <li v-if="settings.locale">{{ t('settings.language') }}: {{ t(`locales.${settings.locale}`) }}</li>
+          <li v-if="localeLabel">{{ t('settings.language') }}: {{ localeLabel }}</li>
           <li v-if="typeof settings.debug === 'boolean'">
             {{ t('settings.debug.title') }}: {{ settings.debug ? t('settings.enabled') : t('settings.disabled') }}
           </li>

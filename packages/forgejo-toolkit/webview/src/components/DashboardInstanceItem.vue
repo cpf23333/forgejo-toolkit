@@ -278,7 +278,12 @@ function isEmptyList(entry: unknown[] | undefined): boolean {
         >
           {{ owner }}
           <span class="badge" slot="decoration">{{ ownerRepos.length }}</span>
-          <vscode-tree-item v-for="repo in ownerRepos" :key="repo.id" @click.capture="openRepo($event, repo)">
+          <vscode-tree-item
+            v-for="repo in ownerRepos"
+            :key="repo.id"
+            data-tree-row-action
+            @click.capture="openRepo($event, repo)"
+          >
             <span class="tree-repo-name">{{ repo.name }}</span>
             <span class="tree-repo-meta" slot="description">
               {{ t('dashboard.branch') }}: {{ repo.default_branch }} · {{ t('dashboard.stars') }}:
@@ -313,7 +318,12 @@ function isEmptyList(entry: unknown[] | undefined): boolean {
         </vscode-tree-item>
       </template>
       <template v-else>
-        <vscode-tree-item v-for="issue in myIssues" :key="issue.id" @click.capture="openIssue($event, issue)">
+        <vscode-tree-item
+          v-for="issue in myIssues"
+          :key="issue.id"
+          data-tree-row-action
+          @click.capture="openIssue($event, issue)"
+        >
           #{{ issue.number }} {{ issue.title }}
           <span class="tree-issue-meta" slot="description">{{ stateLabel(issue.state, t) }}</span>
           <span slot="actions" class="tree-actions">
@@ -344,7 +354,12 @@ function isEmptyList(entry: unknown[] | undefined): boolean {
         </vscode-tree-item>
       </template>
       <template v-else>
-        <vscode-tree-item v-for="pr in myPullRequests" :key="pr.id" @click.capture="openPullRequest($event, pr)">
+        <vscode-tree-item
+          v-for="pr in myPullRequests"
+          :key="pr.id"
+          data-tree-row-action
+          @click.capture="openPullRequest($event, pr)"
+        >
           #{{ pr.number }} {{ pr.title }}
           <span class="tree-pr-meta" slot="description">{{ stateLabel(pr.state, t) }}</span>
           <span slot="actions" class="tree-actions">

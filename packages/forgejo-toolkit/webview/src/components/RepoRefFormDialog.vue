@@ -67,11 +67,17 @@ function reset() {
   if (props.mode === 'release' && props.release) {
     name.value = props.release.tag_name ?? '';
     releaseName.value = props.release.name ?? '';
-    releaseTarget.value = targetOptionValue(props.defaultBranch ?? '');
+    // Seeded from the release being edited, not from the default branch: the
+    // form emits both fields on every save (see handleSubmit), so seeding them
+    // with anything else would silently repoint `target_commitish` and toggle
+    // the archive links on a notes-only edit. The raw value is kept - it can be
+    // a commit sha that is not in the branch/tag lists - and a payload without
+    // the field stays empty, so the save leaves it untouched.
+    releaseTarget.value = props.release.target_commitish ?? '';
     releaseBody.value = props.release.body ?? '';
     releasePrerelease.value = props.release.prerelease ?? false;
     releaseDraft.value = props.release.draft ?? false;
-    hideArchiveLinks.value = false;
+    hideArchiveLinks.value = props.release.hide_archive_links ?? false;
     attachments.value = props.release.assets ?? [];
     return;
   }

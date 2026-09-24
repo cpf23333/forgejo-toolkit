@@ -456,8 +456,8 @@ async function uploadAttachmentForEdit(file: File): Promise<ForgejoIssueAttachme
       commentId,
       file,
     );
-    if (editingComment.value && attachment) {
-      editingComment.value.assets = [...(editingComment.value.assets ?? []), attachment];
+    if (attachment) {
+      appendAttachmentToComment(commentId, attachment);
     }
     return attachment;
   } catch (error) {
@@ -471,11 +471,36 @@ async function uploadAttachmentForEdit(file: File): Promise<ForgejoIssueAttachme
   }
 }
 
+/**
+ * Adds `attachment` to `commentId`'s attachment list - the comment the upload
+ * was started from, which is not necessarily the one the edit form is showing
+ * now: the form is a single shared editor, so the user can have moved on to
+ * another comment while the request was in flight. Writing to whatever
+ * `editingComment` holds then would list the upload under the wrong comment.
+ */
+function appendAttachmentToComment(commentId: number, attachment: ForgejoIssueAttachment) {
+  const targets = new Set<ForgejoTimelineComment>();
+  const inTimeline = props.comments.find((comment) => comment.id === commentId);
+  if (inTimeline) {
+    targets.add(inTimeline);
+  }
+  if (editingComment.value?.id === commentId) {
+    targets.add(editingComment.value);
+  }
+  for (const comment of targets) {
+    comment.assets = [...(comment.assets ?? []), attachment];
+  }
+}
+
 async function handleUploadImageForEdit(
   file: File,
   onSuccess: (url: string) => void,
   onError: (error: string) => void,
 ) {
+  // The comment this upload belongs to. The editor itself is shared by every
+  // comment's form, so its `onSuccess` inserts into whichever body it holds when
+  // the request returns.
+  const commentId = editingComment.value?.id;
   // Registered so a save issued while the upload runs waits for it (the editor
   // inserts the image markdown from `onSuccess`, so saving first would store a
   // body without it — see saveEdit).
@@ -485,6 +510,13 @@ async function handleUploadImageForEdit(
     const url = attachment?.uuid ? `/attachments/${attachment.uuid}` : (attachment?.browser_download_url ?? '');
     if (!url) {
       onError(t('common.imageUploadFailed'));
+      return;
+    }
+    // The user opened another comment's form while the upload was in flight:
+    // the shared editor now holds that body, so inserting here would write this
+    // comment's image markdown into the other one. The attachment is already
+    // listed on the comment the upload was started from.
+    if (editingComment.value?.id !== commentId) {
       return;
     }
     onSuccess(url);
@@ -617,7 +649,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
     <ModalDialog
       :open="editingComment !== undefined"
       :title="t('dashboard.detail.editComment')"
-      :loading="editLoading"
+      :loading="editBusy"
       :confirm-close-if-dirty="true"
       :is-dirty="editDirty"
       @close="closeEdit"

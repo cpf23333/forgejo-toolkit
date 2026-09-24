@@ -6,6 +6,7 @@ import { useAppState } from '../composables/useAppState';
 import { postMessage } from '../composables/vscode';
 import DashboardInstanceItem from '../components/DashboardInstanceItem.vue';
 import ViewTabs from '../components/ViewTabs.vue';
+import { activateTreeRowFromKey, TREE_ROW_ACTION_SELECTOR } from '../utils/treeRowActivation';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -36,6 +37,17 @@ const linkedRepositories = computed(() => state.linkedRepositories.value);
 
 function selectLinkedRepository(localPath: string) {
   state.selectLinkedRepository(localPath);
+}
+
+// The tree consumes Enter/Space on the focused tree item before the browser can
+// activate anything inside it (see utils/treeRowActivation), so a repository,
+// issue or pull request row would only ever be selected, never opened. The
+// capture-phase listener runs before the tree's own and activates the row.
+function onTreeKeydownCapture(event: KeyboardEvent) {
+  if (activateTreeRowFromKey(event, TREE_ROW_ACTION_SELECTOR)) {
+    event.stopImmediatePropagation();
+    event.preventDefault();
+  }
 }
 
 // The unread badge is fed by the host-side poller, which the
@@ -154,7 +166,7 @@ watch(instances, loadUnreadBadges);
       </div>
 
       <div class="instances">
-        <vscode-tree indent-guides="onHover">
+        <vscode-tree indent-guides="onHover" @keydown.capture="onTreeKeydownCapture">
           <DashboardInstanceItem
             v-for="(instance, index) in instances"
             :key="instance.id"

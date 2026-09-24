@@ -382,6 +382,11 @@ export type ForgejoRelease = {
   published_at?: string;
   author?: ForgejoUser;
   assets?: ForgejoReleaseAttachment[];
+  // Where the release's tag points (a branch, tag or commit sha) and whether the
+  // server hides its auto-generated archive links. The edit form seeds both from
+  // the release it is editing, so an edit that changes neither leaves them alone.
+  target_commitish?: string;
+  hide_archive_links?: boolean;
 };
 
 export interface GlobalSearchResult {

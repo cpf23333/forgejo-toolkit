@@ -24,6 +24,8 @@ const testing = ref(false);
 const saving = ref(false);
 const connectionStatus = ref('');
 const connectionStatusType = ref<'idle' | 'success' | 'error'>('idle');
+/** Why the last "import from file" attempt failed, if it did (see the watcher below). */
+const importError = ref<string | undefined>(undefined);
 const selectedWorktreeOpenMode = ref<'ask' | 'currentWindow' | 'newWindow'>(state.worktreeOpenMode.value);
 const worktreeCacheDirectory = ref<string>(
   state.worktreeCacheDirectory.value ?? state.worktreeCacheDirectoryDefault.value ?? '',
@@ -204,6 +206,8 @@ function handleSave() {
 }
 
 function handleImport() {
+  // A previous failure must not sit under the link while the next attempt runs.
+  importError.value = undefined;
   state.previewImportInstances();
 }
 
@@ -329,9 +333,21 @@ watch(
 watch(
   () => state.importInstancesResult.value,
   (result) => {
-    if (result?.success && isPanelMode) {
-      postMessage({ command: 'closeOnboarding' });
+    if (!result) {
+      return;
     }
+    if (result.success) {
+      // Nothing to say: a successful import either moved the user to the import
+      // preview (non-panel mode) or is about to close this panel below.
+      if (isPanelMode) {
+        postMessage({ command: 'closeOnboarding' });
+      }
+      return;
+    }
+    // The host names the concrete reason (unreadable file, wrong password, no
+    // usable entries); without rendering it the click on "import from file"
+    // looks like it did nothing at all.
+    importError.value = result.error ?? t('settings.importError');
   },
 );
 </script>
@@ -374,6 +390,7 @@ watch(
             {{ t('onboarding.importHint') }}
             <a href="#" @click.prevent="handleImport">{{ t('onboarding.importFromFile') }}</a>
           </p>
+          <div v-if="importError" class="status error" role="alert">{{ importError }}</div>
 
           <div v-if="state.instances.value.length > 0" class="saved-instances">
             <h3>{{ t('settings.savedInstances') }}</h3>

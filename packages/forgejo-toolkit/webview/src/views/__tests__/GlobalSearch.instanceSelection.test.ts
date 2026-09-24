@@ -125,3 +125,63 @@ describe('GlobalSearch instance selection', () => {
     wrapper.unmount();
   });
 });
+
+/**
+ * The result rows act on `@click.capture`, but `vscode-tree` consumes
+ * Enter/Space on the tree item it focuses and never synthesizes a click: the
+ * rows need a capture-phase activation of their own or no result can be opened
+ * from the keyboard.
+ */
+describe('GlobalSearch result rows activate from the keyboard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stateMock.loading.clear();
+    stateMock.errors.clear();
+    stateMock.globalSearchResults.value.clear();
+    state().instances.value = [{ id: 'inst-1', url: 'https://forgejo.example.com', username: 'demo-user' }];
+  });
+
+  function seedResults() {
+    const state = useAppState() as unknown as { globalSearchResults: { value: Map<string, unknown> } };
+    state.globalSearchResults.value.set('inst-1:global-search:all:all:alpha', {
+      repositories: [
+        {
+          id: 1,
+          name: 'repo-one',
+          full_name: 'owner/repo-one',
+          owner: { login: 'owner' },
+          html_url: 'https://forgejo.example.com/owner/repo-one',
+        },
+      ],
+      issues: [],
+      pullRequests: [],
+    });
+  }
+
+  it('opens the focused repository on Enter and on Space', async () => {
+    seedResults();
+    const wrapper = mountSearch();
+    await typeQuery(wrapper, 'alpha');
+
+    const row = wrapper.get('[data-tree-row-action]');
+    await row.trigger('keydown', { key: 'Enter' });
+    expect(stateMock.openRepoDetail).toHaveBeenCalledWith('inst-1', 'owner', 'repo-one');
+
+    await row.trigger('keydown', { key: ' ' });
+    expect(stateMock.openRepoDetail).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it('runs only the nested action button when the key targets it', async () => {
+    seedResults();
+    const wrapper = mountSearch();
+    await typeQuery(wrapper, 'alpha');
+
+    const actionButton = wrapper.get('[data-tree-row-action] .tree-actions button');
+    await actionButton.trigger('keydown', { key: 'Enter' });
+
+    expect(stateMock.openExternal).toHaveBeenCalledWith('https://forgejo.example.com/owner/repo-one');
+    expect(stateMock.openRepoDetail).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+});

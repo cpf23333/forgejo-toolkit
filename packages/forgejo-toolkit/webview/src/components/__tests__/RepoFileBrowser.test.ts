@@ -41,6 +41,7 @@ const Host = defineComponent({
   props: {
     show: { type: Boolean, default: true },
     instanceId: { type: String, default: 'inst-1' },
+    branches: { type: Array as unknown as () => string[], default: () => ['main'] },
   },
   setup(props) {
     return () =>
@@ -51,7 +52,7 @@ const Host = defineComponent({
                 instanceId: props.instanceId,
                 owner: 'owner',
                 repo: 'repo',
-                branches: ['main'],
+                branches: props.branches,
                 defaultBranch: 'main',
               })
             : h('div', 'placeholder'),
@@ -59,8 +60,9 @@ const Host = defineComponent({
   },
 });
 
-function mountHost() {
+function mountHost(props: Record<string, unknown> = {}) {
   return mount(Host, {
+    props,
     global: {
       plugins: [createTestI18n('en')],
     },
@@ -251,6 +253,94 @@ describe('RepoFileBrowser directory entry cap', () => {
 
     expect(stateMock.openRepoFile).not.toHaveBeenCalled();
     expect(stateMock.loadRepoContents).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+});
+
+/**
+ * The results panel reads the payload for the current query **and** ref, but a
+ * request is only sent by the input debounce or on activation. After a branch
+ * switch - or a keep-alive round trip that dropped the cached page - there is no
+ * payload for what is on screen, and the panel used to render "No matching
+ * files" for a search that had never run, with no way to trigger it.
+ */
+describe('RepoFileBrowser search that has not run', () => {
+  const MAIN_KEY = 'inst-1:owner/repo:main:search:foo';
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stateMock.loadRepoFileSearch.mockClear();
+    stateMock.repoFileSearchResults.value.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function setResults(key: string, rows: unknown[]) {
+    const state = useAppState() as unknown as { repoFileSearchResults: { value: Map<string, unknown[]> } };
+    state.repoFileSearchResults.value.set(key, rows);
+  }
+
+  function dropResults(key: string) {
+    const state = useAppState() as unknown as { repoFileSearchResults: { value: Map<string, unknown[]> } };
+    state.repoFileSearchResults.value.delete(key);
+  }
+
+  it('offers the search instead of claiming no matches after a branch switch', async () => {
+    setResults(MAIN_KEY, [{ path: 'src/foo.ts', sha: 'sha-1' }]);
+    const wrapper = mountHost({ branches: ['main', 'feature'] });
+    await typeSearch(wrapper, 'foo');
+    await vi.advanceTimersByTimeAsync(300);
+    await nextTick();
+    expect(wrapper.text()).toContain('src/foo.ts');
+
+    // The search that ran belongs to `main`; `feature` has no results yet.
+    stateMock.loadRepoFileSearch.mockClear();
+    const branchSelect = wrapper.get('.branch-select');
+    (branchSelect.element as HTMLInputElement).value = 'feature';
+    await branchSelect.trigger('change');
+    await nextTick();
+
+    expect(wrapper.text()).not.toContain('dashboard.fileBrowser.searchNoResults');
+    expect(wrapper.text()).toContain('dashboard.fileBrowser.searchNotRun');
+
+    await wrapper.get('.search-run-button').trigger('click');
+    expect(stateMock.loadRepoFileSearch).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 'feature', 'foo');
+    wrapper.unmount();
+  });
+
+  it('offers the search again after a keep-alive round trip dropped the results', async () => {
+    setResults(MAIN_KEY, [{ path: 'src/foo.ts', sha: 'sha-1' }]);
+    const wrapper = mountHost();
+    await typeSearch(wrapper, 'foo');
+    await nextTick();
+    expect(wrapper.text()).toContain('src/foo.ts');
+
+    // Away and back, with the bounded payload map evicting the page meanwhile.
+    await wrapper.setProps({ show: false });
+    dropResults(MAIN_KEY);
+    await wrapper.setProps({ show: true });
+    await nextTick();
+
+    expect(wrapper.text()).not.toContain('dashboard.fileBrowser.searchNoResults');
+    expect(wrapper.text()).toContain('dashboard.fileBrowser.searchNotRun');
+
+    stateMock.loadRepoFileSearch.mockClear();
+    await wrapper.get('.search-run-button').trigger('click');
+    expect(stateMock.loadRepoFileSearch).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 'main', 'foo');
+    wrapper.unmount();
+  });
+
+  it('still reports an answered search that found nothing', async () => {
+    setResults(MAIN_KEY, []);
+    const wrapper = mountHost();
+    await typeSearch(wrapper, 'foo');
+    await nextTick();
+
+    expect(wrapper.text()).toContain('dashboard.fileBrowser.searchNoResults');
+    expect(wrapper.text()).not.toContain('dashboard.fileBrowser.searchNotRun');
+    expect(wrapper.find('.search-run-button').exists()).toBe(false);
     wrapper.unmount();
   });
 });
