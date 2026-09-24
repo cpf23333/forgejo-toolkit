@@ -134,12 +134,14 @@ second type argument (e.g. `ResponseErrorConfig<RepoGet404>` in
 
 The host then classifies the thrown `Error` with `toApiError`
 (`packages/forgejo-toolkit/src/api/errors-core.ts`) into an `ApiError` carrying
-`kind` (`network` | `timeout` | `tls` | `http` | `unknown`), `status`,
-`rawMessage`, and a localized `userMessage` getter. Because the structured body is
-not preserved on the error, the host recovers a server-provided message by parsing
-the JSON object embedded in the error message text (`messageFromErrorBody` in the
-same file). The extension host forwards the rendered message to the webview, which
-displays it.
+`kind` (`network` | `timeout` | `tls` | `http` | `unknown` | `proxy`), `status`,
+`rawMessage`, and a localized `userMessage` getter. `proxy` is the
+connection-failure case with a proxy dispatcher installed: the failure is
+attributed to the configured proxy, and the instance itself may be fine. Because
+the structured body is not preserved on the error, the host recovers a
+server-provided message by parsing the JSON object embedded in the error message
+text (`messageFromErrorBody` in the same file). The extension host forwards the
+rendered message to the webview, which displays it.
 
 So: catch `Error` (or the host's `ApiError`); read `message`/`ApiError.userMessage`,
 never generated error fields.

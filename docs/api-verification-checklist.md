@@ -23,7 +23,7 @@
 - Git commit：`62c6d1c782720308d0a973435c62ce50fdebd99f`
 - 本地源码路径：由用户环境决定，后续核对前请提供当前使用的 Forgejo 仓库路径
 - 最近一次核对结论：当前清单中所有端点与该版本 Forgejo 源码一致；上一次 diff 复核（`b4d03e7..62c6d1c`）仅涉及代码格式化、webhook 内部事件调整以及当前未使用的新类型（`IssueSuggestion`、`RepoFundingEntry`），不影响已记录端点的行为。
-- 2026-09-23 覆盖率补漏：用 `tools/api-audit/check.mjs` 反解 `src/api/client.ts` 实际调用的 94 个生成操作，发现 30 个端点在本文档中**没有任何小节**（Issue/评论附件、Issue 依赖、订阅、时间追踪与 stopwatch、`PUT labels`、`labels`/`milestones`/`assignees` 列表、`GET /version`、`GET /pulls`、`POST /user/repos`、`DELETE /issues/{index}`、release 附件删除、评论 reactions、review 评论删除）。本次仍以同一 commit `62c6d1c` 为基准逐个读源码补齐，并把原先只有概述的分类（附件、依赖、订阅、时间追踪、reactions）升级为逐端点小节；同时修正了 Actions 小节中几处按 GitHub/Gitea 语义写错的字段表（Forgejo 的 `ActionRun`/`ActionRunJob` 没有 `name`/`head_branch`/`conclusion`/`run_number`/`jobs`/`started_at` 等）。现覆盖率 94/94，`check.mjs` 退出码为 0。
+- 2026-09-23 覆盖率补漏：用 `tools/api-audit/check.mjs` 反解 `src/api/client.ts` 实际调用的 94 个生成操作，发现 30 个端点在本文档中**没有任何小节**（Issue/评论附件、Issue 依赖、订阅、时间追踪与 stopwatch、`PUT labels`、`labels`/`milestones`/`assignees` 列表、`GET /version`、`GET /pulls`、`POST /user/repos`、`DELETE /issues/{index}`、release 附件删除、评论 reactions、review 评论删除）。本次仍以同一 commit `62c6d1c` 为基准逐个读源码补齐，并把原先只有概述的分类（附件、依赖、订阅、时间追踪、reactions）升级为逐端点小节；同时修正了 Actions 小节中几处按 GitHub/Gitea 语义写错的字段表（`ActionRun` 没有 `name`/`head_branch`/`conclusion`/`run_number`/`jobs`/`started_at` 等，run 名在 `title`；`ActionRunJob` **有** `name`，但没有 `conclusion`/`started_at`/`completed_at`）。现覆盖率 94/94，`check.mjs` 退出码为 0。
 - 生成客户端规格来源：`packages/forgejo-api/kubb.config.ts` 现在读取仓库内的固定快照 `packages/forgejo-api/spec/swagger.v1.json`（2026-09-23 抓取，326 条路径；刷新方式见 `packages/forgejo-api/spec/README.md` 与 `spec:update` 脚本）。快照是 Forgejo `v16.0.0` tag 上 `templates/swagger/v1_json.tmpl` 的逐字节副本，因此文件里的 `info.version` 与 `basePath` 仍是模板占位符 `{{AppVer | JSEscape}}` / `{{AppSubUrl | JSEscape}}/api/v1`（`spec/swagger.v1.json:22,24`）——版本号只能从固定的 tag `v16.0.0` 读取，不能从文件内容推断。因此 `packages/forgejo-api/src/generated` 中的类型对应这份快照，可能仍落后于本清单核对的源码版本。例如 `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs` 的 `step` 查询参数已存在于上游（`routers/api/v1/repo/action.go:1657-1666`），但生成类型 `RepoGetActionJobLogsQueryParams` 只有 `attempt`（`packages/forgejo-api/src/generated/types/RepoGetActionJobLogs.ts:28-34`）。生成目录首次提交于 2026-06-30（`52e21e8`），随后于 2026-08-11（`8d67aa5`，更新 Forgejo API 至 16）与 **2026-09-24（`d3e4677`，`chore(api): regenerate the client from the pinned snapshot`）** 更新，最近一次即为 `d3e4677`（`git log -1 --date=short -- packages/forgejo-api/src/generated`）。
 
 > 历史核对记录由本文件的 git 日志保存，无需在正文中保留。
@@ -451,7 +451,7 @@
 ### `POST /repos/{owner}/{repo}/pulls/{index}/merge`
 
 - [x] `Do` 取值：merge / rebase / squash / manually-merged
-- [x] 支持 `merge_title_field`、`merge_message_field`、`merge_when_checks_succeed`、`force_merge`、`delete_branch_after_merge`
+- [x] 支持 `MergeTitleField`、`MergeMessageField`、`merge_when_checks_succeed`、`force_merge`、`delete_branch_after_merge`（前两个在快照里的 JSON 字段名首字母大写，没有下划线拼法）
 - [x] 409 表示无法合并（冲突、WIP、检查未通过等）；405 表示用户无权限或状态不允许
 - [x] 源码位置：`routers/api/v1/repo/pull.go:863-1100`
 - [x] 差异记录：当前 `mergePullRequest` 仅传 `Do`，未传标题/消息，服务端会自动生成默认消息，符合源码
@@ -466,7 +466,7 @@
 
 ### `GET /repos/{owner}/{repo}/commits/{ref}/status`
 
-- [x] 返回 `CombinedStatus`，`state` 取值：pending / success / error / failure / warning
+- [x] 返回 `CombinedStatus`，`state` 取值：pending / success / error / failure / warning / skipped（`CommitStatusState` 的说明里含 `skipped`，`packages/forgejo-api/spec/swagger.v1.json:24313-24314`；webview 已按 `checksState.skipped` 渲染）
 - [x] `statuses` 包含 `id`、`context`、`description`、`status`、`target_url`、`created_at`、`updated_at`
 - [x] 源码位置：`routers/api/v1/repo/status.go`（`GetCombinedStatusByRef`）
 - [x] 差异记录：无
@@ -840,7 +840,7 @@
   - PR 文件接口：`added`/`deleted`/`changed`/`renamed`/`copied`
   - Compare diff：`added`/`removed`/`modified`（`CommitAffectedFiles` 不携带重命名/复制信息）
   - Commit affected files：`added`/`removed`/`modified`（`services/convert/git_commit.go:197-205`）
-  - Combined status：`pending`/`success`/`error`/`failure`/`warning`
+  - Combined status：`pending`/`success`/`error`/`failure`/`warning`/`skipped`
   - Issue/PR state：`open`/`closed`
 - [x] 附件 URL 是否需要 token 鉴权（Cookie vs Header）
   - `/attachments/{uuid}` 需要认证；API token 放在 `Authorization: token {token}` header 中可访问

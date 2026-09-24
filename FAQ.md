@@ -14,12 +14,14 @@ Forgejo and Gitea share API history, so many features may work against Gitea ins
 
 ### What access token permissions do I need?
 
-Create a token in your Forgejo profile settings and grant at least:
+Create a token in your Forgejo profile settings and grant at least the read scopes:
 
-- `repo` — read repositories, commits, branches, tags, and releases.
-- `issue` — read and write Issues.
-- `pull_request` — read and write Pull Requests.
-- `attachment` — upload attachments for Issues / PRs.
+- `read:user` — account info, user search, time tracking.
+- `read:repository` — repositories, files, pull requests, reviews, CI, releases.
+- `read:issue` — issues, comments, labels, milestones.
+- `read:notification` — notification polling.
+
+Grant the matching write scopes (`write:repository`, `write:issue`, `write:notification`) when you want to create or edit anything. Forgejo has no `pull_request` scope: pull request endpoints fall under the repository category. The setup form lists the same scopes.
 
 ### Where is my token stored?
 

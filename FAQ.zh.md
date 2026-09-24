@@ -14,12 +14,14 @@ Forgejo 和 Gitea 有共同的 API 历史，因此许多功能在 Gitea 实例�
 
 ### 需要什么样的 access token 权限？
 
-在 Forgejo 个人资料设置中创建 token，并至少授予以下权限：
+在 Forgejo 个人资料设置中创建 token，至少授予以下读取权限：
 
-- `repo` — 读取仓库、提交、分支、标签和 Release。
-- `issue` — 读取和写入 Issue。
-- `pull_request` — 读取和写入 Pull Request。
-- `attachment` — 为 Issue / PR 上传附件。
+- `read:user` — 账号信息、用户搜索、时间追踪。
+- `read:repository` — 仓库、文件、Pull Request、评审、CI、Release。
+- `read:issue` — Issue、评论、标签、里程碑。
+- `read:notification` — 通知轮询。
+
+需要创建或编辑内容时，再补上对应的写入权限（`write:repository`、`write:issue`、`write:notification`）。Forgejo 没有 `pull_request` 权限：Pull Request 相关端点归属 repository 类别。设置表单中列出的权限与此一致。
 
 ### 我的 token 存在哪里？
 

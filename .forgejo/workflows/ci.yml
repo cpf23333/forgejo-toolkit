@@ -113,9 +113,8 @@ jobs:
         run: pnpm run lint
 
       # Markdown is deliberately out of scope (the pre-commit hook formats only
-      # js/ts/vue, and several tracked markdown files predate oxfmt), so the
-      # glob keeps this check green while still covering every hand-written
-      # source file.
+      # js/ts/vue, and this workflow validates code rather than prose), so the
+      # glob covers every hand-written source file without gating on markdown.
       - name: Format check
         run: pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"
 

@@ -18,9 +18,14 @@ sections after it explain each step.
    `pnpm run version-packages` maintains `packages/forgejo-toolkit/CHANGELOG.md`
    instead, a mechanical per-package record that is only a fallback for the
    release body — the curated root section is still the one to write.
-2. **Validate the commit.** `pnpm check`, `pnpm lint`, `pnpm format` and
+2. **Validate the commit.** `pnpm check`, `pnpm lint`,
+   `pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"` and
    `pnpm --filter forgejo-toolkit test` locally, or dispatch the manual
-   `Verify (manual)` workflow on the self-hosted Forgejo (`origin`).
+   `Verify (manual)` workflow on the self-hosted Forgejo (`origin`). The format
+   command spells out that glob on purpose: it is exactly what the workflows'
+   `Format check` step runs, and markdown is deliberately outside its scope — run
+   it rather than the root `pnpm format` script, which checks every file
+   including tracked markdown.
 3. **Ensure the prerequisites exist** on the repository that runs the release:
    the `FORGEJO_TOKEN` secret (or `GITEA_TOKEN`) with `write:repository`, and
    optional variables (`NPM_CONFIG_REGISTRY`, `NPM_DIST_URL`,
@@ -94,7 +99,7 @@ The generated file is located at `packages/forgejo-toolkit/forgejo-toolkit-<vers
 
 ### 4. Publish to VS Code Marketplace
 
-`@vscode/vsce` is a dev dependency of the extension package, *not* of the workspace
+`@vscode/vsce` is a dev dependency of the extension package, _not_ of the workspace
 root, so `pnpm exec vsce …` from the repository root fails with a "command not
 found". Run it inside the package with `pnpm --filter`, where the path is the
 `.vsix` file name relative to `packages/forgejo-toolkit`:
@@ -133,7 +138,10 @@ Create a new release on Codeberg and attach the `.vsix` file. Do not commit `.vs
 `.forgejo/workflows/release.yml` performs steps 3 and 6 above from a manual
 run — it never triggers on a push, tag or schedule:
 
-1. Typecheck and run the test suites on the dispatched commit.
+1. Validate the commit: `pnpm run lint`, the narrowed format check
+   (`pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"`), `pnpm run check`, the
+   API checklist coverage audit (`node tools/api-audit/check.mjs`) and both test
+   suites.
 2. Build and package the extension (`pnpm --filter forgejo-toolkit package`),
    then check the `.vsix` for nine entries — the paths as they appear inside
    the archive, matched case-insensitively because `vsce` writes the changelog
@@ -235,7 +243,8 @@ Then install it in VS Code:
 
   `forgejo-toolkit`'s own `test` script runs both of its suites (`test:webview` +
   `test:extension`); `@cpf23333-forgejo-toolkit/api` has no test script — step 2 of
-  the checklist (`pnpm check`, `pnpm lint`, `pnpm format`) is what covers it.
+  the checklist (`pnpm check`, `pnpm lint` and the narrowed format check) is what
+  covers it.
 
 - Do not store release artifacts in git; attach them to Codeberg Releases.
 - Keep the git repository small by not committing build outputs or dependencies.

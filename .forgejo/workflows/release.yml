@@ -125,11 +125,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # A release is only cut from a commit that validates: the same checks the
-      # manual verify workflow runs, repeated here so the release does not
-      # depend on someone having run it first.
+      # A release is only cut from a commit that validates: the checks the manual
+      # verify workflow (ci.yml) runs before its build step, repeated here in the
+      # same order so the release does not depend on someone having run it first.
+      # The one verify step not repeated is `Build extension bundle`: the
+      # "Build and package the extension" step below runs `pnpm run package`,
+      # whose first half is that same production build (esbuild + vite) before
+      # `vsce package`, so a release cannot skip it.
       - name: Lint
         run: pnpm run lint
+
+      # Same glob as ci.yml's Format check: markdown is deliberately out of CI's
+      # scope, so the check covers every hand-written source file instead.
+      # Without this step a formatting regression would pass release and be
+      # caught only by the next manual verify run, after the tag exists.
+      - name: Format check
+        run: pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"
 
       - name: Typecheck
         run: pnpm run check

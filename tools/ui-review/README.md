@@ -17,22 +17,35 @@ the repo root type-checks this package too.
 
 ## Commands
 
-```bash
-pnpm launch [workspacePath]   # start dev host (default workspace: D:\code\test)
-pnpm kill                     # stop only the isolated dev host instance
+These scripts live in `tools/ui-review/package.json`, not in the root manifest, so
+they have to be selected with `--filter` from the repository root (or run from the
+harness directory). `pnpm launch` at the root fails with
+`Command "launch" not found`.
 
-pnpm ui shot <name>                  # CDP screenshot -> shots/<name>.png
-pnpm ui click <x> <y> [name] [waitMs]
-pnpm ui scroll <x> <y> <deltaY> [name]
-pnpm ui drag <x1> <y1> <x2> <y2> [name]
-pnpm ui type <text> [name]           # types into the focused element
-pnpm ui key <key> [name]             # e.g. Escape, Enter, Tab
+```bash
+# From the repository root:
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch [workspacePath]  # start dev host (default workspace: D:\code\test)
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review kill                   # stop only the isolated dev host instance
+
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui shot <name>  # CDP screenshot -> shots/<name>.png
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui click <x> <y> [name] [waitMs]
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui scroll <x> <y> <deltaY> [name]
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui drag <x1> <y1> <x2> <y2> [name]
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui type <text> [name]  # types into the focused element
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui key <key> [name]    # e.g. Escape, Enter, Tab
+
+# Equivalent, from the harness directory (the `src/...` paths below assume it):
+cd tools/ui-review
+pnpm launch [workspacePath]
+pnpm kill
+pnpm ui shot <name>
 ```
 
-`UI_LOCALE=<locale> pnpm launch` passes `--locale` to VS Code (e.g. for
-localized screenshot runs). Note: `--locale` alone may not stick — write
-`{ "locale": "zh-cn" }` into `profile/argv.json` and install the matching
-language pack into the isolated extensions dir instead:
+`UI_LOCALE=<locale> pnpm --filter @cpf23333-forgejo-toolkit/ui-review launch`
+passes `--locale` to VS Code (e.g. for localized screenshot runs). Note:
+`--locale` alone may not stick — write `{ "locale": "zh-cn" }` into
+`profile/argv.json` and install the matching language pack into the isolated
+extensions dir instead (run from `tools/ui-review/`):
 
 ```bash
 code --extensions-dir="$PWD/extensions" --install-extension MS-CEINTL.vscode-language-pack-zh-hans

@@ -43,17 +43,18 @@
 
 （空）
 
-## 第八轮审查后待修（2026-09-23；第六、七轮的确认项已全部修复并验证）
+## 第十轮审查后待修（2026-09-23 第十轮全仓扫描 + 独立复核）
+
+- [ ] **medium** MCP 的实例级过滤发生在服务端 500 行上限**之外**：工具拿到的是已被截断的分页结果，再按实例过滤，于是「结果里没有该实例的条目」既可能是真的没有、也可能是被上限挤掉。要修得把实例过滤下沉到取数之前（或在结果里带上「因上限而可能缺失」的标记），涉及 `mcp/tools.ts` 的入参传递，暂记
+- [ ] **low** 401/403 toast 的 URL 脱敏没有单元测试：该文件的 vscode mock 里 `window.showErrorMessage` 对宿主模块返回 `undefined`（同一对象在测试内直接调用却返回 promise），脱敏本身由 shared 的 `toPublicInstance` 测试与既有的 `redactInstanceUrl` 测试覆盖
+- [ ] **low** 「全部标为已读」跨实例（按钮文案与 tooltip 已如实说明）**刻意不做确认框**：与 VS Code 自身的通知「全部标为已读」以及 Forgejo Web UI 的同类操作一致，且确认框会挡住整个窗口；如日后要加，按 AGENTS.md 应加在宿主（`viewProvider` 的 `markAllNotificationsRead` 分派处），webview 侧不得自行 `showConfirm`
+- [ ] **low** `remoteComparisonKeys` 对绝对路径 scp 远端（`host:/srv/git/repo.git`）仍按「末两段是 owner/repo」解析。**决定：维持现状**——`host:/srv/git/owner/repo.git` 这种自管目录布局末两段本身就是正确的 owner/repo，与错误情形无法区分，拒绝会误伤真实场景；等上游有明确语义再定
+- [ ] **记录** 子代理曾报告「未知实例的徽标请求永无回包、标记永久卡死」，经复核不成立：`getNotifications` 在 `LOAD_RESULT_COMMANDS` 里，未知实例会命中 `viewProvider.ts` 的统一守卫并回一条带 `error` 的结果形消息，`handleNotifications` 无条件删除标记；仅当实例被移除才会留下 `loading`/标记，而移除后 id 不会复现（id 由 url+登录名派生），因此不可达
+
+## 第八轮审查后待修（2026-09-23；第六、七、八轮的确认项已全部修复并验证）
 
 - [ ] **P3** 把 `shared/request` 的错误契约从「字符串消息」改成结构化错误：导出 `RequestError extends Error { status, statusText, headers, body }`，让生成的 wrapper 标注它，并让 `toApiError` 直接读 `status`/`body`，而不是用 `/Forgejo API error (\d+):/` 正则解析消息（现在 `ResponseErrorConfig` 只是类型占位、运行时抛普通 `Error`，宿主只能靠正则与消息里的 JSON 重新分类）。跨 shared + 宿主 + 错误测试的刻意改动，值得单独一批做
 
-- [ ] **medium** 评论/评审编辑器保存时仍未等待进行中的图片上传（第七轮只覆盖了两个编辑表单）：`views/IssueDetail.vue`、`views/PullRequestDetail.vue`、`components/CommentTimeline.vue`、`views/PullReviewCommentEditor.vue`
-- [ ] **medium** 通知对账把「超出轮询 50 条一页」的视图行误标为已读（`useAppState.ts` 的 reconcile 用 `unreadIds`，而宿主只取一页）
-- [ ] **medium** `clearInstancePayloads` 忘记清 `repoIssuesFetchedAt`/`repoPullRequestsFetchedAt` 标记，被丢弃的列表不会重新拉取
-- [ ] **medium** 宿主 Refresh 清了 memo，但 webview 的仓库级缓存仍会命中最多 30 s
-- [ ] **medium** 设置向导只测 `/user` 就放行，权限不足的 token 也能保存，随后仪表盘显示「Failed to load: Permission denied」+「No repositories」，首用者会以为实例是空的
-- [ ] **medium** 仪表盘空状态只有裸标签，且在加载失败（403 等）时也显示；文案缺少下一步引导
-- [ ] **medium**（宿主部分已修，只剩 webview 渲染）向导「从文件导入」失败仍无任何提示：宿主已在 `instancesImported` 回复里带上具体原因（导入失败时形如「Importing instance {0} failed: {1}」，解析失败时是文件/密码原因），但 `webview/src/views/Onboarding.vue` 的 `state.importInstancesResult` watcher 只处理 `success`，需要像 `Settings.vue` 那样在失败时渲染 `result.error`（`webview/src/**` 由另一 agent 负责）
-- [ ] **low** 完成页「打开仪表盘」按钮不导航（`Onboarding.vue` 的 `finish()` 在非面板模式下只 `router.push`，需确认完成页按钮的实际行为）；向导仍可在零实例时被“完成”（宿主现在据此不写欢迎标记，所以下次激活会重新给出向导，是否要直接拦住 finish 由 webview 侧决定）
+以下第八轮遗留项已于 2026-09-23 第十轮核实并修复（细节见 git 日志）：评论/评审编辑器保存前等待进行中的图片上传（`IssueDetail`/`PullRequestDetail`/`CommentTimeline`/`PullReviewCommentEditor` 均已用 `pendingUploads` 等待）；通知对账改用宿主轮询自己上报的 `coveredIds`，不再把超出 50 条一页的视图行误标已读；`clearInstancePayloads` 会一并清掉 `repoIssuesFetchedAt`/`repoPullRequestsFetchedAt` 标记与 `loading`/`errors`；宿主 Refresh 同时丢弃 webview 的仓库级缓存（`refreshInstanceData`）；向导保存后的权限探测会跑真正的仓库列表调用，权限不足时如实报出缺失 scope；仪表盘空状态带引导文案与按钮；向导「从文件导入」失败会渲染宿主给出的具体原因（本文件曾记的 webview 侧缺口已补）；`ensureRepoIssuesLoaded` 已是真实按需加载、依赖选择器的响应式标记也随之生效；`Settings` 的保存回包按实例身份归属。向导完成按钮确认可用：`Onboarding.vue` 只在 `panelMode === 'onboarding'`（且不装 router）下挂载，`finish()` 走的正是面板分支，宿主 `onboardingPanel.ts` 写入欢迎标记、关面板并聚焦仪表盘；零实例下允许完成是刻意的（仪表盘空状态一直提供入口），因此不做拦截。
 
 以下 2026-09-23 第八轮宿主侧确认项已修复（细节见 git 日志）：revert merge 改为失败安全（push 失败会撤销本地 revert 提交、冲突会重置回原提交并如实报错，只有真正推送成功才回 `success:true`）；`ConfigManager.init()` 的 token 迁移改用跨窗口合并写入；实例导出改为「写 `.part` 再 rename」的原子写（剪贴板路径不变）；删除实例会一并清理其 worktree 记录与相应缓存用量项（worktree 目录留在磁盘上，由惰性清理按 30 天回收）；首次激活不再因“用户跳过向导”而写入欢迎标记（改为有实例或真正完成向导时才写）。
