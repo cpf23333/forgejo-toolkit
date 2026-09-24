@@ -6,6 +6,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 const clientMocks = vi.hoisted(() => ({
+  getRepoContents: vi.fn(),
   editIssue: vi.fn(),
   replaceIssueLabels: vi.fn(),
   getRepoDetail: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../../api/client', () => ({
       editIssue: clientMocks.editIssue,
       replaceIssueLabels: clientMocks.replaceIssueLabels,
       getRepoDetail: clientMocks.getRepoDetail,
+      getRepoContents: clientMocks.getRepoContents,
       getPullRequestDetail: clientMocks.getPullRequestDetail,
       getUserIssues: clientMocks.getUserIssues,
       getUserPullRequests: clientMocks.getUserPullRequests,
@@ -581,6 +583,33 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(vi.mocked(revertMergeCommit)).toHaveBeenCalledTimes(1);
     expect(postedMessages(fake.posted).filter((m) => m.command === 'revertMergeCommitResult')).toHaveLength(1);
   });
+  it('explains a file whose payload the contents API withheld', async () => {
+    // The API answers `content: ""` with the real size for files above its payload
+    // limit; without the notice the viewer and the README preview show nothing.
+    clientMocks.getRepoContents.mockResolvedValueOnce([
+      { name: 'big.bin', path: 'big.bin', type: 'file', size: 12 * 1024 * 1024, content: '' },
+      { name: 'small.txt', path: 'small.txt', type: 'file', size: 3, content: 'YWJj' },
+    ]);
+
+    fake.send({
+      command: 'getRepoContents',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      path: '',
+      ref: 'main',
+    });
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'repoContents');
+    const entries = (reply?.entries ?? []) as Array<{ name: string; content?: string }>;
+    const big = entries.find((entry) => entry.name === 'big.bin');
+    const small = entries.find((entry) => entry.name === 'small.txt');
+    expect(Buffer.from(big?.content ?? '', 'base64').toString('utf8')).toContain('MiB');
+    // A genuinely empty file keeps its empty content.
+    expect(small?.content).toBe('YWJj');
+  });
+
   it('marks a cancelled instance export as cancelled rather than failed', async () => {
     // Dismissing the export dialog is not a failure: without the flag the webview
     // stores the reply and Settings reports "Failed to export instances".

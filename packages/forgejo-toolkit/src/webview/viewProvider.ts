@@ -47,6 +47,7 @@ import {
   stripInstanceTokens,
 } from './instanceImport';
 import { userFacingErrorMessage } from '../api/errors';
+import { missingPayloadNotice } from '../prFileSystemProvider';
 import { probeServerVersion } from '../api/versionProbe';
 import { clearServerVersion } from '../api/serverVersion';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
@@ -3081,7 +3082,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const entries = await client.getRepoContents(owner, repo, path, ref || undefined);
+          const rawEntries = await client.getRepoContents(owner, repo, path, ref || undefined);
+          // Forgejo omits the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE`
+          // (10 MiB by default) and reports the real size instead, which the file browser
+          // and the README preview would render as an empty document. Serve the same
+          // localized explanation the PR diff provider uses.
+          const entries = rawEntries.map((entry) => {
+            const notice = entry.content ? undefined : missingPayloadNotice(entry.size);
+            return notice ? { ...entry, content: Buffer.from(`${notice}\n`).toString('base64') } : entry;
+          });
           logger.debug(
             `getRepoContents returned ${entries.length} entries for ${instance.name}/${owner}/${repo}/${path}@${ref}: ${JSON.stringify(entries.map((e) => ({ name: e.name, path: e.path, type: e.type })))}`,
           );
