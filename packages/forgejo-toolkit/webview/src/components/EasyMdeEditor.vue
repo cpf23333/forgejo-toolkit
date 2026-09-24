@@ -6,6 +6,7 @@ import type Tribute from 'tributejs';
 import { isImageFile } from '../utils/file';
 import { sanitizeMarkdownHtml } from '../utils/markdown';
 import { createTimedCache } from '../utils/createTimedCache';
+import { functionalInstanceBase } from '../utils/instanceUrl';
 import { useAppState, type MentionUser, type MentionIssue } from '../composables/useAppState';
 
 type MentionItem = MentionUser | MentionIssue;
@@ -107,11 +108,16 @@ const mentionsEnabled = computed(
   () => props.instanceId !== undefined && props.owner !== undefined && props.repo !== undefined,
 );
 
+// The functional base URL, not the display one: it resolves relative image and
+// link targets while the markdown is sanitized, and the display value carries a
+// credential mask (`https://***@host/`) that would resolve to a dead host.
 const baseUrl = computed(() => {
   if (!props.instanceId) {
     return undefined;
   }
-  return state.instances.value.find((instance) => instance.id === props.instanceId)?.url;
+  return (
+    functionalInstanceBase(state.instances.value.find((instance) => instance.id === props.instanceId)) || undefined
+  );
 });
 
 function getMentionInput(): HTMLElement | null {
@@ -762,6 +768,11 @@ watch(
       // Ctrl+Z cannot restore the previous comment's draft into this one.
       easyMDE.value(value);
       easyMDE.codemirror.clearHistory();
+      // A re-seed is a different editing target, so the previous target's failed
+      // upload must not outlive it: the editor instance is shared by every
+      // comment's edit form, and the error line was otherwise still shown when
+      // the dialog was reopened for a different comment.
+      imageUploadError.value = undefined;
     }
   },
 );

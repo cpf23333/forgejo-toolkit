@@ -7,6 +7,7 @@ import ModalDialog from '../components/ModalDialog.vue';
 import TokenScopeList from '../components/TokenScopeList.vue';
 import type { ForgejoInstance } from '../types/instance';
 import type { Locale } from '../i18n';
+import { stripUserinfo } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -25,9 +26,11 @@ const url = ref('');
 const token = ref('');
 
 // Forgejo's token management page lives at a fixed path under the instance
-// (same helper as the onboarding form).
+// (same helper as the onboarding form). The typed URL may carry credentials
+// (`https://token@host`), and a browser cannot open the masked form of it, so
+// the credential is stripped from what the link opens.
 const tokenSettingsUrl = computed(() => {
-  const base = url.value.trim().replace(/\/$/, '');
+  const base = stripUserinfo(url.value.trim()).replace(/\/$/, '');
   return /^https?:\/\//.test(base) ? `${base}/user/settings/applications` : '';
 });
 const syncApiUrlsToInstanceUrl = ref(true);

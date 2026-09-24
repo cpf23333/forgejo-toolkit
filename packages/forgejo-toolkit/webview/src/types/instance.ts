@@ -4,7 +4,18 @@
 // behind an instance changed.
 export interface ForgejoInstance {
   id: string;
+  /**
+   * The display value: the host masks credentials in it
+   * (`https://***@forgejo.example.com/`), so it must never be handed to git or
+   * opened in a browser. Use `functionalUrl` for anything the webview uses.
+   */
   url: string;
+  /**
+   * The same URL with the credential split off, for links and clone URLs (see
+   * `functionalInstanceUrl`). Optional because a payload from a host build that
+   * predates the field does not carry it.
+   */
+  functionalUrl?: string;
   name: string;
   username: string;
   tokenFingerprint?: string;

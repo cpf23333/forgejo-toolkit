@@ -43,6 +43,59 @@ describe('toPublicInstance', () => {
   });
 });
 
+/**
+ * The display `url` is unusable for anything functional: it keeps `***` where the
+ * credential was, so a clone URL built from it is not one git can clone and an
+ * "open in browser" link built from it is dead. The public shape therefore
+ * carries the same URL with the userinfo *removed*, and every path the webview
+ * navigates to or copies reads that field.
+ */
+describe('toPublicInstance functional URL', () => {
+  it('drops both credential positions instead of masking them', () => {
+    const withPassword = toPublicInstance(
+      makeInstance({ url: 'https://demo-user:secret-token@forgejo.example.com/base' }),
+    );
+    const withToken = toPublicInstance(makeInstance({ url: 'https://secret-token@forgejo.example.com' }));
+
+    expect(withPassword.functionalUrl).toBe('https://forgejo.example.com/base');
+    expect(withToken.functionalUrl).toBe('https://forgejo.example.com/');
+  });
+
+  it('never carries userinfo, in either direction', () => {
+    // Whatever the credential was, `@` before the host is what made the URL
+    // unusable — so the guarantee is the absence of userinfo, not the absence of
+    // one particular spelling of the secret.
+    for (const url of [
+      'https://demo-user:secret-token@forgejo.example.com',
+      'https://secret-token@forgejo.example.com',
+      'https://demo-user@forgejo.example.com/base',
+    ]) {
+      const functionalUrl = toPublicInstance(makeInstance({ url })).functionalUrl;
+      expect(functionalUrl).not.toContain('secret-token');
+      expect(functionalUrl).not.toContain('***');
+      expect(new URL(functionalUrl).username).toBe('');
+      expect(new URL(functionalUrl).password).toBe('');
+    }
+  });
+
+  it('leaves a credential-free URL untouched', () => {
+    // The ordinary case must not be rewritten: no added trailing slash, no
+    // re-encoded path.
+    expect(toPublicInstance(makeInstance()).functionalUrl).toBe('https://forgejo.example.com');
+    expect(toPublicInstance(makeInstance({ url: 'https://forgejo.example.com:3000/base' })).functionalUrl).toBe(
+      'https://forgejo.example.com:3000/base',
+    );
+  });
+
+  it('keeps the display value masked while the functional one is plain', () => {
+    const publicInstance = toPublicInstance(makeInstance({ url: 'https://secret-token@forgejo.example.com' }));
+
+    expect(publicInstance.url).toBe('https://***@forgejo.example.com/');
+    expect(publicInstance.functionalUrl).toBe('https://forgejo.example.com/');
+    expect(publicInstance.functionalUrl).not.toBe(publicInstance.url);
+  });
+});
+
 /** The host's answer to a repository file search, as the contract declares it. */
 type RepoFilesSearchResult = Extract<HostToWebviewMessage, { command: 'repoFilesSearchResult' }>;
 

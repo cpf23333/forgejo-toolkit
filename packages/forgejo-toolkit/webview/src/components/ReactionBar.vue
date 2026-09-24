@@ -9,11 +9,20 @@ interface Props {
   reactions: ForgejoReaction[];
   currentUsername?: string;
   loading?: boolean;
+  /**
+   * The failure to show for this bar's slot (`issueReactionsKey` /
+   * `commentReactionsKey`). A failed load and a failed toggle both land there
+   * and the host sends no toast, so without this the bar silently did nothing:
+   * the row the user tried to add or remove kept its previous state and the
+   * reason was read nowhere.
+   */
+  error?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   currentUsername: '',
   loading: false,
+  error: '',
 });
 
 const emit = defineEmits<{
@@ -108,6 +117,9 @@ function toggleReaction(content: string, hasSelf: boolean) {
         </button>
       </div>
     </div>
+    <p v-if="props.error" class="reaction-error" role="status">
+      {{ t('dashboard.detail.reactionFailed', { message: props.error }) }}
+    </p>
   </div>
 </template>
 
@@ -221,5 +233,12 @@ function toggleReaction(content: string, hasSelf: boolean) {
 
 .reaction-picker-item:hover {
   background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.reaction-error {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  color: var(--vscode-errorForeground);
+  font-size: 0.85em;
 }
 </style>

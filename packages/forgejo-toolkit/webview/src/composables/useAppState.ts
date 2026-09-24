@@ -435,16 +435,22 @@ function createAppState() {
   // queue and the dashboard list requests read it (see notificationRequests and
   // instanceListRequests).
   const instanceIdentityEpoch = new Map<string, number>();
-  // Which server each dashboard list request was sent for, keyed the same way as
-  // its loading slot (`repos-${id}`, `issues-${id}-${state}`,
-  // `pulls-${id}-${state}`). The reply carries no identity at all, and an edit
-  // keeps the instance id, so without this the previous server's reply would be
-  // written under the id the new configuration uses. Only those three loaders
-  // write here, which also makes this map the exact list of slots
-  // `clearInstancePayloads` has to clear on an identity change: the clear has to
-  // free the loading flag too, or the mandated reload below is deduped away by
-  // it.
-  const instanceListRequests = new Map<string, { instanceId: string; identity: string; epoch: number }>();
+  // The dashboard list requests outstanding for each loading slot
+  // (`repos-${id}`, `issues-${id}-${state}`, `pulls-${id}-${state}`), oldest
+  // first, with the server identity and identity epoch each was sent for.
+  //
+  // The reply carries no identity at all, and an edit keeps the instance id, so
+  // without this the previous server's reply would be written under the id the
+  // new configuration uses. One record per outstanding request — appended before
+  // the post, consumed in send order — is what attributes a reply to the request
+  // it answers: an identity change both drops the records that server left
+  // behind and appends the reload's own, so a reply that matches no record is
+  // one no request of the current server can have asked for (see
+  // consumeInstanceListReply). Only those three loaders write here, which also
+  // makes this map the exact list of slots `clearInstancePayloads` has to clear
+  // on an identity change: the clear has to free the loading flag too, or the
+  // mandated reload below is deduped away by it.
+  const instanceListRequests = new Map<string, { instanceId: string; identity: string; epoch: number }[]>();
   // Per-instance poll failures (expired token, unreachable instance) so the
   // notifications view can show an error instead of a misleading empty state.
   const notificationPollErrors = ref<Map<string, string>>(new Map());
@@ -1908,39 +1914,95 @@ function createAppState() {
   }
 
   /**
-   * Whether a dashboard list reply answers a request sent for the server the
-   * instance points at now.
+   * Whether a dashboard list reply answers a request the server now configured
+   * could have been sent.
    *
-   * Instead of the notifications queue's per-request cursor, `getRepositories`,
-   * `getMyIssues` and `getMyPullRequests` echo nothing back, so a reply can only
-   * be checked against the request recorded for its key. That record is the
-   * request still outstanding for the key, which an identity change replaces
-   * when it re-issues the load (see clearInstancePayloads): what this catches is
-   * the request the change left behind with no reload to take its place (the
-   * instance was removed from the list, or its reload was never issued). Then
-   * the reply describes a server this webview no longer shows and must not write
-   * its rows under the id the new configuration uses.
+   * `getRepositories`, `getMyIssues` and `getMyPullRequests` echo nothing back,
+   * so a reply is attributed to a record by the server it describes: the oldest
+   * outstanding record whose identity/epoch still matches the configured server,
+   * or — when no record matches — the oldest record, which is a tombstone left
+   * by an identity change (see invalidateInstanceListRequests) and means the
+   * reply came from the replaced server. Matching a record that *was* the
+   * current server is the only way a reply may write its payload; the loading
+   * slot is freed either way, or the key would spin forever waiting for an
+   * answer it will never get.
    *
-   * A key with no recorded request is not stale: hand-built replies that answer
-   * no request of ours still flow through.
+   * Recording the *latest* request in a single slot could not see this: an
+   * identity change overwrote that slot with the reload's own identity/epoch
+   * while the replaced server's request was still on the wire, so the stale
+   * reply matched the current identity and wrote the previous server's rows
+   * (and their caches) under the id the new configuration uses — staying on
+   * screen when it landed after the fresh reply.
    */
-  function instanceListReplyIsStale(key: string, instanceId: string): boolean {
-    const sent = instanceListRequests.get(key);
-    if (!sent || sent.instanceId !== instanceId) {
+  function consumeInstanceListReply(key: string, instanceId: string): boolean {
+    const queue = instanceListRequests.get(key);
+    if (!queue || queue.length === 0) {
+      // A reply that answers no request of ours: hand-built replies (and a host
+      // build that answers a request this webview never recorded) flow through.
+      instanceListRequests.delete(key);
       return false;
+    }
+    // The reply answers the request the host queued first — the oldest record for
+    // its key. It may write only when that request was sent for the server now
+    // configured; a record sent for a server an identity change dropped is
+    // refused, and it consumes that record so the reload's record stays queued
+    // for the reload's own reply. This is what the previous guard could not do:
+    // it compared the *latest* recorded request against the configured identity,
+    // and the reload had overwritten that record with the very identity/epoch the
+    // superseded reply was sent under (url a -> b -> a, or a reload issued for the
+    // identity the webview last saw), so the stale reply matched and its rows
+    // stayed on screen when they landed after the fresh ones.
+    const [sent] = queue.splice(0, 1);
+    if (queue.length > 0) {
+      instanceListRequests.set(key, queue);
+    } else {
+      instanceListRequests.delete(key);
+    }
+    if (sent.instanceId !== instanceId) {
+      return true;
     }
     return (
       sent.identity !== instanceIdentityOf(instanceId) || sent.epoch !== (instanceIdentityEpoch.get(instanceId) ?? 0)
     );
   }
-
-  /** Records which server one dashboard list request is sent for (see the map). */
+  /**
+   * Records one dashboard list request as outstanding for its key (see the map).
+   * Called before the post: the reply may land before the caller's next
+   * statement.
+   */
   function recordInstanceListRequest(key: string, instanceId: string) {
-    instanceListRequests.set(key, {
+    const queue = instanceListRequests.get(key) ?? [];
+    queue.push({
       instanceId,
       identity: instanceIdentityOf(instanceId),
       epoch: instanceIdentityEpoch.get(instanceId) ?? 0,
     });
+    instanceListRequests.set(key, queue);
+  }
+
+  /**
+   * Frees the loading/error slots one instance's identity change invalidated and
+   * drops the records it invalidated.
+   *
+   * A request sent for the replaced server can never answer for the server now
+   * configured, and its record has to go with the change: keeping it would leave
+   * the reload's record indistinguishable from it (both can carry the identity
+   * and epoch the webview now has). Its late reply is refused because it finds no
+   * record of the configured server: the reload's record is consumed by the
+   * reload's own reply, and when the identity change had no reload to issue (the
+   * instance was removed) nothing is recorded at all.
+   */
+  function invalidateInstanceListRequests(instanceId: string) {
+    for (const [key, queue] of Array.from(instanceListRequests)) {
+      if (!queue.some((entry) => entry.instanceId === instanceId)) {
+        continue;
+      }
+      // The loader dedupes on the loading flag, so a flag left set by the
+      // replaced server's request made the mandated reload a no-op and the
+      // instance sat on an empty list; a stale error would stick the same way.
+      loading.delete(key);
+      errors.delete(key);
+    }
   }
 
   function handleRepositories(data: { instanceId: string; repositories?: ForgejoRepository[]; error?: string }) {
@@ -1949,7 +2011,7 @@ function createAppState() {
     // must not be written under the id the new configuration uses. The loading
     // slot is still freed, or the key would spin forever waiting for an answer
     // it will never get.
-    const stale = instanceListReplyIsStale(key, data.instanceId);
+    const stale = consumeInstanceListReply(key, data.instanceId);
     loading.set(key, false);
     if (stale) {
       return;
@@ -1969,7 +2031,7 @@ function createAppState() {
     // replies from a host build that predates the echo.
     const state = data.state ?? 'open';
     const key = `issues-${data.instanceId}-${state}`;
-    const stale = instanceListReplyIsStale(key, data.instanceId);
+    const stale = consumeInstanceListReply(key, data.instanceId);
     loading.set(key, false);
     if (stale) {
       return;
@@ -1992,7 +2054,7 @@ function createAppState() {
   }) {
     const state = data.state ?? 'open';
     const key = `pulls-${data.instanceId}-${state}`;
-    const stale = instanceListReplyIsStale(key, data.instanceId);
+    const stale = consumeInstanceListReply(key, data.instanceId);
     loading.set(key, false);
     if (stale) {
       return;
@@ -5534,16 +5596,8 @@ function createAppState() {
     // mandated reload below a no-op — the instance then sat on an empty list,
     // and the reply of the request still in flight wrote the replaced server's
     // rows back under the id the new configuration uses (see
-    // recordInstanceListRequest).
-    for (const [key, sent] of Array.from(instanceListRequests)) {
-      if (sent.instanceId !== instanceId) {
-        continue;
-      }
-      instanceListRequests.delete(key);
-      loading.delete(key);
-      errors.delete(key);
-    }
-    // A badge request still in flight is deliberately left in place: its reply
+    // consumeInstanceListReply).
+    invalidateInstanceListRequests(instanceId); // A badge request still in flight is deliberately left in place: its reply
     // has to be attributable, and the cursor it was sent with is what keeps it
     // apart from the requests the new configuration sends (see
     // notificationRequests). handleNotifications drops the replaced server's

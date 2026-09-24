@@ -15,6 +15,16 @@ export interface ForgejoInstance {
 export type PublicForgejoInstance = Omit<ForgejoInstance, 'token'> & {
   /** An opaque fingerprint of the token, so a webview can notice a swap. */
   tokenFingerprint?: string;
+  /**
+   * The same instance URL with its credential material *removed* rather than
+   * masked, for a URL the webview navigates to or copies (a clone URL, an
+   * "open in browser" link, the token-settings page).
+   *
+   * `url` above is the display value: it keeps `***` where a credential was, so
+   * it must never be pasted into git or opened. This field carries the plain
+   * URL for everything functional, so the two cannot be confused at a call site.
+   */
+  functionalUrl: string;
 };
 
 /**
@@ -69,12 +79,50 @@ function redactUserinfo(url: string): string {
   return parsed.toString();
 }
 
+/**
+ * A URL with its credential material removed *entirely*, for a URL the webview
+ * hands to git or opens in a browser.
+ *
+ * This mirrors `stripUrlUserinfo` in the extension host's
+ * `utils/redactUrlUserinfo.ts` (kept separate for the same reason as
+ * `redactUserinfo` above: this module reaches the webview bundle). Masking is
+ * only ever right for a value a human reads: `https://***@host/owner/repo.git`
+ * is not a URL git can clone, and `https://***@host/user/settings/applications`
+ * is not a page a browser can open.
+ *
+ * Exported because the webview's instance *forms* build a functional URL from
+ * what the user typed (the token-settings link), where there is no
+ * `PublicForgejoInstance` to read `functionalUrl` from.
+ */
+export function stripUserinfo(url: string): string {
+  if (!url.includes('@')) {
+    return url;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    // Not an absolute URL: the scp-like `user@host:path` form is a clone URL
+    // whose userinfo is a login, not a secret, and it is returned as given.
+    return url;
+  }
+  if (!parsed.username && !parsed.password) {
+    return url;
+  }
+  parsed.username = '';
+  parsed.password = '';
+  return parsed.toString();
+}
+
 export function toPublicInstance(instance: ForgejoInstance): PublicForgejoInstance {
   return {
     id: instance.id,
     // Never the raw stored URL: it may carry the token as userinfo, and every
     // webview renders this value (the dashboard list, the Settings editor).
     url: redactUserinfo(instance.url),
+    // The functional twin: the same URL with the credential dropped, for the
+    // links and clone URLs the webview uses (see PublicForgejoInstance).
+    functionalUrl: stripUserinfo(instance.url),
     name: instance.name,
     username: instance.username,
     tokenFingerprint: tokenFingerprint(instance.token),

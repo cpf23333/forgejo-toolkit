@@ -8,6 +8,7 @@ import { stateLabel } from '../utils/stateLabel';
 import ViewTabs from '../components/ViewTabs.vue';
 import IconActionButton from '../components/IconActionButton.vue';
 import { activateTreeRowFromKey, TREE_ROW_ACTION_SELECTOR } from '../utils/treeRowActivation';
+import { functionalInstanceBase } from '../utils/instanceUrl';
 
 const { t } = useI18n();
 const state = useAppState();
@@ -266,7 +267,10 @@ function openPullRequest(event: Event, instanceId: string, pr: ForgejoPullReques
 }
 
 function repoCloneUrl(instance: ForgejoInstance, repo: ForgejoRepository): string {
-  return `${instance.url}/${repo.full_name}.git`;
+  // `instance.url` is the display value and keeps the credential mask; a clone
+  // URL has to come from the credential-free twin or git cannot use it.
+  const base = functionalInstanceBase(instance);
+  return base ? `${base}/${repo.full_name}.git` : '';
 }
 
 function formatError(instanceId: string): string {

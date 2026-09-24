@@ -6,6 +6,7 @@ import IconActionButton from './IconActionButton.vue';
 import type { ForgejoInstance } from '../types/instance';
 import type { ForgejoRepository, ForgejoIssue, ForgejoPullRequest } from '../types/api';
 import { stateLabel } from '../utils/stateLabel';
+import { functionalInstanceBase } from '../utils/instanceUrl';
 
 const props = defineProps<{
   instance: ForgejoInstance;
@@ -207,7 +208,10 @@ function openPullRequest(event: Event, pr: ForgejoPullRequest) {
 }
 
 function cloneUrl(repo: ForgejoRepository): string {
-  return `${props.instance.url}/${repo.full_name}.git`;
+  // The functional URL, not `instance.url`: the display value keeps the
+  // credential mask (`https://***@host/`), which git cannot clone.
+  const base = functionalInstanceBase(props.instance);
+  return base ? `${base}/${repo.full_name}.git` : '';
 }
 
 function formatError(key: string): string {

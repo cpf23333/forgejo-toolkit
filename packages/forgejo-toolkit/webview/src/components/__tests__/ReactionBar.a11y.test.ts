@@ -54,3 +54,37 @@ describe('ReactionBar toggle state', () => {
     wrapper.unmount();
   });
 });
+
+function mountBarWithError(error: string) {
+  return mount(ReactionBar, {
+    props: { reactions: [] as never, currentUsername: 'demo-user', error },
+    global: { plugins: [createTestI18n('en')] },
+  });
+}
+
+/**
+ * A failed reaction load or toggle lands on the reactions key
+ * (`state.errors.get(issueReactionsKey)`), and the host sends no toast for it:
+ * the bar accepted no error prop, so the failure was read nowhere and a chip the
+ * user clicked simply did nothing. The bar is the only surface that can explain
+ * it, and a live region is what announces it (the action was async).
+ */
+describe('ReactionBar error surface', () => {
+  it('renders the failure it is given', () => {
+    const wrapper = mountBarWithError('permission denied');
+
+    const message = wrapper.get('.reaction-error');
+    expect(message.text()).toBe('Reactions failed: permission denied');
+    expect(message.attributes('role')).toBe('status');
+
+    wrapper.unmount();
+  });
+
+  it('renders nothing when there is no failure', () => {
+    const wrapper = mountBar([]);
+
+    expect(wrapper.find('.reaction-error').exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+});

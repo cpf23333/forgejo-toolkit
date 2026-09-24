@@ -6,6 +6,7 @@ import { useAppState } from '../composables/useAppState';
 import ImportPreview from './ImportPreview.vue';
 import TokenScopeList from '../components/TokenScopeList.vue';
 import type { Locale } from '../i18n';
+import { stripUserinfo } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { postMessage } from '../composables/vscode';
 import '../types/config';
 
@@ -76,9 +77,11 @@ const canSaveInstance = computed(() => canTest.value && connectionStatusType.val
 const canFinish = computed(() => true);
 
 // Forgejo's token management page lives at a fixed path under the instance
-// root; only offer the link once the URL looks like http(s).
+// root; only offer the link once the URL looks like http(s). The typed URL may
+// carry credentials (`https://token@host`) — a secret, and not something a
+// browser can open — so the credential is stripped before the link is built.
 const tokenSettingsUrl = computed(() => {
-  const base = url.value.trim().replace(/\/+$/, '');
+  const base = stripUserinfo(url.value.trim()).replace(/\/+$/, '');
   return /^https?:\/\//.test(base) ? `${base}/user/settings/applications` : '';
 });
 

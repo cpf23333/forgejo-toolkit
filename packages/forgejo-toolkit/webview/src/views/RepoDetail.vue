@@ -21,7 +21,6 @@ const key = computed(() => repoDetailKey(instanceId.value, owner.value, repo.val
 const detail = computed(() => state.repoDetails.value.get(key.value));
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
-const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
 
 // Under keep-alive this view is deactivated (not unmounted) when navigating
 // away; `route.params` then tracks the global route, not this view's own

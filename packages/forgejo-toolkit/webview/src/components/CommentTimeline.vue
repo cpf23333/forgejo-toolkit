@@ -196,6 +196,18 @@ const queuedCommentRenders: ForgejoTimelineComment[] = [];
 // remainder is revealed a batch at a time so nothing becomes unreachable.
 const visibleCommentCount = ref(COMMENT_RENDER_BATCH);
 const visibleComments = computed(() => sortedComments.value.slice(0, visibleCommentCount.value));
+/**
+ * The rows the render queue has been filled for, as one string. The queue has to
+ * follow what is actually rendered, not a pair of dependencies that only
+ * approximates it: `toggleSortOrder` re-slices `visibleComments` without changing
+ * either `props.comments` or `visibleCommentCount`, so a watcher on those two
+ * never fired after a sort flip and every row the flip brought into the window
+ * had no rendered body — it showed the "No description provided." empty state for
+ * a comment that has one until the props changed or "Show more" was pressed.
+ */
+const visibleCommentRenderKeys = computed(() =>
+  visibleComments.value.map((comment) => commentKey(comment)).join('\u0000'),
+);
 const hiddenCommentCount = computed(() => Math.max(0, sortedComments.value.length - visibleCommentCount.value));
 const nextCommentBatchCount = computed(() => Math.min(COMMENT_RENDER_BATCH, hiddenCommentCount.value));
 
@@ -254,12 +266,15 @@ function requestCommentData(comments: ForgejoTimelineComment[]) {
 }
 
 // Re-runs when the timeline arrives, when a body is edited in place, and when
-// the render window grows: each time it queues only what the visible rows still
-// need, and never more than MAX_MARKDOWN_RENDERS_IN_FLIGHT renders at once.
+// the set of rendered rows changes — the render window growing *or a sort flip
+// re-slicing it*. The rows themselves are read from the computed, so what is
+// queued follows what is rendered rather than a pair of dependencies that only
+// approximates it. Each run queues only what the visible rows still need, and
+// never more than MAX_MARKDOWN_RENDERS_IN_FLIGHT renders at once.
 watch(
-  [() => props.comments, visibleCommentCount],
+  [() => props.comments, visibleCommentRenderKeys],
   () => {
-    requestCommentData(sortedComments.value.slice(0, visibleCommentCount.value));
+    requestCommentData(visibleComments.value);
   },
   { immediate: true, deep: true },
 );
@@ -778,6 +793,7 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
     >
       <div class="edit-comment-form">
         <EasyMdeEditor
+          :key="editingComment?.id ?? 'new-comment'"
           v-model="editBody"
           :placeholder="t('dashboard.detail.addCommentPlaceholder')"
           :disabled="editLoading"

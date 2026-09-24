@@ -12,6 +12,7 @@ import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import { stateLabel } from '../utils/stateLabel';
+import { functionalInstanceBase } from '../utils/instanceUrl';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
 import { createPendingUploads } from '../utils/pendingUploads';
@@ -57,7 +58,11 @@ const key = computed(() => pullRequestDetailKey(instanceId.value, owner.value, r
 const detail = computed(() => state.pullRequestDetails.value.get(key.value));
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
-const baseUrl = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.url);
+// The functional base URL, not the display one: it feeds the markdown
+// renderer's relative-URL resolution (`sanitizeMarkdownHtml`) and the commit
+// links `CommentTimeline` builds, and a base carrying the credential mask
+// (`https://***@host/`) produces links that resolve to a dead host.
+const baseUrl = computed(() => functionalInstanceBase(state.instances.value.find((i) => i.id === instanceId.value)));
 const currentUsername = computed(() => state.instances.value.find((i) => i.id === instanceId.value)?.username);
 const isPullRequestAuthor = computed(
   () => detail.value?.user?.login === currentUsername.value && currentUsername.value !== undefined,
@@ -131,6 +136,17 @@ const stopwatchElsewhereLabel = computed(() => {
   return stopwatch ? [stopwatch.repo_name, stopwatch.issue_index].filter((part) => part !== undefined).join('#') : '';
 });
 const dependencies = computed(() => state.issueDependencies.value.get(dependenciesKey.value) ?? []);
+// The dependency section had no error branch at all: a failed load rendered "No
+// dependencies" (claiming the pull request has none) and a failed add/remove
+// rendered nothing, leaving the row the user tried to remove in place with no
+// reason. The host sends no toast for either, so the section is where both must
+// appear.
+const dependenciesError = computed(() => state.errors.get(dependenciesKey.value) ?? '');
+/**
+ * The dependency number the add is waiting on, kept until the request settles so
+ * a failure leaves the pick in place for a retry (see addDependency).
+ */
+const dependencyPending = ref<number | undefined>(undefined);
 const repoIssues = computed(() => state.repoIssues.value.get(repoIssuesKeyValue.value) ?? []);
 const repoIssuesLoading = computed(() => state.loading.get(repoIssuesKeyValue.value) ?? false);
 
@@ -156,6 +172,9 @@ const availableDependencies = computed(() =>
 );
 const reactions = computed(() => state.issueReactions.value.get(reactionsKey.value) ?? []);
 const reactionsLoading = computed(() => state.loading.get(reactionsKey.value) ?? false);
+// A failed reaction load or toggle lands on the reactions key and the host sends
+// no toast, so the bar is what has to show it (see ReactionBar's `error`).
+const reactionsError = computed(() => state.errors.get(reactionsKey.value) ?? '');
 const participants = computed(() => {
   const users = new Map<string, { login?: string; avatar_url?: string }>();
   if (detail.value?.user) {
@@ -849,9 +868,26 @@ function addDependency() {
   if (dependencyIndex === undefined || dependencyIndex <= 0) {
     return;
   }
+  // The pick is cleared only once the change has settled and succeeded: the
+  // composable reloads the dependency list after a successful change (and a
+  // failed one leaves the pick, which the error below explains), so the reloaded
+  // payload is the settle signal. The `loading` flag cannot be: it goes straight
+  // back to true for the reload, so a watcher on it never sees the settle.
+  dependencyPending.value = dependencyIndex;
   state.createIssueDependency(instanceId.value, owner.value, repo.value, index.value, dependencyIndex);
-  selectedDependencyNumber.value = undefined;
 }
+
+watch(dependencies, (list) => {
+  if (dependencyPending.value === undefined) {
+    return;
+  }
+  // The list changed while an add was in flight, which only a successful change
+  // does (see handleIssueDependencyChanged). A failed change leaves the payload
+  // untouched, and its error is what keeps the pick for the retry.
+  dependencyPending.value = undefined;
+  selectedDependencyNumber.value = undefined;
+  void list;
+});
 
 // Same as the issue detail view: the host confirms the removal, so a single
 // misclick cannot fire it silently, and the webview adds no second prompt.
@@ -1449,6 +1485,7 @@ function reloadPullRequest() {
             :reactions="reactions"
             :current-username="currentUsername"
             :loading="reactionsLoading"
+            :error="reactionsError"
             @toggle="handleIssueReactionToggle"
           />
         </div>
@@ -1889,6 +1926,9 @@ function reloadPullRequest() {
               </button>
             </div>
           </div>
+          <div v-else-if="dependenciesError" class="dependency-status error" role="status">
+            {{ t('dashboard.detail.dependenciesLoadFailed', { message: dependenciesError }) }}
+          </div>
           <div v-else class="empty-list">{{ t('dashboard.detail.noDependencies') }}</div>
           <div class="dependency-form">
             <!-- The control stays mounted while the list loads: unmounting it one
@@ -1917,6 +1957,9 @@ function reloadPullRequest() {
               {{ t('dashboard.detail.addDependency') }}
             </vscode-button>
             <div v-if="repoIssuesLoading" class="dependency-status">{{ t('dashboard.detail.dependencyLoading') }}</div>
+            <div v-if="dependenciesError && dependencies.length" class="dependency-status error" role="status">
+              {{ t('dashboard.detail.dependencyChangeFailed', { message: dependenciesError }) }}
+            </div>
           </div>
           <div
             v-if="repoIssuesFetched && !repoIssuesLoading && availableDependencies.length === 0"
