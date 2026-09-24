@@ -34,6 +34,17 @@ export type ResponseConfig<TData = unknown> = {
   headers: Headers;
 };
 
+/**
+ * The error type a generated operation *declares* for one status code, used only
+ * as the second type argument of `Client` (e.g. `ResponseErrorConfig<RepoGet404>`).
+ *
+ * It is documentation, not a runtime contract: this client never throws it. Every
+ * failure surfaces as a plain `Error` whose message is
+ * `Forgejo API error <status>: <detail>` (see below), so a `catch` narrowed to a
+ * generated error type reads fields like `errors` or `url` as `undefined`. Catch
+ * `Error` and read `message`; the extension host re-classifies it (status, kind,
+ * localized text) in `packages/forgejo-toolkit/src/api/errors-core.ts`.
+ */
 export type ResponseErrorConfig<TError = unknown> = TError;
 
 /**

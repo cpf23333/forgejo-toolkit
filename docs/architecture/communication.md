@@ -1,53 +1,104 @@
 # Extension Host — Webview Communication
 
-The webview and the extension host communicate through JSON messages over `acquireVsCodeApi().postMessage`.
+The webview and the extension host exchange JSON messages over the VS Code webview
+message API. The webview posts through the wrapper in
+`packages/forgejo-toolkit/webview/src/composables/vscode.ts` (`postMessage`, which
+JSON-clones into `acquireVsCodeApi()`), and the host posts back through its `_reply`
+helper in `viewProvider.ts` (which calls `webview.postMessage`). Every message is
+discriminated by a `command` string field.
 
-## Message direction
+## Where the message types live
 
-- `HostToWebviewMessage` — sent from the extension host to the webview.
-- `WebviewToHostMessage` — sent from the webview to the extension host.
+Both directions are typed in one file, shared by the host bundle and the webview
+bundle:
 
-## Initial state
+- `packages/shared/src/webview/messages.ts`
+  - `HostToWebviewMessage` — host to webview
+  - `WebviewToHostMessage` — webview to host
 
-When the webview loads, the extension host sends a single `initialState` message containing:
+Import them as `@cpf23333-forgejo-toolkit/shared/webview/messages` (the shared
+package's `exports` map, `packages/shared/package.json`). There is no
+`packages/forgejo-toolkit/src/types/messages.ts`.
 
-- configured Forgejo instances
-- current locale
-- debug logging flag
-- worktree list
-- worktree open mode and cache directory
+The host dispatches every incoming message in
+`packages/forgejo-toolkit/src/webview/viewProvider.ts` (`_dispatchMessage`, wired
+from the webview's `onDidReceiveMessage`); the dashboard webview handles replies in
+`packages/forgejo-toolkit/webview/src/composables/useAppState.ts` (`handleMessage`).
+The onboarding panel (`packages/forgejo-toolkit/src/webview/onboardingPanel.ts`) and
+the PR review comment panel
+(`packages/forgejo-toolkit/src/comments/pullReviewCommentPanel.ts`) speak the same
+protocol with their own dispatch loops.
 
-The webview stores this state in a shared reactive store and renders the UI.
+## Request / response convention
 
-## Request / response pattern
+There is no `{ id, result | error }` envelope, and no generic `getIssues`,
+`getPullRequests`, `openInWorktree`, `worktreeChanged` or `log` command. A request
+is a typed message carrying a unique **`_requestId`** string that the webview
+generates; the reply is the operation-specific typed message that echoes it:
 
-Most webview-to-host messages follow a request/response pattern:
+1. The webview registers a pending promise under a generated id
+   (e.g. `` `render-${++renderMarkdownRequestId}` ``) and posts the request, e.g.
+   `{ command: 'createIssueComment', …, _requestId }`.
+2. The host runs the handler — usually a `ForgejoClient` method from
+   `packages/forgejo-toolkit/src/api/client.ts`, sometimes a Git command — and
+   posts the matching typed reply (`issueCommentCreated`, `renderedMarkdown`,
+   `issueCreated`, …).
+3. The reply carries its own payload plus `error?: string`. The webview resolves
+   the pending promise when that field is absent and rejects it when it is set.
 
-1. The webview posts a message with a unique `id`.
-2. The extension host handles the request, calls the Forgejo API or runs a Git command.
-3. The extension host posts a response with the same `id` and either a `result` or `error`.
+Only requests that need a correlated promise carry `_requestId`: the creations and
+attachment calls (`createIssue`, `createIssueComment`, `createPullRequest`,
+`createRepoRelease`, `createIssueAttachment`, `deleteIssueAttachment`,
+`createIssueCommentAttachment`, `deleteIssueCommentAttachment`,
+`createReleaseAttachment`, `deleteReleaseAttachment`) and the on-demand lookups
+(`renderMarkdown`, `searchMentions`, `getUserPreview`, `getIssuePreview`).
 
-Example message types:
+`showInputBox` and `showConfirm` use their own `id` field instead:
+`{ command: 'showConfirm'; id; message; confirmLabel }` → `showConfirmResult`,
+`showInputBox` → `showInputBoxResult`.
 
-- `getRepositories`
-- `getIssues`
-- `getPullRequests`
-- `getFileHistory`
-- `createIssue`
-- `openInWorktree`
-
-## Notifications
-
-Some host-to-webview messages are notifications without a corresponding request:
-
-- `initialState`
-- `worktreeChanged`
-- `log`
+Every other webview-to-host message is either fire-and-forget (`openSettings`,
+`openDashboard`, `setLocale`, `setDebug`, `openExternal`, …) or a loader whose
+reply is routed by the fields it echoes rather than by an id (`getRepoIssues` →
+`repoIssues`, which carries `instanceId`/`owner`/`repo`/`state`).
 
 ## Error handling
 
-Errors are returned as `{ id, error: { message, code? } }`. The webview should display the message and optionally retry transient failures.
+- A handler that returns without replying, or throws, cannot leave the webview
+  hanging: `_dispatchMessage` tracks outstanding `_requestId`s and posts the
+  generic fallback `{ command: 'requestError', _requestId, error }` (declared in
+  `messages.ts`, emitted by the `_dispatchMessage` wrapper in `viewProvider.ts`).
+  The webview rejects the matching pending request in `useAppState.ts`
+  (`case 'requestError'`).
+- The webview additionally times a pending request out
+  (`DEFAULT_REQUEST_TIMEOUT_MS = 60_000`, applied by `registerPending` in
+  `useAppState.ts`) so a lost reply surfaces as `common.requestTimeout` instead of
+  an endless spinner.
+- Messages rejected before any handler runs (unknown instance, unsafe
+  `owner`/`repo`, …) are answered through the same reply contract by
+  `_replyResultShapedError`, not silently dropped.
 
-## Type safety
+## Notifications (no request)
 
-Message types are defined in `packages/forgejo-toolkit/src/types/messages.ts` and shared between the extension host and the webview build.
+The host also pushes messages the webview never asked for, including
+`initialState`, `instances`, `refreshData`, `openSettings`, `openDashboard`,
+`openNotifications`, `openCreatePullRequest`, `openNewIssue`,
+`openPullRequestDetail`, `worktreesList`, `worktreeOpened`, `worktreeError`,
+`worktreeCancelled`, `worktreeRemoved`, `polledNotifications` and
+`openPullReviewCommentEditor`.
+
+On load each panel posts one `initialState` message (`_reply('initialState', …)` in
+`viewProvider.ts`, `onboardingPanel.ts`, `pullReviewCommentPanel.ts`): public
+instances with the token stripped to a `tokenFingerprint` (`toPublicInstance` in
+`messages.ts`), the locale, the debug flag, the worktree list, the worktree open
+mode, and the worktree cache directory plus its default. The webview stores it in
+the shared reactive store (see [state-management.md](./state-management.md)).
+
+## Confirmations are host-enforced
+
+Destructive commands (delete\*, merge, dispatchWorkflow, …) are confirmed by the
+host itself: the handler awaits `_confirmDestructive` in `viewProvider.ts` (a modal
+`vscode.window.showWarningMessage`) before executing, and reports a declined dialog
+as `cancelled?: true` on its typed reply rather than as an error. The webview must
+not call `showConfirm()` for those commands — that would double-prompt.
+Webview-side `showConfirm()` is only for confirmations that involve no host command.

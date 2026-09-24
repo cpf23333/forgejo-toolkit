@@ -45,6 +45,8 @@
 
 ## 第八轮审查后待修（2026-09-23；第六、七轮的确认项已全部修复并验证）
 
+- [ ] **P3** 把 `shared/request` 的错误契约从「字符串消息」改成结构化错误：导出 `RequestError extends Error { status, statusText, headers, body }`，让生成的 wrapper 标注它，并让 `toApiError` 直接读 `status`/`body`，而不是用 `/Forgejo API error (\d+):/` 正则解析消息（现在 `ResponseErrorConfig` 只是类型占位、运行时抛普通 `Error`，宿主只能靠正则与消息里的 JSON 重新分类）。跨 shared + 宿主 + 错误测试的刻意改动，值得单独一批做
+
 - [ ] **medium** 评论/评审编辑器保存时仍未等待进行中的图片上传（第七轮只覆盖了两个编辑表单）：`views/IssueDetail.vue`、`views/PullRequestDetail.vue`、`components/CommentTimeline.vue`、`views/PullReviewCommentEditor.vue`
 - [ ] **medium** 通知对账把「超出轮询 50 条一页」的视图行误标为已读（`useAppState.ts` 的 reconcile 用 `unreadIds`，而宿主只取一页）
 - [ ] **medium** `clearInstancePayloads` 忘记清 `repoIssuesFetchedAt`/`repoPullRequestsFetchedAt` 标记，被丢弃的列表不会重新拉取

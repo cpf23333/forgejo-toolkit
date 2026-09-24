@@ -34,11 +34,14 @@ checklist records.
 > fails.
 >
 > `kubb` deletes `../src/generated` before it writes, so a run that fails (a crash, a
-> bad spec) leaves the directory empty. Restore it with
-> `git restore --source=HEAD --worktree ../src/generated`. On 2026-09-23 `pnpm generate`
-> aborted twice on Windows (exit 134, a V8/libuv crash after the clean step) both with
-> the default heap and with `NODE_OPTIONS=--max-old-space-size=6144`, so the pinned
-> snapshot is committed but the regeneration itself still needs a working toolchain
-> run. Local Windows with the installed Node 24.14.0/25.6.1 aborts every time (three
-> runs, all exit 134); the CI container (Node 22) is the environment to try, and
-> `generate:safe` makes that attempt non-destructive.
+> bad spec) leaves the directory empty. `generate:safe` restores it from git in that
+> case; to restore by hand, `git restore --source=HEAD --worktree ../src/generated`.
+> Regeneration does succeed: `d3e4677` (2026-09-24, `chore(api): regenerate the client
+from the pinned snapshot`) is the most recent commit that touched
+> `../src/generated`. Check `git log -1 --date=short -- ../src/generated` for the
+> current baseline before diffing a fresh run. The 2026-09-23 attempt was the one that
+> aborted (exit 134, a V8/libuv crash after the clean step, both with the default heap
+> and with `NODE_OPTIONS=--max-old-space-size=6144` — three runs, all exit 134, on the
+> local Node 24.14.0/25.6.1 installed at the time; if a local Windows run dies that
+> way again, retry on the CI container (Node 22), and `generate:safe` makes the retry
+> non-destructive.
