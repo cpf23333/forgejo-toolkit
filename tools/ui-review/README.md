@@ -65,7 +65,8 @@ more than one `#32770` is visible, and it also refuses when the only candidate i
 owned by another process or cannot be brought to the foreground, instead of
 sending keys to whatever it found first. `fileDialog.ps1 -Cancel` dismisses the
 file picker with Escape (falling back to `WM_CLOSE`, which it reports) and never
-touches the file row — the row is only clicked for `-Pick`.
+touches the file row; without `-Cancel` the script clicks `-RowIndex` (optionally
+at the `-RowY` you read off a capture) to accept the dialog.
 
 Both helpers locate the dev-host window by the isolated `--user-data-dir` of this
 harness (`src/win/devhost.ps1`), not by window title, so they also work with a
