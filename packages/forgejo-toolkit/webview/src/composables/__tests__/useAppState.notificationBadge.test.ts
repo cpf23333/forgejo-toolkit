@@ -75,6 +75,25 @@ function badgeRequests(): Array<Record<string, unknown>> {
     .filter((message) => message.command === 'getNotifications');
 }
 
+/**
+ * The cursor of every `getNotifications` request sent so far, in send order.
+ * The host echoes the request's own `before` on its reply (see `viewProvider`'s
+ * `getNotifications` case), which is the only per-request identity the reply
+ * carries; a test plays the host by echoing it back.
+ */
+function cursorsSent(): string[] {
+  return badgeRequests().map((message) => message.before as string);
+}
+
+/** Repoints the instance at another server while the requests above run. */
+async function repointInstance() {
+  dispatchMessage({
+    command: 'instances',
+    data: [{ ...INSTANCE_A, url: 'https://forgejo.example.com/beta' }],
+  });
+  await nextTick();
+}
+
 async function badgeInFlight(state: AppState) {
   dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
   await nextTick();
@@ -221,5 +240,124 @@ describe('useAppState notification badge request identity', () => {
 
     expect(state.polledNotifications.value.get(INSTANCE_A.id)?.map((entry) => entry.id)).toEqual([2, 3]);
     expect(state.unreadNotificationCount.value).toBe(2);
+  });
+
+  it('attributes a reply by the cursor the host echoes, whatever order it lands in', async () => {
+    // The real host echoes the request's own cursor, and it dispatches
+    // concurrently: the request sent after the edit can be answered before the
+    // one sent for the replaced server. Attribution by arrival order read the
+    // newer server's page as the older request's and then let the replaced
+    // server's page fill the badge and the view; matching the echoed cursor
+    // attributes each reply to the request it actually answers.
+    const { state, mod } = await createState();
+    const notificationsKey = mod.notificationsKey;
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+
+    state.loadNotifications(INSTANCE_A.id, ['unread', 'pinned']);
+    const viewCursor = cursorsSent()[0];
+    await repointInstance();
+
+    await state.loadNotificationBadge(INSTANCE_A.id);
+    const badgeCursor = cursorsSent().at(-1) as string;
+    expect(badgeCursor).not.toBe(viewCursor);
+
+    // The server now configured answers the badge request first...
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: INSTANCE_A.id,
+      notifications: [
+        { id: 2, unread: true },
+        { id: 3, unread: true },
+      ],
+      before: badgeCursor,
+    });
+    await nextTick();
+
+    // ...so its page is the badge's, not the older request's.
+    expect(state.polledNotifications.value.get(INSTANCE_A.id)?.map((entry) => entry.id)).toEqual([2, 3]);
+
+    // The replaced server answers the request sent before the edit, last.
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: INSTANCE_A.id,
+      notifications: [{ id: 1, unread: true }],
+      before: viewCursor,
+    });
+    await nextTick();
+
+    // Its page must fill neither the badge...
+    expect(state.polledNotifications.value.get(INSTANCE_A.id)?.map((entry) => entry.id)).toEqual([2, 3]);
+    expect(state.unreadNotificationCount.value).toBe(2);
+    // ...nor the view, which holds the page of the server now configured.
+    expect(state.notifications.value.get(notificationsKey(INSTANCE_A.id))?.map((entry) => entry.id)).toEqual([2, 3]);
+  });
+
+  it('fills the badge from a cursor-carrying reply to its own request', async () => {
+    // The badge request is a first page, but it is sent with a cursor of its own
+    // (see notificationRequestCursor) so the reply can be attributed; that must
+    // not make handleNotifications read it as a "load more" reply.
+    const { state, mod } = await createState();
+    const notificationsKey = mod.notificationsKey;
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+
+    state.loadNotifications(INSTANCE_A.id, ['unread', 'pinned']);
+    const viewCursor = cursorsSent()[0];
+    await repointInstance();
+
+    // The replaced server answers its own request first; its page must not fill
+    // the view, which the identity change has just cleared.
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: INSTANCE_A.id,
+      notifications: [{ id: 1, unread: true }],
+      before: viewCursor,
+    });
+    await nextTick();
+    expect(state.notifications.value.has(notificationsKey(INSTANCE_A.id))).toBe(false);
+
+    await state.loadNotificationBadge(INSTANCE_A.id);
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: INSTANCE_A.id,
+      notifications: [
+        { id: 2, unread: true },
+        { id: 3, unread: true },
+      ],
+      before: cursorsSent().at(-1) as string,
+    });
+    await nextTick();
+
+    expect(state.polledNotifications.value.get(INSTANCE_A.id)?.map((entry) => entry.id)).toEqual([2, 3]);
+    expect(state.unreadNotificationCount.value).toBe(2);
+  });
+
+  it('appends a load-more reply matched by its own cursor', async () => {
+    const { state, mod } = await createState();
+    const key = mod.notificationsKey(INSTANCE_A.id);
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+
+    state.loadNotifications(INSTANCE_A.id, ['unread', 'pinned']);
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: INSTANCE_A.id,
+      notifications: [{ id: 1, unread: true }],
+      before: cursorsSent()[0],
+    });
+    await nextTick();
+
+    const cursor = '2026-09-20T11:59:00.000Z';
+    state.loadNotifications(INSTANCE_A.id, ['unread', 'pinned'], undefined, cursor);
+    dispatchMessage({
+      command: 'notifications',
+      instanceId: INSTANCE_A.id,
+      notifications: [{ id: 2, unread: true }],
+      before: cursor,
+    });
+    await nextTick();
+
+    expect(state.notifications.value.get(key)?.map((entry) => entry.id)).toEqual([1, 2]);
   });
 });

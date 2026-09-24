@@ -79,6 +79,7 @@ function toggleReaction(content: string, hasSelf: boolean) {
       class="reaction-chip"
       :class="{ active: group.hasSelf }"
       :disabled="loading"
+      :aria-pressed="group.hasSelf"
       :title="group.hasSelf ? t('dashboard.detail.removeReaction') : t('dashboard.detail.addReaction')"
       @click="toggleReaction(group.content, group.hasSelf)"
     >

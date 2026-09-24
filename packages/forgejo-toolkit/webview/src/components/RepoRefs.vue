@@ -182,6 +182,14 @@ function removePendingReleaseAttachment(index: number) {
 }
 
 async function handleSubmit(data: Record<string, unknown>) {
+  // A second submit while the first is still in flight must not be issued. The
+  // create commands are fire-and-forget, and a branch/tag create sets no loading
+  // key of its own, so the dialog's own `loading` gate only opened once the refs
+  // reload arrived: a double click in that window posted a second create, whose
+  // "already exists" reply replaced the success of the first.
+  if (isSubmitting.value) {
+    return;
+  }
   // Capture the target before the first await. Creating the release and
   // uploading its attachments are separate round-trips, and `props` follows the
   // parent: reading the owner/repo again after an await would post the remaining
@@ -449,7 +457,7 @@ function removeRelease(id?: number) {
       :owner="owner"
       :repo="repo"
       :default-branch="defaultBranch"
-      :loading="(loading && isSubmitting) || isUploadingReleaseAttachments || uploadingReleaseAttachmentCount > 0"
+      :loading="isSubmitting || isUploadingReleaseAttachments || uploadingReleaseAttachmentCount > 0"
       :error="submitError ?? error"
       :release="editingRelease"
       :branches="data?.branches.map((b) => b.name ?? '').filter(Boolean)"

@@ -29,6 +29,8 @@ vi.mock('../../composables/useAppState', () => ({
 
 import DashboardInstanceItem from '../DashboardInstanceItem.vue';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
+import en from '../../i18n/en.json';
+import zh from '../../i18n/zh.json';
 
 const instance = { id: 'inst-1', url: 'https://forgejo.example.com', name: 'demo', username: 'demo-user' };
 
@@ -40,11 +42,11 @@ const TreeItemStub = defineComponent({
   template: '<div class="tree-item"><slot /><slot name="description" /></div>',
 });
 
-function mountItem(activeTab: 'repositories' | 'issues' | 'pullRequests') {
+function mountItem(activeTab: 'repositories' | 'issues' | 'pullRequests', locale: 'en' | 'zh' = 'en') {
   return mount(DashboardInstanceItem, {
     props: { instance, activeTab },
     global: {
-      plugins: [createTestI18n('en')],
+      plugins: [createTestI18n(locale)],
       stubs: { 'vscode-tree-item': TreeItemStub },
     },
   });
@@ -52,12 +54,22 @@ function mountItem(activeTab: 'repositories' | 'issues' | 'pullRequests') {
 
 const ERROR_TEXT = 'Failed to load: permission denied';
 
+const LOCALES = [
+  { locale: 'en' as const, messages: en },
+  { locale: 'zh' as const, messages: zh },
+];
+
 /**
  * A failed load leaves the tab's payload unset, which is not the same as an
  * empty list: the error is already reported above, and showing "No
  * repositories" under it states as fact something the webview does not know.
  * The empty state is only for a successful load that returned nothing, and it
  * has to offer a next step instead of being a bare label.
+ *
+ * The issues and pull-request loaders only ever ask for OPEN items
+ * (`loadMyIssues(id, 'open')`), so their empty states have to name that state:
+ * "no issues assigned to you" claimed something the query never asked, and the
+ * two locales disagreed about what it claimed.
  */
 describe('DashboardInstanceItem empty states', () => {
   beforeEach(() => {
@@ -88,7 +100,7 @@ describe('DashboardInstanceItem empty states', () => {
     await nextTick();
 
     expect(wrapper.text()).toContain(ERROR_TEXT);
-    expect(wrapper.text()).not.toContain('No issues assigned to you');
+    expect(wrapper.text()).not.toContain('No open issues related to you');
     wrapper.unmount();
   });
 
@@ -99,7 +111,7 @@ describe('DashboardInstanceItem empty states', () => {
     await nextTick();
 
     expect(wrapper.text()).toContain(ERROR_TEXT);
-    expect(wrapper.text()).not.toContain('No pull requests related to you');
+    expect(wrapper.text()).not.toContain('No open pull requests related to you');
     wrapper.unmount();
   });
 
@@ -120,7 +132,7 @@ describe('DashboardInstanceItem empty states', () => {
     const wrapper = mountItem('issues');
     await nextTick();
 
-    expect(wrapper.text()).toContain('No issues assigned to you');
+    expect(wrapper.text()).toContain('No open issues related to you');
     expect(wrapper.text()).toContain('create an issue');
     wrapper.unmount();
   });
@@ -131,9 +143,37 @@ describe('DashboardInstanceItem empty states', () => {
     const wrapper = mountItem('pullRequests');
     await nextTick();
 
-    expect(wrapper.text()).toContain('No pull requests related to you');
+    expect(wrapper.text()).toContain('No open pull requests related to you');
     expect(wrapper.text()).toContain('Repositories tab');
     wrapper.unmount();
+  });
+
+  it.each(LOCALES)('names the open state the tab asked for in $locale', async ({ locale, messages }) => {
+    stateMock.myIssues.value.set('inst-1', []);
+    stateMock.myPullRequests.value.set('inst-1', []);
+
+    const issues = mountItem('issues', locale);
+    await nextTick();
+    const pulls = mountItem('pullRequests', locale);
+    await nextTick();
+
+    // What the view renders is what the locale says ...
+    expect(issues.text()).toContain(messages.dashboard.noIssues);
+    expect(pulls.text()).toContain(messages.dashboard.noPullRequests);
+
+    // ... and both locales say the same thing about which items are listed: the
+    // open ones. An empty state without the state word reads as "you have none
+    // at all", which is false for a user whose items are all closed.
+    for (const message of [messages.dashboard.noIssues, messages.dashboard.noPullRequests]) {
+      expect(message.toLowerCase()).toContain(messages.dashboard.state.open.toLowerCase());
+    }
+
+    // The removed claim: the query also covers created/mentioned/review
+    // requested items, so naming only assignment was wrong on its own.
+    expect(messages.dashboard.noIssues.toLowerCase()).not.toContain('assigned to you');
+
+    issues.unmount();
+    pulls.unmount();
   });
 
   it('lists the repositories of a successful load instead of the empty state', async () => {

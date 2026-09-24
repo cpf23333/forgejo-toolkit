@@ -247,6 +247,9 @@ watch(
 const prUrl = computed(() => detail.value?.html_url ?? '');
 const isEditing = ref(false);
 const editFormDirty = ref(false);
+// Guards the Cancel path's discard prompt so a double click cannot open two of
+// them (see confirmCancelEdit).
+let cancelEditConfirmInFlight = false;
 const uploadingAttachmentCount = ref(0);
 const deletingAttachmentId = ref<number | undefined>(undefined);
 const isDeletingAttachments = ref(false);
@@ -257,6 +260,14 @@ const pendingDeleteAttachmentIds = ref<number[]>([]);
 const pendingEditUploads = createPendingUploads();
 // The submit handler set the dialog busy to wait for those uploads.
 const isAwaitingUploads = ref(false);
+// Images still uploading from the edit dialog's editor. `PullRequestForm` tracks
+// them for its own submit button, but its `dirty` output only covers the fields -
+// unlike `IssueForm`, which counts an in-flight upload. The editor inserts the
+// image's markdown into the body only when the request returns, so the dialog
+// must ask before closing during one: mirrored here, where the modal's `is-dirty`
+// guard is decided.
+const uploadingEditImageCount = ref(0);
+const editDialogDirty = computed(() => editFormDirty.value || uploadingEditImageCount.value > 0);
 // Feedback for attachments that survived the save: the host asks for a
 // confirmation per attachment, so a declined one must not disappear silently.
 const attachmentDeleteNotice = ref<string | undefined>(undefined);
@@ -558,6 +569,33 @@ function closeEdit() {
   isEditing.value = false;
 }
 
+/**
+ * Cancel routes through the same discard confirmation Esc and × use. The modal
+ * asks for them itself (`confirmCloseIfDirty` + `is-dirty`), but the form's
+ * Cancel button is its own control: it emitted `close` directly, so a typed,
+ * unsaved edit disappeared without a word while the other two exits asked.
+ * `RepoRefs.confirmCancelDialog` is the same shape.
+ */
+async function confirmCancelEdit() {
+  if (!editFormDirty.value) {
+    closeEdit();
+    return;
+  }
+  // Guards against a second prompt while one is already open (the Cancel button
+  // stays enabled behind the native dialog).
+  if (cancelEditConfirmInFlight) {
+    return;
+  }
+  cancelEditConfirmInFlight = true;
+  try {
+    if (await state.showConfirm(t('common.discardChangesConfirm'))) {
+      closeEdit();
+    }
+  } finally {
+    cancelEditConfirmInFlight = false;
+  }
+}
+
 async function handleEditSubmit(data: {
   title: string;
   body: string;
@@ -667,6 +705,7 @@ async function handleUploadImage(file: File, onSuccess: (url: string) => void, o
   const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
   // Registered so a save issued while this upload runs waits for it.
   const upload = pendingEditUploads.begin();
+  uploadingEditImageCount.value += 1;
   try {
     const attachment = await state.uploadIssueAttachment(
       target.instanceId,
@@ -688,6 +727,9 @@ async function handleUploadImage(file: File, onSuccess: (url: string) => void, o
   } catch (error) {
     onError(error instanceof Error ? error.message : String(error));
   } finally {
+    // The editor inserts the markdown inside `onSuccess`, so the upload counts as
+    // unsaved work until that has run.
+    uploadingEditImageCount.value = Math.max(0, uploadingEditImageCount.value - 1);
     pendingEditUploads.end(upload);
   }
 }
@@ -1876,7 +1918,7 @@ function reloadPullRequest() {
         :title="t('dashboard.form.editPullRequest')"
         :loading="formLoading"
         :confirm-close-if-dirty="true"
-        :is-dirty="editFormDirty"
+        :is-dirty="editDialogDirty"
         @close="closeEdit"
       >
         <PullRequestForm
@@ -1903,7 +1945,7 @@ function reloadPullRequest() {
           :owner="owner"
           :repo="repo"
           @submit="handleEditSubmit"
-          @cancel="closeEdit"
+          @cancel="confirmCancelEdit"
           @dirty="editFormDirty = $event"
         >
           <template #extra>

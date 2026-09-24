@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ForgejoIssueAttachment } from '../types/api';
 
@@ -44,6 +44,28 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
+/**
+ * Whether the notice may carry its text yet.
+ *
+ * The notice is the `role="status"` region, and a region that enters the DOM
+ * together with the text it announces is not reliably announced — the assistive
+ * technology has to observe the region before its content changes. This flag
+ * therefore trails the failure by one render: the region is inserted empty, and
+ * the text follows into it. `flush: 'post'` is what makes the trailing exact —
+ * it runs after the render that inserted (or kept) the region.
+ */
+const announceReady = ref(false);
+onMounted(() => {
+  announceReady.value = props.attachmentsUnavailable === true;
+});
+watch(
+  () => props.attachmentsUnavailable === true,
+  (unavailable) => {
+    announceReady.value = unavailable;
+  },
+  { flush: 'post' },
+);
+
 function triggerFileInput() {
   fileInputRef.value?.click();
 }
@@ -84,10 +106,15 @@ function formatFileSize(bytes?: number): string {
     </div>
     <!-- A failed lookup arrives as an empty list: without this the section said
          the item has no attachments, so a user whose attachment was still there
-         concluded it had been deleted. -->
-    <div v-if="attachmentsUnavailable" class="attachment-unavailable" role="status">
-      <vscode-icon name="warning" />
-      <span>{{ t('dashboard.detail.attachmentsUnavailable') }}</span>
+         concluded it had been deleted. The notice is also the live region; its
+         text is held back for one render (`announceReady`) so the region is in
+         the document before the announcement is put into it. No extra wrapper is
+         rendered — a page that shows many of these sections has a DOM budget. -->
+    <div v-if="attachmentsUnavailable" class="attachment-unavailable" role="status" aria-live="polite">
+      <template v-if="announceReady">
+        <vscode-icon name="warning" />
+        <span>{{ t('dashboard.detail.attachmentsUnavailable') }}</span>
+      </template>
     </div>
     <ul v-if="assets?.length" class="attachment-list">
       <li

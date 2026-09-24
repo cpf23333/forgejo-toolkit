@@ -137,8 +137,61 @@ function sameItems<T>(a: T[], b: T[]): boolean {
   return a.length === b.length && [...a].sort().every((item, index) => item === [...b].sort()[index]);
 }
 
+// Uploads started from the body editor are tracked so the submit handler can
+// wait for them: the editor inserts the image markdown only when the upload
+// returns, so saving first would submit a body without the image.
+const pendingImageUploads = createPendingUploads();
+// Reactive mirror of the tracker: an image still uploading disables the submit
+// button and marks the form dirty, because the body does not contain its
+// markdown yet.
+const pendingUploadCount = ref(0);
+/** Whether an image is still uploading; drives the submit button's disabled state. */
+const uploadingImage = computed(() => pendingUploadCount.value > 0);
+
+function trackImageUpload(file: File, onSuccess: (url: string) => void, onError: (error: string) => void): void {
+  const upload = pendingImageUploads.begin();
+  pendingUploadCount.value += 1;
+  const settle = () => {
+    pendingImageUploads.end(upload);
+    pendingUploadCount.value = Math.max(0, pendingUploadCount.value - 1);
+  };
+  props.uploadImage?.(
+    file,
+    (url) => {
+      try {
+        onSuccess(url);
+      } finally {
+        // The editor inserts the markdown inside `onSuccess`, so the tracked
+        // upload must stay pending until that has happened.
+        settle();
+      }
+    },
+    (error) => {
+      try {
+        onError(error);
+      } finally {
+        // A failed upload releases the wait instead of hanging the save.
+        settle();
+      }
+    },
+  );
+}
+
+const trackedUploadImage = computed(() => (props.uploadImage ? trackImageUpload : undefined));
+
+/**
+ * The input this form would throw away when its dialog closes. An upload still
+ * in flight counts as input of its own: the editor inserts its markdown into the
+ * body only when the request returns, so closing meanwhile loses an image the
+ * user already picked. The dialog's own `loading` no longer covers uploads (they
+ * used to block closing for the whole request), so this is what makes closing ask
+ * before dropping one. The PR edit dialog mirrors the upload count in its own
+ * view as well, but with this covered it is no longer the only protection.
+ * (`IssueForm` and `CommentTimeline`'s edit dialog carry the same guard.)
+ */
 const isDirty = computed(
   () =>
+    uploadingImage.value ||
     title.value !== props.initialTitle ||
     body.value !== props.initialBody ||
     (base.value ?? '') !== props.initialBase ||
@@ -197,41 +250,6 @@ function isLightColor(hex: string): boolean {
 function channelLuminance(channel: number): number {
   return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
 }
-
-// See IssueForm: an image upload inserts its markdown only when the request
-// returns, so a save issued meanwhile must wait for it.
-const pendingImageUploads = createPendingUploads();
-const pendingUploadCount = ref(0);
-/** Whether an image is still uploading; drives the submit button's disabled state. */
-const uploadingImage = computed(() => pendingUploadCount.value > 0);
-
-function trackImageUpload(file: File, onSuccess: (url: string) => void, onError: (error: string) => void): void {
-  const upload = pendingImageUploads.begin();
-  pendingUploadCount.value += 1;
-  const settle = () => {
-    pendingImageUploads.end(upload);
-    pendingUploadCount.value = Math.max(0, pendingUploadCount.value - 1);
-  };
-  props.uploadImage?.(
-    file,
-    (url) => {
-      try {
-        onSuccess(url);
-      } finally {
-        settle();
-      }
-    },
-    (error) => {
-      try {
-        onError(error);
-      } finally {
-        settle();
-      }
-    },
-  );
-}
-
-const trackedUploadImage = computed(() => (props.uploadImage ? trackImageUpload : undefined));
 
 async function handleSubmit() {
   // Wait for in-flight uploads: the body only gains the image markdown when

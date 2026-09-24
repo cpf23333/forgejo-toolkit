@@ -14,8 +14,20 @@ describe('attachmentDeleteNoticeFor', () => {
     expect(attachmentDeleteNoticeFor({ declined: 0, failed: 3 })).toEqual({ key: 'attachmentsDeleteFailed', count: 3 });
   });
 
-  it('prefers the declined message when both happened', () => {
-    // Cancelling is the user's own choice: it must not be reported as a failure.
-    expect(attachmentDeleteNoticeFor({ declined: 1, failed: 2 })).toEqual({ key: 'attachmentsNotDeleted', count: 1 });
+  it('reports both the declined and the failed deletions', () => {
+    // The declined message used to win outright, so with one declined and two
+    // failed the user was told only that they had cancelled and never learned
+    // that two deletions errored out and left their attachments on the server.
+    expect(attachmentDeleteNoticeFor({ declined: 1, failed: 2 })).toEqual({
+      key: 'attachmentsNotDeletedAndFailed',
+      count: 3,
+    });
+  });
+
+  it('counts every surviving attachment in the mixed notice', () => {
+    expect(attachmentDeleteNoticeFor({ declined: 2, failed: 5 })).toEqual({
+      key: 'attachmentsNotDeletedAndFailed',
+      count: 7,
+    });
   });
 });

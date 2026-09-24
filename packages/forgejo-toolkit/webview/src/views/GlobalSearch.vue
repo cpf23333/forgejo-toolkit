@@ -327,6 +327,7 @@ watch(stateFilter, () => {
           :value="query"
           @input="query = ($event.target as HTMLInputElement).value"
           class="search-input"
+          :label="t('dashboard.search.placeholder')"
           :placeholder="t('dashboard.search.placeholder')"
           @keydown="handleInputKeydown"
         />
@@ -364,6 +365,7 @@ watch(stateFilter, () => {
             id="state-filter"
             class="state-filter-select"
             :value="stateFilter"
+            :label="t('dashboard.search.stateFilter')"
             @change="stateFilter = ($event.target as HTMLInputElement).value as typeof stateFilter"
           >
             <vscode-option value="open">{{ t('dashboard.state.open') }}</vscode-option>

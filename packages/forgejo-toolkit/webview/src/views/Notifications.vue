@@ -357,6 +357,7 @@ onActivated(() => {
             id="notification-status-filter"
             class="filter-select"
             :value="statusFilter"
+            :label="t('dashboard.notifications.filterStatus')"
             @change="statusFilter = ($event.target as HTMLInputElement).value as typeof statusFilter"
           >
             <vscode-option value="unread">{{ t('dashboard.notifications.unread') }}</vscode-option>
@@ -372,6 +373,7 @@ onActivated(() => {
             id="notification-type-filter"
             class="filter-select"
             :value="typeFilter"
+            :label="t('dashboard.notifications.filterType')"
             @change="typeFilter = ($event.target as HTMLInputElement).value as typeof typeFilter"
           >
             <vscode-option value="all">{{ t('dashboard.notifications.allTypes') }}</vscode-option>

@@ -3,7 +3,7 @@ import { computed, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import MentionHoverCard from './MentionHoverCard.vue';
 import { useAppState } from '../composables/useAppState';
-import { sanitizeMarkdownHtml } from '../utils/markdown';
+import { sanitizeMarkdownHtml, isOpenableUrl } from '../utils/markdown';
 import type { ForgejoIssue, ForgejoUser } from '../types/api';
 
 const props = defineProps<{
@@ -54,6 +54,12 @@ function handleClick(event: MouseEvent) {
       return;
     }
     event.preventDefault();
+    // The sanitizer already turns an anchor the host cannot open into plain
+    // text (see unwrapUnopenableAnchors); asking the host for one would only
+    // end in its "disallowed scheme" log with nothing happening for the user.
+    if (!isOpenableUrl(href)) {
+      return;
+    }
     emit('openExternal', href);
     return;
   }

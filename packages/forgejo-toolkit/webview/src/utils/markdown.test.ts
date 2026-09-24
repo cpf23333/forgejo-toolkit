@@ -79,6 +79,49 @@ describe('sanitizeMarkdownHtml', () => {
     });
   });
 
+  describe('links the host cannot open', () => {
+    it('renders a mailto: link as plain text', () => {
+      const result = sanitizeMarkdownHtml('<p>write to <a href="mailto:dev@example.com">dev@example.com</a></p>');
+      expect(result).toContain('write to dev@example.com');
+      expect(result).not.toContain('<a');
+      expect(result).not.toContain('data-href');
+      expect(result).not.toContain('mailto:');
+    });
+
+    it('renders file: and vscode: links as plain text', () => {
+      const file = sanitizeMarkdownHtml('<p><a href="file:///tmp/notes.md">notes</a></p>');
+      expect(file).toContain('notes');
+      expect(file).not.toContain('<a');
+      expect(file).not.toContain('file://');
+
+      const command = sanitizeMarkdownHtml('<p><a href="vscode://file/tmp/x.ts">open it</a></p>');
+      expect(command).toContain('open it');
+      expect(command).not.toContain('<a');
+      expect(command).not.toContain('vscode://');
+    });
+
+    it('keeps an https: link clickable through data-href', () => {
+      const result = sanitizeMarkdownHtml('<p><a href="https://codeberg.org/forgejo">forgejo</a></p>');
+      expect(result).toContain('href="javascript:void(0)"');
+      expect(result).toContain('data-href="https://codeberg.org/forgejo"');
+      expect(result).toContain('>forgejo</a>');
+    });
+
+    it('keeps a relative link resolved against the base URL clickable', () => {
+      const result = sanitizeMarkdownHtml('<a href="/user/repo/issues/1">issue</a>', BASE_URL);
+      expect(result).toContain('data-href="https://forgejo.example.com/user/repo/issues/1"');
+      expect(result).toContain('>issue</a>');
+    });
+
+    it('unwraps an https link that only wraps an image', () => {
+      const result = sanitizeMarkdownHtml(
+        '<a href="https://codeberg.org/x"><img src="https://codeberg.org/i.png"></a>',
+      );
+      expect(result).not.toContain('<a');
+      expect(result).toContain('<img');
+    });
+  });
+
   describe('legitimate content regression', () => {
     it('keeps safe links via data-href and resolves relative URLs', () => {
       const result = sanitizeMarkdownHtml('<a href="issues/1">issue</a>', BASE_URL);

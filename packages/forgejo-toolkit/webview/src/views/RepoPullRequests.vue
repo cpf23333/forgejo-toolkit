@@ -281,6 +281,97 @@ function handleUploadImageForCreate(file: File, onSuccess: (url: string) => void
   onSuccess(objectUrl);
 }
 
+/**
+ * How long the wait for a rewrite reply may take before it is reported as a
+ * failure. Mirrors the webview's own request timeout for promise-based commands;
+ * the rewrite is fire-and-forget, so nothing else bounds it.
+ */
+const BODY_REWRITE_TIMEOUT_MS = 60_000;
+/** One retry, then the failure is reported instead of retried forever. */
+const BODY_REWRITE_ATTEMPTS = 2;
+
+/**
+ * Waits for the host to answer an edit dispatched on `key`.
+ *
+ * `editPullRequest` is a fire-and-forget message: it reports its reply by
+ * clearing the key's loading slot, and its failure on that key's error slot.
+ * Watching those two is the only way to learn the outcome here, and the outcome is
+ * what decides whether the session's `blob:` image URLs may be released. Resolves
+ * `false` when the host never answered, so a lost reply is reported instead of
+ * hanging the create flow.
+ */
+function waitForFormReply(key: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stop = watch(
+      () => [state.loading.get(key) ?? false, state.errors.get(key)] as const,
+      ([loadingNow]) => {
+        if (loadingNow) {
+          return;
+        }
+        if (timer) {
+          clearTimeout(timer);
+        }
+        stop();
+        resolve(true);
+      },
+    );
+    timer = setTimeout(() => {
+      stop();
+      resolve(false);
+    }, BODY_REWRITE_TIMEOUT_MS);
+  });
+}
+
+/**
+ * The failure notice for a rewrite that did not land. One sentence naming both
+ * what failed and the state the pull request is left in: the stored body still
+ * carries this session's `blob:` image URLs, which no other reader can load.
+ *
+ * Falls back to the generic save error while the dedicated key is missing
+ * (a missing key resolves to the key itself, and a raw key is not a message).
+ */
+function bodyRewriteFailureMessage(reason: string): string {
+  const key = 'dashboard.repoPullRequests.bodyRewriteFailed';
+  const message = t(key, { message: reason });
+  return message === key ? t('dashboard.form.error', { message: reason }) : message;
+}
+
+/**
+ * Rewrites the body of the pull request that was just created, reporting the
+ * host's reason when it fails. Returns undefined on success.
+ *
+ * The rewrite is a follow-up PUT of its own. It used to be dispatched without
+ * being awaited, and its error was filed under the create form's key - rendered
+ * only inside the dialog that was already closing - while the view revoked the
+ * object URLs and navigated away. A failed rewrite therefore stored the pull
+ * request permanently with `blob:` image sources that no reader can load, and
+ * said nothing about it.
+ */
+async function rewriteBodyAfterCreate(
+  target: { instanceId: string; owner: string; repo: string },
+  prNumber: number,
+  title: string,
+  body: string,
+): Promise<string | undefined> {
+  const key = pullRequestFormKey(target.instanceId, target.owner, target.repo, prNumber);
+  let failure = t('common.requestFailed');
+  for (let attempt = 0; attempt < BODY_REWRITE_ATTEMPTS; attempt += 1) {
+    state.errors.delete(key);
+    state.editPullRequest(target.instanceId, target.owner, target.repo, prNumber, { title, body });
+    // `editPullRequest` marks the key busy before it posts. A key that is not
+    // busy has nothing on the wire: either the host answered synchronously or no
+    // request was registered at all, so there is no reply to wait for.
+    const settled = (state.loading.get(key) ?? false) ? await waitForFormReply(key) : true;
+    const reason = state.errors.get(key);
+    if (settled && !reason) {
+      return undefined;
+    }
+    failure = reason ?? t('common.requestTimeout');
+  }
+  return failure;
+}
+
 async function handleCreateSubmit(data: {
   title: string;
   body: string;
@@ -337,6 +428,10 @@ async function handleCreateSubmit(data: {
       state.errors.set(formKey, t('dashboard.repoPullRequests.attachmentUploadFailed', { count: remaining.length }));
       return;
     }
+    // Everything queued is on the server now. The list is emptied before the
+    // rewrite, so a resubmit after a failed rewrite does not upload the same
+    // files a second time (only a still-failing upload stays queued).
+    pendingIssueAttachments.value = [];
     let updatedBody = data.body;
     // Every pending image that still has no replacement entry was removed from
     // the attachment list (an uploaded one always has one), so only its session
@@ -350,10 +445,18 @@ async function handleCreateSubmit(data: {
       updatedBody = updatedBody.replaceAll(objectUrl, attachmentUrl);
     }
     if (updatedBody !== data.body) {
-      state.editPullRequest(target.instanceId, target.owner, target.repo, prNumber, {
-        title: data.title,
-        body: updatedBody,
-      });
+      // Await the rewrite (with one retry) before the URLs are released and the
+      // view navigates: a failure has to be visible and recoverable, not filed
+      // under the key of a dialog that is closing.
+      const rewriteFailure = await rewriteBodyAfterCreate(target, prNumber, data.title, updatedBody);
+      if (rewriteFailure !== undefined) {
+        // Keep everything a retry needs: the created pull request's number (a
+        // resubmit then rewrites instead of creating a duplicate), the session's
+        // object URLs (the stored body still references them) and the dialog
+        // itself, where this error is rendered.
+        state.errors.set(formKey, bodyRewriteFailureMessage(rewriteFailure));
+        return;
+      }
     }
     for (const url of pendingImageObjectUrls.value.keys()) {
       URL.revokeObjectURL(url);
@@ -394,8 +497,10 @@ async function handleCreateSubmit(data: {
           <button
             v-for="s in states"
             :key="s"
+            type="button"
             class="filter-button"
             :class="{ active: stateParam === s }"
+            :aria-pressed="stateParam === s"
             @click="changeState(s)"
           >
             {{ t(`dashboard.state.${s}`) }}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
@@ -10,6 +10,61 @@ const { t } = useI18n();
 const canGoBack = computed(() => route.path !== '/');
 const backLabel = computed(() => t('app.back'));
 const cacheKey = ref(0);
+
+const mainRef = ref<HTMLElement | null>(null);
+// What the status region announces: the title the view that just opened renders
+// itself. The region is in the DOM (empty) from the first render, so the
+// assistive technology has already observed it when a navigation fills it.
+const viewAnnouncement = ref('');
+// The router's own initial resolution is the load, not a navigation the user
+// asked for: focusing there would move focus — and announce a view — before the
+// user did anything. Everything after that resolution is a navigation.
+let viewFocusArmed = false;
+
+// A view that renders no heading of its own would leave the live region empty.
+// The title its route is registered under fills that gap; a heading the view does
+// render still wins, because that is what the user is looking at.
+const viewTitleKeys: Record<string, string> = {
+  dashboard: 'app.viewTitleDashboard',
+};
+
+function routeTitle(): string {
+  const name = typeof route.name === 'string' ? route.name : '';
+  const key = viewTitleKeys[name];
+  return key ? t(key) : '';
+}
+
+/**
+ * Moves focus into the view a navigation just activated and names it.
+ *
+ * Activating a repository row, an issue card or a search result unmounts the
+ * control that had focus, so it fell to `<body>` and nothing reported the new
+ * view. Focus goes to `<main>`, the container every view renders into, and the
+ * view's own first heading names it in the live region — or, when the view renders
+ * none (the dashboard), the title its route is registered under. `<keep-alive>`
+ * needs no special case: a re-activated view is inside `main` again, so the
+ * heading found here is the one the user is now looking at.
+ */
+function focusActiveView() {
+  const main = mainRef.value;
+  if (!main) {
+    return;
+  }
+  main.focus();
+  const heading = (main.querySelector('h1, h2, h3, [role="heading"]')?.textContent ?? '').trim();
+  viewAnnouncement.value = heading || routeTitle();
+}
+
+watch(
+  () => route.fullPath,
+  () => {
+    void nextTick(() => {
+      if (viewFocusArmed) {
+        focusActiveView();
+      }
+    });
+  },
+);
 
 function back() {
   router.back();
@@ -23,8 +78,11 @@ function handleMessage(event: MessageEvent) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('message', handleMessage);
+  // Armed only once the initial navigation has settled (see viewFocusArmed).
+  await router.isReady();
+  viewFocusArmed = true;
 });
 
 onUnmounted(() => {
@@ -39,13 +97,14 @@ onUnmounted(() => {
         {{ backLabel }}
       </button>
     </header>
-    <main>
+    <main ref="mainRef" tabindex="-1">
       <router-view v-slot="{ Component, route }">
         <keep-alive :max="10">
           <component :is="Component" :key="`${route.path}-${cacheKey}`" />
         </keep-alive>
       </router-view>
     </main>
+    <p class="view-announcement" role="status" aria-live="polite">{{ viewAnnouncement }}</p>
   </div>
 </template>
 
@@ -90,5 +149,18 @@ main {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* The view announcement is for assistive technology only. Out of the flow so it
+   adds nothing to the shell's layout, and kept in the DOM (unlike a region that
+   appears together with its text) so a navigation only changes its content,
+   which is what a live region is announced for. */
+.view-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 </style>

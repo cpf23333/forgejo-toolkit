@@ -40,6 +40,9 @@ let listPollTimer: ReturnType<typeof setInterval> | undefined;
 const POLL_INTERVAL_MS = 4000;
 const MAX_LIST_POLL_ATTEMPTS = 15;
 let listPollAttempts = 0;
+// Wall-clock end of the dispatch wait. Attempts alone would not bound a wait
+// that was paused by leaving the view, so this is what actually ends it.
+let listPollDeadline = 0;
 const pollingAfterIndex = ref<number | undefined>(undefined);
 // Feedback for the dispatch flow: 'waiting' while polling for the new run,
 // 'timeout' when the poll gives up without seeing it.
@@ -72,28 +75,30 @@ watch(
 watch(
   () => dispatchLoading.value,
   (loading, previousLoading) => {
-    if (
-      previousLoading &&
-      !loading &&
-      !dispatchError.value &&
-      pollingAfterIndex.value !== undefined &&
-      isActive.value
-    ) {
-      if (state.lastDispatchCancelled.value === dispatchKey.value) {
-        // The user declined the host-side confirmation: nothing was dispatched,
-        // so there is no new run to wait for and no success to announce. Without
-        // this the cleared loading flag looks like a successful dispatch and the
-        // list would poll for ~60 s before timing out.
-        pollingAfterIndex.value = undefined;
-        dispatchStatus.value = 'idle';
-        return;
-      }
-      dispatchStatus.value = 'waiting';
-      startListPolling(pollingAfterIndex.value);
-      pollingAfterIndex.value = undefined;
+    if (!previousLoading || loading || dispatchError.value || !isActive.value) {
+      return;
     }
+    const afterIndex = pollingAfterIndex.value;
+    if (afterIndex === undefined) {
+      return;
+    }
+    if (state.lastDispatchCancelled.value === dispatchKey.value) {
+      // The user declined the host-side confirmation: nothing was dispatched,
+      // so there is no new run to wait for and no success to announce. Without
+      // this the cleared loading flag looks like a successful dispatch and the
+      // list would poll for ~60 s before timing out.
+      pollingAfterIndex.value = undefined;
+      dispatchStatus.value = 'idle';
+      return;
+    }
+    startListPolling(afterIndex);
   },
 );
+
+// The wait is resolved from the list itself, not only from the poll's own
+// reload: the activation refresh lands in `runs` too, so a run that appeared
+// while the view was off screen ends the wait as soon as that reply arrives.
+watch(runs, resolveDispatchWait);
 
 function reload() {
   // Page 1 replaces the accumulated list: a refresh/retry starts the list over
@@ -197,31 +202,84 @@ function latestRunIndex(): number {
   return max;
 }
 
+/**
+ * Clears the poll's timer. The attempt budget and the deadline are deliberately
+ * left alone: `onDeactivated` pauses the poll rather than abandoning the wait it
+ * serves, and `onActivated` resumes it (see resumeListPolling). Resetting them
+ * here made a wait that was interrupted by leaving the view unwinnable — the
+ * timer was never restarted and the "waiting" message stayed on screen forever.
+ */
 function stopListPolling() {
   if (listPollTimer) {
     clearInterval(listPollTimer);
     listPollTimer = undefined;
   }
-  listPollAttempts = 0;
+}
+
+/** Whether the loaded runs contain one newer than the dispatch's baseline. */
+function newRunAppeared(): boolean {
+  return pollingAfterIndex.value !== undefined && latestRunIndex() > pollingAfterIndex.value;
+}
+
+/**
+ * Ends the wait with `status`. The baseline is cleared with it so a stale
+ * comparison cannot resolve a later dispatch, and the poll always stops.
+ */
+function finishDispatchWait(status: 'idle' | 'timeout') {
+  stopListPolling();
+  pollingAfterIndex.value = undefined;
+  dispatchStatus.value = status;
+}
+
+/**
+ * Resolves a running wait against the runs currently loaded: a newer run ends it
+ * as a success, an expired deadline as a timeout. Called on every list update,
+ * which is what lets a wait end from the list the activation refresh loaded (and
+ * not only from the poll's own reload).
+ */
+function resolveDispatchWait() {
+  if (dispatchStatus.value !== 'waiting') {
+    return;
+  }
+  if (newRunAppeared()) {
+    finishDispatchWait('idle');
+    return;
+  }
+  if (Date.now() >= listPollDeadline) {
+    finishDispatchWait('timeout');
+  }
+}
+
+function listPollTick() {
+  listPollAttempts += 1;
+  if (listPollAttempts > MAX_LIST_POLL_ATTEMPTS) {
+    finishDispatchWait('timeout');
+    return;
+  }
+  state.loadActionRuns(props.instanceId, props.owner, props.repo, 1, true);
+  resolveDispatchWait();
 }
 
 function startListPolling(afterIndex: number) {
   stopListPolling();
   listPollAttempts = 0;
-  listPollTimer = setInterval(() => {
-    listPollAttempts += 1;
-    if (listPollAttempts > MAX_LIST_POLL_ATTEMPTS) {
-      stopListPolling();
-      dispatchStatus.value = 'timeout';
-      return;
-    }
-    state.loadActionRuns(props.instanceId, props.owner, props.repo, 1, true);
-    const currentLatest = latestRunIndex();
-    if (currentLatest > afterIndex) {
-      stopListPolling();
-      dispatchStatus.value = 'idle';
-    }
-  }, POLL_INTERVAL_MS);
+  pollingAfterIndex.value = afterIndex;
+  dispatchStatus.value = 'waiting';
+  listPollDeadline = Date.now() + MAX_LIST_POLL_ATTEMPTS * POLL_INTERVAL_MS;
+  listPollTimer = setInterval(listPollTick, POLL_INTERVAL_MS);
+}
+
+/**
+ * Restarts the poll for a wait that is still running, without touching its
+ * budget. The timer is all that `onDeactivated` stopped; the deadline is shared
+ * with the first start, so pausing the view never extends the ~60 s wait and a
+ * deadline that passed meanwhile is reported as the timeout it is.
+ */
+function resumeListPolling() {
+  if (listPollTimer || dispatchStatus.value !== 'waiting') {
+    return;
+  }
+  listPollTimer = setInterval(listPollTick, POLL_INTERVAL_MS);
 }
 
 function addTriggerInput() {
@@ -261,7 +319,9 @@ function resetTrigger() {
   triggerWorkflow.value = '';
   triggerRef.value = props.defaultBranch ?? '';
   triggerInputs.value = [];
-  dispatchStatus.value = 'idle';
+  // Closing the form drops the dispatch feedback with it, so the poll that was
+  // serving it has nothing left to report.
+  finishDispatchWait('idle');
   showTrigger.value = false;
 }
 
@@ -271,10 +331,19 @@ onActivated(() => {
   // the current repo is loaded (the loader dedups in-flight requests). Page 1
   // refreshes the accumulated list when the view is re-entered.
   state.loadActionRuns(props.instanceId, props.owner, props.repo, 1);
+  // A dispatch that was still being waited for when the view was left keeps its
+  // wait: resolve it against what is already loaded (the refresh above reports
+  // the rest through the `runs` watcher) and restart the timer `onDeactivated`
+  // stopped. Without this the "waiting" message could never clear.
+  resolveDispatchWait();
+  resumeListPolling();
 });
 
 onDeactivated(() => {
   isActive.value = false;
+  // Pauses the poll, not the wait: the attempt budget and the deadline survive,
+  // and `onActivated` resumes from them. The route-driven loading below stays
+  // guarded on isActive.
   stopListPolling();
 });
 

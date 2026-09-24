@@ -88,7 +88,7 @@ watch(instances, loadUnreadBadges);
               v-if="linkedRepositories.length > 1"
               class="linked-repo-switcher"
               :value="linkedRepository.localPath"
-              :aria-label="t('dashboard.linkedRepository.switchRepository')"
+              :label="t('dashboard.linkedRepository.switchRepository')"
               :title="t('dashboard.linkedRepository.switchRepository')"
               @change="selectLinkedRepository(($event.target as HTMLSelectElement).value)"
             >

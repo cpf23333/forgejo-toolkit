@@ -292,6 +292,52 @@ export function saveInstanceTargetKey(target: SaveInstanceTarget): string {
   return target.kind === 'instance' ? `instance:${target.instanceId ?? ''}` : 'new';
 }
 
+/**
+ * One `getNotifications` request this webview has sent and not seen answered yet
+ * (see `notificationRequests`). `cursor` is the request identity the host echoes
+ * back on the reply (its `before` field), `identity`/`epoch` say which server and
+ * which version of the instance it was sent for, and `isMore` says whether it
+ * asked for the page after a cursor.
+ */
+interface NotificationRequest {
+  identity: string;
+  epoch: number;
+  badge: boolean;
+  isMore: boolean;
+  cursor: string;
+}
+
+// A first-page `getNotifications` request has no server cursor of its own, so it
+// is sent with a minted one to be identifiable by the reply (see
+// notificationRequestCursor). The value is a timestamp far enough in the future
+// that every notification of any account is "before" it, which is exactly the
+// page an uncursored request returns; the prefix is what tells such a cursor
+// apart from a real "load more" one.
+const NOTIFICATION_FIRST_PAGE_CURSOR_PREFIX = '2999-';
+const NOTIFICATION_FIRST_PAGE_CURSOR_BASE_MS = Date.UTC(2999, 0, 1);
+let notificationFirstPageCursorSequence = 0;
+
+/**
+ * The cursor a request is sent with, which the host echoes back on its reply
+ * (`viewProvider`'s `getNotifications` case) — the only per-request identity a
+ * `notifications` reply carries. A "load more" request already has a unique
+ * cursor; a first page gets one minted here so two of them (the badge's and the
+ * view's, or one sent before an instance edit and one after) stay apart even
+ * when their replies land out of order.
+ */
+function notificationRequestCursor(before?: string): string {
+  if (before) {
+    return before;
+  }
+  notificationFirstPageCursorSequence += 1;
+  return new Date(NOTIFICATION_FIRST_PAGE_CURSOR_BASE_MS + notificationFirstPageCursorSequence).toISOString();
+}
+
+/** Whether a cursor is one this webview minted for a first page. */
+function isFirstPageCursor(value: unknown): boolean {
+  return typeof value === 'string' && value.startsWith(NOTIFICATION_FIRST_PAGE_CURSOR_PREFIX);
+}
+
 function createAppState() {
   const router = useRouter();
   const { t, locale } = useI18n();
@@ -353,18 +399,24 @@ function createAppState() {
   const polledNotifications = ref<Map<string, ForgejoNotification[]>>(new Map());
   // The `getNotifications` requests this webview has sent and has not seen an
   // answer to yet, in send order, per instance. The host's `notifications` reply
-  // carries no request identity, so a reply is attributed to the request at the
-  // front of this queue — the oldest one still unanswered — and only the entry
-  // flagged `badge` may fill the unread badge. The entry also records the
-  // instance identity the request was sent with (see instanceCacheIdentity), so
-  // a page answering a server/account the user has since replaced can be
-  // dropped and the badge asked again for the one now configured.
-  //
-  // Ordering, not a bare identity, is what stops a reply from satisfying a
-  // request that was sent after it: re-arming the badge pushes its entry behind
-  // every request already in flight (see requestNotificationBadge), so an older
-  // request's late reply can never claim the fresh marker.
-  const notificationRequests = new Map<string, { identity: string; badge: boolean }[]>();
+  // carries no request id, but it does echo the `before` cursor the request was
+  // sent with, so every request is given a cursor of its own (see
+  // notificationRequestCursor) and a reply is attributed to the entry that
+  // cursor belongs to. That matters because two requests can be on the wire at
+  // once — only after an instance identity change, which clears the loading slot
+  // but deliberately keeps the queue — and the host dispatches concurrently, so
+  // their replies can land in either order: the newer server's reply must not be
+  // read as the older request's, nor the replaced server's page as the badge's
+  // own (see handleNotifications). Each entry also records the instance identity
+  // and identity epoch it was sent for (see instanceCacheIdentity), so a page
+  // answering a server the user has since replaced can be dropped and the badge
+  // asked again for the one now configured.
+  const notificationRequests = new Map<string, NotificationRequest[]>();
+  // How many times an instance's identity changed. A request records the epoch
+  // it was sent under, so one sent before an edit is recognizably old even when
+  // the identity returns to a value it had earlier (url a -> url b -> url a),
+  // which comparing identity strings alone cannot see.
+  const notificationIdentityEpoch = new Map<string, number>();
   // Per-instance poll failures (expired token, unreachable instance) so the
   // notifications view can show an error instead of a misleading empty state.
   const notificationPollErrors = ref<Map<string, string>>(new Map());
@@ -831,6 +883,10 @@ function createAppState() {
         const changed = changedInstanceIdentities(instances.value, next);
         instances.value = next;
         for (const instanceId of changed) {
+          // Any outstanding notification request was sent for the server this
+          // edit replaced and its reply can still be in flight: the epoch makes
+          // those replies recognizably old (see notificationRequests).
+          notificationIdentityEpoch.set(instanceId, (notificationIdentityEpoch.get(instanceId) ?? 0) + 1);
           clearInstancePayloads(instanceId);
           reloadInstanceLists(instanceId);
         }
@@ -3220,6 +3276,12 @@ function createAppState() {
   }) {
     const key = actionArtifactDownloadKey(data.instanceId, data.owner, data.repo, data.artifactId);
     loading.set(key, false);
+    if (data.cancelled) {
+      // The user dismissed the save dialog: nothing was downloaded. A cancel
+      // carries no `error`, so branching on `error` alone read it as success and
+      // cleared an error the user may still be reading from an earlier attempt.
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -3322,26 +3384,41 @@ function createAppState() {
     error?: string;
   }) {
     const key = notificationsKey(data.instanceId);
-    // The reply answers the oldest request still on the wire for this instance
-    // (see notificationRequests); that entry decides both whether the page may
-    // fill the badge and whether it came from the server the user has since
-    // replaced. A reply with no outstanding request (a pre-contract host, a
-    // fixture) is treated as an unattributed view page.
+    // The reply answers the request whose cursor it echoes (see
+    // notificationRequests); that entry decides both whether the page may fill
+    // the badge and whether it came from the server the user has since replaced.
+    // A reply carrying a cursor no outstanding request knows — a pre-contract
+    // host or a fixture, neither of which echoes one — falls back to the oldest
+    // entry still unanswered. Two entries can share a real cursor only when the
+    // same "load more" cursor was sent again after an identity change; the
+    // oldest of them answers first, which is the order they went out in.
     const queue = notificationRequests.get(data.instanceId) ?? [];
-    const answered = queue.shift();
+    const matchedIndex =
+      typeof data.before === 'string' ? queue.findIndex((entry) => entry.cursor === data.before) : -1;
+    const answeredIndex = matchedIndex >= 0 ? matchedIndex : 0;
+    const answered = queue.length > 0 ? queue[answeredIndex] : undefined;
+    if (answered) {
+      queue.splice(answeredIndex, 1);
+    }
     if (queue.length > 0) {
       notificationRequests.set(data.instanceId, queue);
     } else {
       notificationRequests.delete(data.instanceId);
     }
     const currentIdentity = instanceIdentityOf(data.instanceId);
-    const replyIsStale = answered !== undefined && answered.identity !== currentIdentity;
-    // Only a plain page can be the badge's own reply: it asks without a cursor
-    // and a failure is not a page at all. A cursor-bearing reply answers "load
-    // more" and an error answers a failure, so both belong to the view's own
-    // request and stay applicable whatever the badge entry says.
-    const isBadgePage = data.before === undefined && !data.error;
-    const stalePage = replyIsStale && isBadgePage;
+    const currentEpoch = notificationIdentityEpoch.get(data.instanceId) ?? 0;
+    const replyIsStale =
+      answered !== undefined && (answered.identity !== currentIdentity || answered.epoch !== currentEpoch);
+    // Only a plain first page can be the badge's own reply: it asks without a
+    // cursor of its own and a failure is not a page at all. The entry's own
+    // `isMore` decides, not the echoed cursor: a first page is sent with a minted
+    // cursor (see notificationRequestCursor), so the echo alone no longer says
+    // which kind of request answered. An unattributed reply keeps the old
+    // reading of the echo.
+    const isBadgePage =
+      answered === undefined
+        ? data.before === undefined && !data.error
+        : answered.badge && !answered.isMore && !data.error;
     if (answered?.badge === true && !replyIsStale && isBadgePage) {
       setPayloadEntry(polledNotifications.value, data.instanceId, data.notifications ?? []);
     }
@@ -3351,8 +3428,8 @@ function createAppState() {
       // configured, so the badge is not left on the old list (or empty for the
       // rest of the session when the reply lands before the badge is asked for).
       // Only the badge request's own entry re-arms: while it is still queued the
-      // fresh request has to wait, or two indistinguishable requests would be in
-      // flight and an older reply could satisfy the fresh marker.
+      // fresh request has to wait, or two badge requests would be in flight and
+      // an older reply could satisfy the fresh marker.
       requestNotificationBadge(data.instanceId);
     }
     // Replay the latest intent if filters changed while this request was in
@@ -3367,12 +3444,14 @@ function createAppState() {
       loadNotifications(data.instanceId, pending.statusTypes, pending.subjectType);
       return;
     }
-    if (stalePage) {
-      // The page came from the server the user has replaced. The identity change
-      // cleared the view slot the badge page would otherwise also fill, so
-      // writing it back would present the old server's notifications as the new
-      // one's. Dropping it leaves the view empty (not loading: the spinner was
-      // cleared above) until its own request answers.
+    if (replyIsStale && !data.error) {
+      // The reply answers a request that was sent for the server the user has
+      // since replaced (or for the account behind it). The identity change
+      // dropped every payload that server fed, so writing this page back would
+      // present the replaced server's notifications as the new one's — in the
+      // view slot, and, for the badge's own request, in the badge as well. A
+      // stale failure is still reported below: the reply carries no page, and
+      // the view is the only place its error can surface.
       return;
     }
     if (data.error) {
@@ -3381,9 +3460,12 @@ function createAppState() {
     }
     errors.delete(key);
     const incoming = data.notifications ?? [];
-    // A reply that echoes a cursor answers a "load more" request: append to
-    // what is shown. Without one it is a fresh list and replaces it.
-    const isMore = typeof data.before === 'string' && data.before.length > 0;
+    // A reply to a "load more" request appends to what is shown; a first page
+    // replaces it. The answered entry knows which it was — a first page carries a
+    // minted cursor, so the echoed one no longer tells them apart on its own.
+    const isMore = answered
+      ? answered.isMore
+      : typeof data.before === 'string' && data.before.length > 0 && !isFirstPageCursor(data.before);
     const merged = isMore ? mergeNotificationPages(notifications.value.get(key) ?? [], incoming) : incoming;
     setPayloadEntry(notifications.value, key, merged);
     // A list without a usable timestamp has no cursor: "load more" stays off
@@ -5305,11 +5387,11 @@ function createAppState() {
     clearWhere(loading, inScope);
     clearWhere(errors, inScope);
     // A badge request still in flight is deliberately left in place: its reply
-    // has to be attributable, and sending a fresh request now would leave two
-    // indistinguishable `notifications` requests in flight (see
-    // requestNotificationBadge). handleNotifications drops the replaced server's
-    // page by the identity its queue entry recorded and asks again for the new
-    // one.
+    // has to be attributable, and the cursor it was sent with is what keeps it
+    // apart from the requests the new configuration sends (see
+    // notificationRequests). handleNotifications drops the replaced server's
+    // page by the identity/epoch its queue entry recorded and asks again for the
+    // new one.
   }
 
   /** Reactive payload maps whose keys are all instance-scoped. */
@@ -5552,14 +5634,16 @@ function createAppState() {
     }
     beginLoading(key);
     inFlightNotificationArgs.set(instanceId, JSON.stringify({ statusTypes, subjectType }));
-    queueNotificationRequest(instanceId, false);
+    const isMore = typeof before === 'string' && before.length > 0;
+    const cursor = notificationRequestCursor(isMore ? before : undefined);
+    queueNotificationRequest(instanceId, { badge: false, isMore, cursor });
     postMessage({
       command: 'getNotifications',
       instanceId,
       statusTypes,
       subjectType,
       limit: NOTIFICATIONS_LIMIT,
-      ...(before ? { before } : {}),
+      before: cursor,
     });
   }
 
@@ -5600,12 +5684,18 @@ function createAppState() {
 
   /**
    * Records one `getNotifications` request as outstanding for its instance (see
-   * notificationRequests). Sent before the post: the reply may land before the
-   * caller's next statement.
+   * notificationRequests) with the cursor it is sent with. Sent before the post:
+   * the reply may land before the caller's next statement.
    */
-  function queueNotificationRequest(instanceId: string, badge: boolean) {
+  function queueNotificationRequest(instanceId: string, request: { badge: boolean; isMore: boolean; cursor: string }) {
     const queue = notificationRequests.get(instanceId) ?? [];
-    queue.push({ identity: instanceIdentityOf(instanceId), badge });
+    queue.push({
+      identity: instanceIdentityOf(instanceId),
+      epoch: notificationIdentityEpoch.get(instanceId) ?? 0,
+      badge: request.badge,
+      isMore: request.isMore,
+      cursor: request.cursor,
+    });
     notificationRequests.set(instanceId, queue);
   }
 
@@ -5616,26 +5706,27 @@ function createAppState() {
 
   /**
    * Sends one instance's unfiltered first notification page, recording the
-   * instance identity it was sent for (see notificationRequests).
+   * instance identity and cursor it was sent for (see notificationRequests).
    *
-   * At most one badge request per instance is in flight: the `badge` entry is
-   * what tells handleNotifications that a `notifications` reply is the badge's
-   * own, and the host's reply carries no request id to tell two of them apart.
-   * The request is therefore left in place across an instance edit too - a fresh
-   * request would be indistinguishable from it on the wire - and a re-arm while
-   * the entry is still queued would claim that older request's reply instead.
+   * At most one badge request per instance is in flight — its entry is what tells
+   * handleNotifications that a reply is the badge's own — and the request is left
+   * in place across an instance edit too: its reply has to be attributable, and
+   * the cursor it carries is what attributes it even if the new configuration's
+   * requests are answered first.
    */
   function requestNotificationBadge(instanceId: string) {
     if (!instances.value.some((entry) => entry.id === instanceId) || hasBadgeRequestInFlight(instanceId)) {
       return;
     }
     beginLoading(notificationsKey(instanceId));
-    queueNotificationRequest(instanceId, true);
+    const cursor = notificationRequestCursor();
+    queueNotificationRequest(instanceId, { badge: true, isMore: false, cursor });
     postMessage({
       command: 'getNotifications',
       instanceId,
       statusTypes: ['unread', 'pinned'],
       limit: NOTIFICATIONS_LIMIT,
+      before: cursor,
     });
   }
 

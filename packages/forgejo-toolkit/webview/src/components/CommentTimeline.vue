@@ -433,19 +433,21 @@ function closeEdit() {
 /**
  * Closes the edit dialog on the user's explicit request (the Cancel button).
  *
- * While an image upload is in flight the upload's reply would be discarded - its
- * markdown is inserted into the body only when it answers - so the user is asked
- * first, with the same confirmation ModalDialog gives the X, Esc and backdrop
- * paths through `confirmCloseIfDirty` (see `editCloseNeedsConfirm`). The dialog
- * is deliberately not left in ModalDialog's `loading` state for an upload:
- * `loading` hides the X and swallows Esc, which left the user with no way to
- * close the dialog until the request timed out. Only a submit already on its way
- * (`editSubmitting`) blocks closing, and a late upload reply after a close is
- * dropped by `handleUploadImageForEdit`, which checks that the editor still
- * holds the comment the upload was started from.
+ * Cancel is a discard path exactly like Esc and ×, so it asks the same question
+ * over the same state: `editCloseNeedsConfirm` covers both the edited body and an
+ * image upload in flight (whose markdown is inserted into the body only when it
+ * answers). Confirming only the upload left a typed, unsaved body to disappear
+ * without a word - the modal's own Esc/× guard already reported itself dirty
+ * through `is-dirty`, so only Cancel was inconsistent. The dialog is deliberately
+ * not left in ModalDialog's `loading` state for an upload: `loading` hides the X
+ * and swallows Esc, which left the user with no way to close the dialog until the
+ * request timed out. Only a submit already on its way (`editSubmitting`) blocks
+ * closing, and a late upload reply after a close is dropped by
+ * `handleUploadImageForEdit`, which checks that the editor still holds the
+ * comment the upload was started from.
  */
 async function requestEditClose() {
-  if (editUploadsInFlight.value && !(await state.showConfirm(t('common.discardChangesConfirm')))) {
+  if (editCloseNeedsConfirm.value && !(await state.showConfirm(t('common.discardChangesConfirm')))) {
     return;
   }
   closeEdit();
@@ -591,7 +593,18 @@ async function handleUploadImageForEdit(
     const attachment = await uploadAttachmentForEdit(file);
     const url = attachment?.uuid ? `/attachments/${attachment.uuid}` : (attachment?.browser_download_url ?? '');
     if (!url) {
-      onError(t('common.imageUploadFailed'));
+      // `uploadAttachmentForEdit` already recorded the host's reason for the
+      // per-comment notice. Reporting `common.imageUploadFailed` here as well
+      // made the editor say "Image upload failed: Failed to upload image" next
+      // to that notice's real cause: the same failure twice, one of the two
+      // messages saying nothing. The editor's line is the one next to the image
+      // picker (and the only report the attachment-list path does not produce),
+      // so the real reason goes there and the duplicate notice is dropped.
+      const reason = commentId === undefined ? undefined : uploadErrors[commentId];
+      if (commentId !== undefined) {
+        delete uploadErrors[commentId];
+      }
+      onError(reason || t('common.imageUploadFailed'));
       return;
     }
     // The user opened another comment's form while the upload was in flight:

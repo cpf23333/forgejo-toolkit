@@ -2046,6 +2046,74 @@ describe('useAppState', () => {
     });
   });
 
+  describe('artifact download replies', () => {
+    it('keeps an error already shown when the reply reports a cancelled dialog', async () => {
+      const { state, mod } = await createState();
+      const key = mod.actionArtifactDownloadKey('inst-1', 'owner', 'repo', 42);
+
+      // The first attempt failed and the user is reading its error.
+      dispatchMessage({
+        command: 'actionArtifactDownloaded',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        artifactId: 42,
+        error: 'disk full',
+      });
+      await nextTick();
+      expect(state.errors.get(key)).toBe('disk full');
+
+      // The reply of a request that is still marked in flight is answered, but
+      // its save dialog was dismissed. A cancel carries no `error`, so branching
+      // on `error` alone read it as success and cleared the error the user was
+      // still reading; only the loading state may clear.
+      state.loading.set(key, true);
+
+      dispatchMessage({
+        command: 'actionArtifactDownloaded',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        artifactId: 42,
+        cancelled: true,
+      });
+      await nextTick();
+
+      expect(state.loading.get(key)).toBe(false);
+      expect(state.errors.get(key)).toBe('disk full');
+    });
+
+    it('clears an error already shown once a download succeeds', async () => {
+      const { state, mod } = await createState();
+      const key = mod.actionArtifactDownloadKey('inst-1', 'owner', 'repo', 42);
+
+      dispatchMessage({
+        command: 'actionArtifactDownloaded',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        artifactId: 42,
+        error: 'disk full',
+      });
+      await nextTick();
+      expect(state.errors.get(key)).toBe('disk full');
+
+      dispatchMessage({
+        command: 'actionArtifactDownloaded',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        artifactId: 42,
+        path: 'C:\\tmp\\build.zip',
+      });
+      await nextTick();
+
+      // A saved artifact is the outcome the earlier failure did not reach, so
+      // the stale error goes away.
+      expect(state.errors.get(key)).toBeUndefined();
+    });
+  });
+
   describe('single-slot request guards', () => {
     it('testConnection drops a superseded response and resends the latest intent', async () => {
       const { state } = await createState();

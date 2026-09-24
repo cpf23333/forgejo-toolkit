@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, useId } from 'vue';
 
 interface Props {
   title: string;
@@ -12,6 +12,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 const expanded = ref(props.defaultExpanded);
 
+// One id per section instance (`useId` is unique per component), so the
+// trigger's `aria-controls` names this section's own content instead of
+// whichever section happens to render first.
+const contentId = `collapsible-section-content-${useId()}`;
+
 function toggle() {
   expanded.value = !expanded.value;
 }
@@ -19,11 +24,20 @@ function toggle() {
 
 <template>
   <div class="collapsible-section" :class="{ expanded }">
-    <button type="button" class="collapsible-header" @click="toggle">
+    <!-- The header is the disclosure trigger: without `aria-expanded` the open
+         state is carried only by the rotated chevron, which a screen reader
+         cannot read as a state, and `aria-controls` ties the content to it. -->
+    <button
+      type="button"
+      class="collapsible-header"
+      :aria-expanded="expanded"
+      :aria-controls="contentId"
+      @click="toggle"
+    >
       <span class="collapsible-title">{{ title }}</span>
       <vscode-icon class="collapsible-icon" name="chevron-right" />
     </button>
-    <div v-show="expanded" class="collapsible-content">
+    <div v-show="expanded" :id="contentId" class="collapsible-content">
       <slot />
     </div>
   </div>

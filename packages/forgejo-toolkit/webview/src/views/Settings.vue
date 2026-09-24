@@ -515,7 +515,7 @@ defineExpose({
       <h2>{{ t('settings.language') }}</h2>
       <p class="description">{{ t('settings.languageDescription') }}</p>
       <div class="form-row">
-        <vscode-single-select :value="selectedLocale" @change="handleLocaleChange">
+        <vscode-single-select :value="selectedLocale" :label="t('settings.language')" @change="handleLocaleChange">
           <vscode-option value="zh">{{ t('locales.zh') }}</vscode-option>
           <vscode-option value="en">{{ t('locales.en') }}</vscode-option>
         </vscode-single-select>
@@ -540,6 +540,7 @@ defineExpose({
         <vscode-single-select
           id="worktree-open-mode"
           :value="selectedWorktreeOpenMode"
+          :label="t('settings.worktree.openMode')"
           @change="handleWorktreeOpenModeChange"
         >
           <vscode-option value="ask">{{ t('settings.worktree.ask') }}</vscode-option>
@@ -553,6 +554,7 @@ defineExpose({
         <vscode-textfield
           id="worktree-cache-directory"
           :value="worktreeCacheDirectory"
+          :label="t('settings.worktree.cacheDirectory')"
           :placeholder="state.worktreeCacheDirectoryDefault.value ?? ''"
           @input="handleWorktreeCacheDirectoryChange"
           @change="applyWorktreeCacheDirectory"
@@ -599,6 +601,7 @@ defineExpose({
         <vscode-textfield
           id="forgejo-url"
           :value="url"
+          :label="t('settings.instanceUrl')"
           :placeholder="t('settings.instanceUrlPlaceholder')"
           type="url"
           @input="url = ($event.target as HTMLInputElement).value"
@@ -610,6 +613,7 @@ defineExpose({
         <vscode-textfield
           id="forgejo-token"
           :value="token"
+          :label="t('settings.accessToken')"
           :placeholder="
             editingInstance ? t('settings.accessTokenKeepPlaceholder') : t('settings.accessTokenPlaceholder')
           "

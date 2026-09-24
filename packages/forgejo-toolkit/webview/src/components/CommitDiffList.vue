@@ -60,6 +60,16 @@ function toggleCommit(sha: string) {
   expanded.value = next;
 }
 
+/**
+ * The id of one commit's file container, for the `aria-controls` of its header.
+ * A commit without a sha (every entry of a truncated/paged payload carries one,
+ * but the type allows none) falls back to its position so two headers cannot
+ * point at the same container.
+ */
+function commitFilesId(sha: string | undefined, index: number): string {
+  return `commit-files-${sha || index}`;
+}
+
 function formatDate(date: string): string {
   try {
     const d = new Date(date);
@@ -114,10 +124,17 @@ function handleOpenSelectedDiffs(
   </div>
   <div class="commit-diff-list">
     <div v-if="commits.length === 0" class="empty">{{ t('dashboard.detail.noChangedFiles') }}</div>
-    <div v-for="commit in commits" :key="commit.sha" class="commit-item">
+    <div v-for="(commit, index) in commits" :key="commit.sha" class="commit-item">
+      <!-- The header toggles the file list below it. The state used to be
+           carried by the ▼/▶ glyph alone, which a screen reader cannot read as
+           a state, so the header is a button that reports its expansion and
+           names the container it controls. -->
       <div
         class="commit-header"
+        role="button"
         tabindex="0"
+        :aria-expanded="expanded.has(commit.sha ?? '')"
+        :aria-controls="commitFilesId(commit.sha, index)"
         @click="toggleCommit(commit.sha ?? '')"
         @keydown.enter="toggleCommit(commit.sha ?? '')"
         @keydown.space.prevent="toggleCommit(commit.sha ?? '')"
@@ -128,7 +145,7 @@ function handleOpenSelectedDiffs(
         <span v-if="commit.author" class="commit-author">{{ commit.author.login }}</span>
         <span v-if="commit.created" class="commit-date">{{ formatDate(commit.created) }}</span>
       </div>
-      <div v-if="expanded.has(commit.sha ?? '')" class="commit-files">
+      <div v-if="expanded.has(commit.sha ?? '')" :id="commitFilesId(commit.sha, index)" class="commit-files">
         <DiffFileList
           :files="commitFiles(commit)"
           :supports-multi-diff="props.supportsMultiDiff"
@@ -174,6 +191,11 @@ function handleOpenSelectedDiffs(
 
 .commit-header:hover {
   background-color: var(--vscode-list-hoverBackground);
+}
+
+.commit-header:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 .commit-toggle {

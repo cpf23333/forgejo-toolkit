@@ -92,22 +92,27 @@ function onItemClick(commit: ForgejoCommit) {
           {{ t('dashboard.detail.commitsTruncated') }}
         </div>
         <ul class="history-list">
-          <li
-            v-for="commit in commits"
-            :key="commit.sha"
-            class="history-item"
-            tabindex="0"
-            @click="onItemClick(commit)"
-            @keydown.enter="onItemClick(commit)"
-            @keydown.space.prevent="onItemClick(commit)"
-          >
-            <div class="history-message" :title="commit.commit?.message">
-              {{ truncateMessage(commit.commit?.message ?? '') }}
-            </div>
-            <div class="history-meta">
-              <span class="history-author">{{ commit.commit?.author?.name }}</span>
-              <span class="history-date">{{ formatDate(commit.commit?.author?.date ?? '') }}</span>
-              <code class="history-sha">{{ commit.sha.slice(0, 7) }}</code>
+          <li v-for="commit in commits" :key="commit.sha" class="history-item">
+            <!-- The row is a button, but the list item stays a list item:
+                 `role="button"` on the `<li>` would leave the `<ul>` with a
+                 child that is no longer a listitem. The target carries the role,
+                 the tab stop, the keyboard handling and the row's layout. -->
+            <div
+              class="history-target"
+              role="button"
+              tabindex="0"
+              @click="onItemClick(commit)"
+              @keydown.enter="onItemClick(commit)"
+              @keydown.space.prevent="onItemClick(commit)"
+            >
+              <div class="history-message" :title="commit.commit?.message">
+                {{ truncateMessage(commit.commit?.message ?? '') }}
+              </div>
+              <div class="history-meta">
+                <span class="history-author">{{ commit.commit?.author?.name }}</span>
+                <span class="history-date">{{ formatDate(commit.commit?.author?.date ?? '') }}</span>
+                <code class="history-sha">{{ commit.sha.slice(0, 7) }}</code>
+              </div>
             </div>
           </li>
         </ul>
@@ -142,12 +147,24 @@ function onItemClick(commit: ForgejoCommit) {
 }
 
 .history-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--vscode-panel-border);
   cursor: pointer;
+}
+
+/* The column layout lives on the button-like target so the `<li>` keeps its
+   listitem role; the target is the only child, so the row looks unchanged. */
+.history-target {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.history-target:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
 }
 
 .history-item:hover {

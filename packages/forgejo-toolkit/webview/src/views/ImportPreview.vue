@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
@@ -37,6 +37,29 @@ const previewError = computed(() => preview.value?.error);
 // silently skipped them looked like a complete file. Absent (an older host) and
 // zero both mean there is nothing to report.
 const droppedCount = computed(() => preview.value?.dropped ?? 0);
+
+/**
+ * Whether the warning may carry its text yet.
+ *
+ * The warning is the `role="status"` region, and a region that enters the DOM
+ * together with the text it announces is not reliably announced — the assistive
+ * technology has to observe the region before its content changes. The count
+ * only ever arrives together with the entries it belongs to, so this flag trails
+ * it by one render: the region is inserted empty and its sentence follows into
+ * it. `flush: 'post'` is what makes the trailing exact — it runs after the
+ * render that inserted (or kept) the region.
+ */
+const droppedWarningReady = ref(false);
+onMounted(() => {
+  droppedWarningReady.value = droppedCount.value > 0;
+});
+watch(
+  droppedCount,
+  (count) => {
+    droppedWarningReady.value = count > 0;
+  },
+  { flush: 'post' },
+);
 
 const currentInstancesById = computed(() => {
   const map = new Map<string, CurrentForgejoInstance>();
@@ -170,10 +193,15 @@ watch(
     <div v-else>
       <!-- Above the list on purpose: the entries it names are missing from
            `instances` below, so a user counting rows sees fewer than the file
-           holds and has to be told why before confirming. -->
-      <div v-if="droppedCount > 0" class="dropped-warning" role="status">
-        <vscode-icon name="warning" />
-        <span>{{ t('settings.importPreview.dropped', { count: droppedCount }) }}</span>
+           holds and has to be told why before confirming. The warning is also
+           the live region; its text is held back for one render
+           (`droppedWarningReady`) so the region is in the document before the
+           announcement is put into it. -->
+      <div v-if="droppedCount > 0" class="dropped-warning" role="status" aria-live="polite">
+        <template v-if="droppedWarningReady">
+          <vscode-icon name="warning" />
+          <span>{{ t('settings.importPreview.dropped', { count: droppedCount }) }}</span>
+        </template>
       </div>
 
       <div v-if="settings" class="settings-summary">

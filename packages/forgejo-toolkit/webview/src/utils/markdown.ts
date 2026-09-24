@@ -74,6 +74,47 @@ function keepRewrittenUrlAttributes(_node: Element, hookEvent: UponSanitizeAttri
   }
 }
 
+/**
+ * Whether the webview's host would actually open this URL. `openExternal`
+ * accepts `http:`/`https:` only (see the host's dispatch), so a `mailto:`,
+ * `file:` or `vscode:` target — and a protocol-relative `//host/path`, which has
+ * no scheme of its own — is refused host-side with a log line.
+ */
+export function isOpenableUrl(value: string): boolean {
+  try {
+    const scheme = new URL(value).protocol;
+    return scheme === 'http:' || scheme === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Replaces an anchor the host cannot open with its own content, so the text
+ * stays and the link stops looking live. Such an anchor used to keep its
+ * `data-href`, render with link styling and the click handler emitted
+ * `openExternal` for a `mailto:`/`file:`/`vscode:` target the host then refused:
+ * the user clicked and nothing happened, with no explanation anywhere in the UI.
+ * Fragment (`#…`) and neutralized (`javascript:void(0)`) anchors carry no
+ * `data-href` and are left to their existing handling.
+ */
+function unwrapUnopenableAnchors(root: ParentNode): void {
+  for (const anchor of Array.from(root.querySelectorAll('a'))) {
+    const target = anchor.getAttribute('data-href');
+    if (target === null || isOpenableUrl(target)) {
+      continue;
+    }
+    const parent = anchor.parentNode;
+    if (!parent) {
+      continue;
+    }
+    for (const child of Array.from(anchor.childNodes)) {
+      parent.insertBefore(child, anchor);
+    }
+    parent.removeChild(anchor);
+  }
+}
+
 function unwrapImageAnchors(root: ParentNode): void {
   const anchors = Array.from(root.querySelectorAll('a'));
   for (const anchor of anchors) {
@@ -102,13 +143,17 @@ function unwrapImageAnchors(root: ParentNode): void {
  *   SVG `xlink:href`.
  * - Resolves relative image URLs against the configured base URL.
  * - Removes target attributes and inline style attributes.
- * - Unwraps `<a>` tags that only contain an `<img>` so images are not clickable.
+ * - Unwraps `<a>` tags that only contain an `<img>` so images are not clickable,
+ *   and `<a>` tags whose target the host cannot open (see isOpenableUrl) so a
+ *   `mailto:`/`file:`/`vscode:` link renders as plain text instead of a live
+ *   looking link that does nothing.
  */
 export function sanitizeMarkdownHtml(html: string, baseUrl?: string): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   rewriteUrlAttributes(doc, baseUrl);
   unwrapImageAnchors(doc);
+  unwrapUnopenableAnchors(doc);
   DOMPurify.addHook('uponSanitizeAttribute', keepRewrittenUrlAttributes);
   try {
     return DOMPurify.sanitize(doc.body.innerHTML, {

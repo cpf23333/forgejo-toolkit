@@ -1,6 +1,7 @@
 {
   "app": {
-    "back": "← 返回"
+    "back": "← 返回",
+    "viewTitleDashboard": "仪表盘"
   },
   "common": {
     "confirm": "确定",
@@ -85,9 +86,9 @@
     },
     "noRepositories": "没有仓库",
     "noRepositoriesHint": "使用“发布到 Forgejo”发布本地仓库，或在实例上创建一个仓库。",
-    "noIssues": "没有与你相关的 Issues",
+    "noIssues": "没有与你相关的打开 Issues",
     "noIssuesHint": "打开某个仓库的 Issues 标签页即可创建 Issue。",
-    "noPullRequests": "没有与你相关的 Pull Requests",
+    "noPullRequests": "没有与你相关的打开 Pull Requests",
     "noPullRequestsHint": "在“仓库”标签页中打开一个仓库，即可查看它的 Pull Requests。",
     "emptyRepository": "该仓库为空。推送一些提交后即可开始使用。",
     "loading": "加载中...",
@@ -224,6 +225,7 @@
       "disabled": "该仓库未启用 Issues。",
       "searchPlaceholder": "搜索 Issues…",
       "attachmentUploadFailed": "有 {count} 个附件上传失败。Issue 已创建，再次提交只会补传剩余附件。",
+      "bodyRewriteFailed": "Issue 已创建，但保存描述失败（{message}）。描述仍引用仅本次会话可显示的本地图片，请再次提交重试。",
       "truncated": "这里只显示前 500 个 Issue；缩小筛选范围才能看到其余内容。"
     },
     "repoPullRequests": {
@@ -232,6 +234,7 @@
       "disabled": "该仓库未启用 Pull Requests。",
       "searchPlaceholder": "搜索 Pull Requests…",
       "attachmentUploadFailed": "有 {count} 个附件上传失败。Pull Request 已创建，再次提交只会补传剩余附件。",
+      "bodyRewriteFailed": "Pull Request 已创建，但保存描述失败（{message}）。描述仍引用仅本次会话可显示的本地图片，请再次提交重试。",
       "truncated": "这里只显示前 500 个 Pull Request；缩小筛选范围才能看到其余内容。"
     },
     "repoActions": {
@@ -333,6 +336,7 @@
       "markdownRenderFailed": "无法渲染该评论的格式：{message}。已按原文显示。",
       "attachments": "附件",
       "attachmentsNotDeleted": "有 {count} 个附件未删除：已取消确认。",
+      "attachmentsNotDeletedAndFailed": "有 {count} 个附件未删除：部分确认被取消，部分删除失败。",
       "attachmentsDeleteFailed": "有 {count} 个附件删除失败。",
       "commentAttachmentUploadFailed": "有 {count} 个附件上传失败。评论已发布，再次提交只会补传剩余附件。",
       "attachmentsUnavailable": "附件列表加载失败：附件可能仍然存在，只是未能在此显示。",
@@ -540,7 +544,8 @@
       "errorConnection": "连接失败",
       "errorSaved": "保存实例失败",
       "permissionSaved": "实例已保存，但 Token 缺少 {permission} 权限，仪表盘无法列出你的仓库：{message}",
-      "permissionRepository": "read:repository"
+      "permissionRepository": "read:repository",
+      "probeFailed": "实例已保存，但仪表盘无法列出你的仓库：{message}"
     },
     "exportInstances": "导出",
     "importInstances": "导入",

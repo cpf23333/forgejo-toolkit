@@ -131,6 +131,23 @@ const probeActive = ref(false);
 // is what `read:repository` gates, and the host's message carries the rest.
 const missingScopeName = computed(() => t('settings.status.permissionRepository'));
 
+/**
+ * Whether a probe failure is a refusal rather than a connection problem.
+ *
+ * The host answers `getRepositories` with `userFacingErrorMessage(error)` — a
+ * plain, already-localized sentence, with no status code on it — so a missing
+ * scope can only be recognised by the wording the API error layer renders for a
+ * refusal ("Permission denied. The access token may lack the required scope.").
+ * A timeout, TLS or proxy failure renders as a different sentence; naming a
+ * missing scope there is a claim the probe never established, and it sends the
+ * user off to recreate a token that is fine. `permission` and `scope` are the
+ * two technical words both locales keep (the zh bundle renders 403 as
+ * "没有权限，访问令牌可能缺少所需的 scope。"), so the match does not depend on the
+ * display language.
+ */
+const PERMISSION_REFUSAL_PATTERN =
+  /permission denied|lacks the required scope|may lack the required scope|没有权限|缺少所需的 scope/i;
+
 /** Applies the probe's outcome to the connection status. */
 function reportProbeOutcome() {
   if (!probeActive.value) {
@@ -139,10 +156,12 @@ function reportProbeOutcome() {
   probeActive.value = false;
   const error = dashboardNeedsError.value;
   if (error) {
-    // Name the scope the probe needed and keep the host's own message, which
-    // carries the server's detail (status code, refused scope) verbatim.
+    // Only a refusal may be reported as a missing scope; anything else keeps
+    // the host's own message under an honest headline (the save did succeed).
     setConnectionStatus(
-      t('settings.status.permissionSaved', { permission: missingScopeName.value, message: error }),
+      PERMISSION_REFUSAL_PATTERN.test(error)
+        ? t('settings.status.permissionSaved', { permission: missingScopeName.value, message: error })
+        : t('settings.status.probeFailed', { message: error }),
       'error',
     );
   } else {
@@ -392,7 +411,7 @@ watch(
           <h2>{{ t('onboarding.steps.language') }}</h2>
           <p class="description">{{ t('onboarding.languageDescription') }}</p>
           <div class="form-row">
-            <vscode-single-select :value="selectedLocale" @change="handleLocaleChange">
+            <vscode-single-select :value="selectedLocale" :label="t('settings.language')" @change="handleLocaleChange">
               <vscode-option value="zh">{{ t('locales.zh') }}</vscode-option>
               <vscode-option value="en">{{ t('locales.en') }}</vscode-option>
             </vscode-single-select>
@@ -426,6 +445,7 @@ watch(
             <vscode-textfield
               id="onboarding-url"
               :value="url"
+              :label="t('settings.instanceUrl')"
               :placeholder="t('settings.instanceUrlPlaceholder')"
               type="url"
               @input="url = ($event.target as HTMLInputElement).value"
@@ -437,6 +457,7 @@ watch(
             <vscode-textfield
               id="onboarding-token"
               :value="token"
+              :label="t('settings.accessToken')"
               :placeholder="t('settings.accessTokenPlaceholder')"
               type="password"
               @input="token = ($event.target as HTMLInputElement).value"
@@ -474,6 +495,7 @@ watch(
             <vscode-single-select
               id="onboarding-worktree-open-mode"
               :value="selectedWorktreeOpenMode"
+              :label="t('settings.worktree.openMode')"
               @change="handleWorktreeOpenModeChange"
             >
               <vscode-option value="ask">{{ t('settings.worktree.ask') }}</vscode-option>
@@ -487,6 +509,7 @@ watch(
             <vscode-textfield
               id="onboarding-worktree-cache-directory"
               :value="worktreeCacheDirectory"
+              :label="t('settings.worktree.cacheDirectory')"
               :placeholder="state.worktreeCacheDirectoryDefault.value ?? ''"
               @input="handleWorktreeCacheDirectoryChange"
               @change="applyWorktreeCacheDirectory"

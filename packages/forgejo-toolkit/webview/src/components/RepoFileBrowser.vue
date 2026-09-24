@@ -8,6 +8,7 @@ import { FILE_TREE_LEVEL_CAP } from '../utils/fileTreeCap';
 import { activateShowMoreRowFromKey } from '../utils/treeRowActivation';
 import type { ForgejoContentEntry } from '../types/api';
 import type { GitEntry } from '@cpf23333-forgejo-toolkit/api';
+import { MAX_REPO_FILE_SEARCH_RESULTS } from '@cpf23333-forgejo-toolkit/shared/limits';
 
 const props = defineProps<{
   instanceId: string;
@@ -18,11 +19,10 @@ const props = defineProps<{
   branch?: string;
 }>();
 
-// The host caps a file search at `MAX_SEARCH_RESULTS` in `src/api/client.ts`
-// (200) and reports the cause as `truncatedBy: 'matches'`. The number is written
-// out rather than imported: that module is host-side (it pulls in `vscode` and
-// `undici`) and cannot be part of the webview bundle.
-const HOST_SEARCH_RESULT_CAP = 200;
+// The host caps a file search at `MAX_SEARCH_RESULTS` in `src/api/client.ts` and
+// reports the cause as `truncatedBy: 'matches'`. The number is shared so the
+// message cannot drift from the host's cap.
+const HOST_SEARCH_RESULT_CAP = MAX_REPO_FILE_SEARCH_RESULTS;
 
 const state = useAppState();
 
@@ -329,17 +329,22 @@ onUnmounted(() => {
           </div>
           <template v-else>
             <ul class="search-results">
-              <li
-                v-for="file in searchResults"
-                :key="file.sha ?? file.path"
-                class="search-result-item"
-                tabindex="0"
-                @click="openSearchResult(file)"
-                @keydown.enter="openSearchResult(file)"
-                @keydown.space.prevent="openSearchResult(file)"
-              >
-                <i class="codicon" :class="isImageFile(file.path ?? '') ? 'codicon-file-media' : 'codicon-file'"></i>
-                <span class="search-result-path">{{ file.path }}</span>
+              <li v-for="file in searchResults" :key="file.sha ?? file.path" class="search-result-item">
+                <!-- The row is a button, but the list item stays a list item:
+                     `role="button"` on the `<li>` would leave the `<ul>` with a
+                     child that is no longer a listitem. The target carries the
+                     role, the tab stop and the keyboard handling. -->
+                <span
+                  class="search-result-target"
+                  role="button"
+                  tabindex="0"
+                  @click="openSearchResult(file)"
+                  @keydown.enter="openSearchResult(file)"
+                  @keydown.space.prevent="openSearchResult(file)"
+                >
+                  <i class="codicon" :class="isImageFile(file.path ?? '') ? 'codicon-file-media' : 'codicon-file'"></i>
+                  <span class="search-result-path">{{ file.path }}</span>
+                </span>
               </li>
             </ul>
             <div v-if="searchTruncation" class="tree-status">
@@ -543,13 +548,24 @@ onUnmounted(() => {
 }
 
 .search-result-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   padding: 6px 8px;
   border-radius: 3px;
   cursor: pointer;
   font-size: 0.95em;
+}
+
+/* The flex row lives on the button-like target so the `<li>` keeps its listitem
+   role; the target is the only child, so the row looks unchanged. */
+.search-result-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.search-result-target:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
 }
 
 .search-result-item:hover {

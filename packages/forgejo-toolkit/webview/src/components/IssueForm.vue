@@ -131,8 +131,59 @@ function sameItems<T>(a: T[], b: T[]): boolean {
   return a.length === b.length && [...a].sort().every((item, index) => item === [...b].sort()[index]);
 }
 
+// Uploads started from the body editor are tracked so the submit handler can
+// wait for them: the editor inserts the image markdown only when the upload
+// returns, so saving first would submit a body without the image.
+const pendingImageUploads = createPendingUploads();
+// Reactive mirror of the tracker: the submit button is disabled while an image
+// is still uploading, because the body does not contain its markdown yet.
+const pendingUploadCount = ref(0);
+
+function trackImageUpload(file: File, onSuccess: (url: string) => void, onError: (error: string) => void): void {
+  const upload = pendingImageUploads.begin();
+  pendingUploadCount.value += 1;
+  const settle = () => {
+    pendingImageUploads.end(upload);
+    pendingUploadCount.value = Math.max(0, pendingUploadCount.value - 1);
+  };
+  props.uploadImage?.(
+    file,
+    (url) => {
+      try {
+        onSuccess(url);
+      } finally {
+        // The editor inserts the markdown inside `onSuccess`, so the tracked
+        // upload must stay pending until that has happened.
+        settle();
+      }
+    },
+    (error) => {
+      try {
+        onError(error);
+      } finally {
+        // A failed upload releases the wait instead of hanging the save.
+        settle();
+      }
+    },
+  );
+}
+
+const trackedUploadImage = computed(() => (props.uploadImage ? trackImageUpload : undefined));
+/** Number of images currently uploading; drives the submit button's disabled state. */
+const uploadingImage = computed(() => pendingUploadCount.value > 0);
+
+/**
+ * The input this form would throw away when its dialog closes. An upload still
+ * in flight counts as input of its own: the editor inserts its markdown into the
+ * body only when the request returns, so closing meanwhile loses an image the
+ * user already picked. Typed text was already covered here - the dialog's own
+ * `loading` no longer covers uploads (they used to block closing for the whole
+ * request), so this is what makes closing ask before dropping one.
+ * (`CommentTimeline`'s edit dialog has the same shape; see `editCloseNeedsConfirm`.)
+ */
 const isDirty = computed(
   () =>
+    uploadingImage.value ||
     title.value !== props.initialTitle ||
     body.value !== props.initialBody ||
     (selectedRef.value ?? '') !== props.initialRef ||
@@ -198,47 +249,6 @@ function handleMilestoneChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value;
   selectedMilestoneId.value = value === '' ? undefined : Number(value);
 }
-
-// Uploads started from the body editor are tracked so the submit handler can
-// wait for them: the editor inserts the image markdown only when the upload
-// returns, so saving first would submit a body without the image.
-const pendingImageUploads = createPendingUploads();
-// Reactive mirror of the tracker: the submit button is disabled while an image
-// is still uploading, because the body does not contain its markdown yet.
-const pendingUploadCount = ref(0);
-
-function trackImageUpload(file: File, onSuccess: (url: string) => void, onError: (error: string) => void): void {
-  const upload = pendingImageUploads.begin();
-  pendingUploadCount.value += 1;
-  const settle = () => {
-    pendingImageUploads.end(upload);
-    pendingUploadCount.value = Math.max(0, pendingUploadCount.value - 1);
-  };
-  props.uploadImage?.(
-    file,
-    (url) => {
-      try {
-        onSuccess(url);
-      } finally {
-        // The editor inserts the markdown inside `onSuccess`, so the tracked
-        // upload must stay pending until that has happened.
-        settle();
-      }
-    },
-    (error) => {
-      try {
-        onError(error);
-      } finally {
-        // A failed upload releases the wait instead of hanging the save.
-        settle();
-      }
-    },
-  );
-}
-
-const trackedUploadImage = computed(() => (props.uploadImage ? trackImageUpload : undefined));
-/** Number of images currently uploading; drives the submit button's disabled state. */
-const uploadingImage = computed(() => pendingUploadCount.value > 0);
 
 async function handleSubmit() {
   // Wait for in-flight uploads before serialising the body: the markdown they
