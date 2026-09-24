@@ -24,7 +24,8 @@
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check .",
     "format:fix": "oxfmt .",
-    "spec:update": "node scripts/update-spec.mjs"
+    "spec:update": "node scripts/update-spec.mjs",
+    "generate:safe": "node scripts/generate-safe.mjs"
   },
   "dependencies": {
     "@cpf23333-forgejo-toolkit/shared": "workspace:*"
