@@ -114,59 +114,19 @@ function assertCompleteRepoScope(owner?: string, repo?: string): void {
 }
 
 /**
- * The fields a keyword filter matches, mirroring the repository-scoped listing
- * endpoint (`/repos/{owner}/{repo}/issues?q=…`): title, body and author.
- */
-function matchesQuery(
-  item: { title?: string; body?: string; user?: { login?: string } },
-  normalizedQuery: string,
-): boolean {
-  return [item.title, item.body, item.user?.login].some(
-    (field) => typeof field === 'string' && field.toLowerCase().includes(normalizedQuery),
-  );
-}
-
-/**
- * Client-side keyword filter for the instance-wide issue and pull request
- * listings.
+ * The keyword is filtered by the server on both listing branches: the
+ * repository-scoped endpoint (`/repos/{owner}/{repo}/issues?q=…`) and the
+ * instance-wide issue search the client falls back to both run the query
+ * through Forgejo's issue indexer, which matches the issue title, its body and
+ * its comments (and an issue reference such as `#123`).
  *
- * The repository-scoped branch asks the server to filter (`?q=`); the
- * instance-wide search endpoint the client uses for its fallback has no usable
- * keyword parameter here, so the argument has to be applied to the fetched rows.
- * Doing that is the point: the previous code dropped `query` entirely on that
- * branch, so a caller asking for `{ query: 'login' }` received every issue
- * involving the user and had no way to see that no filtering had happened.
+ * This file used to apply a second, narrower filter over the returned rows.
+ * That silently dropped matches: the indexer matches comment bodies and the
+ * local filter did not, so the intersection removed every issue that had
+ * matched only through a comment — with no truncation note, because the note
+ * only fires at the `LIST_ITEM_LIMIT` cap. The server's own matcher is the
+ * truth here, and the tool descriptions say what it matches.
  */
-function filterByQuery<T extends { title?: string; body?: string; user?: { login?: string } }>(
-  items: T[],
-  query?: string,
-): T[] {
-  const normalized = query?.trim().toLowerCase();
-  return normalized ? items.filter((item) => matchesQuery(item, normalized)) : items;
-}
-
-/**
- * The sentence `ForgejoClient.getFileContent` answers with instead of content
- * when the requested path names a directory: the contents endpoint answers a
- * directory with its listing, and an empty string would read as "this file is
- * empty" — a different and wrong answer.
- *
- * `callTool` only sets `isError` when a handler throws, so the tool layer has to
- * recognise that notice itself; otherwise `get_file_content` answers
- * `isError: false` with prose that is not file content. The sentence is built
- * from the requested path, so the check is an exact match on that path: a real
- * file is not mistaken for a notice unless its whole body is that sentence. The
- * wording belongs to the client, and the MSW test behind `get_file_content`
- * drives the real client, so re-wording the notice fails that test instead of
- * silently disabling this guard. A client that threw where the notice is built
- * would make the guard unnecessary.
- */
-const DIRECTORY_NOTICE_SUFFIX = ' is a directory, not a file: use list_repo_contents to list its entries.';
-
-/** The directory notice `ForgejoClient.getFileContent` returns for `path`. */
-function directoryContentNotice(path: string): string {
-  return `${path}${DIRECTORY_NOTICE_SUFFIX}`;
-}
 
 /**
  * Plain async handlers behind the MCP tools, exported for unit tests: they
@@ -176,15 +136,14 @@ function directoryContentNotice(path: string): string {
 export function buildToolHandlers(client: ForgejoClient) {
   return {
     // The scope assertion stays in a synchronous arrow so a half-specified
-    // scope throws (rather than rejecting) before any request is issued; the
-    // keyword filter is then applied to whatever the listing returns.
+    // scope throws (rather than rejecting) before any request is issued. The
+    // keyword goes to the server on both branches (see the note above), so no
+    // row the server matched is discarded afterwards.
     list_issues: (args: ListIssuesArgs) => {
       assertCompleteRepoScope(args.owner, args.repo);
-      const issues =
-        args.owner && args.repo
-          ? client.getRepoIssues(args.owner, args.repo, args.state ?? 'open', args.query)
-          : client.getUserIssues(args.state ?? 'open');
-      return issues.then((items) => filterByQuery(items, args.query));
+      return args.owner && args.repo
+        ? client.getRepoIssues(args.owner, args.repo, args.state ?? 'open', args.query)
+        : client.getUserIssues(args.state ?? 'open', args.query);
     },
 
     get_issue: async (args: IssueRefArgs) => {
@@ -199,11 +158,9 @@ export function buildToolHandlers(client: ForgejoClient) {
 
     list_pull_requests: (args: ListIssuesArgs) => {
       assertCompleteRepoScope(args.owner, args.repo);
-      const pulls =
-        args.owner && args.repo
-          ? client.getRepoPullRequests(args.owner, args.repo, args.state ?? 'open', args.query)
-          : client.getUserPullRequests(args.state ?? 'open');
-      return pulls.then((items) => filterByQuery(items, args.query));
+      return args.owner && args.repo
+        ? client.getRepoPullRequests(args.owner, args.repo, args.state ?? 'open', args.query)
+        : client.getUserPullRequests(args.state ?? 'open', args.query);
     },
 
     get_pull_request: async (args: IssueRefArgs) => {
@@ -258,17 +215,19 @@ export function buildToolHandlers(client: ForgejoClient) {
 
     // Code reading.
     get_file_content: async (args: FileContentArgs) => {
-      const content = await client.getFileContent(args.owner, args.repo, args.path, args.ref);
-      // A directory path is a caller error, not file content, so the client's
-      // notice is rethrown: `callTool` then answers `isError: true` with the same
-      // sentence as the error text (see DIRECTORY_NOTICE_SUFFIX). The withheld
-      // >10 MiB payload notice stays a successful result on purpose: it is an
-      // accepted instance limitation that names what to do instead (see
-      // KNOWN_ISSUES.md), not a mistake in the request.
-      if (content === directoryContentNotice(args.path)) {
-        throw new Error(content);
+      const read = await client.getFileContentResult(args.owner, args.repo, args.path, args.ref);
+      // The contents endpoint answers a directory with its listing, a symlink
+      // with its target and a submodule with its git URL — none of them file
+      // content. The client reports which kind it found, so the answer does not
+      // have to be recognised by parsing prose: every non-file kind is thrown
+      // here and `callTool` renders it as `isError: true` with the client's own
+      // sentence. The genuinely withheld >10 MiB payload stays a successful
+      // result on purpose: it is an accepted instance limitation that names what
+      // to do instead (see KNOWN_ISSUES.md), not a mistake in the request.
+      if (read.kind !== 'file' && read.kind !== 'withheld') {
+        throw new Error(read.text);
       }
-      return content;
+      return read.text;
     },
 
     list_repo_contents: (args: ListRepoContentsArgs) =>
@@ -517,20 +476,32 @@ export function listTruncationNote(
 }
 
 /**
- * A note for `get_repo`, whose branch and commit lists are capped by
- * `getRepoDetail`'s `{ limit: REPO_DETAIL_LIST_LIMIT }`.
+ * A note for `get_repo`, whose branch and commit lists are capped at
+ * `REPO_DETAIL_LIST_LIMIT`.
  *
  * The lists are not `LIST_ITEM_LIMIT`-paged, so `listTruncationNote` does not
  * see them at all. Without a note a caller reads ten branches as "this
  * repository has ten branches" and concludes that the branch it wanted does not
  * exist.
+ *
+ * Whether a list was actually cut is `getRepoDetail`'s own report, not a length
+ * comparison: the client asks for one row beyond the cap and keeps that extra
+ * row out of the result, so a repository with exactly
+ * `REPO_DETAIL_LIST_LIMIT` branches is complete. Comparing lengths instead
+ * called that complete list truncated and told its caller the list was
+ * incomplete — the same mistake the file-search cap avoids by reporting the cut
+ * it observed (see `searchRepoFiles`).
  */
 export function repoDetailCapNote(value: unknown): string {
   const detail = value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
-  const capped = ['branches', 'recentCommits'].filter((field) => {
-    const list = detail?.[field];
-    return Array.isArray(list) && list.length >= REPO_DETAIL_LIST_LIMIT;
-  });
+  const capped = (
+    [
+      ['branches', 'branchesTruncated'],
+      ['recentCommits', 'recentCommitsTruncated'],
+    ] as const
+  )
+    .filter(([, truncatedFlag]) => detail?.[truncatedFlag] === true)
+    .map(([field]) => field);
   return capped.length === 0
     ? ''
     : `\n(note: ${capped.join(' and ')} is capped at ${REPO_DETAIL_LIST_LIMIT} items by this tool; the list is incomplete. Use list_branches for the full branch list, or the Forgejo web UI for the full commit history.)`;
@@ -614,12 +585,17 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     'list_issues',
     {
       description:
-        'List issues. With owner and repo, lists the issues of that repository (optionally keyword-filtered); without them, lists issues across the instance that involve the authenticated user (the same keyword filter is applied to the returned rows).',
+        'List issues. With owner and repo, lists the issues of that repository, optionally keyword-filtered; without them, lists issues across the instance that involve the authenticated user, with the same keyword filter. The filter is applied by the server, which matches the keyword against the issue title, its body and its comments (and an issue reference such as #123); it does not match the author.',
       inputSchema: {
         owner: ownerSchema,
         repo: repoSchema,
         state: stateSchema,
-        query: z.string().optional().describe('Keyword filter on title, body, or author (applied in both listings).'),
+        query: z
+          .string()
+          .optional()
+          .describe(
+            'Keyword filter, applied by the server on both listings: it matches the issue title, body and comments (and an issue reference such as #123), not the author.',
+          ),
       },
       annotations: readOnly,
     },
@@ -644,12 +620,17 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     'list_pull_requests',
     {
       description:
-        'List pull requests. With owner and repo, lists the pull requests of that repository (optionally keyword-filtered); without them, lists pull requests across the instance that involve the authenticated user (the same keyword filter is applied to the returned rows).',
+        'List pull requests. With owner and repo, lists the pull requests of that repository, optionally keyword-filtered; without them, lists pull requests across the instance that involve the authenticated user, with the same keyword filter. The filter is applied by the server, which matches the keyword against the pull request title, its body and its comments (and an issue reference such as #123); it does not match the author.',
       inputSchema: {
         owner: ownerSchema,
         repo: repoSchema,
         state: stateSchema,
-        query: z.string().optional().describe('Keyword filter on title, body, or author (applied in both listings).'),
+        query: z
+          .string()
+          .optional()
+          .describe(
+            'Keyword filter, applied by the server on both listings: it matches the pull request title, body and comments (and an issue reference such as #123), not the author.',
+          ),
       },
       annotations: readOnly,
     },
@@ -660,7 +641,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     'get_pull_request',
     {
       description:
-        'Get a single pull request by number, including changed files, commits, merge blockers, and status checks.',
+        'Get a single pull request by number, including changed files, commits, merge blockers, and status checks. Attachments are read from the issues API, which is the only endpoint that exposes them, so the result also carries `assets` (the attachment metadata the issues API returned, possibly undefined) and `attachmentsUnavailable: true` when that extra read failed — in which case `assets` is unknown rather than empty.',
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -688,7 +669,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
   server.registerTool(
     'list_notifications',
     {
-      description: `List one page of Forgejo notifications for the authenticated user. A page holds at most \`limit\` notifications (default 50, max 100); a page that fills the limit is not necessarily the whole list. To fetch the next page, call the tool again with \`before\` set to the \`updated_at\` of the oldest notification in the previous page.`,
+      description: `List one page of Forgejo notifications for the authenticated user. A page holds at most \`limit\` notifications (default 50, max 100); a page that fills the limit is not necessarily the whole list. To fetch the next page, call the tool again with \`before\` set to the \`updated_at\` of the oldest notification in the previous page; the server keeps rows updated at exactly that instant (\`updated_unix <= before\`), so that boundary notification comes back in the next page as well and the caller must skip the row it already has.`,
       inputSchema: {
         statusTypes: z
           .array(z.enum(['unread', 'read', 'pinned']))
@@ -705,7 +686,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
           .string()
           .optional()
           .describe(
-            'Paging cursor: only notifications updated before this instant (RFC 3339). Set it to the `updated_at` of the oldest notification in the previous page to fetch the next page.',
+            'Paging cursor: only notifications updated before this instant (RFC 3339). Set it to the `updated_at` of the oldest notification in the previous page to fetch the next page; that boundary notification is returned again (the server compares `updated_unix <= before`), so skip it.',
           ),
       },
       annotations: readOnly,
@@ -716,7 +697,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
   server.registerTool(
     'get_repo',
     {
-      description: `Get repository details, including README, branches, and recent commits. The branches and recentCommits lists are capped at ${REPO_DETAIL_LIST_LIMIT} items each, so a short list does not mean the repository has only that many: use list_branches for the complete branch list.`,
+      description: `Get repository details, including README, branches, and recent commits. The branches and recentCommits lists hold at most ${REPO_DETAIL_LIST_LIMIT} items each, and \`branchesTruncated\`/\`recentCommitsTruncated\` report whether the list was actually cut: a list that is shorter than the cap, or exactly at it with its flag unset, is complete. Use list_branches for the complete branch list.`,
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -807,7 +788,7 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
     'get_file_content',
     {
       description:
-        'Get the decoded text content of a file in a repository. Large files are truncated to ~10 KB by the tool result budget. A path that names a directory is reported as an error pointing at list_repo_contents; a file whose payload the instance withholds (above its contents API payload limit) is answered with a notice naming its size instead of its content.',
+        'Get the decoded text content of a file in a repository. Large files are truncated to ~10 KB by the tool result budget. A path that names a directory (use list_repo_contents to list its entries), a symlink, or a submodule is not a file and is reported as an error naming what the entry actually is (a symlink with its link target, a submodule with its git URL, either way pointing at the web UI) instead of returning content; a file whose payload the instance withholds (above its contents API payload limit) is answered with a successful notice naming its size instead of its content.',
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -822,11 +803,12 @@ export function registerTools(server: McpServer, client: ForgejoClient): void {
   server.registerTool(
     'list_repo_contents',
     {
-      description: 'List files and directories at a path in a repository (default: repository root).',
+      description:
+        'List the entries at a path in a repository (default: repository root): files, directories, symlinks and submodules. A directory path answers with its children; a file path answers that one entry (whose `content`, when the API sends it, is base64 — use get_file_content for decoded text).',
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
-        path: repoPathSchema('Directory path within the repository (default: root).', { allowEmpty: true }).optional(),
+        path: repoPathSchema('Path within the repository (default: root).', { allowEmpty: true }).optional(),
         ref: refSchema,
       },
       annotations: readOnly,

@@ -13,6 +13,7 @@ import {
   MAX_TOOL_TEXT_LENGTH,
 } from '../tools';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../src/test/mocks/server';
+import { MOCK_COMMENT_ONLY_KEYWORD } from '../../src/test/mocks/handlers';
 import {
   mockIssues,
   mockIssueDetail,
@@ -136,6 +137,39 @@ describe('MCP tool handlers with MSW', () => {
       query: 'no-such-keyword',
     })) as typeof mockIssues;
     expect(misses).toHaveLength(0);
+  });
+
+  it('list_issues keeps a match the server found only in a comment', async () => {
+    // Forgejo's indexer matches the issue title, body and comments (see the
+    // bleve mapping in modules/indexer/issues). The handler used to re-filter
+    // the rows the server returned against the title, body and author only, so
+    // an issue whose match lived in a comment was dropped — and the only note
+    // about a cut answer fires at the LIST_ITEM_LIMIT cap, so nothing said a
+    // match had gone missing.
+    const handlers = createHandlers();
+    const keyword = MOCK_COMMENT_ONLY_KEYWORD;
+    // The fixture is only a comment-only match if the keyword is nowhere else.
+    expect(`${mockIssues[0].title} ${mockIssues[0].body}`.toLowerCase()).not.toContain(keyword);
+
+    const matches = (await handlers.list_issues({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      query: keyword,
+    })) as typeof mockIssues;
+
+    expect(matches.map((issue) => issue.number)).toContain(mockIssues[0].number);
+  });
+
+  it('list_pull_requests keeps a comment-only match on the instance-wide listing', async () => {
+    // The instance-wide branch has no client-side filter left either: the
+    // keyword goes to the server, so the same comment match survives there.
+    const handlers = createHandlers();
+    const keyword = MOCK_COMMENT_ONLY_KEYWORD;
+    expect(`${mockPullRequests[0].title} ${mockPullRequests[0].body}`.toLowerCase()).not.toContain(keyword);
+
+    const matches = (await handlers.list_pull_requests({ query: keyword })) as typeof mockPullRequests;
+
+    expect(matches.map((pull) => pull.number)).toContain(mockPullRequests[0].number);
   });
 
   it('get_issue returns the issue detail with its comments', async () => {
@@ -451,9 +485,9 @@ describe('MCP tool handlers with MSW', () => {
   });
 
   it('get_file_content reports a directory path as an error, not as file content', async () => {
-    // The client can only say "this is a directory" with a notice string, and
-    // callTool sets isError only for a throw: without the tool-layer guard the
-    // handler handed the notice back as a successful result.
+    // The client reports which kind of entry it found; the tool layer throws for
+    // every kind that is not file content, and callTool sets isError only for a
+    // throw.
     const handlers = createHandlers();
     await expect(handlers.get_file_content({ owner: 'demo-user', repo: 'demo-repo', path: 'src' })).rejects.toThrow(
       /is a directory/,
@@ -472,6 +506,14 @@ describe('MCP tool handlers with MSW', () => {
     expect(content).not.toContain('is a directory');
   });
 
+  it('answers a real file with its content and no error', async () => {
+    const { call } = registerWith(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+    const result = await call('get_file_content', { owner: 'demo-user', repo: 'demo-repo', path: 'package.json' });
+
+    expect(result?.isError).toBeFalsy();
+    expect(result?.content[0].text ?? '').toContain('demo-repo');
+  });
+
   it('answers a directory path with isError instead of a successful notice', async () => {
     // The MCP-facing signalling, driven through the real client and the mock HTTP
     // server: a directory read is an error, so an agent caller does not have to
@@ -484,13 +526,14 @@ describe('MCP tool handlers with MSW', () => {
     expect(result?.content[0].text ?? '').toContain('list_repo_contents');
   });
 
-  it('does not mistake file content that merely quotes the notice for a directory', async () => {
-    // The guard matches the notice the client builds for the requested path, not
-    // the sentence anywhere in the answer, so a file that documents that notice
-    // is still returned as content.
+  it('does not treat quoted notice prose in a file as a non-file answer', async () => {
+    // The tool decides on the kind the client reports, never on the text: a file
+    // that documents the directory notice is still file content.
     const { call } = registerWithStubClient({
-      getFileContent: async () =>
-        'The tool answers "other.md is a directory, not a file: use list_repo_contents to list its entries." for a directory.\n',
+      getFileContentResult: async () => ({
+        kind: 'file',
+        text: 'The tool answers "other.md is a directory, not a file: use list_repo_contents to list its entries." for a directory.\n',
+      }),
     });
     const result = await call('get_file_content', { owner: 'demo-user', repo: 'demo-repo', path: 'notes.md' });
 
@@ -498,19 +541,62 @@ describe('MCP tool handlers with MSW', () => {
     expect(result?.content[0].text ?? '').toContain('for a directory');
   });
 
+  it('answers a symlink with its target as an error, not as a withheld payload', async () => {
+    // Forgejo answers a symlink with its `target` and a `size` equal to the link
+    // target's length, and no `content`. The size-only reading reported that as
+    // "above the instance's contents API payload limit" — a cause the server
+    // never gave — and passed it back as successful content.
+    const { call } = registerWith(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+    const result = await call('get_file_content', { owner: 'demo-user', repo: 'demo-repo', path: 'docs/link.md' });
+    const text = result?.content[0].text ?? '';
+
+    expect(result?.isError).toBe(true);
+    expect(text).toContain('symlink');
+    expect(text).toContain('README.md');
+    expect(text).not.toContain('payload limit');
+  });
+
+  it('answers a submodule with its git URL as an error, not as an empty file', async () => {
+    // Forgejo answers a submodule with `submodule_git_url` and size 0 and no
+    // `content`; the size-only reading returned an empty string, which reads as
+    // "this file is empty".
+    const { call } = registerWith(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+    const result = await call('get_file_content', { owner: 'demo-user', repo: 'demo-repo', path: 'vendor/lib' });
+    const text = result?.content[0].text ?? '';
+
+    expect(result?.isError).toBe(true);
+    expect(text).toContain('submodule');
+    expect(text).toContain('upstream-lib.git');
+    expect(text).not.toBe('');
+  });
+
   it('leaves the withheld-payload notice a successful result', async () => {
     // A file above the instance's contents API payload limit is an accepted
     // limitation, not a caller error (see KNOWN_ISSUES.md): the notice names the
     // size and points at the browser, so it is passed through without isError.
-    // Only the directory case moved to an error.
+    // The non-file entries above are errors; this one is not.
     const notice =
       "Forgejo did not return this file's content: at 12884902 bytes it is above the instance's contents API payload limit. Read it in the browser instead.";
-    const { call } = registerWithStubClient({ getFileContent: async () => notice });
+    const { call } = registerWithStubClient({
+      getFileContentResult: async () => ({ kind: 'withheld', text: notice }),
+    });
     const result = await call('get_file_content', { owner: 'demo-user', repo: 'demo-repo', path: 'huge.bin' });
 
     expect(result?.isError).toBeFalsy();
     expect(result?.content[0].text ?? '').toContain('payload limit');
     expect(result?.content[0].text ?? '').toContain('12884902');
+  });
+
+  it('answers a withheld payload through the real client with its size and no error', async () => {
+    // End to end: the mock's `huge.bin` entry carries the real size and no
+    // content, exactly what Forgejo sends above `DEFAULT_MAX_BLOB_SIZE`.
+    const { call } = registerWith(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+    const result = await call('get_file_content', { owner: 'demo-user', repo: 'demo-repo', path: 'huge.bin' });
+    const text = result?.content[0].text ?? '';
+
+    expect(result?.isError).toBeFalsy();
+    expect(text).toContain('payload limit');
+    expect(text).toContain(String(12 * 1024 * 1024));
   });
 
   it('get_pull_review_comments returns inline comments with path and position', async () => {
@@ -577,14 +663,23 @@ describe('MCP tool handlers with MSW', () => {
     expect(repos[0].full_name).toBe(mockRepository.full_name);
   });
 
-  it('get_repo says a capped branch and commit list is capped', async () => {
-    // getRepoDetail asks for { limit: 10 }: the tool is classified as
-    // unpaged, so without a note a caller reads the 10 rows as the complete
-    // list and concludes that the branch it wanted does not exist.
+  it('get_repo says a branch and commit list the client cut is capped', async () => {
+    // getRepoDetail asks for one row beyond REPO_DETAIL_LIST_LIMIT and reports
+    // the cut through `branchesTruncated`/`recentCommitsTruncated`. The tool is
+    // classified as unpaged, so without a note a caller reads the 10 returned
+    // rows as the complete list and concludes that the branch it wanted does not
+    // exist.
     const branches = Array.from({ length: GET_REPO_LIST_CAP }, (_, i) => ({ name: `branch-${i}` }));
     const commits = Array.from({ length: GET_REPO_LIST_CAP }, (_, i) => ({ sha: `sha-${i}` }));
     const { call } = registerWithStubClient({
-      getRepoDetail: async () => ({ repository: {}, empty: false, branches, recentCommits: commits }),
+      getRepoDetail: async () => ({
+        repository: {},
+        empty: false,
+        branches,
+        recentCommits: commits,
+        branchesTruncated: true,
+        recentCommitsTruncated: true,
+      }),
     });
 
     const result = await call('get_repo', { owner: 'demo-user', repo: 'demo-repo' });
@@ -594,6 +689,27 @@ describe('MCP tool handlers with MSW', () => {
     expect(text).toContain('branches');
     expect(text).toContain('recentCommits');
     expect(text).toContain('list_branches');
+  });
+
+  it('get_repo does not call an exactly-full list capped when nothing was cut', async () => {
+    // Exactly REPO_DETAIL_LIST_LIMIT rows with the truncation flag unset is a
+    // complete list: comparing the length against the cap called it incomplete.
+    const branches = Array.from({ length: GET_REPO_LIST_CAP }, (_, i) => ({ name: `branch-${i}` }));
+    const commits = Array.from({ length: GET_REPO_LIST_CAP }, (_, i) => ({ sha: `sha-${i}` }));
+    const { call } = registerWithStubClient({
+      getRepoDetail: async () => ({
+        repository: {},
+        empty: false,
+        branches,
+        recentCommits: commits,
+        branchesTruncated: false,
+        recentCommitsTruncated: false,
+      }),
+    });
+
+    const result = await call('get_repo', { owner: 'demo-user', repo: 'demo-repo' });
+
+    expect(result?.content[0].text).not.toContain('capped');
   });
 
   it('get_repo does not claim a cap when the lists are shorter than it', async () => {
@@ -684,7 +800,7 @@ describe('MCP tool handlers with MSW', () => {
 
   it('names the resource kind of a 404 on a repository-scoped object', async () => {
     const { call } = registerWithStubClient({
-      getFileContent: async () => {
+      getFileContentResult: async () => {
         throw toApiError(new Error('Forgejo API error 404: Not Found ({"message":"not found"})'), {
           resource: 'file or directory',
           owner: 'demo-user',
@@ -1156,14 +1272,69 @@ describe('tool descriptions and schemas', () => {
     expect(description).not.toContain('up to 50');
   });
 
-  it('tells the caller how a directory path and a withheld payload are answered', () => {
-    // Neither answer is file content, and a description that only promised
-    // content left the caller to guess what it had received.
+  it('tells the caller how a directory, symlink, submodule and withheld payload are answered', () => {
+    // None of the four answers is file content, and a description that only
+    // promised content left the caller to guess what it had received.
     const description = captureConfigs().get('get_file_content')?.description ?? '';
 
     expect(description).toContain('list_repo_contents');
     expect(description).toMatch(/reported as an error/);
+    expect(description).toContain('symlink');
+    expect(description).toContain('submodule');
     expect(description).toMatch(/payload limit/);
+    // The withheld notice is not an error, and the description must not imply it
+    // is: that answer is a successful result.
+    expect(description).toMatch(/successful notice/);
+  });
+
+  it('describes the keyword filter the server actually applies', () => {
+    // The field description promised "title, body, or author" while Forgejo's
+    // indexer matches the title, body and comments — and the author match never
+    // happened, because nothing filtered by author.
+    const config = captureConfigs().get('list_issues');
+    const query = config?.inputSchema?.query?.description ?? '';
+
+    expect(query).toContain('comments');
+    expect(query).toContain('not the author');
+    expect(config?.description).toContain('comments');
+    expect(config?.description).toMatch(/does not match the author/);
+    // The rows are not re-filtered client-side, so no description claims a
+    // second, narrower filter over what the server returned.
+    expect(config?.description).not.toContain('returned rows');
+
+    const pulls = captureConfigs().get('list_pull_requests');
+    expect(pulls?.inputSchema?.query?.description ?? '').toContain('comments');
+    expect(pulls?.description ?? '').toContain('comments');
+  });
+
+  it('tells the caller that a notification page repeats its boundary row', () => {
+    // Forgejo filters with `updated_unix <= before`, so the oldest row of the
+    // previous page comes back: the recipe that says "pass the oldest row's
+    // updated_at" cannot be followed literally without a duplicate.
+    const config = captureConfigs().get('list_notifications');
+
+    expect(config?.description).toContain('boundary notification');
+    expect(config?.description).toContain('skip');
+    expect(config?.inputSchema?.before?.description ?? '').toContain('skip');
+  });
+
+  it('tells the caller that get_pull_request carries the issue API assets', () => {
+    // The handler merges the issues API's `assets` array in, and reports a
+    // failed attachments read with `attachmentsUnavailable`; a description that
+    // promised only the pull request left both undocumented.
+    const description = captureConfigs().get('get_pull_request')?.description ?? '';
+
+    expect(description).toContain('assets');
+    expect(description).toContain('attachmentsUnavailable');
+  });
+
+  it('names the truncation flags carried by the get_repo result', () => {
+    // The note is built from the client's own report of the cut, so the caller
+    // has to be told where that report lives.
+    const description = captureConfigs().get('get_repo')?.description ?? '';
+
+    expect(description).toContain('branchesTruncated');
+    expect(description).toContain('recentCommitsTruncated');
   });
 
   it('says which search types the state filter applies to', () => {
