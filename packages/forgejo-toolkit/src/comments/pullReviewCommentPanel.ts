@@ -52,6 +52,45 @@ export interface PullReviewCommentPanelCallbacks {
 }
 
 /**
+ * The context a request handler is answering, snapshotted before its first
+ * await.
+ *
+ * The panel is a singleton: `createOrShow` reuses it for another pull request
+ * or diff line (`_switchContext` → `_setContext`), which replaces `_context`
+ * and rebuilds the webview editor. A handler that awaited a network call (or a
+ * confirmation modal) and then read the live `_context` would therefore answer,
+ * notify, mutate and dispose the editor the user opened meanwhile: the reply
+ * would be attributed to the wrong pull request, the callback would refresh it,
+ * the new editor would be closed with whatever the user had typed into it, and
+ * its `pendingReviewId` would be overwritten with a review it never started.
+ * Every handler that awaits takes its target first, answers with it, and touches
+ * the panel (callbacks, `pendingReviewId`, `dispose`) only while `_context` is
+ * still `target.context`.
+ */
+interface PullReviewCommentTarget {
+  /**
+   * The context object itself. Compared by identity, not by `_contextKey`: a
+   * switch rebuilds the webview editor even for a context that merely looks
+   * equal (e.g. the same line reopened), so only the very object the handler
+   * started with proves that the editor it is answering is still the one on
+   * screen.
+   */
+  readonly context: PullReviewCommentContext;
+  /**
+   * The instance the request was made against. The instance record itself is
+   * resolved through this id (its URL and token are read at that point, and a
+   * repoint mid-flight is `_handleInstancesChanged`'s business), so a context
+   * switch onto another instance cannot retarget the request.
+   */
+  readonly instanceId: string;
+  readonly owner: string;
+  readonly repo: string;
+  readonly index: number;
+  /** The pending review this request operates on, as read before the await. */
+  readonly pendingReviewId: number | undefined;
+}
+
+/**
  * Request/response commands this panel answers through the command's own
  * completion reply instead of the generic `requestError`: the editor clears its
  * `submitting` flag on the completion command alone and posts no `_requestId`
@@ -306,7 +345,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
             // The completion command is the only reply the editor can route, so
             // the fallback uses it instead of the generic `requestError`.
             (this._reply as (command: string, data: Record<string, unknown>) => void)(completionReply, {
-              ...this._repoParams(),
+              ...this._repoParams(this._context),
               error: vscode.l10n.t('The request could not be completed'),
             });
           }
@@ -471,18 +510,25 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       mode?: 'single' | 'review';
       pendingReviewId?: number;
     };
+    // Snapshot the target before anything else is read or awaited: every reply
+    // below — including the early error ones — answers for the editor this
+    // request arrived from (see `PullReviewCommentTarget`).
+    const target = this._captureTarget(data.pendingReviewId);
     const body = data.body?.trim();
     if (!body) {
       // Keep the request/response pair intact so the webview can reset its
       // submitting state even on this (normally unreachable) path.
-      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(), error: vscode.l10n.t('Empty comment body') });
+      this._reply('pullReviewCommentSubmitted', {
+        ...this._repoParams(target.context),
+        error: vscode.l10n.t('Empty comment body'),
+      });
       return;
     }
 
-    const instance = this._findInstance(this._context.instanceId);
+    const instance = this._findInstance(target.instanceId);
     if (!instance) {
       this._reply('pullReviewCommentSubmitted', {
-        ...this._repoParams(),
+        ...this._repoParams(target.context),
         error: vscode.l10n.t('Forgejo instance not found'),
       });
       return;
@@ -490,22 +536,22 @@ export class PullReviewCommentPanel implements vscode.Disposable {
 
     const comment: CreatePullReviewComment = {
       body,
-      path: this._context.path,
+      path: target.context.path,
     };
     // `position` is the 1-based file line number; Forgejo expects exactly
     // one of `new_position` (head side) or `old_position` (base side).
-    if (this._context.isBase) {
-      comment.old_position = this._context.position;
+    if (target.context.isBase) {
+      comment.old_position = target.context.position;
     } else {
-      comment.new_position = this._context.position;
+      comment.new_position = target.context.position;
     }
     // Multi-line comments: the position is the first line of the range and
     // `extra_lines_count` extends it forward.
-    if (this._context.extraLinesCount && this._context.extraLinesCount > 0) {
-      comment.extra_lines_count = this._context.extraLinesCount;
+    if (target.context.extraLinesCount && target.context.extraLinesCount > 0) {
+      comment.extra_lines_count = target.context.extraLinesCount;
     }
 
-    const startsNewReview = data.mode === 'review' && typeof data.pendingReviewId !== 'number';
+    const startsNewReview = data.mode === 'review' && typeof target.pendingReviewId !== 'number';
     try {
       // Constructed inside the try: the constructor resolves the instance
       // origin and throws for a URL that is not absolute (`config.ts` accepts
@@ -513,29 +559,29 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       // rejected message promise.
       const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       if (data.mode === 'review') {
-        if (typeof data.pendingReviewId === 'number') {
-          await client.addPullReviewComment(
-            this._context.owner,
-            this._context.repo,
-            this._context.index,
-            data.pendingReviewId,
-            comment,
-          );
+        if (typeof target.pendingReviewId === 'number') {
+          await client.addPullReviewComment(target.owner, target.repo, target.index, target.pendingReviewId, comment);
         } else {
-          const review = await client.createPendingPullReview(
-            this._context.owner,
-            this._context.repo,
-            this._context.index,
-            comment,
-          );
-          this._context.pendingReviewId = review.id;
+          const review = await client.createPendingPullReview(target.owner, target.repo, target.index, comment);
+          // Only the editor this request started from learns the new review id:
+          // the panel may be showing another one by now, and storing the id in
+          // its context would pair that editor with a review it never started.
+          if (this._isCurrentTarget(target)) {
+            target.context.pendingReviewId = review.id;
+          }
         }
       } else {
-        await client.createPullReviewWithComment(this._context.owner, this._context.repo, this._context.index, comment);
+        await client.createPullReviewWithComment(target.owner, target.repo, target.index, comment);
       }
-      this._reply('pullReviewCommentSubmitted', { ...this._repoParams() });
-      this._callbacks?.onSubmitted?.(this._context);
-      this._panel.dispose();
+      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(target.context) });
+      // The callbacks and the close belong to the editor this request came
+      // from: a submit that resolves after a context switch must not refresh
+      // the pull request the user switched to, nor dispose the editor they just
+      // opened (which would drop whatever they had typed into it).
+      if (this._isCurrentTarget(target)) {
+        this._callbacks?.onSubmitted?.(target.context);
+        this._panel.dispose();
+      }
       // The panel closes on success, which is indistinguishable from a failed
       // or cancelled submit without explicit feedback.
       if (startsNewReview) {
@@ -550,26 +596,35 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     } catch (error) {
       const err = userFacingErrorMessage(error);
       logger.error(`Failed to submit pull review comment: ${err}`);
-      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(), error: err });
+      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(target.context), error: err });
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to add review comment: {0}', err));
     }
   }
 
   private async _handleSubmitPullReview(message: unknown): Promise<void> {
     const data = message as { reviewId?: number; event?: string; body?: string };
-    const reviewId = data.reviewId;
-    if (typeof reviewId !== 'number') {
-      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: vscode.l10n.t('No pending review') });
+    // Snapshot first; everything below answers for the editor this request
+    // arrived from (see `PullReviewCommentTarget`).
+    const target = this._captureTarget(data.reviewId);
+    if (typeof target.pendingReviewId !== 'number') {
+      this._reply('pullReviewSubmitted', {
+        ...this._repoParams(target.context),
+        error: vscode.l10n.t('No pending review'),
+      });
       return;
     }
+    const reviewId = target.pendingReviewId;
 
     const event: PullReviewSubmitEvent =
       data.event === 'APPROVED' || data.event === 'REQUEST_CHANGES' ? data.event : 'COMMENT';
     const body = typeof data.body === 'string' ? data.body.trim() : '';
 
-    const instance = this._findInstance(this._context.instanceId);
+    const instance = this._findInstance(target.instanceId);
     if (!instance) {
-      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: vscode.l10n.t('Forgejo instance not found') });
+      this._reply('pullReviewSubmitted', {
+        ...this._repoParams(target.context),
+        error: vscode.l10n.t('Forgejo instance not found'),
+      });
       return;
     }
 
@@ -577,17 +632,14 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       // Constructed inside the try so a non-absolute instance URL (a
       // constructor throw) still answers the request.
       const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-      await client.submitPullReview(
-        this._context.owner,
-        this._context.repo,
-        this._context.index,
-        reviewId,
-        event,
-        body,
-      );
-      this._reply('pullReviewSubmitted', { ...this._repoParams() });
-      this._callbacks?.onSubmitted?.(this._context);
-      this._panel.dispose();
+      await client.submitPullReview(target.owner, target.repo, target.index, reviewId, event, body);
+      this._reply('pullReviewSubmitted', { ...this._repoParams(target.context) });
+      // Only the editor this request started from is notified and closed (see
+      // `PullReviewCommentTarget`).
+      if (this._isCurrentTarget(target)) {
+        this._callbacks?.onSubmitted?.(target.context);
+        this._panel.dispose();
+      }
       if (event === 'APPROVED') {
         vscode.window.showInformationMessage(vscode.l10n.t('Review submitted: approved.'));
       } else if (event === 'REQUEST_CHANGES') {
@@ -598,18 +650,24 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     } catch (error) {
       const err = userFacingErrorMessage(error);
       logger.error(`Failed to submit pull review ${reviewId}: ${err}`);
-      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: err });
+      this._reply('pullReviewSubmitted', { ...this._repoParams(target.context), error: err });
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to submit review: {0}', err));
     }
   }
 
   private async _handleDeletePullReview(message: unknown): Promise<void> {
     const data = message as { reviewId?: number };
-    const reviewId = data.reviewId;
-    if (typeof reviewId !== 'number') {
-      this._reply('pullReviewDeleted', { ...this._repoParams(), error: vscode.l10n.t('No pending review') });
+    // Snapshot first: the confirmation below is awaited, and the user can open
+    // another comment while the modal is up (see `PullReviewCommentTarget`).
+    const target = this._captureTarget(data.reviewId);
+    if (typeof target.pendingReviewId !== 'number') {
+      this._reply('pullReviewDeleted', {
+        ...this._repoParams(target.context),
+        error: vscode.l10n.t('No pending review'),
+      });
       return;
     }
+    const reviewId = target.pendingReviewId;
 
     const confirm = await vscode.window.showWarningMessage(
       vscode.l10n.t('Cancel this pending review? All draft comments will be discarded.'),
@@ -618,13 +676,19 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     );
     if (confirm !== vscode.l10n.t('Cancel Review')) {
       // Answer the request so the webview leaves its loading state.
-      this._reply('pullReviewDeleted', { ...this._repoParams(), cancelled: true });
+      this._reply('pullReviewDeleted', { ...this._repoParams(target.context), cancelled: true });
       return;
     }
 
-    const instance = this._findInstance(this._context.instanceId);
+    // Looked up through the snapshot's instance id: the modal above was
+    // awaited, so the live context may name another pull request — possibly on
+    // another instance — by now.
+    const instance = this._findInstance(target.instanceId);
     if (!instance) {
-      this._reply('pullReviewDeleted', { ...this._repoParams(), error: vscode.l10n.t('Forgejo instance not found') });
+      this._reply('pullReviewDeleted', {
+        ...this._repoParams(target.context),
+        error: vscode.l10n.t('Forgejo instance not found'),
+      });
       return;
     }
 
@@ -632,14 +696,18 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       // Constructed inside the try so a non-absolute instance URL (a
       // constructor throw) still answers the request.
       const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-      await client.deletePullReview(this._context.owner, this._context.repo, this._context.index, reviewId);
-      this._reply('pullReviewDeleted', { ...this._repoParams() });
-      this._callbacks?.onDeleted?.(this._context);
-      this._panel.dispose();
+      await client.deletePullReview(target.owner, target.repo, target.index, reviewId);
+      this._reply('pullReviewDeleted', { ...this._repoParams(target.context) });
+      // Only the editor this request started from is notified and closed (see
+      // `PullReviewCommentTarget`).
+      if (this._isCurrentTarget(target)) {
+        this._callbacks?.onDeleted?.(target.context);
+        this._panel.dispose();
+      }
     } catch (error) {
       const err = userFacingErrorMessage(error);
       logger.error(`Failed to delete pull review ${reviewId}: ${err}`);
-      this._reply('pullReviewDeleted', { ...this._repoParams(), error: err });
+      this._reply('pullReviewDeleted', { ...this._repoParams(target.context), error: err });
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to cancel review: {0}', err));
     }
   }
@@ -823,12 +891,39 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     return this._config.getInstances().find((i) => i.id === id);
   }
 
-  private _repoParams(): { instanceId: string; owner: string; repo: string; index: number } {
+  /**
+   * Capture the context a request handler is answering, before its first await.
+   * The handler then answers with this object and only touches the panel while
+   * `_context` is still `target.context` (see `PullReviewCommentTarget`).
+   */
+  private _captureTarget(pendingReviewId: number | undefined): PullReviewCommentTarget {
+    const context = this._context;
     return {
-      instanceId: this._context.instanceId,
-      owner: this._context.owner,
-      repo: this._context.repo,
-      index: this._context.index,
+      context,
+      instanceId: context.instanceId,
+      owner: context.owner,
+      repo: context.repo,
+      index: context.index,
+      pendingReviewId,
+    };
+  }
+
+  /** True while the panel still shows the very context `target` was taken from. */
+  private _isCurrentTarget(target: PullReviewCommentTarget): boolean {
+    return this._context === target.context;
+  }
+
+  private _repoParams(context: PullReviewCommentContext): {
+    instanceId: string;
+    owner: string;
+    repo: string;
+    index: number;
+  } {
+    return {
+      instanceId: context.instanceId,
+      owner: context.owner,
+      repo: context.repo,
+      index: context.index,
     };
   }
 

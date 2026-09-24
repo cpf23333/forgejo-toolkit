@@ -14,7 +14,7 @@ pre-commit:
     # directly under `src/` (extension.ts, App.vue, main.ts, each package's
     # index.ts) and a commit touching only those ran no typecheck at all.
     typecheck-extension:
-      glob: 'packages/forgejo-toolkit/src/**'
+      glob: '{packages/forgejo-toolkit/src,packages/forgejo-toolkit/mcp}/**'
       run: pnpm --filter forgejo-toolkit exec tsc --noEmit
     typecheck-webview:
       glob: 'packages/forgejo-toolkit/webview/src/**'

@@ -6,6 +6,7 @@ const clientMocks = vi.hoisted(() => ({
     async (_owner: string, _repo: string, _index: number, _comment: Record<string, unknown>) => ({ id: 42 }),
   ),
   addPullReviewComment: vi.fn(async () => ({})),
+  deletePullReview: vi.fn(async () => ({})),
   renderMarkdown: vi.fn(async (text: string) => `<p>${text}</p>`),
   searchMentions: vi.fn(async () => ({ users: [{ value: 'alice' }], issues: [{ value: '#1' }] })),
 }));
@@ -23,6 +24,7 @@ vi.mock('../../api/client', () => ({
     }
     createPendingPullReview = clientMocks.createPendingPullReview;
     addPullReviewComment = clientMocks.addPullReviewComment;
+    deletePullReview = clientMocks.deletePullReview;
     renderMarkdown = clientMocks.renderMarkdown;
     searchMentions = clientMocks.searchMentions;
   },
@@ -67,6 +69,11 @@ function createFakePanel() {
         void handler(message);
       }
     },
+    // A request from the webview reaches the panel's dispatcher, which is the
+    // first handler the panel registers. `receive` above fans a message out to
+    // every listener instead, which is what a pending draft-state query — it
+    // registers its own listener — has to see.
+    send: (message: unknown) => handlers[0]?.(message),
   };
 }
 
@@ -350,20 +357,39 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     } as unknown as ConfigManager;
   }
 
-  function openPanel(instanceUrl = 'https://forgejo.example.com') {
+  function openPanel(instanceUrl = 'https://forgejo.example.com', callbacks?: PullReviewCommentPanelCallbacks) {
     const fakePanel = createFakePanel();
-    let messageHandler: ((message: unknown) => Promise<void>) | undefined;
-    fakePanel.webview.onDidReceiveMessage = vi.fn((...args: unknown[]) => {
-      messageHandler = args[0] as (message: unknown) => Promise<void>;
-      return { dispose: vi.fn() };
-    });
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
     const panel = PullReviewCommentPanel.createOrShow(
       vscode.Uri.file('/ext') as vscode.Uri,
       configWithInstance(instanceUrl),
       createContext(),
+      callbacks,
     );
-    return { fakePanel, panel, send: (message: unknown) => messageHandler?.(message) };
+    return { fakePanel, panel, send: (message: unknown) => fakePanel.send(message) };
+  }
+
+  /**
+   * Reuse the open panel for another line/pull request the way the extension
+   * does when the user opens a comment elsewhere, and let the draft-state guard
+   * (the panel asks the webview before dropping an editor) settle.
+   */
+  async function switchTo(
+    fakePanel: ReturnType<typeof createFakePanel>,
+    panel: PullReviewCommentPanel,
+    context: PullReviewCommentContext,
+  ): Promise<void> {
+    PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, configWithInstance(), context);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fakePanel.receive({ command: 'pullReviewCommentDraftState', dirty: false });
+    await vi.waitFor(() => {
+      expect(panelInternals(panel)._context).toBe(context);
+    });
+  }
+
+  /** Post the messages the host sent to the webview. */
+  function postedMessages(fakePanel: ReturnType<typeof createFakePanel>): Array<Record<string, unknown>> {
+    return fakePanel.webview.postMessage.mock.calls.map((call) => call[0] as Record<string, unknown>);
   }
 
   it('answers getInitialState so the shared composable can mount', async () => {
@@ -785,6 +811,168 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('keeps a submit that resolves after a context switch on the context it started with', async () => {
+    // The panel is a singleton: opening another comment while a submit is in
+    // flight replaces the context (and rebuilds the editor). The reply, the
+    // callbacks, the new review id and the panel close all belong to the editor
+    // the request started from — reading the live context after the await
+    // answered, notified and disposed the editor the user had just opened
+    // (losing its text) and gave its review id to the wrong editor.
+    const onSubmitted = vi.fn();
+    const { fakePanel, panel, send } = openPanel('https://forgejo.example.com', { onSubmitted });
+    const startingContext = panelInternals(panel)._context;
+
+    // The first submit hangs until this test resolves it.
+    let finishStartingSubmit!: () => void;
+    const startingSubmitStarted = new Promise<void>((resolveStarted) => {
+      clientMocks.createPendingPullReview.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveStarted();
+            finishStartingSubmit = () => resolve({ id: 42 });
+          }),
+      );
+    });
+    const startingDispatch = send({ command: 'submitPullReviewComment', body: 'first', mode: 'review' });
+    await startingSubmitStarted;
+
+    // The user opens another line while the request is in flight.
+    const newContext = createContext({ index: 3, path: 'src/other.ts', lineNumber: 4, pendingReviewId: 7 });
+    await switchTo(fakePanel, panel, newContext);
+
+    // The editor they just opened submits too: its own request is in flight
+    // when the stale one settles.
+    let finishNewSubmit!: () => void;
+    const newSubmitStarted = new Promise<void>((resolveStarted) => {
+      clientMocks.addPullReviewComment.mockImplementationOnce(
+        () =>
+          new Promise<object>((resolve) => {
+            resolveStarted();
+            finishNewSubmit = () => resolve({});
+          }),
+      );
+    });
+    const newDispatch = send({
+      command: 'submitPullReviewComment',
+      body: 'second',
+      mode: 'review',
+      pendingReviewId: 7,
+    });
+    await newSubmitStarted;
+    fakePanel.webview.postMessage.mockClear();
+
+    finishStartingSubmit();
+    await expect(startingDispatch).resolves.toBeUndefined();
+
+    // (a) The reply names the pull request the submit started with, not the one
+    // on screen now.
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith({
+      command: 'pullReviewCommentSubmitted',
+      instanceId: 'demo',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 2,
+    });
+    // (c) The stale reply is attributed to the context it started with, so it
+    // does not name the editor now on screen: the reply that names that context
+    // follows only when its own request settles below.
+    expect(
+      postedMessages(fakePanel).filter(
+        (message) => message.command === 'pullReviewCommentSubmitted' && message.index === 3,
+      ),
+    ).toEqual([]);
+    expect(onSubmitted).not.toHaveBeenCalled();
+    // (b) The editor the user opened keeps both its panel and its content.
+    expect(fakePanel.dispose).not.toHaveBeenCalled();
+    expect(PullReviewCommentPanel.currentPanel).toBe(panel);
+    // (d) Its pending review is not rewritten with the review the stale request
+    // created, and the context the request started with is left alone too.
+    expect(newContext.pendingReviewId).toBe(7);
+    expect(startingContext.pendingReviewId).toBeUndefined();
+    expect(panelInternals(panel)._context).toBe(newContext);
+
+    // The newcomer's own reply is the one that completes it.
+    finishNewSubmit();
+    await expect(newDispatch).resolves.toBeUndefined();
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'pullReviewCommentSubmitted', index: 3 }),
+    );
+  });
+
+  it('still disposes and notifies when the submit resolves for the context it started with', async () => {
+    const onSubmitted = vi.fn();
+    const { fakePanel, send } = openPanel('https://forgejo.example.com', { onSubmitted });
+
+    await send({ command: 'submitPullReviewComment', body: 'hello', mode: 'review' });
+
+    // The ordinary case is unchanged: reply, callback and close all belong to
+    // the only context there is.
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith({
+      command: 'pullReviewCommentSubmitted',
+      instanceId: 'demo',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 2,
+    });
+    expect(onSubmitted).toHaveBeenCalledWith(expect.objectContaining({ index: 2 }));
+    expect(fakePanel.dispose).toHaveBeenCalledTimes(1);
+    expect(PullReviewCommentPanel.currentPanel).toBeUndefined();
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+      'Review started. Add more comments via the line context menu, then submit the review.',
+    );
+  });
+
+  it('keeps a delete that resolves after a context switch on the context it started with', async () => {
+    const onDeleted = vi.fn();
+    const { fakePanel, panel, send } = openPanel('https://forgejo.example.com', { onDeleted });
+
+    // Hold the confirmation modal open, then the delete request itself.
+    let confirmDelete!: (choice: unknown) => void;
+    vi.mocked(vscode.window.showWarningMessage).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          confirmDelete = resolve;
+        }) as never,
+    );
+    let finishDelete!: () => void;
+    let deleteStarted!: () => void;
+    const deleteStartedPromise = new Promise<void>((resolveStarted) => {
+      deleteStarted = resolveStarted;
+    });
+    clientMocks.deletePullReview.mockImplementationOnce(
+      () =>
+        new Promise<object>((resolve) => {
+          deleteStarted();
+          finishDelete = () => resolve({});
+        }),
+    );
+    const dispatch = send({ command: 'deletePullReview', reviewId: 5 });
+
+    // The panel confirms the review of the pull request it was showing; the
+    // user opens another comment while the modal is up.
+    const newContext = createContext({ index: 3, path: 'src/other.ts', lineNumber: 4, pendingReviewId: 7 });
+    await switchTo(fakePanel, panel, newContext);
+    confirmDelete('Cancel Review');
+    await deleteStartedPromise;
+    fakePanel.webview.postMessage.mockClear();
+
+    finishDelete();
+    await expect(dispatch).resolves.toBeUndefined();
+
+    // The request went to the pull request it started from — the awaited modal
+    // must not let a switched context retarget the delete.
+    expect(clientMocks.deletePullReview).toHaveBeenCalledWith('demo-user', 'demo-repo', 2, 5);
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith({
+      command: 'pullReviewDeleted',
+      instanceId: 'demo',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 2,
+    });
+    expect(onDeleted).not.toHaveBeenCalled();
+    expect(fakePanel.dispose).not.toHaveBeenCalled();
   });
 });
 

@@ -716,6 +716,26 @@ describe('gitOperations argument passing', () => {
     }
   });
 
+  it('pushBranch rewrites a branch name but never a pseudo-ref', async () => {
+    // A branch name is spelled as the full ref (so a leading `+` cannot be read
+    // as git's force marker), while `HEAD` must be left alone: it is not a
+    // branch, so `refs/heads/HEAD` names nothing and git rejects the push.
+    await pushBranch('/repo', 'origin', 'main');
+    let pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
+    expect(pushCall![1]).toEqual(['push', 'origin', 'refs/heads/main']);
+
+    mocks.execFile.mockClear();
+    await pushBranch('/repo', 'origin', 'HEAD');
+    pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
+    expect(pushCall![1]).toEqual(['push', 'origin', 'HEAD']);
+  });
+
+  it('pushBranch leaves an explicit <src>:<dst> refspec untouched', async () => {
+    await pushBranch('/repo', 'origin', 'HEAD:main');
+    const pushCall = mocks.execFile.mock.calls.find((call) => (call[1] as string[]).includes('push'));
+    expect(pushCall![1]).toEqual(['push', 'origin', 'HEAD:main']);
+  });
+
   it('cloneRepository passes --quiet so clone progress does not overflow stderr maxBuffer', async () => {
     await cloneRepository('https://forgejo.example.com/a/b.git', '/tmp/b');
     expect(mocks.execFile).toHaveBeenCalledWith(
@@ -979,9 +999,11 @@ describe('gitOperations argument passing', () => {
       expect.any(Function),
     );
     // No upstream configured in this mock: falls back to a plain origin push.
+    // The source stays the pseudo-ref `HEAD`: it is not a branch, so rewriting
+    // it to `refs/heads/HEAD` would make git reject the push outright.
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['push', 'origin', 'refs/heads/HEAD'],
+      ['push', 'origin', 'HEAD'],
       expect.anything(),
       expect.any(Function),
     );

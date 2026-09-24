@@ -817,12 +817,24 @@ export async function pushBranch(
  * `refs/heads/+x` names the branch that actually exists, and no part of the
  * value is left for git to read as a flag.
  *
- * A value that is not a plain branch name — a `<src>:<dst>` pair, or a ref
- * already spelled out — is left exactly as the caller wrote it: rewriting one
- * of those would change which ref is pushed.
+ * Only a value git could misread is rewritten. A plain branch name needs no
+ * help (`git push origin fix` already means `refs/heads/fix`), and the other
+ * spellings must stay exactly as the caller wrote them: the pseudo-refs
+ * (`HEAD`, `FETCH_HEAD`) are not branches, so `refs/heads/HEAD` names nothing
+ * and the push would fail outright, while a `refs/...` value or a
+ * `<src>:<dst>` pair would be pointed at a different ref by prefixing it.
  */
 function pushRefspec(refspec: string): string {
-  return /^[^:]+$/.test(refspec) && !refspec.startsWith('refs/') ? `refs/heads/${refspec}` : refspec;
+  if (refspec.includes(':') || refspec.startsWith('refs/')) {
+    return refspec;
+  }
+  // An all-caps name is git's pseudo-ref spelling (`HEAD`, `FETCH_HEAD`,
+  // `MERGE_HEAD`, …). A branch *could* be named `WIP`, and leaving that one as
+  // written is harmless: a plain name already resolves to the same branch.
+  if (/^[A-Z][A-Z_]*$/.test(refspec)) {
+    return refspec;
+  }
+  return `refs/heads/${refspec}`;
 }
 
 /**
