@@ -27,8 +27,13 @@ jobs:
       # Registry and native-download mirrors are environment-specific, so they
       # come from repository variables and fall back to the upstream defaults.
       # Set `NPM_CONFIG_REGISTRY` / `NPM_DIST_URL` / `NPM_PREBUILD_MIRROR` when
-      # the runner cannot reach the public hosts directly.
+      # the runner cannot reach the public hosts directly. The registry is
+      # exported twice on purpose: npm reads `NPM_CONFIG_REGISTRY` (the global
+      # pnpm bootstrap) while pnpm 11 reads only `PNPM_CONFIG_REGISTRY`, so a
+      # mirror that only sets the npm spelling would leave every `pnpm install`
+      # hitting the upstream registry.
       NPM_CONFIG_REGISTRY: ${{ vars.NPM_CONFIG_REGISTRY || 'https://registry.npmjs.org' }}
+      PNPM_CONFIG_REGISTRY: ${{ vars.NPM_CONFIG_REGISTRY || 'https://registry.npmjs.org' }}
       npm_config_disturl: ${{ vars.NPM_DIST_URL || 'https://nodejs.org/dist' }}
       npm_config_prebuild_install_mirror: ${{ vars.NPM_PREBUILD_MIRROR || 'https://github.com/prebuild/prebuild-install/releases/download' }}
 

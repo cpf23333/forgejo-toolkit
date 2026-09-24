@@ -93,8 +93,8 @@ The extension ships a built-in MCP server that lets AI assistants — such as Co
 - **Proxy**: requests honour the editor's `http.proxy` setting, which wins over the environment's `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` (each name is read in either case), and the setting is forwarded to the MCP server process as `FORGEJO_MCP_PROXY`.
 - **Tool overview**: about 27 tools in four groups —
   - **Core**: issues, pull requests, timelines, notifications, repository info, and search (e.g. `list_issues`, `get_pull_request`).
-  - **Actions**: run history, job logs, and artifacts (e.g. `list_action_runs`, `get_action_job_log`).
-  - **Code reading**: file contents, branches, tags, commits, file history, and PR diffs (e.g. `get_file_content`, `get_pr_diff`).
+  - **Actions**: run history, run jobs, job logs, and artifacts (e.g. `list_action_runs`, `get_action_run_jobs`, `get_action_job_log`).
+  - **Code reading**: file contents and directory listings, repository file search, branches, tags, commits, file history, and PR diffs (e.g. `list_repo_contents`, `get_file_content`, `search_repo_files`, `get_pr_diff`).
   - **Review & metadata**: PR reviews, releases, labels, milestones, and your own repositories (e.g. `list_pull_reviews`, `whoami`).
 - **Security**:
   - All tools are strictly read-only (`readOnlyHint`) — the agent cannot modify anything on your instance.

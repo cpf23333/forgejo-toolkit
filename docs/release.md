@@ -29,7 +29,10 @@ sections after it explain each step.
 3. **Ensure the prerequisites exist** on the repository that runs the release:
    the `FORGEJO_TOKEN` secret (or `GITEA_TOKEN`) with `write:repository`, and
    optional variables (`NPM_CONFIG_REGISTRY`, `NPM_DIST_URL`,
-   `NPM_PREBUILD_MIRROR`, `DEBIAN_URI`, `DEBIAN_SECURITY_URI`).
+   `NPM_PREBUILD_MIRROR`, `DEBIAN_URI`, `DEBIAN_SECURITY_URI`). The registry
+   variable is exported to the jobs twice, as `NPM_CONFIG_REGISTRY` and
+   `PNPM_CONFIG_REGISTRY`, because npm and pnpm 11 read different spellings; set
+   the one repository variable and both tools use the mirror.
 4. **Dry run the release workflow.** Dispatch `.forgejo/workflows/release.yml`
    with `dry_run` on (the default) and check the echoed inputs plus the packaged
    `.vsix` artifact.
@@ -199,8 +202,9 @@ Requirements:
 - A repository secret named `FORGEJO_TOKEN` (or `GITEA_TOKEN`) holding a token
   with `write:repository` scope, used for the release API calls.
 - Optional repository variables when the runner cannot reach the public hosts:
-  `NPM_CONFIG_REGISTRY`, `NPM_DIST_URL`, `NPM_PREBUILD_MIRROR`, and the two APT
-  mirrors `DEBIAN_URI` / `DEBIAN_SECURITY_URI`.
+  `NPM_CONFIG_REGISTRY` (exported as both the npm and pnpm registry override),
+  `NPM_DIST_URL`, `NPM_PREBUILD_MIRROR`, and the two APT mirrors `DEBIAN_URI` /
+  `DEBIAN_SECURITY_URI`.
 - The APT mirrors are configured **separately**, because a mirror may serve the
   main archive and the security archive from different hosts or paths, and each
   variable holds a full base URI (e.g. `https://mirrors.example.org/debian` and

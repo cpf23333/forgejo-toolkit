@@ -7,15 +7,21 @@ pre-commit:
     format:
       glob: '*.{js,ts,mjs,cjs,vue}'
       run: node node_modules/oxfmt/bin/oxfmt --check {staged_files}
+    # Each typecheck runs a whole-package compiler, so the glob only decides
+    # whether a change under that package is worth running it. It is a directory
+    # prefix rather than `src/**/*.ts` on purpose: `**/` does not match zero
+    # directories here, so the `*.ts` form silently skipped every file sitting
+    # directly under `src/` (extension.ts, App.vue, main.ts, each package's
+    # index.ts) and a commit touching only those ran no typecheck at all.
     typecheck-extension:
-      glob: 'packages/forgejo-toolkit/src/**/*.{ts,js}'
+      glob: 'packages/forgejo-toolkit/src/**'
       run: pnpm --filter forgejo-toolkit exec tsc --noEmit
     typecheck-webview:
-      glob: 'packages/forgejo-toolkit/webview/src/**/*.{ts,vue}'
+      glob: 'packages/forgejo-toolkit/webview/src/**'
       run: pnpm --filter forgejo-toolkit exec vue-tsc -p webview/tsconfig.json --noEmit
     typecheck-api:
-      glob: 'packages/forgejo-api/src/**/*.ts'
+      glob: 'packages/forgejo-api/src/**'
       run: pnpm --filter @cpf23333-forgejo-toolkit/api exec tsc --noEmit
     typecheck-shared:
-      glob: 'packages/shared/src/**/*.ts'
+      glob: 'packages/shared/src/**'
       run: pnpm --filter @cpf23333-forgejo-toolkit/shared exec tsc --noEmit

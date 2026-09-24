@@ -40,6 +40,16 @@
 
 （空）
 
+## 第十四轮审查后的低危尾项（2026-09-24；第十三、十四轮的 HIGH/MEDIUM 已全部修复并验证）
+
+第十四轮六个区的全仓扫描给出了 0 HIGH、约 14 条 MEDIUM，均已在同一轮修复（工作台列表回包归属改为按请求排队、依赖与反应区块的错误可见、评论排序补渲染队列、上传失败提示的生命周期、提交区凭据 URL 去 userinfo 并提供 `functionalUrl`、symlink/submodule README 如实描述、评审警告按 PR 作用域、原子写保权限位并 fsync、面板销毁后不再 postMessage、`+x` 分支不再变成强制推送、issue 起始流程从可清理注册中恢复、跨窗口克隆清理加所有权标记、FS 提供者拒绝写并本地化、git 树缓存过期清理等）。以下低危项**未修**，按严重度递减记录：
+
+- [ ] **low** 工作台三个列表命令（`getRepositories`/`getMyIssues`/`getMyPullRequests`）**不回显请求标识**，所以「重载的回包先到、被替换服务器的回包后到」这一种顺序在 webview 侧无法区分（两者 identity/epoch 相同）。发送顺序（宿主实际产生的顺序）已被守卫。要彻底关闭需要宿主为这三个命令回显一个请求 id（`shared/webview/messages.ts` 契约 + `viewProvider` 回包），已由 `useAppState.instanceListReplyAttribution.test.ts` 把该边界显式钉住
+- [ ] **low** symlink/submodule 版 README 的说明句目前是英文（`client.ts` 属 MCP/服务端 bundle，不得引入 `vscode`，与既有的 `directoryNotice`/`symlinkNotice`/`submoduleNotice` 同一先例）。要本地化需让 `getRepoDetail` 额外暴露 `readmeNotice`/`readmeTarget`，再由 `viewProvider` 用 `vscode.l10n.t` 组装（约 5 行 + 两个键）；`src/api/types.ts` 的 `readmeSize` 注释也应补充「非文件类型」这一情形
+- [ ] **low** MCP 侧的六条描述/mock 精度问题：`get_pull_request` 把 `assets`/`attachmentsUnavailable` 说成顶层结果字段（实际在 `pullRequest` 下）、`get_issue`/`get_pr_timeline` 未记录附件标志、空仓库的任何 contents 路径都被映射成目录、分页列表仍用 `length >= LIST_ITEM_LIMIT` 判断截断（恰好 500 条会被说成不完整）、通知 mock 用 `<` 而真实服务端是 `<=`（文档描述的边界重复因此没被测到）、两条「保留评论命中」测试只用单行夹具因而非判别性
+- [ ] **low** 若干可访问性/播报细节（webview 第 7–16 项）：通知队列在匹配前剪枝可能把慢回包写成不可归属页、徽标在仪表盘驻留期间不再重问、计数徽标依赖 30 s TTL 缓存、`ViewTabs` 的 `tablist` 没有对应 `tabpanel`、设置/向导的 Test-Save 结果未放进 live region、`openDashboard` 重挂载会留下不可达的 keep-alive 条目并可能重复播报、`RepoActions` 的等待态只在观察到状态迁移时武装
+- [ ] **low** 401/403 提示的凭据指纹只覆盖 URL 内嵌凭据；SecretStorage 里的令牌轮换仍无法重新武装该提示（`ForgejoClientHost.notifyInvalidCredentials` 只拿到 URL，要修需改 `clientHost.ts`/`client.ts`）
+
 ## 第十轮审查后待修（2026-09-23 第十轮全仓扫描 + 独立复核）
 
 - [ ] **medium** MCP 的实例级过滤发生在服务端 500 行上限**之外**：工具拿到的是已被截断的分页结果，再按实例过滤，于是「结果里没有该实例的条目」既可能是真的没有、也可能是被上限挤掉。要修得把实例过滤下沉到取数之前（或在结果里带上「因上限而可能缺失」的标记），涉及 `mcp/tools.ts` 的入参传递，暂记

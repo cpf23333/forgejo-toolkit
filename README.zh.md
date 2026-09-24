@@ -77,8 +77,8 @@ pnpm --filter forgejo-toolkit package
 - **代理**：请求会遵循编辑器的 `http.proxy` 设置，其优先级高于环境变量 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（三者的大小写拼写都会读取），该设置会以 `FORGEJO_MCP_PROXY` 转发给 MCP 服务进程。
 - **工具概览**：约 27 个工具，分为四组——
   - **基础**：Issue、PR、时间线、通知、仓库信息与搜索（如 `list_issues`、`get_pull_request`）。
-  - **Actions**：运行历史、job 日志与制品（如 `list_action_runs`、`get_action_job_log`）。
-  - **代码读取**：文件内容、分支、标签、提交、文件历史与 PR diff（如 `get_file_content`、`get_pr_diff`）。
+  - **Actions**：运行历史、run 的 job 列表、job 日志与制品（如 `list_action_runs`、`get_action_run_jobs`、`get_action_job_log`）。
+  - **代码读取**：文件内容与目录列表、仓库内文件搜索、分支、标签、提交、文件历史与 PR diff（如 `list_repo_contents`、`get_file_content`、`search_repo_files`、`get_pr_diff`）。
   - **Review 与元数据**：PR 评审、Release、标签、里程碑与自己的仓库（如 `list_pull_reviews`、`whoami`）。
 - **安全说明**：
   - 全部工具均为只读（`readOnlyHint`），agent 无法修改实例上的任何数据。
