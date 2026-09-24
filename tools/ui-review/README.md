@@ -63,7 +63,11 @@ powershell -File src/win/dialog.ps1 -Keys '{ESC}'     # Cancel
 `dialog.ps1` refuses to guess which dialog to talk to: add `-Title '<regex>'` when
 more than one `#32770` is visible, and it also refuses when the only candidate is
 owned by another process or cannot be brought to the foreground, instead of
-sending keys to whatever it found first. `fileDialog.ps1 -Cancel` dismisses the
+sending keys to whatever it found first. It also reports whether the keys landed:
+its last line is a summary (`summary: sent {ENTER} to dialog 'Delete this'
+(dialogClosed=true)`) and it exits non-zero when the dialog is still open
+afterwards, so a checklist run cannot read a modal that swallowed the keys as
+success. `fileDialog.ps1 -Cancel` dismisses the
 file picker with Escape (falling back to `WM_CLOSE`, which it reports) and never
 touches the file row; without `-Cancel` the script clicks `-RowIndex` (optionally
 at the `-RowY` you read off a capture) to accept the dialog.
@@ -173,7 +177,8 @@ Two harness limits worth knowing before planning a flow:
   `.json` arriving as `.jso`, which the dialog only reports as "file not found"),
   and `PrintWindow` may render the DirectUI file-name box empty even when it holds
   text — so never judge the typed value from a capture; read it back from the
-  proxy control with `GetWindowText`.
+  proxy control with `GetWindowText`. A path the picker rejects leaves the dialog
+  open, which `dialog.ps1` reports as `dialogClosed=false` and a non-zero exit.
   What works reliably (`src/win/fileDialog.ps1`): flash the dialog TOPMOST and
   attach to the foreground thread so it can be activated, then click and
   double-click the file's row. Two consequences: the file must be in the folder

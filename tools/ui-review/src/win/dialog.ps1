@@ -12,6 +12,12 @@
 # the foreground window. Typing into "the first visible #32770" and reporting
 # success — what this script used to do — sent the keys to another window when
 # two dialogs were open or activation was refused.
+#
+# Sending the keys is not the same as the dialog accepting them: a modal that is
+# still open when the keys have been typed swallowed them. That is a failure, so
+# the last line is a summary stating whether the dialog closed and the script
+# exits non-zero when it did not — a checklist run must not pass on a dialog that
+# never received the keys.
 param([string]$Keys = '', [string]$OutFile = '', [string]$Title = '')
 Add-Type @'
 using System;
@@ -83,6 +89,9 @@ if ($Title) {
     exit 1
   }
 }
+# Reported by the summary line below, which runs after an optional screenshot.
+$dialogTitle = ''
+$dialogClosed = $false
 if ($Keys) {
   if ($candidates.Count -eq 0) {
     Write-Output 'no native dialog to send keys to'
@@ -93,6 +102,7 @@ if ($Keys) {
     exit 1
   }
   $d = $candidates[0]
+  $dialogTitle = $d.Title
   # The dialog itself is already known to belong to the dev-host process
   # (FindDialogs filters by pid); a dialog that has an owner window must have it
   # in that process too, so an unrelated #32770 of the same process cannot be
@@ -119,12 +129,17 @@ if ($Keys) {
   }
   $w = New-Object -ComObject WScript.Shell
   $w.SendKeys($Keys)
-  Write-Output ("sent " + $Keys + " to dialog '" + $d.Title + "'")
   Start-Sleep -Milliseconds 800
-  if ([Win32Enum]::IsWindowVisible($h)) {
-    Write-Output ("dialog '" + $d.Title + "' is still open after " + $Keys)
+  # A modal that is still visible after the keys swallowed them (the file dialog
+  # does that while its list has focus). Sending is not the same as landing, so
+  # the outcome is decided here, stated in the summary line below, and a dialog
+  # that stayed open exits non-zero — a checklist run must not pass on a dialog
+  # that never received the keys.
+  $dialogClosed = -not [Win32Enum]::IsWindowVisible($h)
+  if ($dialogClosed) {
+    Write-Output ("sent " + $Keys + " to dialog '" + $d.Title + "'; it closed")
   } else {
-    Write-Output ("dialog '" + $d.Title + "' closed after " + $Keys)
+    Write-Output ("sent " + $Keys + " to dialog '" + $d.Title + "' but it is still open")
   }
 }
 if ($OutFile) {
@@ -136,4 +151,15 @@ if ($OutFile) {
   $bmp.Save($OutFile, [System.Drawing.Imaging.ImageFormat]::Png)
   $g.Dispose(); $bmp.Dispose()
   Write-Output ("saved " + $OutFile)
+}
+if ($Keys) {
+  $closedText = if ($dialogClosed) { 'true' } else { 'false' }
+  Write-Output ("summary: sent " + $Keys + " to dialog '" + $dialogTitle + "' (dialogClosed=" + $closedText + ")")
+  if (-not $dialogClosed) {
+    Write-Output (
+      "the keys did not land: dialog '" + $dialogTitle +
+      "' is still open; dismiss it by hand (or with fileDialog.ps1 -Cancel for the file picker)"
+    )
+    exit 1
+  }
 }
