@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveAttachmentImages, clearResolvedImageCache } from '../resolveAttachmentImages';
+import { logger } from '../../logger';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
 function createInstance(): ForgejoInstance {
@@ -138,5 +139,92 @@ describe('resolveAttachmentImages', () => {
     // The most recent entry is still cached.
     await resolveAttachmentImages(`![a](${urls[100]})`, instance);
     expect(fetchMock.mock.calls.length).toBe(102);
+  });
+
+  it('fetches at most 4 attachments at a time', async () => {
+    const instance = createInstance();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        // Hold the request open so overlapping fetches are observable.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight -= 1;
+        return {
+          ok: true,
+          headers: new Map([['content-type', 'image/png']]),
+          arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+        } as unknown as Response;
+      }),
+    );
+
+    const html = Array.from({ length: 12 }, (_, i) => `<img src="/attachments/fan-out-${i}">`).join('');
+    const result = await resolveAttachmentImages(html, instance);
+
+    // Every URL was resolved, but one token-bearing GET per attachment with no
+    // cap would flood a self-hosted instance (12 links would be 12 in flight).
+    expect(result.match(/data:image\/png;base64,/g)).toHaveLength(12);
+    expect(maxInFlight).toBeGreaterThan(1);
+    expect(maxInFlight).toBeLessThanOrEqual(4);
+  });
+
+  it('evicts by the byte budget, not only by the 100-entry cap', async () => {
+    const instance = createInstance();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      headers: new Map([['content-type', 'image/png']]),
+      // ~11 MiB per image: three of them exceed the 32 MiB budget while the
+      // entry cap (100) is nowhere near being reached.
+      arrayBuffer: async () => new Uint8Array(11 * 1024 * 1024).buffer,
+    })) as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchMock);
+
+    for (const name of ['byte-a', 'byte-b', 'byte-c']) {
+      await resolveAttachmentImages(`![a](/attachments/${name})`, instance);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    // The least recently used entry was dropped to stay inside the budget.
+    await resolveAttachmentImages('![a](/attachments/byte-a)', instance);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    // A recent entry survived and is still served from the cache.
+    await resolveAttachmentImages('![a](/attachments/byte-c)', instance);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('reports a failed attachment fetch instead of silently dropping the URL', async () => {
+    const debug = vi.spyOn(logger, 'debug').mockImplementation(() => undefined);
+    const instance = createInstance();
+
+    try {
+      // A refusal (403): the webview cannot load the authenticated URL itself, so
+      // a silent drop would look like a missing image with nothing to diagnose.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({ ok: false, status: 403, headers: new Map() }) as unknown as Response),
+      );
+      const forbidden = '<img src="/attachments/forbidden-uuid">';
+      expect(await resolveAttachmentImages(forbidden, instance)).toBe(forbidden);
+
+      // A thrown network failure used to be swallowed by an empty catch.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          throw new Error('socket hang up');
+        }),
+      );
+      const offline = '<img src="/attachments/offline-uuid">';
+      expect(await resolveAttachmentImages(offline, instance)).toBe(offline);
+
+      const lines = debug.mock.calls.map((call) => String(call[0]));
+      expect(lines.some((line) => line.includes('forbidden-uuid') && line.includes('403'))).toBe(true);
+      expect(lines.some((line) => line.includes('offline-uuid') && line.includes('socket hang up'))).toBe(true);
+    } finally {
+      debug.mockRestore();
+    }
   });
 });

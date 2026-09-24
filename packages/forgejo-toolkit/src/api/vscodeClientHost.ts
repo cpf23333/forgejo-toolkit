@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { ForgejoClientHost, InsufficientScopeDetails } from './clientHost';
 import { getServerVersion } from './serverVersion';
 import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
+import { isHttpUrl } from '../webview/connectionTest';
 import type { Logger } from '../logger';
 
 // 401/403 scope toasts are deduped per instance+reason for the whole session:
@@ -36,6 +37,14 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
       (choice) => {
         if (choice === openTokenSettings) {
           const tokenSettingsUrl = `${instanceUrl.replace(/\/$/, '')}/user/settings/applications`;
+          // Scheme allowlist before handing the URL to the OS: the instance URL
+          // is stored data here, and the other three openExternal sites in the
+          // extension refuse anything that is not http(s) for the same reason.
+          // The token settings page of a non-HTTP instance URL cannot exist.
+          if (!isHttpUrl(tokenSettingsUrl)) {
+            logger?.error(`Blocked openExternal for a non-http(s) instance URL: ${displayUrl}`);
+            return;
+          }
           void vscode.env.openExternal(vscode.Uri.parse(tokenSettingsUrl));
         } else if (choice === openSettings) {
           void vscode.commands.executeCommand('forgejoToolkit.openSettings');

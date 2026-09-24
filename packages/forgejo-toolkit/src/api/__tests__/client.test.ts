@@ -958,6 +958,35 @@ describe('ForgejoClient with MSW', () => {
     expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'conflicts')).toBe(false);
   });
 
+  it('does not report a required-approvals blocker when the review list probe failed', async () => {
+    const client = createClient();
+    // The default fixtures read branch protection as an admin
+    // (required_approvals: 1) and list a single COMMENTED review, i.e. a real
+    // count of 0 approvals. A failed review-list probe is not that: the webview
+    // disables merging for every blocker, so counting an unknown as 0 would tell
+    // the user an approved PR is not approved.
+    mockServer.use(
+      http.get(
+        'https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews',
+        () => new HttpResponse(null, { status: 503 }),
+      ),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_approvals')).toBe(false);
+  });
+
+  it('keeps the required-approvals blocker for a real count of zero approvals', async () => {
+    const client = createClient();
+
+    // Same request shape as the test above, only the review list differs: the
+    // known "no approvals yet" answer must keep blocking.
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_approvals')).toBe(true);
+  });
+
   it('keeps the status blocker for a known non-success state', async () => {
     const client = createClient();
     mockServer.use(
@@ -1067,6 +1096,58 @@ describe('ForgejoClient with MSW', () => {
 
     expect(pr.protectionUnknown).toBe(true);
     expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_approvals')).toBe(false);
+  });
+
+  it('does not report a conflicts blocker when the branch protection is unknown', async () => {
+    const client = createClient();
+    // The endpoint is admin-only, so a non-admin's protection rules are unknown,
+    // and Forgejo reports `mergeable: false` whenever it did not compute
+    // mergeability — including while a protected branch's checks are unresolved.
+    // Reading that false as a conflict would disable Merge for a PR whose real
+    // state is merely unknown.
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo', () =>
+        HttpResponse.json({ ...mockRepository, permissions: { admin: false, push: true, pull: true } }),
+      ),
+      http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index', () =>
+        HttpResponse.json({ ...mockPullRequestDetail, mergeable: false }),
+      ),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    expect(pr.protectionUnknown).toBe(true);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'conflicts')).toBe(false);
+  });
+
+  it('still reports a conflicts blocker when the branch protection read is a known answer', async () => {
+    const client = createClient();
+    // An admin whose branch has no protection rules (404) has a *known* state,
+    // so a `mergeable: false` there really is a conflict and must keep blocking.
+    mockServer.use(
+      http.get(
+        'https://*/api/v1/repos/:owner/:repo/branch_protections/:name',
+        () => new HttpResponse(null, { status: 404 }),
+      ),
+      http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index', () =>
+        HttpResponse.json({ ...mockPullRequestDetail, mergeable: false }),
+      ),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    expect(pr.protectionUnknown).toBe(false);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'conflicts')).toBe(true);
+  });
+
+  it('does not report a conflicts blocker for a mergeable pull request', async () => {
+    const client = createClient();
+
+    // The unchanged known case: `mergeable: true` never produced a conflict.
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    expect(pr.mergeable).toBe(true);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'conflicts')).toBe(false);
   });
 
   it('fetches action runs', async () => {
@@ -2578,6 +2659,87 @@ describe('ForgejoClient with MSW', () => {
       expect(failureLine).toBeDefined();
       expect(messages.join('\n')).not.toContain('super-secret-token');
       expect(failureLine).toContain('forgejo.example.com');
+    });
+
+    it('redacts credentials echoed by a failed probe detail', async () => {
+      // `_probe` logs the caught `ApiError.message` verbatim, and a detail that
+      // never reached a handler can quote the request URL — `fetch` refuses a
+      // credential-bearing URL and names the whole URL in its TypeError.
+      const messages: string[] = [];
+      const client = createDebugClient(messages);
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo', () =>
+          HttpResponse.json(
+            {
+              message:
+                'Request cannot be constructed from a URL that includes credentials: ' +
+                'https://alice:super-secret-token@forgejo.example.com/api/v1/repos/demo-user/demo-repo',
+            },
+            { status: 503 },
+          ),
+        ),
+      );
+
+      await client.probeRepository('demo-user', 'demo-repo');
+
+      const probeLine = messages.find((m) => m.startsWith('[probe] probeRepository'));
+      expect(probeLine).toBeDefined();
+      expect(probeLine).not.toContain('super-secret-token');
+      expect(probeLine).toContain('forgejo.example.com');
+      expect(probeLine).toContain('/api/v1/repos/demo-user/demo-repo');
+    });
+
+    it('redacts credentials in the branch-protection failure detail', async () => {
+      const messages: string[] = [];
+      const client = createDebugClient(messages);
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/branch_protections/:name', () =>
+          HttpResponse.json(
+            {
+              message:
+                'upstream refused https://alice:super-secret-token@forgejo.example.com' +
+                '/api/v1/repos/demo-user/demo-repo/branch_protections/main',
+            },
+            { status: 500 },
+          ),
+        ),
+      );
+
+      // The default fixtures report admin permissions, so the protection read is
+      // attempted and its 500 lands in the debug line.
+      const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+      expect(pr.protectionUnknown).toBe(true);
+      const protectionLine = messages.find((m) => m.startsWith('[branchProtection] unreadable'));
+      expect(protectionLine).toBeDefined();
+      expect(protectionLine).not.toContain('super-secret-token');
+      expect(protectionLine).toContain('branch_protections/main');
+    });
+
+    it('redacts credentials in the comment-attachment failure detail', async () => {
+      const messages: string[] = [];
+      const client = createDebugClient(messages);
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/issues/comments/:id/assets', () =>
+          HttpResponse.json(
+            {
+              message:
+                'Request cannot be constructed from a URL that includes credentials: ' +
+                'https://alice:super-secret-token@forgejo.example.com/api/v1/repos/demo-user/demo-repo/issues/comments/50/assets',
+            },
+            { status: 503 },
+          ),
+        ),
+      );
+
+      // The fixture comment body references an attachment, so the per-comment
+      // asset lookup runs and its failure goes through the catch under test.
+      await client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 1);
+
+      const assetLine = messages.find((m) => m.startsWith('[probe] comment assets for #50'));
+      expect(assetLine).toBeDefined();
+      expect(assetLine).not.toContain('super-secret-token');
+      expect(assetLine).toContain('/api/v1/repos/demo-user/demo-repo/issues/comments/50/assets');
     });
 
     it('does not log raw bodies of text responses', async () => {

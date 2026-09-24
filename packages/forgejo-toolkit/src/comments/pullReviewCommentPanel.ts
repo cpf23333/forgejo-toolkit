@@ -659,10 +659,15 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       return;
     }
 
-    // The index becomes a path segment of the upload route. A non-integer or
-    // non-positive value (e.g. '1/assets/../../releases/5') would let a forged
-    // message post the host's bytes somewhere else on the same origin, so it is
-    // rejected here as the sidebar handler already does.
+    // The index becomes a path segment of the upload route, so a forged
+    // message must not be able to point the host's bytes at another route on
+    // the same origin. The sidebar handler for the same message only checks
+    // `typeof index === 'number'`, and that is not a traversal hole: a number
+    // stringifies to digits with an optional sign or exponent (or `NaN`/
+    // `Infinity`), never to `/`, `\` or a `..` segment, so a forged value at
+    // worst reaches a sibling route and fails there. This panel still rejects a
+    // non-integer or non-positive value because only a positive integer can
+    // name a real upload target.
     if (!Number.isInteger(index) || index <= 0) {
       this._reply('issueAttachmentCreated', {
         instanceId: instance.id,

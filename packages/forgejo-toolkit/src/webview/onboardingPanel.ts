@@ -231,6 +231,46 @@ export class OnboardingWebviewPanel {
               }
               return;
             }
+            case 'getRepositories': {
+              // The setup guide probes this right after a successful save: a
+              // token can pass the `/user` check the save performs and still
+              // miss `read:repository`, which the dashboard then shows as
+              // "Permission denied" with no repositories. The guide reads the
+              // answer out of its `repos-<id>` slot, which only a
+              // `repositories` reply fills (and only that reply clears the
+              // busy flag the load sets), and `loadRepositories` sends no
+              // `_requestId` — so the dispatcher fallback below cannot cover
+              // this command and *every* branch must answer. Served here
+              // rather than refused: the panel has the saved instance and the
+              // client, and the reply shape is viewProvider's handler for the
+              // same command, which is what the shared webview code already
+              // understands (success carries the list, failure carries `error`
+              // that the guide turns into its missing-scope message).
+              const requestedId = typeof message.instanceId === 'string' ? message.instanceId : '';
+              const instance = this._findInstance(message.instanceId);
+              if (!instance) {
+                this._reply('repositories', {
+                  instanceId: requestedId,
+                  error: vscode.l10n.t('Instance not found'),
+                });
+                return;
+              }
+              try {
+                const client = new ForgejoClient(
+                  instance.url,
+                  instance.token,
+                  logger,
+                  instance.syncApiUrlsToInstanceUrl,
+                );
+                const repos = await client.getUserRepositories();
+                this._reply('repositories', { instanceId: instance.id, repositories: repos });
+              } catch (error) {
+                const err = userFacingErrorMessage(error);
+                logger.error(`onboarding getRepositories failed for ${instance.name}: ${err}`);
+                this._reply('repositories', { instanceId: requestedId, error: err });
+              }
+              return;
+            }
             case 'removeInstance': {
               const { id } = message;
               if (typeof id === 'string') {

@@ -43,8 +43,10 @@ import {
   fetchBranch,
   fetchPullRequestHead,
   findLocalRepo,
+  getRemotePushUrls,
   getRemoteUrl,
   getRefCommitSha,
+  GitTimeoutError,
   inspectPrWorktree,
   isCurrentWorkspaceBaseRepo,
   isPathInsideFolder,
@@ -59,8 +61,10 @@ import {
   remoteMatchesInstance,
   resolveRemoteForRepo,
   revertMergeCommit,
+  runGit,
   sameRepositoryUrl,
 } from '../gitOperations';
+import { InFlightTasks } from '../inFlightTasks';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -686,7 +690,9 @@ describe('gitOperations argument passing', () => {
   });
 
   it('getRemoteUrl passes the remote name as a single argv entry', async () => {
-    const remote = 'up;stream$(touch pwned)';
+    // No whitespace (a name that cannot be a ref component is refused outright),
+    // but still a value only argv passing keeps inert.
+    const remote = 'up;stream$(touch-pwned)';
     await getRemoteUrl('/repo', remote);
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
@@ -694,6 +700,13 @@ describe('gitOperations argument passing', () => {
       expect.anything(),
       expect.any(Function),
     );
+  });
+
+  it('getRemoteUrl refuses a name git would read as an option', async () => {
+    // `git remote get-url --all` answers with *every* remote's URL, which the
+    // caller would attribute to the one remote it asked about.
+    await expect(getRemoteUrl('/repo', '--all')).rejects.toThrow(/is not a usable git remote name/);
+    expect(mocks.execFile).not.toHaveBeenCalled();
   });
 
   it('addRemote passes remote and url as single argv entries', async () => {
@@ -1650,6 +1663,123 @@ describe('runGit', () => {
   });
 });
 
+describe('git timeouts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.execFile.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('kills a child that outlives its timeout and rejects with the localized message', async () => {
+    let spawnOptions: { signal?: AbortSignal; killSignal?: string } | undefined;
+    mocks.execFile.mockImplementation((_file: string, _args: string[], options: typeof spawnOptions) => {
+      spawnOptions = options;
+    });
+    vi.mocked(vscode.l10n.t).mockClear();
+
+    const failure = await runGit(['fetch', 'origin'], '/repo', undefined, 40).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(GitTimeoutError);
+    expect((failure as Error).message).toMatch(/did not finish within/);
+    // The child is killed through the abort signal, with SIGKILL: a wedged git
+    // must not survive its own timeout.
+    expect(spawnOptions?.signal?.aborted).toBe(true);
+    expect(spawnOptions?.killSignal).toBe('SIGKILL');
+    // Built by l10n.t so the bundle can translate it, and it names the
+    // subcommand and the cap that was hit.
+    expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith(expect.stringContaining('did not finish within'), 'fetch', 1);
+  });
+
+  it('releases the in-flight entry after a timeout so the next attempt runs', async () => {
+    // The reported failure mode: InFlightTasks deletes its key only when the
+    // task settles, so the never-settling promise was reused for the key for the
+    // rest of the session and the spinner never cleared.
+    const lock = new InFlightTasks();
+    mocks.execFile.mockImplementationOnce(() => undefined);
+
+    await expect(lock.run('fetch:repo', () => runGit(['fetch', 'origin'], '/repo', undefined, 30))).rejects.toThrow(
+      /did not finish within/,
+    );
+
+    const retry = vi.fn(async () => 'recovered');
+    await expect(lock.run('fetch:repo', retry)).resolves.toBe('recovered');
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a command that finishes in time unaffected and clears its timer', async () => {
+    vi.useFakeTimers();
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(null, { stdout: 'abc123\n', stderr: '' } as unknown as string, '');
+      },
+    );
+
+    await expect(runGit(['rev-parse', 'HEAD'], '/repo', undefined, 30)).resolves.toEqual({
+      stdout: 'abc123\n',
+      stderr: '',
+    });
+
+    // Nothing is left to fire: the cap was cleared when the child settled
+    // instead of the child being reaped by the cap.
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('reclaims the checkout a killed worktree add left behind', async () => {
+    vi.useFakeTimers();
+    let addSignal: AbortSignal | undefined;
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], options: { signal?: AbortSignal }, callback: ExecFileCallback) => {
+        if (args[0] === 'worktree' && args[1] === 'add') {
+          // Killed mid-checkout: the registration is written, the checkout is
+          // half-populated, and no callback is delivered for that child.
+          addSignal = options.signal;
+          return;
+        }
+        callback(null, { stdout: '', stderr: '' } as unknown as string, '');
+      },
+    );
+
+    const settled = createWorktreeFromBranch('/repo', '/cache/worktrees/x', 'issue-1').catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(900_000);
+    const failure = await settled;
+
+    expect(failure).toBeInstanceOf(GitTimeoutError);
+    expect(addSignal?.aborted).toBe(true);
+    // The registration and the partial checkout are reclaimed, so the next
+    // attempt is not stuck on a worktree registered at a path that exists.
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['worktree', 'remove', '--force', '/cache/worktrees/x'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('leaves the path alone when worktree add fails without being killed', async () => {
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        const error = Object.assign(new Error('fatal: a branch named issue-1 already exists'), {
+          stderr: 'fatal: a branch named issue-1 already exists',
+        });
+        callback(error, '', error.stderr);
+      },
+    );
+
+    await expect(createWorktreeFromBranch('/repo', '/cache/worktrees/x', 'issue-1')).rejects.toThrow('already exists');
+    // git undoes its own failed add, and a directory at that path may be a
+    // leftover the user meant to reuse: only the kill path may delete it.
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      ['worktree', 'remove', '--force', '/cache/worktrees/x'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+});
+
 describe('detectLinkedRepository', () => {
   const instanceAlice: ForgejoInstance = {
     id: 'host-alice',
@@ -2527,6 +2657,49 @@ describe('isSafeRemoteName', () => {
     expect(isSafeRemoteName('my\tfork')).toBe(false);
     expect(isSafeRemoteName('my\nfork')).toBe(false);
     expect(isSafeRemoteName('my\u0000fork')).toBe(false);
+  });
+});
+
+describe('getRemotePushUrls remote name guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('refuses an option-like remote name instead of asking git for every remote', async () => {
+    // `git remote get-url --push --all <remote>` reads a remote named `--all`
+    // (a legal `branch.<name>.remote`, since nothing rejects that name) as its
+    // own options and answers with *every* remote's URLs, which the caller then
+    // attributes to the one remote it asked about: pushBranch's token-host guard
+    // and revertMergeCommit's repository check would validate another remote's
+    // URL and pass. This doubles as git's answer for that command.
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(
+          null,
+          {
+            stdout: 'https://forgejo.example.com/owner/repo.git\nhttps://other.example.com/owner/repo.git\n',
+          } as unknown as string,
+          '',
+        );
+      },
+    );
+
+    await expect(getRemotePushUrls('/repo', '--all')).rejects.toThrow('not a usable git remote name');
+    // The name never reaches git, so git cannot answer for another remote.
+    expect(mocks.execFile).not.toHaveBeenCalled();
+  });
+
+  it('still resolves the push URLs of an ordinary remote', async () => {
+    // The promisified `execFile` double resolves with whatever the callback's
+    // second argument is, so it carries the `{ stdout }` shape the real
+    // promisified function produces (see mockRevParseShas).
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(null, { stdout: 'https://forgejo.example.com/owner/repo.git\n' } as unknown as string, '');
+      },
+    );
+
+    await expect(getRemotePushUrls('/repo', 'origin')).resolves.toEqual(['https://forgejo.example.com/owner/repo.git']);
   });
 });
 

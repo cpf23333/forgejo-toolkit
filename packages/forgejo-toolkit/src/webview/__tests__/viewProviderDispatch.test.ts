@@ -105,7 +105,13 @@ vi.mock('../../api/proxy', async (importOriginal) => {
   return { ...actual, getProxyFetch: proxyMocks.getProxyFetch };
 });
 
-import { ForgejoToolkitViewProvider, clearResolvedAvatarCache, instanceCacheSuffix } from '../viewProvider';
+import {
+  AVATAR_CACHE_MAX_BYTES,
+  ForgejoToolkitViewProvider,
+  clearResolvedAvatarCache,
+  instanceCacheSuffix,
+  resolvedAvatarCacheBytesForTest,
+} from '../viewProvider';
 import { ForgejoClient } from '../../api/client';
 import { clearServerVersions, getServerVersion, setServerVersion } from '../../api/serverVersion';
 import {
@@ -466,6 +472,43 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
       expect(result).toMatchObject({ success: false, error: 'Instance not found' });
       expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('Instance not found');
+    });
+
+    it('refuses to save an instance whose URL is not http(s)', async () => {
+      vi.mocked(vscode.l10n.t).mockClear();
+      const client = vi.mocked(ForgejoClient);
+      client.mockClear();
+
+      fake.send({ command: 'saveInstance', url: 'file:///etc/passwd', token: 'tok' });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Enter a valid http(s) URL for the Forgejo instance.',
+      });
+      expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('Enter a valid http(s) URL for the Forgejo instance.');
+      // Nothing was validated against the (attacker-chosen) URL, let alone
+      // stored: the instance list is still just the seeded instance.
+      expect(client).not.toHaveBeenCalled();
+      expect(config.getInstances().map((instance) => instance.url)).toEqual([testInstance.url]);
+    });
+
+    it('refuses to edit an instance into a non-http(s) URL', async () => {
+      vi.mocked(vscode.l10n.t).mockClear();
+      const client = vi.mocked(ForgejoClient);
+      client.mockClear();
+
+      fake.send({ command: 'editInstance', id: testInstance.id, url: 'data:text/html,<b>hi</b>', token: 'tok' });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Enter a valid http(s) URL for the Forgejo instance.',
+      });
+      expect(client).not.toHaveBeenCalled();
+      expect(config.getInstances()[0].url).toBe(testInstance.url);
     });
   });
 
@@ -3589,6 +3632,113 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         });
         expect(recordedBaseBranch()).toBe('main');
       });
+
+      it('reopens a real leftover worktree without asking to delete anything', async () => {
+        // The `.git` marker proves the extension created this directory, so
+        // there is nothing to confirm and no prompt may appear — only a
+        // markerless directory is ever a deletion candidate.
+        clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+        vi.mocked(vscode.window.showWarningMessage).mockClear();
+
+        await sendStartWork();
+
+        expect(vi.mocked(vscode.window.showWarningMessage)).not.toHaveBeenCalled();
+        const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+        expect(reply?.error).toBeUndefined();
+        expect(vi.mocked(openWorktree)).toHaveBeenCalledWith(worktreePath, true, expect.any(Function), {
+          confirmed: true,
+        });
+        // Reopened as is: neither removed nor recreated.
+        expect(fs.existsSync(path.join(worktreePath, '.git'))).toBe(true);
+        expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('markerless leftover directory', () => {
+      // The directory the flow computes exists and carries no `.git` entry, so
+      // the extension cannot prove it created it: `worktreeCacheDirectory` is
+      // user-configurable and may point at a folder that already holds
+      // unrelated content (KNOWN_ISSUES). It must never be recursively deleted
+      // on sight — the lazy sweep refuses a directory without the
+      // `git worktree add` marker and the PR paths ask first — so this path
+      // asks too, and refuses the start when the user declines.
+      let cacheDir: string;
+      let worktreePath: string;
+
+      beforeEach(() => {
+        cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-worktree-markerless-'));
+        worktreePath = path.join(
+          cacheDir,
+          'worktrees',
+          `owner-repo-${instanceCacheSuffix(testInstance)}-issue-5-fix-bug`,
+        );
+        fs.mkdirSync(worktreePath, { recursive: true });
+        fs.writeFileSync(path.join(worktreePath, 'notes.txt'), 'unrelated work');
+        vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo');
+        vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+        vi.spyOn(config, 'getWorktreeCacheDirectory').mockReturnValue(cacheDir);
+        // Call history only; the shared mock's implementation (a modal resolves
+        // with its first action label, i.e. Confirm) is what the confirm case
+        // below relies on, so it is not reset.
+        vi.mocked(vscode.window.showWarningMessage).mockClear();
+      });
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+      });
+
+      function sendStartWork() {
+        fake.send({
+          command: 'startWorkOnIssue',
+          instanceId: testInstance.id,
+          owner: 'owner',
+          repo: 'repo',
+          index: 5,
+          title: 'fix-bug',
+        });
+        return flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
+      }
+
+      it('asks before deleting it and preserves it when the user declines', async () => {
+        vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
+
+        await sendStartWork();
+
+        // The prompt names the directory, so the user can see what is at stake.
+        const prompt = vi.mocked(vscode.window.showWarningMessage).mock.calls.at(-1)?.[0];
+        expect(String(prompt)).toContain(worktreePath);
+        const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+        expect(typeof reply?.error).toBe('string');
+        expect(String(reply?.error)).toContain(worktreePath);
+        // Untouched, and nothing was created or recorded.
+        expect(fs.readFileSync(path.join(worktreePath, 'notes.txt'), 'utf8')).toBe('unrelated work');
+        expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
+        expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+        expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
+        expect(context.globalState.get('forgejoToolkit.worktrees')).toBeUndefined();
+      });
+
+      it('deletes and recreates it only after the user confirms', async () => {
+        clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+        // The Confirm label the host compares against (the l10n mock returns the
+        // key itself).
+        vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Confirm' as never);
+
+        await sendStartWork();
+
+        const prompt = vi.mocked(vscode.window.showWarningMessage).mock.calls.at(-1)?.[0];
+        expect(String(prompt)).toContain(worktreePath);
+        const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+        expect(reply?.error).toBeUndefined();
+        expect(fs.existsSync(worktreePath)).toBe(false);
+        expect(vi.mocked(createWorktreeWithNewBranch)).toHaveBeenCalledWith(
+          '/src/repo',
+          worktreePath,
+          'issue-5-fix-bug',
+          'FETCH_HEAD',
+        );
+      });
     });
   });
 
@@ -3843,6 +3993,50 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       vi.advanceTimersByTime(61_000);
       expect(await resolveAvatar(url)).toBe(url);
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('counts a cache hit once and keeps serving the resolved data URL', async () => {
+      const fetchMock = stubAvatarFetch();
+      vi.stubGlobal('fetch', fetchMock);
+      const url = `${testInstance.url}/avatars/hit.png`;
+
+      expect(await resolveAvatar(url)).toBe('data:image/png;base64,AQID');
+      const bytesAfterFirstFetch = resolvedAvatarCacheBytesForTest();
+      expect(bytesAfterFirstFetch).toBeGreaterThan(0);
+
+      // A hit returns the stored promise without fetching or re-counting bytes.
+      expect(await resolveAvatar(url)).toBe('data:image/png;base64,AQID');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(resolvedAvatarCacheBytesForTest()).toBe(bytesAfterFirstFetch);
+    });
+
+    it('evicts the least recently used avatar once the byte budget is exceeded', async () => {
+      // Each avatar is over half the budget, so the second one has to evict the
+      // first: the entry cap alone (100) would let both stay and hold ~8 MiB per
+      // 100 avatars of base64 text.
+      const imageBytes = Math.ceil(AVATAR_CACHE_MAX_BYTES * 0.6);
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        arrayBuffer: async () => new Uint8Array(imageBytes).buffer,
+        headers: { get: () => 'image/png' },
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const first = `${testInstance.url}/avatars/big-1.png`;
+      const second = `${testInstance.url}/avatars/big-2.png`;
+
+      await resolveAvatar(first);
+      expect(resolvedAvatarCacheBytesForTest()).toBeGreaterThan(0);
+      await resolveAvatar(second);
+
+      // The budget holds after the insertion, and the evicted first URL is
+      // fetched again while the second is still a hit.
+      expect(resolvedAvatarCacheBytesForTest()).toBeLessThanOrEqual(AVATAR_CACHE_MAX_BYTES);
+      await resolveAvatar(second);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await resolveAvatar(first);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     });
   });
 

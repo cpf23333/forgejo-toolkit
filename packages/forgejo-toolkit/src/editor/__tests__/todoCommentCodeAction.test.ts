@@ -54,8 +54,8 @@ const INSTANCE = {
   username: 'demo-user',
 };
 
-function createConfig(): ConfigManager {
-  return { getInstances: () => [INSTANCE] } as unknown as ConfigManager;
+function createConfig(instance = INSTANCE): ConfigManager {
+  return { getInstances: () => [instance] } as unknown as ConfigManager;
 }
 
 describe('extractTodoComment', () => {
@@ -196,5 +196,23 @@ describe('createIssueFromComment', () => {
 
     expect(viewProvider.openNewIssue).not.toHaveBeenCalled();
     expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('outside'));
+  });
+
+  it('never persists a credential embedded in the instance URL into the issue body', async () => {
+    // The reference becomes the issue's body, which is stored server-side and
+    // readable by everyone with repository access.
+    vi.mocked(detectLinkedRepository).mockResolvedValue(linked as never);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('abc123');
+    const viewProvider = { openNewIssue: vi.fn() };
+
+    await createIssueFromComment(
+      createConfig({ ...INSTANCE, url: 'https://alice:secret-token@forgejo.example.com' }),
+      viewProvider as never,
+      { fsPath: '/repo/src/a.ts', line: 4, text: 'refactor this' },
+    );
+
+    const body = (viewProvider.openNewIssue.mock.calls[0][0] as { body: string }).body;
+    expect(body).not.toContain('secret-token');
+    expect(body).toContain('forgejo.example.com/owner/repo/blob/abc123/src/a.ts#L5');
   });
 });

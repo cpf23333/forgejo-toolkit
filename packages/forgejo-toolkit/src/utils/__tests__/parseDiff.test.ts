@@ -122,3 +122,84 @@ describe('parsePullDiff', () => {
     expect(fileMap?.headLines.size).toBe(2);
   });
 });
+
+/**
+ * The comment controller looks a file up by the API filename, so this map's keys
+ * must be the real repository paths: git's own encoding of a name — a trailing
+ * TAB after a name containing a space, or a C-quoted name for non-ASCII bytes —
+ * would never match and the file would be silently skipped.
+ */
+describe('parsePullDiff file paths', () => {
+  it('decodes a path containing a space and a trailing TAB', () => {
+    const diff = `diff --git a/with space.txt b/with space.txt
+index 1111111..2222222 100644
+--- a/with space.txt\t
++++ b/with space.txt\t
+@@ -1,1 +1,1 @@
+-old
++new
+`;
+    const { files } = parsePullDiff(diff);
+    // git TAB-terminates the +++/--- field for a spaced name; the TAB is a
+    // separator, not part of the path.
+    expect([...files.keys()]).toEqual(['with space.txt']);
+    expect(files.get('with space.txt')?.headLines.get(0)).toBe('added');
+  });
+
+  it('decodes git C-quoted non-ASCII path bytes', () => {
+    // core.quotePath=true is git's default, so a UTF-8 name arrives quoted with
+    // octal escapes of its bytes: \346\226\207\344\273\266 = 文件.
+    const diff = `diff --git "a/\\346\\226\\207\\344\\273\\266.txt" "b/\\346\\226\\207\\344\\273\\266.txt"
+index 1111111..2222222 100644
+--- "a/\\346\\226\\207\\344\\273\\266.txt"
++++ "b/\\346\\226\\207\\344\\273\\266.txt"
+@@ -1,1 +1,1 @@
+-old
++new
+`;
+    const { files } = parsePullDiff(diff);
+    expect([...files.keys()]).toEqual(['文件.txt']);
+    expect(files.get('文件.txt')?.headLines.get(0)).toBe('added');
+  });
+
+  it('decodes a C-quoted name that also contains a space', () => {
+    const diff = `diff --git "a/my \\346\\226\\207.txt" "b/my \\346\\226\\207.txt"
+--- "a/my \\346\\226\\207.txt"
++++ "b/my \\346\\226\\207.txt"
+@@ -1,1 +1,1 @@
+-old
++new
+`;
+    const { files } = parsePullDiff(diff);
+    expect([...files.keys()]).toEqual(['my 文.txt']);
+  });
+
+  it('keeps a plain path unchanged', () => {
+    const { files } = parsePullDiff(MULTI_FILE_DIFF);
+    expect([...files.keys()]).toEqual(['src/a.ts', 'src/b.ts']);
+  });
+
+  it('decodes a quoted path from the diff --git fallback when +++ is missing', () => {
+    const diff = `diff --git "a/\\346\\226\\207.txt" "b/\\346\\226\\207.txt"
+@@ -1,1 +1,1 @@
+-old
++new
+`;
+    const { files } = parsePullDiff(diff);
+    expect([...files.keys()]).toEqual(['文.txt']);
+  });
+
+  it('falls back to the diff --git line for the path of an added file', () => {
+    // An added file has /dev/null on the --- side; the +++ side names it.
+    const diff = `diff --git a/new file.txt b/new file.txt
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/new file.txt\t
+@@ -0,0 +1,1 @@
++new
+`;
+    const { files } = parsePullDiff(diff);
+    expect([...files.keys()]).toEqual(['new file.txt']);
+  });
+});

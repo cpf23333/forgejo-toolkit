@@ -118,18 +118,33 @@ describe('ConfigManager', () => {
     expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-2');
   });
 
-  it('fails closed on an unparseable URL instead of reusing the stored secret', async () => {
-    await config.addInstance(instance);
-    await config.addInstance({ ...instance, token: '', url: 'not a valid url' });
+  it('refuses a non-http(s) URL instead of storing it', async () => {
+    // Defence in depth at the storage boundary: an entry with a file:/data: URL
+    // can never be talked to, would be rendered as a link by the webview and can
+    // reach openExternal, so nothing may persist it.
+    await expect(
+      config.addInstance({ ...instance, url: 'file:///etc/passwd', token: '', name: 'x', username: 'x' }),
+    ).rejects.toThrow('Enter a valid http(s) URL for the Forgejo instance.');
+    await expect(config.addInstance({ ...instance, url: 'not a valid url' })).rejects.toThrow(
+      'Enter a valid http(s) URL for the Forgejo instance.',
+    );
+
+    expect(config.getInstances()).toHaveLength(0);
+    expect(fake.secretStore.size).toBe(0);
+  });
+
+  it('fails closed on an unparseable stored URL instead of reusing the stored secret', async () => {
+    // A stored entry can predate the scheme/parse checks (hand-edited storage, an
+    // older build), so the token path must still treat it as a different origin.
+    await fake.context.globalState.update('forgejoToolkit.instances', [
+      { ...instance, token: '', url: 'not a valid url' },
+    ]);
+    await fake.context.secrets.store('forgejoToolkit.instanceToken.forgejo.example.com-user', 'token-1');
+
+    await config.addInstance({ ...instance, token: '' });
 
     expect(config.getInstances()[0].token).toBe('');
-
-    // The same must hold when the *stored* URL is the unparseable side.
-    const broken = createFakeContext();
-    const brokenConfig = new ConfigManager(broken.context as never);
-    await brokenConfig.addInstance({ ...instance, url: 'not a valid url' });
-    await brokenConfig.addInstance({ ...instance, token: '' });
-    expect(brokenConfig.getInstances()[0].token).toBe('');
+    expect(fake.secretStore.has('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe(false);
   });
 
   it('keeps the stored secret on an empty-token update and replaces it on a non-empty one', async () => {

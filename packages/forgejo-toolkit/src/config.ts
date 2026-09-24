@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { isSameOriginUrl } from './webview/instanceImport';
+import { isHttpUrl } from './webview/connectionTest';
 import { WorktreeManager } from './worktree/worktreeManager';
 import { logger } from './logger';
 
@@ -101,6 +102,15 @@ export class ConfigManager {
   }
 
   async addInstance(instance: ForgejoInstance): Promise<void> {
+    // Defence in depth at the storage boundary: everything downstream (API
+    // requests, links rendered by the webview, `vscode.env.openExternal`) can
+    // only use an http(s) instance URL, and the callers that already check the
+    // scheme (the connection test, the import sanitizer) are not all of them.
+    // An unparseable URL is refused too, so an entry that can never work is not
+    // persisted where the Settings UI would only offer to edit it again.
+    if (!isHttpUrl(instance.url)) {
+      throw new Error(vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'));
+    }
     // Token semantics (shared with updateInstance): a non-empty token is
     // stored in SecretStorage; an empty token means "keep the existing
     // credential". Re-adding an instance id without re-entering its token

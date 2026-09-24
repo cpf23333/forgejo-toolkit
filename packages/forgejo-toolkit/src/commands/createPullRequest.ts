@@ -10,6 +10,7 @@ import {
   getCurrentBranch,
   getRemotePushUrls,
   getUpstreamBranch,
+  isSafeRemoteName,
   pushBranch,
   resolveUpstreamRemote,
 } from '../worktree/gitOperations';
@@ -74,20 +75,34 @@ export async function createPrFromCurrentBranch(
     return;
   }
 
-  // The PR head must exist on the remote under the upstream's branch name,
-  // which can differ from the local branch name (e.g. upstream origin/rename).
+  // Which branch is published, and where.
+  //
+  // The rule is: the published branch is always the local branch, under its own
+  // name, and the pull request head is that published branch. Git's
+  // `branch.<name>.merge` is the branch the local branch was *created from* —
+  // the everyday `git checkout -b fix origin/main` records `remote=origin`,
+  // `merge=refs/heads/main` — not a branch the user asked to publish to. Using
+  // it as the push target ran `git push origin fix:main`, which fast-forwards
+  // the shared base branch with work in progress (an explicit refspec is not
+  // covered by git's own `push.default=simple` refusal, so git never gets the
+  // chance to object) and then prefilled the pull request form with
+  // `head=main`. A tracked branch whose name differs from the local branch is
+  // therefore never a push target: the local branch is published under its own
+  // name on the same remote, after a confirmation that names the destination,
+  // and `-u` re-points the branch's upstream at the branch actually published.
   const upstream = await getUpstreamBranch(linked.localPath);
-  let head = branch;
   let pushRemote = 'origin';
-  let pushRefspec = branch;
   let setUpstream = true;
   let needsPush = !upstream;
+  // Set only when the tracked upstream names a *different* branch; the
+  // confirmation then says why that branch is not the push target.
+  let trackedBranchDiffers: string | undefined;
   if (upstream) {
     // Resolve the remote from git's own configuration rather than by splitting
     // `@{upstream}` at the first `/`: `isSafeRemoteName` deliberately allows a
     // slash inside a remote name (`my/fork`), and the naive split turned
-    // `my/fork/feature` into remote `my`, so the push (and the PR head) named a
-    // remote that does not exist and failed with a misleading message.
+    // `my/fork/feature` into remote `my`, so the push named a remote that does
+    // not exist and failed with a misleading message.
     const upstreamRef = await resolveUpstreamRemote(linked.localPath);
     if (!upstreamRef) {
       // An upstream git cannot attribute to a configured remote cannot be
@@ -103,14 +118,49 @@ export async function createPrFromCurrentBranch(
       );
       return;
     }
+    // A local upstream (`branch.<name>.remote = .`) names this very repository,
+    // not a remote, so there is no remote branch to publish to; git would run
+    // the push against the local repository instead. Note that `.` passes
+    // isSafeRemoteName, so it needs its own check.
+    if (upstreamRef.remote === '.') {
+      logger.error(
+        `[createPrFromCurrentBranch] the upstream of "${branch}" names the local repository, which is not a publish target`,
+      );
+      vscode.window.showErrorMessage(
+        vscode.l10n.t(
+          'The upstream remote is the local repository ("{0}"), which cannot hold a pull request branch. Point the branch at a real remote (for example "origin") and try again.',
+          upstreamRef.remote,
+        ),
+      );
+      return;
+    }
+    // An option-like remote name (`--force`, `--upload-pack=…`) is read by git
+    // as an option rather than as a remote; refuse it here so the failure names
+    // the real problem instead of surfacing as a failed push.
+    if (!isSafeRemoteName(upstreamRef.remote)) {
+      logger.error(`[createPrFromCurrentBranch] the upstream remote of "${branch}" is not a usable git remote name`);
+      vscode.window.showErrorMessage(
+        vscode.l10n.t(
+          'The upstream remote name "{0}" is not a usable git remote name, so the push was aborted. Point the branch at a real remote (for example "origin") and try again.',
+          upstreamRef.remote,
+        ),
+      );
+      return;
+    }
     pushRemote = upstreamRef.remote;
-    head = upstreamRef.branch;
-    pushRefspec = head === branch ? branch : `${branch}:${head}`;
-    setUpstream = false;
-    const ahead = await getAheadCount(linked.localPath);
-    // Undefined ahead means the upstream ref cannot be resolved (e.g. the
-    // remote branch was deleted) — push then, so the PR head exists remotely.
-    needsPush = ahead === undefined || ahead > 0;
+    if (upstreamRef.branch === branch) {
+      setUpstream = false;
+      const ahead = await getAheadCount(linked.localPath);
+      // Undefined ahead means the upstream ref cannot be resolved (e.g. the
+      // remote branch was deleted) — push then, so the PR head exists remotely.
+      needsPush = ahead === undefined || ahead > 0;
+    } else {
+      // The tracked branch is a different branch, so its state says nothing
+      // about <remote>/<branch>: publish unconditionally (a push with nothing
+      // to do is a no-op), so the head exists on the remote afterwards.
+      trackedBranchDiffers = upstreamRef.branch;
+      needsPush = true;
+    }
   }
 
   if (needsPush) {
@@ -140,18 +190,27 @@ export async function createPrFromCurrentBranch(
       return;
     }
     const push = vscode.l10n.t('Push');
-    const choice = await vscode.window.showWarningMessage(
-      upstream
-        ? vscode.l10n.t('Branch "{0}" has unpushed commits. Push it now?', branch)
-        : vscode.l10n.t('Branch "{0}" has not been pushed. Push it now?', branch),
-      { modal: true },
-      push,
-    );
+    // The confirmation always names the remote and the branch the commits would
+    // land on, so the user can tell where they are going before agreeing.
+    const message = trackedBranchDiffers
+      ? vscode.l10n.t(
+          'Branch "{0}" tracks {1}/{2}. Push it to {3}/{0} instead?',
+          branch,
+          pushRemote,
+          trackedBranchDiffers,
+          pushRemote,
+        )
+      : upstream
+        ? vscode.l10n.t('Branch "{0}" has unpushed commits. Push it to {1}/{2} now?', branch, pushRemote, branch)
+        : vscode.l10n.t('Branch "{0}" has not been pushed. Push it to {1}/{2} now?', branch, pushRemote, branch);
+    const choice = await vscode.window.showWarningMessage(message, { modal: true }, push);
     if (choice !== push) {
       return;
     }
     try {
-      await pushBranch(linked.localPath, pushRemote, pushRefspec, pushToken, setUpstream, instance.url);
+      // The refspec is the local branch name alone: it publishes <branch> as
+      // <remote>/<branch>, never as a branch it merely tracks.
+      await pushBranch(linked.localPath, pushRemote, branch, pushToken, setUpstream, instance.url);
     } catch (error) {
       const err = userFacingErrorMessage(error);
       logger.error(`[createPrFromCurrentBranch] failed to push branch: ${err}`);
@@ -165,6 +224,9 @@ export async function createPrFromCurrentBranch(
     instanceId: linked.instanceId,
     owner: linked.owner,
     repo: linked.repo,
-    head,
+    // The head is the branch that was just published, so it exists on the
+    // remote under this name; the default-branch guard above compares this same
+    // local branch, which is what makes the guard sufficient.
+    head: branch,
   });
 }

@@ -45,12 +45,12 @@ function linkedResult(instanceId: string) {
   return { linked, all: [linked] };
 }
 
-function createConfig(ids: string[]): ConfigManager {
+function createConfig(ids: string[], url = INSTANCE_URL): ConfigManager {
   return {
     getInstances: () =>
       ids.map((id) => ({
         id,
-        url: INSTANCE_URL,
+        url,
         token: '',
         name: `user@${id}`,
         username: 'user',
@@ -345,5 +345,52 @@ describe('document link trigger context', () => {
     const provider = new ForgejoIssueMentionProvider(createConfig(['inst-l1']));
     const document = makeFileDocument('#include <stdio.h>\n# a comment');
     expect(await provider.provideDocumentLinks(document as never, {} as never)).toEqual([]);
+  });
+});
+
+describe('document link credential redaction', () => {
+  beforeEach(() => {
+    detectMock.mockReset();
+    // Attribute to whatever instance the provider was configured with, so the
+    // ids this describe block uses cannot drift from the detection result.
+    detectMock.mockImplementation(
+      (instances: { id: string }[]) => Promise.resolve(linkedResult(instances[0].id)) as never,
+    );
+  });
+
+  it('strips a credential embedded in the instance URL from every link target', async () => {
+    // A link target is opened in the browser, and the target string survives in
+    // the editor's link state: the configured token must not be in it.
+    const provider = new ForgejoIssueMentionProvider(
+      createConfig(['inst-r1'], 'https://alice:secret-token@forgejo.example.com'),
+    );
+    const document = makeFileDocument('#12 thanks @alice');
+
+    const targets = (await provider.provideDocumentLinks(document as never, {} as never)).map((link) =>
+      (link.target as { toString(): string }).toString(),
+    );
+
+    expect(targets).toHaveLength(2);
+    for (const target of targets) {
+      expect(target).not.toContain('secret-token');
+      expect(target).toContain('forgejo.example.com');
+      expect(target).toContain('alice:***@');
+    }
+  });
+
+  it('strips a token written in the username position', async () => {
+    const provider = new ForgejoIssueMentionProvider(
+      createConfig(['inst-r2'], 'https://secret-token@forgejo.example.com'),
+    );
+    const document = makeFileDocument('see #7');
+
+    const targets = (await provider.provideDocumentLinks(document as never, {} as never)).map((link) =>
+      (link.target as { toString(): string }).toString(),
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).not.toContain('secret-token');
+    // The host stays, so the link still resolves to the right server.
+    expect(targets[0]).toBe('https://***@forgejo.example.com/owner/repo/issues/7');
   });
 });

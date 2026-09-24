@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import { buildUrl, client as baseClient, encodePathSegment } from '@cpf23333-forgejo-toolkit/shared/request';
-import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
+import { LIST_ITEM_LIMIT, MAX_REPO_FILE_SEARCH_RESULTS } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { toApiError, requestContextFor } from './errors-core';
 import { getForgejoClientHost } from './clientHost';
 import { assertActionsSupported } from './serverVersion';
@@ -187,7 +187,8 @@ const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_TREE_PAGES = 50;
 // A query like "e" matches thousands of paths; the browser renders plain rows, so
 // the response is capped and the truncation flag tells the user why the list stops.
-export const MAX_SEARCH_RESULTS = 200;
+// The number lives in the shared package because the webview states it too.
+export const MAX_SEARCH_RESULTS = MAX_REPO_FILE_SEARCH_RESULTS;
 // Branches and recent commits carried by `getRepoDetail`, whose caller (the MCP
 // `get_repo` tool) must be able to say that the two lists are capped: without
 // that, a branch past the first ten reads as a branch that does not exist.
@@ -1023,7 +1024,9 @@ export class ForgejoClient {
     try {
       return await promise;
     } catch (error) {
-      this.logger?.debug(`[probe] ${what}: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger?.debug(
+        `[probe] ${what}: ${redactErrorDetail(error instanceof Error ? error.message : String(error))}`,
+      );
       return undefined;
     }
   }
@@ -1494,11 +1497,23 @@ export class ForgejoClient {
       !(permissions?.admin === true && protection.apply_to_admins !== true)
     ) {
       const reviews = await this._probe(this.listPullReviews(owner, repo, index), `listPullReviews #${index}`);
-      approvedCount = (reviews ?? []).filter(
-        (review) => review.state === 'APPROVED' && review.official === true && !review.stale && !review.dismissed,
-      ).length;
+      // A failed review-list probe leaves the count unknown, not at zero: the
+      // `required_approvals` blocker it would otherwise fabricate disables Merge
+      // for a PR that may well be approved.
+      if (reviews !== undefined) {
+        approvedCount = reviews.filter(
+          (review) => review.state === 'APPROVED' && review.official === true && !review.stale && !review.dismissed,
+        ).length;
+      }
     }
-    const mergeBlockers = this._buildMergeBlockers(prDetail, permissions, protection, combinedStatus, approvedCount);
+    const mergeBlockers = this._buildMergeBlockers(
+      prDetail,
+      permissions,
+      protection,
+      protectionRead.unknown,
+      combinedStatus,
+      approvedCount,
+    );
     const statusChecks = combinedStatus
       ? {
           state: combinedStatus.state,
@@ -1567,7 +1582,9 @@ export class ForgejoClient {
       if (apiError.kind === 'http' && apiError.status === 404) {
         return { unknown: false };
       }
-      this.logger?.debug(`[branchProtection] unreadable for ${owner}/${repo}@${branch}: ${apiError.rawMessage}`);
+      this.logger?.debug(
+        `[branchProtection] unreadable for ${owner}/${repo}@${branch}: ${redactErrorDetail(apiError.rawMessage)}`,
+      );
       return { unknown: true };
     }
   }
@@ -1581,6 +1598,8 @@ export class ForgejoClient {
       enable_status_check?: boolean;
       status_check_contexts?: string[];
     },
+    /** Whether the branch protection read failed or was never possible. */
+    protectionUnknown = false,
     combinedStatus?: { state?: string },
     approvedCount?: number,
   ): MergeBlocker[] {
@@ -1617,8 +1636,15 @@ export class ForgejoClient {
     let statusChecksUnknown = false;
     if (protection && !canBypassProtection) {
       const requiredApprovals = protection.required_approvals;
-      if (requiredApprovals && requiredApprovals > 0 && (approvedCount ?? 0) < requiredApprovals) {
-        blockers.push({ type: 'required_approvals', requiredApprovals });
+      if (requiredApprovals && requiredApprovals > 0) {
+        // The approval count comes from a best-effort review-list probe, so an
+        // unknown count must not be read as "zero approvals" — the same rule as
+        // the permissions and status-check branches above.
+        if (approvedCount === undefined) {
+          this.logger?.debug(`[mergeBlockers] approval count unknown for PR #${pr.number}; not blocking`);
+        } else if (approvedCount < requiredApprovals) {
+          blockers.push({ type: 'required_approvals', requiredApprovals });
+        }
       }
       if (protection.enable_status_check && (protection.status_check_contexts?.length ?? 0) > 0) {
         const state = combinedStatus?.state;
@@ -1631,8 +1657,23 @@ export class ForgejoClient {
       }
     }
 
-    if (pr.mergeable === false && !statusChecksUnknown && !blockers.some((b) => b.type === 'required_status_checks')) {
+    // `mergeable` is documented as a plain bool that is false when the server did
+    // not compute it, and Forgejo also reports false while a protected branch's
+    // required checks are still unresolved. So neither a failed status-check read
+    // nor an unreadable branch protection may turn that false into a definite
+    // "this pull request has conflicts": `_readBranchProtection` answers with no
+    // rules for every non-admin and on a failed read, and reading its silence as
+    // a conflict disables Merge for a PR whose real state is merely unknown —
+    // exactly the reasoning that keeps an unknown permissions object out of
+    // `no_permission` above. A 404 (a branch with no rules) is a real answer, so
+    // it keeps reporting the conflict.
+    const mergeStateUnknown = protectionUnknown || statusChecksUnknown;
+    if (pr.mergeable === false && !mergeStateUnknown && !blockers.some((b) => b.type === 'required_status_checks')) {
       blockers.push({ type: 'conflicts' });
+    } else if (pr.mergeable === false && mergeStateUnknown) {
+      this.logger?.debug(
+        `[mergeBlockers] mergeable=false with unknown branch state for PR #${pr.number}; not reporting conflicts`,
+      );
     }
 
     return blockers;
@@ -2100,7 +2141,9 @@ export class ForgejoClient {
         // their attachment was gone. The flag lets the view say the list could
         // not be loaded instead.
         this.logger?.debug(
-          `[probe] comment assets for #${commentId}: ${error instanceof Error ? error.message : String(error)}`,
+          `[probe] comment assets for #${commentId}: ${redactErrorDetail(
+            error instanceof Error ? error.message : String(error),
+          )}`,
         );
         unavailable.add(commentId);
         assetsMap.set(commentId, []);
@@ -2596,6 +2639,23 @@ export class ForgejoClient {
     const scopeMatch = text.match(/required scope\(s\): \[([^\]]+)\]/i);
     host.notifyInsufficientScope(this.url, { scope: scopeMatch?.[1], body: text });
   }
+}
+
+/**
+ * Remove credentials from every URL inside an error message bound for the log.
+ *
+ * `toApiError` keeps the underlying failure text verbatim, and a failure that
+ * never reached the server quotes the request URL back — `fetch` refuses to
+ * build a request from a URL that carries credentials and names the whole URL
+ * in the `TypeError` it throws. A configured instance URL may embed the access
+ * token (`https://user:token@host`), and an imported config stores one without
+ * a connection test, so the debug lines that print a caught error pass it
+ * through the same `redactUrlUserinfo` rule as `_client()`'s request lines. The
+ * cause and the request path survive; only the userinfo is replaced. Not
+ * exported: callers outside this module log through the client's own logger.
+ */
+function redactErrorDetail(detail: string): string {
+  return detail.replace(/https?:\/\/[^\s"'`<>()[\]]+/gi, (url) => redactUrlUserinfo(url));
 }
 
 /**

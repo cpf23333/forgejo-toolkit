@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { isHttpUrl } from './connectionTest';
 
 export const MAX_IMPORT_PBKDF2_ITERATIONS = 1_000_000;
 
@@ -148,6 +149,13 @@ export function stripInstanceTokens(instances: ForgejoInstance[]): ForgejoInstan
  * and counted. `syncApiUrlsToInstanceUrl` is kept only when it is actually
  * a boolean, so older exports without it round-trip to `undefined`.
  *
+ * `url` must be an http(s) URL, the only scheme the rest of the extension can
+ * talk to (see `isHttpUrl`). A `file:`/`data:`/`javascript:` URL would be
+ * stored, rendered as a link and handed to `vscode.env.openExternal`, so the
+ * scheme is refused here — at the boundary the file crosses — as well as in
+ * `ConfigManager.addInstance` and the save/edit handlers: the file is
+ * untrusted input and none of those layers can assume another rejected it.
+ *
  * `id` is forwarded as-is: the file may name an id that is already stored,
  * and this function has no view of the stored list. ConfigManager.addInstance
  * enforces the id/url origin consistency that makes reusing a stored id safe
@@ -162,6 +170,7 @@ export function sanitizeImportedInstances(items: unknown[]): { valid: ForgejoIns
       instance &&
       typeof instance.id === 'string' &&
       typeof instance.url === 'string' &&
+      isHttpUrl(instance.url) &&
       typeof instance.token === 'string' &&
       typeof instance.name === 'string' &&
       typeof instance.username === 'string'

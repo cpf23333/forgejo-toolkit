@@ -220,11 +220,15 @@ export class WorktreeManager {
    *
    * The directories on disk are deliberately *not* deleted here: a checkout may
    * hold the user's uncommitted work, and this runs as part of a config change
-   * with no confirmation of its own. Once the records are gone the lazy sweep
-   * can reclaim them (a linked-worktree checkout whose source repository still
-   * exists is only swept once it has been untouched for WORKTREE_MAX_AGE_MS),
-   * and the bare clones lose their active-protection and age out like any
-   * other unused clone. Returns how many records were dropped.
+   * with no confirmation of its own. Dropping the record does not hand the
+   * checkout to the lazy sweep either, unless its source repository is gone:
+   * `_cleanupWorktrees` reclaims only a checkout whose `git worktree add`
+   * marker names a source repository that no longer exists (see
+   * isAbandonedWorktree), so a recordless checkout whose source still exists
+   * stays on disk — and, with its record gone, is no longer visible in Settings
+   * — until the user deletes it themselves. Only the bare clones lose their
+   * active-protection and age out like any other unused clone. Returns how many
+   * records were dropped.
    */
   async forgetInstanceWorktrees(instanceId: string): Promise<number> {
     return enqueueGlobalStateWrite(async () => {

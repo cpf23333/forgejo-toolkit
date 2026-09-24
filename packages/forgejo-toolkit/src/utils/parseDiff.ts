@@ -66,13 +66,85 @@ function splitDiffIntoFileBlocks(diffText: string): string[] {
   return blocks;
 }
 
-function extractFilePath(block: string): string | undefined {
-  // Prefer the "+++ b/path" line for the destination path.
-  const plusMatch = block.match(/^\+\+\+ b\/(.+)$/m);
-  if (plusMatch) {
-    return plusMatch[1];
+// Trailing TAB git puts after the path on a `+++`/`---` line when the name
+// contains a space (the line is otherwise TAB-terminated for a name without one,
+// and an empty trailing field is insignificant). The TAB is a field separator,
+// not part of the name.
+const PATH_TRAILING_TAB_RE = /\t+$/;
+
+// git C-quotes a path (`core.quotePath=true`, the default) when it contains a
+// byte above 0x7f, a double quote, a backslash, or a control character, and
+// escapes it as `"b/..."`. Non-ASCII UTF-8 bytes are written as octal escapes
+// of the *bytes* (`\344\270\255`), not of a code point, so the escapes are
+// collected as bytes and decoded together.
+const SIMPLE_ESCAPES: Record<string, number> = {
+  a: 0x07,
+  b: 0x08,
+  f: 0x0c,
+  n: 0x0a,
+  r: 0x0d,
+  t: 0x09,
+  v: 0x0b,
+};
+
+/** Undo git's C-quoting (including the surrounding double quotes). */
+function decodeGitQuotedPath(value: string): string {
+  if (!value.startsWith('"')) {
+    return value;
   }
-  // Fall back to the diff --git line.
+  const bytes: number[] = [];
+  for (let index = 1; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === '"') {
+      break;
+    }
+    if (char !== '\\') {
+      // Characters outside an escape are written literally; for a quoted name
+      // they are plain ASCII, so a char code is its byte.
+      bytes.push(value.charCodeAt(index));
+      continue;
+    }
+    const octalMatch = /^[0-7]{1,3}/.exec(value.slice(index + 1));
+    if (octalMatch) {
+      bytes.push(Number.parseInt(octalMatch[0], 8));
+      index += octalMatch[0].length;
+      continue;
+    }
+    index += 1;
+    // An unknown escape stands for the character itself (git only emits the
+    // escapes C defines, but a hand-written diff may carry anything).
+    bytes.push(SIMPLE_ESCAPES[value[index]] ?? value.charCodeAt(index));
+  }
+  // The collected bytes are UTF-8, so decode them instead of mapping each byte
+  // to a character (that would mangle every non-ASCII name).
+  return Buffer.from(bytes).toString('utf8');
+}
+
+function stripDiffPathField(field: string): string {
+  const withoutTab = field.replace(PATH_TRAILING_TAB_RE, '');
+  return decodeGitQuotedPath(withoutTab);
+}
+
+function extractFilePath(block: string): string | undefined {
+  // Prefer the "+++ b/path" line for the destination path. The `b/` prefix is
+  // stripped after unquoting, because git puts it *inside* the quotes of a
+  // C-quoted name (`+++ "b/\346\226\207.txt"`), where a pattern anchored on a
+  // literal `b/` cannot see it.
+  const plusMatch = block.match(/^\+\+\+ (.*)$/m);
+  if (plusMatch) {
+    const path = stripDiffPathField(plusMatch[1]);
+    const withoutPrefix = path.startsWith('b/') ? path.slice(2) : path;
+    if (withoutPrefix && withoutPrefix !== '/dev/null') {
+      return withoutPrefix;
+    }
+  }
+  // Fall back to the diff --git line: a quoted form (which can contain spaces)
+  // first, then the plain form for a name without one.
+  const quotedGitMatch = block.match(/^diff --git ("(?:[^"\\]|\\.)*") ("(?:[^"\\]|\\.)*")$/m);
+  if (quotedGitMatch) {
+    const path = stripDiffPathField(quotedGitMatch[2]);
+    return path.startsWith('b/') ? path.slice(2) : path;
+  }
   const gitMatch = block.match(/^diff --git a\/(.+?) b\/(.+?)$/m);
   if (gitMatch) {
     return gitMatch[2];

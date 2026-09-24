@@ -18,11 +18,24 @@ import { createTimedCache, estimateValueBytes } from '../utils/timedCache';
 interface PullReviewData {
   review: PullReview;
   comments: PullReviewComment[];
+  /**
+   * True when the review's comment list could not be fetched: `comments` is then
+   * empty because the data is missing, not because the review has none. The
+   * entry is still kept so its `state`/`user` stay visible — dropping it hid a
+   * pending review from both the panel and `addComment`'s lookup.
+   */
+  incomplete?: boolean;
 }
 
 interface PullRequestReviewCache {
   diff: ParsedPullDiff;
   reviews: PullReviewData[];
+  /**
+   * Ids of reviews whose comments could not be fetched during this load. Their
+   * entries stay in `reviews` with `incomplete: true`, so the failure is never
+   * silently presented as "this review has no comments".
+   */
+  incompleteReviewIds: number[];
 }
 
 export interface CommentContext {
@@ -65,6 +78,33 @@ const CONTEXT_IN_PR_DIFF = 'forgejoToolkit.inPullRequestDiff';
 // events of a closing diff editor, short enough that leftover threads do not
 // sit in the Comments panel.
 const INVISIBLE_THREAD_SWEEP_DELAY_MS = 250;
+
+// A review's comments are fetched one request per review, and the review list
+// can reach the shared 500-item list cap: firing them all at once opens up to
+// 500 concurrent authenticated requests against a self-hosted instance. The
+// sibling comment-asset fan-out in `api/client.ts` uses the same pool size for
+// the same reason. Four keeps a busy pull request's load to a handful of
+// in-flight requests while still finishing in a few round trips.
+const REVIEW_COMMENTS_CONCURRENCY = 4;
+
+/**
+ * Run `task` for every item with at most `limit` tasks in flight. The cursor is
+ * shared and bumped synchronously in the loop condition, so a task that resolves
+ * its worker immediately cannot push past the limit.
+ */
+async function mapWithConcurrency<T>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (let index = next++; index < items.length; index = next++) {
+      await task(items[index]);
+    }
+  });
+  await Promise.all(workers);
+}
 
 export class PullReviewCommentController implements vscode.Disposable {
   private readonly _controller: vscode.CommentController;
@@ -331,24 +371,28 @@ export class PullReviewCommentController implements vscode.Disposable {
     ]);
 
     const diff = parsePullDiff(diffText);
-    const reviewData: PullReviewData[] = [];
-    await Promise.all(
-      reviews.map(async (review) => {
-        const reviewId = review.id;
-        if (typeof reviewId !== 'number') {
-          return;
-        }
-        try {
-          const comments = await client.getPullReviewComments(params.owner, params.repo, params.index, reviewId);
-          reviewData.push({ review, comments });
-        } catch (error) {
-          const err = userFacingErrorMessage(error);
-          this._logger?.error(`Failed to load pull review comments ${reviewId}: ${err}`);
-        }
-      }),
-    );
+    // One entry per review, in the server's order: a failed comments fetch must
+    // not remove the review from the list, or the panel would render an
+    // incomplete comment set as if it were complete and `addComment` could no
+    // longer see an existing pending review (it would start a second one).
+    const reviewData: PullReviewData[] = reviews.map((review) => ({ review, comments: [] }));
+    const incompleteReviewIds: number[] = [];
+    await mapWithConcurrency(reviewData, REVIEW_COMMENTS_CONCURRENCY, async (entry) => {
+      const reviewId = entry.review.id;
+      if (typeof reviewId !== 'number') {
+        return;
+      }
+      try {
+        entry.comments = await client.getPullReviewComments(params.owner, params.repo, params.index, reviewId);
+      } catch (error) {
+        const err = userFacingErrorMessage(error);
+        this._logger?.error(`Failed to load pull review comments ${reviewId}: ${err}`);
+        entry.incomplete = true;
+        incompleteReviewIds.push(reviewId);
+      }
+    });
 
-    return { diff, reviews: reviewData };
+    return { diff, reviews: reviewData, incompleteReviewIds };
   }
 
   private _findInstance(instanceId: string): ForgejoInstance | undefined {
@@ -401,6 +445,18 @@ export class PullReviewCommentController implements vscode.Disposable {
   private async _loadAndRender(document: vscode.TextDocument, params: ForgejoPrUriParams): Promise<void> {
     try {
       const data = await this._loadReviewData(params);
+      // A review whose comments failed to load is kept in `data.reviews` (so a
+      // pending review stays visible, see _fetchReviewData) but its threads are
+      // necessarily missing. Say so: otherwise the diff looks like a complete
+      // picture of the discussion.
+      if (data.incompleteReviewIds.length > 0) {
+        vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            'Some reviews could not be loaded, so their comments may be missing: {0}',
+            data.incompleteReviewIds.join(', '),
+          ),
+        );
+      }
       // The document may have been closed while the load was in flight; the
       // close event then found no threads to dispose, so threads created now
       // would linger in the Comments panel forever.
@@ -739,10 +795,22 @@ export class PullReviewCommentController implements vscode.Disposable {
 
     const position = line + 1;
 
-    const pendingReview = data.reviews.find(
+    // A pending review is found through this list, so it must never be dropped
+    // for a failed comments fetch: without it Forgejo starts a *second* review
+    // ("Review started…") instead of adding to the existing one.
+    // `incomplete` only says its comments could not be listed, which is exactly
+    // why the editor is told what to expect: the comment still attaches to the
+    // pending review following Forgejo's one-pending-review-per-user rule, so
+    // the editor must not claim the server will create a new one.
+    const pendingEntry = data.reviews.find(
       (r) => r.review.state === 'PENDING' && r.review.user?.login === instance.username,
-    )?.review;
-    const pendingReviewId = typeof pendingReview?.id === 'number' ? pendingReview.id : undefined;
+    );
+    const pendingReviewId = typeof pendingEntry?.review.id === 'number' ? pendingEntry.review.id : undefined;
+    if (pendingEntry?.incomplete && pendingReviewId !== undefined) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('Adding to pending review #{0}; its existing comments could not be loaded', pendingReviewId),
+      );
+    }
 
     const context: PullReviewCommentContext = {
       instanceId: params.instanceId,

@@ -20,7 +20,28 @@ const state = vi.hoisted(() => ({
   diffFetches: 0,
   comments: null as unknown[] | null,
   diffError: null as Error | null,
+  // Reviews the comments endpoint rejects, keyed by review id.
+  failedReviewIds: [] as number[],
+  // Overrides the review list the client returns; null keeps the default.
+  listReviews: null as Array<{ id: number; state: string; user: { login: string } }> | null,
+  // Review ids the comments endpoint is asked for, in call order.
+  commentsRequests: [] as number[],
+  // Peak number of comment requests in flight at the same time.
+  peakCommentsInFlight: 0,
+  commentsInFlight: 0,
+  // When set, every comments request blocks on this gate instead of resolving
+  // immediately. Used to observe the fan-out while requests are in flight;
+  // a timer would be affected by the suite's fake-timer tests.
+  commentsGate: null as { promise: Promise<void>; resolve(): void } | null,
 }));
+
+function createGate() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, resolve: release };
+}
 
 vi.mock('vscode', () => {
   const makeUri = (scheme: string, path: string, query?: string) => ({
@@ -117,7 +138,13 @@ vi.mock('vscode', () => {
       parse: vi.fn((s: string) => ({ fsPath: s, scheme: s.split(':')[0] })),
       file: vi.fn((p: string) => ({ fsPath: p, scheme: 'file' })),
     },
-    l10n: { t: (m: string) => m },
+    l10n: {
+      // Mirrors `vscode.l10n.t`, which interpolates the positional arguments
+      // into the `{0}` placeholders; a mock that dropped them would hide which
+      // ids a message names.
+      t: (message: string, ...args: unknown[]) =>
+        args.reduce<string>((text, arg, index) => text.replace(`{${index}}`, String(arg)), message),
+    },
   };
 });
 
@@ -151,8 +178,28 @@ vi.mock('../../api/client', () => ({
         }
         return DIFF;
       }),
-      listPullReviews: vi.fn(async () => [{ id: 10, state: 'COMMENTED', user: { login: 'reviewer' } }]),
-      getPullReviewComments: vi.fn(async () => state.comments ?? COMMENTS),
+      listPullReviews: vi.fn(
+        async () => state.listReviews ?? [{ id: 10, state: 'COMMENTED', user: { login: 'reviewer' } }],
+      ),
+      getPullReviewComments: vi.fn(async (_owner: string, _repo: string, _index: number, reviewId: number) => {
+        state.commentsRequests.push(reviewId);
+        state.commentsInFlight += 1;
+        state.peakCommentsInFlight = Math.max(state.peakCommentsInFlight, state.commentsInFlight);
+        try {
+          // A gate (not a timer: the suite has fake-timer tests) so a burst is
+          // observably in flight together; the concurrency cap is what keeps
+          // that number bounded.
+          if (state.commentsGate) {
+            await state.commentsGate.promise;
+          }
+          if (state.failedReviewIds.includes(reviewId)) {
+            throw new Error(`comments unavailable for review ${reviewId}`);
+          }
+          return state.comments ?? COMMENTS;
+        } finally {
+          state.commentsInFlight -= 1;
+        }
+      }),
     };
   }),
 }));
@@ -230,6 +277,7 @@ describe('PullReviewCommentController thread cleanup', () => {
     state.editorHandlers.length = 0;
     state.visibleEditorHandlers.length = 0;
     state.visibleEditors.length = 0;
+    state.commentsGate = null;
   });
 
   it('keeps base-side threads alive when the head-side document renders, and vice versa', async () => {
@@ -952,5 +1000,174 @@ describe('PullReviewCommentController review data cache lifetime', () => {
 
     expect(cache.size).toBe(0);
     expect(cache.byteSize()).toBe(0);
+  });
+});
+
+/**
+ * The review list can reach the shared 500-item cap, and one review's comments
+ * need one request each: an unbounded fan-out opened hundreds of concurrent
+ * authenticated requests per load, and a failed one dropped the review from the
+ * data the panel and addComment read.
+ */
+describe('PullReviewCommentController review comments fan-out', () => {
+  type FetchInternals = {
+    _fetchReviewData(params: { instanceId: string; owner: string; repo: string; index: number }): Promise<{
+      reviews: Array<{ review: { id?: number }; comments: unknown[]; incomplete?: boolean }>;
+      incompleteReviewIds: number[];
+    }>;
+  };
+
+  const PARAMS = { instanceId: INSTANCE_ID, owner: 'owner', repo: 'repo', index: 2 };
+
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.failedReviewIds = [];
+    state.commentsRequests = [];
+    state.peakCommentsInFlight = 0;
+    state.commentsInFlight = 0;
+    state.commentsGate = null;
+    state.comments = null;
+    state.listReviews = null;
+    panelState.createOrShow.mockClear();
+    vi.mocked(vscode.window.showWarningMessage).mockClear();
+  });
+
+  function reviewList(count: number) {
+    return Array.from({ length: count }, (_, index) => ({
+      id: index + 1,
+      state: 'COMMENTED',
+      user: { login: 'user' },
+    }));
+  }
+
+  it('bounds the per-review comment requests to a small pool', async () => {
+    // 30 reviews -> 30 requests, but never more than the pool at a time. With no
+    // non-macrotask way to observe an in-flight window, the gate is what makes
+    // the cap observable: only a bounded number of requests can start while the
+    // first batch is blocked. Before the cap, all 30 started at once.
+    state.listReviews = reviewList(30);
+    const gate = createGate();
+    state.commentsGate = gate;
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const internals = controller as unknown as FetchInternals;
+
+    try {
+      const load = internals._fetchReviewData(PARAMS);
+      // Let the first batch of requests reach the gate.
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const startedWhileBlocked = state.commentsRequests.length;
+      const dataAfterFirstBatch = state.peakCommentsInFlight;
+      gate.resolve();
+      state.commentsGate = null;
+      const data = await load;
+
+      // Every review is still fetched exactly once...
+      expect(state.commentsRequests).toHaveLength(30);
+      expect(new Set(state.commentsRequests).size).toBe(30);
+      expect(dataAfterFirstBatch).toBe(4);
+      expect(startedWhileBlocked).toBe(4);
+      // ...and the full result survives the pool.
+      expect(data.reviews).toHaveLength(30);
+      expect(state.peakCommentsInFlight).toBe(4);
+    } finally {
+      gate.resolve();
+      state.commentsGate = null;
+      controller.dispose();
+    }
+  });
+
+  it('keeps a review whose comments failed to load instead of dropping it', async () => {
+    state.listReviews = [
+      { id: 10, state: 'COMMENTED', user: { login: 'reviewer' } },
+      { id: 11, state: 'PENDING', user: { login: 'user' } },
+    ];
+    state.failedReviewIds = [11];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+
+    try {
+      const data = await (controller as unknown as FetchInternals)._fetchReviewData(PARAMS);
+
+      // The failed review must not vanish: its state and author are what the
+      // panel and addComment read.
+      expect(data.reviews.map((entry) => entry.review.id)).toEqual([10, 11]);
+      const failed = data.reviews.find((entry) => entry.review.id === 11);
+      expect(failed?.incomplete).toBe(true);
+      expect(failed?.comments).toEqual([]);
+      expect(data.incompleteReviewIds).toEqual([11]);
+    } finally {
+      controller.dispose();
+    }
+  });
+
+  it('reports an incomplete review load and still shows the file', async () => {
+    state.listReviews = [
+      { id: 10, state: 'COMMENTED', user: { login: 'reviewer' } },
+      { id: 11, state: 'PENDING', user: { login: 'user' } },
+    ];
+    state.failedReviewIds = [11];
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const shown = vi.mocked(vscode.window.showWarningMessage);
+
+    try {
+      await openDocument(makeDocument(false));
+
+      expect(shown).toHaveBeenCalledWith(expect.stringContaining('Some reviews could not be loaded'));
+      expect(shown.mock.calls[0][0]).toContain('11');
+    } finally {
+      controller.dispose();
+    }
+  });
+
+  it('does not start a second review when the pending review failed to load', async () => {
+    vi.useFakeTimers();
+    try {
+      // The bug: the dropped review left the pending-review lookup with nothing
+      // to find, so addComment passed no `pendingReviewId` and the editor told
+      // the user it would start a NEW review ("Review started…") even though one
+      // was already pending. The load below is the one that counts: the cache's
+      // TTL expires and the re-fetch is what fails.
+      state.listReviews = [{ id: 11, state: 'PENDING', user: { login: 'user' } }];
+      state.failedReviewIds = [11];
+      state.comments = [];
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const editor = {
+        document: makeDocument(false),
+        selection: {
+          isEmpty: true,
+          start: { line: 2, character: 0 },
+          end: { line: 2, character: 0 },
+          active: { line: 2 },
+        },
+      };
+
+      await controller.addComment(editor as never, 2);
+      panelState.createOrShow.mockClear();
+      // A pending review can have no comments yet; the review itself is the
+      // only thing addComment needs from this list.
+      state.comments = null;
+
+      // Let the review-data cache expire so the next addComment re-fetches and
+      // hits the failing comments request.
+      vi.setSystemTime(Date.now() + 60_000);
+
+      try {
+        await controller.addComment(editor as never, 2);
+      } finally {
+        state.listReviews = null;
+        state.failedReviewIds = [];
+      }
+
+      expect(panelState.createOrShow).toHaveBeenCalledTimes(1);
+      const context = panelState.createOrShow.mock.calls[0][2] as { pendingReviewId?: number };
+      expect(context.pendingReviewId).toBe(11);
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

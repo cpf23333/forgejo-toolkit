@@ -131,6 +131,35 @@ describe('toRemoteSource', () => {
     const source = toRemoteSource({ ...testInstance, url: 'https://forgejo.example.com/' }, createRepo());
     expect(source.url).toEqual(['https://forgejo.example.com/owner/demo.git']);
   });
+
+  it('never embeds an instance credential in the fallback clone url', () => {
+    // The git extension persists whatever it clones as the new repository's
+    // remote in `.git/config`; a token in that URL would live in plaintext on
+    // disk, which is exactly what cloneRepository avoids via env-based config.
+    const password = toRemoteSource(
+      { ...testInstance, url: 'https://alice:secret-token@forgejo.example.com' },
+      createRepo(),
+    );
+    expect(String(password.url[0])).not.toContain('secret-token');
+    // The username stays recognisable; only the secret is blanked.
+    expect(String(password.url[0])).toBe('https://alice:***@forgejo.example.com/owner/demo.git');
+
+    const tokenOnly = toRemoteSource(
+      { ...testInstance, url: 'https://secret-token@forgejo.example.com' },
+      createRepo(),
+    );
+    expect(String(tokenOnly.url[0])).not.toContain('secret-token');
+    expect(String(tokenOnly.url[0])).toBe('https://***@forgejo.example.com/owner/demo.git');
+  });
+
+  it('leaves a server-provided clone_url untouched', () => {
+    // The URL Forgejo itself reports is the server's canonical remote.
+    const source = toRemoteSource(
+      { ...testInstance, url: 'https://secret-token@forgejo.example.com' },
+      createRepo({ clone_url: 'https://forgejo.example.com/owner/demo.git' }),
+    );
+    expect(String(source.url[0])).toBe('https://forgejo.example.com/owner/demo.git');
+  });
 });
 
 describe('syncRemoteSourceProviders', () => {

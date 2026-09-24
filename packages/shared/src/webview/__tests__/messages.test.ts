@@ -76,4 +76,136 @@ describe('repoFilesSearchResult truncation cause', () => {
     // cause must not promise that narrowing recovers the missing matches.
     expect(makeSearchResult().truncatedBy).toBeUndefined();
   });
+
+  it('keeps `truncated` and its cause independent', () => {
+    // `truncated` is cause-neutral: a capped match list over a fully read tree
+    // (`'matches'`) is as truncated as an unreadable tree (`'tree'`), so the flag
+    // must not be read as "the repository was not fully searched".
+    expect(makeSearchResult({ truncated: true, truncatedBy: 'matches' }).truncated).toBe(true);
+    expect(makeSearchResult({ truncated: true, truncatedBy: 'tree' }).truncated).toBe(true);
+  });
+});
+
+/** The host's answer to a pull-request detail request, as the contract declares it. */
+type PullRequestDetailReply = Extract<HostToWebviewMessage, { command: 'pullRequestDetail' }>;
+
+function makePullRequestDetailReply(overrides: Partial<PullRequestDetailReply> = {}): PullRequestDetailReply {
+  return {
+    command: 'pullRequestDetail',
+    instanceId: 'instance-1',
+    owner: 'demo-user',
+    repo: 'demo-repo',
+    index: 1,
+    detail: {},
+    ...overrides,
+  };
+}
+
+describe('pullRequestDetail attachments probe', () => {
+  it('stays valid when the host sends no attachments flag', () => {
+    // A successful probe (or a payload from a host build that predates the flag)
+    // leaves the field absent, which is what the webview reads as "the empty
+    // assets list really means no attachments".
+    expect(makePullRequestDetailReply().attachmentsUnavailable).toBeUndefined();
+  });
+
+  it('type-checks the only-when-true flag the host sends beside a failed probe', () => {
+    // viewProvider sends `attachmentsUnavailable: true` (and nothing otherwise)
+    // when the attachments probe failed; before this was declared the host had to
+    // work around the contract with a local type.
+    expect(makePullRequestDetailReply({ attachmentsUnavailable: true }).attachmentsUnavailable).toBe(true);
+  });
+});
+
+/** The host's answer to an import-preview request, as the contract declares it. */
+type ImportPreviewReply = Extract<HostToWebviewMessage, { command: 'importInstancesPreview' }>;
+
+function makeImportPreviewReply(overrides: Partial<ImportPreviewReply> = {}): ImportPreviewReply {
+  return {
+    command: 'importInstancesPreview',
+    instances: [],
+    existingIds: [],
+    ...overrides,
+  };
+}
+
+describe('importInstancesPreview dropped count', () => {
+  it('stays valid when nothing was dropped', () => {
+    // Absent is the "nothing to warn about" shape: a clean import file and a host
+    // build that predates the count both send no `dropped`.
+    expect(makeImportPreviewReply().dropped).toBeUndefined();
+  });
+
+  it('type-checks the count the host sends only when entries were skipped', () => {
+    expect(makeImportPreviewReply({ dropped: 2 }).dropped).toBe(2);
+  });
+});
+
+/**
+ * The reply fields the host sends that no consumer reads yet. They stay in the
+ * contract because the extension host sends them (removing one would break the
+ * sender), and each carries a doc comment saying what a consumer must do when it
+ * starts reading it — see the field docs in `messages.ts`.
+ */
+describe('reply fields the host sends before a consumer reads them', () => {
+  type ArtifactDownloadedReply = Extract<HostToWebviewMessage, { command: 'actionArtifactDownloaded' }>;
+  type WorktreeOpenedReply = Extract<HostToWebviewMessage, { command: 'worktreeOpened' }>;
+  type DependencyChangedReply = Extract<HostToWebviewMessage, { command: 'issueDependencyChanged' }>;
+  type RunDispatchedReply = Extract<HostToWebviewMessage, { command: 'actionRunDispatched' }>;
+
+  it('keeps the artifact-download cancel distinct from a failure and from a success', () => {
+    // The host answers a declined save dialog with `{ cancelled: true }` and no
+    // `error` (viewProvider), which is why a consumer that only branches on
+    // `error` would take the success branch and clear a stale error.
+    const cancelled: ArtifactDownloadedReply = {
+      command: 'actionArtifactDownloaded',
+      instanceId: 'instance-1',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      artifactId: 7,
+      cancelled: true,
+    };
+    const saved: ArtifactDownloadedReply = { ...cancelled, cancelled: undefined, path: 'artifact.zip' };
+
+    expect(cancelled.cancelled).toBe(true);
+    expect(cancelled.error).toBeUndefined();
+    expect(cancelled.path).toBeUndefined();
+    expect(saved.path).toBe('artifact.zip');
+  });
+
+  it('keeps the worktreeOpened existence flag in the wire shape', () => {
+    const reused: WorktreeOpenedReply = { command: 'worktreeOpened', worktree: {}, existed: true };
+    const created: WorktreeOpenedReply = { command: 'worktreeOpened', worktree: {}, existed: false };
+
+    expect(reused.existed).toBe(true);
+    expect(created.existed).toBe(false);
+  });
+
+  it('keeps the issue-dependency echo fields in the wire shape', () => {
+    const reply: DependencyChangedReply = {
+      command: 'issueDependencyChanged',
+      instanceId: 'instance-1',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 5,
+      dependencyIndex: 6,
+      action: 'remove',
+    };
+
+    expect(reply.dependencyIndex).toBe(6);
+    expect(reply.action).toBe('remove');
+  });
+
+  it('keeps the dispatch acceptance flag in the wire shape', () => {
+    const reply: RunDispatchedReply = {
+      command: 'actionRunDispatched',
+      instanceId: 'instance-1',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      workflowfilename: 'ci.yml',
+      accepted: true,
+    };
+
+    expect(reply.accepted).toBe(true);
+  });
 });

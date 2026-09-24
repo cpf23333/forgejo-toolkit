@@ -5,6 +5,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+const clientMocks = vi.hoisted(() => ({
+  getUserRepositories: vi.fn(),
+}));
+
 vi.mock('../../api/client', () => ({
   // resolveAttachmentImages (used when rendering markdown) imports this.
   API_REQUEST_TIMEOUT_MS: 30_000,
@@ -12,6 +16,7 @@ vi.mock('../../api/client', () => ({
     return {
       getCurrentUser: vi.fn().mockResolvedValue({ login: 'user' }),
       renderMarkdown: vi.fn().mockResolvedValue('<p>hi</p>'),
+      getUserRepositories: clientMocks.getUserRepositories,
     };
   }),
 }));
@@ -122,6 +127,7 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     config = new ConfigManager(context as never);
     fake = createFakePanel();
     vi.mocked(clearLinkedRepositoryCache).mockReset();
+    clientMocks.getUserRepositories.mockReset();
     clearServerVersions();
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fake.panel as never);
     OnboardingWebviewPanel.currentPanel = undefined;
@@ -256,6 +262,52 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     expect(vi.mocked(clearLinkedRepositoryCache)).toHaveBeenCalled();
   });
 
+  it('answers the setup guide getRepositories probe with the repository list', async () => {
+    // The guide sends this load right after a save and reads the answer out of
+    // its `repos-<id>` slot, which only a `repositories` reply clears. Before
+    // the panel handled the command nothing answered it at all (the dispatcher
+    // fallback only covers messages carrying a `_requestId`, and this load has
+    // none), so the slot stayed busy and the guide reported a successful save
+    // for a token that cannot list repositories.
+    const repos = [{ id: 1, name: 'repo', full_name: 'owner/repo' }];
+    clientMocks.getUserRepositories.mockResolvedValue(repos);
+
+    fake.send({ command: 'getRepositories', instanceId: testInstance.id });
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'repositories');
+    expect(reply).toMatchObject({ instanceId: testInstance.id, repositories: repos });
+    expect(reply?.error).toBeUndefined();
+  });
+
+  it('reports a refused repository list through an error reply, not silence', async () => {
+    // A missing `read:repository` scope is exactly what the probe exists to
+    // surface; the guide turns the `error` field into its missing-scope
+    // message, so it must be present (and must not be swallowed into a
+    // requestError the guide does not listen for).
+    clientMocks.getUserRepositories.mockRejectedValue(new Error('Permission denied [403]'));
+
+    fake.send({ command: 'getRepositories', instanceId: testInstance.id });
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'repositories');
+    expect(reply?.instanceId).toBe(testInstance.id);
+    expect(reply?.error).toBe('Permission denied [403]');
+    expect(reply?.repositories).toBeUndefined();
+    expect(postedMessages(fake.posted).some((m) => m.command === 'requestError')).toBe(false);
+  });
+
+  it('answers the probe for an unknown instance so its busy slot cannot stick', async () => {
+    // The instance is looked up in the config, so a removed instance (or a
+    // stale id) would otherwise return silently and leave the guide spinning.
+    fake.send({ command: 'getRepositories', instanceId: 'gone-instance' });
+    await flushDispatches();
+
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'repositories');
+    expect(reply?.instanceId).toBe('gone-instance');
+    expect(reply?.error).toBe('Instance not found');
+  });
+
   it('names the failing instance when an imported entry cannot be saved', async () => {
     const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'onboarding-import-fail-')), 'export.json');
     fs.writeFileSync(
@@ -275,13 +327,16 @@ describe('OnboardingWebviewPanel message dispatch', () => {
 
     const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
     // The setup guide renders this reply's `error`; a bare "failed" would leave
-    // the user with nothing to act on. (The shared l10n mock keeps the raw
-    // placeholders and appends the arguments, so the parts are asserted.)
+    // the user with nothing to act on. The message comes from l10n.t (so the
+    // bundle translates it) and names both the instance and the reason.
     expect(reply?.success).toBe(false);
     expect(reply?.cancelled).toBeUndefined();
-    expect(reply?.error).toContain('Importing instance {0} failed');
-    expect(reply?.error).toContain('one');
-    expect(reply?.error).toContain('storage is read-only');
+    expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith(
+      'Importing instance {0} failed: {1}',
+      'one',
+      'storage is read-only',
+    );
+    expect(reply?.error).toBe('Importing instance one failed: storage is read-only');
   });
 
   it('reports the parse failure of a corrupt import file through the same reply', async () => {

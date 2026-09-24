@@ -13,42 +13,131 @@ import { logger } from '../logger';
 const execFile = promisify(cp.execFile);
 
 /**
+ * Runtime cap for the commands that only touch the local repository (status,
+ * rev-parse, remote, config, rev-list, branch -D, revert, worktree list/prune/
+ * remove). Every one of them answers in milliseconds on a healthy repository,
+ * so two minutes is far beyond any legitimate run while still bounding a wedged
+ * one — an `index.lock` held by a dead process, a filesystem that stopped
+ * responding.
+ */
+const GIT_TIMEOUT_MS = 120_000;
+
+/**
+ * Runtime cap for the commands that legitimately run for minutes: the network
+ * transfers (`clone --bare`, `fetch`, `push`) and the checkout `worktree add`
+ * performs. Fifteen minutes bounds a hung transfer (an unreachable host
+ * mid-transfer, a credential helper waiting on input) without killing real work
+ * on a slow link or a very large repository.
+ */
+const GIT_LONG_TIMEOUT_MS = 900_000;
+
+/**
+ * Raised when a git child had to be killed because it outlived its timeout.
+ *
+ * Callers single this out: a killed `git worktree add` leaves a registration and
+ * a half-populated checkout that git's own failure cleanup never got to undo,
+ * whereas an ordinary git failure is cleaned up by git itself. Only the kill
+ * path may therefore reclaim the directory it was writing.
+ */
+export class GitTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GitTimeoutError';
+  }
+}
+
+/**
+ * Maps an `execFile` failure to the error the callers see.
+ *
+ * On failure, cp.execFile errors embed the full command line in error.message,
+ * so only git's stderr is re-thrown: it never echoes the command line (and any
+ * credential it carries). When there is no stderr — the process could not be
+ * spawned at all — the reason is reported instead of a constant: a user with no
+ * git on the extension host's PATH (or a wrong `git.path`) otherwise gets no
+ * hint about what to fix.
+ */
+function describeGitFailure(error: unknown, gitPath: string): Error {
+  const stderr = (error as { stderr?: unknown }).stderr;
+  if (typeof stderr === 'string' && stderr.trim()) {
+    return new Error(stderr.trim());
+  }
+  const code = (error as { code?: unknown }).code;
+  if (code === 'ENOENT') {
+    return new Error(vscode.l10n.t('Git was not found at "{0}". Install Git or set the "git.path" setting.', gitPath));
+  }
+  return new Error(
+    vscode.l10n.t('Failed to run Git at "{0}"{1}.', gitPath, typeof code === 'string' ? ` (${code})` : ''),
+  );
+}
+
+/**
  * Run git with an argument array (no shell, so ref/path arguments cannot be
- * used for shell injection). On failure, cp.execFile errors embed the full
- * command line in error.message, so re-throw an error carrying only git's
- * stderr, which never echoes the command line. When there is no stderr — the
- * process could not be spawned at all — the reason is reported instead of a
- * constant: a user with no git on the extension host's PATH (or a wrong
- * `git.path`) otherwise gets no hint about what to fix.
+ * used for shell injection), killing the child when it outlives `timeoutMs`.
+ *
+ * Without the cap a single hung git wedged the whole feature for the rest of
+ * the session: `InFlightTasks` deletes its key only when the task settles, so
+ * the never-settling promise kept "Cloning …" up, kept the webview spinner on,
+ * left the git process behind, and made every later attempt on that key reuse
+ * the same dead promise. The timeout rejects with `GitTimeoutError` so the task
+ * settles (and the key is released) and the user gets an actionable message.
+ *
+ * `timeoutMs` defaults to the local-command cap; the callers whose work is
+ * genuinely long pass `GIT_LONG_TIMEOUT_MS`.
  *
  * The binary is resolved from the editor's `git.path` setting on every call
  * (git runs may be minutes apart, and the setting is live), falling back to
  * `git` on PATH.
  */
-async function runGit(
+export async function runGit(
   args: string[],
   cwd?: string,
   extraEnv?: NodeJS.ProcessEnv,
+  timeoutMs = GIT_TIMEOUT_MS,
 ): Promise<{ stdout: string; stderr: string }> {
   const configuredGitPath = vscode.workspace.getConfiguration('git').get<string>('path');
   const gitPath = typeof configuredGitPath === 'string' && configuredGitPath.trim() ? configuredGitPath : 'git';
+  // The child is killed through this controller, and the same timer rejects the
+  // call: with only the abort, a spawn that ignores the signal (or a stub that
+  // never answers) would keep the promise pending, which is the wedge this cap
+  // exists to remove.
+  const controller = new AbortController();
+  let timer: NodeJS.Timeout | undefined;
+  const timedOut = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      // `killSignal: 'SIGKILL'` below, not SIGTERM: a wedged git (an
+      // unreachable host mid-transfer, a credential helper blocked on input)
+      // cannot be trusted to exit on a catchable signal, and the process has to
+      // be gone before the caller's cleanup deletes what it was writing (see
+      // rethrowAfterKilledWorktreeAdd).
+      controller.abort();
+      reject(
+        new GitTimeoutError(
+          vscode.l10n.t(
+            'Git {0} did not finish within {1} seconds and was stopped. Check the network connection or credential helper, then try again.',
+            args[0] ?? 'command',
+            Math.max(1, Math.ceil(timeoutMs / 1000)),
+          ),
+        ),
+      );
+    }, timeoutMs);
+  });
   try {
-    return await execFile(gitPath, args, { cwd, env: extraEnv ? { ...process.env, ...extraEnv } : process.env });
+    return await Promise.race([
+      execFile(gitPath, args, {
+        cwd,
+        env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+        signal: controller.signal,
+        killSignal: 'SIGKILL',
+      }),
+      timedOut,
+    ]);
   } catch (error) {
-    const stderr = (error as { stderr?: unknown }).stderr;
-    if (typeof stderr === 'string' && stderr.trim()) {
-      throw new Error(stderr.trim());
-    }
-    // No stderr: git never ran. error.message would repeat the command line
-    // (and any credential URL in it), so it is not surfaced; the spawn code and
-    // the binary name are what the user needs.
-    const code = (error as { code?: unknown }).code;
-    if (code === 'ENOENT') {
-      throw new Error(vscode.l10n.t('Git was not found at "{0}". Install Git or set the "git.path" setting.', gitPath));
-    }
-    throw new Error(
-      vscode.l10n.t('Failed to run Git at "{0}"{1}.', gitPath, typeof code === 'string' ? ` (${code})` : ''),
-    );
+    // The cap rejects with its own error; everything else is a git failure.
+    throw error instanceof GitTimeoutError ? error : describeGitFailure(error, gitPath);
+  } finally {
+    // Also covers the timeout path: an already-fired timer is harmless to clear,
+    // and a pending one must not outlive the call.
+    clearTimeout(timer);
   }
 }
 
@@ -118,7 +207,21 @@ export async function isGitRepository(dirPath: string): Promise<boolean> {
   }
 }
 
+/**
+ * The fetch URL git reports for `remote`, or `undefined` when it cannot be
+ * resolved (unknown remote, missing git).
+ *
+ * An unusable remote name is refused outright (it throws instead of returning
+ * `undefined`) for the same reason as in getRemotePushUrls: `git remote get-url`
+ * reads `--push`/`--all` as its own options, so a `branch.<name>.remote` of
+ * `--all` would answer with *every* remote's URLs while the caller attributes
+ * them to one remote — a "does this remote belong to my instance" check would
+ * then pass on another remote's URL. The guard is the same one the siblings use
+ * (assertRemoteName); callers cannot express "unknown" for a name git never
+ * accepted.
+ */
 export async function getRemoteUrl(dirPath: string, remote = 'origin'): Promise<string | undefined> {
+  assertRemoteName(remote);
   try {
     const { stdout } = await runGit(['remote', 'get-url', remote], dirPath);
     return stdout.trim();
@@ -138,8 +241,18 @@ export async function getRemoteUrl(dirPath: string, remote = 'origin'): Promise<
  *
  * `undefined` means the push target could not be resolved at all (unknown
  * remote, missing git); callers must treat that as "do not send the token".
+ *
+ * An unusable remote name is refused outright (it throws instead of returning
+ * `undefined`) rather than resolved: `git remote get-url` reads `--push`/`--all`
+ * as its own options, so a `branch.<name>.remote` of `--all` would answer with
+ * *every* remote's URLs while the caller attributes them to one remote — the
+ * "does this remote belong to my instance" check would then pass on another
+ * remote's URL. The guard is the same one the fetch/push builders use
+ * (assertRemoteName); callers cannot express "unknown" for a name git never
+ * accepted.
  */
 export async function getRemotePushUrls(dirPath: string, remote: string): Promise<string[] | undefined> {
+  assertRemoteName(remote);
   try {
     const { stdout } = await runGit(['remote', 'get-url', '--push', '--all', remote], dirPath);
     const urls = stdout
@@ -596,7 +709,8 @@ export async function pushBranch(
   }
   assertGitRevision(refspec, 'refspec');
   args.push(remote, refspec);
-  const { stderr } = await runGit(args, dirPath, authEnv(token));
+  // A push transfers as much as a fetch does, so it gets the same long cap.
+  const { stderr } = await runGit(args, dirPath, authEnv(token), GIT_LONG_TIMEOUT_MS);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -648,7 +762,12 @@ export async function cloneRepository(url: string, targetPath: string, token?: s
   // --quiet keeps clone progress out of stderr (huge repos would overflow
   // execFile's 1MB maxBuffer); fatal errors are still printed, so the check
   // below is unaffected.
-  const { stderr } = await runGit(['clone', '--bare', '--quiet', url, targetPath], undefined, authEnv(token));
+  const { stderr } = await runGit(
+    ['clone', '--bare', '--quiet', url, targetPath],
+    undefined,
+    authEnv(token),
+    GIT_LONG_TIMEOUT_MS,
+  );
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -704,7 +823,12 @@ async function runFetchPullRequestHead(
   localBranch: string,
   token?: string,
 ): Promise<void> {
-  const { stderr } = await runGit(['fetch', remote, '--', `${ref}:${localBranch}`], repoPath, authEnv(token));
+  const { stderr } = await runGit(
+    ['fetch', remote, '--', `${ref}:${localBranch}`],
+    repoPath,
+    authEnv(token),
+    GIT_LONG_TIMEOUT_MS,
+  );
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -784,6 +908,32 @@ async function recoverFromWorktreeCheckedOutBranch(
   return true;
 }
 
+/**
+ * Rethrow a failed `git worktree add`, first reclaiming what a killed one left
+ * behind.
+ *
+ * `git worktree add` registers the checkout under
+ * `<repo>/.git/worktrees/<name>` and populates the directory afterwards. An
+ * ordinary failure is undone by git itself, but a process killed at its timeout
+ * never runs that cleanup: the registration and a half-populated directory stay
+ * on disk, and the *next* attempt then fails for good — the fetch refuses to
+ * write a branch that is registered at an existing path, and
+ * `recoverFromWorktreeCheckedOutBranch` deliberately leaves a directory that
+ * exists alone. Only the timeout path therefore reclaims the path: git refuses
+ * to add into an existing non-empty directory, so a killed add means the
+ * directory is this call's own partial output, while deleting after an ordinary
+ * failure could destroy a leftover the user meant to reuse.
+ *
+ * The branch is kept (only the checkout goes), exactly like every other
+ * worktree removal in this module.
+ */
+async function rethrowAfterKilledWorktreeAdd(repoPath: string, worktreePath: string, error: unknown): Promise<never> {
+  if (error instanceof GitTimeoutError) {
+    await removeWorktreeAndPrune(repoPath, worktreePath).catch(() => undefined);
+  }
+  throw error;
+}
+
 export async function createWorktreeFromBranch(
   repoPath: string,
   worktreePath: string,
@@ -791,18 +941,36 @@ export async function createWorktreeFromBranch(
 ): Promise<void> {
   await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
   assertGitRevision(localBranch, 'branch');
-  const { stderr } = await runGit(['worktree', 'add', '-B', localBranch, '--', worktreePath, localBranch], repoPath);
-  if (stderr && stderr.toLowerCase().includes('error')) {
-    throw new Error(stderr);
+  try {
+    const { stderr } = await runGit(
+      ['worktree', 'add', '-B', localBranch, '--', worktreePath, localBranch],
+      repoPath,
+      undefined,
+      GIT_LONG_TIMEOUT_MS,
+    );
+    if (stderr && stderr.toLowerCase().includes('error')) {
+      throw new Error(stderr);
+    }
+  } catch (error) {
+    await rethrowAfterKilledWorktreeAdd(repoPath, worktreePath, error);
   }
 }
 
 export async function createWorktree(repoPath: string, worktreePath: string, branch: string): Promise<void> {
   await fs.promises.mkdir(path.dirname(worktreePath), { recursive: true });
   assertGitRevision(branch, 'branch');
-  const { stderr } = await runGit(['worktree', 'add', '--', worktreePath, branch], repoPath);
-  if (stderr && stderr.toLowerCase().includes('error')) {
-    throw new Error(stderr);
+  try {
+    const { stderr } = await runGit(
+      ['worktree', 'add', '--', worktreePath, branch],
+      repoPath,
+      undefined,
+      GIT_LONG_TIMEOUT_MS,
+    );
+    if (stderr && stderr.toLowerCase().includes('error')) {
+      throw new Error(stderr);
+    }
+  } catch (error) {
+    await rethrowAfterKilledWorktreeAdd(repoPath, worktreePath, error);
   }
 }
 
@@ -814,7 +982,7 @@ export async function createWorktree(repoPath: string, worktreePath: string, bra
 export async function fetchBranch(repoPath: string, remote: string, branch: string, token?: string): Promise<void> {
   assertGitRevision(branch, 'branch');
   assertRemoteName(remote);
-  const { stderr } = await runGit(['fetch', remote, '--', branch], repoPath, authEnv(token));
+  const { stderr } = await runGit(['fetch', remote, '--', branch], repoPath, authEnv(token), GIT_LONG_TIMEOUT_MS);
   if (stderr && stderr.toLowerCase().includes('error')) {
     throw new Error(stderr);
   }
@@ -870,9 +1038,18 @@ export async function createWorktreeWithNewBranch(
       );
     }
   }
-  const { stderr } = await runGit(['worktree', 'add', '-B', newBranch, '--', worktreePath, startPoint], repoPath);
-  if (stderr && stderr.toLowerCase().includes('error')) {
-    throw new Error(stderr);
+  try {
+    const { stderr } = await runGit(
+      ['worktree', 'add', '-B', newBranch, '--', worktreePath, startPoint],
+      repoPath,
+      undefined,
+      GIT_LONG_TIMEOUT_MS,
+    );
+    if (stderr && stderr.toLowerCase().includes('error')) {
+      throw new Error(stderr);
+    }
+  } catch (error) {
+    await rethrowAfterKilledWorktreeAdd(repoPath, worktreePath, error);
   }
 }
 

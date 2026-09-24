@@ -249,8 +249,22 @@ describe('sanitizeImportedInstances', () => {
 
   it('preserves syncApiUrlsToInstanceUrl when it is a boolean', () => {
     const { valid } = sanitizeImportedInstances([
-      { id: 'a', url: 'u', token: 't', name: 'n', username: 'u', syncApiUrlsToInstanceUrl: true },
-      { id: 'b', url: 'u', token: 't', name: 'n', username: 'u', syncApiUrlsToInstanceUrl: false },
+      {
+        id: 'a',
+        url: 'https://forgejo.example.com',
+        token: 't',
+        name: 'n',
+        username: 'u',
+        syncApiUrlsToInstanceUrl: true,
+      },
+      {
+        id: 'b',
+        url: 'https://forgejo.example.com',
+        token: 't',
+        name: 'n',
+        username: 'u',
+        syncApiUrlsToInstanceUrl: false,
+      },
     ]);
     expect(valid[0].syncApiUrlsToInstanceUrl).toBe(true);
     expect(valid[1].syncApiUrlsToInstanceUrl).toBe(false);
@@ -258,19 +272,39 @@ describe('sanitizeImportedInstances', () => {
 
   it('drops a non-boolean syncApiUrlsToInstanceUrl instead of trusting it', () => {
     const { valid } = sanitizeImportedInstances([
-      { id: 'a', url: 'u', token: 't', name: 'n', username: 'u', syncApiUrlsToInstanceUrl: 'yes' },
+      {
+        id: 'a',
+        url: 'https://forgejo.example.com',
+        token: 't',
+        name: 'n',
+        username: 'u',
+        syncApiUrlsToInstanceUrl: 'yes',
+      },
     ]);
     expect('syncApiUrlsToInstanceUrl' in valid[0]).toBe(false);
   });
 
+  it('drops an entry whose URL is not http(s) instead of storing an unusable scheme', () => {
+    // The URL is rendered as a link and can reach vscode.env.openExternal, so a
+    // file:/data:/javascript: value must not get past the file boundary.
+    const { valid, dropped } = sanitizeImportedInstances([
+      { id: 'ok', url: 'https://forgejo.example.com', token: 't', name: 'n', username: 'u' },
+      { id: 'file', url: 'file:///etc/passwd', token: 't', name: 'n', username: 'u' },
+      { id: 'data', url: 'data:text/html,<script>alert(1)</script>', token: 't', name: 'n', username: 'u' },
+      { id: 'unparseable', url: 'not a url', token: 't', name: 'n', username: 'u' },
+    ]);
+    expect(valid.map((instance) => instance.id)).toEqual(['ok']);
+    expect(dropped).toBe(3);
+  });
+
   it('drops entries missing required string fields and counts them', () => {
     const { valid, dropped } = sanitizeImportedInstances([
-      { id: 'a', url: 'u', token: 't', name: 'n', username: 'u' },
-      { id: 'b', url: 'u', token: 't', name: 'n' }, // missing username
-      { url: 'u', token: 't', name: 'n', username: 'u' }, // missing id
+      { id: 'a', url: 'https://forgejo.example.com', token: 't', name: 'n', username: 'u' },
+      { id: 'b', url: 'https://forgejo.example.com', token: 't', name: 'n' }, // missing username
+      { url: 'https://forgejo.example.com', token: 't', name: 'n', username: 'u' }, // missing id
       null,
       'not-an-object',
-      { id: 1, url: 'u', token: 't', name: 'n', username: 'u' }, // non-string id
+      { id: 1, url: 'https://forgejo.example.com', token: 't', name: 'n', username: 'u' }, // non-string id
     ]);
     expect(valid).toHaveLength(1);
     expect(valid[0].id).toBe('a');

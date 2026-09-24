@@ -116,7 +116,12 @@ describe('createPrFromCurrentBranch', () => {
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);
-    expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+    // The confirmation names the remote and the branch the commits land on.
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      vscode.l10n.t('Branch "{0}" has not been pushed. Push it to {1}/{2} now?', 'feature', 'origin', 'feature'),
+      { modal: true },
+      'Push',
+    );
     expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', true, instance.url);
     expect(viewProvider.openCreatePullRequest).toHaveBeenCalledWith({
       instanceId: 'inst1',
@@ -134,13 +139,17 @@ describe('createPrFromCurrentBranch', () => {
     expect(viewProvider.openCreatePullRequest).not.toHaveBeenCalled();
   });
 
-  it('prompts to push when the branch is ahead of its upstream', async () => {
+  it('prompts to push when the branch is ahead of its same-named upstream', async () => {
     setUpstream('origin/feature');
     vi.mocked(getAheadCount).mockResolvedValue(2);
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);
-    expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      vscode.l10n.t('Branch "{0}" has unpushed commits. Push it to {1}/{2} now?', 'feature', 'origin', 'feature'),
+      { modal: true },
+      'Push',
+    );
     expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', false, instance.url);
     expect(viewProvider.openCreatePullRequest).toHaveBeenCalledWith({
       instanceId: 'inst1',
@@ -150,35 +159,124 @@ describe('createPrFromCurrentBranch', () => {
     });
   });
 
-  it('prompts to push when the upstream ref cannot be resolved (deleted remote branch)', async () => {
+  it('never pushes a branch tracking the base branch to it, and names the destination in the prompt', async () => {
+    // The everyday `git checkout -b fix origin/main` stores
+    // branch.fix.remote=origin and branch.fix.merge=refs/heads/main. The tracked
+    // branch is where the branch was created from, not a branch the user asked
+    // to publish: pushing there ran `git push origin fix:main`, which
+    // fast-forwards the shared base branch with work in progress (an explicit
+    // refspec is not protected by git's push.default=simple) and then prefilled
+    // the PR form with head=main. Publishing must stay on the user's own branch.
+    vi.mocked(getCurrentBranch).mockResolvedValue('fix');
+    setUpstream('origin/main');
+    vi.mocked(getAheadCount).mockResolvedValue(1);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
+    const viewProvider = createViewProvider();
+    await createPrFromCurrentBranch(createConfig(), viewProvider);
+    // The destination is named: origin/fix, and the tracked branch is explained.
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      vscode.l10n.t('Branch "{0}" tracks {1}/{2}. Push it to {3}/{0} instead?', 'fix', 'origin', 'main', 'origin'),
+      { modal: true },
+      'Push',
+    );
+    expect(pushBranch).toHaveBeenCalledTimes(1);
+    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'fix', 'token', true, instance.url);
+    // No refspec may name a branch other than the one being published.
+    const refspec = vi.mocked(pushBranch).mock.calls[0][2];
+    expect(refspec).not.toContain(':');
+    expect(refspec).not.toContain('main');
+    expect(viewProvider.openCreatePullRequest).toHaveBeenCalledWith({
+      instanceId: 'inst1',
+      owner: 'owner',
+      repo: 'repo',
+      head: 'fix',
+    });
+  });
+
+  it('does not recreate a deleted tracked branch; publishes the local branch instead', async () => {
+    // The upstream ref cannot be resolved because origin/gone was deleted. The
+    // old code pushed `feature:gone`, recreating a branch the user did not ask
+    // to publish; the published branch is the local one.
     setUpstream('origin/gone');
     vi.mocked(getAheadCount).mockResolvedValue(undefined);
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);
-    // Pushing recreates the deleted remote branch, so the prefilled head exists.
-    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature:gone', 'token', false, instance.url);
+    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', true, instance.url);
     expect(viewProvider.openCreatePullRequest).toHaveBeenCalledWith({
       instanceId: 'inst1',
       owner: 'owner',
       repo: 'repo',
-      head: 'gone',
+      head: 'feature',
     });
   });
 
-  it('prefills head with the upstream remote branch name when it differs from the local name', async () => {
+  it('publishes a branch tracking a differently named upstream under its own name', async () => {
+    // origin/renamed-feature is up to date, but it is not the branch being
+    // published: the form must name the local branch, and the push must create
+    // or update origin/feature so that the head exists on the remote.
     setUpstream('origin/renamed-feature');
     vi.mocked(getAheadCount).mockResolvedValue(0);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
     const viewProvider = createViewProvider();
     await createPrFromCurrentBranch(createConfig(), viewProvider);
-    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
-    expect(pushBranch).not.toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      vscode.l10n.t(
+        'Branch "{0}" tracks {1}/{2}. Push it to {3}/{0} instead?',
+        'feature',
+        'origin',
+        'renamed-feature',
+        'origin',
+      ),
+      { modal: true },
+      'Push',
+    );
+    expect(pushBranch).toHaveBeenCalledWith('/workspace/repo', 'origin', 'feature', 'token', true, instance.url);
     expect(viewProvider.openCreatePullRequest).toHaveBeenCalledWith({
       instanceId: 'inst1',
       owner: 'owner',
       repo: 'repo',
-      head: 'renamed-feature',
+      head: 'feature',
     });
+  });
+
+  it('refuses a local (".") upstream instead of pushing into the local repository', async () => {
+    // `branch.<name>.remote = .` names this very repository: the local upstream
+    // passes isSafeRemoteName, so it used to run `git push . <branch>:<branch>`.
+    vi.mocked(getUpstreamBranch).mockResolvedValue('feature');
+    vi.mocked(resolveUpstreamRemote).mockResolvedValue({ remote: '.', branch: 'feature' });
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
+    const viewProvider = createViewProvider();
+    await createPrFromCurrentBranch(createConfig(), viewProvider);
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      vscode.l10n.t(
+        'The upstream remote is the local repository ("{0}"), which cannot hold a pull request branch. Point the branch at a real remote (for example "origin") and try again.',
+        '.',
+      ),
+    );
+    expect(getRemotePushUrls).not.toHaveBeenCalled();
+    expect(pushBranch).not.toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    expect(viewProvider.openCreatePullRequest).not.toHaveBeenCalled();
+  });
+
+  it('refuses an option-like upstream remote name before pushing', async () => {
+    // git reads a leading `-` as an option, so such a name must never reach
+    // git; the refusal names the remote value that caused it.
+    setUpstream('origin/feature', '--upload-pack=evil', 'feature');
+    vi.mocked(getAheadCount).mockResolvedValue(1);
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValue('Push' as never);
+    const viewProvider = createViewProvider();
+    await createPrFromCurrentBranch(createConfig(), viewProvider);
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      vscode.l10n.t(
+        'The upstream remote name "{0}" is not a usable git remote name, so the push was aborted. Point the branch at a real remote (for example "origin") and try again.',
+        '--upload-pack=evil',
+      ),
+    );
+    expect(getRemotePushUrls).not.toHaveBeenCalled();
+    expect(pushBranch).not.toHaveBeenCalled();
+    expect(viewProvider.openCreatePullRequest).not.toHaveBeenCalled();
   });
 
   it('pushes with the instance token when the upstream remote belongs to the linked instance', async () => {

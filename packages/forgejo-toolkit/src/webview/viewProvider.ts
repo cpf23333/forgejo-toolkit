@@ -107,23 +107,6 @@ const LOAD_RESULT_COMMANDS: Record<string, string> = {
 };
 
 /**
- * Reply fields the webview reads from the payload but the shared
- * `HostToWebviewMessage` contract does not declare. The reply type intersection
- * below keeps them type-checked (a misspelled name still fails) instead of
- * widening the payload to `any`; `_reply`'s excess-property check is why the
- * payload is built as a typed variable rather than an inline literal.
- */
-interface WebviewConsumedReplyFields {
-  /**
-   * The attachments probe failed, so an empty `assets` list means "unknown",
-   * not "this PR has no attachments" (see `getPullRequestDetail`).
-   */
-  attachmentsUnavailable?: boolean;
-  /** How many entries of the import file the host could not use. */
-  dropped?: number;
-}
-
-/**
  * Mutation-type webview requests whose handlers reply with a result message
  * the requesting control waits on (button spinner → success/error). They share
  * the deleted-instance pre-check with LOAD_RESULT_COMMANDS: without an error
@@ -250,30 +233,57 @@ function assertInsideWorktreeCache(worktreesDir: string, worktreePath: string): 
 
 /**
  * Session-level cache of proxied avatar fetches (same-origin URLs only; other
- * URLs are returned unchanged and never reach the cache). Forgejo avatar URLs
- * embed a content hash, so a resolved data URL never expires. Failures are
- * cached briefly — not indefinitely — so a transient error or a 401 from a
- * since-rotated token is retried instead of poisoning the session. The key is
- * the absolute URL alone: same-origin content is identical for every instance
- * on that origin, and the failure TTL covers the token-rotation edge.
+ * URLs are returned unchanged and never reach the cache). The key is the
+ * absolute URL alone: same-origin content is identical for every instance on
+ * that origin. Values are promises so concurrent resolutions of the same URL
+ * share one fetch. Entries hold no sensitive data (public avatar images keyed
+ * by URL), and a removed or edited instance's entries simply stop being hit and
+ * age out, so instance changes need no explicit cache invalidation.
  *
- * Values are promises so concurrent resolutions of the same URL share one
- * fetch. Bounded with simple LRU eviction: data URLs are large (base64), so
- * an unbounded Map would grow with every avatar ever viewed. Entries hold no
- * sensitive data (public avatar images keyed by URL), and a removed or edited
- * instance's entries simply stop being hit and age out, so instance changes
- * need no explicit cache invalidation.
+ * Bounded two ways, because bounding entries alone does not bound memory: a
+ * data URL is base64 and can be hundreds of kilobytes, so 100 of them is tens
+ * of megabytes held for the life of the window. The sibling repository-contents
+ * memo in `api/client.ts` carries a byte budget for the same reason; this cache
+ * keeps its entry cap and adds the byte cap, plus a finite TTL for every
+ * entry — successes included, so a session that stays open for days cannot
+ * accumulate payloads whose URL was never requested again.
+ *
+ * A cache hit still returns the stored promise, and eviction is LRU: entries
+ * are re-inserted on every hit, so the oldest unused avatar goes first.
  */
 const MAX_RESOLVED_AVATARS = 100;
+/**
+ * Byte budget for the resolved-avatar cache, measured on the data URLs it
+ * stores. A Forgejo avatar is a few kilobytes, so this holds roughly a hundred
+ * full-size images while keeping the worst case bounded.
+ */
+export const AVATAR_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 const AVATAR_FAILURE_TTL_MS = 60_000;
+/**
+ * Successes are content-addressed by URL, but the entry still expires: an
+ * avatar URL can be reused by a re-uploaded image, and a finite TTL means a
+ * long-lived window cannot pin megabytes of base64 forever.
+ */
+const AVATAR_SUCCESS_TTL_MS = 30 * 60_000;
 
 interface ResolvedAvatarEntry {
   promise: Promise<string | null>;
-  /** Failures expire (set once the promise settles); successes never do. */
+  /**
+   * Set once the promise settles: the failure TTL for `null`, the success TTL
+   * otherwise. An entry that is still in flight stays at `Infinity` — the fetch
+   * itself is bounded by `API_REQUEST_TIMEOUT_MS`.
+   */
   expiresAt: number;
+  /** Serialized size of the resolved data URL; 0 until the promise settles. */
+  bytes: number;
 }
 
 const resolvedAvatarCache = new Map<string, ResolvedAvatarEntry>();
+/**
+ * Running total of `bytes` over `resolvedAvatarCache`, maintained on settle, on
+ * eviction and on expiry so the budget cannot drift from the map it measures.
+ */
+let resolvedAvatarCacheBytes = 0;
 
 function getCachedAvatar(url: string): Promise<string | null> | undefined {
   const entry = resolvedAvatarCache.get(url);
@@ -282,6 +292,7 @@ function getCachedAvatar(url: string): Promise<string | null> | undefined {
   }
   if (entry.expiresAt <= Date.now()) {
     resolvedAvatarCache.delete(url);
+    resolvedAvatarCacheBytes -= entry.bytes;
     return undefined;
   }
   // Refresh recency: re-insert so frequently used avatars are evicted last.
@@ -290,26 +301,66 @@ function getCachedAvatar(url: string): Promise<string | null> | undefined {
   return entry.promise;
 }
 
+/**
+ * Drops the least recently used entries — never the one that just settled —
+ * until the byte budget holds again, so a single avatar larger than the budget
+ * still leaves the cache with that avatar rather than an empty map.
+ */
+function enforceAvatarByteBudget(keepUrl: string): void {
+  if (resolvedAvatarCacheBytes <= AVATAR_CACHE_MAX_BYTES) {
+    return;
+  }
+  for (const key of resolvedAvatarCache.keys()) {
+    if (resolvedAvatarCacheBytes <= AVATAR_CACHE_MAX_BYTES) {
+      return;
+    }
+    if (key === keepUrl) {
+      continue;
+    }
+    const evicted = resolvedAvatarCache.get(key);
+    resolvedAvatarCache.delete(key);
+    resolvedAvatarCacheBytes -= evicted?.bytes ?? 0;
+  }
+}
+
 function cacheResolvedAvatar(url: string, promise: Promise<string | null>): void {
   if (!resolvedAvatarCache.has(url) && resolvedAvatarCache.size >= MAX_RESOLVED_AVATARS) {
     // Map iteration order is insertion order: the first key is the oldest.
     const oldest = resolvedAvatarCache.keys().next().value;
     if (oldest !== undefined) {
+      const evicted = resolvedAvatarCache.get(oldest);
       resolvedAvatarCache.delete(oldest);
+      resolvedAvatarCacheBytes -= evicted?.bytes ?? 0;
     }
   }
-  const entry: ResolvedAvatarEntry = { promise, expiresAt: Number.POSITIVE_INFINITY };
+  const entry: ResolvedAvatarEntry = { promise, expiresAt: Number.POSITIVE_INFINITY, bytes: 0 };
   void promise.then((dataUrl) => {
+    // The entry may have been evicted (or replaced) while the fetch was in
+    // flight; only a live entry may contribute to the running total.
+    if (resolvedAvatarCache.get(url) !== entry) {
+      return;
+    }
     if (dataUrl === null) {
       entry.expiresAt = Date.now() + AVATAR_FAILURE_TTL_MS;
+      return;
     }
+    entry.expiresAt = Date.now() + AVATAR_SUCCESS_TTL_MS;
+    entry.bytes = Buffer.byteLength(dataUrl);
+    resolvedAvatarCacheBytes += entry.bytes;
+    enforceAvatarByteBudget(url);
   });
   resolvedAvatarCache.set(url, entry);
+}
+
+/** Bytes the avatar cache currently holds. Exported for tests. */
+export function resolvedAvatarCacheBytesForTest(): number {
+  return resolvedAvatarCacheBytes;
 }
 
 /** Clear the session-level avatar cache. Exported for tests. */
 export function clearResolvedAvatarCache(): void {
   resolvedAvatarCache.clear();
+  resolvedAvatarCacheBytes = 0;
 }
 
 export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
@@ -709,6 +760,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           this._reply('saveInstanceResult', { success: false, error: vscode.l10n.t('Invalid input') });
           return;
         }
+        // The URL comes from the webview: only http(s) may be stored (see
+        // isHttpUrl). A non-HTTP URL would fail at the transport layer anyway,
+        // but it is rendered as a link and can reach openExternal, so the
+        // scheme is refused before it is persisted. The setup wizard applies
+        // the same check before calling this message.
+        if (!isHttpUrl(url)) {
+          this._reply('saveInstanceResult', {
+            success: false,
+            error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
+          });
+          return;
+        }
         try {
           const client = new ForgejoClient(url, token, logger);
           const user = await client.getCurrentUser();
@@ -746,6 +809,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         const { id, url, token, syncApiUrlsToInstanceUrl } = message;
         if (typeof id !== 'string' || typeof url !== 'string' || typeof token !== 'string') {
           this._reply('saveInstanceResult', { success: false, error: vscode.l10n.t('Invalid input') });
+          return;
+        }
+        // Same scheme gate as saveInstance, and for the same reason: an edit
+        // must not introduce a URL the store would refuse to accept.
+        if (!isHttpUrl(url)) {
+          this._reply('saveInstanceResult', {
+            success: false,
+            error: vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'),
+          });
           return;
         }
         try {
@@ -2454,8 +2526,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const detail = await client.getPullRequestDetail(owner, repo, index);
-          const payload: Omit<Extract<HostToWebviewMessage, { command: 'pullRequestDetail' }>, 'command'> &
-            WebviewConsumedReplyFields = {
+          const payload: Omit<Extract<HostToWebviewMessage, { command: 'pullRequestDetail' }>, 'command'> = {
             instanceId: instance.id,
             owner,
             repo,
@@ -4662,8 +4733,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // Conflict flags (stored-token collisions and in-file duplicates) are
       // computed host-side (parallel to `instances`) — see the message type.
       const tokenConflicts = computeImportTokenConflicts(instances, existingInstances);
-      const payload: Omit<Extract<HostToWebviewMessage, { command: 'importInstancesPreview' }>, 'command'> &
-        WebviewConsumedReplyFields = {
+      const payload: Omit<Extract<HostToWebviewMessage, { command: 'importInstancesPreview' }>, 'command'> = {
         instances: stripInstanceTokens(instances),
         existingIds,
         tokenConflicts,
@@ -5148,9 +5218,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       assertInsideWorktreeCache(worktreesDir, worktreePath);
 
       // A leftover directory from an earlier start-work run is reopened as
-      // is; the branch inside is already the issue branch. A directory that
-      // is not a git worktree (no `.git` entry) is a broken leftover and is
-      // removed and recreated instead of being opened as-is.
+      // is; the branch inside is already the issue branch. A directory with no
+      // `.git` entry is *not* provably this extension's leftover — the worktree
+      // cache directory is user-configurable and may point at a folder that
+      // already holds unrelated content (see KNOWN_ISSUES) — so it is never
+      // recursively deleted on sight. That is the project's invariant
+      // elsewhere: the lazy sweep refuses a directory without the
+      // `git worktree add` marker (see isAbandonedWorktree) and the PR paths
+      // ask first (see _confirmDiscardStaleWorktree). This path asks too, and
+      // names the path it is about; a decline refuses the start and says how to
+      // unblock it instead of deleting anything.
       let existsOnDisk = await fs.promises.access(worktreePath).then(
         () => true,
         () => false,
@@ -5161,6 +5238,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           () => false,
         );
         if (!looksLikeWorktree) {
+          const discard = await this._confirmDestructive(
+            vscode.l10n.t(
+              'The worktree folder {0} is not a git worktree created by this extension. Delete it and create the worktree again? Everything in that folder will be lost.',
+              worktreePath,
+            ),
+          );
+          if (!discard) {
+            reply({
+              error: vscode.l10n.t(
+                'The worktree folder {0} is not a git worktree created by this extension and was left untouched. Delete it yourself or pick another worktree cache directory, then try again.',
+                worktreePath,
+              ),
+            });
+            return;
+          }
           logger.error(`startWorkOnIssue: removing invalid leftover directory ${worktreePath}`);
           await fs.promises.rm(worktreePath, { recursive: true, force: true });
           existsOnDisk = false;

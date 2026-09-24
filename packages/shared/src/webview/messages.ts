@@ -171,6 +171,15 @@ export type HostToWebviewMessage =
       repo: string;
       index: number;
       detail?: unknown;
+      /**
+       * Set, and only ever `true`, when the host's attachments probe failed:
+       * `detail.assets` is then empty for a reason that is not "this pull request
+       * has none". A consumer must carry the flag beside the stored detail
+       * instead of writing `false` over it — that would turn a known failure into
+       * a silent "no attachments". Absent means the probe succeeded, so an empty
+       * `assets` list really is "no attachments".
+       */
+      attachmentsUnavailable?: boolean;
       error?: string;
     }
   | {
@@ -434,6 +443,13 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       workflowfilename: string;
+      /**
+       * Whether the host accepted the dispatch. The host only ever sends `true`
+       * — a declined confirmation answers with `cancelled: true` instead, and a
+       * failure with `error` — so a consumer need not branch on it today; a
+       * consumer that does branch must treat an absent or `false` value as "not
+       * dispatched" rather than as success.
+       */
       accepted?: boolean;
       run?: unknown;
       /** The user declined the host-side confirmation; nothing was dispatched. */
@@ -457,7 +473,15 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       artifactId: number;
+      /** Where the artifact was saved. Sent only on success, never beside `cancelled` or `error`. */
       path?: string;
+      /**
+       * The user dismissed the save dialog: nothing was downloaded. A cancel
+       * carries no `error`, so a consumer that only branches on `error` reads the
+       * reply as success — `cancelled` must be handled *before* the reply is
+       * treated as success, and it must not clear an error already shown for this
+       * artifact (a declined dialog does not fix the earlier failure).
+       */
       cancelled?: boolean;
       error?: string;
     }
@@ -515,16 +539,21 @@ export type HostToWebviewMessage =
       ref: string;
       query: string;
       files?: unknown[];
-      /** True when the search did not see the whole repository, so matches may be missing. */
+      /**
+       * True when the answer is incomplete, whichever cause cut it short, so a
+       * short `files` list must not be read as the whole repository. This flag
+       * deliberately says nothing about *why* the search stopped: read
+       * `truncatedBy` for that.
+       */
       truncated?: boolean;
       /**
        * Why `truncated` is true: `'tree'` means the git tree could not be read
        * completely (matches may be missing and no query can recover them), while
-       * `'matches'` means the match list hit its cap (a narrower query returns
-       * the rest). Absent when `truncated` is false or when the host built the
-       * payload before this field existed, in which case a consumer must not
-       * promise that narrowing recovers anything: an unreadable tree is the safer
-       * cause to name.
+       * `'matches'` means the whole tree was read and the match list hit its cap
+       * (a narrower query returns the rest). Absent when `truncated` is false or
+       * when the host built the payload before this field existed, in which case
+       * a consumer must not promise that narrowing recovers anything: an
+       * unreadable tree is the safer cause to name.
        */
       truncatedBy?: 'matches' | 'tree';
       error?: string;
@@ -638,7 +667,17 @@ export type HostToWebviewMessage =
   | { command: 'showInputBoxResult'; id: string; value?: string; cancelled: boolean }
   | { command: 'showConfirmResult'; id: string; confirmed: boolean }
   | { command: 'worktreesList'; worktrees: unknown[] }
-  | { command: 'worktreeOpened'; worktree: unknown; existed?: boolean }
+  | {
+      command: 'worktreeOpened';
+      worktree: unknown;
+      /**
+       * Whether the worktree's path already existed before the command (the host
+       * reports this on every `worktreeOpened` reply). No consumer reads it today;
+       * a consumer that wants to tell the user "reused the existing checkout"
+       * must branch on this field, not on the `worktree` payload's own fields.
+       */
+      existed?: boolean;
+    }
   | { command: 'worktreeCancelled'; instanceId: string; owner: string; repo: string; index: number }
   | { command: 'worktreeRemoved'; id: string }
   | {
@@ -684,9 +723,13 @@ export type HostToWebviewMessage =
       instanceId: string;
       notifications?: unknown[];
       /**
-       * Echoes the `before` cursor of the answered request. Absent for a fresh
-       * page-1 list (the view replaces what it shows), present for a "load
-       * more" reply (the view appends).
+       * Echoes the `before` cursor of the answered request, which is how the
+       * webview attributes a reply to the request it answers (the host may
+       * answer two in flight out of order after an instance edit). The webview
+       * sends a cursor on every request: "load more" passes the real one, a
+       * first page passes a far-future placeholder that selects the same
+       * unfiltered page, so this field is present on any page reply and absent
+       * only from an error reply.
        */
       before?: string;
       error?: string;
@@ -761,6 +804,15 @@ export type HostToWebviewMessage =
       tokenConflicts?: boolean[];
       settings?: ExportSettings;
       error?: string;
+      /**
+       * How many entries of the import file the host had to skip. Present only
+       * when greater than zero: the dropped entries never appear in `instances`,
+       * so without the count the preview looks complete. An absent field means
+       * nothing was dropped — including on a reply from a host build that
+       * predates the count, which a consumer treats as "nothing to warn about"
+       * rather than as a failure.
+       */
+      dropped?: number;
       /** True when the user dismissed the file picker; the webview frees its pending slot without navigating. */
       cancelled?: boolean;
     }
@@ -853,7 +905,13 @@ export type HostToWebviewMessage =
       owner: string;
       repo: string;
       index: number;
+      /**
+       * The other issue's number, echoed from the request so a consumer can route
+       * the reply. No consumer reads it today; one that starts reading it must
+       * still reload, because the reply carries no dependency payload.
+       */
       dependencyIndex: number;
+      /** Echoed from the request ('add' for create, 'remove' for remove). Not read by any consumer today. */
       action: 'add' | 'remove';
       /** The user declined the host-side confirmation; nothing was changed. */
       cancelled?: boolean;

@@ -90,8 +90,23 @@ vi.mock('vscode', () => ({
     getExtension: vi.fn(),
   },
   l10n: {
+    // Real `vscode.l10n.t` substitutes positional placeholders (`{0}`, `{1}`, …)
+    // or, when given a single object, named ones (`{name}`); it leaves a
+    // placeholder it has no value for. The mock used to append its arguments
+    // after the message instead, so a message that legitimately names its
+    // arguments rendered as "<literal> <args joined>" in every test — an
+    // assertion on the rendered text then tested the mock rather than the
+    // product (the 404 messages in api/errors-core.ts are the visible case).
     t: vi.fn((message: string, ...args: unknown[]) => {
-      return args.length > 0 ? `${message} ${args.join(' ')}` : message;
+      const [first] = args;
+      const named =
+        args.length === 1 && typeof first === 'object' && first !== null && !Array.isArray(first)
+          ? (first as Record<string, unknown>)
+          : undefined;
+      return message.replace(/\{([^{}]+)\}/g, (placeholder, key: string) => {
+        const value = named ? named[key] : args[Number(key)];
+        return value === undefined ? placeholder : String(value);
+      });
     }),
   },
   EventEmitter: vi.fn().mockImplementation(function () {
