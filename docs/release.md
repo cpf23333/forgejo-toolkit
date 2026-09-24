@@ -181,7 +181,18 @@ Then install it in VS Code:
 
 ## Notes
 
-- Always run `pnpm check` and `pnpm test` before publishing.
+- Always run `pnpm check` and the test suites before publishing. The workspace has
+  no root `test` script, so run the package scripts directly:
+
+  ```bash
+  pnpm --filter forgejo-toolkit test
+  pnpm --filter @cpf23333-forgejo-toolkit/shared test
+  ```
+
+  `forgejo-toolkit`'s own `test` script runs both of its suites (`test:webview` +
+  `test:extension`); `@cpf23333-forgejo-toolkit/api` has no test script — step 2 of
+  the checklist (`pnpm check`, `pnpm lint`, `pnpm format`) is what covers it.
+
 - Do not store release artifacts in git; attach them to Codeberg Releases.
 - Keep the git repository small by not committing build outputs or dependencies.
 

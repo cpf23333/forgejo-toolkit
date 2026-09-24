@@ -179,17 +179,35 @@ Forgejo's contents API omits the payload of files above `[api] DEFAULT_MAX_BLOB_
 
 Workaround: open the file through the Forgejo web UI or a local checkout.
 
-## Lists are capped at 500 items without a truncation notice
+## Lists are capped at 500 items, and most of them still do not report the cut-off
 
-Paged list endpoints (issues, pull requests, commits, comments, tracked times, reactions, branches, tags, releases, labels, milestones, repositories, artifacts) stop after 500 items, and only the repository file search reports that its result was cut off. A repository or account with more matching entries therefore shows a silently incomplete list.
+Paged list endpoints stop after 500 items. A list whose length is exactly 500 may therefore be incomplete: the generated client does not expose the response headers a total would live in, so the extension cannot tell "500 items" from "the first 500 items".
+
+Several views now say so when a list reaches the cap: the repository issue list, the repository pull request list, the branches / tags / releases tabs, the issue and pull request timelines (comments), the changed-file list, the commit list, and the repository file search (which reports when the git tree itself was too large to read completely rather than a 500-item cap). The MCP tools append a `(list truncated at 500 items: …)` note when the tool result itself or one of its direct fields is a capped list.
+
+The remaining lists are shown silently, so an account or repository with more matching entries sees an incomplete list with no hint: repositories, notifications, labels, milestones, assignees, issue dependencies, reactions, tracked time, and run artifacts.
+
+The "Create PR" status bar entry is a special case: it reads only the first page of open pull requests, and when that page reaches 500 it writes a warning to the `Forgejo Toolkit` Output Channel instead of showing a "Create PR" button for a branch that already has a pull request beyond the cap. That warning is the only signal, and it is easy to miss.
 
 Workaround: narrow the list with the extension's filters or keyword search, or use the Forgejo web UI for a complete view.
 
-## HTTP proxy settings are not honored
+## Proxy support ignores `no_proxy`, and each process reads its own configuration
 
-Requests honour a proxy: the editor's `http.proxy` setting wins over `HTTPS_PROXY`/`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` from the environment, and the agent is created once per session (the MCP server reads the environment only, since it runs outside the editor). Note that `no_proxy` is not interpreted: a host listed there is still sent through the proxy, because the extension talks to a single configured instance and silently ignoring the proxy would be harder to diagnose.
+Requests honour a proxy: the editor's `http.proxy` setting wins over `HTTPS_PROXY`/`http_proxy`/`HTTP_PROXY`/`ALL_PROXY` from the environment, the value is normalized (a scheme-less `proxy.example.com:8080` is accepted) and an unusable value falls back to a direct connection with a log line. The extension passes the setting to its MCP server process as `FORGEJO_MCP_PROXY`; that process otherwise reads the environment, since it runs outside the editor. Note that `no_proxy` is not interpreted: a host listed there is still sent through the proxy, because the extension talks to a single configured instance and silently ignoring the proxy would be harder to diagnose.
 
 Workaround: point the instance URL at a host that is reachable directly — a reverse proxy or tunnel in front of the Forgejo server — or run the editor on a network with direct access.
+
+## The worktree cache sweep adopts every bare repository under its cache directory
+
+`forgejoToolkit.worktreeCacheDirectory` accepts any writable folder, and the extension keeps its own bare clones in `<cacheDir>/repos/*.git`. The periodic sweep treats every such directory as its own: one that the extension never uses is deleted once it is 30 days old, and the oldest ones are deleted when more than 20 exist. Pointing the setting at a folder that already holds unrelated bare clones therefore puts them on that schedule.
+
+Workaround: use a dedicated folder for the setting (the default is extension storage), or keep bare repositories you maintain yourself outside `<cacheDir>/repos`.
+
+## Every window polls and probes each instance on its own
+
+The extension activates in every VS Code window (the `onStartupFinished` activation event, needed to make the MCP server discoverable, is per window). Each window therefore runs its own notification poller for all configured instances and probes their server versions over HTTP; with several windows open, each instance is polled once per window, and a new notification can raise one alert per window. The first-run setup guide has the same shape: its "already shown" flag lives in global state and is read-then-written, so windows restored together on a fresh install can each open the panel once.
+
+Workaround: keep the number of windows with the extension enabled low, raise `forgejoToolkit.notificationPollingInterval`, or disable polling with `forgejoToolkit.notificationPollingEnabled`.
 
 ## Deleting another user's tracked time is not offered
 

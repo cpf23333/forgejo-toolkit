@@ -1,11 +1,53 @@
 Forgejo Toolkit
 ===============
 
+Forgejo Toolkit itself is licensed under the MIT License (see the repository's
+LICENSE file, which is included in the packaged extension).
+
+Third-party components
+----------------------
+
+The extension is shipped as bundles: `out/extension.js` and `out/mcp-server.js`
+(extension host and MCP server, esbuild) and `out/webview/**` (webview UI, Vite).
+Third-party code is compiled into those bundles, so the packaged `.vsix` does not
+contain `node_modules` and ships no dependency license file of its own. The only
+license files in the `.vsix` are this `NOTICE` and the repository's `LICENSE`; the
+full license text of each bundled package stays in that package's own distribution
+(the npm registry tarball, or the copy under `node_modules` in a checkout).
+
+Packages whose code is compiled into the bundles:
+
+  vue                           MIT
+  vue-router                    MIT
+  vue-i18n                      MIT
+  @vscode-elements/elements     MIT
+  easymde                       MIT
+  tributejs                     MIT
+  dompurify                     MPL-2.0 OR Apache-2.0 (used under Apache-2.0)
+  zod                           MIT
+  @modelcontextprotocol/sdk     MIT
+  undici                        MIT
+
+These are the packages the sources import directly; their own dependencies (for
+example `codemirror`, `marked`, `typo-js` and `codemirror-spell-checker`, which
+`easymde` bundles into its distributed `easymde.min.js`) are compiled in with them
+and are covered by their upstream licenses. `pnpm licenses list --prod` is the
+authoritative, current list of every license in the production dependency graph.
+
+Build- and test-only dependencies (Vite, Vitest, esbuild, TypeScript, `@vscode/vsce`,
+jsdom, msw, and `lightningcss`, which Vite uses as its CSS transformer because
+`webview/vite.config.ts` sets `css.transformer: 'lightningcss'`) are not bundled into
+the shipped files and are not part of the extension's runtime. They do appear in
+`pnpm licenses list --prod` because pnpm walks the whole workspace graph — see
+"Lightning CSS" below.
+
 Visual Studio Code Codicons
 ---------------------------
 
-This extension bundles the Visual Studio Code Codicons icon font
-(https://github.com/microsoft/vscode-codicons).
+This extension ships the Visual Studio Code Codicons icon font
+(https://github.com/microsoft/vscode-codicons) as the copied files
+`out/webview/codicon.css` and `out/webview/codicon.ttf`
+(`webview/vite.config.ts`'s `copyCodicons`).
 
 Copyright (c) Microsoft Corporation. All rights reserved.
 
@@ -13,17 +55,24 @@ Codicons are licensed under the Creative Commons Attribution 4.0
 International License (CC BY 4.0):
 https://creativecommons.org/licenses/by/4.0/
 
-Bundled dependencies
---------------------
+Lightning CSS (build-time only, not shipped)
+--------------------------------------------
 
-The webview and the extension host bundle the packages below. Each is used under
-its own license, whose full text ships with that package's distribution.
+`pnpm licenses list --prod` reports `lightningcss` (and its platform binary
+`lightningcss-win32-x64-msvc`) under MPL-2.0. It is a **build tool**, not a bundled
+dependency:
 
-  vue                           MIT
-  vue-router                    MIT
-  vue-i18n                      MIT
-  easymde                       MIT
-  tributejs                     MIT
-  dompurify                     MPL-2.0 OR Apache-2.0 (used under Apache-2.0)
-  zod                           MIT
-  @modelcontextprotocol/sdk     MIT
+  - it is neither imported by any source file nor present in the shipped bundles —
+    `packages/forgejo-toolkit/webview/vite.config.ts:44` only names it as Vite's CSS
+    transformer, and it is declared in the extension's `devDependencies`;
+  - `packages/forgejo-toolkit/.vscodeignore` excludes `node_modules/**`, so no
+    lightningcss code or binary can end up in the `.vsix`;
+  - it looks like a production dependency because `vue-router@5` declares `vite` as a
+    peer dependency while pulling the Vite plugin machinery (`unplugin`) in as a real
+    dependency, so `vite → lightningcss` is reachable from a production dependency.
+
+No license obligation follows from running a build tool, and nothing of it is
+distributed. Fixing the manifest graph itself (so `--prod` stops flagging it) would
+mean dropping `css.transformer: 'lightningcss'` from `webview/vite.config.ts` and
+using Vite's default esbuild CSS transformer instead; that is a build-config change
+that needs a build to verify, so it is deliberately not made here.

@@ -51,7 +51,7 @@ VS Code (agent mode)
   │  spawns via McpStdioServerDefinition
   ▼
 mcp-server process (Node, bundled: out/mcp-server.js)
-  │  reads FORGEJO_MCP_INSTANCE_URL / FORGEJO_MCP_TOKEN / FORGEJO_MCP_SYNC_API_URLS from env
+  │  reads FORGEJO_MCP_INSTANCE_URL / FORGEJO_MCP_TOKEN / FORGEJO_MCP_SYNC_API_URLS / FORGEJO_MCP_PROXY from env
   ▼
 @cpf23333-forgejo-toolkit/api + shared request layer
   │
@@ -77,7 +77,11 @@ Forgejo instance REST API
   schemas, results, or log output.
 - **Settings flow:** the headless process cannot read the extension's
   settings, so the per-instance `syncApiUrlsToInstanceUrl` flag travels as
-  `FORGEJO_MCP_SYNC_API_URLS` in the same launch environment. There is no
+  `FORGEJO_MCP_SYNC_API_URLS` in the same launch environment, and the editor's
+  `http.proxy` setting travels as `FORGEJO_MCP_PROXY` (the child inherits this
+  process's environment, so environment proxies reach it either way; without the
+  forwarded setting, MCP requests would connect directly while the extension's
+  own requests go through the proxy). There is no
   way to launch this stdio server from an external MCP client: the URL and
   token are injected by VS Code at spawn time.
 
@@ -172,6 +176,12 @@ same endpoint for exactly this reason.
   an explicit marker when either cap fires, to protect the agent's context
   window and avoid exfiltrating repository content through unexpected
   channels.
+- A list that reached the client's 500-item cap is announced as well (the
+  result text ends with `(list truncated at 500 items: <fields>; …)`, naming the
+  capped field when the payload wraps one, e.g. `comments` or `files`). The
+  result is JSON text, so a consumer that parses it must tolerate that trailing
+  prose note — and a result cut by the 64 KB budget is no longer valid JSON at
+  all. `tools/ui-review/src/mcpCheck.mjs` strips the note before parsing.
 - Inputs that become part of a request path (`owner`, `repo`, file paths) are
   validated against path-segment traversal, so a forged tool argument cannot
   turn a repository-scoped read into an arbitrary same-origin request.

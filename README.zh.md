@@ -58,10 +58,10 @@ pnpm --filter forgejo-toolkit package
 
 ## 兼容性
 
-- **Forgejo ≥ 16.0** —— 最低版本定为 v16：多个已交付功能依赖 v16 才出现的接口（Actions 的 job/artifact/job 日志/取消/删除，以及多行 review 评论）。更老的实例可能部分可用，但不受支持：扩展每会话提示一次温和警告，且不阻断功能，因此 v15 用户会在这些面板上看到 404（见 KNOWN_ISSUES）。
+- **Forgejo ≥ 16.0** —— 最低版本定为 v16：多个已交付功能依赖 v16 才出现的接口（Actions 的 job/artifact/job 日志/取消/删除，以及多行 review 评论）。更老的实例可能部分可用，但不受支持：扩展每会话提示一次温和警告，且不阻断功能，因此 v15 用户会在这些面板上看到请求失败——服务端返回的裸 404，或由扩展自行闸门拦下的 Actions 调用给出「需要 Forgejo 1.19 或更高版本」的说明（见 KNOWN_ISSUES）。
 - **主要目标版本：Forgejo v16.x** —— 扩展基于最新的 Forgejo 稳定版（当前为 v16 系列）开发和验证，最低版本与验证目标为同一系列。
 - **VS Code ≥ 1.102** —— 通过扩展的 `engines.vscode` 字段强制约束。
-- **Actions 功能需要 Forgejo ≥ 1.19** —— 在最低版本之上按特性闸门处理：早于 Actions API 的实例只会隐藏 Actions 相关界面，而不是直接报错。
+- **Actions 功能需要 Forgejo ≥ 1.19** —— 在最低版本之上按特性闸门处理：扩展把探测到的服务端版本与 1.19 这条下限比较，早于 Actions API 的实例会在请求时立即失败并给出本地化错误「该功能需要 Forgejo 1.19 或更高版本，当前服务器版本为 <版本>。」，而不是让服务端返回裸 404。Actions 相关界面本身仍然显示，被拒绝的是请求。探测不到版本的服务端不会因此被拦（闸门失败时放行）。
 - 未来依赖更新 Forgejo 版本的新端点（如 v17 的 rerun API）同样按特性闸门处理，不会抬升整体最低版本。
 
 ## MCP Server（AI Agent 集成）
@@ -106,6 +106,7 @@ pnpm --filter forgejo-toolkit package
 - PR 附件需要从 Issue API 获取。
 - 多文件 diff 编辑器中修改 / 重命名文件不显示 M/R 徽章。
 - Forgejo 的 PR 文件 API 可能漏掉删除文件（扩展已改用 compare API 规避）。
+- 列表最多返回 500 条，且只有部分视图（Issue、PR、评论、变更文件、提交、refs、文件搜索、MCP 结果）会提示列表被截断。
 
 ## 开发
 

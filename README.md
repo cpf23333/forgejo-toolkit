@@ -72,10 +72,10 @@ The file is written to `packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix`
 
 ## Compatibility
 
-- **Forgejo ≥ 16.0** — the minimum is v16 because several shipped features rely on endpoints that first appeared there (Actions run jobs/artifacts/job logs/cancel/delete and multi-line review comments). Older instances may partially work but are not supported: the extension shows a one-time warning per session and keeps every feature enabled, so v15 users will see 404s on those panels (see KNOWN_ISSUES).
+- **Forgejo ≥ 16.0** — the minimum is v16 because several shipped features rely on endpoints that first appeared there (Actions run jobs/artifacts/job logs/cancel/delete and multi-line review comments). Older instances may partially work but are not supported: the extension shows a one-time warning per session and keeps every feature enabled, so v15 users will see request failures on those panels — a bare 404 from the server, or, for the Actions calls the extension gates itself, the descriptive "requires Forgejo 1.19 or newer" error (see KNOWN_ISSUES).
 - **Primary target: Forgejo v16.x** — the extension is developed and validated against the latest Forgejo stable release (currently the v16 series); the minimum and the validation target are the same series.
 - **VS Code ≥ 1.102** — enforced via the extension's `engines.vscode` field.
-- **Actions features require Forgejo ≥ 1.19** — handled as a feature gate on top of the minimum: instances that predate the Actions API hide Actions-related UI instead of failing.
+- **Actions features require Forgejo ≥ 1.19** — handled as a feature gate on top of the minimum: the extension compares the probed server version with the 1.19 floor, and a request against an older instance fails fast with a localized "This feature requires Forgejo 1.19 or newer, but this server reports version &lt;version&gt;." error instead of Forgejo's bare 404. The Actions UI itself stays visible; it is the request that is refused. A server whose version cannot be probed is never blocked (the gate fails open).
 - Future endpoints from newer Forgejo releases (e.g. the v17 rerun API) are gated per feature the same way and do not raise the overall minimum version either.
 
 ## MCP Server (AI Agent Integration)
@@ -106,6 +106,7 @@ Main limitations:
 - PR attachments must be fetched from the Issue API.
 - The multi-file diff editor does not show M/R badges for modified / renamed files.
 - Forgejo's PR files API may omit deleted files (the extension uses the compare API to work around this).
+- Lists stop at 500 items, and only some views (issues, pull requests, comments, changed files, commits, refs, file search, MCP results) report that a list was cut off.
 
 ## Development
 
