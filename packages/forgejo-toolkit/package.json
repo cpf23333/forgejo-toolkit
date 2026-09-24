@@ -326,6 +326,7 @@
   "activationEvents": [
     "onFileSystem:cpf23333-forgejo-toolkit-repofile",
     "onFileSystem:forgejo-pr",
+    "onStartupFinished",
     "onView:forgejoToolkitView"
   ],
   "engines": {
