@@ -305,6 +305,30 @@ describe('MCP tool handlers with MSW', () => {
     expect(result.files.map((file) => file.path)).toEqual(['src/utils.ts']);
   });
 
+  it('list_repo_contents lists a directory without claiming the payloads are withheld', async () => {
+    // The list endpoint never sends `content` for any entry (upstream calls
+    // GetContents with forList=true), so a listing must not be annotated as if
+    // every file's payload had been withheld.
+    const handlers = createHandlers();
+
+    const entries = (await handlers.list_repo_contents({ owner: 'demo-user', repo: 'demo-repo' })) as {
+      name?: string;
+      contentNotice?: string;
+    }[];
+
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries.every((entry) => entry.contentNotice === undefined)).toBe(true);
+  });
+
+  it('refuses a half-specified repository scope instead of answering a wider question', async () => {
+    const handlers = createHandlers();
+
+    // The handler throws before returning a promise; the tool layer's try/catch
+    // turns that into an error result, so it must not reach the client at all.
+    expect(() => handlers.list_issues({ owner: 'demo-user' })).toThrow(/provided together/);
+    expect(() => handlers.list_pull_requests({ repo: 'demo-repo' })).toThrow(/provided together/);
+  });
+
   it('get_pr_diff returns the unified diff text', async () => {
     const handlers = createHandlers();
     const diff = await handlers.get_pr_diff({ owner: 'demo-user', repo: 'demo-repo', index: 2 });
@@ -503,6 +527,21 @@ describe('list truncation reporting', () => {
     );
     expect(listTruncationNote(Array.from({ length: LIST_ITEM_LIMIT - 1 }, () => ({})))).toBe('');
     expect(listTruncationNote({ items: [] })).toBe('');
+  });
+
+  it('also reports a capped list wrapped in a tool result object', () => {
+    // get_issue returns { issue, comments } and get_pull_request returns
+    // { pullRequest, files, commits }: a capped list inside one of those used to
+    // go unannounced.
+    const note = listTruncationNote({
+      issue: { number: 1 },
+      comments: Array.from({ length: LIST_ITEM_LIMIT }, () => ({})),
+      files: [{ path: 'a' }],
+    });
+
+    expect(note).toContain('truncated at ' + LIST_ITEM_LIMIT);
+    expect(note).toContain('comments');
+    expect(note).not.toContain('files');
   });
 
   it('appends the note to a tool result that hit the cap', async () => {

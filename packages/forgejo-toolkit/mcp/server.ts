@@ -3,7 +3,7 @@ import { ForgejoClient, type ClientLogger } from '../src/api/client';
 import { userFacingErrorMessage } from '../src/api/errors-core';
 import { probeServerVersion } from '../src/api/versionProbe';
 import { setDefaultRequestDispatcher } from '../src/api/client';
-import { createProxyDispatcher, resolveProxyUrl } from '../src/api/proxy';
+import { createProxyDispatcher, getProxyFetch, resolveProxyUrl } from '../src/api/proxy';
 import { createMcpServer } from './mcpServer';
 
 // A stdio MCP server must keep stdout clean for the protocol framing, so all
@@ -30,8 +30,12 @@ async function main(): Promise<void> {
   }
 
   const syncApiUrls = process.env.FORGEJO_MCP_SYNC_API_URLS === 'false' ? false : undefined;
-  // The MCP process reads the environment only: there is no editor setting here.
-  setDefaultRequestDispatcher(createProxyDispatcher(resolveProxyUrl(process.env)));
+  // The MCP process reads the environment only: there is no editor setting here,
+  // except for the proxy, which the extension forwards as FORGEJO_MCP_PROXY
+  // because a proxy configured only in settings would otherwise be ignored by
+  // the tools while the extension's own requests use it.
+  const proxyDispatcher = createProxyDispatcher(resolveProxyUrl(process.env, process.env.FORGEJO_MCP_PROXY));
+  setDefaultRequestDispatcher(proxyDispatcher, proxyDispatcher ? getProxyFetch() : undefined);
   const client = new ForgejoClient(url, token, logger, syncApiUrls);
   const server = createMcpServer(client);
   // The extension host probes the server version on activation and caches it per

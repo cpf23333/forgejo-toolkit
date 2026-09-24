@@ -9,6 +9,8 @@ export const MCP_ENV_INSTANCE_URL = 'FORGEJO_MCP_INSTANCE_URL';
 export const MCP_ENV_TOKEN = 'FORGEJO_MCP_TOKEN';
 /** 'false' disables rewriting API-provided URLs to the configured instance URL. */
 export const MCP_ENV_SYNC_API_URLS = 'FORGEJO_MCP_SYNC_API_URLS';
+/** The editor's `http.proxy`, forwarded so the child uses the same proxy. */
+export const MCP_ENV_PROXY = 'FORGEJO_MCP_PROXY';
 
 /**
  * Exposes the first configured Forgejo instance to VS Code agent mode as a
@@ -31,12 +33,16 @@ export function registerMcpServerProvider(
   const provider: vscode.McpServerDefinitionProvider = {
     onDidChangeMcpServerDefinitions: onDidChange.event,
     provideMcpServerDefinitions: () => {
-      const instance = config.getInstances()[0];
+      // The first instance that can actually be used, not simply the first one:
+      // an instance without a stored token would otherwise hide a later,
+      // configured one and leave the tools unregistered entirely.
+      const instances = config.getInstances();
+      const instance = instances.find((candidate) => candidate.token);
       if (!instance) {
-        return [];
-      }
-      if (!instance.token) {
-        logger.debug(`MCP server definitions skipped: instance ${instance.name} has no stored token.`);
+        const first = instances[0];
+        if (first) {
+          logger.debug(`MCP server definitions skipped: instance ${first.name} has no stored token.`);
+        }
         return [];
       }
       const serverPath = vscode.Uri.joinPath(context.extensionUri, 'out', 'mcp-server.js').fsPath;
@@ -49,6 +55,15 @@ export function registerMcpServerProvider(
         // hostnames) would get rewritten links from the tools.
         [MCP_ENV_SYNC_API_URLS]: String(instance.syncApiUrlsToInstanceUrl ?? true),
       };
+      // The editor's proxy setting is not in the child's environment either;
+      // without it, MCP requests would connect directly while the extension's
+      // own requests go through the proxy. Environment proxies still work in the
+      // child (it inherits this process's environment), so this only carries the
+      // setting.
+      const configuredProxy = vscode.workspace.getConfiguration('http').get<string>('proxy');
+      if (typeof configuredProxy === 'string' && configuredProxy.trim()) {
+        env[MCP_ENV_PROXY] = configuredProxy.trim();
+      }
       const label = instance.name ? `Forgejo: ${instance.name}` : `Forgejo: ${instance.url}`;
       return [new vscode.McpStdioServerDefinition(label, process.execPath, [serverPath], env)];
     },

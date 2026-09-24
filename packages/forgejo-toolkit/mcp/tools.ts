@@ -99,16 +99,31 @@ export interface ReviewRefArgs extends IssueRefArgs {
 }
 
 /**
+ * `owner` and `repo` are both optional on the list tools, and without them the
+ * handler answers the wider "everything involving me" question. A caller that
+ * supplies only one of the two is asking about a repository, so falling back to
+ * the user-wide listing would silently answer a different question; it is
+ * refused instead.
+ */
+function assertCompleteRepoScope(owner?: string, repo?: string): void {
+  if ((owner && !repo) || (!owner && repo)) {
+    throw new Error('owner and repo must be provided together (or both omitted for the instance-wide listing)');
+  }
+}
+
+/**
  * Plain async handlers behind the MCP tools, exported for unit tests: they
  * return the untruncated payload and let errors propagate. The MCP
  * registration (registerTools) adds truncation and error rendering on top.
  */
 export function buildToolHandlers(client: ForgejoClient) {
   return {
-    list_issues: (args: ListIssuesArgs) =>
-      args.owner && args.repo
+    list_issues: (args: ListIssuesArgs) => {
+      assertCompleteRepoScope(args.owner, args.repo);
+      return args.owner && args.repo
         ? client.getRepoIssues(args.owner, args.repo, args.state ?? 'open', args.query)
-        : client.getUserIssues(args.state ?? 'open'),
+        : client.getUserIssues(args.state ?? 'open');
+    },
 
     get_issue: async (args: IssueRefArgs) => {
       // The timeline endpoint is shared between issues and PRs; the client
@@ -120,10 +135,12 @@ export function buildToolHandlers(client: ForgejoClient) {
       return { issue, comments };
     },
 
-    list_pull_requests: (args: ListIssuesArgs) =>
-      args.owner && args.repo
+    list_pull_requests: (args: ListIssuesArgs) => {
+      assertCompleteRepoScope(args.owner, args.repo);
+      return args.owner && args.repo
         ? client.getRepoPullRequests(args.owner, args.repo, args.state ?? 'open', args.query)
-        : client.getUserPullRequests(args.state ?? 'open'),
+        : client.getUserPullRequests(args.state ?? 'open');
+    },
 
     get_pull_request: async (args: IssueRefArgs) => {
       const [pullRequest, files, commits] = await Promise.all([
@@ -310,12 +327,31 @@ export const MAX_TOOL_RESULT_LENGTH = 64 * 1024;
  * A note for a list that reached the client cap, or an empty string.
  *
  * Every paged client method stops at `LIST_ITEM_LIMIT`; without this the result
- * looks complete and a caller cannot tell that more rows exist.
+ * looks complete and a caller cannot tell that more rows exist. Lists are
+ * reported wherever they sit in the payload: several tools return an object
+ * wrapping one (`get_issue` carries `comments`, `get_pull_request` carries
+ * `files` and `commits`), and a capped list inside it would otherwise go
+ * unannounced.
  */
 export function listTruncationNote(value: unknown): string {
-  return Array.isArray(value) && value.length >= LIST_ITEM_LIMIT
-    ? `\n(list truncated at ${LIST_ITEM_LIMIT} items; narrow the query to see the rest)`
-    : '';
+  const capped = cappedListFields(value);
+  return capped.length === 0
+    ? ''
+    : `\n(list truncated at ${LIST_ITEM_LIMIT} items: ${capped.join(', ')}; narrow the query to see the rest)`;
+}
+
+/** Names the capped lists in a tool payload: the result itself or its fields. */
+function cappedListFields(value: unknown): string[] {
+  const isCapped = (candidate: unknown): boolean => Array.isArray(candidate) && candidate.length >= LIST_ITEM_LIMIT;
+  if (isCapped(value)) {
+    return ['the result'];
+  }
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+  return Object.entries(value as Record<string, unknown>)
+    .filter(([, candidate]) => isCapped(candidate))
+    .map(([key]) => key);
 }
 /** Wraps a handler run into an MCP tool result: truncation + error rendering. */
 async function callTool(run: () => Promise<unknown>) {

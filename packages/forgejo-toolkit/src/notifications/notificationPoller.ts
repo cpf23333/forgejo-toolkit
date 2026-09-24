@@ -36,6 +36,13 @@ export class NotificationPoller implements vscode.Disposable {
   // Identifies the current round so a settling round only clears the guard
   // when it is still the one being tracked.
   private _pollRoundId = 0;
+  // The instance set the in-flight round was started for, and whether a request
+  // arrived meanwhile for a different set (an instance added while the round
+  // ran). Such a request joins the in-flight round, which cannot poll the new
+  // instance, so one follow-up round is run when it settles instead of waiting
+  // for the next interval (five minutes by default).
+  private _polledInstanceKey = '';
+  private _pollAgainRequested = false;
 
   constructor(
     private readonly _config: ConfigManager,
@@ -105,22 +112,43 @@ export class NotificationPoller implements vscode.Disposable {
    * One poll round, single-flighted. A round requested while another is still
    * in flight (an immediate round per imported instance, or an interval tick
    * landing mid-round) joins the in-flight one instead of firing a second
-   * burst of requests; a scheduled tick after it settles still runs normally.
+   * burst of requests. When the instance set changed since that round started,
+   * one follow-up round runs as soon as it settles: a joined round covers only
+   * the instances it started with, so newly added ones would otherwise wait for
+   * the next interval.
    */
   private _pollOnce(): Promise<void> {
     if (this._pollInFlight) {
+      if (this._instanceKey() !== this._polledInstanceKey) {
+        this._pollAgainRequested = true;
+      }
       return this._pollInFlight;
     }
     const roundId = ++this._pollRoundId;
+    const instanceKey = this._instanceKey();
+    this._polledInstanceKey = instanceKey;
+    this._pollAgainRequested = false;
     const round = this._pollAll().catch(() => {
       // per-instance failures are already handled inside _pollAll
     });
     this._pollInFlight = round.finally(() => {
       if (this._pollRoundId === roundId) {
         this._pollInFlight = undefined;
+        if (this._pollAgainRequested && !this._disposed) {
+          this._pollAgainRequested = false;
+          void this._pollOnce();
+        }
       }
     });
     return this._pollInFlight;
+  }
+
+  /** Identifies the configured instance set across a round. */
+  private _instanceKey(): string {
+    return this._config
+      .getInstances()
+      .map((instance) => instance.id)
+      .join('\u0000');
   }
 
   /**

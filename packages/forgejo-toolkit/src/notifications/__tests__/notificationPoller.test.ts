@@ -224,6 +224,40 @@ describe('NotificationPoller', () => {
     poller.dispose();
   });
 
+  it('polls an instance added while a round is in flight as soon as that round settles', async () => {
+    // A joined round only covers the instances it started with; without a
+    // follow-up, an instance imported mid-round waits for the next interval
+    // (five minutes by default) before it is polled at all.
+    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
+    mockGetNotifications.mockReturnValue(
+      new Promise<ForgejoNotification[]>((resolve) => {
+        resolveRequests = resolve;
+      }),
+    );
+    const instances = [instanceA];
+    let listener: (() => void) | undefined;
+    const config = createFakeConfig(instances, (l) => {
+      listener = l;
+    });
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+
+    instances.push(instanceB);
+    listener!();
+    await vi.advanceTimersByTimeAsync(0);
+    // The in-flight round cannot cover the new instance, so nothing new yet.
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+
+    resolveRequests([]);
+    await vi.advanceTimersByTimeAsync(0);
+    // The follow-up round polls both instances.
+    expect(mockGetNotifications).toHaveBeenCalledTimes(3);
+    poller.dispose();
+  });
+
   it('does not report the same notification twice when a tick lands mid-round', async () => {
     let resolveFirst: (notifications: ForgejoNotification[]) => void = () => undefined;
     mockGetNotifications.mockImplementationOnce(

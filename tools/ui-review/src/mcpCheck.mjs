@@ -106,6 +106,22 @@ function textOf(result) {
   return (result?.content ?? []).map((part) => part.text ?? '').join('\n');
 }
 
+/**
+ * Parses a tool payload. Results that hit the item cap or the whole-result
+ * budget end with a trailing prose note instead of staying pure JSON (the note
+ * is what makes a truncated answer recognizable to a reader), so the note is
+ * stripped before parsing. A result cut by the size budget is not valid JSON at
+ * all, so this returns undefined rather than throwing.
+ */
+function parsePayload(text) {
+  const stripped = text.replace(/\n?\(list truncated[\s\S]*$/i, '').replace(/\n?\.\.\. \(truncated[\s\S]*$/i, '');
+  try {
+    return JSON.parse(stripped);
+  } catch {
+    return undefined;
+  }
+}
+
 const checks = [];
 function check(name, ok, detail) {
   checks.push({ name, ok });
@@ -163,7 +179,7 @@ try {
   if (reposResult?.isError) {
     check('list_my_repos', false, reposText.split('\n')[0].slice(0, 120));
   } else {
-    const repos = JSON.parse(reposText);
+    const repos = parsePayload(reposText);
     const repo = Array.isArray(repos) ? repos[0] : (repos?.repositories ?? [])[0];
     check('list_my_repos', Boolean(repo?.owner && repo?.name), `${repo?.full_name ?? '?'}`);
     await checkRepo(repo);
@@ -191,7 +207,7 @@ async function checkRepo(repo) {
     check('list_repo_contents', false, contentsText.split('\n')[0].slice(0, 120));
     return;
   }
-  const contents = JSON.parse(contentsText);
+  const contents = parsePayload(contentsText);
   const file = (Array.isArray(contents) ? contents : []).find(
     (entry) => entry.type === 'file' || entry.type === 'blob',
   );
@@ -227,12 +243,8 @@ async function checkRepo(repo) {
 
   const allReposResult = await request('tools/call', { name: 'list_my_repos', arguments: {} });
   const allRepos = (() => {
-    try {
-      const parsed = JSON.parse(textOf(allReposResult));
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    const parsed = parsePayload(textOf(allReposResult));
+    return Array.isArray(parsed) ? parsed : [];
   })();
 
   for (const candidate of allRepos.slice(0, 8)) {
@@ -244,12 +256,8 @@ async function checkRepo(repo) {
     });
     if (listing?.isError) continue;
     const entries = (() => {
-      try {
-        const parsed = JSON.parse(textOf(listing));
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
+      const parsed = parsePayload(textOf(listing));
+      return Array.isArray(parsed) ? parsed : [];
     })();
     const biggest = entries
       .filter((entry) => (entry.type === 'file' || entry.type === 'blob') && typeof entry.size === 'number')
