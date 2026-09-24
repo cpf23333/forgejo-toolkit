@@ -11,6 +11,21 @@ describe('normalizeGitUrl', () => {
   it('lowercases the url', () => {
     expect(normalizeGitUrl('https://Codeberg.org/Owner/Repo')).toBe('https://codeberg.org/owner/repo');
   });
+
+  it('removes an upper- or mixed-case .git suffix', () => {
+    // The suffix check used to be case-sensitive while the rest of the function
+    // lowercased, so `.GIT` survived and produced the repo name `repo.git` —
+    // which 404s against the API and never matches another spelling of the same
+    // remote in sameRepositoryUrl or a revert target.
+    expect(normalizeGitUrl('https://codeberg.org/Owner/Repo.GIT')).toBe('https://codeberg.org/owner/repo');
+    expect(normalizeGitUrl('https://codeberg.org/Owner/Repo.Git')).toBe('https://codeberg.org/owner/repo');
+    expect(normalizeGitUrl('https://codeberg.org/Owner/Repo.GIT/')).toBe('https://codeberg.org/owner/repo');
+  });
+
+  it('leaves a repository name without a .git suffix untouched', () => {
+    expect(normalizeGitUrl('https://codeberg.org/owner/repo')).toBe('https://codeberg.org/owner/repo');
+    expect(normalizeGitUrl('https://Codeberg.org/Owner/Repo/')).toBe('https://codeberg.org/owner/repo');
+  });
 });
 
 describe('normalizeGitRemote', () => {
@@ -79,6 +94,15 @@ describe('normalizeGitRemote', () => {
 
   it('returns undefined for invalid urls', () => {
     expect(normalizeGitRemote('not-a-url')).toBeUndefined();
+  });
+
+  it('reports the repository name of an uppercase .GIT remote without the suffix', () => {
+    const result = normalizeGitRemote('https://forgejo.example.com/owner/repo.GIT');
+    expect(result).toEqual({
+      normalized: 'forgejo.example.com/owner/repo',
+      owner: 'owner',
+      repo: 'repo',
+    });
   });
 
   it('returns undefined for urls without owner/repo', () => {

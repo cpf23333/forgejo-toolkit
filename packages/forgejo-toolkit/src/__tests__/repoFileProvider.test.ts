@@ -94,6 +94,72 @@ describe('RepoFileSystemProvider.readFile', () => {
 
     await expect(provider.stat(uri)).resolves.toMatchObject({ type: vscode.FileType.File, size: 5 });
   });
+
+  it('reports a symlink and a submodule as files in a directory listing', async () => {
+    // A listing entry must stay openable: the editor builds a picker row from
+    // this type, so reporting anything the provider then refuses to read left a
+    // row that could not be opened at all.
+    getRepoContents.mockResolvedValue([
+      { name: 'target.txt', path: 'target.txt', type: 'file', size: 5 },
+      { name: 'link.txt', path: 'link.txt', type: 'symlink', size: 9 },
+      { name: 'vendor', path: 'vendor', type: 'submodule', size: 0 },
+      { name: 'src', path: 'src', type: 'dir' },
+    ]);
+
+    await expect(provider.readDirectory(uri)).resolves.toEqual([
+      ['target.txt', vscode.FileType.File],
+      ['link.txt', vscode.FileType.File],
+      ['vendor', vscode.FileType.File],
+      ['src', vscode.FileType.Directory],
+    ]);
+  });
+
+  it('reports a symlink the contents endpoint echoed back as a file, agreeing with the listing', async () => {
+    getRepoContents.mockResolvedValue([{ name: 'asset.bin', path: 'asset.bin', type: 'symlink', size: 9 }]);
+
+    await expect(provider.stat(uri)).resolves.toMatchObject({ type: vscode.FileType.File, size: 9 });
+  });
+
+  it('opens a symlink or submodule when the server does provide its content', async () => {
+    // The entry has a payload, so nothing is invented and nothing is refused.
+    getRepoContents.mockResolvedValue([
+      {
+        name: 'asset.bin',
+        path: 'asset.bin',
+        type: 'symlink',
+        size: 11,
+        content: Buffer.from('target.txt\n').toString('base64'),
+      },
+    ]);
+
+    await expect(provider.readFile(uri)).resolves.toEqual(new TextEncoder().encode('target.txt\n'));
+  });
+
+  it('explains an unreadable symlink instead of claiming it is missing', async () => {
+    // The provider itself just listed this path as existing, so FileNotFound
+    // would contradict the listing; the reason has to be one the user can act on.
+    getRepoContents.mockResolvedValue([{ name: 'asset.bin', path: 'asset.bin', type: 'symlink', size: 9 }]);
+
+    const error = await provider.readFile(uri).then(
+      () => undefined,
+      (failure: Error & { code?: string }) => failure,
+    );
+
+    expect(error?.code).toBe('Unavailable');
+    expect(error?.message).toContain('symbolic link');
+  });
+
+  it('explains an unreadable submodule instead of claiming it is missing', async () => {
+    getRepoContents.mockResolvedValue([{ name: 'asset.bin', path: 'asset.bin', type: 'submodule', size: 0 }]);
+
+    const error = await provider.readFile(uri).then(
+      () => undefined,
+      (failure: Error & { code?: string }) => failure,
+    );
+
+    expect(error?.code).toBe('Unavailable');
+    expect(error?.message).toContain('submodule');
+  });
 });
 
 /**

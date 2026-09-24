@@ -33,7 +33,7 @@ import {
   type PullReviewCommentContext,
   type PullReviewCommentPanelCallbacks,
 } from '../pullReviewCommentPanel';
-import type { ConfigManager } from '../../config';
+import type { ConfigManager, ForgejoInstance } from '../../config';
 
 function createFakePanel() {
   const handlers: Array<(message: unknown) => unknown> = [];
@@ -86,7 +86,10 @@ function createContext(overrides?: Partial<PullReviewCommentContext>): PullRevie
 }
 
 function createConfig(): ConfigManager {
-  return { getInstances: vi.fn(() => []) } as unknown as ConfigManager;
+  return {
+    getInstances: vi.fn(() => []),
+    onInstancesChanged: vi.fn(() => ({ dispose: vi.fn() })),
+  } as unknown as ConfigManager;
 }
 
 function panelInternals(panel: PullReviewCommentPanel): {
@@ -343,6 +346,7 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
           username: 'demo-user',
         },
       ],
+      onInstancesChanged: () => ({ dispose: () => {} }),
     } as unknown as ConfigManager;
   }
 
@@ -528,9 +532,44 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
       expect.objectContaining({
         command: 'issueAttachmentCreated',
         _requestId: 'req-att-index',
-        error: expect.stringContaining('Invalid attachment target'),
+        // Localized host error: the assertion names the l10n key instead of a
+        // hardcoded English literal.
+        error: vscode.l10n.t('Invalid attachment target'),
       }),
     );
+  });
+
+  it('localizes an empty comment body rejection', async () => {
+    const { send } = openPanel();
+
+    await send({ command: 'submitPullReviewComment', body: '   ', mode: 'single' });
+
+    expect(vscode.l10n.t).toHaveBeenCalledWith('Empty comment body');
+  });
+
+  it('localizes an attachment target rejection', async () => {
+    const { send } = openPanel();
+
+    await send({
+      command: 'createIssueAttachment',
+      instanceId: 'demo',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: '1/assets/../../releases/5',
+      name: 'shot.png',
+      data: [1, 2, 3],
+      _requestId: 'req-l10n',
+    });
+
+    expect(vscode.l10n.t).toHaveBeenCalledWith('Invalid attachment target');
+  });
+
+  it('localizes a missing pending review rejection', async () => {
+    const { send } = openPanel();
+
+    await send({ command: 'submitPullReview', event: 'COMMENT' });
+
+    expect(vscode.l10n.t).toHaveBeenCalledWith('No pending review');
   });
 
   it('rejects a mention search carrying a hostile owner', async () => {
@@ -585,6 +624,7 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
         }
         return [{ id: 'demo', url: 'https://forgejo.example.com', token: 't', name: 'Demo', username: 'demo-user' }];
       },
+      onInstancesChanged: () => ({ dispose: () => {} }),
     } as unknown as ConfigManager;
     const fakePanel = createFakePanel();
     let messageHandler: ((message: unknown) => Promise<void>) | undefined;
@@ -681,6 +721,7 @@ describe('PullReviewCommentPanel multi-line comments', () => {
       getInstances: () => [
         { id: 'demo', url: 'https://forgejo.example.com', token: 't', name: 'Demo', username: 'demo-user' },
       ],
+      onInstancesChanged: () => ({ dispose: () => {} }),
     } as unknown as ConfigManager;
   }
 
@@ -744,5 +785,110 @@ describe('PullReviewCommentPanel multi-line comments', () => {
 
     const comment = clientMocks.createPendingPullReview.mock.calls[0]![3];
     expect(comment.extra_lines_count).toBeUndefined();
+  });
+});
+
+describe('PullReviewCommentPanel instance lifecycle', () => {
+  afterEach(() => {
+    PullReviewCommentPanel.currentPanel = undefined;
+    vi.clearAllMocks();
+  });
+
+  function demoInstance(url = 'https://forgejo.example.com'): ForgejoInstance {
+    return { id: 'demo', url, token: 't', name: 'Demo', username: 'demo-user' };
+  }
+
+  /** A config whose instance list can be replaced and whose change event fires. */
+  function instanceConfig(initial: ForgejoInstance[]): {
+    config: ConfigManager;
+    setInstances: (next: ForgejoInstance[]) => void;
+    fireInstancesChanged: () => void;
+  } {
+    let current = initial;
+    const listeners: Array<() => void> = [];
+    const config = {
+      getInstances: () => current,
+      onInstancesChanged: (listener: () => void) => {
+        listeners.push(listener);
+        return { dispose: vi.fn() };
+      },
+    } as unknown as ConfigManager;
+    return {
+      config,
+      setInstances: (next) => {
+        current = next;
+      },
+      fireInstancesChanged: () => {
+        for (const listener of listeners) {
+          listener();
+        }
+      },
+    };
+  }
+
+  function openPanel(config: ConfigManager) {
+    const fakePanel = createFakePanel();
+    vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
+    const panel = PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, config, createContext());
+    return { fakePanel, panel };
+  }
+
+  it('disposes the panel exactly once when its instance is removed', () => {
+    const { config, setInstances, fireInstancesChanged } = instanceConfig([demoInstance()]);
+    const { fakePanel } = openPanel(config);
+    expect(fakePanel.dispose).not.toHaveBeenCalled();
+
+    setInstances([]);
+    fireInstancesChanged();
+    // A repeated notification (another window writing the list, say) must not
+    // dispose the panel a second time.
+    fireInstancesChanged();
+
+    expect(fakePanel.dispose).toHaveBeenCalledTimes(1);
+    expect(PullReviewCommentPanel.currentPanel).toBeUndefined();
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledTimes(1);
+    expect(vscode.l10n.t).toHaveBeenCalledWith(
+      'The review comment editor was closed because its Forgejo instance was removed.',
+    );
+  });
+
+  it('disposes the panel when its instance is repointed at another server', () => {
+    const { config, setInstances, fireInstancesChanged } = instanceConfig([demoInstance()]);
+    const { fakePanel } = openPanel(config);
+
+    setInstances([demoInstance('https://other.example.com')]);
+    fireInstancesChanged();
+
+    expect(fakePanel.dispose).toHaveBeenCalledTimes(1);
+    expect(vscode.l10n.t).toHaveBeenCalledWith(
+      'The review comment editor was closed because its Forgejo instance now points to a different server.',
+    );
+  });
+
+  it('keeps the panel open when the instance survives the change', () => {
+    const { config, setInstances, fireInstancesChanged } = instanceConfig([demoInstance()]);
+    const { fakePanel } = openPanel(config);
+
+    // A token edit is the same server, and an unrelated instance joining the
+    // list must not close this panel either.
+    setInstances([
+      { ...demoInstance(), token: 'rotated' },
+      { id: 'other', url: 'https://other.example.com', token: '', name: 'Other', username: 'other-user' },
+    ]);
+    fireInstancesChanged();
+
+    expect(fakePanel.dispose).not.toHaveBeenCalled();
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps the panel open when the instance URL only gains a trailing slash', () => {
+    const { config, setInstances, fireInstancesChanged } = instanceConfig([demoInstance()]);
+    const { fakePanel } = openPanel(config);
+
+    setInstances([demoInstance('https://forgejo.example.com/')]);
+    fireInstancesChanged();
+
+    // The same origin: the recorded review context is still valid.
+    expect(fakePanel.dispose).not.toHaveBeenCalled();
   });
 });

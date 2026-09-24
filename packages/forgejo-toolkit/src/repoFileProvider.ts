@@ -87,6 +87,39 @@ function repoFileReadFailure(uri: vscode.Uri, error: unknown): vscode.FileSystem
   return vscode.FileSystemError.Unavailable(apiErrorUserMessage(apiError));
 }
 
+/**
+ * The error for a listed entry that carries no readable content of its own.
+ *
+ * `stat` and `readDirectory` report a symlink or a submodule as a plain file so
+ * a listing entry stays openable rather than becoming a row that swallows the
+ * click, but neither has a blob the contents endpoint can serve: a submodule
+ * entry carries only the recorded commit and a symlink's `content` is its
+ * target, not a file body. This error says which of the two it is and what the
+ * user can do instead, rather than reporting the path as missing — a listed
+ * entry is not a missing one, and `FileNotFound` for a path the same provider
+ * just reported as existing is what made the three methods disagree.
+ */
+function unreadableEntryError(type: string): vscode.FileSystemError {
+  const what =
+    type === 'submodule'
+      ? vscode.l10n.t('This path is a git submodule, which has no file content to open')
+      : vscode.l10n.t('This path is a symbolic link, whose stored content is only its link target');
+  return vscode.FileSystemError.Unavailable(vscode.l10n.t('{0}. Open the repository on the server to view it.', what));
+}
+
+/**
+ * How one contents entry is reported to the editor.
+ *
+ * `dir` is the only type that is not a file: every other type the API can
+ * answer with (`file`, `symlink`, `submodule`, and anything a future server
+ * adds) is reported as `FileType.File` so it stays a navigable row, and
+ * `readFile` decides whether it has readable content. Reporting a listed entry
+ * as a type the editor then refuses to open is the mismatch this prevents.
+ */
+function entryFileType(entry: { type?: string }): vscode.FileType {
+  return entry.type === 'dir' ? vscode.FileType.Directory : vscode.FileType.File;
+}
+
 export class RepoFileSystemProvider implements vscode.FileSystemProvider {
   private readonly _onDidChangeFile = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   public readonly onDidChangeFile = this._onDidChangeFile.event;
@@ -134,7 +167,11 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
 
       const entry = entries[0];
       return {
-        type: vscode.FileType.File,
+        // A symlink or submodule echoed back by the contents endpoint is
+        // reported as a file, exactly as `readDirectory` lists it, so `stat`
+        // never contradicts the listing; `readFile` explains why it cannot be
+        // opened. See entryFileType.
+        type: entryFileType(entry),
         ctime: 0,
         mtime: 0,
         size: entry.size ?? 0,
@@ -159,10 +196,7 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
       const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
       const entries = await client.getRepoContents(params.owner, params.repo, params.path, params.ref);
 
-      return entries.map((entry): [string, vscode.FileType] => [
-        entry.name ?? '',
-        entry.type === 'dir' ? vscode.FileType.Directory : vscode.FileType.File,
-      ]);
+      return entries.map((entry): [string, vscode.FileType] => [entry.name ?? '', entryFileType(entry)]);
     } catch (error) {
       throw repoFileReadFailure(uri, error);
     }
@@ -186,8 +220,28 @@ export class RepoFileSystemProvider implements vscode.FileSystemProvider {
 
       // A single entry is only this file when the API echoed the requested path;
       // otherwise the path named a directory with one child (see `stat`).
-      if (!entry || entry.type !== 'file' || entry.path !== params.path) {
+      if (!entry || entry.path !== params.path) {
         throw absentPathError(uri);
+      }
+      if (entry.type === 'dir') {
+        // The request named a directory that echoed its own path: a directory is
+        // not a file to read, and `stat` reports it as one.
+        throw absentPathError(uri);
+      }
+
+      if (entry.type !== 'file') {
+        // A `symlink` or a `submodule` is listed as a file by `stat` and
+        // `readDirectory` so its row stays openable, but neither has a blob the
+        // contents endpoint serves: a submodule entry carries only the recorded
+        // commit, and a symlink's `content` is its target rather than a file
+        // body. Reporting FileNotFound here answered "the entry you were just
+        // shown does not exist" for a path that does exist.
+        if (entry.content) {
+          // A server that does provide the payload owns the answer: serve it
+          // rather than second-guessing the entry type.
+          return base64ToUint8Array(entry.content);
+        }
+        throw unreadableEntryError(entry.type ?? 'file');
       }
 
       if (!entry.content) {

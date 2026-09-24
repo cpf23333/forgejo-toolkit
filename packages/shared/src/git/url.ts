@@ -1,7 +1,13 @@
 export function normalizeGitUrl(url: string): string {
+  // The suffix checks run before the final lowercasing and are case-insensitive:
+  // a remote written `…/repo.GIT` is the same repository as `…/repo.git`, and
+  // leaving the suffix in place produced the repo name `repo.git`, which misses
+  // every API route, `sameRepositoryUrl` comparison and revert target. Only a
+  // *trailing* suffix is removed, so the forms already handled keep their
+  // behaviour (`…/repo.git/` → `…/repo`, `…/repo/` → `…/repo`).
   return url
-    .replace(/\.git\/$/, '')
-    .replace(/\.git$/, '')
+    .replace(/\.git\/$/i, '')
+    .replace(/\.git$/i, '')
     .replace(/\/+$/, '')
     .toLowerCase();
 }

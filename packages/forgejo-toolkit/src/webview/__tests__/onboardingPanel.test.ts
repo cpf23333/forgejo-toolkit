@@ -373,4 +373,72 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     expect(preview).toMatchObject({ cancelled: true, instances: [] });
     expect(preview?.error).toBeUndefined();
   });
+
+  it('carries the dropped-entry count the preview has to warn about', async () => {
+    // Two usable entries and three unusable ones (missing fields, a non-object
+    // entry, a wrongly typed field). The dropped entries never reach
+    // `instances`, so the count is the only signal that the file held more.
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'onboarding-import-dropped-')), 'export.json');
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        instances: [
+          { id: 'imported-1', url: 'https://forgejo.example.com', token: 't1', name: 'one', username: 'u' },
+          { id: 'imported-2', url: 'https://other.example.com', token: 't2', name: 'two', username: 'u' },
+          { id: 'broken' },
+          'not-an-object',
+          { id: 'imported-3', url: 42, token: 't3', name: 'three', username: 'u' },
+        ],
+      }),
+    );
+    vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file(file)] as never);
+
+    fake.send({ command: 'previewImportInstances' });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'importInstancesPreview'));
+
+    const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+    expect(preview?.dropped).toBe(3);
+    expect(preview?.instances).toHaveLength(2);
+  });
+
+  it('omits the dropped count when the file used every entry', async () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'onboarding-import-complete-')), 'export.json');
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        instances: [{ id: 'imported-1', url: 'https://forgejo.example.com', token: 't1', name: 'one', username: 'u' }],
+      }),
+    );
+    vi.mocked(vscode.window.showOpenDialog).mockResolvedValue([vscode.Uri.file(file)] as never);
+
+    fake.send({ command: 'previewImportInstances' });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'importInstancesPreview'));
+
+    const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+    expect(preview?.dropped).toBeUndefined();
+  });
+
+  it('localizes the rejected testConnection payload', async () => {
+    // Clear first: evaluating `vscode.l10n.t(...)` inside an assertion would
+    // register the very call being looked for (the mock returns the key text).
+    vi.mocked(vscode.l10n.t).mockClear();
+    fake.send({ command: 'testConnection', url: 42, token: 'tok' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'testConnectionResult');
+    expect(result).toMatchObject({ success: false, error: 'Invalid input' });
+    expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('Invalid input');
+  });
+
+  it('localizes the rejected saveInstance payload', async () => {
+    vi.mocked(vscode.l10n.t).mockClear();
+    fake.send({ command: 'saveInstance', url: 42, token: 'tok' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result).toMatchObject({ success: false, error: 'Invalid input' });
+    expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('Invalid input');
+  });
 });

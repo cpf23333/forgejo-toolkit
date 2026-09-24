@@ -931,6 +931,91 @@ describe('ForgejoClient with MSW', () => {
     expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'no_permission')).toBe(false);
   });
 
+  it('does not report a required-status-checks blocker when the probe failed', async () => {
+    const client = createClient();
+    // The combined-status read is best-effort; a 5xx leaves the required check's
+    // state unknown. The branch protection still requires checks, and Forgejo
+    // reports `mergeable: false` while checks are unresolved.
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index', () =>
+        HttpResponse.json({ ...mockPullRequestDetail, mergeable: false }),
+      ),
+      http.get(
+        'https://*/api/v1/repos/:owner/:repo/commits/:ref/status',
+        () => new HttpResponse(null, { status: 503 }),
+      ),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    // Unknown is not failed: the webview renders a missing state as `-` and
+    // disables merging for every blocker, so this would claim the checks failed
+    // because of a transient failure.
+    expect(pr.statusChecks).toBeUndefined();
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_status_checks')).toBe(false);
+    // Nor is it a conflict: `mergeable: false` alongside unresolved checks must
+    // not be re-read as one.
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'conflicts')).toBe(false);
+  });
+
+  it('keeps the status blocker for a known non-success state', async () => {
+    const client = createClient();
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/commits/:ref/status', ({ params }) =>
+        HttpResponse.json({ sha: params.ref, state: 'pending', total_count: 0, statuses: [] }),
+      ),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    const blocker = pr.mergeBlockers?.find((entry) => entry.type === 'required_status_checks');
+    expect(blocker?.statusState).toBe('pending');
+  });
+
+  it('does not fabricate a status blocker when the pull request has no head sha', async () => {
+    const client = createClient();
+    const statusRequests: string[] = [];
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index', () =>
+        HttpResponse.json({ ...mockPullRequestDetail, head: { ref: 'feature' } }),
+      ),
+      http.get('https://*/api/v1/repos/:owner/:repo/commits/:ref/status', ({ request }) => {
+        statusRequests.push(request.url);
+        return HttpResponse.json({ state: 'success' });
+      }),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    // No sha means no probe was issued at all, so the state cannot have been
+    // read as failed.
+    expect(statusRequests).toEqual([]);
+    expect(pr.mergeBlockers?.some((blocker) => blocker.type === 'required_status_checks')).toBe(false);
+  });
+
+  it('marks the pull request attachments as unavailable when the issues probe failed', async () => {
+    const client = createClient();
+    // `assets` only exists on the issues endpoint; when that best-effort probe
+    // fails the detail arrives with no list at all.
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/issues/:index', () => new HttpResponse(null, { status: 503 })),
+    );
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    expect(pr.assets).toBeUndefined();
+    // An empty section would read as "this PR has no attachments".
+    expect(pr.attachmentsUnavailable).toBe(true);
+  });
+
+  it('does not mark the pull request attachments as unavailable when the probe succeeded', async () => {
+    const client = createClient();
+
+    const pr = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
+
+    expect(pr.attachmentsUnavailable).toBeUndefined();
+  });
+
   it('reports branch protection as unknown for a non-admin instead of assuming none', async () => {
     const client = createClient();
     const protectionRequests: string[] = [];
@@ -2322,6 +2407,43 @@ describe('ForgejoClient with MSW', () => {
 
       expect(result.files).toHaveLength(MAX_SEARCH_RESULTS);
       expect(result.truncated).toBe(true);
+      // The tree was read completely, so the cap is the only cause to name.
+      expect(result.truncatedBy).toBe('matches');
+    });
+
+    it('names the unreadable tree when the match list also hit its cap', async () => {
+      // Both causes at once: the tree read ends truncated and more paths match
+      // than MAX_SEARCH_RESULTS. Naming `'matches'` would promise that a
+      // narrower query returns the rest, which cannot be true when the matches
+      // were never all read, so the tree is the cause to report.
+      const client = createClient();
+      let requests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', ({ request }) => {
+          requests += 1;
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          // Each page is unique (so the duplicate-page guard never fires), full
+          // of matches and still claims more: the paging bound is what ends the
+          // read, and every one of the 50 pages contributes matches.
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: Array.from({ length: MAX_SEARCH_RESULTS + 20 }, (_, i) => ({
+              path: `match-${page}-${i}.ts`,
+              type: 'blob',
+              sha: `sha-${page}-${i}`,
+            })),
+            truncated: true,
+          });
+        }),
+      );
+
+      const result = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'match');
+
+      expect(result.files).toHaveLength(MAX_SEARCH_RESULTS);
+      expect(result.truncated).toBe(true);
+      expect(result.truncatedBy).toBe('tree');
+      // The paging bound, not the server, ended the read.
+      expect(requests).toBe(50);
     });
 
     it('reports truncation when the paging bound is reached', async () => {
@@ -2402,6 +2524,9 @@ describe('ForgejoClient with MSW', () => {
       const result = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', '.ts');
       expect(result.files.map((f) => f.path).sort()).toEqual(['first.ts', 'second.ts']);
       expect(result.truncated).toBe(false);
+      // A complete answer names no cause: a `truncatedBy` on an untruncated
+      // result would describe a cut that never happened.
+      expect(result.truncatedBy).toBeUndefined();
     });
   });
 

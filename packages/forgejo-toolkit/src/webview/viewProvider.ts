@@ -34,6 +34,7 @@ import {
   isRevertInProgress,
   listRemotes,
   openWorktree,
+  removeWorktreeAndPrune,
   requiresWorkspaceReplacement,
   resolveRemoteForRepo,
   revertMergeCommit,
@@ -104,6 +105,23 @@ const LOAD_RESULT_COMMANDS: Record<string, string> = {
   getFileHistory: 'fileHistory',
   getRepoRefs: 'repoRefs',
 };
+
+/**
+ * Reply fields the webview reads from the payload but the shared
+ * `HostToWebviewMessage` contract does not declare. The reply type intersection
+ * below keeps them type-checked (a misspelled name still fails) instead of
+ * widening the payload to `any`; `_reply`'s excess-property check is why the
+ * payload is built as a typed variable rather than an inline literal.
+ */
+interface WebviewConsumedReplyFields {
+  /**
+   * The attachments probe failed, so an empty `assets` list means "unknown",
+   * not "this PR has no attachments" (see `getPullRequestDetail`).
+   */
+  attachmentsUnavailable?: boolean;
+  /** How many entries of the import file the host could not use. */
+  dropped?: number;
+}
 
 /**
  * Mutation-type webview requests whose handlers reply with a result message
@@ -688,7 +706,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       case 'saveInstance': {
         const { url, token, syncApiUrlsToInstanceUrl } = message;
         if (typeof url !== 'string' || typeof token !== 'string') {
-          this._reply('saveInstanceResult', { success: false, error: 'Invalid input' });
+          this._reply('saveInstanceResult', { success: false, error: vscode.l10n.t('Invalid input') });
           return;
         }
         try {
@@ -727,13 +745,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       case 'editInstance': {
         const { id, url, token, syncApiUrlsToInstanceUrl } = message;
         if (typeof id !== 'string' || typeof url !== 'string' || typeof token !== 'string') {
-          this._reply('saveInstanceResult', { success: false, error: 'Invalid input' });
+          this._reply('saveInstanceResult', { success: false, error: vscode.l10n.t('Invalid input') });
           return;
         }
         try {
           const existing = this._findInstance(id);
           if (!existing) {
-            this._reply('saveInstanceResult', { success: false, error: 'Instance not found' });
+            this._reply('saveInstanceResult', { success: false, error: vscode.l10n.t('Instance not found') });
             return;
           }
           // The webview never receives stored tokens; an empty token field
@@ -2436,13 +2454,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const detail = await client.getPullRequestDetail(owner, repo, index);
-          this._reply('pullRequestDetail', {
+          const payload: Omit<Extract<HostToWebviewMessage, { command: 'pullRequestDetail' }>, 'command'> &
+            WebviewConsumedReplyFields = {
             instanceId: instance.id,
             owner,
             repo,
             index,
             detail,
-          });
+            // Sent beside `detail`, which is where the webview reads it from
+            // (its stored detail then carries the flag into the view). Only on
+            // failure: an empty `assets` list from a successful probe really is
+            // "no attachments".
+            ...(detail.attachmentsUnavailable === true ? { attachmentsUnavailable: true } : {}),
+          };
+          this._reply('pullRequestDetail', payload);
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`getPullRequestDetail failed for ${instance.name}/${owner}/${repo}#${index}: ${err}`);
@@ -3537,12 +3562,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const { files, truncated } = await client.searchRepoFiles(owner, repo, ref, query);
+          const { files, truncated, truncatedBy } = await client.searchRepoFiles(owner, repo, ref, query);
           if (truncated) {
-            // The tree could not be read completely, so the search may be
-            // missing matches: the webview says so instead of implying that a
-            // file does not exist.
-            logger.info(`searchRepoFiles for ${owner}/${repo}@${ref} ran over a truncated tree`);
+            // Name the cause the client reported: an unreadable tree means
+            // matches are missing and no query recovers them, while a hit cap
+            // means a narrower query returns the rest. Naming the wrong cause
+            // either promises a narrowing that cannot help or hides the one that
+            // would.
+            logger.info(
+              truncatedBy === 'matches'
+                ? `searchRepoFiles for ${owner}/${repo}@${ref} hit the match cap; the list is incomplete`
+                : `searchRepoFiles for ${owner}/${repo}@${ref} ran over a tree that could not be read completely`,
+            );
           }
           this._reply('repoFilesSearchResult', {
             instanceId: instance.id,
@@ -3552,6 +3583,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             query,
             files,
             truncated,
+            // Only alongside a truncation: the contract documents that a
+            // consumer seeing the flag on a complete answer must not promise a
+            // narrower query recovers anything (see the message type). A host
+            // built from an older client has no cause to name, so the reason is
+            // forwarded only when the client reported one.
+            ...(truncated && truncatedBy ? { truncatedBy } : {}),
           });
         } catch (error) {
           const err = userFacingErrorMessage(error);
@@ -4425,6 +4462,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
    * could fall through — a recordless checkout whose throwaway branch stays
    * checked out, invisible to Settings and to the lazy sweep.
    *
+   * **Only for a checkout created by the same call.** It force-deletes the
+   * directory (`git worktree remove --force` drops tracked modifications,
+   * untracked and ignored files) and deletes a `pr-<n>-<sha7>` branch, so
+   * pointing it at a directory that already existed would destroy work this flow
+   * never inspected. A failed open of a pre-existing checkout must leave it in
+   * place and report the failure instead — see the `'current'` branch of
+   * `_doOpenPrWorktree`. The distinction is by call site, not by inspection:
+   * the only legitimate caller is the create path, immediately after
+   * `createWorktreeFromBranch` succeeded.
+   *
    * The branch is only deleted when it is the PR throwaway name
    * (`pr-<n>-<sha7>`); the git helpers' pattern guard leaves any other branch
    * alone, so an unexpected leftover is never destroyed. Best effort: the user
@@ -4605,7 +4652,7 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     try {
-      const { instances, settings } = await readExportDataFromUri(uris[0]);
+      const { instances, settings, dropped } = await readExportDataFromUri(uris[0]);
       // Stash the full entries host-side; the webview only receives a
       // token-less copy and later confirms by id, so token values never
       // cross into the webview process in either direction.
@@ -4615,12 +4662,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // Conflict flags (stored-token collisions and in-file duplicates) are
       // computed host-side (parallel to `instances`) — see the message type.
       const tokenConflicts = computeImportTokenConflicts(instances, existingInstances);
-      this._reply('importInstancesPreview', {
+      const payload: Omit<Extract<HostToWebviewMessage, { command: 'importInstancesPreview' }>, 'command'> &
+        WebviewConsumedReplyFields = {
         instances: stripInstanceTokens(instances),
         existingIds,
         tokenConflicts,
         settings,
-      });
+        // The dropped entries never appear in `instances`, so without the count
+        // the preview looks complete. Only when something was dropped: an
+        // absent field is what a host build without the count sends, and the
+        // webview treats that as "nothing to warn about".
+        ...(dropped > 0 ? { dropped } : {}),
+      };
+      this._reply('importInstancesPreview', payload);
     } catch (error) {
       this._pendingImportInstances = undefined;
       if (error instanceof ImportCancelledError) {
@@ -5113,21 +5167,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
       }
       let defaultBranch = 'main';
+      // The remote the checkout is fetched through, resolved only on the create
+      // path; it is kept so the fetch can run *after* the confirmation below.
+      let remoteName: string | undefined;
       if (!existsOnDisk) {
         const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
         const detail = await client.getRepoDetail(owner, repo);
         defaultBranch = detail.repository.default_branch ?? 'main';
         // Fetch through the remote that actually points at this repo, not a
         // hardcoded 'origin' (with several remotes it may point elsewhere).
-        const remoteName = await resolveRemoteForRepo(sourceRepoPath, instance.url, owner, repo);
+        remoteName = await resolveRemoteForRepo(sourceRepoPath, instance.url, owner, repo);
         if (!remoteName) {
           reply({ error: vscode.l10n.t('No git remote in the local repository points at {0}/{1}', owner, repo) });
           return;
         }
-        // FETCH_HEAD works as the start point in regular checkouts and bare
-        // cache clones alike (see fetchBranch).
-        await fetchBranch(sourceRepoPath, remoteName, defaultBranch, instance.token);
-        await createWorktreeWithNewBranch(sourceRepoPath, worktreePath, branch, 'FETCH_HEAD');
       } else {
         // Reopening a leftover directory needs no git work, but the recorded
         // base branch should still be right. A recorded worktree already
@@ -5151,6 +5204,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
       }
 
+      // Ask before creating anything. This path used to create the checkout and
+      // its issue branch first and only then ask, so a decline left a
+      // recordless checkout with `issue-<n>` checked out; once that directory
+      // was gone (a cache-directory change, disk cleanup) its git worktree
+      // registration survived and every later attempt failed on git's
+      // "already checked out at <old path>", recoverable only by a manual
+      // `git worktree prune`. The PR paths were reordered to confirm first for
+      // the same reason; this makes the two symmetric. `createdCheckout` is the
+      // record of whether the directory below is this call's work, so only the
+      // rollback paths that may delete touch it.
+      const createdCheckout = !existsOnDisk;
+      if (!(await this._confirmReplaceWorkspace(worktreePath, openInNewWindow))) {
+        reply({ cancelled: true });
+        return;
+      }
+
+      if (createdCheckout) {
+        // FETCH_HEAD works as the start point in regular checkouts and bare
+        // cache clones alike (see fetchBranch).
+        await fetchBranch(sourceRepoPath, remoteName!, defaultBranch, instance.token);
+        await createWorktreeWithNewBranch(sourceRepoPath, worktreePath, branch, 'FETCH_HEAD');
+      }
+
       // Record the worktree so the Settings UI can delete it and the bare
       // cache clone stays protected from the LRU sweep. Same persistence
       // timing as openPrWorktree: in current-window mode the record has to
@@ -5170,14 +5246,6 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         worktreePath,
         createdAt: Date.now(),
       };
-      // Asked before the open, and therefore after every write this path makes
-      // (creating the checkout included): a decline then leaves a recordless
-      // checkout and its issue branch behind, which nothing could reclaim. See
-      // _confirmReplaceWorkspace.
-      if (!(await this._confirmReplaceWorkspace(worktreePath, openInNewWindow))) {
-        reply({ cancelled: true });
-        return;
-      }
       const opened = await openWorktree(
         worktreePath,
         openInNewWindow,
@@ -5185,6 +5253,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         { confirmed: true },
       );
       if (!opened) {
+        // The user accepted the replacement and then the folder did not open.
+        // A fresh checkout is rolled back — leaving it would be a recordless
+        // checkout with `issue-<n>` checked out, the state the confirm-first
+        // order above exists to avoid. The user's own issue branch is not work
+        // they had before this call, but a failed *open* is still no reason to
+        // delete it (git may fail to remove a directory in use), so the branch
+        // is left in place and the checkout is removed best-effort. A reopened
+        // leftover is never touched: it predates this call and may hold work.
+        if (createdCheckout) {
+          await removeWorktreeAndPrune(sourceRepoPath, worktreePath).catch((error: unknown) => {
+            logger.error(
+              `startWorkOnIssue could not reclaim the checkout ${worktreePath} after a failed open: ${userFacingErrorMessage(error)}`,
+            );
+          });
+        }
         reply({ cancelled: true });
         return;
       }
@@ -5396,8 +5479,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       const worktreeState = inspection.state;
 
       if (worktreeState === 'current') {
-        // Existing checkout: confirmation before opening replaces nothing on
-        // disk, so the order the create path below needs is harmless here too.
+        // The directory is already checked out at the PR head, so this flow
+        // *reuses* it — it did not create it in this call, and `inspectPrWorktree`
+        // returned before it looked at the local work inside. Nothing here may
+        // therefore delete it: the `stale` path above is the one that discards,
+        // and only after `_confirmDiscardStaleWorktree` named what that would
+        // destroy. See the failure branch below.
         if (!(await this._confirmReplaceWorkspace(worktreePath, openInNewWindow))) {
           this._reply('worktreeCancelled', { instanceId, owner, repo, index });
           return;
@@ -5423,11 +5510,35 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           { confirmed: true },
         );
         if (!openedForCurrent) {
-          // Same rollback as the create path: this checkout may have just been
-          // created by a previous attempt, and a failed open must not leave it
-          // with nothing recording it.
-          await this._discardDeclinedPrCheckout(sourceRepoPath, worktreePath, `pr-${index}-${headSha.slice(0, 7)}`);
-          this._reply('worktreeCancelled', { instanceId, owner, repo, index });
+          // The folder did not open. This checkout already existed before the
+          // call, so it may hold uncommitted changes, untracked or ignored files
+          // and local commits that this flow never inspected — discarding it here
+          // (as the create path below does with a checkout it just made) would
+          // destroy the user's work over a failed *open*. Leave it on disk and
+          // report the problem.
+          //
+          // Record it too, so Settings lists it and its delete action stays
+          // reachable: the directory only reaches this branch through a path that
+          // found it on disk, which may have been a leftover with no record (the
+          // recorded-reopen path returns earlier, the stale path overwrote the
+          // record, and `forgetWorktree` drops a record whose directory is gone).
+          // Recording must not turn a reported error into a silent one.
+          await this._worktreeManager.addWorktree(worktree).catch((error: unknown) => {
+            logger.error(
+              `openPrWorktree could not record the existing worktree ${worktreePath}: ${userFacingErrorMessage(error)}`,
+            );
+          });
+          this._reply('worktreeError', {
+            error: vscode.l10n.t(
+              'The worktree folder at {0} could not be opened. The existing checkout, including any uncommitted changes, was left untouched.',
+              worktreePath,
+            ),
+            operation: 'open',
+            instanceId,
+            owner,
+            repo,
+            index,
+          });
           return;
         }
         // Record only after the user confirmed the open, so a cancelled

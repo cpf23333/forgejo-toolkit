@@ -148,7 +148,30 @@ describe('readExportDataFromUri', () => {
     await expect(readExportDataFromUri(vscode.Uri.file(file))).resolves.toEqual({
       instances: [{ id: 'inst-1', url: 'https://forgejo.example.com', token: 'tok', name: 'one', username: 'user' }],
       settings: undefined,
+      dropped: 0,
     });
+  });
+
+  it('reports the entries it could not use instead of silently shrinking the file', async () => {
+    // A file with two usable entries and three unusable ones: an entry missing
+    // its required fields, a non-object entry, and a wrongly typed field. All
+    // three are dropped by sanitizeImportedInstances, and without the count the
+    // preview presented the two survivors as the whole file.
+    const file = writeExportFile({
+      version: 1,
+      instances: [
+        { id: 'inst-1', url: 'https://forgejo.example.com', token: 'tok', name: 'one', username: 'user' },
+        { id: 'inst-2', url: 'https://other.example.com', token: 'tok-2', name: 'two', username: 'user' },
+        { id: 'broken' },
+        'not-an-object',
+        { id: 'inst-3', url: 42, token: 'tok-3', name: 'three', username: 'user' },
+      ],
+    });
+
+    const data = await readExportDataFromUri(vscode.Uri.file(file));
+
+    expect(data.instances.map((instance) => instance.id)).toEqual(['inst-1', 'inst-2']);
+    expect(data.dropped).toBe(3);
   });
 
   it('treats a dismissed password prompt as a cancellation, not a failure', async () => {

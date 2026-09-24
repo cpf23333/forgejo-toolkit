@@ -515,8 +515,18 @@ export type HostToWebviewMessage =
       ref: string;
       query: string;
       files?: unknown[];
-      /** True when the repository tree could not be read completely, so matches may be missing. */
+      /** True when the search did not see the whole repository, so matches may be missing. */
       truncated?: boolean;
+      /**
+       * Why `truncated` is true: `'tree'` means the git tree could not be read
+       * completely (matches may be missing and no query can recover them), while
+       * `'matches'` means the match list hit its cap (a narrower query returns
+       * the rest). Absent when `truncated` is false or when the host built the
+       * payload before this field existed, in which case a consumer must not
+       * promise that narrowing recovers anything: an unreadable tree is the safer
+       * cause to name.
+       */
+      truncatedBy?: 'matches' | 'tree';
       error?: string;
     }
   | {

@@ -138,7 +138,9 @@ async function pickInstance(config: ConfigManager): Promise<ForgejoInstance | un
   const picked = await vscode.window.showQuickPick(
     instances.map((instance) => ({
       label: instance.name,
-      description: instance.url,
+      // A stored URL may embed a credential (`https://user:token@host`), so the
+      // picker item shows the redacted form, like the remote pickers below.
+      description: redactRemoteUrl(instance.url),
       detail: instance.username ? `@${instance.username}` : undefined,
       instance,
     })),
@@ -339,7 +341,8 @@ async function pickInstanceForRemote(
   const picked = await vscode.window.showQuickPick(
     matched.map((instance) => ({
       label: instance.name,
-      description: instance.url,
+      // Redacted: a stored instance URL may carry a credential as userinfo.
+      description: redactRemoteUrl(instance.url),
       detail: instance.username ? `@${instance.username}` : undefined,
       instance,
     })),

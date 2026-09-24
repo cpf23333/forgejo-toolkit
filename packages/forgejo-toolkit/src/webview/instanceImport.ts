@@ -43,6 +43,13 @@ export function decryptExportData(
 export interface ExportData {
   instances: ForgejoInstance[];
   settings?: ExportSettings;
+  /**
+   * How many entries of the file's `instances` array could not be used (not an
+   * object, or a required field missing or wrongly typed). Reported so the
+   * import preview can say the file held more than it shows instead of
+   * presenting the usable subset as the whole file.
+   */
+  dropped: number;
 }
 
 /**
@@ -214,10 +221,10 @@ export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData
       ? (raw as { instances?: unknown[]; settings?: unknown })
       : { instances: Array.isArray(raw) ? raw : undefined, settings: undefined };
   const instances = Array.isArray(data.instances) ? data.instances : [];
-  const { valid: validInstances } = sanitizeImportedInstances(instances);
+  const { valid: validInstances, dropped } = sanitizeImportedInstances(instances);
   if (validInstances.length === 0) {
     throw new Error(vscode.l10n.t('No valid instances found in file'));
   }
   const settings = sanitizeImportedSettings(data.settings);
-  return { instances: validInstances, settings };
+  return { instances: validInstances, settings, dropped };
 }

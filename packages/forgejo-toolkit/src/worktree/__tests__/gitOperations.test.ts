@@ -972,6 +972,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
       ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
     ]);
     await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl);
@@ -993,10 +994,114 @@ describe('revertMergeCommit branch guard and token push', () => {
     );
   });
 
+  it('resolves an upstream whose remote name contains a slash', async () => {
+    // `git remote add my/fork …` is legal and isSafeRemoteName deliberately
+    // allows it, so `@{upstream}` reads `my/fork/main`. Splitting at the FIRST
+    // `/` produced the remote `my`, which does not exist: the revert then pushed
+    // to a nonexistent remote and the failure named the wrong thing. The
+    // branch's own configuration names the remote exactly.
+    mockGitSequence([
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'my/fork/main\n'],
+      ['config --get branch.main.remote', 'my/fork\n'],
+      ['config --get branch.main.merge', 'refs/heads/main\n'],
+      ['remote get-url --push --all my/fork', 'https://forgejo.example.com/owner/repo.git\n'],
+    ]);
+
+    await expect(
+      revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl, { owner: 'owner', repo: 'repo' }),
+    ).resolves.toEqual({ status: 'pushed' });
+
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['config', '--get', 'branch.main.remote'],
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['remote', 'get-url', '--push', '--all', 'my/fork'],
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['push', 'my/fork', 'HEAD:main'],
+      expect.anything(),
+      expect.any(Function),
+    );
+    // The remote that does not exist is never named, and the branch is not the
+    // rest of the remote name.
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['push', 'my']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('falls back to the longest reported remote name when the branch config is unreadable', async () => {
+    // `branch.<name>.remote` cannot be read here, so the upstream string is
+    // matched against the names git reports: `my/fork` must win over a remote
+    // literally named `my`, or the push would target the wrong remote. The
+    // explicit `remote -v` handler comes first because the first matching
+    // prefix wins and `mockGitSequence` answers that command by default.
+    mockGitSequence([
+      [
+        'remote -v',
+        'my\thttps://forgejo.example.com/owner/repo.git (fetch)\nmy/fork\thttps://forgejo.example.com/owner/repo.git (fetch)\n',
+      ],
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', 'my/fork/main\n'],
+      ['remote get-url --push --all my/fork', 'https://forgejo.example.com/owner/repo.git\n'],
+    ]);
+
+    await expect(
+      revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl, { owner: 'owner', repo: 'repo' }),
+    ).resolves.toEqual({ status: 'pushed' });
+
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['push', 'my/fork', 'HEAD:main'],
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['push', 'my']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('reports an unusable upstream instead of guessing a remote that does not exist', async () => {
+    // Neither the branch config nor the reported remotes name this upstream, and
+    // its only `/` leaves no branch behind it. Pushing the revert to a remote
+    // the first-slash split invented would target the wrong place (or a remote
+    // that does not exist) with a message that names the wrong thing.
+    mockGitSequence([
+      ['rev-parse HEAD', 'c0ffee1\n'],
+      ['rev-parse --abbrev-ref HEAD', 'main\n'],
+      ['rev-parse --abbrev-ref @{upstream}', '/main\n'],
+      ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
+    ]);
+
+    await expect(revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl)).rejects.toThrow(
+      /does not name a configured git remote/,
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['push']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
   it('reports a pushed revert only when the push actually went through', async () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
       ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
     ]);
 
@@ -1024,6 +1129,8 @@ describe('revertMergeCommit branch guard and token push', () => {
       [
         ['rev-parse --abbrev-ref HEAD', 'main\n'],
         ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
         ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
         // The sequencer left REVERT_HEAD behind: the revert is mid-flight.
         ['rev-parse --absolute-git-dir', '/repo/.git\n'],
@@ -1067,6 +1174,8 @@ describe('revertMergeCommit branch guard and token push', () => {
         ['status --porcelain', ' M src/unrelated.ts\n'],
         ['rev-parse --abbrev-ref HEAD', 'main\n'],
         ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
         ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
         ['rev-parse --absolute-git-dir', '/repo/.git\n'],
       ],
@@ -1099,6 +1208,8 @@ describe('revertMergeCommit branch guard and token push', () => {
       [
         ['rev-parse --abbrev-ref HEAD', 'main\n'],
         ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
         ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
         ['rev-parse --absolute-git-dir', '/repo/.git\n'],
       ],
@@ -1128,6 +1239,8 @@ describe('revertMergeCommit branch guard and token push', () => {
         ['status --porcelain', ' M src/unrelated.ts\n'],
         ['rev-parse --abbrev-ref HEAD', 'main\n'],
         ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
         ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
       ],
       [['revert -m 1', 'error: your local changes to the following files would be overwritten']],
@@ -1160,6 +1273,8 @@ describe('revertMergeCommit branch guard and token push', () => {
         ['status --porcelain', ' M src/unrelated.ts\n'],
         ['rev-parse --abbrev-ref HEAD', 'main\n'],
         ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
         ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
       ],
       [['push origin HEAD:main', 'error: failed to push some refs (non-fast-forward)']],
@@ -1197,6 +1312,8 @@ describe('revertMergeCommit branch guard and token push', () => {
       [
         ['rev-parse --abbrev-ref HEAD', 'main\n'],
         ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
+        ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
         ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
       ],
       [['push origin HEAD:main', 'error: failed to push some refs (non-fast-forward)']],
@@ -1224,6 +1341,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
       ['remote get-url --push --all origin', 'https://github.example.com/owner/repo.git\n'],
     ]);
     await expect(revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl)).rejects.toThrow('does not belong');
@@ -1239,6 +1357,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
       // The fetch URL is the pull request's repository, but git would push to a
       // mirror of another repository on the same instance: only the push
       // targets may be trusted here.
@@ -1261,6 +1380,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
       [
         'remote get-url --push --all origin',
         'https://forgejo.example.com/owner/repo.git\nhttps://forgejo.example.com/owner/other-repo.git\n',
@@ -1276,6 +1396,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
     ]);
 
     await expect(
@@ -1287,6 +1408,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
       // Owner/repo names are case-insensitive, and ssh targets are supported.
       [
         'remote get-url --push --all origin',
@@ -1313,6 +1435,7 @@ describe('revertMergeCommit branch guard and token push', () => {
     mockGitSequence([
       ['rev-parse --abbrev-ref HEAD', 'main\n'],
       ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+      ['remote -v', 'origin\thttps://forgejo.example.com/owner/repo.git (fetch)\n'],
       ['remote get-url --push --all origin', 'alice@forgejo.example.com:owner/repo.git\n'],
     ]);
 

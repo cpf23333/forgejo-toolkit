@@ -1219,7 +1219,12 @@ export class ForgejoClient {
    * it has a bound, so a search over an incomplete tree can miss matches. The
    * caller shows that instead of implying the file does not exist.
    *
-   * `truncatedBy` names which of the two causes applied. `files` is sliced to
+   * `truncatedBy` names which of the two causes applied, and only when the
+   * result is truncated at all: `'matches'` when the match list hit
+   * `MAX_SEARCH_RESULTS`, `'tree'` when the git tree could not be read
+   * completely. An unreadable tree wins when both apply: a caller that hears
+   * `'matches'` promises that a narrower query returns the rest, which cannot be
+   * true when the matches were never all read. `files` is sliced to
    * `MAX_SEARCH_RESULTS` before it is returned, so a caller cannot recover the
    * cause from the list length: a complete tree with exactly that many matches
    * and a tree cut short by the cap are the same length.
@@ -1256,13 +1261,19 @@ export class ForgejoClient {
 
     // More matches than the cap means the list was cut; a tree read that ended
     // truncated means matches may be missing. Reported by cause because only the
-    // first can be improved by narrowing the query.
+    // first can be improved by narrowing the query — and when both apply the
+    // tree wins, since "a narrower query would return the rest" is a promise
+    // this search cannot keep when the matches were never all read (the MCP note
+    // follows the same principle for a missing signal).
     const matchesCapped = files.length > MAX_SEARCH_RESULTS;
+    const truncated = tree.truncated || matchesCapped;
     return {
       files: files.slice(0, MAX_SEARCH_RESULTS),
       // Either the tree itself was incomplete or the match list was capped.
-      truncated: tree.truncated || matchesCapped,
-      truncatedBy: matchesCapped ? ('matches' as const) : ('tree' as const),
+      truncated,
+      // No cause to name when nothing was cut off: a `'tree'`/`'matches'` value
+      // on a complete answer would describe a truncation that did not happen.
+      truncatedBy: tree.truncated ? ('tree' as const) : matchesCapped ? ('matches' as const) : undefined,
     };
   }
 
@@ -1435,7 +1446,11 @@ export class ForgejoClient {
     };
   }
 
-  async getPullRequestDetail(owner: string, repo: string, index: number): Promise<ForgejoPullRequestDetail> {
+  async getPullRequestDetail(
+    owner: string,
+    repo: string,
+    index: number,
+  ): Promise<ForgejoPullRequestDetail & { attachmentsUnavailable?: boolean }> {
     // WORKAROUND: Forgejo's pulls endpoint does not return attachments.
     // The same underlying object is accessible via the issues endpoint,
     // which does include the `assets` field. See KNOWN_ISSUES.md.
@@ -1501,6 +1516,12 @@ export class ForgejoClient {
     return {
       ...prDetail,
       assets: (issue as ForgejoIssueDetail | undefined)?.assets,
+      // The attachments come from the best-effort issues probe, so a failed
+      // probe leaves `assets` undefined — which the view would render as "this
+      // PR has no attachments", the false conclusion the per-comment flag also
+      // exists to prevent. Reported only on failure: an absent flag is what a
+      // caller that predates the field sees, and it stays the safe reading.
+      ...(issue === undefined ? { attachmentsUnavailable: true } : {}),
       repoPermissions: permissions,
       protectionUnknown: protectionRead.unknown,
       mergeBlockers,
@@ -1583,6 +1604,17 @@ export class ForgejoClient {
     }
 
     const canBypassProtection = permissions?.admin === true && protection?.apply_to_admins !== true;
+    // A required status check whose state could not be read is unknown, not
+    // failed: `combinedStatus` comes from a best-effort probe and is undefined
+    // on any failure (and when the PR carries no head sha). The webview disables
+    // merging for every blocker and renders a missing state as `-`, so reporting
+    // one here would tell the user their checks failed because of a transient
+    // failure — the same reasoning that keeps an unknown permissions object from
+    // becoming `no_permission` above. The flag also keeps the `conflicts`
+    // fallback below from being fabricated: Forgejo reports `mergeable: false`
+    // while checks are unresolved, so an unknown state must not be re-read as a
+    // merge conflict either.
+    let statusChecksUnknown = false;
     if (protection && !canBypassProtection) {
       const requiredApprovals = protection.required_approvals;
       if (requiredApprovals && requiredApprovals > 0 && (approvedCount ?? 0) < requiredApprovals) {
@@ -1590,13 +1622,16 @@ export class ForgejoClient {
       }
       if (protection.enable_status_check && (protection.status_check_contexts?.length ?? 0) > 0) {
         const state = combinedStatus?.state;
-        if (state !== 'success') {
+        if (state === undefined) {
+          statusChecksUnknown = true;
+          this.logger?.debug(`[mergeBlockers] required status checks unknown for PR #${pr.number}; not blocking`);
+        } else if (state !== 'success') {
           blockers.push({ type: 'required_status_checks', statusState: state });
         }
       }
     }
 
-    if (pr.mergeable === false && !blockers.some((b) => b.type === 'required_status_checks')) {
+    if (pr.mergeable === false && !statusChecksUnknown && !blockers.some((b) => b.type === 'required_status_checks')) {
       blockers.push({ type: 'conflicts' });
     }
 

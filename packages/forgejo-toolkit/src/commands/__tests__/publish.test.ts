@@ -316,6 +316,58 @@ describe('publishToForgejo', () => {
     expect(logged).not.toContain('secret-token');
   });
 
+  it('redacts stored credentials from the instance URL shown in the account picker', async () => {
+    // The account picker is only reached when several instances match the same
+    // remote and the owner does not disambiguate them.
+    setupWorkspace(`${INSTANCE_URL}/shared/repo.git`);
+    vi.mocked(getCurrentBranch).mockResolvedValue('main');
+    vi.mocked(getUpstreamBranch).mockResolvedValue(undefined);
+    const alice: ForgejoInstance = {
+      ...instance('a', 'alice', 'tok-alice'),
+      url: 'https://alice:alice-secret@forgejo.example.com',
+    };
+    const bob: ForgejoInstance = {
+      ...instance('b', 'bob', 'tok-bob'),
+      url: 'https://bob:bob-secret@forgejo.example.com',
+    };
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: bob.name, instance: bob } as never);
+
+    await publishToForgejo(createConfig([alice, bob]));
+
+    const items = vi.mocked(vscode.window.showQuickPick).mock.calls[0]![0] as unknown as Array<{
+      description?: string;
+    }>;
+    const descriptions = items.map((item) => item.description ?? '').join('\n');
+    expect(descriptions).not.toContain('alice-secret');
+    expect(descriptions).not.toContain('bob-secret');
+    expect(descriptions).toContain('alice:***@forgejo.example.com');
+  });
+
+  it('redacts stored credentials from the instance URL shown in the new-repository picker', async () => {
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    // No instance selected: the assertion only needs the picker items.
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue(undefined as never);
+    const alice: ForgejoInstance = {
+      ...instance('a', 'alice', 'tok-alice'),
+      url: 'https://alice:alice-secret@forgejo.example.com',
+    };
+    const bob: ForgejoInstance = {
+      ...instance('b', 'bob', 'tok-bob'),
+      url: 'https://bob:bob-secret@forgejo.example.com',
+    };
+
+    await publishToForgejo(createConfig([alice, bob]));
+
+    const items = vi.mocked(vscode.window.showQuickPick).mock.calls[0]![0] as unknown as Array<{
+      description?: string;
+    }>;
+    const descriptions = items.map((item) => item.description ?? '').join('\n');
+    expect(descriptions).not.toContain('alice-secret');
+    expect(descriptions).not.toContain('bob-secret');
+    expect(descriptions).toContain('bob:***@forgejo.example.com');
+  });
+
   // Push failures must propagate to the command registration's catch
   // (commands/index.ts), which shows "Failed to publish". Swallowing them here
   // would pretend success — worst case right after the remote repository was

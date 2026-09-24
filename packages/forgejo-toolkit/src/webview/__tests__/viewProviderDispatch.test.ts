@@ -22,6 +22,8 @@ const clientMocks = vi.hoisted(() => ({
   invalidateRepoContentCaches: vi.fn(),
   getPullRequestFiles: vi.fn(),
   getPullRequestFilesFromCompare: vi.fn(),
+  getPullRequestCommentsAndTimeline: vi.fn(),
+  searchRepoFiles: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
@@ -45,6 +47,8 @@ vi.mock('../../api/client', () => ({
       downloadActionArtifactToFile: clientMocks.downloadActionArtifactToFile,
       getPullRequestFiles: clientMocks.getPullRequestFiles,
       getPullRequestFilesFromCompare: clientMocks.getPullRequestFilesFromCompare,
+      getPullRequestCommentsAndTimeline: clientMocks.getPullRequestCommentsAndTimeline,
+      searchRepoFiles: clientMocks.searchRepoFiles,
     };
   }),
 }));
@@ -88,7 +92,7 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
     revertMergeCommit: vi.fn(),
     sameRepositoryUrl: actual.sameRepositoryUrl,
     sanitizeForPath: vi.fn((value: string) => value),
-    removeWorktreeAndPrune: vi.fn(),
+    removeWorktreeAndPrune: vi.fn(async () => undefined),
   };
 });
 
@@ -266,6 +270,8 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clientMocks.downloadActionArtifactToFile.mockReset().mockResolvedValue(undefined);
     clientMocks.getPullRequestFiles.mockReset();
     clientMocks.getPullRequestFilesFromCompare.mockReset();
+    clientMocks.getPullRequestCommentsAndTimeline.mockReset();
+    clientMocks.searchRepoFiles.mockReset();
     clientMocks.invalidateRepoContentCaches.mockReset();
     vi.mocked(fetchBranch).mockReset();
     vi.mocked(createWorktreeWithNewBranch).mockReset();
@@ -314,6 +320,153 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect(typeof fallback?.error).toBe('string');
     // The specific reply was never sent.
     expect(messages.some((m) => m.command === 'issueCreated')).toBe(false);
+  });
+
+  describe('search truncation and attachment-availability reporting', () => {
+    it('names the truncation cause on the search reply', async () => {
+      // The two causes need different advice: only a hit match cap can be
+      // improved by narrowing the query, while an unreadable tree cannot.
+      clientMocks.searchRepoFiles.mockResolvedValue({
+        files: [{ path: 'src/index.ts' }],
+        truncated: true,
+        truncatedBy: 'matches',
+      });
+
+      fake.send({
+        command: 'searchRepoFiles',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        ref: 'main',
+        query: 'index',
+      });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoFilesSearchResult'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'repoFilesSearchResult');
+      expect(reply).toMatchObject({ truncated: true, truncatedBy: 'matches' });
+    });
+
+    it('omits the truncation cause when the search saw the whole tree', async () => {
+      clientMocks.searchRepoFiles.mockResolvedValue({ files: [], truncated: false });
+
+      fake.send({
+        command: 'searchRepoFiles',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        ref: 'main',
+        query: 'index',
+      });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoFilesSearchResult'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'repoFilesSearchResult');
+      expect(reply?.truncated).toBe(false);
+      // A cause on a complete answer would describe a truncation that did not
+      // happen, and the webview would promise a narrowing for it.
+      expect(reply?.truncatedBy).toBeUndefined();
+    });
+
+    it('carries a failed attachments probe on the PR detail reply', async () => {
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        assets: undefined,
+        attachmentsUnavailable: true,
+      });
+
+      fake.send({
+        command: 'getPullRequestDetail',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+      });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'pullRequestDetail'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'pullRequestDetail');
+      // Beside `detail`: that is where the webview reads it from, and without it
+      // an empty asset list renders as "this PR has no attachments".
+      expect(reply?.attachmentsUnavailable).toBe(true);
+    });
+
+    it('omits the attachments flag when the probe succeeded', async () => {
+      clientMocks.getPullRequestDetail.mockResolvedValue({ title: 'Demo PR', assets: [] });
+
+      fake.send({
+        command: 'getPullRequestDetail',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+      });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'pullRequestDetail'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'pullRequestDetail');
+      expect(reply?.attachmentsUnavailable).toBeUndefined();
+    });
+
+    it('leaves the per-comment attachments flag on the timeline reply', async () => {
+      // The client marks only the comments whose asset lookup failed; the reply
+      // passes the list through, so the flag has to survive it.
+      clientMocks.getPullRequestCommentsAndTimeline.mockResolvedValue([
+        { id: 50, type: 'comment', body: 'See ![log](/attachments/x)', assets: [], attachmentsUnavailable: true },
+        { id: 51, type: 'comment', body: 'plain', assets: [] },
+      ]);
+
+      fake.send({
+        command: 'getPullRequestCommentsAndTimeline',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        index: 2,
+      });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'pullRequestCommentsAndTimeline'));
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'pullRequestCommentsAndTimeline');
+      const comments = reply?.comments as Array<Record<string, unknown>>;
+      expect(comments[0]?.attachmentsUnavailable).toBe(true);
+      expect(comments[1]?.attachmentsUnavailable).toBeUndefined();
+    });
+  });
+
+  describe('localized host errors', () => {
+    // These replies carry a user-facing message straight into the view, so a
+    // hardcoded English literal would stay English under a zh-cn UI. The l10n
+    // mock returns the key text unchanged, which is why the assertions check the
+    // call (after clearing it) rather than only the replied string.
+    it('localizes the rejected saveInstance payload', async () => {
+      vi.mocked(vscode.l10n.t).mockClear();
+      fake.send({ command: 'saveInstance', url: 42, token: 'tok' });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({ success: false, error: 'Invalid input' });
+      expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('Invalid input');
+    });
+
+    it('localizes the rejected editInstance payload', async () => {
+      vi.mocked(vscode.l10n.t).mockClear();
+      fake.send({ command: 'editInstance', id: testInstance.id, url: 'https://forgejo.example.com', token: 7 });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({ success: false, error: 'Invalid input' });
+      expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('Invalid input');
+    });
+
+    it('localizes the unknown-instance rejection of editInstance', async () => {
+      vi.mocked(vscode.l10n.t).mockClear();
+      fake.send({
+        command: 'editInstance',
+        id: 'not-a-configured-instance',
+        url: 'https://forgejo.example.com',
+        token: 'tok',
+      });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result).toMatchObject({ success: false, error: 'Instance not found' });
+      expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith('Instance not found');
+    });
   });
 
   describe('repository identity guard', () => {
@@ -1918,6 +2071,45 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(preview?.error).toBeUndefined();
     });
 
+    it('reports and imports around the entries the file could not use', async () => {
+      const file = writeExportFile([
+        { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'user' },
+        { id: 'imported-2', url: 'https://other.example.com', token: 'file-token-2', name: 'two', username: 'user' },
+        { id: 'broken' },
+        'not-an-object',
+        { id: 'imported-3', url: 42, token: 'tok', name: 'three', username: 'user' },
+      ]);
+      await previewExportFile(file);
+
+      const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+      expect(preview?.dropped).toBe(3);
+      expect(preview?.instances).toHaveLength(2);
+
+      await confirmImport({ command: 'importInstances', ids: ['imported-1', 'imported-2'] });
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesImported');
+      expect(reply).toMatchObject({ success: true, count: 2 });
+      expect(
+        config
+          .getInstances()
+          .filter((i) => i.id.startsWith('imported-'))
+          .map((i) => i.id)
+          .sort(),
+      ).toEqual(['imported-1', 'imported-2']);
+    });
+
+    it('omits the dropped count when the file used every entry', async () => {
+      const file = writeExportFile([
+        { id: 'imported-1', url: 'https://forgejo.example.com', token: 'file-token-1', name: 'one', username: 'user' },
+      ]);
+      await previewExportFile(file);
+
+      const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
+      // Absent, not a bare 0: the webview treats a missing count as "nothing to
+      // warn about", and a hardcoded 0 would also look like a real measurement.
+      expect(preview?.dropped).toBeUndefined();
+    });
+
     it('reports a file without valid instances through the localized message', async () => {
       const file = writeExportFile([]);
 
@@ -2657,9 +2849,11 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
   describe('openPrWorktree recorded worktree revalidation', () => {
     let worktreeDir: string;
+    let cacheDir: string;
 
     beforeEach(() => {
       worktreeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorded-worktree-'));
+      cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recorded-worktree-cache-'));
       vi.mocked(inspectPrWorktree).mockReset();
       vi.mocked(discardStalePrWorktree).mockReset();
       vi.mocked(discardStalePrWorktree).mockResolvedValue(undefined);
@@ -2674,6 +2868,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
     afterEach(() => {
       fs.rmSync(worktreeDir, { recursive: true, force: true });
+      fs.rmSync(cacheDir, { recursive: true, force: true });
     });
 
     function seedRecordedPrWorktree(headSha: string) {
@@ -2836,6 +3031,79 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
       expect(vi.mocked(discardStalePrWorktree)).toHaveBeenCalledWith('/src/repo', worktreeDir, 'pr-1-oldsha0');
       expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    });
+
+    it('keeps an existing current checkout when the open fails instead of discarding it', async () => {
+      // The directory is already checked out at the PR head but the extension
+      // holds no record for it (a leftover from an earlier run whose record was
+      // dropped when its directory was briefly gone). `inspectPrWorktree` returns
+      // before it looks at the local work inside and the confirmation asked
+      // before this is about *opening*, never about deleting — yet a failed open
+      // used to run the create path's rollback here (`git worktree remove
+      // --force` + `git branch -D`), silently destroying tracked modifications,
+      // untracked and ignored files that this flow never inspected.
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'abc1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo' as never);
+      vi.mocked(getRefCommitSha).mockResolvedValue('abc1234567890');
+      // The worktree directory this open computes, created on disk so the
+      // inspection reports the existing checkout ('current'). No record is
+      // seeded, which is what routes the flow past the recorded-reopen shortcut
+      // into the branch under test.
+      vi.spyOn(config, 'getWorktreeCacheDirectory').mockReturnValue(cacheDir);
+      const worktreePath = path.join(
+        cacheDir,
+        'worktrees',
+        `owner-repo-${instanceCacheSuffix(testInstance)}-pr-1-Demo PR`,
+      );
+      fs.mkdirSync(worktreePath, { recursive: true });
+      vi.mocked(inspectPrWorktree).mockResolvedValue({ state: 'current' });
+      vi.mocked(openWorktree).mockResolvedValue(false);
+      vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeError'));
+
+      // (a) nothing was removed and no branch was deleted.
+      expect(vi.mocked(inspectPrWorktree)).toHaveBeenCalledWith(worktreePath, 'abc1234567890');
+      expect(vi.mocked(discardStalePrWorktree)).not.toHaveBeenCalled();
+      expect(vi.mocked(removeWorktreeAndPrune)).not.toHaveBeenCalled();
+      expect(vi.mocked(deleteBranch)).not.toHaveBeenCalled();
+      // The failure names the folder and says the checkout was left alone.
+      const error = postedMessages(fake.posted).find((m) => m.command === 'worktreeError');
+      expect(String(error?.error)).toContain('could not be opened');
+      expect(String(error?.error)).toContain(worktreePath);
+      expect(String(error?.error)).toContain('left untouched');
+      // (b) the checkout is still recorded, so Settings can still remove it.
+      const records = context.globalState.get('forgejoToolkit.worktrees') as Array<Record<string, unknown>>;
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        id: `${testInstance.id}:owner/repo#pr-1`,
+        worktreePath,
+        headSha: 'abc1234567890',
+      });
+      // ... and Settings can still act on it: the remove command finds the
+      // record and reaches a removal for its directory — either it completes, or
+      // the environment refuses the delete and the record stays for a retry.
+      // A record nothing can act on would post neither.
+      fake.send({ command: 'removeWorktree', id: `${testInstance.id}:owner/repo#pr-1` });
+      await flushUntil(() =>
+        postedMessages(fake.posted).some(
+          (m) => m.command === 'worktreeRemoved' || (m.command === 'worktreeError' && m.operation === 'remove'),
+        ),
+      );
+      const removeAnswered = postedMessages(fake.posted).some(
+        (m) => m.command === 'worktreeRemoved' || (m.command === 'worktreeError' && m.operation === 'remove'),
+      );
+      expect(removeAnswered).toBe(true);
+      if (postedMessages(fake.posted).some((m) => m.command === 'worktreeRemoved')) {
+        expect(context.globalState.get('forgejoToolkit.worktrees')).toEqual([]);
+      } else {
+        expect(context.globalState.get('forgejoToolkit.worktrees')).toHaveLength(1);
+      }
     });
 
     it('reports an error instead of opening when the current head cannot be fetched', async () => {
@@ -3135,6 +3403,89 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(typeof reply?.error).toBe('string');
       expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
       expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+    });
+
+    it('creates no branch, no directory and no record when the user declines replacing the workspace', async () => {
+      // Current-window mode: opening the worktree would replace the open
+      // folder, so the flow has to ask *before* it creates anything. The old
+      // order created the checkout and its issue branch first and only then
+      // prompted; declining left both behind with no record, and once the
+      // directory was gone (a cache-directory change, disk cleanup) the stale
+      // git worktree registration blocked every later attempt with "already
+      // checked out at <old path>", recoverable only by `git worktree prune`.
+      const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-worktree-decline-'));
+      const restoreFolder = withWorkspaceFolder(path.join(os.tmpdir(), 'issue-worktree-other-workspace'));
+      try {
+        vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo');
+        vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('currentWindow');
+        vi.spyOn(config, 'getWorktreeCacheDirectory').mockReturnValue(cacheDir);
+        clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+        vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
+
+        fake.send({
+          command: 'startWorkOnIssue',
+          instanceId: testInstance.id,
+          owner: 'owner',
+          repo: 'repo',
+          index: 5,
+          title: 'fix-bug',
+        });
+        await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
+
+        expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+        expect(String(vi.mocked(vscode.window.showWarningMessage).mock.calls.at(-1)?.[0])).toContain(
+          'replace the current workspace',
+        );
+        const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+        expect(reply).toMatchObject({ cancelled: true });
+        expect(reply?.error).toBeUndefined();
+        // Nothing was created: no fetch, no checkout, no issue branch.
+        expect(vi.mocked(fetchBranch)).not.toHaveBeenCalled();
+        expect(vi.mocked(createWorktreeWithNewBranch)).not.toHaveBeenCalled();
+        expect(vi.mocked(openWorktree)).not.toHaveBeenCalled();
+        expect(context.globalState.get('forgejoToolkit.worktrees')).toBeUndefined();
+      } finally {
+        restoreFolder();
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+      }
+    });
+
+    it('rolls the fresh checkout back and records nothing when the open fails', async () => {
+      // The user accepted the replacement and the folder still did not open.
+      // Leaving the checkout would recreate the recordless state the confirm-
+      // first order exists to avoid, so a checkout this call created is
+      // reclaimed; a reopened leftover would be left alone instead.
+      const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-worktree-open-fail-'));
+      try {
+        vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo');
+        vi.spyOn(config, 'getWorktreeOpenMode').mockReturnValue('newWindow');
+        vi.spyOn(config, 'getWorktreeCacheDirectory').mockReturnValue(cacheDir);
+        clientMocks.getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
+        vi.mocked(openWorktree).mockResolvedValue(false);
+
+        fake.send({
+          command: 'startWorkOnIssue',
+          instanceId: testInstance.id,
+          owner: 'owner',
+          repo: 'repo',
+          index: 5,
+          title: 'fix-bug',
+        });
+        await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
+
+        const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
+        expect(reply).toMatchObject({ cancelled: true });
+        expect(reply?.error).toBeUndefined();
+        const createdPath = String(vi.mocked(createWorktreeWithNewBranch).mock.calls.at(-1)?.[1]);
+        expect(createdPath).toContain('issue-5-fix-bug');
+        expect(vi.mocked(removeWorktreeAndPrune)).toHaveBeenCalledWith('/src/repo', createdPath);
+        // The user's issue branch is not work that predates the call, but a
+        // failed open is still no reason to delete it.
+        expect(vi.mocked(deleteBranch)).not.toHaveBeenCalled();
+        expect(context.globalState.get('forgejoToolkit.worktrees')).toBeUndefined();
+      } finally {
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+      }
     });
 
     describe('leftover directory reopen', () => {

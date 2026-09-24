@@ -473,6 +473,83 @@ export async function getUpstreamBranch(dirPath: string): Promise<string | undef
   }
 }
 
+/** A `@{upstream}` value resolved into the remote and the remote branch name. */
+export interface UpstreamRef {
+  /** Name of the remote the upstream belongs to. */
+  remote: string;
+  /** Remote branch name, without the remote prefix. */
+  branch: string;
+}
+
+/**
+ * Resolve the branch's configured upstream into its remote name and remote
+ * branch name.
+ *
+ * Neither part can be found by splitting the `@{upstream}` value at the first
+ * `/`: `isSafeRemoteName` deliberately accepts a slash inside a remote name
+ * (`my/fork`, which git accepts and the publish prompt can offer), so
+ * `my/fork/feature` is remote `my/fork` with branch `feature` — the first-slash
+ * split produced remote `my` and then fetched or pushed to a remote that does
+ * not exist, failing with a message about the wrong thing.
+ *
+ * Git stores the exact answer: `branch.<name>.merge` is the remote's full ref
+ * (`refs/heads/feature`) and `branch.<name>.remote` names the remote. When that
+ * configuration is absent or unreadable the `@{upstream}` value is matched
+ * against the remote names git reports, longest first, so a slash-named remote
+ * still wins over a similarly-prefixed shorter one.
+ *
+ * Returns `undefined` for a detached HEAD or a branch with no upstream at all.
+ * The first-slash split is the last resort for a name that matches none of the
+ * reported remotes, so an ordinary `origin/…` upstream keeps resolving exactly
+ * as it did before even on a repository whose remote list cannot be read.
+ */
+export async function resolveUpstreamRemote(dirPath: string): Promise<UpstreamRef | undefined> {
+  const branch = await getCurrentBranch(dirPath);
+  if (!branch) {
+    return undefined;
+  }
+  try {
+    const [remoteResult, mergeResult] = await Promise.all([
+      runGit(['config', '--get', `branch.${branch}.remote`], dirPath),
+      runGit(['config', '--get', `branch.${branch}.merge`], dirPath),
+    ]);
+    const remote = remoteResult.stdout.trim();
+    const merge = mergeResult.stdout.trim();
+    if (remote && merge.startsWith('refs/heads/')) {
+      const remoteBranch = merge.slice('refs/heads/'.length);
+      if (remoteBranch) {
+        return { remote, branch: remoteBranch };
+      }
+    }
+  } catch {
+    // No upstream configured, or no branch section at all.
+  }
+
+  // The configuration did not name the upstream: `git rev-parse --abbrev-ref
+  // @{upstream}` still prints `<remote>/<branch>`, and the remote name may
+  // contain a slash, so it is matched against the names git reports — longest
+  // first, because the shortest would silently rewrite `my/fork/main` into
+  // remote `my` and branch `fork/main`.
+  const upstream = await getUpstreamBranch(dirPath);
+  if (!upstream) {
+    return undefined;
+  }
+  const remoteNames = new Set((await listRemotes(dirPath)).map((entry) => entry.name));
+  const matched = [...remoteNames]
+    .filter((name) => upstream.startsWith(`${name}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (matched) {
+    return { remote: matched, branch: upstream.slice(matched.length + 1) };
+  }
+  // Last resort: the shape that misreads a slash-named remote, reached only
+  // once both exact answers are unavailable.
+  const slash = upstream.indexOf('/');
+  if (slash <= 0 || slash >= upstream.length - 1) {
+    return undefined;
+  }
+  return { remote: upstream.slice(0, slash), branch: upstream.slice(slash + 1) };
+}
+
 /**
  * Push a branch to a remote. `refspec` is usually just the branch name, but a
  * `local:remote` refspec pushes the local branch to a differently-named remote
@@ -1120,8 +1197,24 @@ export async function revertMergeCommit(
   }
 
   const upstream = await getUpstreamBranch(repoPath);
-  const remote = upstream && upstream.includes('/') ? upstream.split('/')[0] : 'origin';
-  const remoteBranch = upstream && upstream.includes('/') ? upstream.split('/').slice(1).join('/') : undefined;
+  // The remote name may itself contain a slash (`my/fork`), so neither part of
+  // the upstream can be found by splitting at the first separator; see
+  // resolveUpstreamRemote. `origin` stays the fallback for a branch with no
+  // upstream configured at all.
+  const upstreamRef = upstream ? await resolveUpstreamRemote(repoPath) : undefined;
+  const remote = upstreamRef?.remote ?? 'origin';
+  const remoteBranch = upstreamRef?.branch;
+  if (upstream && !upstreamRef) {
+    // The remote could not be resolved at all: pushing the revert to a remote
+    // the first-slash split invented would either fail misleadingly or target
+    // the wrong repository, and `expectedRepo` below could not validate it.
+    throw new Error(
+      vscode.l10n.t(
+        'Revert aborted: the upstream branch "{0}" does not name a configured git remote in this repository',
+        upstream,
+      ),
+    );
+  }
   if (expectedRepo) {
     // remoteMatchesInstance (in pushBranch) only proves the remote is on the
     // same host; a fork or any other repository on the same instance would

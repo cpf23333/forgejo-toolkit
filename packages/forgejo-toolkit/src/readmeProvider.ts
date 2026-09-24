@@ -43,11 +43,31 @@ export class ReadmeContentProvider implements vscode.TextDocumentContentProvider
 let provider: ReadmeContentProvider | undefined;
 
 export function registerReadmeProvider(context: vscode.ExtensionContext): ReadmeContentProvider {
-  if (!provider) {
-    provider = new ReadmeContentProvider();
-    context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(README_SCHEME, provider));
+  if (provider) {
+    return provider;
   }
-  return provider;
+  const instance = new ReadmeContentProvider();
+  provider = instance;
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(README_SCHEME, instance),
+    // The module-level guard above outlives a deactivate→activate cycle (the
+    // extension host keeps the module loaded when the extension is disabled
+    // and enabled again), so it must be dropped when the activation ends.
+    // `context.subscriptions` is disposed exactly then; without this reset the
+    // next activation would skip registration and the
+    // `cpf23333-forgejo-toolkit-readme:` scheme would be left without a
+    // provider, so "Preview README" and the wizard's README preview could not
+    // open. Keeping the guard also means the scheme is never registered twice
+    // within one activation, which VS Code rejects.
+    {
+      dispose: () => {
+        if (provider === instance) {
+          provider = undefined;
+        }
+      },
+    },
+  );
+  return instance;
 }
 
 export function openReadmePreview(

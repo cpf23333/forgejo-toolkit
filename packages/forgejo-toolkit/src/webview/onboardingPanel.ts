@@ -160,7 +160,7 @@ export class OnboardingWebviewPanel {
             case 'testConnection': {
               const { url, token } = message;
               if (typeof url !== 'string' || typeof token !== 'string') {
-                this._reply('testConnectionResult', { success: false, error: 'Invalid input' });
+                this._reply('testConnectionResult', { success: false, error: vscode.l10n.t('Invalid input') });
                 return;
               }
               // Same guard as the sidebar: only http(s) targets may be reached,
@@ -192,7 +192,7 @@ export class OnboardingWebviewPanel {
             case 'saveInstance': {
               const { url, token, syncApiUrlsToInstanceUrl } = message;
               if (typeof url !== 'string' || typeof token !== 'string') {
-                this._reply('saveInstanceResult', { success: false, error: 'Invalid input' });
+                this._reply('saveInstanceResult', { success: false, error: vscode.l10n.t('Invalid input') });
                 return;
               }
               try {
@@ -487,7 +487,7 @@ export class OnboardingWebviewPanel {
       return;
     }
     try {
-      const { instances, settings } = await readExportDataFromUri(uris[0]);
+      const { instances, settings, dropped } = await readExportDataFromUri(uris[0]);
       // Stash the full entries host-side; the webview only receives a
       // token-less copy and later confirms by id (same as the main panel).
       this._pendingImportInstances = instances;
@@ -496,12 +496,20 @@ export class OnboardingWebviewPanel {
       // Conflict flags (stored-token collisions and in-file duplicates) are
       // computed host-side (parallel to `instances`) — see the message type.
       const tokenConflicts = computeImportTokenConflicts(instances, existingInstances);
-      this._reply('importInstancesPreview', {
+      const payload: Omit<Extract<HostToWebviewMessage, { command: 'importInstancesPreview' }>, 'command'> & {
+        /** Entries the host could not use; the webview warns about them. */
+        dropped?: number;
+      } = {
         instances: stripInstanceTokens(instances),
         existingIds,
         tokenConflicts,
         settings,
-      });
+        // Entries the host could not use are absent from `instances`, so the
+        // count is the only signal that the file held more. Omitted when zero:
+        // the webview reads an absent field as "nothing to warn about".
+        ...(dropped > 0 ? { dropped } : {}),
+      };
+      this._reply('importInstancesPreview', payload);
     } catch (error) {
       this._pendingImportInstances = undefined;
       if (error instanceof ImportCancelledError) {

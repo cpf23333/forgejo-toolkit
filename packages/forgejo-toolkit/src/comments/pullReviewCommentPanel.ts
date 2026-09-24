@@ -14,7 +14,18 @@ import type { CreatePullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import { resolveLocale } from '../utils/resolveLocale';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { isSafeRepoIdentity } from '../webview/repoIdentity';
+import { isSameOriginUrl } from '../webview/instanceImport';
 import { userFacingErrorMessage } from '../api/errors';
+
+/**
+ * True when an instance still points at the server the review context was
+ * recorded against. The recorded URL may be unparseable (`config.ts` accepts
+ * those unvalidated), so an unchanged string counts as the same target rather
+ * than being judged a repoint by the origin comparison below.
+ */
+function isSameInstanceTarget(previous: string, current: string): boolean {
+  return previous === current || isSameOriginUrl(previous, current);
+}
 
 export interface PullReviewCommentContext {
   instanceId: string;
@@ -74,6 +85,14 @@ export class PullReviewCommentPanel implements vscode.Disposable {
    */
   private readonly _unansweredRequests = new Set<string>();
   private _context: PullReviewCommentContext;
+  /**
+   * The instance URL the current review context was recorded against. An
+   * instance can be repointed at another server in place (same id, new URL),
+   * and the owner/repo/index in `_context` would then name a repository on a
+   * different host, so the panel has to notice that too (see
+   * `_handleInstancesChanged`).
+   */
+  private _instanceUrl: string | undefined;
   /**
    * Draft-state query in flight; `_dispose` settles it so its 2 s timeout can
    * no longer fire against a disposed panel (see `_queryDraftDirty`).
@@ -148,6 +167,14 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     this._update();
 
     this._panel.onDidDispose(() => this._dispose(), null, this._disposables);
+
+    // Instance-scoped, like every other panel and provider: this editor is only
+    // usable while the instance its context names still exists and still points
+    // at the same server. Without this the instance could be removed (here or
+    // from another window) and every button would silently do nothing — the
+    // handlers return early and the webview editor has no error surface of its
+    // own. See `_handleInstancesChanged`.
+    this._disposables.push(this._config.onInstancesChanged(() => this._handleInstancesChanged()));
 
     this._panel.webview.onDidReceiveMessage(
       async (message) => {
@@ -303,6 +330,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     // Reused panels must not keep the closures of the previous pull request.
     this._callbacks = callbacks;
     this._panel.title = PullReviewCommentPanel._title(reviewContext);
+    this._instanceUrl = this._findInstance(reviewContext.instanceId)?.url;
     this._sendOpenEditor();
   }
 
@@ -435,13 +463,16 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     if (!body) {
       // Keep the request/response pair intact so the webview can reset its
       // submitting state even on this (normally unreachable) path.
-      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(), error: 'Empty comment body' });
+      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(), error: vscode.l10n.t('Empty comment body') });
       return;
     }
 
     const instance = this._findInstance(this._context.instanceId);
     if (!instance) {
-      this._reply('pullReviewCommentSubmitted', { ...this._repoParams(), error: 'Forgejo instance not found' });
+      this._reply('pullReviewCommentSubmitted', {
+        ...this._repoParams(),
+        error: vscode.l10n.t('Forgejo instance not found'),
+      });
       return;
     }
 
@@ -516,7 +547,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     const data = message as { reviewId?: number; event?: string; body?: string };
     const reviewId = data.reviewId;
     if (typeof reviewId !== 'number') {
-      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: 'No pending review' });
+      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: vscode.l10n.t('No pending review') });
       return;
     }
 
@@ -526,7 +557,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
 
     const instance = this._findInstance(this._context.instanceId);
     if (!instance) {
-      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: 'Forgejo instance not found' });
+      this._reply('pullReviewSubmitted', { ...this._repoParams(), error: vscode.l10n.t('Forgejo instance not found') });
       return;
     }
 
@@ -564,7 +595,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
     const data = message as { reviewId?: number };
     const reviewId = data.reviewId;
     if (typeof reviewId !== 'number') {
-      this._reply('pullReviewDeleted', { ...this._repoParams(), error: 'No pending review' });
+      this._reply('pullReviewDeleted', { ...this._repoParams(), error: vscode.l10n.t('No pending review') });
       return;
     }
 
@@ -581,7 +612,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
 
     const instance = this._findInstance(this._context.instanceId);
     if (!instance) {
-      this._reply('pullReviewDeleted', { ...this._repoParams(), error: 'Forgejo instance not found' });
+      this._reply('pullReviewDeleted', { ...this._repoParams(), error: vscode.l10n.t('Forgejo instance not found') });
       return;
     }
 
@@ -622,7 +653,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
         owner,
         repo,
         index,
-        error: 'Forgejo instance not found',
+        error: vscode.l10n.t('Forgejo instance not found'),
         _requestId: requestId,
       });
       return;
@@ -638,7 +669,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
         owner,
         repo,
         index,
-        error: 'Invalid attachment target',
+        error: vscode.l10n.t('Invalid attachment target'),
         _requestId: requestId,
       });
       return;
@@ -650,7 +681,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
         owner,
         repo,
         index,
-        error: 'Invalid attachment data',
+        error: vscode.l10n.t('Invalid attachment data'),
         _requestId: requestId,
       });
       return;
@@ -804,12 +835,47 @@ export class PullReviewCommentPanel implements vscode.Disposable {
   private _update(): void {
     const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
     const locale = resolveLocale(configured);
+    const instances = this._config.getInstances();
+    // Recorded from the render's own instance read: the removal/repoint check
+    // needs the URL this context was created against.
+    this._instanceUrl = instances.find((instance) => instance.id === this._context.instanceId)?.url;
     this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, {
       panelMode: 'pullReviewComment',
       locale,
-      instanceUrls: this._config.getInstances().map((i) => i.url),
+      instanceUrls: instances.map((i) => i.url),
       pullReviewComment: this._context,
     });
+  }
+
+  /**
+   * Close the panel when its instance is gone: removed, or repointed at another
+   * server so the recorded owner/repo/index no longer name a repository this
+   * instance serves. Both leave every control in the webview editor inert (the
+   * handlers answer "Forgejo instance not found" and the editor has no error
+   * surface), so the panel is disposed with a message instead of becoming a
+   * silent dead end. The `_disposed` guard keeps a second notification from
+   * disposing it again.
+   */
+  private _handleInstancesChanged(): void {
+    if (this._disposed) {
+      return;
+    }
+    const instance = this._findInstance(this._context.instanceId);
+    if (instance && (this._instanceUrl === undefined || isSameInstanceTarget(this._instanceUrl, instance.url))) {
+      return;
+    }
+    if (instance) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t(
+          'The review comment editor was closed because its Forgejo instance now points to a different server.',
+        ),
+      );
+    } else {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('The review comment editor was closed because its Forgejo instance was removed.'),
+      );
+    }
+    this._panel.dispose();
   }
 
   private _dispose(): void {

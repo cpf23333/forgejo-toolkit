@@ -11,6 +11,7 @@ import {
   getRemotePushUrls,
   getUpstreamBranch,
   pushBranch,
+  resolveUpstreamRemote,
 } from '../worktree/gitOperations';
 import { findInstanceForRemote } from './publish';
 
@@ -82,12 +83,29 @@ export async function createPrFromCurrentBranch(
   let setUpstream = true;
   let needsPush = !upstream;
   if (upstream) {
-    const slash = upstream.indexOf('/');
-    if (slash > 0 && slash < upstream.length - 1) {
-      pushRemote = upstream.slice(0, slash);
-      head = upstream.slice(slash + 1);
-      pushRefspec = head === branch ? branch : `${branch}:${head}`;
+    // Resolve the remote from git's own configuration rather than by splitting
+    // `@{upstream}` at the first `/`: `isSafeRemoteName` deliberately allows a
+    // slash inside a remote name (`my/fork`), and the naive split turned
+    // `my/fork/feature` into remote `my`, so the push (and the PR head) named a
+    // remote that does not exist and failed with a misleading message.
+    const upstreamRef = await resolveUpstreamRemote(linked.localPath);
+    if (!upstreamRef) {
+      // An upstream git cannot attribute to a configured remote cannot be
+      // pushed to or prefilled as the PR head; say so instead of inventing one.
+      logger.error(
+        `[createPrFromCurrentBranch] the upstream "${upstream}" does not name a configured remote in ${linked.localPath}`,
+      );
+      vscode.window.showErrorMessage(
+        vscode.l10n.t(
+          'The upstream branch "{0}" does not name a configured git remote in this repository, so the pull request head could not be resolved',
+          upstream,
+        ),
+      );
+      return;
     }
+    pushRemote = upstreamRef.remote;
+    head = upstreamRef.branch;
+    pushRefspec = head === branch ? branch : `${branch}:${head}`;
     setUpstream = false;
     const ahead = await getAheadCount(linked.localPath);
     // Undefined ahead means the upstream ref cannot be resolved (e.g. the
