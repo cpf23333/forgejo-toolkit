@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useI18n } from 'vue-i18n';
 import FileTreeNode from './FileTreeNode.vue';
 import type { ForgejoChangedFile } from '../types/api';
@@ -93,6 +94,9 @@ watch(
 );
 
 const fileCount = computed(() => props.files.length);
+// The host caps a paged list at LIST_ITEM_LIMIT and reports no total, so the list
+// says it may be incomplete instead of looking complete.
+const listTruncated = computed(() => isListTruncated(props.files));
 
 const selectedFiles = computed(() => {
   const result: { filename: string; status: string; previous_filename?: string }[] = [];
@@ -196,6 +200,9 @@ function openSelectedDiffs() {
 </script>
 
 <template>
+  <div v-if="listTruncated" class="list-truncated">
+    {{ t('dashboard.detail.filesTruncated') }}
+  </div>
   <div class="diff-file-list">
     <div v-if="loading" class="loading">
       <vscode-progress-ring class="diff-loading-ring" /> {{ t('dashboard.loading') }}

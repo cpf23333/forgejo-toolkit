@@ -425,7 +425,10 @@
       },
       "trackedTimeTotal": "记录的总工时",
       "trackedTimeMine": "我的工时",
-      "stopwatchRunningElsewhere": "{issue} 上已有计时在进行：在这里启动会结束它，并把那段时间记入工时。"
+      "stopwatchRunningElsewhere": "{issue} 上已有计时在进行：在这里启动会结束它，并把那段时间记入工时。",
+      "commentsTruncated": "时间线只显示前 500 条记录。",
+      "filesTruncated": "变更文件只显示前 500 个。",
+      "commitsTruncated": "提交只显示前 500 个。"
     },
     "worktree": {
       "openInWorktree": "在 Worktree 中打开",

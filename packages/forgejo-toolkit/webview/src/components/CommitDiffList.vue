@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useI18n } from 'vue-i18n';
 import DiffFileList from './DiffFileList.vue';
 import type { ForgejoPullRequestCommit, ForgejoChangedFile } from '../types/api';
 
 const { t } = useI18n();
+// The host caps a paged list at LIST_ITEM_LIMIT and reports no total, so the list
+// says it may be incomplete instead of looking complete.
+const listTruncated = computed(() => isListTruncated(props.commits));
 
 interface Props {
   commits: ForgejoPullRequestCommit[];
@@ -105,6 +109,9 @@ function handleOpenSelectedDiffs(
 </script>
 
 <template>
+  <div v-if="listTruncated" class="list-truncated">
+    {{ t('dashboard.detail.commitsTruncated') }}
+  </div>
   <div class="commit-diff-list">
     <div v-if="commits.length === 0" class="empty">{{ t('dashboard.detail.noChangedFiles') }}</div>
     <div v-for="commit in commits" :key="commit.sha" class="commit-item">

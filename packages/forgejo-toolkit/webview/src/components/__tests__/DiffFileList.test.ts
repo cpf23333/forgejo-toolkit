@@ -39,3 +39,21 @@ describe('DiffFileList load-state branches', () => {
     expect(wrapper.find('.error').exists()).toBe(false);
   });
 });
+
+describe('DiffFileList truncation notice', () => {
+  it('says when the file list was cut off at the cap', () => {
+    const file = (i: number) => ({
+      filename: `src/file-${i}.ts`,
+      status: 'modified',
+      additions: 1,
+      deletions: 0,
+      changes: 1,
+    });
+
+    const capped = mountList({ files: Array.from({ length: 500 }, (_, i) => file(i)) });
+    expect(capped.find('.list-truncated').exists()).toBe(true);
+
+    const below = mountList({ files: Array.from({ length: 499 }, (_, i) => file(i)) });
+    expect(below.find('.list-truncated').exists()).toBe(false);
+  });
+});

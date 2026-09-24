@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useI18n } from 'vue-i18n';
 import MarkdownBody from './MarkdownBody.vue';
 import AttachmentList from './AttachmentList.vue';
@@ -36,6 +37,9 @@ const editBody = ref('');
 const editDirty = computed(
   () => editingComment.value !== undefined && editBody.value !== (editingComment.value.body ?? ''),
 );
+// The host caps a paged list at LIST_ITEM_LIMIT and reports no total, so the list
+// says it may be incomplete instead of looking complete.
+const listTruncated = computed(() => isListTruncated(props.comments));
 const pendingDeleteAttachmentIds = ref<number[]>([]);
 const deletingAttachmentIds = ref<Set<number>>(new Set());
 const isSavingEdit = ref(false);
@@ -386,6 +390,9 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
 </script>
 
 <template>
+  <div v-if="listTruncated" class="list-truncated">
+    {{ t('dashboard.detail.commentsTruncated') }}
+  </div>
   <div class="comment-timeline">
     <div v-if="attachmentDeleteNotice" class="timeline-notice">
       {{ attachmentDeleteNotice }}

@@ -41,6 +41,8 @@ const { routeMock, stateMock, keyFor } = vi.hoisted(() => {
       loadIssueSubscription: vi.fn(),
       loadIssueTrackedTimes: vi.fn(),
       loadPullRequestComments: vi.fn(),
+      loadCommentReactions: vi.fn(),
+      commentReactions: { value: new Map() },
       loadRepoAssignees: vi.fn(),
       loadRepoIssues: vi.fn(),
       loadRepoLabels: vi.fn(),
@@ -75,6 +77,8 @@ vi.mock('../../composables/useAppState', async () => {
   const state = reactive(stateMock);
   const keys = {
     issueDetailKey: (...parts: unknown[]) => keyFor(...parts),
+    commentReactionsKey: (...parts: unknown[]) => keyFor(...parts),
+    issueCommentEditFormKey: (...parts: unknown[]) => keyFor(...parts),
     issueFormKey: (...parts: unknown[]) => keyFor(...parts),
     issueCommentFormKey: (...parts: unknown[]) => keyFor(...parts),
     pullRequestCommentsKey: (...parts: unknown[]) => keyFor(...parts),
@@ -180,6 +184,29 @@ describe('IssueDetail tracked time panel', () => {
     const wrapper = mountView();
     await nextTick();
     expect(wrapper.text()).toContain('A timer is already running');
+    wrapper.unmount();
+  });
+
+  it('says when the timeline was cut off at the cap', async () => {
+    appState().issueDetails.value.set(keyFor('inst-1', 'owner', 'repo', 5), {
+      number: 5,
+      title: 'an issue',
+      user: { login: 'demo-user' },
+    });
+    appState().pullRequestComments.value.set(
+      keyFor('inst-1', 'owner', 'repo', 5),
+      Array.from({ length: 500 }, (_, index) => ({
+        id: index + 1,
+        type: 'comment',
+        body: 'a comment',
+        created_at: '2026-01-01T00:00:00Z',
+        user: { login: 'demo-user' },
+      })),
+    );
+    const wrapper = mountView();
+    await nextTick();
+
+    expect(wrapper.findAll('.list-truncated').length).toBeGreaterThan(0);
     wrapper.unmount();
   });
 });

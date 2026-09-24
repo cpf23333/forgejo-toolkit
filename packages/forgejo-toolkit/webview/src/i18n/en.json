@@ -425,7 +425,10 @@
       },
       "trackedTimeTotal": "Total tracked time",
       "trackedTimeMine": "My tracked time",
-      "stopwatchRunningElsewhere": "A timer is already running on {issue}; starting one here ends it and records that time."
+      "stopwatchRunningElsewhere": "A timer is already running on {issue}; starting one here ends it and records that time.",
+      "commentsTruncated": "Only the first 500 timeline entries are shown.",
+      "filesTruncated": "Only the first 500 changed files are shown.",
+      "commitsTruncated": "Only the first 500 commits are shown."
     },
     "worktree": {
       "openInWorktree": "Open in Worktree",
