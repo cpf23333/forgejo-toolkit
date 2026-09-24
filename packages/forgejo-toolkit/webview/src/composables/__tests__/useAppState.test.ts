@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-utils';
 import { routes } from '../../router';
 import type {
@@ -933,15 +934,20 @@ describe('useAppState', () => {
         repo: 'repo',
         runId: 7,
       });
-      // The repoDetail view is lazy-loaded and the handler does not await its
-      // router.push, so a single flushPromises is not enough for the dynamic
-      // import to settle.
-      await vi.waitFor(() => {
-        expect(router.currentRoute.value.name).toBe('repoDetail');
-      });
+      // The handler does not await its router.push, and the repoDetail view is
+      // lazy-loaded: the navigation only settles once the dynamic import has
+      // resolved. That import is slow and bursty (the first run also has to
+      // transform the view and its transitive imports), so poll generously
+      // rather than assuming a previous test already paid for the chunk.
+      await vi.waitFor(
+        () => {
+          expect(router.currentRoute.value.name).toBe('repoDetail');
+        },
+        { timeout: 10_000, interval: 20 },
+      );
 
       expect(router.currentRoute.value.params).toMatchObject({ instanceId: 'inst-1', owner: 'owner', repo: 'repo' });
-    });
+    }, 15_000);
 
     it('actionRunDeleted does not navigate when the user has moved elsewhere', async () => {
       const { router } = await createState();
@@ -2409,6 +2415,9 @@ describe('useAppState', () => {
 
     it('navigating to another repository releases the one left behind', async () => {
       const { state, mod, router } = await createState();
+      // The release is driven by the router hook the composable installs; it
+      // only exists when a router was injected (see
+      // useAppState.withoutRouter.test.ts), so assert it here too.
       await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'alpha' } });
       dispatchMessage({
         command: 'repoDetail',
@@ -3049,6 +3058,22 @@ describe('startWorkOnIssue', () => {
   });
 });
 
+describe('previewReadme', () => {
+  it('sends the instance id so the host keys the preview document by it', async () => {
+    const { state } = await createState();
+
+    state.previewReadme('inst-2', 'owner', 'repo', '# hello');
+
+    expect(vscodePostMessage()).toHaveBeenCalledWith({
+      command: 'previewReadme',
+      instanceId: 'inst-2',
+      owner: 'owner',
+      repo: 'repo',
+      content: '# hello',
+    });
+  });
+});
+
 describe('delete requests answered with cancelled', () => {
   /** Request id of the last message of the given command posted to the host. */
   function lastRequestId(command: string): string {
@@ -3305,6 +3330,177 @@ describe('comment reaction request throttling', () => {
       error: 'boom',
     });
     expect(sentCommentIds()).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+});
+
+describe('comment reaction payloads', () => {
+  // A timeline longer than the shared payload cap: every comment stays on
+  // screen (the view renders the whole page), so none of their reactions may be
+  // dropped just because the cap is reached.
+  const TIMELINE_LENGTH = 70;
+
+  function dispatchReaction(commentId: number, repo = 'repo', content = '+1') {
+    dispatchMessage({
+      command: 'commentReactions',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo,
+      commentId,
+      reactions: [{ content, user: fakeUser }],
+    });
+  }
+
+  it('keeps every visible comment of an over-cap timeline', async () => {
+    const { state, mod, router } = await createState();
+    await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo' } });
+
+    for (let commentId = 1; commentId <= TIMELINE_LENGTH; commentId += 1) {
+      dispatchReaction(commentId);
+    }
+    await nextTick();
+
+    // The shared cap would have dropped comments 1..6 (70 - 64) while their
+    // rows were still rendered, leaving their reaction bars empty.
+    expect(state.commentReactions.value.size).toBe(TIMELINE_LENGTH);
+    expect(state.commentReactions.value.get(mod.commentReactionsKey('inst-1', 'owner', 'repo', 1))).toHaveLength(1);
+    expect(state.commentReactions.value.get(mod.commentReactionsKey('inst-1', 'owner', 'repo', 70))).toHaveLength(1);
+  });
+
+  it('bounds the entries of a repository the user left behind', async () => {
+    const { state, mod, router } = await createState();
+    await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'alpha' } });
+    await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'beta' } });
+
+    // Ten comments of the repository the user is looking at.
+    for (let commentId = 1; commentId <= 10; commentId += 1) {
+      dispatchReaction(commentId, 'beta');
+    }
+    // More comments than the cap for the repository left behind: one entry per
+    // rendered comment would otherwise pile up for every repository visited.
+    for (let commentId = 1; commentId <= 70; commentId += 1) {
+      dispatchReaction(commentId, 'alpha');
+    }
+    await nextTick();
+
+    // Ten visible `beta` rows plus the cap's worth of `alpha`: the stale entries
+    // replace each other instead of growing without bound.
+    expect(state.commentReactions.value.size).toBe(10 + 64);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'alpha', 1))).toBe(false);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'alpha', 6))).toBe(false);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'alpha', 7))).toBe(true);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'alpha', 70))).toBe(true);
+    // Never at the expense of a row the user can still see.
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'beta', 1))).toBe(true);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'beta', 10))).toBe(true);
+
+    // Leaving the repository releases what it held; the repository left behind
+    // earlier keeps its capped entries until the user returns to it (its rows
+    // are re-fetched then, and a stale entry is rewritten in place).
+    await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'gamma' } });
+    await nextTick();
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'beta', 10))).toBe(false);
+    expect(state.commentReactions.value.size).toBe(64);
+  });
+
+  it('keeps every entry while no repository is active', async () => {
+    const { state, mod } = await createState();
+    // No route was ever visited, so no repository is active and no entry can be
+    // shown to have left the screen: none may be dropped on the cap's account.
+    for (let commentId = 1; commentId <= TIMELINE_LENGTH; commentId += 1) {
+      dispatchReaction(commentId, 'repo');
+    }
+    await nextTick();
+
+    expect(state.commentReactions.value.size).toBe(TIMELINE_LENGTH);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'repo', 1))).toBe(true);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'repo', 70))).toBe(true);
+  });
+
+  it('caps the active repository at the rows a timeline can hold', async () => {
+    const { state, mod, router } = await createState();
+    await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo' } });
+
+    // One more comment than the host can return for a timeline. A repository
+    // the user stays on is the one case that could otherwise grow for as long
+    // as the session lasts.
+    const overCap = LIST_ITEM_LIMIT + 1;
+    for (let commentId = 1; commentId <= overCap; commentId += 1) {
+      dispatchReaction(commentId);
+    }
+    await nextTick();
+
+    // The oldest write is the one evicted; the cap holds the rows the timeline
+    // can still show.
+    expect(state.commentReactions.value.size).toBe(LIST_ITEM_LIMIT);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'repo', 1))).toBe(false);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'repo', 2))).toBe(true);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'repo', overCap))).toBe(true);
+  });
+
+  it('treats a rewritten key as the newest, as the other bounded maps do', async () => {
+    const { state, mod, router } = await createState();
+    await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'repo' } });
+
+    const overCap = LIST_ITEM_LIMIT + 1;
+    for (let commentId = 1; commentId <= overCap; commentId += 1) {
+      dispatchReaction(commentId);
+    }
+    // Re-reading a comment's reactions is a rewrite, not a new slot: it must
+    // move that comment back to the newest end instead of being evicted next.
+    dispatchReaction(2);
+    dispatchReaction(overCap + 1);
+    await nextTick();
+
+    expect(state.commentReactions.value.size).toBe(LIST_ITEM_LIMIT);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'repo', 2))).toBe(true);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'repo', 3))).toBe(false);
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'repo', overCap + 1))).toBe(
+      true,
+    );
+  });
+
+  it('charges each write to the cap of the scope it belongs to', async () => {
+    const { state, mod, router } = await createState();
+    await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'beta' } });
+
+    // A timeline that fills the cap of the repository on screen: every one of
+    // its rows is rendered by the view.
+    for (let commentId = 1; commentId <= LIST_ITEM_LIMIT; commentId += 1) {
+      dispatchReaction(commentId, 'beta');
+    }
+    // Interleaved reaction refreshes, for the repository left behind and for the
+    // one on screen. Each is a new key at most in its own scope: nothing here
+    // takes a slot from the other repository.
+    dispatchReaction(1, 'alpha');
+    dispatchReaction(LIST_ITEM_LIMIT, 'beta');
+    dispatchReaction(2, 'alpha');
+    dispatchReaction(LIST_ITEM_LIMIT - 1, 'beta');
+    await nextTick();
+
+    // Charging the alpha writes to beta's cap would evict beta's oldest rows
+    // while the view still renders them.
+    for (let commentId = 1; commentId <= LIST_ITEM_LIMIT; commentId += 1) {
+      expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'beta', commentId))).toBe(
+        true,
+      );
+    }
+    expect([...state.commentReactions.value.keys()].filter((key) => key.includes('/alpha'))).toHaveLength(2);
+  });
+
+  it('does not drop a left-behind entry when the visible repository writes', async () => {
+    const { state, mod, router } = await createState();
+    await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'beta' } });
+
+    // The repository the user left behind holds a full cap of its own...
+    for (let commentId = 1; commentId <= 64; commentId += 1) {
+      dispatchReaction(commentId, 'alpha');
+    }
+    // ...and a write for the repository on screen must not take a slot from it.
+    dispatchReaction(1, 'beta');
+    await nextTick();
+
+    expect(state.commentReactions.value.has(mod.commentReactionsKey('inst-1', 'owner', 'alpha', 1))).toBe(true);
+    expect([...state.commentReactions.value.keys()].filter((key) => key.includes('/alpha'))).toHaveLength(64);
   });
 });
 

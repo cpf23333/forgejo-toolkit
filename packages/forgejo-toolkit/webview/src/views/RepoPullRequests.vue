@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onDeactivated, ref, watch } from 'vue';
+import { computed, onActivated, ref, watch } from 'vue';
 import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -42,19 +42,43 @@ const listTruncated = computed(() => isListTruncated(items.value));
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
 
+// The route path this instance was created for, i.e. the path the app keys the
+// keep-alive cache with. Under keep-alive this view is deactivated (not
+// unmounted) when navigating away and `route` then follows the global route, so
+// its own route is only recognizable by that path. Comparing the live path with
+// it is synchronous, which the guard below needs: `route.path` already points at
+// the new route while `onDeactivated` has not run yet, and a watcher is a
+// pre-flush watcher — it is flushed before the lifecycle hooks of the very route
+// change that hides this view. An `isActive` flag set in a lifecycle hook would
+// therefore still read `true` at that moment.
+const ownPath = route.path;
+const isActive = computed(() => route.path === ownPath);
+
 // Keep the previous list on screen while a newly selected key (state filter,
 // search query) loads; swap only when fresh data or an error lands, so the
-// list never flashes a loading placeholder in place of the old items.
+// list never flashes a loading placeholder in place of the old items. Guarded
+// on `isActive`: a deactivated keep-alive instance keeps running its watchers
+// while `route.params` follows the global route, so an unguarded swap would
+// adopt the rows of the repository the user navigated to — and since the
+// keep-alive cache keeps whichever view activates last, the abandoned instance
+// could win that race and render the other repository's rows under its own
+// header.
 const displayItems = ref<ForgejoPullRequest[]>([]);
-watch(
-  [items, loading, error],
-  ([newItems, isLoading, err]) => {
-    if (!isLoading || err) {
-      displayItems.value = newItems;
-    }
-  },
-  { immediate: true },
-);
+function syncDisplayItems() {
+  if (!isActive.value) {
+    return;
+  }
+  if (!loading.value || error.value) {
+    displayItems.value = items.value;
+  }
+}
+// `isActive` is watched as well, so that coming back re-adopts the rows: a reply
+// that arrived while this view was off screen was dropped by the guard, and
+// returning does not have to change the list key (opening a pull request of the
+// same repository keeps it), so no other source would change and the list would
+// stay empty until a manual refresh. Watching it also runs the sync in the same
+// pre-flush pass as the reactivation, i.e. before the view is rendered again.
+watch([items, loading, error, isActive], syncDisplayItems, { immediate: true });
 
 const isCreating = ref(false);
 const createFormResetKey = ref(0);
@@ -94,11 +118,6 @@ const assignees = computed(() => state.repoAssignees.value.get(assigneesKey.valu
 const milestonesKey = computed(() => repoMilestonesKey(instanceId.value, owner.value, repo.value));
 const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.value) ?? []);
 
-// Under keep-alive this view is deactivated (not unmounted) when navigating
-// away; `route.params` then tracks the global route, not this view's own
-// route. Guard route-driven loading on isActive.
-const isActive = ref(true);
-
 let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 
 function applySearchQuery() {
@@ -116,7 +135,6 @@ function loadListData() {
 }
 
 onActivated(() => {
-  isActive.value = true;
   // A debounced search dropped while this view was deactivated (isActive
   // guard in the debounce callback) leaves the input ahead of the applied
   // query; re-apply it so the list matches what the input still shows.
@@ -127,9 +145,6 @@ onActivated(() => {
   // Params may have changed back before this hook ran; make sure data for the
   // current route is loaded (loaders dedup via their caches).
   loadListData();
-});
-onDeactivated(() => {
-  isActive.value = false;
 });
 
 watch(
@@ -270,10 +285,18 @@ async function handleCreateSubmit(data: {
   milestone?: number;
   dueDate?: string;
 }) {
+  // Capture the target repository before the first await. Creating the pull
+  // request, uploading its attachments and rewriting its body are separate
+  // round-trips, and `route.params` follows the global route: reading it again
+  // after an await would post an attachment to whatever repository the user
+  // switched to — and would report a later failure on the form of the repository
+  // the user is looking at now instead of the one that was submitted.
+  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value };
+  const formKey = pullRequestFormKey(target.instanceId, target.owner, target.repo, 0);
   try {
     let prNumber = createdPullRequestNumber.value;
     if (prNumber === undefined) {
-      const pr = await state.createPullRequest(instanceId.value, owner.value, repo.value, data);
+      const pr = await state.createPullRequest(target.instanceId, target.owner, target.repo, data);
       prNumber = pr.number;
       createdPullRequestNumber.value = prNumber;
     }
@@ -284,7 +307,13 @@ async function handleCreateSubmit(data: {
     const remaining = await uploadFilesKeepingFailures(pendingIssueAttachments.value, async (file) => {
       uploadingIssueAttachmentCount.value += 1;
       try {
-        const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, prNumber, file);
+        const attachment = await state.uploadIssueAttachment(
+          target.instanceId,
+          target.owner,
+          target.repo,
+          prNumber,
+          file,
+        );
         if (attachment.uuid) {
           for (const [objectUrl, pendingFile] of pendingImageObjectUrls.value) {
             if (pendingFile === file) {
@@ -299,10 +328,7 @@ async function handleCreateSubmit(data: {
     });
     if (remaining.length > 0) {
       pendingIssueAttachments.value = remaining;
-      state.errors.set(
-        createFormKey.value,
-        t('dashboard.repoPullRequests.attachmentUploadFailed', { count: remaining.length }),
-      );
+      state.errors.set(formKey, t('dashboard.repoPullRequests.attachmentUploadFailed', { count: remaining.length }));
       return;
     }
     let updatedBody = data.body;
@@ -318,7 +344,7 @@ async function handleCreateSubmit(data: {
       updatedBody = updatedBody.replaceAll(objectUrl, attachmentUrl);
     }
     if (updatedBody !== data.body) {
-      state.editPullRequest(instanceId.value, owner.value, repo.value, prNumber, {
+      state.editPullRequest(target.instanceId, target.owner, target.repo, prNumber, {
         title: data.title,
         body: updatedBody,
       });
@@ -331,11 +357,11 @@ async function handleCreateSubmit(data: {
     uploadedImageReplacements.value.clear();
     createdPullRequestNumber.value = undefined;
     isCreating.value = false;
-    state.openPullRequestDetail(instanceId.value, owner.value, repo.value, prNumber);
+    state.openPullRequestDetail(target.instanceId, target.owner, target.repo, prNumber);
   } catch (error) {
     // Creating the pull request itself failed: the form stays as it is.
     const message = error instanceof Error ? error.message : String(error);
-    state.errors.set(createFormKey.value, message);
+    state.errors.set(formKey, message);
   }
 }
 </script>

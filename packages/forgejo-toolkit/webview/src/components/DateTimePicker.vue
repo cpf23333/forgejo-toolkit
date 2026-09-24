@@ -1,3 +1,18 @@
+<script lang="ts">
+// Module scope, not `<script setup>` scope: a counter declared inside the setup
+// block is re-created per instance (the compiler keeps it in the setup closure),
+// so every picker would start at 1. Several pickers share a form (the issue and
+// pull request edit dialogs have one each), and duplicate panel ids would make
+// every `aria-controls` resolve to the first panel — a screen reader would
+// announce the wrong dialog.
+let pickerSequence = 0;
+
+function nextPanelId(): string {
+  pickerSequence += 1;
+  return `date-time-panel-${pickerSequence}`;
+}
+</script>
+
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -25,8 +40,7 @@ const panelStyle = ref({ top: '0px', left: '0px' });
 
 // Unique per instance so the field's `aria-controls` points at its own panel
 // when several pickers are rendered in the same form.
-let pickerUid = 0;
-const panelId = `date-time-panel-${(pickerUid += 1)}`;
+const panelId = nextPanelId();
 
 function onDocumentClick(event: MouseEvent) {
   const target = event.target as Node;

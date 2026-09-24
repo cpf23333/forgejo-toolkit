@@ -147,6 +147,7 @@ import type {
   // Import/export payloads carry the token; the regular instance list never does.
   ForgejoInstance as ExportedForgejoInstance,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { createTimedCache } from '../utils/createTimedCache';
 
 export interface MentionUser {
@@ -241,6 +242,58 @@ function createAppState() {
    */
   function setPayloadEntry<V>(map: Map<string, V>, key: string, value: V) {
     setBoundedEntry(map, key, value, MAX_PAYLOAD_ENTRIES);
+  }
+
+  /**
+   * Writes one comment's reactions. This map is bounded per repository rather
+   * than by the shared `MAX_PAYLOAD_ENTRIES`: a timeline longer than 64 comments
+   * would otherwise lose the earliest comments' reactions while their rows are
+   * still on screen (the view renders the whole page).
+   *
+   * The active repository is capped by what a timeline can actually show. The
+   * host returns at most `LIST_ITEM_LIMIT` comments, so no more than that many
+   * rows of it are ever rendered; anything beyond is off screen and evicted
+   * oldest-written first, exactly like `setBoundedEntry`. The entries outside
+   * the active repository — rows the user has navigated away from, whose
+   * payload `clearRepoPayloads` could not release because the navigation went
+   * straight from one repository to another — keep the older one-for-one
+   * replacement, which cannot accumulate either. Nothing is dropped while no
+   * repository is active: without one there is no evidence that any row has
+   * left the screen.
+   */
+  function setCommentReactionEntry(key: string, value: ForgejoReaction[]) {
+    const map = commentReactions.value;
+    const active = activeRepoScope;
+    if (active !== undefined) {
+      // Oldest-written first, so the eviction order is the write order (as in
+      // `setBoundedEntry`: a rewrite re-inserts the key).
+      const entries = [...map.keys()].map((candidate) => ({
+        key: candidate,
+        stale: !isInRepoScope(candidate, active),
+      }));
+      // `key` takes a new slot in exactly one scope — the one it belongs to —
+      // and a rewrite of a key already held takes none. The other scope is not
+      // touched by this write and must not be charged for it: charging it would
+      // evict one of its entries while every row of it is still on screen.
+      const writeStale = !isInRepoScope(key, active);
+      const limits = [
+        { stale: false, cap: LIST_ITEM_LIMIT },
+        { stale: true, cap: MAX_PAYLOAD_ENTRIES },
+      ];
+      for (const limit of limits) {
+        const inScope = entries.filter((entry) => entry.stale === limit.stale);
+        // Re-inserted at the end of this function, so the written key is never
+        // an eviction candidate of its own scope.
+        const candidates = inScope.filter((entry) => entry.key !== key);
+        const projected = inScope.length + (limit.stale === writeStale && !map.has(key) ? 1 : 0);
+        for (let removed = 0; projected - removed > limit.cap; removed += 1) {
+          map.delete(candidates[removed].key);
+        }
+      }
+    }
+    // Re-insert so a rewritten key becomes the newest, like the bounded maps.
+    map.delete(key);
+    map.set(key, value);
   }
 
   const repositoriesCache = createTimedCache<ForgejoRepository[]>(30_000);
@@ -1919,7 +1972,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      setPayloadEntry(commentReactions.value, key, data.reactions ?? []);
+      setCommentReactionEntry(key, data.reactions ?? []);
     }
   }
 
@@ -3093,8 +3146,11 @@ function createAppState() {
     postMessage({ command: 'copyToClipboard', text });
   }
 
-  function previewReadme(owner: string, repo: string, content: string) {
-    postMessage({ command: 'previewReadme', owner, repo, content });
+  // The instance id travels with the request: the host keys the preview
+  // document by it, so without it every instance's README would share one
+  // document and a second instance's preview would overwrite the first's.
+  function previewReadme(instanceId: string, owner: string, repo: string, content: string) {
+    postMessage({ command: 'previewReadme', instanceId, owner, repo, content });
   }
 
   // The single-slot request/response pairs (testConnection, saveInstance)
@@ -4637,7 +4693,10 @@ function createAppState() {
   // component happened to call `useAppState()` first and would stop working once
   // the keep-alive cache evicts that component.
   let activeRepoScope: string | undefined;
-  router.afterEach((to) => {
+  // `useRouter()` injects, it does not throw: the two standalone panels
+  // (onboarding, pull request review comment) mount the composable without a
+  // vue-router instance, so the hook may only be installed when one exists.
+  router?.afterEach((to) => {
     const instanceId = to.params.instanceId;
     const owner = to.params.owner;
     const repo = to.params.repo;

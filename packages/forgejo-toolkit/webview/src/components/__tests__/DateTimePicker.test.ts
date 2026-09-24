@@ -153,3 +153,32 @@ describe('DateTimePicker mouse behaviour', () => {
     wrapper.unmount();
   });
 });
+
+describe('DateTimePicker panel identity', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('gives each instance on the page its own panel id', async () => {
+    // One form can hold several pickers (the edit dialogs have one per date
+    // field). A shared id would make every `aria-controls` point at the first
+    // panel, so a screen reader would announce the wrong dialog.
+    const first = mountPicker();
+    const second = mountPicker();
+
+    await pressKey(first, 'Enter');
+    await pressKey(second, 'Enter');
+
+    const firstInput = first.get('.date-time-input');
+    const secondInput = second.get('.date-time-input');
+    const firstPanel = first.get('.date-time-panel');
+    const secondPanel = second.get('.date-time-panel');
+
+    expect(firstPanel.attributes('id')).not.toBe(secondPanel.attributes('id'));
+    expect(firstInput.attributes('aria-controls')).toBe(firstPanel.attributes('id'));
+    expect(secondInput.attributes('aria-controls')).toBe(secondPanel.attributes('id'));
+
+    first.unmount();
+    second.unmount();
+  });
+});

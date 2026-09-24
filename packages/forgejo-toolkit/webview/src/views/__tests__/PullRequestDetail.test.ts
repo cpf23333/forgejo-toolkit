@@ -175,6 +175,58 @@ async function openPullRequestRoute(router: ReturnType<typeof createTestRouter>,
 }
 
 describe('PullRequestDetail worktree loading', () => {
+  function worktreeButtonIn(wrapper: ReturnType<typeof mountHost>) {
+    // open / copy / worktree
+    return wrapper.findAll('.actions .action-link')[2];
+  }
+
+  it('keeps the spinner of another PR when a different PR is cancelled', async () => {
+    state.openPrWorktree.mockClear();
+    state.pullRequestDetails.value.clear();
+    state.worktrees.value = [];
+    state.lastWorktreeCancelled.value = undefined;
+    state.lastWorktreeError.value = undefined;
+    state.pullRequestDetails.value.set(keyFor('inst-1', 'owner', 'repo', '1'), pullRequestDetail(1));
+    state.pullRequestDetails.value.set(keyFor('inst-1', 'owner', 'repo', '2'), pullRequestDetail(2));
+
+    // PR 1's view is still waiting for its own reply when the user leaves it.
+    const routerA = createTestRouter();
+    await openPullRequestRoute(routerA, 1);
+    const wrapperA = mountHost(routerA);
+    await nextTick();
+    await worktreeButtonIn(wrapperA).trigger('click');
+    expect(state.openPrWorktree).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 1);
+    expect(worktreeButtonIn(wrapperA).attributes('disabled')).toBeDefined();
+
+    // PR 2's view starts its own open in the meantime.
+    const routerB = createTestRouter();
+    await openPullRequestRoute(routerB, 2);
+    const wrapperB = mountHost(routerB);
+    await nextTick();
+    await worktreeButtonIn(wrapperB).trigger('click');
+    expect(state.openPrWorktree).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 2);
+    expect(worktreeButtonIn(wrapperB).attributes('disabled')).toBeDefined();
+
+    // The host declines the confirmation for PR 1: the reply names a PR PR 2's
+    // view never asked about, so its spinner must keep waiting for its own.
+    state.lastWorktreeCancelled.value = { instanceId: 'inst-1', owner: 'owner', repo: 'repo', index: 1 };
+    await nextTick();
+    expect(worktreeButtonIn(wrapperB).attributes('disabled')).toBeDefined();
+
+    // PR 2's own opened reply then ends its wait.
+    state.worktrees.value = [
+      ...state.worktrees.value,
+      { id: 'wt-2', kind: 'pr', instanceId: 'inst-1', owner: 'owner', repo: 'repo', prIndex: 2 },
+    ];
+    await nextTick();
+    expect(worktreeButtonIn(wrapperB).attributes('disabled')).toBeUndefined();
+    expect(wrapperB.text()).toContain('Worktree opened');
+
+    // PR 1's own cancel ended its wait while it was off screen.
+    wrapperA.unmount();
+    wrapperB.unmount();
+  });
+
   it('stops the spinner for a result that belongs to a PR the view left behind', async () => {
     state.pullRequestDetails.value.clear();
     state.worktrees.value = [];

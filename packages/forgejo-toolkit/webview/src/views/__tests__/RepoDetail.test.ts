@@ -14,6 +14,7 @@ const { stateMock, keyFor } = vi.hoisted(() => {
       errors: new Map<string, string>(),
       loadRepoDetail: vi.fn(),
       loadRepoBranchCommits: vi.fn(),
+      previewReadme: vi.fn(),
     },
   };
 });
@@ -44,7 +45,10 @@ import { createTestI18n } from '../../__tests__/helpers/test-utils';
 const routeParams = (routerModule as unknown as { __params: Record<string, string> }).__params;
 // The reactive proxy the view reads: mutating the raw mock object would not
 // notify anybody.
-const state = useAppState() as unknown as { repoDetails: { value: Map<string, unknown> } };
+const state = useAppState() as unknown as {
+  repoDetails: { value: Map<string, unknown> };
+  previewReadme: ReturnType<typeof vi.fn>;
+};
 
 function repoDetail(key: string, defaultBranch?: string, branches: string[] = []) {
   return {
@@ -126,6 +130,34 @@ describe('RepoDetail default branch adoption', () => {
     await nextTick();
 
     expect(wrapper.find('.branch-select').attributes('value')).toBe('main-a');
+    wrapper.unmount();
+  });
+});
+
+describe('RepoDetail README preview', () => {
+  it('sends the instance id with the preview request', async () => {
+    // The host keys the preview document by instance id, so two instances
+    // showing a README must not share one document.
+    state.repoDetails.value.clear();
+    routeParams.instanceId = 'inst-1';
+    routeParams.owner = 'owner';
+    routeParams.repo = 'repoA';
+    state.repoDetails.value.set(keyFor('inst-1', 'owner', 'repoA'), {
+      ...repoDetail('repoA', 'main-a', ['main-a']),
+      readme: '# repoA',
+    });
+    state.previewReadme.mockClear();
+
+    const wrapper = mountHost();
+    await nextTick();
+
+    const preview = wrapper
+      .findAll('vscode-button')
+      .find((button) => button.attributes('aria-label') === 'Preview README');
+    expect(preview).toBeTruthy();
+    await preview!.trigger('click');
+
+    expect(state.previewReadme).toHaveBeenCalledWith('inst-1', 'owner', 'repoA', '# repoA');
     wrapper.unmount();
   });
 });

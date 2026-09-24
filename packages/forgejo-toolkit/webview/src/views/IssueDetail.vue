@@ -285,6 +285,14 @@ async function handleCommentSubmit() {
   if (!body) {
     return;
   }
+  // Capture the target before the first await. Posting the comment and
+  // uploading its attachments are separate round-trips, and `route.params`
+  // follows the global route: reading it again after an await would attach the
+  // files to whatever issue the user navigated to in the meantime — and would
+  // report a later failure on the form of the issue the user is looking at now
+  // instead of the one that was submitted.
+  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
+  const formKey = issueCommentFormKey(target.instanceId, target.owner, target.repo, target.index);
   try {
     let commentId = createdCommentId.value;
     // Retry mode: this exact body was already posted and the remaining
@@ -293,7 +301,7 @@ async function handleCommentSubmit() {
       commentId = undefined;
     }
     if (commentId === undefined) {
-      const comment = await state.createIssueComment(instanceId.value, owner.value, repo.value, index.value, body);
+      const comment = await state.createIssueComment(target.instanceId, target.owner, target.repo, target.index, body);
       if (comment.id === undefined) {
         throw new Error(t('common.commentCreationFailed'));
       }
@@ -308,10 +316,10 @@ async function handleCommentSubmit() {
       uploadingCommentAttachmentCount.value += 1;
       try {
         await state.uploadIssueCommentAttachment(
-          instanceId.value,
-          owner.value,
-          repo.value,
-          index.value,
+          target.instanceId,
+          target.owner,
+          target.repo,
+          target.index,
           commentId,
           file,
         );
@@ -321,10 +329,7 @@ async function handleCommentSubmit() {
     });
     if (remaining.length > 0) {
       pendingCommentAttachments.value = remaining;
-      state.errors.set(
-        commentFormKey.value,
-        t('dashboard.detail.commentAttachmentUploadFailed', { count: remaining.length }),
-      );
+      state.errors.set(formKey, t('dashboard.detail.commentAttachmentUploadFailed', { count: remaining.length }));
       return;
     }
     commentBody.value = '';
@@ -333,7 +338,7 @@ async function handleCommentSubmit() {
     createdCommentBody.value = undefined;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    state.errors.set(commentFormKey.value, message);
+    state.errors.set(formKey, message);
   }
 }
 
@@ -444,18 +449,34 @@ function clearDueDate() {
   });
 }
 
+/**
+ * The detail the upload and attachment-delete handlers must write to: the issue
+ * the form that started them was opened for. `route.params` follows the global
+ * route, so the `detail` computed may already be the issue the user navigated
+ * to by the time one of those requests returns.
+ */
+function detailFor(target: { instanceId: string; owner: string; repo: string; index: number }) {
+  return state.issueDetails.value.get(issueDetailKey(target.instanceId, target.owner, target.repo, target.index));
+}
+
 async function deletePendingAttachments(): Promise<{ declined: number; failed: number }> {
   const ids = pendingDeleteAttachmentIds.value;
   if (ids.length === 0) {
     return { declined: 0, failed: 0 };
   }
+  // Capture the issue before the first await. The deletes are separate
+  // round-trips and `route.params` follows the global route: reading it again
+  // per id would delete the marked attachments of whatever issue the user
+  // navigated to in the meantime — and would drop them from that issue's local
+  // list instead of the one they were deleted from.
+  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
   isDeletingAttachments.value = true;
   deletingAttachmentId.value = ids[0];
   try {
     // allSettled: one declined confirmation (resolves false) or one failed
     // delete must not hide the outcome of the others.
     const results = await Promise.allSettled(
-      ids.map((id) => state.deleteIssueAttachment(instanceId.value, owner.value, repo.value, index.value, id)),
+      ids.map((id) => state.deleteIssueAttachment(target.instanceId, target.owner, target.repo, target.index, id)),
     );
     // A declined host-side confirmation resolves to false: that attachment
     // still exists, so it must stay in the local list.
@@ -471,7 +492,7 @@ async function deletePendingAttachments(): Promise<{ declined: number; failed: n
         declined += 1;
       }
     });
-    const current = detail.value;
+    const current = detailFor(target);
     if (current?.assets && deletedIds.length > 0) {
       current.assets = current.assets.filter((a) => a.id === undefined || !deletedIds.includes(a.id));
     }
@@ -483,9 +504,18 @@ async function deletePendingAttachments(): Promise<{ declined: number; failed: n
 }
 
 async function handleUploadImage(file: File, onSuccess: (url: string) => void, onError: (error: string) => void) {
+  // Capture the issue before the await. The file belongs to the issue the form
+  // was opened for, not to whatever the route points at when the upload returns.
+  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
   try {
-    const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
-    const current = detail.value;
+    const attachment = await state.uploadIssueAttachment(
+      target.instanceId,
+      target.owner,
+      target.repo,
+      target.index,
+      file,
+    );
+    const current = detailFor(target);
     if (current) {
       if (!current.assets) {
         current.assets = [];
@@ -501,10 +531,19 @@ async function handleUploadImage(file: File, onSuccess: (url: string) => void, o
 }
 
 async function handleAttachmentUpload(file: File) {
+  // Same target capture as `handleUploadImage`: the edit dialog's attachment
+  // list belongs to the issue the form was opened for.
+  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
   uploadingAttachmentCount.value += 1;
   try {
-    const attachment = await state.uploadIssueAttachment(instanceId.value, owner.value, repo.value, index.value, file);
-    const current = detail.value;
+    const attachment = await state.uploadIssueAttachment(
+      target.instanceId,
+      target.owner,
+      target.repo,
+      target.index,
+      file,
+    );
+    const current = detailFor(target);
     if (current) {
       if (!current.assets) {
         current.assets = [];
@@ -514,7 +553,10 @@ async function handleAttachmentUpload(file: File) {
   } catch (error) {
     // Surface the failure in the edit dialog instead of swallowing it.
     const message = error instanceof Error ? error.message : String(error);
-    state.errors.set(editFormKey.value, t('dashboard.form.error', { message }));
+    state.errors.set(
+      issueFormKey(target.instanceId, target.owner, target.repo, target.index),
+      t('dashboard.form.error', { message }),
+    );
   } finally {
     uploadingAttachmentCount.value -= 1;
   }
@@ -577,9 +619,15 @@ watch(
       saved.repo === repo.value &&
       saved.index === index.value
     ) {
+      // Capture the saved issue before the first await: deleting the marked
+      // attachments and reloading the detail are separate round-trips, and
+      // `route.params` follows the global route. Reading it again afterwards
+      // would reload (and clear the pending list of) whatever issue the user
+      // navigated to in the meantime.
+      const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
       try {
         const outcome = await deletePendingAttachments();
-        state.loadIssueDetail(instanceId.value, owner.value, repo.value, index.value, true);
+        state.loadIssueDetail(target.instanceId, target.owner, target.repo, target.index, true);
         pendingDeleteAttachmentIds.value = [];
         isEditing.value = false;
         // The issue was saved; tell the user why a marked attachment is still
@@ -590,7 +638,10 @@ watch(
           : undefined;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        state.errors.set(editFormKey.value, t('dashboard.form.error', { message }));
+        state.errors.set(
+          issueFormKey(target.instanceId, target.owner, target.repo, target.index),
+          t('dashboard.form.error', { message }),
+        );
       }
     }
   },
@@ -827,17 +878,19 @@ function reloadIssue() {
               :owner="owner"
               :repo="repo"
             />
-            <AttachmentList
-              :assets="[]"
-              :allow-upload="true"
-              :allow-delete="false"
-              :uploading="uploadingCommentAttachmentCount > 0"
-              @upload="handleCommentAttachmentUpload($event)"
-            />
-            <PendingAttachmentList
-              :files="pendingCommentAttachments"
-              @remove="removePendingCommentAttachment($event)"
-            />
+            <div class="comment-form-attachments">
+              <AttachmentList
+                :assets="[]"
+                :allow-upload="true"
+                :allow-delete="false"
+                :uploading="uploadingCommentAttachmentCount > 0"
+                @upload="handleCommentAttachmentUpload($event)"
+              />
+              <PendingAttachmentList
+                :files="pendingCommentAttachments"
+                @remove="removePendingCommentAttachment($event)"
+              />
+            </div>
             <div class="comment-form-actions">
               <vscode-button
                 :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
@@ -1377,6 +1430,16 @@ function reloadIssue() {
   flex-direction: column;
   gap: 8px;
   margin-top: 12px;
+}
+
+/* Wraps the upload field and the pending list as one group. The two children
+   used to be direct children of `.comment-form`, so they took part in its 8px
+   gap; the wrapper has to reproduce that spacing towards them and towards the
+   action row, otherwise the form loses its rhythm. */
+.comment-form-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .comment-form-actions {

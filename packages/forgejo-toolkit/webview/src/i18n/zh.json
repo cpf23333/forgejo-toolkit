@@ -363,7 +363,8 @@
           "no_permission": "你没有合并权限",
           "conflicts": "存在冲突，无法自动合并",
           "required_approvals": "需要 {count} 个审查通过",
-          "required_status_checks": "状态检查未通过（当前状态：{state}）"
+          "required_status_checks": "状态检查未通过（当前状态：{state}）",
+          "unknown": "此 PR 存在无法识别的合并阻碍"
         }
       },
       "checks": "状态检查",

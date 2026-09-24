@@ -363,7 +363,8 @@
           "no_permission": "You do not have permission to merge",
           "conflicts": "This pull request has conflicts and cannot be merged automatically",
           "required_approvals": "{count} approval(s) required",
-          "required_status_checks": "Required status checks have not passed (state: {state})"
+          "required_status_checks": "Required status checks have not passed (state: {state})",
+          "unknown": "This pull request has an unrecognised merge blocker"
         }
       },
       "checks": "Checks",

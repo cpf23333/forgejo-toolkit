@@ -220,7 +220,7 @@ function reloadRepo() {
               icon="preview"
               :title="t('dashboard.actions.previewReadme')"
               :aria-label="t('dashboard.actions.previewReadme')"
-              @click="state.previewReadme(owner, repo, detail.readme)"
+              @click="state.previewReadme(instanceId, owner, repo, detail.readme)"
               secondary
             >
               <span class="button-label">{{ t('dashboard.actions.previewReadme') }}</span>

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { defineComponent, nextTick, reactive } from 'vue';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { computed, defineComponent, nextTick, reactive } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 
 const { stateMock, keyFor } = vi.hoisted(() => {
@@ -34,14 +34,19 @@ const { stateMock, keyFor } = vi.hoisted(() => {
 });
 
 // The route is reactive so a test can move the user to another repository while
-// a request from the create dialog is still in flight.
+// a request from the create dialog is still in flight, and so a test can move
+// the view off screen the way the app does: the keep-alive key is the route
+// path, which is how the view recognizes its own route.
 vi.mock('vue-router', async () => {
   const { reactive: makeReactive } = await import('vue');
-  const params = makeReactive({ instanceId: 'inst-1', owner: 'owner', repo: 'repoA', state: 'open' });
+  const route = makeReactive({
+    path: '/repo/inst-1/owner/repoA/issues/open',
+    params: { instanceId: 'inst-1', owner: 'owner', repo: 'repoA', state: 'open' },
+  });
   return {
-    useRoute: () => ({ params }),
+    useRoute: () => route,
     useRouter: () => ({ push: vi.fn() }),
-    __params: params,
+    __route: route,
   };
 });
 
@@ -62,10 +67,20 @@ vi.mock('../../composables/useAppState', async () => {
 
 import * as routerModule from 'vue-router';
 import RepoIssues from '../RepoIssues.vue';
+import { useAppState } from '../../composables/useAppState';
 import { createTestI18n } from '../../__tests__/helpers/test-utils';
 
-const routeParams = (routerModule as unknown as { __params: Record<string, string> }).__params;
-const state = stateMock;
+const route = (routerModule as unknown as { __route: { path: string; params: Record<string, string> } }).__route;
+const routeParams = route.params;
+// The reactive store, not the raw mock: a payload written straight into the raw
+// object would not invalidate the view's computeds, and a test about a reply
+// arriving would then never see it arrive.
+const state = useAppState() as unknown as typeof stateMock;
+
+const ISSUES_PATH = '/repo/inst-1/owner/repoA/issues/open';
+const ISSUE_DETAIL_PATH = '/issue/inst-1/owner/repoA/7';
+const OTHER_REPO_ISSUES_PATH = '/repo/inst-1/owner/repoB/issues/open';
+const KEY_A = keyFor('inst-1', 'owner', 'repoA', 'open', '');
 
 const IssueFormStub = defineComponent({
   name: 'IssueForm',
@@ -96,6 +111,116 @@ function mountView() {
     },
   });
 }
+
+/**
+ * The app keeps this view alive under a key that contains the route path, so a
+ * route change to another path both hides this instance and tells it that it is
+ * no longer the active one.
+ */
+function mountKeepAliveView(path = ISSUES_PATH) {
+  const View = defineComponent({
+    components: { RepoIssues },
+    setup() {
+      return { show: computed(() => route.path === path) };
+    },
+    template: '<KeepAlive><RepoIssues v-if="show" /></KeepAlive>',
+  });
+  return mount(View, {
+    global: {
+      plugins: [createTestI18n('en')],
+      stubs: { IssueForm: IssueFormStub, AttachmentList: AttachmentListStub },
+    },
+  });
+}
+
+function resetRoute() {
+  route.path = ISSUES_PATH;
+  routeParams.instanceId = 'inst-1';
+  routeParams.owner = 'owner';
+  routeParams.repo = 'repoA';
+  routeParams.state = 'open';
+  state.loading.clear();
+  state.errors.clear();
+  state.repoIssues.value.clear();
+}
+
+// The blob-URL test replaces the global URL helpers; restore them for every
+// later test in this file (and in the worker, which shares globals).
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/**
+ * Under keep-alive a view that no longer owns the active route keeps running
+ * its watchers, while `route.params` follows the global route. The route change
+ * that hides the view is also what changes `route`, and the display watcher is a
+ * pre-flush watcher: it runs before `onDeactivated`, so a guard that reads a
+ * lifecycle flag would still see the view as active and adopt the rows another
+ * view loaded.
+ */
+describe('RepoIssues inactive list', () => {
+  it('never adopts the rows of the repository the route moved to', async () => {
+    vi.clearAllMocks();
+    resetRoute();
+    state.repoIssues.value.set(KEY_A, [
+      { number: 1, title: 'shown row', state: 'open', updated_at: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const wrapper = mountKeepAliveView();
+    await nextTick();
+    expect(wrapper.text()).toContain('shown row');
+
+    // The user opens another repository's issue list. That hides this instance
+    // (the keep-alive key is the route path) and moves `route` in the same
+    // flush, and the other list arrives while this one is off screen.
+    route.path = OTHER_REPO_ISSUES_PATH;
+    routeParams.repo = 'repoB';
+    state.repoIssues.value.set(keyFor('inst-1', 'owner', 'repoB', 'open', ''), [
+      { number: 2, title: 'adopted row', state: 'open', updated_at: '2026-01-01T00:00:00Z' },
+    ]);
+    await flushPromises();
+
+    // Coming back: navigating between repositories released repoA's payload, so
+    // the list is refetched and the previous rows must stay on screen while it
+    // is in flight.
+    state.repoIssues.value.delete(KEY_A);
+    state.loading.set(KEY_A, true);
+    route.path = ISSUES_PATH;
+    routeParams.repo = 'repoA';
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('shown row');
+    expect(wrapper.text()).not.toContain('adopted row');
+    wrapper.unmount();
+  });
+
+  it('shows the rows that arrived while it was off screen', async () => {
+    vi.clearAllMocks();
+    resetRoute();
+
+    const wrapper = mountKeepAliveView();
+    await nextTick();
+
+    // The user opens an issue of the same repository while the list request is
+    // still in flight: the path changes, the list key does not.
+    route.path = ISSUE_DETAIL_PATH;
+    await flushPromises();
+
+    // The reply lands while the list is off screen; nothing it watches will
+    // change again when the user comes back to a key that never changed.
+    state.repoIssues.value.set(KEY_A, [
+      { number: 1, title: 'shown row', state: 'open', updated_at: '2026-01-01T00:00:00Z' },
+    ]);
+    state.loading.set(KEY_A, false);
+    await flushPromises();
+
+    route.path = ISSUES_PATH;
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('shown row');
+    wrapper.unmount();
+  });
+});
 
 /**
  * The create dialog spans several requests (create the issue, upload its
@@ -186,6 +311,27 @@ describe('RepoIssues create dialog target', () => {
       7,
       expect.objectContaining({ body: 'before  after' }),
     );
+    wrapper.unmount();
+  });
+
+  it('reports a failed submit on the form that was submitted', async () => {
+    vi.clearAllMocks();
+    resetRoute();
+    state.createIssue.mockImplementation(async () => {
+      // The user switches repository while the create request is in flight.
+      routeParams.repo = 'repoB';
+      throw new Error('create failed');
+    });
+
+    const wrapper = mountView();
+    await nextTick();
+    wrapper.findComponent(IssueFormStub).vm.$emit('submit', { title: 'New issue', body: 'body' });
+    await flushPromises();
+
+    // The failure belongs to the repoA form the user submitted, not to the form
+    // of the repository the route points at now.
+    expect(state.errors.get(keyFor('inst-1', 'owner', 'repoA', 0))).toContain('create failed');
+    expect(state.errors.has(keyFor('inst-1', 'owner', 'repoB', 0))).toBe(false);
     wrapper.unmount();
   });
 });
