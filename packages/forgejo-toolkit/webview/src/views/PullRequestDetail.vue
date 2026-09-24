@@ -110,7 +110,10 @@ const labels = computed(() => state.repoLabels.value.get(labelsKey.value) ?? [])
 const assignees = computed(() => state.repoAssignees.value.get(assigneesKey.value) ?? []);
 const milestones = computed(() => state.repoMilestones.value.get(milestonesKey.value) ?? []);
 const subscription = computed(() => state.issueSubscriptions.value.get(subscriptionKey.value));
+const subscriptionError = computed(() => state.errors.get(subscriptionKey.value));
 const trackedTimes = computed(() => state.issueTrackedTimes.value.get(trackedTimesKey.value) ?? []);
+const trackedTimesError = computed(() => state.errors.get(trackedTimesKey.value));
+const trackedTimesSaving = computed(() => state.loading.get(trackedTimesKey.value) ?? false);
 const stopwatches = computed(() => state.userStopwatches.value.get(stopwatchesKey.value) ?? []);
 const isStopwatchRunning = computed(() =>
   stopwatches.value.some(
@@ -281,16 +284,23 @@ const pendingCommentUploads = createPendingUploads();
 // Mirrors the tracker so the form can show that the post is waiting on an
 // upload instead of appearing to do nothing.
 const uploadingCommentImageCount = ref(0);
-// True while a post is waiting for those uploads; keeps the form busy.
-const isAwaitingCommentUploads = ref(false);
-// The post button's busy state: the comment request itself, the attachment
-// list's own uploads, and the editor's in-flight image uploads.
+// True from the click that starts a post until that post has finished,
+// including its wait for the editor's in-flight image uploads. The button is
+// disabled while it is set, and the handler refuses a re-entrant click as well:
+// two submits would both pass the upload wait and post the same body twice.
+const commentSubmitting = ref(false);
+// The post button's busy state: the post itself (including its wait for the
+// editor's image uploads) and the attachment list's own uploads.
 const commentFormBusy = computed(
-  () => commentLoading.value || uploadingCommentAttachmentCount.value > 0 || isAwaitingCommentUploads.value,
+  () => commentSubmitting.value || commentLoading.value || uploadingCommentAttachmentCount.value > 0,
 );
 
 const manualTimeHours = ref(0);
 const manualTimeMinutes = ref(0);
+// Whether the manual form's values are waiting for their request's reply. They
+// stay in the form until it succeeds: clearing them on the click throws away
+// what the user typed the moment the request fails.
+const manualTimePending = ref(false);
 const selectedDependencyNumber = ref<number | undefined>(undefined);
 const isEditingDueDate = ref(false);
 const dueDateValue = ref<string | null>(null);
@@ -332,75 +342,90 @@ async function handleCommentImageUpload(
 }
 
 async function handleCommentSubmit() {
-  // The uploads insert their markdown into the editor only when their request
-  // returns. Waiting for them before reading the body is what keeps a post
-  // issued while an image was still uploading from dropping that image.
-  if (pendingCommentUploads.isPending()) {
-    isAwaitingCommentUploads.value = true;
-    try {
-      await pendingCommentUploads.waitForIdle();
-    } finally {
-      isAwaitingCommentUploads.value = false;
-    }
-  }
-  const body = commentBody.value.trim();
-  if (!body) {
+  // A click while this post is still running — waiting for an image upload, or
+  // for the comment request itself — must not start a second post: it would
+  // pass the same upload wait and submit the same body again.
+  if (commentSubmitting.value) {
     return;
   }
-  // Capture the target before the first await. Posting the comment and
-  // uploading its attachments are separate round-trips, and `route.params`
-  // follows the global route: reading it again after an await would attach the
-  // files to whatever pull request the user navigated to in the meantime — and
-  // would report a later failure on the form of the pull request the user is
-  // looking at now instead of the one that was submitted.
-  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
-  const formKey = issueCommentFormKey(target.instanceId, target.owner, target.repo, target.index);
+  commentSubmitting.value = true;
   try {
-    let commentId = createdCommentId.value;
-    // Retry mode: this exact body was already posted and the remaining
-    // attachments are still queued. An edited body means a new comment.
-    if (commentId === undefined || createdCommentBody.value !== body) {
-      commentId = undefined;
+    // The uploads insert their markdown into the editor only when their request
+    // returns. Waiting for them before reading the body is what keeps a post
+    // issued while an image was still uploading from dropping that image.
+    if (pendingCommentUploads.isPending()) {
+      await pendingCommentUploads.waitForIdle();
     }
-    if (commentId === undefined) {
-      const comment = await state.createIssueComment(target.instanceId, target.owner, target.repo, target.index, body);
-      if (comment.id === undefined) {
-        throw new Error(t('common.commentCreationFailed'));
+    const body = commentBody.value.trim();
+    if (!body) {
+      return;
+    }
+    // Capture the target before the first await. Posting the comment and
+    // uploading its attachments are separate round-trips, and `route.params`
+    // follows the global route: reading it again after an await would attach the
+    // files to whatever pull request the user navigated to in the meantime — and
+    // would report a later failure on the form of the pull request the user is
+    // looking at now instead of the one that was submitted.
+    const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
+    const formKey = issueCommentFormKey(target.instanceId, target.owner, target.repo, target.index);
+    try {
+      let commentId = createdCommentId.value;
+      // Retry mode: this exact body was already posted and the remaining
+      // attachments are still queued. An edited body means a new comment.
+      if (commentId === undefined || createdCommentBody.value !== body) {
+        commentId = undefined;
       }
-      commentId = comment.id;
-      createdCommentId.value = commentId;
-      createdCommentBody.value = body;
-    }
-    // The comment exists from here on: upload the files that are still pending
-    // and keep only the failures queued, so a resubmit adds the missing
-    // attachments to that comment instead of posting a duplicate comment.
-    const remaining = await uploadFilesKeepingFailures(pendingCommentAttachments.value, async (file) => {
-      uploadingCommentAttachmentCount.value += 1;
-      try {
-        await state.uploadIssueCommentAttachment(
+      if (commentId === undefined) {
+        const comment = await state.createIssueComment(
           target.instanceId,
           target.owner,
           target.repo,
           target.index,
-          commentId,
-          file,
+          body,
         );
-      } finally {
-        uploadingCommentAttachmentCount.value -= 1;
+        if (comment.id === undefined) {
+          throw new Error(t('common.commentCreationFailed'));
+        }
+        commentId = comment.id;
+        createdCommentId.value = commentId;
+        createdCommentBody.value = body;
       }
-    });
-    if (remaining.length > 0) {
-      pendingCommentAttachments.value = remaining;
-      state.errors.set(formKey, t('dashboard.detail.commentAttachmentUploadFailed', { count: remaining.length }));
-      return;
+      // The comment exists from here on: upload the files that are still pending
+      // and keep only the failures queued, so a resubmit adds the missing
+      // attachments to that comment instead of posting a duplicate comment.
+      const remaining = await uploadFilesKeepingFailures(pendingCommentAttachments.value, async (file) => {
+        uploadingCommentAttachmentCount.value += 1;
+        try {
+          await state.uploadIssueCommentAttachment(
+            target.instanceId,
+            target.owner,
+            target.repo,
+            target.index,
+            commentId,
+            file,
+          );
+        } finally {
+          uploadingCommentAttachmentCount.value -= 1;
+        }
+      });
+      if (remaining.length > 0) {
+        pendingCommentAttachments.value = remaining;
+        state.errors.set(formKey, t('dashboard.detail.commentAttachmentUploadFailed', { count: remaining.length }));
+        return;
+      }
+      commentBody.value = '';
+      pendingCommentAttachments.value = [];
+      createdCommentId.value = undefined;
+      createdCommentBody.value = undefined;
+      // The notice an earlier failed upload left is over: retry mode skips
+      // `createIssueComment`, which is what clears this key's error otherwise.
+      state.errors.delete(formKey);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      state.errors.set(formKey, message);
     }
-    commentBody.value = '';
-    pendingCommentAttachments.value = [];
-    createdCommentId.value = undefined;
-    createdCommentBody.value = undefined;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    state.errors.set(formKey, message);
+  } finally {
+    commentSubmitting.value = false;
   }
 }
 
@@ -695,6 +720,12 @@ function toggleSubscription() {
   state.changeIssueSubscription(instanceId.value, owner.value, repo.value, index.value, user, subscribe);
 }
 
+// A failed check leaves no payload, so the panel would keep its "Loading..."
+// state forever; the error branch of the template takes over instead.
+function reloadSubscription() {
+  state.loadIssueSubscription(instanceId.value, owner.value, repo.value, index.value, true);
+}
+
 function handleIssueReactionToggle(content: string, add: boolean) {
   state.changeIssueReaction(instanceId.value, owner.value, repo.value, index.value, content, add);
 }
@@ -706,10 +737,19 @@ function addManualTime() {
   if (seconds <= 0) {
     return;
   }
+  manualTimePending.value = true;
   state.addIssueTime(instanceId.value, owner.value, repo.value, index.value, seconds);
-  manualTimeHours.value = 0;
-  manualTimeMinutes.value = 0;
 }
+
+// The form clears only once the server accepted what was typed. A failure keeps
+// the values (and shows the error below) so a retry needs no retyping.
+watch(trackedTimesSaving, (saving, wasSaving) => {
+  if (manualTimePending.value && wasSaving && !saving && !trackedTimesError.value) {
+    manualTimePending.value = false;
+    manualTimeHours.value = 0;
+    manualTimeMinutes.value = 0;
+  }
+});
 
 function addDependency() {
   const dependencyIndex = selectedDependencyNumber.value;
@@ -1375,10 +1415,7 @@ function reloadPullRequest() {
               />
             </div>
             <div class="comment-form-actions">
-              <vscode-button
-                :disabled="!commentBody.trim() || commentLoading || uploadingCommentAttachmentCount > 0"
-                @click="handleCommentSubmit"
-              >
+              <vscode-button :disabled="!commentBody.trim() || commentFormBusy" @click="handleCommentSubmit">
                 {{ commentFormBusy ? t('dashboard.form.saving') : t('dashboard.detail.postComment') }}
               </vscode-button>
             </div>
@@ -1638,7 +1675,13 @@ function reloadPullRequest() {
         </CollapsibleSection>
 
         <CollapsibleSection :title="t('dashboard.detail.subscription')">
-          <div v-if="subscription === undefined" class="loading-inline">{{ t('dashboard.loading') }}</div>
+          <div v-if="subscriptionError" class="subscription-error">
+            <span class="error">{{ t('dashboard.error', { message: subscriptionError }) }}</span>
+            <vscode-button icon="refresh" @click="reloadSubscription" secondary>
+              {{ t('dashboard.retry') }}
+            </vscode-button>
+          </div>
+          <div v-else-if="subscription === undefined" class="loading-inline">{{ t('dashboard.loading') }}</div>
           <div v-else class="subscription-actions">
             <vscode-button
               :icon="subscription.subscribed ? 'bell-slash' : 'bell'"
@@ -1662,6 +1705,9 @@ function reloadPullRequest() {
           <p v-if="stopwatchElsewhere && !isStopwatchRunning" class="time-tracking-hint">
             {{ t('dashboard.detail.stopwatchRunningElsewhere', { issue: stopwatchElsewhereLabel }) }}
           </p>
+          <div v-if="trackedTimesError" class="error time-tracking-error">
+            {{ t('dashboard.error', { message: trackedTimesError }) }}
+          </div>
           <div class="time-tracking-actions">
             <vscode-button
               v-if="!isStopwatchRunning"
@@ -2279,6 +2325,22 @@ function reloadPullRequest() {
 .subscription-actions {
   display: flex;
   gap: 8px;
+}
+
+/* A failed subscription check: the message above its own retry, instead of a
+   "Loading..." line that never ends. */
+.subscription-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.9em;
+}
+
+.time-tracking-error {
+  color: var(--vscode-testing-iconFailed);
+  font-size: 0.9em;
+  margin-bottom: 8px;
 }
 
 .time-tracking-summary {

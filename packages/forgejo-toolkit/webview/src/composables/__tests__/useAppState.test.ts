@@ -1353,9 +1353,10 @@ describe('useAppState', () => {
 
       // The TTL caches no longer answer, so the loads go back to the host
       // instead of serving data that is up to a minute old. The contents call
-      // is the combined load, so its post is what proves the cache is gone.
+      // is the combined load, so its post is what proves the cache is gone; the
+      // issue list needs no call of its own — the refresh re-issues the held
+      // list itself (see the replay test below).
       state.loadRepoContents('inst-1', 'owner', 'repo', '', 'main');
-      state.loadRepoIssues('inst-1', 'owner', 'repo', 'open');
 
       expect(vscodePostMessage()).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1376,6 +1377,82 @@ describe('useAppState', () => {
           state: 'open',
         }),
       );
+    });
+
+    it('refreshData re-issues the held repository issue/PR list requests itself', async () => {
+      const { state } = await createState();
+      dispatchMessage({
+        command: 'instances',
+        data: [
+          { id: 'inst-1', url: 'https://forgejo.example.com', name: 'user@forgejo.example.com', username: 'user' },
+        ],
+      });
+      await nextTick();
+      // Two repositories, each held on a different filter: the replay has to
+      // carry the state (and the search query) of the list that is on screen,
+      // not a fixed 'open' the view may never have asked for.
+      dispatchMessage({
+        command: 'repoIssues',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        state: 'closed',
+        issues: [fakeIssue],
+      });
+      dispatchMessage({
+        command: 'repoIssues',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'beta',
+        state: 'open',
+        query: 'flaky',
+        issues: [fakeIssue],
+      });
+      dispatchMessage({
+        command: 'repoPullRequests',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        state: 'all',
+        pullRequests: [fakePullRequest],
+      });
+      await nextTick();
+      vscodePostMessage().mockClear();
+
+      dispatchMessage({ command: 'refreshData' });
+
+      // The RepoIssues/RepoPullRequests views only re-issue a load when their
+      // route params change or they are re-activated, so a refresh pressed while
+      // one is open has to post these itself — otherwise the user is left on an
+      // empty list with no request in flight.
+      const posted = vscodePostMessage().mock.calls.map(([message]) => message);
+      expect(posted).toContainEqual({
+        command: 'getRepoIssues',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        state: 'closed',
+        query: undefined,
+      });
+      expect(posted).toContainEqual({
+        command: 'getRepoIssues',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'beta',
+        state: 'open',
+        query: 'flaky',
+      });
+      expect(posted).toContainEqual({
+        command: 'getRepoPullRequests',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        state: 'all',
+        query: undefined,
+      });
+      // The dropped payloads are what the re-issued requests replace.
+      expect(state.repoIssues.value.size).toBe(0);
+      expect(state.repoPullRequests.value.size).toBe(0);
     });
 
     it('loadRepoContents uses cache on repeat calls', async () => {
@@ -2269,6 +2346,41 @@ describe('useAppState', () => {
       dispatchMessage({ command: 'allNotificationsMarkedRead', instanceId: 'inst-1' });
       await nextTick();
       expect(state.unreadViewNotificationCount.value).toBe(0);
+    });
+
+    it('loads the unread list once for the badge when the poller never reports', async () => {
+      const { state } = await createStateWithInstance();
+      vscodePostMessage().mockClear();
+
+      state.loadNotificationBadge('inst-1');
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getNotifications', instanceId: 'inst-1' }),
+      );
+
+      dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+      await nextTick();
+
+      // The requested page is the unfiltered `['unread', 'pinned']` list the
+      // poller would have pushed, so it fills the badge slot as well.
+      expect(state.polledNotifications.value.get('inst-1')).toEqual([fakeNotification]);
+      expect(state.unreadNotificationCount.value).toBe(1);
+
+      // One shot per instance: a later dashboard activation must not re-ask.
+      vscodePostMessage().mockClear();
+      state.loadNotificationBadge('inst-1');
+      expect(vscodePostMessage()).not.toHaveBeenCalled();
+    });
+
+    it('leaves the badge to the poller once a poll has answered', async () => {
+      const { state } = await createStateWithInstance();
+      dispatchMessage({ command: 'polledNotifications', instanceId: 'inst-1', notifications: [fakeNotification] });
+      await nextTick();
+      vscodePostMessage().mockClear();
+
+      state.loadNotificationBadge('inst-1');
+
+      expect(vscodePostMessage()).not.toHaveBeenCalled();
+      expect(state.unreadNotificationCount.value).toBe(1);
     });
   });
 

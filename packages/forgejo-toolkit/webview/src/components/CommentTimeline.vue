@@ -9,7 +9,12 @@ import EasyMdeEditor from './EasyMdeEditor.vue';
 import ReactionBar from './ReactionBar.vue';
 import IconActionButton from './IconActionButton.vue';
 import type { ForgejoTimelineComment, ForgejoIssueAttachment } from '../types/api';
-import { useAppState, issueCommentEditFormKey, commentReactionsKey } from '../composables/useAppState';
+import {
+  useAppState,
+  issueCommentEditFormKey,
+  issueCommentDeleteFormKey,
+  commentReactionsKey,
+} from '../composables/useAppState';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import { createPendingUploads } from '../utils/pendingUploads';
 
@@ -30,7 +35,11 @@ const renderedBodies = reactive<Record<string, string>>({});
 // Body each rendered HTML was produced from: a comment keeps its id across
 // edits, so the cache must re-render when the body changes.
 const renderedBodySources = reactive<Record<string, string>>({});
-const loadingIds = ref<Set<string>>(new Set());
+// Rows whose markdown has been queued or is being rendered. The render queue
+// only runs MAX_MARKDOWN_RENDERS_IN_FLIGHT renders at a time, so a row waiting
+// for a slot has no HTML yet and must show the loading placeholder: feeding an
+// empty body to MarkdownBody would claim the comment has no description.
+const pendingRenderIds = ref<Set<string>>(new Set());
 const uploadingCommentCount = ref(0);
 const uploadErrors = reactive<Record<number, string>>({});
 const editingComment = ref<ForgejoTimelineComment | undefined>(undefined);
@@ -82,7 +91,6 @@ async function renderComment(comment: ForgejoTimelineComment) {
   if (renderedBodies[key] && renderedBodySources[key] === comment.body) {
     return;
   }
-  loadingIds.value.add(key);
   try {
     const html = await state.renderMarkdown(props.instanceId, comment.body);
     renderedBodies[key] = html;
@@ -90,7 +98,6 @@ async function renderComment(comment: ForgejoTimelineComment) {
     renderedBodies[key] = comment.body;
   } finally {
     renderedBodySources[key] = comment.body;
-    loadingIds.value.delete(key);
   }
 }
 
@@ -106,11 +113,12 @@ const sortedComments = computed(() => {
   return list;
 });
 
-// A busy pull request can carry MAX_ITEMS timeline entries; marking every entry
-// as loading in one tick would fire one markdown request (and one reaction
-// request) per comment at once. At most this many markdown renders are in
-// flight; the rest wait for a slot, so the host sees a trickle instead of a
-// burst while every comment still gets rendered.
+// A busy pull request can carry MAX_ITEMS timeline entries; firing one markdown
+// request (and one reaction request) per comment in a single tick would hammer
+// the host. At most this many markdown renders are in flight; the rest wait for
+// a slot, so the host sees a trickle instead of a burst while every comment
+// still gets rendered. A row waiting for a slot shows the loading placeholder
+// (see pendingRenderIds) instead of an empty body.
 const COMMENT_RENDER_BATCH = 25;
 const MAX_MARKDOWN_RENDERS_IN_FLIGHT = 4;
 let markdownRendersInFlight = 0;
@@ -137,6 +145,7 @@ function pumpCommentRenders() {
     const comment = queuedCommentRenders.shift()!;
     markdownRendersInFlight += 1;
     void renderComment(comment).finally(() => {
+      pendingRenderIds.value.delete(commentKey(comment));
       markdownRendersInFlight = Math.max(0, markdownRendersInFlight - 1);
       pumpCommentRenders();
     });
@@ -160,9 +169,18 @@ function requestCommentData(comments: ForgejoTimelineComment[]) {
     if (renderedBodies[key] && renderedBodySources[key] === comment.body) {
       continue;
     }
-    if (loadingIds.value.has(key) || queuedCommentRenders.includes(comment)) {
+    const queued = queuedCommentRenders.findIndex((candidate) => commentKey(candidate) === key);
+    if (queued >= 0) {
+      // The body changed while the row was still waiting for a render slot:
+      // keep it pending, but render the newer body when its turn comes.
+      queuedCommentRenders[queued] = comment;
       continue;
     }
+    if (pendingRenderIds.value.has(key)) {
+      // Already queued or being rendered.
+      continue;
+    }
+    pendingRenderIds.value.add(key);
     queuedCommentRenders.push(comment);
   }
   pumpCommentRenders();
@@ -289,6 +307,19 @@ function openExternal(url: string) {
 
 function isOwnComment(comment: ForgejoTimelineComment): boolean {
   return comment.user?.login === currentUsername.value && comment.id !== undefined;
+}
+
+/**
+ * A rejected delete (403/404/offline) leaves the comment on screen: the host
+ * answers with an error and it is stored under the comment's delete-form key
+ * (see handleIssueCommentDeleted). The row has to show it, or the comment just
+ * refuses to disappear with no reason given.
+ */
+function commentDeleteError(comment: ForgejoTimelineComment): string | undefined {
+  if (comment.id === undefined) {
+    return undefined;
+  }
+  return state.errors.get(issueCommentDeleteFormKey(props.instanceId, props.owner, props.repo, comment.id));
 }
 
 function setMenuRef(comment: ForgejoTimelineComment, el: unknown) {
@@ -523,6 +554,9 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
           />
         </div>
       </div>
+      <div v-if="commentDeleteError(comment)" class="error comment-delete-error">
+        {{ t('dashboard.error', { message: commentDeleteError(comment) }) }}
+      </div>
       <div v-if="comment.type === 'pull_push'" class="push-event">
         <div v-if="getPushEvent(comment)?.is_force_push" class="force-push-badge">
           {{ t('dashboard.detail.forcePushed') }}
@@ -540,7 +574,9 @@ function markAttachmentForDelete(asset: ForgejoIssueAttachment) {
         </div>
       </div>
       <div v-else-if="comment.body" class="comment-body">
-        <div v-if="loadingIds.has(commentKey(comment))" class="loading">{{ t('dashboard.detail.renderingBody') }}</div>
+        <div v-if="pendingRenderIds.has(commentKey(comment))" class="loading">
+          {{ t('dashboard.detail.renderingBody') }}
+        </div>
         <MarkdownBody
           v-else
           :html="renderedBodies[commentKey(comment)] ?? ''"

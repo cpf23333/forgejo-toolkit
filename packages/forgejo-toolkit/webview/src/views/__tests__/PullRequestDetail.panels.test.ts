@@ -1,6 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { defineComponent, nextTick, reactive } from 'vue';
-import { flushPromises, mount } from '@vue/test-utils';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { nextTick, reactive } from 'vue';
+import { mount } from '@vue/test-utils';
 
 const { stateMock, keyFor } = vi.hoisted(() => {
   const keyFor = (...parts: unknown[]) => parts.join('|');
@@ -93,8 +93,10 @@ vi.mock('../../composables/useAppState', async () => {
     repoAssigneesKey: keyBuilder,
     repoMilestonesKey: keyBuilder,
     repoIssuesKey: keyBuilder,
-    issueSubscriptionKey: keyBuilder,
-    issueTrackedTimesKey: keyBuilder,
+    // Distinct from the tracked-time key: the two panels share the `loading`
+    // and `errors` maps, so one key for both would hide which panel is broken.
+    issueSubscriptionKey: (...parts: unknown[]) => `subscription|${keyFor(...parts)}`,
+    issueTrackedTimesKey: (...parts: unknown[]) => `times|${keyFor(...parts)}`,
     userStopwatchesKey: keyBuilder,
     issueDependenciesKey: keyBuilder,
     issueReactionsKey: keyBuilder,
@@ -107,18 +109,8 @@ import { createTestRouter, createTestI18n } from '../../__tests__/helpers/test-u
 
 const state = useAppState() as unknown as Record<string, any>;
 
-// Keeps the upload handler reachable from the test while still feeding the
-// editor's `update:modelValue` back into the view.
-const EasyMdeEditorStub = defineComponent({
-  name: 'EasyMdeEditor',
-  props: {
-    modelValue: { type: String, default: '' },
-    uploadImage: { type: Function, default: undefined },
-  },
-  emits: ['update:modelValue'],
-  template:
-    '<textarea class="editor-stub" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
-});
+const SUBSCRIPTION_KEY = `subscription|${keyFor('inst-1', 'owner', 'repo', 1)}`;
+const TIMES_KEY = `times|${keyFor('inst-1', 'owner', 'repo', 1)}`;
 
 function pullRequestDetail(index: number) {
   return {
@@ -147,12 +139,11 @@ async function mountView() {
       plugins: [router, createTestI18n('en')],
       stubs: {
         AttachmentList: true,
-        CollapsibleSection: true,
         CommentTimeline: true,
         CommitDiffList: true,
         DateTimePicker: true,
         DiffFileList: true,
-        EasyMdeEditor: EasyMdeEditorStub,
+        EasyMdeEditor: true,
         MarkdownBody: true,
         ModalDialog: true,
         PendingAttachmentList: true,
@@ -166,102 +157,103 @@ async function mountView() {
 }
 
 /**
- * Posting a pull request comment spans two round-trips (the comment, then the
- * image upload whose success callback is what inserts `![image](url)` into the
- * body). A post issued while the upload is in flight would serialise a body
- * that predates the image, so it has to wait for the upload.
+ * The subscription and time-tracking panels of a pull request behave exactly
+ * like the issue ones: a failed subscription check used to leave a permanent
+ * "Loading..." with no error, and a failed time-tracking request left no trace
+ * while the manual form cleared itself before the server had answered.
  */
-describe('PullRequestDetail comment submit waits for an in-flight image upload', () => {
+describe('PullRequestDetail sidebar panels', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.errors.clear();
     state.loading.clear();
+    state.issueSubscriptions.value.clear();
+    state.issueTrackedTimes.value.clear();
+    state.userStopwatches.value.clear();
     state.pullRequestDetails.value.clear();
     state.pullRequestComments.value.clear();
     state.pullRequestComments.value.set(keyFor('inst-1', 'owner', 'repo', 1), []);
     state.pullRequestDetails.value.set(keyFor('inst-1', 'owner', 'repo', 1), pullRequestDetail(1));
-    state.createIssueComment.mockResolvedValue({ id: 21 });
   });
 
-  it('posts the body the editor holds once the upload has inserted its image', async () => {
-    let resolveUpload!: (attachment: { uuid: string }) => void;
-    state.uploadIssueAttachment.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveUpload = resolve;
-        }),
-    );
+  it('shows a failed subscription check and a retry instead of spinning forever', async () => {
+    state.errors.set(SUBSCRIPTION_KEY, 'the check failed');
 
     const wrapper = await mountView();
-    await wrapper.find('.comment-form .editor-stub').setValue('see this');
 
-    const editor = wrapper.find('.comment-form').findComponent(EasyMdeEditorStub);
-    const upload = editor.props('uploadImage') as (
-      file: File,
-      onSuccess: (url: string) => void,
-      onError: (error: string) => void,
-    ) => void;
-    upload(
-      new File(['x'], 'shot.png', { type: 'image/png' }),
-      (url) => {
-        // What EasyMdeEditor's imageUploadFunction does on success.
-        void wrapper.find('.comment-form .editor-stub').setValue(`see this\n\n![image](${url})`);
-      },
-      () => {},
-    );
-    await nextTick();
+    expect(wrapper.find('.subscription-error').text()).toContain('the check failed');
+    expect(wrapper.find('.subscription-actions').exists()).toBe(false);
 
-    await wrapper.find('.comment-form-actions vscode-button').trigger('click');
-    await nextTick();
-
-    expect(state.createIssueComment).not.toHaveBeenCalled();
-
-    resolveUpload({ uuid: 'uuid-1' });
-    await flushPromises();
-
-    expect(state.createIssueComment).toHaveBeenCalledTimes(1);
-    expect(state.createIssueComment.mock.calls[0][4] as string).toContain('![image](/attachments/uuid-1)');
+    await wrapper.find('.subscription-error vscode-button').trigger('click');
+    expect(state.loadIssueSubscription).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 1, true);
     wrapper.unmount();
   });
 
-  it('posts one comment when the button is clicked twice while an upload is in flight', async () => {
-    let resolveUpload!: (attachment: { uuid: string }) => void;
-    state.uploadIssueAttachment.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveUpload = resolve;
-        }),
-    );
+  it('offers the subscribe action once the check answered', async () => {
+    state.issueSubscriptions.value.set(SUBSCRIPTION_KEY, { subscribed: false });
 
     const wrapper = await mountView();
-    await wrapper.find('.comment-form .editor-stub').setValue('see this');
 
-    const editor = wrapper.find('.comment-form').findComponent(EasyMdeEditorStub);
-    const upload = editor.props('uploadImage') as (
-      file: File,
-      onSuccess: (url: string) => void,
-      onError: (error: string) => void,
-    ) => void;
-    upload(
-      new File(['x'], 'shot.png', { type: 'image/png' }),
-      () => {},
-      () => {},
-    );
+    expect(wrapper.find('.subscription-error').exists()).toBe(false);
+    expect(wrapper.find('.subscription-actions').text()).toContain('Subscribe');
+    wrapper.unmount();
+  });
+
+  it('shows a failed time-tracking request instead of dropping it', async () => {
+    state.errors.set(TIMES_KEY, 'add time failed');
+
+    const wrapper = await mountView();
+
+    expect(wrapper.find('.time-tracking-error').text()).toContain('add time failed');
+    wrapper.unmount();
+  });
+
+  it('keeps the typed time until the server accepts it', async () => {
+    const wrapper = await mountView();
+    const fields = wrapper.findAll('.time-tracking-form vscode-textfield');
+    (fields[0].element as HTMLInputElement).value = '2';
+    await fields[0].trigger('input');
     await nextTick();
 
-    const button = wrapper.find('.comment-form-actions vscode-button');
-    await button.trigger('click');
+    const addButton = wrapper.find('.time-tracking-form vscode-button');
+    await addButton.trigger('click');
+    expect(state.addIssueTime).toHaveBeenNthCalledWith(1, 'inst-1', 'owner', 'repo', 1, 7200);
+
+    // Still in flight: the values are still in the form, so pressing Add again
+    // re-sends the same time instead of doing nothing.
+    await addButton.trigger('click');
+    expect(state.addIssueTime).toHaveBeenNthCalledWith(2, 'inst-1', 'owner', 'repo', 1, 7200);
+
+    // Accepted: the form clears.
+    state.loading.set(TIMES_KEY, true);
     await nextTick();
-    // The post is waiting for the upload: a second click must not pass that
-    // wait as well and post the same body twice.
-    expect(button.attributes('disabled')).toBeDefined();
-    await button.trigger('click');
+    state.loading.set(TIMES_KEY, false);
+    await nextTick();
+    await addButton.trigger('click');
+    expect(state.addIssueTime).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it('keeps the typed time and reports the failure when the request fails', async () => {
+    const wrapper = await mountView();
+    const fields = wrapper.findAll('.time-tracking-form vscode-textfield');
+    (fields[1].element as HTMLInputElement).value = '30';
+    await fields[1].trigger('input');
     await nextTick();
 
-    resolveUpload({ uuid: 'uuid-1' });
-    await flushPromises();
+    const addButton = wrapper.find('.time-tracking-form vscode-button');
+    await addButton.trigger('click');
 
-    expect(state.createIssueComment).toHaveBeenCalledTimes(1);
+    state.loading.set(TIMES_KEY, true);
+    await nextTick();
+    state.errors.set(TIMES_KEY, 'add time failed');
+    state.loading.set(TIMES_KEY, false);
+    await nextTick();
+
+    expect(wrapper.find('.time-tracking-error').text()).toContain('add time failed');
+    // The values survived the failure, so the retry needs no retyping.
+    await addButton.trigger('click');
+    expect(state.addIssueTime).toHaveBeenNthCalledWith(2, 'inst-1', 'owner', 'repo', 1, 1800);
     wrapper.unmount();
   });
 });

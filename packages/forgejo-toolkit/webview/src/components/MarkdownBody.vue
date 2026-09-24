@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import MentionHoverCard from './MentionHoverCard.vue';
 import { useAppState } from '../composables/useAppState';
@@ -204,6 +204,11 @@ function handleMouseMove(event: MouseEvent) {
 function handleMouseLeave() {
   clearHover();
 }
+
+// A hover debounce that outlives the component would still call the host
+// preview commands and write refs of a dead component; clearHover also
+// abandons a preview request that is already in flight.
+onUnmounted(clearHover);
 </script>
 
 <template>

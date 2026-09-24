@@ -102,7 +102,10 @@ vi.mock('../../composables/useAppState', async () => {
     pullRequestStateKey: keyBuilder,
     pullRequestDueDateKey: keyBuilder,
     pullRequestMergeFormKey: keyBuilder,
-    issueCommentFormKey: keyBuilder,
+    // Distinct from the timeline's key: the real composable keys the comment
+    // form's error separately, and sharing one key here would hide the whole
+    // comment section (timeline included) as soon as a post failed.
+    issueCommentFormKey: (...parts: unknown[]) => `comment-form|${keyFor(...parts)}`,
     repoDetailKey: keyBuilder,
     repoLabelsKey: keyBuilder,
     repoAssigneesKey: keyBuilder,
@@ -168,6 +171,11 @@ function mountView() {
 
 function postButton(wrapper: ReturnType<typeof mountView>) {
   return wrapper.find('.comment-form-actions vscode-button');
+}
+
+/** The comment form's error slot for one repository. */
+function commentFormKey(repo: string): string {
+  return `comment-form|${keyFor('inst-1', 'owner', repo, 5)}`;
 }
 
 /**
@@ -248,8 +256,8 @@ describe('PullRequestDetail comment attachment target', () => {
 
     // The failure belongs to the repoA form the user submitted, not to the form
     // of the pull request the route points at now.
-    expect(state.errors.get(keyFor('inst-1', 'owner', 'repoA', 5))).toContain('comment failed');
-    expect(state.errors.has(keyFor('inst-1', 'owner', 'repoB', 5))).toBe(false);
+    expect(state.errors.get(commentFormKey('repoA'))).toContain('comment failed');
+    expect(state.errors.has(commentFormKey('repoB'))).toBe(false);
     wrapper.unmount();
   });
 
@@ -275,8 +283,42 @@ describe('PullRequestDetail comment attachment target', () => {
     await postButton(wrapper).trigger('click');
     await flushPromises();
 
-    expect(state.errors.has(keyFor('inst-1', 'owner', 'repoA', 5))).toBe(true);
-    expect(state.errors.has(keyFor('inst-1', 'owner', 'repoB', 5))).toBe(false);
+    expect(state.errors.has(commentFormKey('repoA'))).toBe(true);
+    expect(state.errors.has(commentFormKey('repoB'))).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('clears the failed-attachment notice once a retry uploads everything', async () => {
+    state.createIssueComment.mockResolvedValue({ id: 11 });
+    state.uploadIssueCommentAttachment
+      .mockRejectedValueOnce(new Error('upload failed'))
+      .mockResolvedValue({ id: 1, uuid: 'uuid-1' });
+
+    const wrapper = mountView();
+    await nextTick();
+
+    wrapper
+      .find('.comment-form-attachments')
+      .findComponent(AttachmentListStub)
+      .vm.$emit('upload', new File(['x'], 'shot.png', { type: 'image/png' }));
+    await nextTick();
+    await wrapper.find('.comment-form .editor-stub').setValue('a comment');
+    await nextTick();
+
+    await postButton(wrapper).trigger('click');
+    await flushPromises();
+
+    const key = commentFormKey('repoA');
+    expect(state.errors.get(key)).toContain('failed to upload');
+
+    // The retry reuses the posted comment (no second create) and uploads the
+    // file that failed; the notice must not outlive the failure it reported.
+    await postButton(wrapper).trigger('click');
+    await flushPromises();
+
+    expect(state.createIssueComment).toHaveBeenCalledTimes(1);
+    expect(state.uploadIssueCommentAttachment).toHaveBeenCalledTimes(2);
+    expect(state.errors.has(key)).toBe(false);
     wrapper.unmount();
   });
 });

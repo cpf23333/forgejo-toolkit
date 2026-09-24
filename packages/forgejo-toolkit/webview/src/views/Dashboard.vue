@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onActivated, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
@@ -37,6 +37,21 @@ const linkedRepositories = computed(() => state.linkedRepositories.value);
 function selectLinkedRepository(localPath: string) {
   state.selectLinkedRepository(localPath);
 }
+
+// The unread badge is fed by the host-side poller, which the
+// `forgejoToolkit.notificationPollingEnabled` setting can turn off; with polling
+// off nothing ever fills its slot. Ask once per instance while nothing has
+// answered for it (the load itself skips instances that already have a list).
+function loadUnreadBadges() {
+  for (const instance of instances.value) {
+    state.loadNotificationBadge(instance.id);
+  }
+}
+
+onMounted(loadUnreadBadges);
+onActivated(loadUnreadBadges);
+// The instance list arrives after the first render (`getInitialState`).
+watch(instances, loadUnreadBadges);
 </script>
 
 <template>

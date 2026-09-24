@@ -155,6 +155,34 @@ describe('useAppState instance identity changes', () => {
     expect(state.notifications.value.has(`${INSTANCE_A.id}:notifications`)).toBe(false);
   });
 
+  it('re-issues the dashboard loads of an instance whose identity changed', async () => {
+    const { state } = await createState();
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+    seedInstanceData(state);
+    vscodeApiMock.postMessage.mockClear();
+
+    dispatchMessage({
+      command: 'instances',
+      data: [{ ...INSTANCE_A, url: 'https://forgejo.example.com/beta' }],
+    });
+    await nextTick();
+
+    // Dropping the payloads is not enough on its own: the dashboard items are
+    // already mounted, so nothing re-issues their loads and the instance is
+    // rendered with no rows, no spinner and no empty text until the user
+    // switches tabs. The cleared lists have to be refetched right here.
+    expect(vscodeApiMock.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'getRepositories', instanceId: INSTANCE_A.id }),
+    );
+    expect(vscodeApiMock.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'getMyIssues', instanceId: INSTANCE_A.id, state: 'open' }),
+    );
+    expect(vscodeApiMock.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'getMyPullRequests', instanceId: INSTANCE_A.id, state: 'open' }),
+    );
+  });
+
   it('keeps the payloads when the list is re-sent unchanged', async () => {
     const { state } = await createState();
     dispatchMessage({ command: 'instances', data: [INSTANCE_A] });

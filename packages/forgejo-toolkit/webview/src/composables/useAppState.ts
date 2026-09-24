@@ -35,7 +35,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 /**
  * The host does not bound some commands by the webview's minute: it waits for
  * its own modal confirmation dialog (an unbounded human decision) before
- * replying to the two attachment-delete commands. Rejecting those at 60 s
+ * replying to the attachment-delete commands. Rejecting those at 60 s
  * would discard the real reply — and the work the user just confirmed —
  * while the host still considers the request in flight. They get the host's
  * long-operation budget instead (mirrors `API_DOWNLOAD_TIMEOUT_MS` in
@@ -48,6 +48,7 @@ const COMMAND_TIMEOUTS_MS: Record<string, number> = {
   // Host-side native confirmation before the reply.
   deleteReleaseAttachment: HOST_LONG_OPERATION_TIMEOUT_MS,
   deleteIssueCommentAttachment: HOST_LONG_OPERATION_TIMEOUT_MS,
+  deleteIssueAttachment: HOST_LONG_OPERATION_TIMEOUT_MS,
 };
 
 function requestTimeoutMs(command: string): number {
@@ -134,6 +135,55 @@ function isInRepoScope(key: string, scope: string): boolean {
 
 function clearRepoScope<V>(map: Map<string, V>, scope: string) {
   clearWhere(map, (key) => isInRepoScope(key, scope));
+}
+
+/** The request a held repository issue/PR list payload was answered for. */
+interface RepoListRequest {
+  instanceId: string;
+  owner: string;
+  repo: string;
+  state: string;
+  query?: string;
+}
+
+/**
+ * The request behind a held repository issue/PR list payload key, or undefined
+ * when `key` is not one of that instance's `${list}` payloads.
+ *
+ * `repoIssuesKey`/`repoPullRequestsKey` are pure functions of the request and a
+ * list's payload is released together with the list, so a held key is an exact
+ * record of the state and filter the view last asked for — the refresh has no
+ * other place to read them from. Keys look like
+ * `${instanceId}:${owner}/${repo}:${list}:${state}[:q=${query}]`.
+ */
+function parseRepoListKey(key: string, list: 'issues' | 'pulls', instanceIds: string[]): RepoListRequest | undefined {
+  // Longest first: one id may be a prefix of another (`inst` / `inst-2`).
+  for (const instanceId of instanceIds) {
+    const prefix = `${instanceId}:`;
+    if (!key.startsWith(prefix)) {
+      continue;
+    }
+    const marker = `:${list}:`;
+    const at = key.indexOf(marker, prefix.length);
+    if (at === -1) {
+      return undefined;
+    }
+    const scope = key.slice(prefix.length, at);
+    const slash = scope.indexOf('/');
+    if (slash <= 0) {
+      return undefined;
+    }
+    const rest = key.slice(at + marker.length);
+    const queryAt = rest.indexOf(':q=');
+    return {
+      instanceId,
+      owner: scope.slice(0, slash),
+      repo: scope.slice(slash + 1),
+      state: queryAt === -1 ? rest : rest.slice(0, queryAt),
+      query: queryAt === -1 ? undefined : rest.slice(queryAt + 3),
+    };
+  }
+  return undefined;
 }
 
 /**
@@ -298,6 +348,11 @@ function createAppState() {
   const notificationsBefore = ref<Map<string, string>>(new Map());
   const notificationsHasMore = ref<Map<string, boolean>>(new Map());
   const polledNotifications = ref<Map<string, ForgejoNotification[]>>(new Map());
+  // Instances with a one-shot badge request in flight (see
+  // loadNotificationBadge). The host's `notifications` reply carries no origin,
+  // so this is what tells handleNotifications that the page it just received is
+  // the badge's own unfiltered one and belongs in the badge slot too.
+  const badgeNotificationRequests = new Set<string>();
   // Per-instance poll failures (expired token, unreachable instance) so the
   // notifications view can show an error instead of a misleading empty state.
   const notificationPollErrors = ref<Map<string, string>>(new Map());
@@ -729,11 +784,14 @@ function createAppState() {
         // An instance keeps its id across an edit, so a URL or account change
         // leaves every payload cached under that id describing the *previous*
         // server/account. Drop them before the new list lands (see
-        // clearInstancePayloads).
+        // clearInstancePayloads) and re-issue the dashboard lists right away:
+        // the dashboard items are already mounted, so nothing else would ask the
+        // host again and the instance would render with no rows and no spinner.
         const changed = changedInstanceIdentities(instances.value, next);
         instances.value = next;
         for (const instanceId of changed) {
           clearInstancePayloads(instanceId);
+          reloadInstanceLists(instanceId);
         }
         break;
       }
@@ -3141,6 +3199,14 @@ function createAppState() {
     error?: string;
   }) {
     const key = notificationsKey(data.instanceId);
+    // The badge's own one-shot load (see loadNotificationBadge): its page is the
+    // unfiltered `['unread', 'pinned']` list the poller would have pushed, so it
+    // fills the badge slot as well as the view slot. The marker is dropped here
+    // whatever the reply says, so a later filtered reply can never be mistaken
+    // for it.
+    if (badgeNotificationRequests.delete(data.instanceId) && data.before === undefined && !data.error) {
+      setPayloadEntry(polledNotifications.value, data.instanceId, data.notifications ?? []);
+    }
     loading.set(key, false);
     // Replay the latest intent if filters changed while this request was in
     // flight (subjectType is filtered server-side, so the response that just
@@ -5023,6 +5089,9 @@ function createAppState() {
     // stale spinner or error for a server the user just replaced.
     clearWhere(loading, inScope);
     clearWhere(errors, inScope);
+    // A badge request still in flight for the replaced server must not claim
+    // the next reply for that id (see loadNotificationBadge).
+    badgeNotificationRequests.delete(instanceId);
   }
 
   /** Reactive payload maps whose keys are all instance-scoped. */
@@ -5132,9 +5201,11 @@ function createAppState() {
    * The repository-scoped caches go too (`repoContentsCache`, `repoDetailsCache`,
    * `repoRefsCache`, the issue/PR list marks, ...): a refresh is the escape hatch
    * for a repository that changed behind the extension, and those caches answer
-   * for up to a minute. Their payloads are kept so the view keeps showing the
-   * last known list while the refreshed request is in flight; the force-reload
-   * below replaces them as soon as the replies land.
+   * for up to a minute. The issue/PR list payloads are dropped with them (no
+   * force flag exists for those loaders) and re-issued right here, because the
+   * views only ask again when their own inputs change: a refresh pressed while
+   * RepoIssues or RepoPullRequests is open would otherwise leave an empty list
+   * with no request in flight.
    */
   function refreshInstanceData() {
     repositoriesCache.clear();
@@ -5153,17 +5224,46 @@ function createAppState() {
       clearWhere(repoPullRequestsFetchedAt, inScope);
     }
     for (const instance of instances.value) {
-      loadRepositories(instance.id, true);
-      loadMyIssues(instance.id, 'open', true);
-      loadMyPullRequests(instance.id, 'open', true);
+      reloadInstanceLists(instance.id);
     }
-    // The repository-scoped lists have no force flag: dropping the payload and
-    // its mark (above) is what makes the loaders ask the server again, so the
-    // views re-issue them as they re-render.
+    // Read the requests off the payload keys before the payloads go: they hold
+    // the state (and search query) of the list the user is actually looking at.
+    const instanceIds = instances.value.map((instance) => instance.id).sort((a, b) => b.length - a.length);
+    const replayList = (map: Map<string, unknown>, list: 'issues' | 'pulls'): RepoListRequest[] => {
+      const requests: RepoListRequest[] = [];
+      for (const key of map.keys()) {
+        const request = parseRepoListKey(key, list, instanceIds);
+        if (request) {
+          requests.push(request);
+        }
+      }
+      return requests;
+    };
+    const heldIssues = replayList(repoIssues.value, 'issues');
+    const heldPulls = replayList(repoPullRequests.value, 'pulls');
     for (const prefix of prefixes) {
       clearByPrefix(repoIssues.value, `${prefix}:issues:`);
       clearByPrefix(repoPullRequests.value, `${prefix}:pulls:`);
     }
+    for (const request of heldIssues) {
+      loadRepoIssues(request.instanceId, request.owner, request.repo, request.state, request.query);
+    }
+    for (const request of heldPulls) {
+      loadRepoPullRequests(request.instanceId, request.owner, request.repo, request.state, request.query);
+    }
+  }
+
+  /**
+   * Re-issues the dashboard lists (repositories, my issues, my pull requests) of
+   * one instance. Both the explicit refresh and an instance identity change drop
+   * the payloads those lists are served from; the dashboard items are already
+   * mounted, so nothing else would ask the host again before the user switches
+   * tabs — which leaves the instance rendered with no rows and no spinner.
+   */
+  function reloadInstanceLists(instanceId: string) {
+    loadRepositories(instanceId, true);
+    loadMyIssues(instanceId, 'open', true);
+    loadMyPullRequests(instanceId, 'open', true);
   }
 
   function loadMyIssues(instanceId: string, state = 'open', force = false) {
@@ -5246,6 +5346,38 @@ function createAppState() {
 
   function markNotificationRead(instanceId: string, id: number) {
     postMessage({ command: 'markNotificationRead', instanceId, id });
+  }
+  /**
+   * Fetches one instance's notifications for the unread badge.
+   *
+   * The badge is otherwise fed by the host-side poller, which
+   * `forgejoToolkit.notificationPollingEnabled` can turn off (the workaround
+   * KNOWN_ISSUES recommends): with polling off nothing ever fills its slot and
+   * the bell shows no count for an account that does have unread
+   * notifications. The dashboard asks once per instance instead, at the moment
+   * a view opens and only while nothing has answered for that instance yet, so
+   * this is not a poll by another name. The reply is the unfiltered
+   * `['unread', 'pinned']` page and lands in the badge slot as well as the view
+   * slot (see handleNotifications).
+   */
+  function loadNotificationBadge(instanceId: string) {
+    const key = notificationsKey(instanceId);
+    if (
+      polledNotifications.value.has(instanceId) ||
+      notifications.value.has(key) ||
+      loading.get(key) ||
+      badgeNotificationRequests.has(instanceId)
+    ) {
+      return;
+    }
+    beginLoading(key);
+    badgeNotificationRequests.add(instanceId);
+    postMessage({
+      command: 'getNotifications',
+      instanceId,
+      statusTypes: ['unread', 'pinned'],
+      limit: NOTIFICATIONS_LIMIT,
+    });
   }
 
   function markAllNotificationsRead(instanceId: string) {
@@ -5477,6 +5609,7 @@ function createAppState() {
     setGlobalSearchScope,
     setGlobalSearchQuery,
     loadNotifications,
+    loadNotificationBadge,
     markNotificationRead,
     markAllNotificationsRead,
   };

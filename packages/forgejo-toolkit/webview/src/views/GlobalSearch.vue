@@ -308,6 +308,12 @@ watch(stateFilter, () => {
       {{ t('dashboard.search.noInstances') }}
     </div>
 
+    <!-- With every instance unchecked there is nothing to search: say so
+         instead of falling through to the (necessarily empty) results branch. -->
+    <div v-else-if="targetInstances.length === 0" class="empty-state">
+      {{ t('dashboard.search.noInstanceSelected') }}
+    </div>
+
     <div v-else-if="!currentQuery() && !hasQueried()" class="empty-state">
       {{ t('dashboard.search.hint') }}
     </div>

@@ -111,6 +111,52 @@ describe('per-command host request timeouts', () => {
     }
   });
 
+  it('keeps deleteIssueAttachment pending past 60 s because the host waits on a modal confirmation', async () => {
+    const { state } = await createState();
+    vscodeApiMock.postMessage.mockClear();
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const promise = state.deleteIssueAttachment('inst-1', 'owner', 'repo', 1, 2);
+      promise.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+
+      const sent = postedMessage();
+      expect(sent.command).toBe('deleteIssueAttachment');
+      const requestId = sent._requestId as string;
+      expect(typeof requestId).toBe('string');
+
+      // The host pops its own native confirmation before replying, so the
+      // webview must not abandon a deletion the user is still confirming.
+      await vi.advanceTimersByTimeAsync(61_000);
+      expect(settled).toBe(false);
+
+      dispatchMessage({
+        command: 'issueAttachmentDeleted',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo',
+        index: 1,
+        attachmentId: 2,
+        _requestId: requestId,
+      });
+
+      await expect(promise).resolves.toBe(true);
+
+      // The real reply cleared the timer: no late rejection can follow.
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(settled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('rejects renderMarkdown at the default 60 s when the host never answers', async () => {
     const { state } = await createState();
     vscodeApiMock.postMessage.mockClear();

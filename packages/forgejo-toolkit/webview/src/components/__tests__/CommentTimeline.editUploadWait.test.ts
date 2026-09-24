@@ -27,6 +27,8 @@ vi.mock('../../composables/useAppState', async () => {
       `${instanceId}:${owner}/${repo}:comment:${commentId}:reactions`,
     issueCommentEditFormKey: (instanceId: string, owner: string, repo: string, commentId: number) =>
       `${instanceId}:${owner}/${repo}:comment-${commentId}:edit`,
+    issueCommentDeleteFormKey: (instanceId: string, owner: string, repo: string, commentId: number) =>
+      `${instanceId}:${owner}/${repo}:comment-${commentId}:delete-form`,
   };
 });
 

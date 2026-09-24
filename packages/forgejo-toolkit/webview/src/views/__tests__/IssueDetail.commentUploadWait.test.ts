@@ -232,4 +232,46 @@ describe('IssueDetail comment submit waits for an in-flight image upload', () =>
     expect(state.createIssueComment).toHaveBeenCalledWith('inst-1', 'owner', 'repoA', 5, 'a comment');
     wrapper.unmount();
   });
+
+  it('posts one comment when the button is clicked twice while an upload is in flight', async () => {
+    let resolveUpload!: (attachment: { uuid: string }) => void;
+    state.uploadIssueAttachment.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpload = resolve;
+        }),
+    );
+
+    const wrapper = mountView();
+    await nextTick();
+    await wrapper.find('.comment-form .editor-stub').setValue('see this');
+
+    const upload = commentEditor(wrapper).props('uploadImage') as (
+      file: File,
+      onSuccess: (url: string) => void,
+      onError: (error: string) => void,
+    ) => void;
+    upload(
+      new File(['x'], 'shot.png', { type: 'image/png' }),
+      () => {},
+      () => {},
+    );
+    await nextTick();
+
+    const button = wrapper.find('.comment-form-actions vscode-button');
+    // The first click starts waiting for the upload.
+    await button.trigger('click');
+    await nextTick();
+    // The form is busy with that wait, so the button must not accept a second
+    // click — both would pass the wait and post the same body twice.
+    expect(button.attributes('disabled')).toBeDefined();
+    await button.trigger('click');
+    await nextTick();
+
+    resolveUpload({ uuid: 'uuid-1' });
+    await flushPromises();
+
+    expect(state.createIssueComment).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
 });

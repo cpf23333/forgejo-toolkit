@@ -273,11 +273,20 @@ function setJobLogElement(el: HTMLPreElement | null, jobId: number | undefined) 
   if (jobId === undefined) {
     return;
   }
-  if (el) {
-    jobLogElements.value.set(jobId, el);
-    scrollJobLogToBottom(el);
-  } else {
+  if (!el) {
     jobLogElements.value.delete(jobId);
+    return;
+  }
+  // The template's inline ref function has a fresh identity on every render, so
+  // Vue re-invokes it whenever the log is patched — which is once per poll tick.
+  // Follow the tail only for a freshly mounted element or while the user is
+  // already at the bottom; otherwise leave the scroll position to the watcher
+  // above, so a log the user scrolled up stays where they left it.
+  const isNewElement = !jobLogElements.value.has(jobId);
+  jobLogElements.value.set(jobId, el);
+  const wasAtBottom = jobLogScrollStates.value.get(jobId)?.wasAtBottom ?? true;
+  if (isNewElement || wasAtBottom) {
+    scrollJobLogToBottom(el);
   }
 }
 

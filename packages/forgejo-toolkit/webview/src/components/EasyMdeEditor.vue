@@ -715,7 +715,13 @@ watch(
   () => props.modelValue,
   (value) => {
     if (easyMDE && easyMDE.value() !== value) {
+      // The bound value changed from the outside, so this is a re-seed (another
+      // comment, a reset), not the user typing: the editor instance is reused
+      // for every comment and CodeMirror records `setValue` as an undoable
+      // change. Clearing the history drops the undo boundary at the re-seed, so
+      // Ctrl+Z cannot restore the previous comment's draft into this one.
       easyMDE.value(value);
+      easyMDE.codemirror.clearHistory();
     }
   },
 );

@@ -76,15 +76,45 @@ watch(
   },
 );
 
+const branchCommitsKey = computed(() =>
+  repoBranchCommitsKey(instanceId.value, owner.value, repo.value, selectedBranch.value),
+);
+
+// Whether the selection is the repository's own default branch (or the default
+// branch is not known yet). Only then does the detail payload's `recentCommits`
+// describe the branch on screen.
+const isDefaultBranchSelected = computed(
+  () => !selectedBranch.value || selectedBranch.value === detail.value?.repository.default_branch,
+);
+
 const recentCommits = computed(() => {
-  const key = repoBranchCommitsKey(instanceId.value, owner.value, repo.value, selectedBranch.value);
-  return state.repoBranchCommits.value.get(key) ?? detail.value?.recentCommits ?? [];
+  const commits = state.repoBranchCommits.value.get(branchCommitsKey.value);
+  if (commits) {
+    return commits;
+  }
+  // `detail.recentCommits` are the *default* branch's commits. They may stand
+  // in only while the default branch is the selection; for any other branch
+  // (e.g. `dev`, whose own load failed) they would silently show the default
+  // branch's history under the selected branch's name.
+  return isDefaultBranchSelected.value ? (detail.value?.recentCommits ?? []) : [];
 });
 
-const recentCommitsLoading = computed(() => {
-  const key = repoBranchCommitsKey(instanceId.value, owner.value, repo.value, selectedBranch.value);
-  return state.loading.get(key) ?? false;
-});
+const recentCommitsLoading = computed(() => state.loading.get(branchCommitsKey.value) ?? false);
+
+// A failed load for the selected branch. Without rendering this the section
+// fell through to the default branch's commits and the failure was invisible.
+const branchCommitsError = computed(() => state.errors.get(branchCommitsKey.value));
+
+// A branch the user picked always gets a section — its commits, its error, or
+// the empty state. The default branch's implicit view stays hidden when there
+// is nothing to show, as before.
+const showRecentCommits = computed(
+  () =>
+    recentCommits.value.length > 0 ||
+    recentCommitsLoading.value ||
+    !!branchCommitsError.value ||
+    !isDefaultBranchSelected.value,
+);
 
 function onBranchChange(event: Event) {
   const target = event.target as HTMLInputElement | null;
@@ -148,6 +178,13 @@ function committerName(commit: ForgejoCommit): string {
 function reloadRepo() {
   state.repoDetails.value.delete(key.value);
   state.loadRepoDetail(instanceId.value, owner.value, repo.value);
+}
+
+function reloadBranchCommits() {
+  if (!selectedBranch.value) {
+    return;
+  }
+  state.loadRepoBranchCommits(instanceId.value, owner.value, repo.value, selectedBranch.value, true);
 }
 </script>
 
@@ -283,9 +320,18 @@ function reloadRepo() {
             </vscode-single-select>
           </section>
 
-          <section v-if="recentCommits.length || recentCommitsLoading" class="section">
+          <section v-if="showRecentCommits" class="section">
             <h3>{{ t('dashboard.recentCommits') }}</h3>
             <div v-if="recentCommitsLoading" class="loading">{{ t('dashboard.loading') }}</div>
+            <div v-else-if="branchCommitsError" class="error-state">
+              <span>{{ t('dashboard.error', { message: branchCommitsError }) }}</span>
+              <vscode-button icon="refresh" @click="reloadBranchCommits" secondary>
+                {{ t('dashboard.retry') }}
+              </vscode-button>
+            </div>
+            <p v-else-if="!recentCommits.length" class="branch-commits-empty">
+              {{ t('dashboard.noCommits') }}
+            </p>
             <div v-else class="commit-list">
               <div v-for="commit in recentCommits" :key="commit.sha" class="commit-item">
                 <span class="commit-message">{{ commitMessage(commit.commit.message) }}</span>
@@ -564,6 +610,12 @@ function reloadRepo() {
 
 .empty-repo p {
   margin: 0;
+}
+
+.branch-commits-empty {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
 }
 
 .branch-select {

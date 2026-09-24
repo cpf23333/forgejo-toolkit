@@ -81,13 +81,14 @@ vi.mock('../../composables/useAppState', async () => {
     issueCommentEditFormKey: (...parts: unknown[]) => keyFor(...parts),
     issueFormKey: (...parts: unknown[]) => keyFor(...parts),
     issueCommentFormKey: (...parts: unknown[]) => keyFor(...parts),
+    issueCommentDeleteFormKey: (...parts: unknown[]) => keyFor(...parts),
     pullRequestCommentsKey: (...parts: unknown[]) => keyFor(...parts),
     repoLabelsKey: (...parts: unknown[]) => keyFor(...parts),
     repoAssigneesKey: (...parts: unknown[]) => keyFor(...parts),
     repoMilestonesKey: (...parts: unknown[]) => keyFor(...parts),
     repoIssuesKey: (...parts: unknown[]) => keyFor(...parts),
-    issueSubscriptionKey: (...parts: unknown[]) => keyFor(...parts),
-    issueTrackedTimesKey: (...parts: unknown[]) => keyFor(...parts),
+    issueSubscriptionKey: (...parts: unknown[]) => `subscription|${keyFor(...parts)}`,
+    issueTrackedTimesKey: (...parts: unknown[]) => `times|${keyFor(...parts)}`,
     userStopwatchesKey: (...parts: unknown[]) => keyFor(...parts),
     issueDependenciesKey: (...parts: unknown[]) => keyFor(...parts),
     issueReactionsKey: (...parts: unknown[]) => keyFor(...parts),
@@ -113,7 +114,8 @@ function trackedTimeDeleteButtons(wrapper: ReturnType<typeof mountView>) {
   return wrapper.findAll('.tracked-time-item [name="trash"]');
 }
 
-const TIMES_KEY = keyFor('inst-1', 'owner', 'repo', '5');
+const TIMES_KEY = `times|${keyFor('inst-1', 'owner', 'repo', '5')}`;
+const SUBSCRIPTION_KEY = `subscription|${keyFor('inst-1', 'owner', 'repo', '5')}`;
 const STOPWATCH_KEY = keyFor('inst-1');
 describe('IssueDetail tracked time panel', () => {
   beforeEach(() => {
@@ -121,6 +123,8 @@ describe('IssueDetail tracked time panel', () => {
     appState().issueTrackedTimes.value.clear();
     appState().userStopwatches.value.clear();
     appState().issueDetails.value.clear();
+    appState().errors.clear();
+    appState().loading.clear();
   });
 
   it('labels the sum as the issue total for the author and hides foreign rows', async () => {
@@ -206,6 +210,134 @@ describe('IssueDetail tracked time panel', () => {
     await nextTick();
 
     expect(wrapper.findAll('.list-truncated').length).toBeGreaterThan(0);
+    wrapper.unmount();
+  });
+
+  it('shows a failed time-tracking request instead of dropping it', async () => {
+    appState().issueDetails.value.set(keyFor('inst-1', 'owner', 'repo', 5), {
+      number: 5,
+      title: 'an issue',
+      user: { login: 'demo-user' },
+    });
+    // A rejected add/delete/stopwatch used to leave the panel showing 0s with no
+    // sign that anything had happened.
+    appState().errors.set(TIMES_KEY, 'add time failed');
+
+    const wrapper = mountView();
+    await nextTick();
+
+    expect(wrapper.find('.time-tracking-error').text()).toContain('add time failed');
+    wrapper.unmount();
+  });
+
+  it('keeps the typed time until the server accepts it', async () => {
+    appState().issueDetails.value.set(keyFor('inst-1', 'owner', 'repo', 5), {
+      number: 5,
+      title: 'an issue',
+      user: { login: 'demo-user' },
+    });
+    const wrapper = mountView();
+    await nextTick();
+
+    const fields = wrapper.findAll('.time-tracking-form vscode-textfield');
+    (fields[0].element as HTMLInputElement).value = '1';
+    await fields[0].trigger('input');
+    (fields[1].element as HTMLInputElement).value = '30';
+    await fields[1].trigger('input');
+    await nextTick();
+
+    const addButton = wrapper.find('.time-tracking-form vscode-button');
+    await addButton.trigger('click');
+    expect(appState().addIssueTime).toHaveBeenNthCalledWith(1, 'inst-1', 'owner', 'repo', 5, 5400);
+
+    // Still in flight: the form has not thrown the typed values away, so
+    // pressing Add again re-sends the same time instead of doing nothing.
+    await addButton.trigger('click');
+    expect(appState().addIssueTime).toHaveBeenNthCalledWith(2, 'inst-1', 'owner', 'repo', 5, 5400);
+
+    // The server accepted it: the form clears, so a further click has nothing
+    // left to send.
+    appState().loading.set(TIMES_KEY, true);
+    await nextTick();
+    appState().loading.set(TIMES_KEY, false);
+    await nextTick();
+    await addButton.trigger('click');
+    expect(appState().addIssueTime).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it('keeps the typed time and reports the failure when the request fails', async () => {
+    appState().issueDetails.value.set(keyFor('inst-1', 'owner', 'repo', 5), {
+      number: 5,
+      title: 'an issue',
+      user: { login: 'demo-user' },
+    });
+    const wrapper = mountView();
+    await nextTick();
+
+    const fields = wrapper.findAll('.time-tracking-form vscode-textfield');
+    (fields[1].element as HTMLInputElement).value = '30';
+    await fields[1].trigger('input');
+    await nextTick();
+
+    const addButton = wrapper.find('.time-tracking-form vscode-button');
+    await addButton.trigger('click');
+
+    appState().loading.set(TIMES_KEY, true);
+    await nextTick();
+    appState().errors.set(TIMES_KEY, 'add time failed');
+    appState().loading.set(TIMES_KEY, false);
+    await nextTick();
+
+    expect(wrapper.find('.time-tracking-error').text()).toContain('add time failed');
+    // The values survived the failure, so the retry needs no retyping.
+    await addButton.trigger('click');
+    expect(appState().addIssueTime).toHaveBeenNthCalledWith(2, 'inst-1', 'owner', 'repo', 5, 1800);
+    wrapper.unmount();
+  });
+});
+
+/**
+ * A failed `checkIssueSubscription` used to leave `subscription` undefined
+ * forever: the payload is only written on success, so the panel showed its
+ * "Loading..." line with no error and no way to retry.
+ */
+describe('IssueDetail subscription panel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    appState().errors.clear();
+    appState().loading.clear();
+    appState().issueSubscriptions.value.clear();
+    appState().issueDetails.value.clear();
+    appState().issueDetails.value.set(keyFor('inst-1', 'owner', 'repo', 5), {
+      number: 5,
+      title: 'an issue',
+      user: { login: 'demo-user' },
+    });
+  });
+
+  it('shows the failure and a retry instead of spinning forever', async () => {
+    appState().errors.set(SUBSCRIPTION_KEY, 'the check failed');
+
+    const wrapper = mountView();
+    await nextTick();
+
+    expect(wrapper.find('.subscription-error').text()).toContain('the check failed');
+    expect(wrapper.find('.subscription-actions').exists()).toBe(false);
+
+    await wrapper.find('.subscription-error vscode-button').trigger('click');
+    expect(appState().loadIssueSubscription).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 5, true);
+    wrapper.unmount();
+  });
+
+  it('offers the subscribe action once the check answered', async () => {
+    appState().issueSubscriptions.value.set(SUBSCRIPTION_KEY, { subscribed: true });
+
+    const wrapper = mountView();
+    await nextTick();
+
+    expect(wrapper.find('.subscription-error').exists()).toBe(false);
+    expect(wrapper.find('.subscription-actions').text()).toContain('Unsubscribe');
     wrapper.unmount();
   });
 });
