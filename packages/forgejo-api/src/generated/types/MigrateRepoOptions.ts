@@ -12,8 +12,6 @@ export const migrateRepoOptionsServiceEnum = {
   onedev: 'onedev',
   gitbucket: 'gitbucket',
   codebase: 'codebase',
-  forgejo: 'forgejo',
-  pagure: 'pagure',
 } as const;
 
 export type MigrateRepoOptionsServiceEnumKey =
