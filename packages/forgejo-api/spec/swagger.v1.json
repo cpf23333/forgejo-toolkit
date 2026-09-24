@@ -10,9 +10,9 @@
       "name": "This file is distributed under the MIT license for the purpose of interoperability",
       "url": "http://opensource.org/licenses/MIT"
     },
-    "version": "16.0.0-dev-753-6bcc6da0+gitea-1.22.0"
+    "version": "{{AppVer | JSEscape}}"
   },
-  "basePath": "/api/v1",
+  "basePath": "{{AppSubUrl | JSEscape}}/api/v1",
   "paths": {
     "/actions/run": {
       "get": {
@@ -25228,7 +25228,6 @@
     "IssueMeta": {
       "description": "IssueMeta basic issue information",
       "type": "object",
-      "required": ["index", "owner", "repo"],
       "properties": {
         "index": {
           "type": "integer",
@@ -25591,7 +25590,7 @@
         },
         "service": {
           "type": "string",
-          "enum": ["git", "github", "gitea", "gitlab", "gogs", "onedev", "gitbucket", "codebase", "forgejo", "pagure"],
+          "enum": ["git", "github", "gitea", "gitlab", "gogs", "onedev", "gitbucket", "codebase"],
           "x-go-name": "Service"
         },
         "uid": {

@@ -1,9 +1,9 @@
 // Runs the client generator with its wipe hazard guarded.
 //
-// `kubb` deletes `src/generated` before writing, so a run that fails — a bad spec, a
-// native crash — leaves the directory empty (it did exactly that on 2026-09-23). This
-// wrapper refuses to start on a dirty generated tree and restores it from git when the
-// run fails, so the generator can never take the client away.
+// `kubb` deletes `src/generated` before writing (`output.clean: true`), so a run
+// that fails — a bad spec, a native crash — leaves the directory empty. This runner
+// delegates to the `generate` script (so the two steps stay in sync), refuses to
+// start on a dirty generated tree, and restores it from git when the run fails.
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,13 +18,8 @@ if (dirty) {
   process.exit(1);
 }
 
-function run(command) {
-  execFileSync(command, { cwd: packageDir, stdio: 'inherit', shell: true });
-}
-
 try {
-  run('pnpm exec kubb generate');
-  run('node scripts/strip-ts-extensions.js');
+  execFileSync('pnpm run generate', { cwd: packageDir, stdio: 'inherit', shell: true });
 } catch (error) {
   console.error('\ngenerate:safe: the generator failed — restoring src/generated from git.');
   try {
