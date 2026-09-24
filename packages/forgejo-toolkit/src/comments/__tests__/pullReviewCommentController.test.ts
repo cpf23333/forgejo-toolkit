@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   visibleEditors: [] as Array<{ document: unknown; setDecorations: ReturnType<typeof vi.fn> }>,
   diffFetches: 0,
   comments: null as unknown[] | null,
+  diffError: null as Error | null,
 }));
 
 vi.mock('vscode', () => {
@@ -145,6 +146,9 @@ vi.mock('../../api/client', () => ({
     return {
       getPullRequestDiff: vi.fn(async () => {
         state.diffFetches += 1;
+        if (state.diffError) {
+          throw state.diffError;
+        }
         return DIFF;
       }),
       listPullReviews: vi.fn(async () => [{ id: 10, state: 'COMMENTED', user: { login: 'reviewer' } }]),
@@ -771,6 +775,34 @@ describe('PullReviewCommentController multi-line comments', () => {
     expect(panelState.createOrShow).not.toHaveBeenCalled();
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('pull request diff'));
     controller.dispose();
+  });
+
+  it('reports a failed diff load instead of returning silently', async () => {
+    // Offline, an expired token or a deleted PR makes the diff fetch fail. The
+    // command used to log and return, so the click produced no panel, no toast
+    // and no hint about what went wrong.
+    state.diffError = new Error('network down');
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const editor = {
+      document: makeDocument(false),
+      selection: {
+        isEmpty: true,
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 0 },
+        active: { line: 0 },
+      },
+    };
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+
+    try {
+      await controller.addComment(editor as never);
+
+      expect(panelState.createOrShow).not.toHaveBeenCalled();
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('pull request diff'));
+    } finally {
+      state.diffError = null;
+      controller.dispose();
+    }
   });
 });
 

@@ -343,6 +343,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._context.subscriptions.push(
       this._config.onInstancesChanged(() => {
         this._sendInstances();
+        // Removing an instance forgets its worktree records (their checkouts
+        // stay on disk), and the Settings list renders whatever the last
+        // `worktreesList` reply carried. Re-pushing it here is what drops those
+        // rows: a row left on screen would otherwise reach `removeWorktree`
+        // with no record behind it.
+        this._sendWorktrees();
         this._refreshWebviewInstanceOrigins();
       }),
     );
@@ -787,19 +793,31 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         if (!(await this._confirmDestructive(vscode.l10n.t('Remove instance "{0}"?', instance.name)))) {
           return;
         }
-        const removedWorktrees = await this._config.removeInstance(id);
+        // The checkouts deliberately stay on disk (they may hold uncommitted
+        // work) and nothing points at them afterwards, so the notice below names
+        // them: the lazy sweep only reclaims one whose source clone is gone, so
+        // a checkout backed by an ordinary clone would otherwise be stranded
+        // with no way to find it.
+        const { removed: removedWorktrees, strandedCheckouts } = await this._config.removeInstance(id);
         if (removedWorktrees > 0) {
           // The checkouts are still on disk (they may hold uncommitted work);
-          // say so instead of letting the user believe they were deleted.
+          // say so, and where they are, instead of letting the user believe they
+          // were deleted or lose track of them.
           void vscode.window.showInformationMessage(
             vscode.l10n.t(
-              'Removed instance {0} along with its {1} worktree record(s).',
+              'Removed instance {0} along with its {1} worktree record(s). Their checkouts stay on disk at {2}; nothing tracks them any more, so delete them yourself once they hold no work you still need.',
               instance.name,
               removedWorktrees,
+              strandedCheckouts.join(', '),
             ),
           );
         }
         this._sendInstances();
+        // Removing an instance forgets its worktree records (their checkouts
+        // stay on disk). The Settings list renders the last `worktreesList`
+        // reply, so without this it keeps showing rows whose records are gone:
+        // deleting one would reach the removal path with nothing behind it.
+        this._sendWorktrees();
         this._detectAndSendLinkedRepository();
         return;
       }
@@ -2524,6 +2542,10 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           let files: ForgejoChangedFile[];
+          // The JSON file list, when it was already fetched: the compare call
+          // falling back to it must not be followed by a second request for the
+          // same page just to read the addition/deletion counts.
+          let jsonFiles: ForgejoChangedFile[] | undefined;
           if (typeof baseSha === 'string' && typeof headSha === 'string') {
             try {
               files = await client.getPullRequestFilesFromCompare(owner, repo, baseSha, headSha);
@@ -2535,16 +2557,19 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               logger.info(
                 `Falling back to JSON file list for ${instance.name}/${owner}/${repo}#${index}: ${compareErr}`,
               );
-              files = await client.getPullRequestFiles(owner, repo, index);
+              jsonFiles = await client.getPullRequestFiles(owner, repo, index);
+              files = jsonFiles;
             }
           } else {
-            files = await client.getPullRequestFiles(owner, repo, index);
+            jsonFiles = await client.getPullRequestFiles(owner, repo, index);
+            files = jsonFiles;
           }
 
-          // Supplement additions/deletions counts from the JSON endpoint.
+          // Supplement additions/deletions counts from the JSON endpoint, reusing
+          // the list already fetched above when there is one.
           try {
-            const jsonFiles = await client.getPullRequestFiles(owner, repo, index);
-            const countMap = new Map(jsonFiles.map((f) => [f.filename, f]));
+            const countsSource = jsonFiles ?? (await client.getPullRequestFiles(owner, repo, index));
+            const countMap = new Map(countsSource.map((f) => [f.filename, f]));
             files = files.map((file) => {
               const counts = countMap.get(file.filename);
               if (!counts) {
@@ -2565,8 +2590,22 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           }
 
           logger.info(
-            `getPullRequestFiles returned ${files.length} files for ${instance.name}/${owner}/${repo}#${index}: ${JSON.stringify(files.map((f) => ({ filename: f.filename, status: f.status, additions: f.additions, deletions: f.deletions })))}`,
+            `getPullRequestFiles returned ${files.length} files for ${instance.name}/${owner}/${repo}#${index}`,
           );
+          if (logger.isDebugEnabled()) {
+            // Serialized only while debug logging is on: the whole changed-file
+            // list is large enough for the stringify itself to be the cost.
+            logger.debug(
+              `getPullRequestFiles detail for ${instance.name}/${owner}/${repo}#${index}: ${JSON.stringify(
+                files.map((f) => ({
+                  filename: f.filename,
+                  status: f.status,
+                  additions: f.additions,
+                  deletions: f.deletions,
+                })),
+              )}`,
+            );
+          }
           this._reply('pullRequestFiles', {
             instanceId: instance.id,
             owner,
@@ -3393,9 +3432,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             const notice = entry.content ? undefined : missingPayloadNotice(entry.size);
             return notice ? { ...entry, content: Buffer.from(`${notice}\n`).toString('base64') } : entry;
           });
-          logger.debug(
-            `getRepoContents returned ${entries.length} entries for ${instance.name}/${owner}/${repo}/${path}@${ref}: ${JSON.stringify(entries.map((e) => ({ name: e.name, path: e.path, type: e.type })))}`,
-          );
+          if (logger.isDebugEnabled()) {
+            // Debug logging is off by default, and a directory can hold
+            // thousands of entries: the stringify of every name/path/type must
+            // not be paid for a line the logger is about to drop.
+            logger.debug(
+              `getRepoContents returned ${entries.length} entries for ${instance.name}/${owner}/${repo}/${path}@${ref}: ${JSON.stringify(entries.map((e) => ({ name: e.name, path: e.path, type: e.type })))}`,
+            );
+          }
           this._reply('repoContents', {
             instanceId: instance.id,
             owner,
@@ -4016,14 +4060,29 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               : `remove:${record.instanceId}:${record.owner}/${record.repo}#${record.prIndex}`
             : `remove:${id}`;
           await this._worktreeInFlight.run(key, async () => {
+            if (!record) {
+              // The row names a record the host no longer tracks (its instance
+              // may have been removed, which forgets its records). There is
+              // nothing to delete and no path to delete it from, so answering
+              // `worktreeRemoved` would tell the user the checkout is gone while
+              // it is still on disk. Report why nothing happened, refresh the
+              // list so the stale row disappears, and skip the prompt: there is
+              // nothing to confirm.
+              this._reply('worktreeError', {
+                error: vscode.l10n.t(
+                  'This worktree is no longer tracked by the extension, so nothing was deleted. Its directory, if it still exists, was left on disk; the list has been refreshed.',
+                ),
+                operation: 'remove',
+              });
+              this._reply('worktreesList', { worktrees: this._worktreeManager.getWorktrees() });
+              return;
+            }
             // Removing a worktree deletes the local directory and any work it
             // holds, so like every other destructive prompt it names its target.
             // The scope is data (instance name and owner/repo), composed around
             // the translated sentence; a missing instance record leaves the
             // prompt unscoped rather than blocking a local cleanup.
-            const scope = record
-              ? `${confirmInstanceScope(this._findInstance(record.instanceId) ?? { name: record.instanceId }, record.owner, record.repo)}: `
-              : '';
+            const scope = `${confirmInstanceScope(this._findInstance(record.instanceId) ?? { name: record.instanceId }, record.owner, record.repo)}: `;
             // The confirmation lives inside the guard (same reasoning as
             // mergePullRequest). The webview tracks no pending state for
             // removeWorktree, so a decline needs no reply: the record and
@@ -4038,8 +4097,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
               return;
             }
             try {
-              await this._worktreeManager.removeWorktree(id);
-              this._reply('worktreeRemoved', { id });
+              // Another window may have removed the record since the lookup
+              // above; the result says whether anything was actually deleted, so
+              // a success is never reported for a removal that did not happen.
+              const removed = await this._worktreeManager.removeWorktree(id);
+              if (removed) {
+                this._reply('worktreeRemoved', { id });
+              } else {
+                this._reply('worktreeError', {
+                  error: vscode.l10n.t(
+                    'This worktree is no longer tracked by the extension, so nothing was deleted. Its directory, if it still exists, was left on disk; the list has been refreshed.',
+                  ),
+                  operation: 'remove',
+                });
+              }
             } catch (error) {
               // removeWorktree keeps the record on failure so the user can
               // retry; the error reaches the user exactly once, through this
@@ -4232,6 +4303,18 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Re-push the tracked worktree records. The Settings list renders exactly what
+   * the last `worktreesList` reply carried, so a record that disappeared without
+   * a reply (an instance removal forgets its records) would otherwise stay on
+   * screen as a row the host can no longer act on.
+   */
+  private _sendWorktrees() {
+    if (this._view?.visible) {
+      this._reply('worktreesList', { worktrees: this._worktreeManager.getWorktrees() });
+    }
+  }
+
+  /**
    * Mandatory host-side confirmation for destructive webview commands. The
    * webview is untrusted: a compromised webview could skip its own confirm
    * dialog, so the host always re-confirms before executing. Webview code
@@ -4251,6 +4334,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
    * an explicit confirmation; a clean leftover is refreshed silently, since
    * recreating it is the only way to get the updated head and prompting every
    * time would be noise.
+   *
+   * Only a *known* zero may skip the prompt: `commitsAhead` is `undefined` when
+   * the range could not be counted (the PR head sha is fetched later in the open
+   * flow, so the leftover's own commits may not be comparable yet), and an
+   * unknown count is not evidence that there is nothing to lose.
    */
   private async _confirmDiscardStaleWorktree(info: StalePrWorktreeInfo, index: number): Promise<boolean> {
     if (!info.dirty && info.commitsAhead === 0) {
@@ -4260,7 +4348,9 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     if (info.dirty) {
       holds.push(vscode.l10n.t('uncommitted changes'));
     }
-    if (info.commitsAhead > 0) {
+    if (info.commitsAhead === undefined) {
+      holds.push(vscode.l10n.t('local commits that could not be counted'));
+    } else if (info.commitsAhead > 0) {
       holds.push(vscode.l10n.t('{0} local commit(s)', info.commitsAhead));
     }
     return this._confirmDestructive(
@@ -4647,15 +4737,14 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ command, ...data } as HostToWebviewMessage);
   }
 
-  public pushNotifications(instanceId: string, notifications: unknown[]): void {
-    // Poller results feed the unread badge/toast slot only; the filtered
-    // notifications view is written exclusively by getNotifications replies.
-    // `coveredIds` tells the view which rows this poll actually examined: only
-    // those may be reconciled as read, so a row beyond the fetched page is never
-    // silently marked read.
-    const coveredIds = notifications
-      .map((notification) => (notification as { id?: unknown })?.id)
-      .filter((id): id is number => typeof id === 'number');
+  /**
+   * `coveredIds` is the poller's own report of the ids it examined, passed
+   * through unchanged: it is not derivable from `notifications`, because a poll
+   * can examine a row and find it read (it is then absent from a page of the
+   * unread+pinned set), and "mark all as read" covers ids the refresh poll no
+   * longer returns. See `NotificationPoller._coverageFor`.
+   */
+  public pushNotifications(instanceId: string, notifications: unknown[], coveredIds: number[]): void {
     this._reply('polledNotifications', { instanceId, notifications, coveredIds });
   }
 
@@ -4663,8 +4752,15 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     this._reply('polledNotifications', { instanceId, error });
   }
 
+  /**
+   * Routed like `openSettings` rather than through `_reply`: the poller toasts a
+   * new notification before the sidebar has ever been resolved, and `_reply`
+   * silently drops the message then (`this._view` is undefined), so the toast's
+   * "Open" button did nothing at all until the user happened to open the view.
+   */
   public openNotifications(): void {
-    this._reply('openNotifications', {});
+    this._revealView();
+    this._postOrQueue({ command: 'openNotifications' });
   }
 
   /**

@@ -4,7 +4,7 @@ import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import { buildUrl, client as baseClient, encodePathSegment } from '@cpf23333-forgejo-toolkit/shared/request';
 import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
-import { toApiError } from './errors-core';
+import { toApiError, requestContextFor } from './errors-core';
 import { getForgejoClientHost } from './clientHost';
 import { assertActionsSupported } from './serverVersion';
 import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
@@ -187,7 +187,11 @@ const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_TREE_PAGES = 50;
 // A query like "e" matches thousands of paths; the browser renders plain rows, so
 // the response is capped and the truncation flag tells the user why the list stops.
-const MAX_SEARCH_RESULTS = 200;
+export const MAX_SEARCH_RESULTS = 200;
+// Branches and recent commits carried by `getRepoDetail`, whose caller (the MCP
+// `get_repo` tool) must be able to say that the two lists are capped: without
+// that, a branch past the first ten reads as a branch that does not exist.
+export const REPO_DETAIL_LIST_LIMIT = 10;
 
 /** Per-request timeout: a reachable-but-unresponsive instance must not hang. */
 export const API_REQUEST_TIMEOUT_MS = 30_000;
@@ -214,6 +218,12 @@ export const API_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
 
 interface TreeCacheEntry {
   value: GitEntry[];
+  /**
+   * Whether the cached read stopped early. Kept with the value: a truncated
+   * tree is cached too (see `_getRepoTree`), and answering a later caller with
+   * `truncated: false` would present an incomplete tree as exhaustive.
+   */
+  truncated: boolean;
   expiresAt: number;
 }
 
@@ -244,11 +254,30 @@ export function clearTreeCache(): void {
 interface RepoContentsCacheEntry {
   value: ForgejoContentEntry[];
   expiresAt: number;
+  /**
+   * Serialized size of `value`. Counting entries alone is not enough: the
+   * contents API answers with base64 file bodies, so a handful of near-limit
+   * blobs is hundreds of megabytes held for the life of the process.
+   */
+  bytes: number;
 }
 
 const repoContentsCache = new Map<string, RepoContentsCacheEntry>();
 const REPO_CONTENTS_TTL_MS = 5_000;
 const MAX_REPO_CONTENTS_CACHE_ENTRIES = 64;
+/**
+ * Byte budget for the contents memo. The largest single response the client
+ * asks for is a ~10 MiB blob (~14 MB once base64-encoded by the API), so the
+ * budget holds a couple of those plus the small entries the provider actually
+ * re-reads.
+ */
+export const REPO_CONTENTS_CACHE_MAX_BYTES = 32 * 1024 * 1024;
+/**
+ * Running total of `bytes` over `repoContentsCache`. Maintained on insert, on
+ * eviction and on the expired-entry purge, so the budget cannot drift from the
+ * map it measures.
+ */
+let repoContentsCacheBytes = 0;
 
 /**
  * Joins the parts of a cache key so no two different requests can produce the
@@ -264,6 +293,70 @@ function cacheKeyFor(...parts: string[]): string {
 /** Clear the shared repo-contents memo. Exported for tests. */
 export function clearRepoContentsCache(): void {
   repoContentsCache.clear();
+  repoContentsCacheBytes = 0;
+}
+
+/**
+ * How many bytes the contents memo currently holds. Exported for tests, which
+ * cannot otherwise observe the running total the budget is enforced against.
+ */
+export function repoContentsCacheBytesForTest(): number {
+  return repoContentsCacheBytes;
+}
+
+/** Serialized size of a cached payload, in bytes. */
+function byteSizeOf(value: unknown): number {
+  const serialized = JSON.stringify(value) ?? '';
+  return typeof Buffer !== 'undefined' ? Buffer.byteLength(serialized) : serialized.length;
+}
+
+/**
+ * Drops the entries whose TTL has passed, whoever reads or writes next.
+ *
+ * Expiry used to be checked only on a hit, so a cache filled with large payloads
+ * kept them — and their bytes — until the next request for that exact key or
+ * until a count-based eviction happened to pick them. Counting them out at insert
+ * time keeps both caps measuring live entries.
+ */
+function purgeExpiredRepoContents(now: number): void {
+  for (const [key, entry] of repoContentsCache) {
+    if (entry.expiresAt <= now) {
+      repoContentsCache.delete(key);
+      repoContentsCacheBytes -= entry.bytes;
+    }
+  }
+}
+
+/**
+ * Stores one contents answer, evicting oldest-first until both the entry count
+ * and the byte budget hold. The oldest entry is dropped before the new one is
+ * added, so a single payload larger than the budget still leaves the cache with
+ * exactly that payload rather than an empty map.
+ */
+function rememberRepoContents(key: string, value: ForgejoContentEntry[]): void {
+  const now = Date.now();
+  purgeExpiredRepoContents(now);
+  const bytes = byteSizeOf(value);
+  const previous = repoContentsCache.get(key);
+  if (previous) {
+    repoContentsCache.delete(key);
+    repoContentsCacheBytes -= previous.bytes;
+  }
+  while (
+    repoContentsCache.size > 0 &&
+    (repoContentsCache.size >= MAX_REPO_CONTENTS_CACHE_ENTRIES ||
+      repoContentsCacheBytes + bytes > REPO_CONTENTS_CACHE_MAX_BYTES)
+  ) {
+    const oldest = repoContentsCache.keys().next().value;
+    if (oldest === undefined) {
+      break;
+    }
+    const evicted = repoContentsCache.get(oldest);
+    repoContentsCache.delete(oldest);
+    repoContentsCacheBytes -= evicted?.bytes ?? 0;
+  }
+  repoContentsCache.set(key, { value, expiresAt: now + REPO_CONTENTS_TTL_MS, bytes });
+  repoContentsCacheBytes += bytes;
 }
 
 /**
@@ -969,8 +1062,8 @@ export class ForgejoClient {
     // `/contents/README.md` twice per detail load.
     const [readmeEntry, branches, commits] = await Promise.all([
       this.getReadmeEntry(owner, repo),
-      repoListBranches(owner, repo, { limit: 10 }, { client: this._client() }),
-      repoGetAllCommits(owner, repo, { limit: 10 }, { client: this._client() }),
+      repoListBranches(owner, repo, { limit: REPO_DETAIL_LIST_LIMIT }, { client: this._client() }),
+      repoGetAllCommits(owner, repo, { limit: REPO_DETAIL_LIST_LIMIT }, { client: this._client() }),
     ]);
 
     return {
@@ -1083,7 +1176,10 @@ export class ForgejoClient {
       if (cached && cached.expiresAt > Date.now()) {
         return cached.value;
       }
-      repoContentsCache.delete(cacheKey);
+      if (cached) {
+        repoContentsCache.delete(cacheKey);
+        repoContentsCacheBytes -= cached.bytes;
+      }
     }
 
     let entries: ForgejoContentEntry[];
@@ -1096,16 +1192,9 @@ export class ForgejoClient {
     }
 
     if (cacheKey) {
-      // Bounded oldest-first, like the tree cache: this is a coalescing memo,
-      // not a store.
-      while (repoContentsCache.size >= MAX_REPO_CONTENTS_CACHE_ENTRIES) {
-        const oldest = repoContentsCache.keys().next().value;
-        if (oldest === undefined) {
-          break;
-        }
-        repoContentsCache.delete(oldest);
-      }
-      repoContentsCache.set(cacheKey, { value: entries, expiresAt: Date.now() + REPO_CONTENTS_TTL_MS });
+      // Bounded oldest-first by both entry count and total bytes: this is a
+      // coalescing memo, not a store.
+      rememberRepoContents(cacheKey, entries);
     }
     return entries;
   }
@@ -1168,7 +1257,7 @@ export class ForgejoClient {
     const key = cacheKeyFor(this.configuredOrigin, this.tokenCacheKey, owner, repo, ref);
     const cached = treeCache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
-      return { entries: cached.value, truncated: false };
+      return { entries: cached.value, truncated: cached.truncated };
     }
     treeCache.delete(key);
 
@@ -1208,19 +1297,22 @@ export class ForgejoClient {
       }
     }
 
-    // A truncated tree may be incomplete, so it is not cached; whatever was
-    // returned is still filtered for the current query. Failures are not
-    // cached either: an error above propagates before this point.
-    if (!truncated) {
-      if (treeCache.size >= MAX_TREE_CACHE_ENTRIES) {
-        // Map iteration order is insertion order: the first key is the oldest.
-        const oldest = treeCache.keys().next().value;
-        if (oldest !== undefined) {
-          treeCache.delete(oldest);
-        }
+    // A truncated tree is cached too. Its paging loop is bounded, so the read is
+    // as complete as this client will ever make it, and the server marks every
+    // page but the last as truncated: not caching it meant a large repository
+    // re-issued up to MAX_TREE_PAGES requests per search — for every query, since
+    // the search itself is debounced but uncached. The entry carries the flag, so
+    // a later caller still learns the result may be incomplete, and it expires on
+    // the same TTL and is evicted oldest-first like any other. Failures are still
+    // not cached: an error above propagates before this point.
+    if (treeCache.size >= MAX_TREE_CACHE_ENTRIES) {
+      // Map iteration order is insertion order: the first key is the oldest.
+      const oldest = treeCache.keys().next().value;
+      if (oldest !== undefined) {
+        treeCache.delete(oldest);
       }
-      treeCache.set(key, { value: allFiles, expiresAt: Date.now() + TREE_CACHE_TTL_MS });
     }
+    treeCache.set(key, { value: allFiles, truncated, expiresAt: Date.now() + TREE_CACHE_TTL_MS });
     return { entries: allFiles, truncated };
   }
 
@@ -2327,7 +2419,6 @@ export class ForgejoClient {
 
   private _client(): Client {
     const baseURL = `${this.url.replace(/\/$/, '')}/api/v1`;
-
     return async <TResponseData, _TError = unknown, TRequestData = unknown>(
       config: RequestConfig<TRequestData>,
     ): Promise<ResponseConfig<TResponseData>> => {
@@ -2389,8 +2480,11 @@ export class ForgejoClient {
           this._notifyIfPermissionError(error.message);
         }
         // Normalize into a structured ApiError: message stays raw for logs and
-        // pattern matching, userMessage carries the localized rendering.
-        throw toApiError(error);
+        // pattern matching, userMessage carries the localized rendering. The
+        // request URL supplies the resource kind and scope a 404 message names,
+        // and an installed dispatcher tells the classifier that a connection
+        // failure happened on the way through the proxy.
+        throw toApiError(error, requestContextFor(targetUrl, { viaProxy: this.requestDispatcher !== undefined }));
       }
     };
   }

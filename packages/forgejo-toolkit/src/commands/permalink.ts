@@ -72,9 +72,20 @@ export async function copyPermalink(config: ConfigManager): Promise<void> {
       vscode.window.showWarningMessage(vscode.l10n.t('Unable to parse Forgejo PR file URI'));
       return;
     }
+    // The permalink points at a blob on the ref this side belongs to, and one
+    // side of the pair is empty for a file the PR added or removed: the base ref
+    // has no blob for an added file, and the head ref has none for a removed
+    // one. Copying then hands out a URL that resolves to a 404, so both cases
+    // are refused with the reason.
     if (params.isBase && params.status === 'added') {
       vscode.window.showWarningMessage(
         vscode.l10n.t('This file was added in the pull request and does not exist on the base ref'),
+      );
+      return;
+    }
+    if (!params.isBase && params.status === 'removed') {
+      vscode.window.showWarningMessage(
+        vscode.l10n.t('This file was removed in the pull request and does not exist on the head ref'),
       );
       return;
     }

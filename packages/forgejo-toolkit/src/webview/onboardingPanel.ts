@@ -245,16 +245,18 @@ export class OnboardingWebviewPanel {
                 if (!(await this._confirmDestructive(vscode.l10n.t('Remove instance "{0}"?', instance.name)))) {
                   return;
                 }
-                const removedWorktrees = await this._config.removeInstance(id);
+                const { removed: removedWorktrees, strandedCheckouts } = await this._config.removeInstance(id);
                 this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
                 if (removedWorktrees > 0) {
                   // Same notice as the sidebar: the worktree records are gone but
-                  // their checkouts stay on disk.
+                  // their checkouts stay on disk, and naming them is the only way
+                  // the user can still find them.
                   void vscode.window.showInformationMessage(
                     vscode.l10n.t(
-                      'Removed instance {0} along with its {1} worktree record(s).',
+                      'Removed instance {0} along with its {1} worktree record(s). Their checkouts stay on disk at {2}; nothing tracks them any more, so delete them yourself once they hold no work you still need.',
                       instance.name,
                       removedWorktrees,
+                      strandedCheckouts.join(', '),
                     ),
                   );
                 }

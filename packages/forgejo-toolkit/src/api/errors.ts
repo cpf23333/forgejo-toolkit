@@ -12,6 +12,8 @@ export {
   toApiError,
   extractApiErrorMessage,
   apiErrorUserMessage,
+  requestContextFor,
+  requestResourceFor,
   userFacingErrorMessage,
 } from './errors-core';
-export type { ApiErrorKind } from './errors-core';
+export type { ApiErrorKind, RequestResource } from './errors-core';

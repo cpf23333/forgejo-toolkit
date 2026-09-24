@@ -758,8 +758,15 @@ export interface StalePrWorktreeInfo {
   branch?: string;
   /** Uncommitted changes (tracked or untracked) in the leftover worktree. */
   dirty: boolean;
-  /** Commits reachable from its HEAD but not from the expected PR head sha. */
-  commitsAhead: number;
+  /**
+   * Commits reachable from its HEAD but not from the expected PR head sha, or
+   * `undefined` when that range cannot be resolved at all. An unknown count is
+   * not zero: the expected sha may simply not exist in this clone yet (the PR
+   * head is fetched later in the open flow), so a caller that treats zero as
+   * "nothing to lose" must treat `undefined` as "may hold local commits" and
+   * confirm before discarding.
+   */
+  commitsAhead: number | undefined;
 }
 
 export type PrWorktreeInspection =
@@ -822,20 +829,26 @@ async function isWorktreeDirty(worktreePath: string): Promise<boolean> {
 }
 
 /**
- * Commits reachable from the worktree's HEAD but not from the expected sha.
- * An unresolvable expected sha (unknown ref, non-sha value) counts as zero:
- * blocking every discard on an unrelated git failure would strand the flow.
+ * Commits reachable from the worktree's HEAD but not from the expected sha, or
+ * `undefined` when that cannot be determined.
+ *
+ * An unresolvable range must not be reported as zero. Zero means "nothing to
+ * lose" and the caller skips its confirmation on it, so an unknown count would
+ * silently force-delete a leftover that may hold the user's local commits. A
+ * sha the clone has never fetched is the ordinary case here — the PR head is
+ * fetched only later in the open flow — and is exactly when local commits are
+ * most likely to be sitting in the old checkout.
  */
-async function countCommitsAhead(worktreePath: string, expectedSha: string): Promise<number> {
+async function countCommitsAhead(worktreePath: string, expectedSha: string): Promise<number | undefined> {
   if (!/^[0-9a-f]{7,40}$/i.test(expectedSha)) {
-    return 0;
+    return undefined;
   }
   try {
     const { stdout } = await runGit(['rev-list', '--count', `${expectedSha}..HEAD`], worktreePath);
     const count = Number.parseInt(stdout.trim(), 10);
-    return Number.isNaN(count) || count < 0 ? 0 : count;
+    return Number.isNaN(count) || count < 0 ? undefined : count;
   } catch {
-    return 0;
+    return undefined;
   }
 }
 
@@ -973,14 +986,19 @@ export interface RevertMergeCommitResult {
  * through `pushBranch` with the instance token, so the remote is re-validated
  * against the instance (TOCTOU) and credentials are never sent to another host.
  *
- * Fail-safe: the local revert is not left behind. The commit HEAD pointed at
- * before the revert is recorded first, and on any later failure (a conflict, or
- * a rejected push) the working tree is reset back to it, so a failed revert
- * leaves the repository as it was instead of a bogus local revert commit or a
- * mid-revert state. The returned status (and the thrown message) describe the
- * state precisely, because a caller that reports "success" for an unpushed
- * revert would be lying. Undoing a revert only restores tracked content, so the
- * conflict message names any untracked files `git revert` may have written.
+ * Fail-safe: the local revert is not left behind, and nothing the revert did not
+ * write is discarded. The commit HEAD pointed at before the revert is recorded
+ * first, as is the tracked state of the working tree; a failed revert is then
+ * undone with `git revert --abort` while the sequencer is mid-revert (which
+ * reconstructs the pre-revert state and keeps local modifications it does not
+ * need to overwrite), and a created-but-unpushed revert commit is dropped with a
+ * reset that only runs when the tree held no tracked changes before the revert,
+ * still holds none, and HEAD is still that commit. Otherwise the commit is left
+ * in place and the message names it so the user can drop it themselves. The
+ * returned status (and the thrown message) describe the state precisely, because
+ * a caller that reports "success" for an unpushed revert would be lying. Undoing
+ * a revert only restores tracked content, so the messages name any untracked
+ * files `git revert` may have written.
  */
 export async function revertMergeCommit(
   repoPath: string,
@@ -1042,34 +1060,78 @@ export async function revertMergeCommit(
   }
 
   /**
-   * Undo the local revert. `git checkout -- .` restores tracked content only, so
-   * ignored/untracked files `git revert` wrote stay — the messages say so.
+   * Tracked-file entries of `git status --porcelain`: staged, unstaged and
+   * unmerged paths. Untracked (`??`) and ignored (`!!`) files are dropped,
+   * because no undo below touches them and they are therefore not evidence of
+   * work at risk. Undefined when git cannot report the status at all, in which
+   * case nothing may be assumed clean.
    */
-  const undoLocalRevert = async (): Promise<boolean> => {
+  const readTrackedChanges = async (): Promise<string[] | undefined> => {
     try {
-      await runGit(['reset', '--hard', originalSha], repoPath);
-      await runGit(['checkout', '--', '.'], repoPath);
-      return true;
+      const { stdout } = await runGit(['status', '--porcelain'], repoPath);
+      return stdout
+        .split('\n')
+        .map((line) => line.trimEnd())
+        .filter((line) => line.length > 0 && !line.startsWith('??') && !line.startsWith('!!'));
     } catch {
-      return false;
+      return undefined;
     }
   };
 
-  /** The conflict message, naming the original commit and how to get back. */
+  // The tracked changes already in the working tree before the revert ran. `git
+  // revert` never touches them (it refuses to start when it would overwrite
+  // them), so no undo may discard them either.
+  const preRevertTrackedChanges = await readTrackedChanges();
+
+  /**
+   * Undo a `git revert` that failed, without discarding anything the revert did
+   * not write.
+   *
+   * While the sequencer is mid-revert, `git revert --abort` is the undo: it
+   * reconstructs the pre-revert state and, unlike `git reset --hard`, refuses to
+   * overwrite a locally modified file instead of silently dropping it — so it is
+   * safe even when the tree already held the user's own edits. With no sequencer
+   * state the revert applied nothing (git writes REVERT_HEAD before it touches
+   * the index), so no command is run at all.
+   */
+  const undoFailedRevert = async (): Promise<'undone' | 'failed' | 'left-alone'> => {
+    if (await isRevertInProgress(repoPath)) {
+      try {
+        await runGit(['revert', '--abort'], repoPath);
+        return 'undone';
+      } catch {
+        return 'failed';
+      }
+    }
+    return 'left-alone';
+  };
+
+  /** The conflict message, naming the repository state and how to get back. */
   const revertFailedError = async (reason: string): Promise<Error> => {
-    const undone = await undoLocalRevert();
+    const outcome = await undoFailedRevert();
+    if (outcome === 'undone') {
+      return new Error(
+        vscode.l10n.t(
+          'Revert failed and was undone: {0}. The revert was aborted and the repository is back at {1}; changes that were already in the working tree were left untouched and untracked files the revert wrote are not removed.',
+          reason,
+          originalSha.slice(0, 7),
+        ),
+      );
+    }
+    if (outcome === 'failed') {
+      return new Error(
+        vscode.l10n.t(
+          'Revert failed: {0}. The revert is still in progress and could not be aborted automatically; run "git revert --abort" in the local repository to undo it (it keeps your other local changes).',
+          reason,
+        ),
+      );
+    }
     return new Error(
-      undone
-        ? vscode.l10n.t(
-            'Revert failed and was undone with no local commit left behind: {0}. The repository is back at {1}; untracked files the revert wrote are not removed.',
-            reason,
-            originalSha.slice(0, 7),
-          )
-        : vscode.l10n.t(
-            'Revert failed: {0}. The repository could not be restored automatically — it is still in the state left by the failed revert; run "git revert --abort" or "git reset --hard {1}" to undo it.',
-            reason,
-            originalSha,
-          ),
+      vscode.l10n.t(
+        'Revert failed: {0}. Nothing was discarded — the repository is still at {1} and the working tree was left as the failed revert left it; inspect it with "git status" before retrying.',
+        reason,
+        originalSha.slice(0, 7),
+      ),
     );
   };
 
@@ -1083,6 +1145,41 @@ export async function revertMergeCommit(
     throw await revertFailedError(revertResult.stderr);
   }
 
+  // The commit the revert just created. The failed-push undo may drop this one
+  // commit and nothing else, so it is recorded here and re-checked below instead
+  // of assuming HEAD still points at it.
+  const revertCommitSha = await getCurrentCommitSha(repoPath);
+
+  /**
+   * Drop the local revert commit, and nothing else.
+   *
+   * `git reset --hard` restores every tracked file to the recorded commit, so it
+   * may only run when no other tracked change is in the way: the status is read
+   * again and compared with the pre-revert snapshot (both must be free of
+   * tracked changes), and HEAD must still be the revert commit — a commit the
+   * user made meanwhile, or an edit the revert never touched, would otherwise be
+   * dropped with it. Untracked files survive a hard reset either way. When the
+   * reset is not safe the commit is left in place and the caller names it.
+   */
+  const undoRevertCommit = async (): Promise<'undone' | 'left-alone'> => {
+    if (!preRevertTrackedChanges || preRevertTrackedChanges.length > 0) {
+      return 'left-alone';
+    }
+    const trackedChangesNow = await readTrackedChanges();
+    if (!trackedChangesNow || trackedChangesNow.length > 0) {
+      return 'left-alone';
+    }
+    if (revertCommitSha === undefined || (await getCurrentCommitSha(repoPath)) !== revertCommitSha) {
+      return 'left-alone';
+    }
+    try {
+      await runGit(['reset', '--hard', originalSha], repoPath);
+      return 'undone';
+    } catch {
+      return 'left-alone';
+    }
+  };
+
   try {
     if (remoteBranch) {
       await pushBranch(repoPath, remote, `HEAD:${remoteBranch}`, token, false, tokenInstanceUrl);
@@ -1091,18 +1188,18 @@ export async function revertMergeCommit(
     }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    const undone = await undoLocalRevert();
+    const outcome = await undoRevertCommit();
     throw new Error(
-      undone
+      outcome === 'undone'
         ? vscode.l10n.t(
             'Revert could not be pushed and was undone: {0}. No local commit and no remote change was left behind; the repository is back at {1}.',
             reason,
             originalSha.slice(0, 7),
           )
         : vscode.l10n.t(
-            'Revert could not be pushed: {0}. The local revert commit {1} is still there and was NOT pushed; run "git reset --hard {2}" to undo it.',
+            'Revert could not be pushed: {0}. The local revert commit {1} was NOT pushed and is still there; your other local changes were left untouched. Commit or stash them, then drop the revert commit with "git reset --hard {2}".',
             reason,
-            remoteBranch ?? 'HEAD',
+            revertCommitSha ? revertCommitSha.slice(0, 7) : 'HEAD',
             originalSha,
           ),
     );

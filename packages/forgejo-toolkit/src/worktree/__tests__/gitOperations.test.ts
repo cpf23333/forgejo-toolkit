@@ -1019,12 +1019,14 @@ describe('revertMergeCommit branch guard and token push', () => {
     );
   });
 
-  it('undoes a conflicted revert instead of leaving the repository mid-revert', async () => {
+  it('undoes a conflicted revert with git revert --abort instead of a hard reset', async () => {
     mockGitSequence(
       [
         ['rev-parse --abbrev-ref HEAD', 'main\n'],
         ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
         ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
+        // The sequencer left REVERT_HEAD behind: the revert is mid-flight.
+        ['rev-parse --absolute-git-dir', '/repo/.git\n'],
       ],
       [['revert -m 1', 'error: could not revert abc123... hint: after resolving the conflicts']],
     );
@@ -1039,17 +1041,150 @@ describe('revertMergeCommit branch guard and token push', () => {
     expect(message).toContain('could not revert');
     expect(message).toContain('undone');
     expect(message).toContain('c0ffee1');
-    // The cleanup is a reset back to the recorded commit, not `git revert
-    // --abort`: the recorded commit also clears a mid-revert REVERT_HEAD.
-    expect(mocks.execFile).toHaveBeenCalledWith(
+    // `git revert --abort` reconstructs the pre-revert state and keeps local
+    // modifications it does not need to overwrite, where `git reset --hard`
+    // would discard the user's own edits together with the conflict.
+    expect(mocks.execFile).toHaveBeenCalledWith('git', ['revert', '--abort'], expect.anything(), expect.any(Function));
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
       'git',
-      ['reset', '--hard', 'c0ffee1'],
+      expect.arrayContaining(['reset']),
       expect.anything(),
       expect.any(Function),
     );
     expect(mocks.execFile).not.toHaveBeenCalledWith(
       'git',
       expect.arrayContaining(['push']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('keeps an unrelated tracked change when a conflicted revert is undone', async () => {
+    // The user's own edit was in the tree before the revert and `git revert`
+    // never touched it; no undo step may throw it away.
+    mockGitSequence(
+      [
+        ['status --porcelain', ' M src/unrelated.ts\n'],
+        ['rev-parse --abbrev-ref HEAD', 'main\n'],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
+        ['rev-parse --absolute-git-dir', '/repo/.git\n'],
+      ],
+      [['revert -m 1', 'error: could not revert abc123... hint: after resolving the conflicts']],
+    );
+
+    const failure = await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl).catch(
+      (error: unknown) => error,
+    );
+
+    expect((failure as Error).message).toContain('undone');
+    // Neither a hard reset nor a checkout may run: both restore tracked content,
+    // which would drop the unrelated edit along with the conflict.
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['reset']),
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      ['checkout', '--', '.'],
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('tells the user the revert is still in progress when it cannot be aborted', async () => {
+    mockGitSequence(
+      [
+        ['rev-parse --abbrev-ref HEAD', 'main\n'],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
+        ['rev-parse --absolute-git-dir', '/repo/.git\n'],
+      ],
+      [
+        ['revert -m 1', 'error: could not revert abc123'],
+        ['revert --abort', 'error: could not abort'],
+      ],
+    );
+
+    const failure = await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl).catch(
+      (error: unknown) => error,
+    );
+
+    const message = (failure as Error).message;
+    // The repository is still mid-revert, so the message has to say how to undo
+    // it; the view's mid-revert notice keys off this same wording.
+    expect(message).toContain('git revert --abort');
+    expect(message).not.toContain('was undone');
+  });
+
+  it('leaves the tree alone when the failed revert never applied anything', async () => {
+    // Without sequencer state `git revert` changed nothing (it refused to start,
+    // for instance over the user's local changes), so there is nothing to undo —
+    // and a hard reset would only discard those changes.
+    mockGitSequence(
+      [
+        ['status --porcelain', ' M src/unrelated.ts\n'],
+        ['rev-parse --abbrev-ref HEAD', 'main\n'],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
+      ],
+      [['revert -m 1', 'error: your local changes to the following files would be overwritten']],
+    );
+
+    const failure = await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl).catch(
+      (error: unknown) => error,
+    );
+
+    const message = (failure as Error).message;
+    // Nothing was undone and nothing was thrown away; the user is pointed at the
+    // working tree instead of having it reset under them.
+    expect(message).toContain('git status');
+    expect(message).not.toContain('was undone');
+    expect(message).not.toContain('git revert --abort');
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['reset']),
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it('keeps an unrelated tracked change when the push of a revert fails', async () => {
+    // The revert commit exists and the push failed, but the tree also held the
+    // user's own edit: dropping the commit with a hard reset would take that edit
+    // with it, so the host must leave the commit in place and name it instead.
+    mockGitSequence(
+      [
+        ['status --porcelain', ' M src/unrelated.ts\n'],
+        ['rev-parse --abbrev-ref HEAD', 'main\n'],
+        ['rev-parse --abbrev-ref @{upstream}', 'origin/main\n'],
+        ['remote get-url --push --all origin', 'https://forgejo.example.com/owner/repo.git\n'],
+      ],
+      [['push origin HEAD:main', 'error: failed to push some refs (non-fast-forward)']],
+    );
+
+    const failure = await revertMergeCommit('/repo', 'abc123', 'main', token, instanceUrl).catch(
+      (error: unknown) => error,
+    );
+
+    const message = (failure as Error).message;
+    expect(message).toContain('non-fast-forward');
+    expect(message).not.toContain('was undone');
+    // The commit to drop and the command to drop it with are named, so the user
+    // can finish the undo once their own edit is safe.
+    expect(message).toContain('git reset --hard');
+    expect(message).toContain('c0ffee1');
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['reset']),
+      expect.anything(),
+      expect.any(Function),
+    );
+    expect(mocks.execFile).not.toHaveBeenCalledWith(
+      'git',
+      ['checkout', '--', '.'],
       expect.anything(),
       expect.any(Function),
     );
@@ -1995,6 +2130,12 @@ describe('stale PR worktree inspection and discard', () => {
           }
           return;
         }
+        if (args[0] === 'rev-list') {
+          // The expected sha is present in this clone, so the count is a known
+          // zero rather than "could not be determined".
+          callback(null, { stdout: '0\n', stderr: '' } as unknown as string, '');
+          return;
+        }
         callback(null, { stdout: '', stderr: '' } as unknown as string, '');
       },
     );
@@ -2003,7 +2144,7 @@ describe('stale PR worktree inspection and discard', () => {
   it('inspects a stale worktree without removing it', async () => {
     mockStaleWorktree('pr-1-abc1234');
 
-    await expect(inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe')).resolves.toEqual({
+    await expect(inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'abc1234cafebabe')).resolves.toEqual({
       state: 'stale',
       info: { branch: 'pr-1-abc1234', dirty: false, commitsAhead: 0 },
     });
@@ -2016,7 +2157,7 @@ describe('stale PR worktree inspection and discard', () => {
 
   it('deletes the throwaway pr-<n>-<sha7> branch when the stale worktree is discarded', async () => {
     mockStaleWorktree('pr-1-abc1234');
-    const inspection = await inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe');
+    const inspection = await inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'abc1234cafebabe');
     expect(inspection.state).toBe('stale');
 
     await discardStalePrWorktree(
@@ -2041,7 +2182,7 @@ describe('stale PR worktree inspection and discard', () => {
 
   it('never deletes a non-throwaway branch checked out in a stale worktree', async () => {
     mockStaleWorktree('feature-user-work');
-    const inspection = await inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe');
+    const inspection = await inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'abc1234cafebabe');
 
     await discardStalePrWorktree(
       '/repo',
@@ -2059,7 +2200,7 @@ describe('stale PR worktree inspection and discard', () => {
 
   it('skips branch cleanup when the stale directory is detached', async () => {
     mockStaleWorktree(undefined);
-    const inspection = await inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'new1234cafebabe');
+    const inspection = await inspectPrWorktree('/cache/worktrees/owner-repo-pr-1', 'abc1234cafebabe');
     expect(inspection.state === 'stale' ? inspection.info.branch : 'unset').toBeUndefined();
 
     await discardStalePrWorktree(

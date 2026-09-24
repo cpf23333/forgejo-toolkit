@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { ApiError, toApiError, apiErrorUserMessage, extractApiErrorMessage, userFacingErrorMessage } from '../errors';
+import {
+  ApiError,
+  toApiError,
+  apiErrorUserMessage,
+  extractApiErrorMessage,
+  requestContextFor,
+  requestResourceFor,
+  userFacingErrorMessage,
+} from '../errors';
 
 describe('toApiError', () => {
   it('passes ApiError instances through unchanged', () => {
@@ -135,6 +143,37 @@ describe('apiErrorUserMessage', () => {
     expect(messageFor('network', 'fetch failed')).toContain('Cannot connect');
   });
 
+  it('blames the proxy, not the instance, for a connection failure through one', () => {
+    // A refused proxy connection is also ECONNREFUSED; the network message would
+    // tell the user to check whether the instance is running.
+    const proxied = toApiError(new Error('connect ECONNREFUSED 127.0.0.1:3128'), {
+      resource: 'repository',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      viaProxy: true,
+    });
+    const direct = toApiError(new Error('connect ECONNREFUSED 127.0.0.1:3128'), {
+      resource: 'repository',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+    });
+
+    expect(proxied.kind).toBe('proxy');
+    expect(proxied.userMessage).toContain('proxy');
+    expect(proxied.userMessage).not.toContain('Cannot connect to the instance');
+    expect(direct.kind).toBe('network');
+    expect(direct.userMessage).toContain('Cannot connect to the instance');
+  });
+
+  it('keeps a proxied TLS failure a certificate problem', () => {
+    // The certificate is the actionable part even when the connection goes
+    // through a proxy, so the TLS branch still wins.
+    const cause = Object.assign(new Error('self-signed certificate'), { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' });
+    const error = toApiError(new TypeError('fetch failed', { cause }), { viaProxy: true });
+
+    expect(error.kind).toBe('tls');
+  });
+
   it('names the certificate problem instead of telling the user to check that the instance is running', () => {
     const message = messageFor('tls', 'fetch failed');
     expect(message).toContain('certificate');
@@ -173,7 +212,6 @@ describe('apiErrorUserMessage', () => {
     expect(messageFor('http', 'Forgejo API error 403: {}', 403)).toContain('Permission denied');
     expect(messageFor('http', 'Forgejo API error 404: {}', 404)).toContain('Not found');
   });
-
   it('appends the extracted body message for 409/422 and other statuses', () => {
     // The parentheses are the request layer's JSON body wrapper; the message
     // inside is what the user must see, not the raw body.
@@ -215,6 +253,109 @@ describe('apiErrorUserMessage', () => {
 
   it('keeps the raw message for unknown errors', () => {
     expect(messageFor('unknown', 'weird failure')).toBe('weird failure');
+  });
+
+  it('names the owner and repository of a 404 and keeps the token out of it', () => {
+    // One message used to cover a wrong owner, a wrong path and a missing
+    // scope; the request context is what tells the caller what to change.
+    const error = toApiError(new Error('Forgejo API error 404: Not Found'), {
+      resource: 'repository',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+    });
+    // The test setup's l10n stub appends the arguments instead of substituting
+    // them, so the placeholders are resolved here the way the real bundle does.
+    const message = error.userMessage
+      .replace('{0}', 'repository')
+      .replace('{1}', 'demo-user')
+      .replace('{2}', 'demo-repo');
+
+    expect(message).toContain('Not found');
+    expect(message).toContain('repository in demo-user/demo-repo');
+    expect(message).toContain('Check the owner and repo');
+    // The context carries the arguments the caller already sent, never headers.
+    expect(message).not.toContain('Authorization');
+  });
+
+  it('names the resource kind of a 404 without inventing a repository scope', () => {
+    const error = toApiError(new Error('Forgejo API error 404: Not Found'), { resource: 'file or directory' });
+
+    expect(error.userMessage).toContain('file or directory');
+    expect(error.userMessage).toContain('path');
+    expect(error.userMessage).not.toContain('Check the owner and repo');
+  });
+
+  it('keeps the previous 404 wording when the request context is unknown', () => {
+    expect(messageFor('http', 'Forgejo API error 404: {}', 404)).toBe(
+      'Not found. The resource may have been deleted or is not accessible with this token.',
+    );
+  });
+});
+
+describe('requestResourceFor', () => {
+  it('names the resource of a repository-scoped request and its scope', () => {
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/repos/demo-user/demo-repo')).toEqual({
+      resource: 'repository',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+    });
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/repos/demo-user/demo-repo/contents/a/b.ts')).toEqual({
+      resource: 'file or directory',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+    });
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/repos/demo-user/demo-repo/pulls/2')).toEqual({
+      resource: 'pull request',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+    });
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/repos/demo-user/demo-repo/git/trees/main')).toEqual({
+      resource: 'file or directory',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+    });
+  });
+
+  it('keeps the query string out of the classification', () => {
+    expect(
+      requestResourceFor('https://forgejo.example.com/api/v1/repos/demo-user/demo-repo/branches?page=2&limit=50'),
+    ).toEqual({ resource: 'branch', owner: 'demo-user', repo: 'demo-repo' });
+  });
+
+  it('decodes an encoded scope so the message shows the real name', () => {
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/repos/demo%2Duser/demo%2Drepo')?.owner).toBe(
+      'demo-user',
+    );
+  });
+
+  it('falls back to the endpoint name for a resource it does not know', () => {
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/repos/demo-user/demo-repo/gadgets/1')?.resource).toBe(
+      'gadget',
+    );
+  });
+
+  it('names a user endpoint without claiming a repository scope', () => {
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/users/demo-user')).toEqual({ resource: 'user' });
+  });
+
+  it('carries the proxy flag even when the endpoint has no resource kind', () => {
+    // The flag is what keeps a proxy outage from reading as a dead instance, and
+    // it must survive an endpoint the classifier does not recognize.
+    expect(requestContextFor('https://forgejo.example.com/api/v1/notifications', { viaProxy: true })).toEqual({
+      viaProxy: true,
+    });
+    expect(
+      requestContextFor('https://forgejo.example.com/api/v1/repos/demo-user/demo-repo/branches', { viaProxy: true }),
+    ).toEqual({ resource: 'branch', owner: 'demo-user', repo: 'demo-repo', viaProxy: true });
+  });
+  it('returns nothing for endpoints outside the repository and user surface', () => {
+    // The generic 404 rendering stays for these: the user's own repository list
+    // and the notification list are not repository-scoped, and a URL the parser
+    // rejects has no path at all.
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/user/repos')).toBeUndefined();
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/notifications')).toBeUndefined();
+    expect(requestResourceFor('https://forgejo.example.com/api/v1/user')).toBeUndefined();
+    expect(requestResourceFor('not a url')).toBeUndefined();
   });
 });
 

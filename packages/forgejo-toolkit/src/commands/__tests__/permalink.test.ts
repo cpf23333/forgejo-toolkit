@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { encodePermalinkPath } from '../permalink';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as vscode from 'vscode';
+import { copyPermalink, encodePermalinkPath } from '../permalink';
+import { FORGEJO_PR_SCHEME } from '../../prFileSystemProvider';
+import type { ConfigManager } from '../../config';
 
 describe('encodePermalinkPath', () => {
   it('leaves a plain path unchanged', () => {
@@ -28,5 +31,66 @@ describe('encodePermalinkPath', () => {
     const parsed = new URL(url);
     expect(parsed.pathname).toBe('/owner/repo/blob/main/dir/a%23b.txt');
     expect(parsed.hash).toBe('#L3');
+  });
+});
+
+/**
+ * The permalink points at a blob on the ref the diff side belongs to, and one
+ * side of the pair is empty for a file the PR added or removed: copying then
+ * hands out a URL that resolves to a 404.
+ */
+describe('copyPermalink sides without a blob', () => {
+  function createConfig(): ConfigManager {
+    return {
+      getInstances: () => [
+        {
+          id: 'inst-1',
+          url: 'https://forgejo.example.com',
+          token: '',
+          name: 'user@forgejo.example.com',
+          username: 'user',
+        },
+      ],
+    } as unknown as ConfigManager;
+  }
+
+  function editorFor(isBase: boolean, status: string) {
+    const path = '/inst-1/owner/repo/src/old.ts';
+    return {
+      document: {
+        uri: {
+          scheme: FORGEJO_PR_SCHEME,
+          path,
+          query: JSON.stringify({ index: 2, ref: 'sha1', isBase, status }),
+        },
+      },
+      selection: { start: { line: 0 }, end: { line: 0 } },
+    };
+  }
+
+  afterEach(() => {
+    (vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = undefined;
+    vi.mocked(vscode.env.clipboard.writeText).mockClear();
+    vi.mocked(vscode.window.showWarningMessage).mockClear();
+  });
+
+  it('refuses the head side of a removed file instead of copying a dead link', async () => {
+    (vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = editorFor(false, 'removed');
+
+    await copyPermalink(createConfig());
+
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('head ref'));
+    expect(vscode.env.clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it('still copies the base side of a removed file', async () => {
+    (vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = editorFor(true, 'removed');
+
+    await copyPermalink(createConfig());
+
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining('https://forgejo.example.com/owner/repo/blob/sha1/src/old.ts'),
+    );
   });
 });

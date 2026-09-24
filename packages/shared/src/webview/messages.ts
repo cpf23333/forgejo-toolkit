@@ -647,9 +647,21 @@ export type HostToWebviewMessage =
       instanceId: string;
       notifications?: unknown[];
       /**
-       * The ids this poll actually fetched (the page it asked for). A view may
-       * only treat a row as read when the poller examined it, so rows beyond the
-       * fetched page are never reconciled away.
+       * The ids this poll examined, reported by the poller itself — not derived
+       * from `notifications` by the sender, because the rows a poll examined are
+       * not always the rows it returned:
+       *
+       * - a poll of the unread set whose page came back short has examined every
+       *   row it saw unread before, so a row that is now read is covered even
+       *   though it is absent from `notifications`;
+       * - "mark all as read" (from the host toast, with no webview command
+       *   behind it) covers the ids that were marked, and the refresh poll that
+       *   follows may return an empty list.
+       *
+       * A view may only treat a row as read when the poller examined it (a row
+       * beyond a full, possibly truncated page was never looked at), so rows
+       * outside this list are never reconciled away. Absent on a legacy host,
+       * which leaves the view to speak only for the rows it received.
        */
       coveredIds?: number[];
       /** Set when the poll itself failed (e.g. invalid token, instance down). */

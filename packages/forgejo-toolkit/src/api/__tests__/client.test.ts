@@ -15,7 +15,16 @@ import type {
   EditPullRequestOption,
   EditReleaseOption,
 } from '@cpf23333-forgejo-toolkit/api';
-import { ForgejoClient, clearDetectedServerOrigins, clearRepoContentsCache, clearTreeCache } from '../client';
+import {
+  ForgejoClient,
+  clearDetectedServerOrigins,
+  clearRepoContentsCache,
+  clearTreeCache,
+  MAX_SEARCH_RESULTS,
+  REPO_CONTENTS_CACHE_MAX_BYTES,
+  REPO_DETAIL_LIST_LIMIT,
+  repoContentsCacheBytesForTest,
+} from '../client';
 import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
 import type { Logger } from '../../logger';
@@ -350,6 +359,27 @@ describe('ForgejoClient with MSW', () => {
     expect(detail.recentCommits).toHaveLength(1);
   });
 
+  it('caps the branches and commits of a repository detail', async () => {
+    // The detail is a dashboard payload, not a full listing: it asks for
+    // REPO_DETAIL_LIST_LIMIT rows. The MCP `get_repo` tool reports that cap, so
+    // the constant and the request must not drift apart.
+    const client = createClient();
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/branches', ({ request }) =>
+        HttpResponse.json(
+          Array.from({ length: 50 }, (_, i) => ({ name: `branch-${i}` })).slice(
+            0,
+            Number(new URL(request.url).searchParams.get('limit') ?? '50'),
+          ),
+        ),
+      ),
+    );
+
+    const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+    expect(detail.branches).toHaveLength(REPO_DETAIL_LIST_LIMIT);
+  });
+
   describe('getRepoDetail README entry', () => {
     /**
      * Answers `/contents/README.md` with `body` and counts how many times the
@@ -559,6 +589,58 @@ describe('ForgejoClient with MSW', () => {
       expect(alice[0].content).toBe(Buffer.from('bytes for alice').toString('base64'));
       expect(bob[0].content).toBe(Buffer.from('bytes for bob').toString('base64'));
     });
+
+    it('evicts by total bytes, not only by entry count', async () => {
+      // The contents API answers with base64 bodies, so 64 entries can hold
+      // hundreds of megabytes. The memo must give up its oldest entries once the
+      // byte budget is spent, even though the count cap is nowhere near.
+      let requests = 0;
+      // Each answer is a quarter of the budget, so the fifth must push the first
+      // out; the entry count cap (64) is never reached.
+      const body = Buffer.alloc(Math.floor(REPO_CONTENTS_CACHE_MAX_BYTES / 4), 97).toString('base64');
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/*', ({ request }) => {
+          requests += 1;
+          return HttpResponse.json([
+            { ...mockReadmeContent, path: new URL(request.url).pathname.split('/contents/')[1], content: body },
+          ]);
+        }),
+      );
+      const client = new ForgejoClient('https://forgejo.example.com', 'mock-token');
+
+      for (let index = 0; index < 5; index += 1) {
+        await client.getRepoContents('demo-user', 'demo-repo', `file-${index}.md`, 'main');
+      }
+      expect(requests).toBe(5);
+      expect(repoContentsCacheBytesForTest()).toBeLessThanOrEqual(REPO_CONTENTS_CACHE_MAX_BYTES);
+
+      // The first entry was evicted for bytes; the fourth is still there.
+      await client.getRepoContents('demo-user', 'demo-repo', 'file-0.md', 'main');
+      expect(requests).toBe(6);
+      await client.getRepoContents('demo-user', 'demo-repo', 'file-4.md', 'main');
+      expect(requests).toBe(6);
+    });
+
+    it('forgets the byte total when the memo is cleared', async () => {
+      // The running total is what the budget is checked against, so a clear that
+      // leaves it behind would shrink the budget for the next session.
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/*', () =>
+          HttpResponse.json([{ ...mockReadmeContent, path: 'README.md' }]),
+        ),
+      );
+      await new ForgejoClient('https://forgejo.example.com', 'mock-token').getRepoContents(
+        'demo-user',
+        'demo-repo',
+        'README.md',
+        'main',
+      );
+      expect(repoContentsCacheBytesForTest()).toBeGreaterThan(0);
+
+      clearRepoContentsCache();
+
+      expect(repoContentsCacheBytesForTest()).toBe(0);
+    });
   });
 
   it('fetches file content', async () => {
@@ -567,6 +649,28 @@ describe('ForgejoClient with MSW', () => {
     expect(content).toContain('Demo Repository');
   });
 
+  it('classifies a connection failure through an installed proxy as a proxy problem', async () => {
+    // The injected fetch stands in for the ProxyAgent's undici fetch: a request
+    // that never reaches the instance fails the same way whether the instance or
+    // the proxy is unreachable, and only the installed dispatcher tells them
+    // apart. Without one the classifier has no proxy signal, which the
+    // errors-core suite covers directly.
+    const cause = Object.assign(new Error('connect ECONNREFUSED proxy.example.com:3128'), {
+      code: 'ECONNREFUSED',
+    });
+    const client = new ForgejoClient('https://forgejo.example.com', 'mock-token', undefined, undefined, {
+      dispatcher: {},
+      fetch: (() => Promise.reject(new TypeError('fetch failed', { cause }))) as never,
+    });
+
+    const error = await client
+      .getCurrentUser()
+      .then(() => undefined)
+      .catch((failure: unknown) => failure as ApiError);
+
+    expect(error?.kind).toBe('proxy');
+    expect(error?.userMessage).toContain('proxy');
+  });
   it('serves placeholder content for paths without a fixture, echoing the requested ref', async () => {
     const client = createClient();
     const content = await client.getFileContent('demo-user', 'demo-repo', 'docs/guide.md', 'dev');
@@ -2048,6 +2152,31 @@ describe('ForgejoClient with MSW', () => {
       expect(requests).toBe(2);
     });
 
+    it('caps the match list and reports the cap as truncation', async () => {
+      // The second cause of `truncated`: the tree was read completely but more
+      // paths match than the search returns. The MCP tool tells the caller a
+      // narrower query recovers the rest, which is only true for this cause.
+      const client = createClient();
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', () =>
+          HttpResponse.json({
+            sha: 'tree-sha',
+            tree: Array.from({ length: MAX_SEARCH_RESULTS + 20 }, (_, i) => ({
+              path: `match-${i}.ts`,
+              type: 'blob',
+              sha: `sha-${i}`,
+            })),
+            truncated: false,
+          }),
+        ),
+      );
+
+      const result = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'match');
+
+      expect(result.files).toHaveLength(MAX_SEARCH_RESULTS);
+      expect(result.truncated).toBe(true);
+    });
+
     it('reports truncation when the paging bound is reached', async () => {
       const client = createClient();
       let requests = 0;
@@ -2071,6 +2200,37 @@ describe('ForgejoClient with MSW', () => {
       expect(result.files).toHaveLength(requests);
       // The bound, not the server, ends the loop.
       expect(requests).toBe(50);
+    });
+
+    it('caches a truncated tree so its pages are fetched once', async () => {
+      // Every page but the last is marked truncated, so a >MAX_TREE_PAGES-entry
+      // repository re-issued the whole paging loop — up to 50 sequential
+      // requests — for each debounced search query.
+      const client = createClient();
+      let requests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/git/trees/:sha', ({ request }) => {
+          requests += 1;
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          return HttpResponse.json({
+            sha: 'tree-sha',
+            tree: [{ path: `file-${page}.ts`, type: 'blob', sha: `sha-${page}` }],
+            truncated: true,
+          });
+        }),
+      );
+
+      const first = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'file-');
+      expect(first.truncated).toBe(true);
+      expect(requests).toBe(50);
+
+      const second = await client.searchRepoFiles('demo-user', 'demo-repo', 'main', 'file-1');
+      // Served from the cache: no second paging loop.
+      expect(requests).toBe(50);
+      expect(second.files.some((file) => file.path === 'file-1.ts')).toBe(true);
+      // The cache still reports the tree as incomplete, so a search over it is
+      // never presented as exhaustive.
+      expect(second.truncated).toBe(true);
     });
 
     it('follows pagination until the tree is no longer truncated', async () => {

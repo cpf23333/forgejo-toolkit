@@ -154,16 +154,25 @@ export class ConfigManager {
    * record would keep its orphaned checkout out of the lazy sweep for good. The
    * checkout directories themselves are left on disk — they may hold
    * uncommitted work and this runs without a confirmation of its own — so the
-   * caller can tell the user. Returns how many worktree records were removed.
+   * caller can tell the user where they are: a checkout backed by an ordinary
+   * local clone is never reclaimed by the sweep, and once the record is gone
+   * nothing else points at it.
+   *
+   * Returns how many worktree records were dropped and the directories they
+   * named (read before they are forgotten).
    */
-  async removeInstance(id: string): Promise<number> {
+  async removeInstance(id: string): Promise<{ removed: number; strandedCheckouts: string[] }> {
+    const strandedCheckouts = this._worktrees
+      .getWorktrees()
+      .filter((worktree) => worktree.instanceId === id)
+      .map((worktree) => worktree.worktreePath);
     this._tokens.delete(id);
     await this.context.secrets.delete(this._tokenSecretKey(id));
     const instances = this._getStoredInstances().filter((i) => i.id !== id);
     await this._writeInstancesMerged(instances, id);
     const forgottenWorktrees = await this._worktrees.forgetInstanceWorktrees(id);
     this._onInstancesChanged.fire(this.getInstances());
-    return forgottenWorktrees;
+    return { removed: forgottenWorktrees, strandedCheckouts };
   }
 
   /**

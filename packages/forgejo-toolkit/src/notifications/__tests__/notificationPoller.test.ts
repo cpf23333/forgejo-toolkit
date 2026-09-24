@@ -95,8 +95,9 @@ describe('NotificationPoller', () => {
     poller.start();
     await vi.advanceTimersByTimeAsync(0);
 
-    // The list is pushed to the webview, but no toast for pre-existing unread.
-    expect(sender.pushNotifications).toHaveBeenCalledWith('a', [notification(1), notification(2)]);
+    // The list is pushed to the webview (with the ids the poll examined), but no
+    // toast for pre-existing unread.
+    expect(sender.pushNotifications).toHaveBeenCalledWith('a', [notification(1), notification(2)], [1, 2]);
     expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
 
     // Baseline recorded.
@@ -308,7 +309,7 @@ describe('NotificationPoller', () => {
     // The poll completes and rewrites the entry as a plain array.
     let seen = context.store.get('forgejoToolkit.seenNotificationIds') as Record<string, number[]>;
     expect(seen.a).toEqual([1]);
-    expect(sender.pushNotifications).toHaveBeenCalledWith('a', [notification(1)]);
+    expect(sender.pushNotifications).toHaveBeenCalledWith('a', [notification(1)], [1]);
 
     // The write queue survived: the next poll persists its update too.
     mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
@@ -407,6 +408,49 @@ describe('NotificationPoller', () => {
     expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
     // The failure is surfaced to the notifications view instead.
     expect(sender.pushNotificationError).toHaveBeenCalledWith('a', expect.any(String));
+    poller.dispose();
+  });
+
+  it('reports a row it examined and no longer finds unread as covered', async () => {
+    // The poll asks the server for the unread+pinned set, so a page shorter than
+    // the limit is the whole unread list: a row that was unread on the previous
+    // poll and is absent now was examined and found read. The view can only clear
+    // such a row when the host names it, because the row is not in the page.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    const config = createFakeConfig([instanceA]);
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1), notification(2)], [1, 2]);
+
+    mockGetNotifications.mockResolvedValue([notification(1)]);
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1)], [1, 2]);
+
+    poller.dispose();
+  });
+
+  it('reports the ids it marked read so an open view can clear them', async () => {
+    // "Mark all as read" from the host toast has no webview command behind it,
+    // and the refresh poll that follows comes back with an empty page. An empty
+    // page alone says nothing about the rows a view is still showing, so the
+    // poller has to name the ids it knows were marked.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    const config = createFakeConfig([instanceA]);
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    mockGetNotifications
+      .mockResolvedValueOnce([notification(1), notification(2), notification(3)])
+      .mockResolvedValue([]);
+    (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockResolvedValue('Mark all as read');
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(mockMarkAllRead).toHaveBeenCalledTimes(1);
+    expect(sender.pushNotifications).toHaveBeenCalledWith('a', [], [1, 2, 3]);
     poller.dispose();
   });
 });

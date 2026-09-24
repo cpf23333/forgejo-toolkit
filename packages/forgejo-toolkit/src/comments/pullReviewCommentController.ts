@@ -657,6 +657,11 @@ export class PullReviewCommentController implements vscode.Disposable {
     const data = await this._loadReviewData(params).catch((error: unknown) => {
       const err = userFacingErrorMessage(error);
       this._logger?.error(`Failed to load pull request diff for commenting: ${err}`);
+      // The command comes from an editor context menu, so returning silently
+      // looks like the click did nothing at all: name the failure (offline, an
+      // expired token, a deleted PR) instead of leaving the user guessing why no
+      // comment editor appeared.
+      void vscode.window.showErrorMessage(vscode.l10n.t('Could not load the pull request diff: {0}', err));
       return undefined;
     });
     if (!data) {

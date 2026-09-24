@@ -20,6 +20,8 @@ const clientMocks = vi.hoisted(() => ({
   deleteIssueTime: vi.fn(),
   downloadActionArtifactToFile: vi.fn(),
   invalidateRepoContentCaches: vi.fn(),
+  getPullRequestFiles: vi.fn(),
+  getPullRequestFilesFromCompare: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
@@ -41,6 +43,8 @@ vi.mock('../../api/client', () => ({
       resetIssueTime: clientMocks.resetIssueTime,
       deleteIssueTime: clientMocks.deleteIssueTime,
       downloadActionArtifactToFile: clientMocks.downloadActionArtifactToFile,
+      getPullRequestFiles: clientMocks.getPullRequestFiles,
+      getPullRequestFilesFromCompare: clientMocks.getPullRequestFilesFromCompare,
     };
   }),
 }));
@@ -120,6 +124,7 @@ import {
 } from '../../worktree/gitOperations';
 import { ConfigManager } from '../../config';
 import { ReadmeContentProvider } from '../../readmeProvider';
+import type { StalePrWorktreeInfo } from '../../worktree/gitOperations';
 import { OnboardingWebviewPanel } from '../onboardingPanel';
 import { PullReviewCommentPanel } from '../../comments/pullReviewCommentPanel';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -230,6 +235,8 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clientMocks.resetIssueTime.mockReset().mockResolvedValue(undefined);
     clientMocks.deleteIssueTime.mockReset().mockResolvedValue(undefined);
     clientMocks.downloadActionArtifactToFile.mockReset().mockResolvedValue(undefined);
+    clientMocks.getPullRequestFiles.mockReset();
+    clientMocks.getPullRequestFilesFromCompare.mockReset();
     clientMocks.invalidateRepoContentCaches.mockReset();
     vi.mocked(fetchBranch).mockReset();
     vi.mocked(createWorktreeWithNewBranch).mockReset();
@@ -1914,6 +1921,121 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     expect((list!.worktrees as unknown[]).length).toBe(1);
   });
 
+  it('pushes the refreshed worktree list when an instance is removed', async () => {
+    // Removing an instance forgets its worktree records (their checkouts stay on
+    // disk). The Settings list renders `worktrees`, which only a `worktreesList`
+    // reply updates: without one the forgotten rows stay on screen and deleting
+    // one reaches the host with no record behind it.
+    await context.globalState.update('forgejoToolkit.worktrees', [
+      {
+        id: 'w-gone',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        prIndex: 1,
+        prTitle: 'title',
+        headBranch: 'feature',
+        headSha: 'abc1234',
+        baseBranch: 'main',
+        sourceRepoPath: '/src/repo',
+        worktreePath: '/cache/worktrees/w-gone',
+        createdAt: 0,
+      },
+    ]);
+
+    fake.send({ command: 'removeInstance', id: testInstance.id });
+    await flushDispatches();
+
+    const lists = postedMessages(fake.posted).filter((m) => m.command === 'worktreesList');
+    expect(lists.length).toBeGreaterThan(0);
+    expect(lists.at(-1)!.worktrees).toEqual([]);
+  });
+
+  it('names the checkouts left on disk when an instance is removed', async () => {
+    // The records are forgotten but the checkouts stay (they may hold work). A
+    // checkout backed by an ordinary clone is never reclaimed by the lazy sweep,
+    // so without naming it the user can no longer find it anywhere.
+    await context.globalState.update('forgejoToolkit.worktrees', [
+      {
+        id: 'w-gone',
+        instanceId: testInstance.id,
+        owner: 'owner',
+        repo: 'repo',
+        prIndex: 1,
+        prTitle: 'title',
+        headBranch: 'feature',
+        headSha: 'abc1234',
+        baseBranch: 'main',
+        sourceRepoPath: '/src/repo',
+        worktreePath: '/cache/worktrees/w-gone',
+        createdAt: 0,
+      },
+    ]);
+    vi.mocked(vscode.window.showInformationMessage).mockClear();
+
+    fake.send({ command: 'removeInstance', id: testInstance.id });
+    await flushDispatches();
+
+    const message = vi.mocked(vscode.window.showInformationMessage).mock.calls.at(-1)?.[0] as string;
+    expect(message).toContain('/cache/worktrees/w-gone');
+  });
+
+  it('answers a stale worktree row with no record behind it honestly', async () => {
+    // A row rendered before its record was dropped (e.g. when its instance was
+    // removed) has nothing left to delete. Answering `worktreeRemoved` would tell
+    // the user it was deleted while the checkout stays on disk, so the host must
+    // report why it did nothing instead.
+    const confirmsBefore = vi.mocked(vscode.window.showWarningMessage).mock.calls.length;
+
+    fake.send({ command: 'removeWorktree', id: 'w-stale' });
+    await flushDispatches();
+
+    const messages = postedMessages(fake.posted);
+    expect(messages.some((m) => m.command === 'worktreeRemoved')).toBe(false);
+    const error = messages.find((m) => m.command === 'worktreeError');
+    expect(error).toMatchObject({ operation: 'remove' });
+    expect(typeof error?.error).toBe('string');
+    // Nothing will be deleted, so the destructive prompt must not appear either.
+    expect(vi.mocked(vscode.window.showWarningMessage).mock.calls.length).toBe(confirmsBefore);
+    expect(vi.mocked(removeWorktreeAndPrune)).not.toHaveBeenCalled();
+  });
+
+  describe('stale worktree discard confirmation', () => {
+    // The forced removal deletes the checkout and its throwaway branch, so the
+    // decision to skip the prompt may only hinge on a *known* absence of local
+    // work. An unknown commit count (the PR head sha was never fetched, so
+    // `rev-list` cannot resolve the range) is not evidence that nothing would be
+    // lost.
+    function confirmDiscard(info: StalePrWorktreeInfo, index = 5): Promise<boolean> {
+      return (
+        provider as unknown as {
+          _confirmDiscardStaleWorktree: (info: StalePrWorktreeInfo, index: number) => Promise<boolean>;
+        }
+      )._confirmDiscardStaleWorktree(info, index);
+    }
+
+    it('asks before discarding when the local commit count could not be determined', async () => {
+      vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
+
+      const confirmed = await confirmDiscard({ dirty: false, commitsAhead: undefined });
+
+      // Declined: the caller must not discard the checkout.
+      expect(confirmed).toBe(false);
+      const message = vi.mocked(vscode.window.showWarningMessage).mock.calls.at(-1)?.[0] as string;
+      expect(message).toContain('could not be counted');
+      expect(message).toContain('lost');
+    });
+
+    it('discards a clean leftover with no local commits without prompting', async () => {
+      vi.mocked(vscode.window.showWarningMessage).mockClear();
+
+      const confirmed = await confirmDiscard({ dirty: false, commitsAhead: 0 });
+
+      expect(confirmed).toBe(true);
+      expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+    });
+  });
+
   it('dedupes a double-submitted removeWorktree for the same worktree', async () => {
     const worktree = {
       id: 'w1',
@@ -3029,6 +3151,70 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         expect(recordedBaseBranch()).toBe('main');
       });
     });
+  });
+
+  describe('notification poll coverage', () => {
+    it('sends the ids the poll examined, not only the rows it returned', async () => {
+      // The view may only mark a row read when the host says the poll examined
+      // it. Deriving coverage from `notifications` cannot express a row the poll
+      // looked at and found read (e.g. "mark all as read" from the host toast),
+      // so the coverage the poller reports has to reach the view verbatim.
+      provider.pushNotifications(testInstance.id, [], [1, 2]);
+
+      const push = postedMessages(fake.posted).find((m) => m.command === 'polledNotifications');
+      expect(push).toMatchObject({ instanceId: testInstance.id, notifications: [], coveredIds: [1, 2] });
+    });
+
+    it('reveals and queues openNotifications when the sidebar was never opened', async () => {
+      // The poller toasts a new notification whether or not the sidebar has ever
+      // been resolved, and `_reply` drops the message while `this._view` is
+      // undefined — so the toast's "Open" button did nothing at all.
+      const fresh = new ForgejoToolkitViewProvider(
+        context as never,
+        context.extensionUri as never,
+        config,
+        new ReadmeContentProvider(),
+      );
+      const freshView = createFakeView();
+      vi.mocked(vscode.commands.executeCommand).mockClear();
+
+      fresh.openNotifications();
+
+      expect(vscode.commands.executeCommand).toHaveBeenCalledWith('forgejoToolkitView.focus');
+
+      // The queued message is delivered once the view mounts and asks for state.
+      fresh.resolveWebviewView(freshView.view as never, {} as never, {} as never);
+      freshView.send({ command: 'getInitialState' });
+      await flushDispatches();
+
+      expect(postedMessages(freshView.posted).some((m) => m.command === 'openNotifications')).toBe(true);
+    });
+  });
+
+  it('reuses the JSON file list fetched as the compare fallback instead of re-fetching it', async () => {
+    // The compare call falls back to the JSON list, which is also the source of
+    // the addition/deletion counts: fetching the same paged list a second time
+    // is one wasted request per PR open.
+    clientMocks.getPullRequestFilesFromCompare.mockRejectedValue(new Error('compare unsupported'));
+    clientMocks.getPullRequestFiles.mockResolvedValue([
+      { filename: 'src/index.ts', status: 'modified', additions: 1, deletions: 2, changes: 3 },
+    ]);
+
+    fake.send({
+      command: 'getPullRequestFiles',
+      instanceId: testInstance.id,
+      owner: 'owner',
+      repo: 'repo',
+      index: 5,
+      baseSha: 'a'.repeat(40),
+      headSha: 'b'.repeat(40),
+    });
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'pullRequestFiles'));
+
+    expect(clientMocks.getPullRequestFiles).toHaveBeenCalledTimes(1);
+    const reply = postedMessages(fake.posted).find((m) => m.command === 'pullRequestFiles');
+    expect(reply?.error).toBeUndefined();
+    expect((reply?.files as Array<{ additions?: number }> | undefined)?.[0]?.additions).toBe(1);
   });
 
   describe('_resolveAvatarUrl', () => {

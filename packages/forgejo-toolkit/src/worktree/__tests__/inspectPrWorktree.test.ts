@@ -37,6 +37,7 @@ let currentHeadSha: string | undefined;
 let currentBranch: string | undefined;
 let statusOutput = '';
 let commitsAheadOutput = '0';
+let commitsAheadError: string | undefined;
 
 /**
  * Every git read involved in the stale path is layered onto one execFile
@@ -71,6 +72,12 @@ function baseGitImplementation(removeFails: boolean) {
       return;
     }
     if (args[0] === 'rev-list') {
+      if (commitsAheadError !== undefined) {
+        const error = new Error('Command failed') as Error & { stderr: string };
+        error.stderr = commitsAheadError;
+        callback(error, '', error.stderr);
+        return;
+      }
       callback(null, `${commitsAheadOutput}\n`, '');
       return;
     }
@@ -93,6 +100,7 @@ describe('inspectPrWorktree', () => {
     currentBranch = undefined;
     statusOutput = '';
     commitsAheadOutput = '0';
+    commitsAheadError = undefined;
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-toolkit-wt-test-'));
   });
 
@@ -184,6 +192,23 @@ describe('inspectPrWorktree', () => {
     );
   });
 
+  it('reports an unknown commit count when the range cannot be resolved', async () => {
+    // The PR head sha exists only on the instance until the open flow fetches
+    // it, so `rev-list` cannot compare it with the leftover's HEAD. Reporting
+    // that as zero let the caller skip its confirmation and force-delete a
+    // checkout that may hold the user's local commits; unknown is not zero.
+    const worktreePath = path.join(tempRoot, 'stale-unresolved');
+    fs.mkdirSync(worktreePath);
+    currentHeadSha = 'old-sha';
+    currentBranch = 'pr-1-abc1234';
+    commitsAheadError = "fatal: bad revision 'newsha1234567890..HEAD'";
+    baseGitImplementation(false);
+
+    const result = await inspectPrWorktree(worktreePath, 'newsha1234567890');
+    expect(result.state).toBe('stale');
+    expect(result.state === 'stale' ? result.info.commitsAhead : 0).toBeUndefined();
+  });
+
   it('does not ask git to count commits for a non-sha expected ref', async () => {
     const worktreePath = path.join(tempRoot, 'stale-nonsha');
     fs.mkdirSync(worktreePath);
@@ -192,7 +217,8 @@ describe('inspectPrWorktree', () => {
     baseGitImplementation(false);
 
     const result = await inspectPrWorktree(worktreePath, 'refs/heads/main');
-    expect(result.state === 'stale' ? result.info.commitsAhead : undefined).toBe(0);
+    // No count was attempted, so the count is unknown (and the caller confirms).
+    expect(result.state === 'stale' ? result.info.commitsAhead : 0).toBeUndefined();
     for (const call of mocks.execFile.mock.calls) {
       expect(call[1]).not.toContain('rev-list');
     }

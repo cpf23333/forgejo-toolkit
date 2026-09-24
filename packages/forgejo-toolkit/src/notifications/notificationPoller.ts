@@ -8,8 +8,22 @@ import { userFacingErrorMessage } from '../api/errors';
 
 const SEEN_NOTIFICATION_IDS_KEY = 'forgejoToolkit.seenNotificationIds';
 
+/**
+ * Page size of the poller's notification request. A page shorter than this is
+ * the server's whole unread+pinned set, which is what makes a row that is absent
+ * from it known to be read; a page that fills the limit may have been truncated,
+ * so absence proves nothing there. See `_pollInstance`.
+ */
+const POLL_PAGE_LIMIT = 50;
+
 export interface NotificationMessageSender {
-  pushNotifications(instanceId: string, notifications: ForgejoNotification[]): void;
+  /**
+   * `coveredIds` are the ids this poll examined, which need not be the ids it
+   * returned (see `_pollInstance` and `_markAllRead`): the view may only treat a
+   * row as read when the poller looked at it, and it cannot infer that from the
+   * returned list alone.
+   */
+  pushNotifications(instanceId: string, notifications: ForgejoNotification[], coveredIds: number[]): void;
   pushNotificationError(instanceId: string, error: string): void;
   openNotifications(): void;
 }
@@ -17,6 +31,11 @@ export interface NotificationMessageSender {
 interface NewNotificationBatch {
   instance: ForgejoInstance;
   notifications: ForgejoNotification[];
+}
+
+/** The numeric ids of a notification list, in order; a row without one is skipped. */
+function idsOf(notifications: ForgejoNotification[]): number[] {
+  return notifications.map((notification) => notification.id).filter((id): id is number => typeof id === 'number');
 }
 
 export class NotificationPoller implements vscode.Disposable {
@@ -43,6 +62,12 @@ export class NotificationPoller implements vscode.Disposable {
   // for the next interval (five minutes by default).
   private _polledInstanceKey = '';
   private _pollAgainRequested = false;
+  // The unread ids of each instance's last successful poll. A later poll whose
+  // page came back short examined the whole unread set, so a row in here that is
+  // absent from that page was examined and found read — the only way to report a
+  // row the poll did not return. Entries for instances that are gone are dropped
+  // at the start of a round.
+  private readonly _knownUnreadIds = new Map<string, number[]>();
 
   constructor(
     private readonly _config: ConfigManager,
@@ -159,6 +184,15 @@ export class NotificationPoller implements vscode.Disposable {
    */
   private async _pollAll(): Promise<void> {
     const instances = this._config.getInstances();
+    // Instances can be removed between rounds; their last known unread ids are
+    // of no use to anyone afterwards, so drop them instead of keeping them for
+    // the lifetime of the window.
+    const configuredIds = new Set(instances.map((instance) => instance.id));
+    for (const instanceId of [...this._knownUnreadIds.keys()]) {
+      if (!configuredIds.has(instanceId)) {
+        this._knownUnreadIds.delete(instanceId);
+      }
+    }
     const batches: NewNotificationBatch[] = [];
     await Promise.all(
       instances.map(async (instance) => {
@@ -200,7 +234,7 @@ export class NotificationPoller implements vscode.Disposable {
     }
     this._logger?.debug(`Polling notifications for ${instance.name}`);
     const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
-    const notifications = await client.getNotifications(['unread', 'pinned']);
+    const notifications = await client.getNotifications(['unread', 'pinned'], undefined, POLL_PAGE_LIMIT);
 
     // The instance may have been removed (or the poller disposed) while the
     // request was in flight; drop the stale result instead of pushing it to
@@ -209,10 +243,31 @@ export class NotificationPoller implements vscode.Disposable {
       return undefined;
     }
 
-    this._sender.pushNotifications(instance.id, notifications);
+    this._sender.pushNotifications(instance.id, notifications, this._coverageFor(instance.id, notifications));
 
     const newNotifications = await this._reconcileSeenIds(instance.id, notifications);
     return { instance, notifications: newNotifications };
+  }
+
+  /**
+   * The ids this poll can speak for, and the record of what it saw unread for
+   * the next one.
+   *
+   * The request asks for the unread+pinned set, so a page shorter than the limit
+   * is that whole set: every row this poller saw unread last time and that is
+   * absent from the page was examined and found read, and the view can only
+   * clear such a row if it is named here (it is not in `notifications`). A page
+   * that fills the limit may have been truncated — a newly arrived notification
+   * pushes older rows off it — so absence proves nothing and only the returned
+   * ids are covered.
+   */
+  private _coverageFor(instanceId: string, notifications: ForgejoNotification[]): number[] {
+    const pageIds = idsOf(notifications);
+    const previouslyUnread = this._knownUnreadIds.get(instanceId) ?? [];
+    const coveredIds =
+      notifications.length < POLL_PAGE_LIMIT ? [...new Set([...pageIds, ...previouslyUnread])] : pageIds;
+    this._knownUnreadIds.set(instanceId, coveredIds);
+    return coveredIds;
   }
 
   /**
@@ -223,9 +278,7 @@ export class NotificationPoller implements vscode.Disposable {
    * new twice.
    */
   private _reconcileSeenIds(instanceId: string, notifications: ForgejoNotification[]): Promise<ForgejoNotification[]> {
-    const ids = notifications
-      .map((notification) => notification.id)
-      .filter((id): id is number => typeof id === 'number');
+    const ids = idsOf(notifications);
     // Queue the read-modify-write so concurrent polls merge onto the latest
     // persisted state instead of racing. Serialize as plain arrays:
     // globalState JSON-persists values and a Set would degrade to {}.
@@ -309,6 +362,15 @@ export class NotificationPoller implements vscode.Disposable {
       vscode.window.showErrorMessage(vscode.l10n.t('Failed to mark notifications as read: {0}', err));
       return;
     }
+    // Everything the server holds is read now, so every id this poller saw
+    // unread is a row it examined and found read. They have to be named
+    // explicitly: the refresh poll below comes back with an empty page, and an
+    // empty page says nothing about the rows a view is still showing (the host
+    // can only speak for rows it received). Pushed before the refresh so the
+    // view is cleared even if that poll fails.
+    const markedIds = this._knownUnreadIds.get(instance.id) ?? [];
+    this._knownUnreadIds.set(instance.id, []);
+    this._sender.pushNotifications(instance.id, [], markedIds);
     // Refresh the view after a successful mark. A refresh failure is not a
     // mark failure (the server already marked everything read) and must not
     // be reported as one.

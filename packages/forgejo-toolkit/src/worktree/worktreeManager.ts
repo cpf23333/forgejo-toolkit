@@ -137,13 +137,17 @@ export class WorktreeManager {
    * meanwhile must not be lost when the (stale) snapshot is written back.
    * Serializing the git operations too is the accepted trade-off — removals
    * are rare and user-triggered.
+   *
+   * Returns false when there is no record for `id`: the caller then has nothing
+   * to report as removed, and the checkout (if it still exists) was not touched
+   * because this record set never knew its path.
    */
-  async removeWorktree(id: string): Promise<void> {
+  async removeWorktree(id: string): Promise<boolean> {
     return enqueueGlobalStateWrite(async () => {
       const worktrees = this.getWorktrees();
       const target = worktrees.find((w) => w.id === id);
       if (!target) {
-        return;
+        return false;
       }
       const sourceExists = await fs.promises.access(target.sourceRepoPath).then(
         () => true,
@@ -180,6 +184,7 @@ export class WorktreeManager {
         WORKTREES_KEY,
         worktrees.filter((w) => w.id !== id),
       );
+      return true;
     });
   }
 

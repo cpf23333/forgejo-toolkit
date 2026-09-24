@@ -311,7 +311,10 @@ describe('ConfigManager', () => {
 
     const removed = await config.removeInstance(instance.id);
 
-    expect(removed).toBe(2);
+    expect(removed.removed).toBe(2);
+    // The checkouts stay on disk, so the caller is told where they are (a
+    // checkout backed by an ordinary clone is never reclaimed by the sweep).
+    expect(removed.strandedCheckouts).toEqual(['/cache/worktrees/w1', '/cache/worktrees/w2']);
     const worktrees = fake.context.globalState.get('forgejoToolkit.worktrees', []) as Array<{ id: string }>;
     expect(worktrees.map((w) => w.id)).toEqual(['w3']);
     // Only the clones no surviving record references lose their usage entry:
