@@ -80,6 +80,25 @@ function selectBranch(name?: string) {
   }
 }
 
+// Rows are focusable and act as buttons, so Enter/Space must select the branch.
+// Keydown bubbles from the row's own delete button; that control handles its own
+// activation, so leave it alone instead of selecting the branch as well. The key
+// names are normalised here because the target guard has to run before any
+// preventDefault (a Vue `.space.prevent` modifier would swallow the inner
+// button's own Space activation).
+function onBranchKeydown(event: KeyboardEvent, name?: string) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('.ref-delete-button')) {
+    return;
+  }
+  const key = event.key.toLowerCase();
+  if (key !== 'enter' && key !== ' ' && key !== 'space') {
+    return;
+  }
+  event.preventDefault();
+  selectBranch(name);
+}
+
 function retryLoad() {
   state.loadRepoRefs(props.instanceId, props.owner, props.repo, true);
 }
@@ -272,7 +291,10 @@ function removeRelease(id?: number) {
           v-for="branch in data?.branches"
           :key="branch.name"
           class="ref-item branch-item"
+          role="button"
+          tabindex="0"
           @click="selectBranch(branch.name)"
+          @keydown="onBranchKeydown($event, branch.name)"
         >
           <div class="ref-main">
             <span class="ref-name">{{ branch.name }}</span>
@@ -435,6 +457,11 @@ function removeRelease(id?: number) {
 
 .branch-item {
   cursor: pointer;
+}
+
+.branch-item:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 .ref-actions {

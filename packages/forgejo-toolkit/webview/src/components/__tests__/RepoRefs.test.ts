@@ -136,3 +136,46 @@ describe('RepoRefs truncation notice', () => {
     expect(below.find('.list-truncated').exists()).toBe(false);
   });
 });
+
+describe('RepoRefs branch row keyboard access', () => {
+  beforeEach(() => {
+    stateMock.repoRefs.value.set('inst-1:owner/repo:refs', {
+      branches: [{ name: 'feature/x', commit: { id: 'abc' }, protected: false }],
+      tags: [],
+      releases: [],
+    });
+    stateMock.deleteRepoBranch.mockClear();
+  });
+
+  it('exposes the branch row as a focusable button that selects on Enter and Space', async () => {
+    const wrapper = mountRepoRefs();
+    await nextTick();
+
+    const row = wrapper.get('.branch-item');
+    expect(row.attributes('role')).toBe('button');
+    expect(row.attributes('tabindex')).toBe('0');
+
+    await row.trigger('keydown.enter');
+    expect(wrapper.emitted('select-branch')).toEqual([['feature/x']]);
+
+    await row.trigger('keydown.space');
+    expect(wrapper.emitted('select-branch')).toEqual([['feature/x'], ['feature/x']]);
+
+    // A click still selects the branch for mouse users.
+    await row.trigger('click');
+    expect(wrapper.emitted('select-branch')).toHaveLength(3);
+  });
+
+  it('does not select the branch when the row delete button is activated', async () => {
+    const wrapper = mountRepoRefs();
+    await nextTick();
+
+    const deleteButton = wrapper.get('.branch-item .ref-delete-button');
+    await deleteButton.trigger('keydown.enter');
+    expect(wrapper.emitted('select-branch')).toBeUndefined();
+
+    await deleteButton.trigger('click');
+    expect(wrapper.emitted('select-branch')).toBeUndefined();
+    expect(stateMock.deleteRepoBranch).toHaveBeenCalledWith('inst-1', 'owner', 'repo', 'feature/x');
+  });
+});

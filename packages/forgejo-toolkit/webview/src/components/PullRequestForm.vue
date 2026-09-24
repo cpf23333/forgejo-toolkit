@@ -100,17 +100,21 @@ watch(
   },
 );
 
+// Re-seed only when the contents change: the parent builds these arrays inline,
+// so a re-render (including the one this form's `dirty` emit causes) produces a
+// new identity and an identity-based watcher would undo the user's first toggle.
+// See IssueForm for the same guard.
 watch(
-  () => props.initialLabelIds,
-  (value) => {
-    selectedLabelIds.value = [...value];
+  () => JSON.stringify(props.initialLabelIds),
+  () => {
+    selectedLabelIds.value = [...props.initialLabelIds];
   },
 );
 
 watch(
-  () => props.initialAssignees,
-  (value) => {
-    selectedAssignees.value = [...value];
+  () => JSON.stringify(props.initialAssignees),
+  () => {
+    selectedAssignees.value = [...props.initialAssignees];
   },
 );
 

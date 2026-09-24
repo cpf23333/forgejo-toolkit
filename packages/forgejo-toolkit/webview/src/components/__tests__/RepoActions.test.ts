@@ -11,6 +11,7 @@ const { stateMock } = vi.hoisted(() => ({
     actionRuns: { value: new Map<string, unknown[]>() },
     actionRunsHasMore: { value: new Map<string, boolean>() },
     actionRunTotalCount: { value: new Map<string, number>() },
+    lastDispatchCancelled: { value: undefined as string | undefined },
     loadActionRuns: vi.fn(),
     dispatchWorkflow: vi.fn(),
     openActionRunDetail: vi.fn(),
@@ -103,6 +104,7 @@ describe('RepoActions dispatch feedback', () => {
     stateMock.dispatchWorkflow.mockClear();
     stateMock.loading.clear();
     stateMock.errors.clear();
+    stateMock.lastDispatchCancelled.value = undefined;
   });
 
   it('shows waiting feedback after a successful dispatch and timeout feedback when no run appears', async () => {
@@ -140,6 +142,46 @@ describe('RepoActions dispatch feedback', () => {
       await vi.advanceTimersByTimeAsync(4000 * 16);
       await nextTick();
       expect(wrapper.text()).toContain('no new run appeared yet');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports a declined confirmation as neither success nor a pending run', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mountHost();
+
+      const triggerButton = wrapper.findAll('vscode-button').find((b) => b.text().includes('Trigger workflow'));
+      await triggerButton!.trigger('click');
+      const textfields = wrapper.findAll('vscode-textfield');
+      (textfields[0].element as unknown as { value: string }).value = 'ci.yml';
+      await textfields[0].trigger('input');
+      (textfields[1].element as unknown as { value: string }).value = 'main';
+      await textfields[1].trigger('input');
+      const runButton = wrapper.findAll('vscode-button').find((b) => b.text().trim() === 'Run');
+      await runButton!.trigger('click');
+
+      const state = useAppState() as unknown as {
+        loading: Map<string, boolean>;
+        actionRuns: { value: Map<string, unknown[]> };
+        lastDispatchCancelled: { value: string | undefined };
+      };
+      state.loading.set('inst-1:owner/repo:actions:dispatch:ci.yml', true);
+      await nextTick();
+      // The host answered the dispatch with `cancelled: true`: the loading key is
+      // cleared and the state records the declined dispatch key.
+      state.lastDispatchCancelled.value = 'inst-1:owner/repo:actions:dispatch:ci.yml';
+      state.loading.set('inst-1:owner/repo:actions:dispatch:ci.yml', false);
+      await nextTick();
+
+      expect(wrapper.text()).not.toContain('Waiting for the new run to appear');
+      expect(wrapper.text()).not.toContain('no new run appeared yet');
+
+      // No list polling is started either: a declined dispatch has no run to wait for.
+      stateMock.loadActionRuns.mockClear();
+      await vi.advanceTimersByTimeAsync(4000 * 4);
+      expect(stateMock.loadActionRuns).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

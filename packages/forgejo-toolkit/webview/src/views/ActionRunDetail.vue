@@ -486,7 +486,15 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
       </div>
       <div class="jobs-list">
         <div v-for="job in jobs" :key="job.id" :class="['job-item', { failed: isActionStatusFailed(job.status) }]">
-          <div class="job-header" @click="toggleJobCollapsed(job.id)">
+          <div
+            class="job-header"
+            role="button"
+            :tabindex="job.id === undefined ? -1 : 0"
+            :aria-expanded="job.id === undefined ? undefined : !isJobCollapsed(job.id)"
+            @click="toggleJobCollapsed(job.id)"
+            @keydown.enter="toggleJobCollapsed(job.id)"
+            @keydown.space.prevent="toggleJobCollapsed(job.id)"
+          >
             <vscode-icon
               v-if="job.id !== undefined"
               class="job-collapse-icon"
@@ -691,6 +699,11 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
   font-weight: 600;
   cursor: pointer;
   user-select: none;
+}
+
+.job-header:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 .job-collapse-icon {

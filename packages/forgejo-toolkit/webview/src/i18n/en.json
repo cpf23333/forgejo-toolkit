@@ -374,6 +374,7 @@
         "failure": "Failed",
         "error": "Error",
         "warning": "Warning",
+        "skipped": "Skipped",
         "unknown": "Unknown"
       },
       "mergeStrategy": {

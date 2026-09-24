@@ -19,6 +19,7 @@ import {
 import type { ForgejoPullRequest } from '../types/api';
 import { stateLabel } from '../utils/stateLabel';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
+import { removePendingImageFromBody } from '../utils/pendingImageMarkdown';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -305,6 +306,14 @@ async function handleCreateSubmit(data: {
       return;
     }
     let updatedBody = data.body;
+    // Every pending image that still has no replacement entry was removed from
+    // the attachment list (an uploaded one always has one), so only its session
+    // `blob:` URL is left in the body. Strip it instead of storing a broken image.
+    for (const objectUrl of pendingImageObjectUrls.value.keys()) {
+      if (!uploadedImageReplacements.value.has(objectUrl)) {
+        updatedBody = removePendingImageFromBody(updatedBody, objectUrl);
+      }
+    }
     for (const [objectUrl, attachmentUrl] of uploadedImageReplacements.value) {
       updatedBody = updatedBody.replaceAll(objectUrl, attachmentUrl);
     }

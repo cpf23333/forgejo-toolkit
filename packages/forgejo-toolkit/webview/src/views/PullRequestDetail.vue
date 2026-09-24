@@ -752,6 +752,12 @@ function handleCommitOpenSelectedDiffs(payload: {
 const worktreeLoading = ref(false);
 const worktreeStatus = ref('');
 const worktreeStatusType = ref<'idle' | 'success' | 'error'>('idle');
+// The PR whose worktree open is in flight, captured when the open starts.
+// `route.params` follows the global route, so this view's live params stop
+// describing its own PR as soon as the user opens another one — and under
+// keep-alive this instance stays mounted (deactivated) while that happens. The
+// captured target is what worktree replies are matched against.
+const worktreeTarget = ref<{ instanceId: string; owner: string; repo: string; index: number } | undefined>(undefined);
 
 const renderedBody = ref('');
 const bodyLoading = ref(false);
@@ -903,7 +909,46 @@ function setWorktreeStatus(message: string, type: 'idle' | 'success' | 'error' =
   worktreeStatusType.value = type;
 }
 
+/**
+ * Whether a worktree reply (opened / cancelled / error) describes the PR this
+ * instance is waiting for. While an open is in flight the captured target
+ * decides, because the live route may already point at another PR; without a
+ * pending open the live route does, so an unrelated reply cannot be mistaken for
+ * this view's own.
+ */
+function isWorktreeReplyForThisView(reply: {
+  instanceId?: string;
+  owner?: string;
+  repo?: string;
+  index?: number;
+}): boolean {
+  const expected = worktreeTarget.value ?? {
+    instanceId: instanceId.value,
+    owner: owner.value,
+    repo: repo.value,
+    index: index.value,
+  };
+  return (
+    reply.instanceId === expected.instanceId &&
+    reply.owner === expected.owner &&
+    reply.repo === expected.repo &&
+    reply.index === expected.index
+  );
+}
+
+/**
+ * Ends the wait for a worktree open. The loading flag is always cleared, even
+ * when the reply belongs to a PR this instance already navigated away from: the
+ * flag is local to this instance, a later reply never revisits it, and a spinner
+ * left true would stay on screen for the rest of the session.
+ */
+function finishWorktreeWait() {
+  worktreeLoading.value = false;
+  worktreeTarget.value = undefined;
+}
+
 function openInWorktree() {
+  worktreeTarget.value = { instanceId: instanceId.value, owner: owner.value, repo: repo.value, index: index.value };
   worktreeLoading.value = true;
   setWorktreeStatus(t('dashboard.worktree.opening'), 'idle');
   state.openPrWorktree(instanceId.value, owner.value, repo.value, index.value);
@@ -917,14 +962,16 @@ watch(
     state.worktrees.value.find(
       (w) =>
         (w.kind ?? 'pr') === 'pr' &&
-        w.instanceId === instanceId.value &&
-        w.owner === owner.value &&
-        w.repo === repo.value &&
-        w.prIndex === index.value,
+        isWorktreeReplyForThisView({
+          instanceId: w.instanceId,
+          owner: w.owner,
+          repo: w.repo,
+          index: w.prIndex,
+        }),
     ),
   (worktree, previous) => {
     if (worktree && worktree !== previous && worktreeLoading.value) {
-      worktreeLoading.value = false;
+      finishWorktreeWait();
       setWorktreeStatus(t('dashboard.worktree.opened'), 'success');
     }
   },
@@ -933,13 +980,14 @@ watch(
 watch(
   () => state.lastWorktreeCancelled.value,
   (cancelled) => {
-    if (
-      cancelled?.instanceId === instanceId.value &&
-      cancelled.owner === owner.value &&
-      cancelled.repo === repo.value &&
-      cancelled.index === index.value
-    ) {
-      worktreeLoading.value = false;
+    if (!cancelled || !worktreeLoading.value) {
+      return;
+    }
+    // Declining the host-side confirmation ends this PR's open too; the spinner
+    // is cleared even when the reply describes a PR this instance left behind.
+    const isOwnReply = isWorktreeReplyForThisView(cancelled);
+    finishWorktreeWait();
+    if (isOwnReply) {
       worktreeStatus.value = '';
       worktreeStatusType.value = 'idle';
     }
@@ -947,19 +995,18 @@ watch(
 );
 
 // A failed openPrWorktree (host replied worktreeError) must clear the loading
-// state and surface the error, or the button would spin forever.
+// state and surface the error, or the button would spin forever. The flag is
+// cleared even when the error belongs to another PR (see finishWorktreeWait);
+// the message is only shown for this view's own open.
 watch(
   () => state.lastWorktreeError.value,
   (worktreeError) => {
-    if (
-      worktreeError?.operation === 'open' &&
-      worktreeLoading.value &&
-      worktreeError.instanceId === instanceId.value &&
-      worktreeError.owner === owner.value &&
-      worktreeError.repo === repo.value &&
-      worktreeError.index === index.value
-    ) {
-      worktreeLoading.value = false;
+    if (worktreeError?.operation !== 'open' || !worktreeLoading.value) {
+      return;
+    }
+    const isOwnReply = isWorktreeReplyForThisView(worktreeError);
+    finishWorktreeWait();
+    if (isOwnReply) {
       setWorktreeStatus(worktreeError.error, 'error');
     }
   },

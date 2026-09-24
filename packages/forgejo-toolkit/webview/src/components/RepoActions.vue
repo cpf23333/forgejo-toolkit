@@ -73,6 +73,15 @@ watch(
       pollingAfterIndex.value !== undefined &&
       isActive.value
     ) {
+      if (state.lastDispatchCancelled.value === dispatchKey.value) {
+        // The user declined the host-side confirmation: nothing was dispatched,
+        // so there is no new run to wait for and no success to announce. Without
+        // this the cleared loading flag looks like a successful dispatch and the
+        // list would poll for ~60 s before timing out.
+        pollingAfterIndex.value = undefined;
+        dispatchStatus.value = 'idle';
+        return;
+      }
       dispatchStatus.value = 'waiting';
       startListPolling(pollingAfterIndex.value);
       pollingAfterIndex.value = undefined;

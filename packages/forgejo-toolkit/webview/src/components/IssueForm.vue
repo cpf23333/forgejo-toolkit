@@ -92,17 +92,23 @@ watch(
   },
 );
 
+// Re-seed the selection only when the *contents* change. Parents pass
+// `initial-label-ids` / `initial-assignees` as inline `.map().filter()` arrays,
+// so every parent re-render hands the prop a new array identity — and the form's
+// own `dirty` emit re-renders the parent (it drives the dialog's dirty state).
+// Watching the array itself therefore wiped the user's first toggle; the
+// serialized value is stable for equal contents.
 watch(
-  () => props.initialLabelIds,
-  (value) => {
-    selectedLabelIds.value = [...value];
+  () => JSON.stringify(props.initialLabelIds),
+  () => {
+    selectedLabelIds.value = [...props.initialLabelIds];
   },
 );
 
 watch(
-  () => props.initialAssignees,
-  (value) => {
-    selectedAssignees.value = [...value];
+  () => JSON.stringify(props.initialAssignees),
+  () => {
+    selectedAssignees.value = [...props.initialAssignees];
   },
 );
 

@@ -23,10 +23,17 @@ const panelRef = ref<HTMLDivElement | null>(null);
 const rootRef = ref<HTMLDivElement | null>(null);
 const panelStyle = ref({ top: '0px', left: '0px' });
 
+// Unique per instance so the field's `aria-controls` points at its own panel
+// when several pickers are rendered in the same form.
+let pickerUid = 0;
+const panelId = `date-time-panel-${(pickerUid += 1)}`;
+
 function onDocumentClick(event: MouseEvent) {
   const target = event.target as Node;
   if (!rootRef.value?.contains(target)) {
-    panelOpen.value = false;
+    // The pointer moved somewhere else: leave focus where the user clicked
+    // instead of pulling it back to the field.
+    closePanel(false);
   }
 }
 
@@ -298,15 +305,66 @@ function goToToday() {
 
 function clearValue() {
   emit('update:modelValue', null);
+  closePanel(true);
+}
+
+function openPanel(moveFocusIntoPanel = false) {
+  if (props.disabled) return;
+  if (!panelOpen.value) {
+    panelOpen.value = true;
+    nextTick(() => {
+      updatePanelPosition();
+      if (moveFocusIntoPanel) {
+        panelRef.value?.focus();
+      }
+    });
+    return;
+  }
+  if (moveFocusIntoPanel) {
+    nextTick(() => {
+      panelRef.value?.focus();
+    });
+  }
+}
+
+function closePanel(restoreFieldFocus = false) {
+  if (!panelOpen.value) return;
   panelOpen.value = false;
+  if (restoreFieldFocus) {
+    // The panel is about to be unmounted; without this the keyboard focus would
+    // fall back to the document body and the user would lose their place.
+    nextTick(() => {
+      inputRef.value?.focus();
+    });
+  }
 }
 
 function togglePanel() {
   if (props.disabled) return;
-  const willOpen = !panelOpen.value;
-  panelOpen.value = willOpen;
-  if (willOpen) {
-    nextTick(updatePanelPosition);
+  if (panelOpen.value) {
+    closePanel();
+  } else {
+    openPanel();
+  }
+}
+
+// The field is readonly, so it cannot be edited with the keyboard — but it must
+// still be operable: Enter/Space toggles the panel and ArrowDown opens it and
+// moves focus inside, where every control is a real button.
+function onInputKeyDown(event: KeyboardEvent) {
+  if (props.disabled) return;
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    if (panelOpen.value) {
+      closePanel(true);
+    } else {
+      openPanel(true);
+    }
+    return;
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    openPanel(true);
   }
 }
 
@@ -318,8 +376,7 @@ function onKeyDown(event: KeyboardEvent) {
     // discard confirmation) while the user only meant to close the panel.
     event.preventDefault();
     event.stopPropagation();
-    panelOpen.value = false;
-    inputRef.value?.blur();
+    closePanel(true);
   }
 }
 
@@ -334,14 +391,29 @@ function monthYearLabel() {
       ref="inputRef"
       type="text"
       class="date-time-input"
+      role="combobox"
+      aria-haspopup="dialog"
+      :aria-expanded="panelOpen"
+      :aria-controls="panelId"
+      :aria-label="t('datePicker.placeholder')"
       :value="displayValue"
       :placeholder="placeholder || t('datePicker.placeholder')"
       :disabled="disabled"
       readonly
       @click="togglePanel"
+      @keydown="onInputKeyDown"
     />
 
-    <div v-if="panelOpen" ref="panelRef" class="date-time-panel" tabindex="-1" :style="panelStyle">
+    <div
+      v-if="panelOpen"
+      :id="panelId"
+      ref="panelRef"
+      class="date-time-panel"
+      role="dialog"
+      :aria-label="t('datePicker.placeholder')"
+      tabindex="-1"
+      :style="panelStyle"
+    >
       <div class="panel-header">
         <button class="panel-nav" type="button" @click="prevMonth" :aria-label="t('datePicker.prevMonth')">‹</button>
         <span class="panel-title">{{ monthYearLabel() }}</span>
@@ -442,6 +514,11 @@ function monthYearLabel() {
   font-size: var(--vscode-font-size);
 }
 
+.date-time-panel:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
 .panel-header {
   display: flex;
   align-items: center;
@@ -508,6 +585,11 @@ function monthYearLabel() {
 
 .day-cell:hover {
   background-color: var(--vscode-list-hoverBackground);
+}
+
+.day-cell:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 .day-cell.day-selected {

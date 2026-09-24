@@ -70,7 +70,7 @@ function setRun(status: string) {
   state().actionRunDetails.value.set('inst-1:owner/repo:run:5', { id: 5, status });
 }
 
-function setJobs(jobs: Array<{ id: number; name: string; status: string }>) {
+function setJobs(jobs: Array<{ id?: number; name: string; status: string }>) {
   state().actionRunJobs.value.set('inst-1:owner/repo:run:5:jobs', jobs);
 }
 
@@ -191,6 +191,42 @@ describe('ActionRunDetail job log collapsing', () => {
 
     expect(logCallsFor(2)).toEqual([['inst-1', 'owner', 'repo', 2, false]]);
     expect(wrapper.findAll('.job-log-panel')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it('exposes the job header as a keyboard-operable disclosure with its expanded state', async () => {
+    const wrapper = mountDetail();
+    setRun('success');
+    setJobs([{ id: 2, name: 'test', status: 'success' }]);
+    await nextTick();
+
+    const header = wrapper.findAll('.job-header')[0];
+    expect(header.attributes('role')).toBe('button');
+    expect(header.attributes('tabindex')).toBe('0');
+    expect(header.attributes('aria-expanded')).toBe('false');
+
+    // A keyboard user can expand the job and read its log.
+    await header.trigger('keydown.enter');
+    expect(header.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.findAll('.job-log-panel')).toHaveLength(1);
+    expect(logCallsFor(2)).toEqual([['inst-1', 'owner', 'repo', 2, false]]);
+
+    // Space collapses it again (and preventDefault keeps the page from scrolling).
+    await header.trigger('keydown.space');
+    expect(header.attributes('aria-expanded')).toBe('false');
+    expect(wrapper.findAll('.job-log-panel')).toHaveLength(0);
+    wrapper.unmount();
+  });
+
+  it('leaves jobs without an id out of the tab order', async () => {
+    const wrapper = mountDetail();
+    setRun('success');
+    setJobs([{ name: 'anonymous', status: 'success' }]);
+    await nextTick();
+
+    const header = wrapper.findAll('.job-header')[0];
+    expect(header.attributes('tabindex')).toBe('-1');
+    expect(header.attributes('aria-expanded')).toBeUndefined();
     wrapper.unmount();
   });
 });

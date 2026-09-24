@@ -46,6 +46,24 @@ describe('createTimedCache', () => {
     expect(cache.has('b')).toBe(false);
   });
 
+  it('deletes every entry matching the predicate and keeps the rest', () => {
+    const cache = createTimedCache<string>(1000);
+    cache.set('inst-1:owner/alpha', 'a');
+    cache.set('inst-1:owner/alpha#pr-1', 'a-pr');
+    cache.set('inst-1:owner/beta', 'b');
+
+    cache.deleteWhere((key) => key.startsWith('inst-1:owner/alpha:'));
+
+    expect(cache.has('inst-1:owner/alpha')).toBe(true);
+    expect(cache.has('inst-1:owner/alpha#pr-1')).toBe(true);
+
+    cache.deleteWhere((key) => key === 'inst-1:owner/alpha' || key.startsWith('inst-1:owner/alpha#'));
+
+    expect(cache.has('inst-1:owner/alpha')).toBe(false);
+    expect(cache.has('inst-1:owner/alpha#pr-1')).toBe(false);
+    expect(cache.has('inst-1:owner/beta')).toBe(true);
+  });
+
   it('allows different ttl values per cache instance', () => {
     const shortCache = createTimedCache<string>(100);
     const longCache = createTimedCache<string>(10_000);

@@ -20,6 +20,7 @@ import {
 import type { ForgejoIssue } from '../types/api';
 import { stateLabel } from '../utils/stateLabel';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
+import { removePendingImageFromBody } from '../utils/pendingImageMarkdown';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -271,10 +272,15 @@ async function handleCreateSubmit(data: {
   milestone?: number;
   dueDate?: string;
 }) {
+  // Capture the target repository before the first await. Creating the issue,
+  // uploading its attachments and rewriting its body are separate round-trips,
+  // and `route.params` follows the global route: reading it again after an await
+  // would post an attachment to whatever repository the user switched to.
+  const target = { instanceId: instanceId.value, owner: owner.value, repo: repo.value };
   try {
     let issueNumber = createdIssueNumber.value;
     if (issueNumber === undefined) {
-      const issue = await state.createIssue(instanceId.value, owner.value, repo.value, data);
+      const issue = await state.createIssue(target.instanceId, target.owner, target.repo, data);
       issueNumber = issue.number;
       createdIssueNumber.value = issueNumber;
     }
@@ -285,9 +291,9 @@ async function handleCreateSubmit(data: {
       uploadingIssueAttachmentCount.value += 1;
       try {
         const attachment = await state.uploadIssueAttachment(
-          instanceId.value,
-          owner.value,
-          repo.value,
+          target.instanceId,
+          target.owner,
+          target.repo,
           issueNumber,
           file,
         );
@@ -312,11 +318,19 @@ async function handleCreateSubmit(data: {
       return;
     }
     let updatedBody = data.body;
+    // Every pending image that still has no replacement entry was removed from
+    // the attachment list (an uploaded one always has one), so only its session
+    // `blob:` URL is left in the body. Strip it instead of storing a broken image.
+    for (const objectUrl of pendingImageObjectUrls.value.keys()) {
+      if (!uploadedImageReplacements.value.has(objectUrl)) {
+        updatedBody = removePendingImageFromBody(updatedBody, objectUrl);
+      }
+    }
     for (const [objectUrl, attachmentUrl] of uploadedImageReplacements.value) {
       updatedBody = updatedBody.replaceAll(objectUrl, attachmentUrl);
     }
     if (updatedBody !== data.body) {
-      state.editIssue(instanceId.value, owner.value, repo.value, issueNumber, {
+      state.editIssue(target.instanceId, target.owner, target.repo, issueNumber, {
         title: data.title,
         body: updatedBody,
       });
@@ -329,7 +343,7 @@ async function handleCreateSubmit(data: {
     uploadedImageReplacements.value.clear();
     createdIssueNumber.value = undefined;
     isCreating.value = false;
-    state.openIssueDetail(instanceId.value, owner.value, repo.value, issueNumber);
+    state.openIssueDetail(target.instanceId, target.owner, target.repo, issueNumber);
   } catch (error) {
     // Creating the issue itself failed: the form stays as it is for a retry.
     const message = error instanceof Error ? error.message : String(error);

@@ -58,9 +58,18 @@ const hasPullRequests = computed(
 const selectedBranch = ref(detail.value?.repository.default_branch ?? '');
 const activeTab = ref<'overview' | 'files' | 'refs' | 'actions'>('overview');
 
+// Adopt the repository's default branch once it arrives. This is guarded on
+// `isActive`: under keep-alive a deactivated instance keeps running its
+// watchers while `route.params` follows the global route, so `detail` resolves
+// to the repository the user navigated to. Adopting that response would leave
+// this instance browsing another repository's default branch when it is shown
+// again (and it would never correct itself, since the branch is no longer empty).
 watch(
   () => detail.value?.repository.default_branch,
   (defaultBranch) => {
+    if (!isActive.value) {
+      return;
+    }
     if (defaultBranch && !selectedBranch.value) {
       selectedBranch.value = defaultBranch;
     }

@@ -374,6 +374,7 @@
         "failure": "失败",
         "error": "错误",
         "warning": "警告",
+        "skipped": "已跳过",
         "unknown": "未知"
       },
       "mergeStrategy": {

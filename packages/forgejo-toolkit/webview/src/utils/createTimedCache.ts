@@ -3,6 +3,13 @@ export interface TimedCache<T> {
   set(key: string, value: T): void;
   has(key: string): boolean;
   delete(key: string): boolean;
+  /**
+   * Drops every entry whose key satisfies `predicate`. Used to release exactly
+   * one repository's slots: keys are namespaced by
+   * `${instanceId}:${owner}/${repo}` (with a `:`/`#` separator before any
+   * suffix), so a prefix alone would also match a longer repository name.
+   */
+  deleteWhere(predicate: (key: string) => boolean): void;
   clear(): void;
 }
 
@@ -78,6 +85,13 @@ export function createTimedCache<T>(ttlMs: number, maxEntries?: number): TimedCa
     },
     delete(key) {
       return cache.delete(key);
+    },
+    deleteWhere(predicate) {
+      for (const key of [...cache.keys()]) {
+        if (predicate(key)) {
+          cache.delete(key);
+        }
+      }
     },
     clear() {
       cache.clear();

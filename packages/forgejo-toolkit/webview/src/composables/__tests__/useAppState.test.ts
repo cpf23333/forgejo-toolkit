@@ -2293,6 +2293,168 @@ describe('useAppState', () => {
       expect(state.errors.has(mod.repoDetailKey('inst-1', 'owner', 'repo-0'))).toBe(false);
       expect(state.errors.get(mod.repoDetailKey('inst-1', 'owner', 'repo-504'))).toBe('error-504');
     });
+
+    it('payload maps evict the least recently written entry at the shared cap', async () => {
+      const { state, mod } = await createState();
+
+      for (let i = 0; i < 70; i += 1) {
+        dispatchMessage({
+          command: 'repoDetail',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo: `repo-${i}`,
+          detail: fakeRepoDetail,
+        });
+      }
+      await nextTick();
+
+      // Bounded like the response caches: a session cannot hold one entry per
+      // repository/issue/query it ever visited.
+      expect(state.repoDetails.value.size).toBe(64);
+      expect(state.repoDetails.value.has(mod.repoDetailKey('inst-1', 'owner', 'repo-0'))).toBe(false);
+      expect(state.repoDetails.value.has(mod.repoDetailKey('inst-1', 'owner', 'repo-69'))).toBe(true);
+    });
+
+    it('rewriting a payload slot moves it to the newest position instead of evicting it', async () => {
+      const { state, mod } = await createState();
+
+      for (let i = 0; i < 64; i += 1) {
+        dispatchMessage({
+          command: 'repoDetail',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo: `repo-${i}`,
+          detail: fakeRepoDetail,
+        });
+      }
+      // Touch the oldest slot, then overflow the cap once.
+      dispatchMessage({
+        command: 'repoDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo-0',
+        detail: fakeRepoDetail,
+      });
+      dispatchMessage({
+        command: 'repoDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'repo-64',
+        detail: fakeRepoDetail,
+      });
+      await nextTick();
+
+      expect(state.repoDetails.value.has(mod.repoDetailKey('inst-1', 'owner', 'repo-0'))).toBe(true);
+      // The next-oldest slot is the one that had to go.
+      expect(state.repoDetails.value.has(mod.repoDetailKey('inst-1', 'owner', 'repo-1'))).toBe(false);
+    });
+  });
+
+  describe('repository-scoped invalidation', () => {
+    it('a saved issue invalidates only its own repository and lets the list refetch', async () => {
+      const { state, mod } = await createState();
+      for (const repo of ['alpha', 'beta']) {
+        dispatchMessage({
+          command: 'repoIssues',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo,
+          state: 'open',
+          issues: [fakeIssue],
+        });
+      }
+
+      dispatchMessage({
+        command: 'issueUpdated',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        index: 1,
+        item: fakeIssue,
+      });
+      await nextTick();
+
+      expect(state.repoIssues.value.has(mod.repoIssuesKey('inst-1', 'owner', 'alpha', 'open'))).toBe(false);
+      // The other repository keeps its list: one save must not wipe every repo.
+      expect(state.repoIssues.value.has(mod.repoIssuesKey('inst-1', 'owner', 'beta', 'open'))).toBe(true);
+
+      // The fresh mark went with the list, so the next visit refetches instead
+      // of serving the dropped slot as fresh for the rest of the TTL.
+      vscodePostMessage().mockClear();
+      state.loadRepoIssues('inst-1', 'owner', 'alpha', 'open');
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getRepoIssues', instanceId: 'inst-1', repo: 'alpha' }),
+      );
+    });
+
+    it('a deleted issue invalidates only its own repository', async () => {
+      const { state, mod } = await createState();
+      for (const repo of ['alpha', 'beta']) {
+        dispatchMessage({
+          command: 'repoIssues',
+          instanceId: 'inst-1',
+          owner: 'owner',
+          repo,
+          state: 'open',
+          issues: [fakeIssue],
+        });
+      }
+
+      dispatchMessage({ command: 'issueDeleted', instanceId: 'inst-1', owner: 'owner', repo: 'alpha', index: 1 });
+      await nextTick();
+
+      expect(state.repoIssues.value.has(mod.repoIssuesKey('inst-1', 'owner', 'alpha', 'open'))).toBe(false);
+      expect(state.repoIssues.value.has(mod.repoIssuesKey('inst-1', 'owner', 'beta', 'open'))).toBe(true);
+    });
+
+    it('navigating to another repository releases the one left behind', async () => {
+      const { state, mod, router } = await createState();
+      await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'alpha' } });
+      dispatchMessage({
+        command: 'repoDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        detail: fakeRepoDetail,
+      });
+      dispatchMessage({
+        command: 'repoIssues',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        state: 'open',
+        issues: [fakeIssue],
+      });
+      // A repository whose name merely shares the prefix must survive the release.
+      dispatchMessage({
+        command: 'repoDetail',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alphabet',
+        detail: fakeRepoDetail,
+      });
+      await nextTick();
+      expect(state.repoDetails.value.has(mod.repoDetailKey('inst-1', 'owner', 'alpha'))).toBe(true);
+
+      await router.push({ name: 'repoDetail', params: { instanceId: 'inst-1', owner: 'owner', repo: 'beta' } });
+      await nextTick();
+
+      expect(state.repoDetails.value.has(mod.repoDetailKey('inst-1', 'owner', 'alpha'))).toBe(false);
+      expect(state.repoIssues.value.has(mod.repoIssuesKey('inst-1', 'owner', 'alpha', 'open'))).toBe(false);
+      expect(state.repoDetails.value.has(mod.repoDetailKey('inst-1', 'owner', 'alphabet'))).toBe(true);
+
+      // The response caches are released with the payloads: a live cache entry
+      // would otherwise answer the next visit with a hit whose payload is gone.
+      vscodePostMessage().mockClear();
+      state.loadRepoDetail('inst-1', 'owner', 'alpha');
+      expect(vscodePostMessage()).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'getRepoDetail', instanceId: 'inst-1', repo: 'alpha' }),
+      );
+      // ... while `alphabet` still answers from its live cache entry.
+      vscodePostMessage().mockClear();
+      state.loadRepoDetail('inst-1', 'owner', 'alphabet');
+      expect(vscodePostMessage()).not.toHaveBeenCalled();
+    });
   });
 
   describe('loader error clearing', () => {
@@ -2995,6 +3157,118 @@ describe('delete requests answered with cancelled', () => {
     expect(state.loading.get(key)).toBe(false);
     expect(state.errors.get(key)).toBeUndefined();
     expect(vscodePostMessage()).not.toHaveBeenCalledWith(expect.objectContaining({ command: 'getIssueTrackedTimes' }));
+  });
+
+  it('keeps the tracked times when the reset was declined', async () => {
+    const { state, mod } = await createState();
+    const key = mod.issueTrackedTimesKey('inst-1', 'owner', 'repo', 2);
+    const times = [{ id: 1, time: 600, user_name: 'demo-user' }];
+    state.issueTrackedTimes.value.set(key, times);
+    state.loading.set(key, true);
+
+    dispatchMessage({
+      command: 'issueTimeReset',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+      cancelled: true,
+    });
+    await nextTick();
+
+    // Declining is not a reset: the list must not render as emptied.
+    expect(state.loading.get(key)).toBe(false);
+    expect(state.errors.get(key)).toBeUndefined();
+    expect(state.issueTrackedTimes.value.get(key)).toEqual(times);
+  });
+
+  it('empties the tracked times when the reset is confirmed', async () => {
+    const { state, mod } = await createState();
+    const key = mod.issueTrackedTimesKey('inst-1', 'owner', 'repo', 2);
+    state.issueTrackedTimes.value.set(key, [{ id: 1, time: 600, user_name: 'demo-user' }]);
+    state.loading.set(key, true);
+
+    dispatchMessage({ command: 'issueTimeReset', instanceId: 'inst-1', owner: 'owner', repo: 'repo', index: 2 });
+    await nextTick();
+
+    expect(state.issueTrackedTimes.value.get(key)).toEqual([]);
+  });
+});
+
+describe('workflow dispatch cancellation', () => {
+  it('records a declined dispatch so views do not wait for a run that never starts', async () => {
+    const { state, mod } = await createState();
+    const key = mod.dispatchWorkflowKey('inst-1', 'owner', 'repo', 'ci.yml');
+    state.loading.set(key, true);
+    vscodePostMessage().mockClear();
+
+    dispatchMessage({
+      command: 'actionRunDispatched',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      workflowfilename: 'ci.yml',
+      cancelled: true,
+    });
+    await nextTick();
+
+    expect(state.loading.get(key)).toBe(false);
+    expect(state.errors.get(key)).toBeUndefined();
+    expect(state.lastDispatchCancelled.value).toBe(key);
+    // Nothing was dispatched, so nothing is refreshed either.
+    expect(vscodePostMessage()).not.toHaveBeenCalledWith(expect.objectContaining({ command: 'getActionRuns' }));
+
+    // A later accepted dispatch clears the marker.
+    dispatchMessage({
+      command: 'actionRunDispatched',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      workflowfilename: 'ci.yml',
+      accepted: true,
+      run: { id: 5 },
+    });
+    await nextTick();
+
+    expect(state.lastDispatchCancelled.value).toBeUndefined();
+  });
+});
+
+describe('attachment upload reply', () => {
+  it('keeps the server id so the delete path can address the attachment', async () => {
+    const { state } = await createState();
+    const file = new File(['data'], 'shot.png', { type: 'image/png' });
+    const pending = state.uploadIssueAttachment('inst-1', 'owner', 'repo', 2, file);
+
+    let requestId = '';
+    await vi.waitFor(() => {
+      const sent = vscodePostMessage()
+        .mock.calls.map(([message]) => message as { command?: string; _requestId?: string })
+        .reverse()
+        .find((message) => message.command === 'createIssueAttachment');
+      if (!sent?._requestId) {
+        throw new Error('createIssueAttachment not sent yet');
+      }
+      requestId = sent._requestId;
+    });
+
+    dispatchMessage({
+      command: 'issueAttachmentCreated',
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      index: 2,
+      id: 42,
+      uuid: 'uuid-1',
+      name: 'shot.png',
+      size: 4,
+      browser_download_url: '/attachments/uuid-1',
+      _requestId: requestId,
+    });
+
+    // The id is what IssueDetail's edit dialog hands to deleteIssueAttachment;
+    // dropping it makes the delete button a silent no-op.
+    await expect(pending).resolves.toMatchObject({ id: 42, uuid: 'uuid-1' });
   });
 });
 

@@ -16,6 +16,15 @@ const MAX_SEARCH_ENTRIES = 50;
 // session that browses runs in several repositories would hold every log in
 // memory (retainContextWhenHidden keeps this state alive for the window).
 const MAX_JOB_LOG_ENTRIES = 10;
+// Every reactive payload map (repositories, issue bodies, timelines, diffs,
+// files, CI jobs, ...) is bounded to this many keys. A key is a repository,
+// issue, pull request, path or query and holds a whole page (up to the server's
+// 500-row list cap), so the limit is on how many payloads a long session keeps
+// alive, not on how big one of them may be. 64 matches the default bound of the
+// TTL response caches. `clearRepoPayloads` releases a repository's entries as
+// soon as the user navigates to another one, which keeps this bound from being
+// the only thing standing between a long session and tens of MB.
+const MAX_PAYLOAD_ENTRIES = 64;
 
 // How long a request/response round-trip to the extension host may take
 // before the pending promise is rejected as timed out.
@@ -49,10 +58,49 @@ function setError(key: string, message: string) {
 }
 
 function setBoundedEntry<V>(map: Map<string, V>, key: string, value: V, maxEntries: number) {
-  if (!map.has(key) && map.size >= maxEntries) {
+  if (map.has(key)) {
+    // Re-insert so a rewritten key becomes the newest: eviction then follows the
+    // last write rather than first insertion. Updates never evict a sibling.
+    map.delete(key);
+  } else if (map.size >= maxEntries) {
     evictOldestKey(map);
   }
   map.set(key, value);
+}
+
+/**
+ * Drops every entry whose key satisfies `predicate`. One call releases one
+ * repository's (or one list's) slots — unlike `clear()`, which would discard
+ * every other repository's payload too.
+ */
+function clearWhere<K, V>(map: Map<K, V>, predicate: (key: K) => boolean) {
+  for (const key of [...map.keys()]) {
+    if (predicate(key)) {
+      map.delete(key);
+    }
+  }
+}
+
+function clearByPrefix<V>(map: Map<string, V>, prefix: string) {
+  clearWhere(map, (key) => key.startsWith(prefix));
+}
+
+/**
+ * Whether `key` belongs to the repository scope `${instanceId}:${owner}/${repo}`.
+ * Keys append a separator (`:state`, `#pr-3`, `:branch:main`) or nothing at all,
+ * so the match must stop at a boundary: clearing `owner/repo` must not also drop
+ * a repository called `owner/repository`.
+ */
+function isInRepoScope(key: string, scope: string): boolean {
+  if (!key.startsWith(scope)) {
+    return false;
+  }
+  const next = key[scope.length];
+  return next === undefined || next === ':' || next === '#';
+}
+
+function clearRepoScope<V>(map: Map<string, V>, scope: string) {
+  clearWhere(map, (key) => isInRepoScope(key, scope));
 }
 import '../types/config';
 import { postMessage } from './vscode';
@@ -185,6 +233,16 @@ function createAppState() {
   const commentReactions = ref<Map<string, ForgejoReaction[]>>(new Map());
   const userStopwatches = ref<Map<string, ForgejoStopWatch[]>>(new Map());
 
+  /**
+   * Writes one payload slot with the shared `MAX_PAYLOAD_ENTRIES` bound. Every
+   * write into a reactive payload map goes through here: unlike `Map.set` it
+   * cannot grow the map past the cap, so a long session cannot accumulate one
+   * entry per repository/issue/pull request/query it ever visited.
+   */
+  function setPayloadEntry<V>(map: Map<string, V>, key: string, value: V) {
+    setBoundedEntry(map, key, value, MAX_PAYLOAD_ENTRIES);
+  }
+
   const repositoriesCache = createTimedCache<ForgejoRepository[]>(30_000);
   const myIssuesCache = createTimedCache<ForgejoIssue[]>(30_000);
   const myPullRequestsCache = createTimedCache<ForgejoPullRequest[]>(30_000);
@@ -315,6 +373,12 @@ function createAppState() {
       }
     | undefined
   >(undefined);
+  // Dispatch key (`dispatchWorkflowKey`) of the most recent "run workflow"
+  // request the user declined in the host-side confirmation. The dispatch
+  // loading key goes true→false with no error in that case, so without this
+  // signal the actions view reads the transition as a successful dispatch and
+  // waits for a run that will never appear.
+  const lastDispatchCancelled = ref<string | undefined>(undefined);
   let renderMarkdownRequestId = 0;
   const pendingRenderMarkdownRequests = new Map<
     string,
@@ -675,6 +739,7 @@ function createAppState() {
             owner: string;
             repo: string;
             index: number;
+            cancelled?: boolean;
             error?: string;
           },
         );
@@ -687,6 +752,7 @@ function createAppState() {
             repo: string;
             index: number;
             id: number;
+            cancelled?: boolean;
             error?: string;
           },
         );
@@ -847,6 +913,7 @@ function createAppState() {
             repo: string;
             index: number;
             commentId: number;
+            id?: number;
             uuid?: string;
             name?: string;
             size?: number;
@@ -920,6 +987,10 @@ function createAppState() {
             owner: string;
             repo: string;
             index: number;
+            // The server id of the new attachment. It is what the delete path
+            // needs (`deleteIssueAttachment` takes a numeric id), so it must be
+            // kept from the upload reply.
+            id?: number;
             uuid?: string;
             name?: string;
             size?: number;
@@ -1178,10 +1249,10 @@ function createAppState() {
         // user's filtered view; the unread badge reads from this slot.
         const data = message as { instanceId: string; notifications?: ForgejoNotification[]; error?: string };
         if (data.error) {
-          notificationPollErrors.value.set(data.instanceId, data.error);
+          setPayloadEntry(notificationPollErrors.value, data.instanceId, data.error);
         } else {
           notificationPollErrors.value.delete(data.instanceId);
-          polledNotifications.value.set(data.instanceId, data.notifications ?? []);
+          setPayloadEntry(polledNotifications.value, data.instanceId, data.notifications ?? []);
         }
         break;
       }
@@ -1437,7 +1508,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.repositories ?? [];
-      repositories.value.set(data.instanceId, list);
+      setPayloadEntry(repositories.value, data.instanceId, list);
       repositoriesCache.set(data.instanceId, list);
     }
   }
@@ -1453,7 +1524,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.issues ?? [];
-      myIssues.value.set(data.instanceId, list);
+      setPayloadEntry(myIssues.value, data.instanceId, list);
       myIssuesCache.set(`${data.instanceId}:${state}`, list);
     }
   }
@@ -1472,7 +1543,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.pullRequests ?? [];
-      myPullRequests.value.set(data.instanceId, list);
+      setPayloadEntry(myPullRequests.value, data.instanceId, list);
       myPullRequestsCache.set(`${data.instanceId}:${state}`, list);
     }
   }
@@ -1490,7 +1561,7 @@ function createAppState() {
       setError(key, data.error);
     } else if (data.detail) {
       errors.delete(key);
-      repoDetails.value.set(key, data.detail);
+      setPayloadEntry(repoDetails.value, key, data.detail);
       repoDetailsCache.set(key, data.detail);
     }
   }
@@ -1510,7 +1581,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.commits ?? [];
-      repoBranchCommits.value.set(key, list);
+      setPayloadEntry(repoBranchCommits.value, key, list);
       repoBranchCommitsCache.set(key, list);
     }
   }
@@ -1529,7 +1600,7 @@ function createAppState() {
       setError(key, data.error);
     } else if (data.detail) {
       errors.delete(key);
-      issueDetails.value.set(key, data.detail);
+      setPayloadEntry(issueDetails.value, key, data.detail);
       issueDetailCache.set(key, data.detail);
     }
   }
@@ -1548,7 +1619,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.labels ?? [];
-      repoLabels.value.set(key, list);
+      setPayloadEntry(repoLabels.value, key, list);
       repoLabelsCache.set(key, list);
     }
   }
@@ -1567,7 +1638,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.assignees ?? [];
-      repoAssignees.value.set(key, list);
+      setPayloadEntry(repoAssignees.value, key, list);
       repoAssigneesCache.set(key, list);
     }
   }
@@ -1586,7 +1657,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.milestones ?? [];
-      repoMilestones.value.set(key, list);
+      setPayloadEntry(repoMilestones.value, key, list);
       repoMilestonesCache.set(key, list);
     }
   }
@@ -1605,7 +1676,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      issueSubscriptions.value.set(key, { subscribed: data.subscribed });
+      setPayloadEntry(issueSubscriptions.value, key, { subscribed: data.subscribed });
     }
   }
 
@@ -1623,7 +1694,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      issueSubscriptions.value.set(key, { subscribed: data.subscribed });
+      setPayloadEntry(issueSubscriptions.value, key, { subscribed: data.subscribed });
       loadIssueSubscription(data.instanceId, data.owner, data.repo, data.index, true);
     }
   }
@@ -1661,7 +1732,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      userStopwatches.value.set(key, data.stopwatches ?? []);
+      setPayloadEntry(userStopwatches.value, key, data.stopwatches ?? []);
     }
   }
 
@@ -1679,7 +1750,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      issueTrackedTimes.value.set(key, data.times ?? []);
+      setPayloadEntry(issueTrackedTimes.value, key, data.times ?? []);
     }
   }
 
@@ -1706,15 +1777,22 @@ function createAppState() {
     owner: string;
     repo: string;
     index: number;
+    cancelled?: boolean;
     error?: string;
   }) {
     const key = issueTrackedTimesKey(data.instanceId, data.owner, data.repo, data.index);
     loading.set(key, false);
+    if (data.cancelled) {
+      // The user declined the host-side confirmation: nothing was reset, so the
+      // shown tracked times must stay as they are (the success branch below
+      // would empty the list and report it as reset).
+      return;
+    }
     if (data.error) {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      issueTrackedTimes.value.set(key, []);
+      setPayloadEntry(issueTrackedTimes.value, key, []);
     }
   }
 
@@ -1738,7 +1816,8 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = issueTrackedTimes.value.get(key) ?? [];
-      issueTrackedTimes.value.set(
+      setPayloadEntry(
+        issueTrackedTimes.value,
         key,
         list.filter((t) => t.id !== data.id),
       );
@@ -1759,7 +1838,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      issueDependencies.value.set(key, data.dependencies ?? []);
+      setPayloadEntry(issueDependencies.value, key, data.dependencies ?? []);
     }
   }
 
@@ -1801,7 +1880,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      issueReactions.value.set(key, data.reactions ?? []);
+      setPayloadEntry(issueReactions.value, key, data.reactions ?? []);
     }
   }
 
@@ -1840,7 +1919,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      commentReactions.value.set(key, data.reactions ?? []);
+      setPayloadEntry(commentReactions.value, key, data.reactions ?? []);
     }
   }
 
@@ -1924,7 +2003,7 @@ function createAppState() {
       setError(key, data.error);
     } else if (data.detail) {
       errors.delete(key);
-      pullRequestDetails.value.set(key, data.detail);
+      setPayloadEntry(pullRequestDetails.value, key, data.detail);
       pullRequestDetailCache.set(key, data.detail);
     }
   }
@@ -2026,7 +2105,10 @@ function createAppState() {
     }
     errors.delete(formKey);
     if (data.item) {
-      repoIssues.value.clear();
+      // Scope the invalidation to the repository that changed: clearing every
+      // list would drop other repositories' payloads and, because it skipped the
+      // fresh-mark cleanup, the next visit would serve them as fresh for 30 s.
+      invalidateRepoIssueLists(repoScopePrefix(data.instanceId, data.owner, data.repo));
       myIssues.value.clear();
       myIssuesCache.clear();
       lastSavedIssue.value = { instanceId: data.instanceId, owner: data.owner, repo: data.repo, index: data.index };
@@ -2053,7 +2135,9 @@ function createAppState() {
     }
     errors.delete(key);
     issueDetails.value.delete(key);
-    repoIssues.value.clear();
+    // Same repository-scoped invalidation as a save: only this repository's
+    // lists are stale, and their fresh marks must go with them.
+    invalidateRepoIssueLists(repoScopePrefix(data.instanceId, data.owner, data.repo));
     myIssues.value.clear();
     myIssuesCache.clear();
     // Only navigate back if the user is still viewing the deleted issue;
@@ -2101,7 +2185,7 @@ function createAppState() {
       const commentsKey = pullRequestCommentsKey(data.instanceId, data.owner, data.repo, data.index);
       const existing = pullRequestComments.value.get(commentsKey) ?? [];
       const timelineComment: ForgejoTimelineComment = { ...data.comment, type: 'comment' };
-      pullRequestComments.value.set(commentsKey, [...existing, timelineComment]);
+      setPayloadEntry(pullRequestComments.value, commentsKey, [...existing, timelineComment]);
     }
   }
 
@@ -2135,7 +2219,7 @@ function createAppState() {
       const index = comments.findIndex((c) => c.id === data.commentId);
       if (index !== -1) {
         comments[index] = { ...data.comment, type: 'comment', assets: comments[index].assets };
-        pullRequestComments.value.set(key, [...comments]);
+        setPayloadEntry(pullRequestComments.value, key, [...comments]);
         break;
       }
     }
@@ -2185,7 +2269,7 @@ function createAppState() {
       }
       return { ...comment, assets: [...(comment.assets ?? []), attachment] };
     });
-    pullRequestComments.value.set(commentsKey, updatedComments);
+    setPayloadEntry(pullRequestComments.value, commentsKey, updatedComments);
   }
 
   function handleIssueCommentAttachmentDeleted(data: {
@@ -2255,7 +2339,7 @@ function createAppState() {
       const index = comments.findIndex((c) => c.id === data.commentId);
       if (index !== -1) {
         comments.splice(index, 1);
-        pullRequestComments.value.set(key, [...comments]);
+        setPayloadEntry(pullRequestComments.value, key, [...comments]);
         break;
       }
     }
@@ -2297,7 +2381,7 @@ function createAppState() {
       detail.state = 'closed';
       detail.merged = true;
     }
-    repoPullRequests.value.clear();
+    invalidateRepoPullRequestLists(repoScopePrefix(data.instanceId, data.owner, data.repo));
     myPullRequests.value.clear();
     myPullRequestsCache.clear();
   }
@@ -2369,7 +2453,9 @@ function createAppState() {
     }
     errors.delete(formKey);
     if (data.item) {
-      repoPullRequests.value.clear();
+      // Repository-scoped, like handleIssueSaved: only this repository's pull
+      // request lists (and their fresh marks) changed.
+      invalidateRepoPullRequestLists(repoScopePrefix(data.instanceId, data.owner, data.repo));
       myPullRequests.value.clear();
       myPullRequestsCache.clear();
       lastSavedPullRequest.value = {
@@ -2400,7 +2486,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.files ?? [];
-      pullRequestFiles.value.set(key, list);
+      setPayloadEntry(pullRequestFiles.value, key, list);
       pullRequestFilesCache.set(key, list);
     }
   }
@@ -2420,7 +2506,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.comments ?? [];
-      pullRequestComments.value.set(key, list);
+      setPayloadEntry(pullRequestComments.value, key, list);
       pullRequestCommentsCache.set(key, list);
     }
   }
@@ -2440,7 +2526,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.commits ?? [];
-      pullRequestCommits.value.set(key, list);
+      setPayloadEntry(pullRequestCommits.value, key, list);
       pullRequestCommitsCache.set(key, list);
     }
   }
@@ -2460,7 +2546,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      repoIssues.value.set(key, data.issues ?? []);
+      setPayloadEntry(repoIssues.value, key, data.issues ?? []);
       repoIssuesFetchedAt.set(key, true);
     }
   }
@@ -2480,7 +2566,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      repoPullRequests.value.set(key, data.pullRequests ?? []);
+      setPayloadEntry(repoPullRequests.value, key, data.pullRequests ?? []);
       repoPullRequestsFetchedAt.set(key, true);
     }
   }
@@ -2513,17 +2599,17 @@ function createAppState() {
     if (page === 1) {
       // The first page starts the list over: a refresh/retry resets whatever
       // earlier pages had accumulated.
-      actionRuns.value.set(key, incoming);
-      actionRunsPage.value.set(key, 1);
+      setPayloadEntry(actionRuns.value, key, incoming);
+      setPayloadEntry(actionRunsPage.value, key, 1);
     } else if (page === loadedPage + 1) {
       if (incoming.length > 0) {
-        actionRuns.value.set(key, [...(actionRuns.value.get(key) ?? []), ...incoming]);
-        actionRunsPage.value.set(key, page);
+        setPayloadEntry(actionRuns.value, key, [...(actionRuns.value.get(key) ?? []), ...incoming]);
+        setPayloadEntry(actionRunsPage.value, key, page);
       } else {
         // A page past the end ends the list even if the server total disagrees
         // (stale or filtered count), and stops "Load more" from re-requesting it.
         ended = true;
-        actionRunsPage.value.set(key, page);
+        setPayloadEntry(actionRunsPage.value, key, page);
       }
     } else {
       // A late or duplicated reply for a page that no longer follows the
@@ -2532,15 +2618,16 @@ function createAppState() {
     }
     const totalKey = `${data.instanceId}:${data.owner}/${data.repo}`;
     if (typeof data.totalCount === 'number') {
-      actionRunTotalCount.value.set(totalKey, data.totalCount);
+      setPayloadEntry(actionRunTotalCount.value, totalKey, data.totalCount);
     } else if (page === 1) {
       // Host builds that predate the total: seed it from the first page.
-      actionRunTotalCount.value.set(totalKey, incoming.length);
+      setPayloadEntry(actionRunTotalCount.value, totalKey, incoming.length);
     }
     // The total is exact, so it decides whether more runs exist; without one,
     // fall back to asking whether the requested page was filled.
     const loadedCount = actionRuns.value.get(key)?.length ?? 0;
-    actionRunsHasMore.value.set(
+    setPayloadEntry(
+      actionRunsHasMore.value,
       key,
       !ended &&
         (typeof data.totalCount === 'number'
@@ -2563,7 +2650,7 @@ function createAppState() {
       setError(key, data.error);
     } else if (data.run) {
       errors.delete(key);
-      actionRunDetails.value.set(key, data.run);
+      setPayloadEntry(actionRunDetails.value, key, data.run);
     }
   }
 
@@ -2581,7 +2668,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      actionRunJobs.value.set(key, data.jobs ?? []);
+      setPayloadEntry(actionRunJobs.value, key, data.jobs ?? []);
     }
   }
 
@@ -2599,7 +2686,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      actionRunArtifacts.value.set(key, data.artifacts ?? []);
+      setPayloadEntry(actionRunArtifacts.value, key, data.artifacts ?? []);
     }
   }
 
@@ -2617,15 +2704,9 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      actionJobLogs.value.set(key, data.log ?? '');
-      // Map preserves insertion order, so the first key is the least recently stored.
-      while (actionJobLogs.value.size > MAX_JOB_LOG_ENTRIES) {
-        const oldest = actionJobLogs.value.keys().next().value;
-        if (oldest === undefined || oldest === key) {
-          break;
-        }
-        actionJobLogs.value.delete(oldest);
-      }
+      // A log is by far the heaviest payload, so it gets its own, much smaller
+      // bound (see MAX_JOB_LOG_ENTRIES).
+      setBoundedEntry(actionJobLogs.value, key, data.log ?? '', MAX_JOB_LOG_ENTRIES);
     }
   }
 
@@ -2642,9 +2723,14 @@ function createAppState() {
     const key = dispatchWorkflowKey(data.instanceId, data.owner, data.repo, data.workflowfilename);
     loading.set(key, false);
     if (data.cancelled) {
-      // The user declined the host-side confirmation: nothing was dispatched.
+      // The user declined the host-side confirmation: nothing was dispatched, so
+      // the view must not treat the cleared loading state as success.
+      lastDispatchCancelled.value = key;
       return;
     }
+    // Any other reply ends the slot: a later dispatch must not be mistaken for
+    // this one still being declined.
+    lastDispatchCancelled.value = undefined;
     if (data.error) {
       setError(key, data.error);
     } else {
@@ -2775,7 +2861,7 @@ function createAppState() {
     } else {
       errors.delete(key);
       const list = data.entries ?? [];
-      repoContents.value.set(key, list);
+      setPayloadEntry(repoContents.value, key, list);
       repoContentsCache.set(key, list);
     }
   }
@@ -2800,7 +2886,7 @@ function createAppState() {
       setBoundedEntry(repoFileSearchResults.value, key, data.files ?? [], MAX_SEARCH_ENTRIES);
       // The host reports an incomplete repository tree; the view says the
       // results may be missing matches instead of showing them as exhaustive.
-      repoFileSearchTruncated.value.set(key, data.truncated === true);
+      setBoundedEntry(repoFileSearchTruncated.value, key, data.truncated === true, MAX_SEARCH_ENTRIES);
     }
   }
 
@@ -2868,14 +2954,14 @@ function createAppState() {
     // what is shown. Without one it is a fresh list and replaces it.
     const isMore = typeof data.before === 'string' && data.before.length > 0;
     const merged = isMore ? mergeNotificationPages(notifications.value.get(key) ?? [], incoming) : incoming;
-    notifications.value.set(key, merged);
+    setPayloadEntry(notifications.value, key, merged);
     // A list without a usable timestamp has no cursor: "load more" stays off
     // rather than requesting an unbounded page.
     const cursor = oldestNotificationTimestamp(merged);
     if (cursor === undefined) {
       notificationsBefore.value.delete(key);
     } else {
-      notificationsBefore.value.set(key, cursor);
+      setPayloadEntry(notificationsBefore.value, key, cursor);
     }
     // Only an empty page proves the end. A short page does not: the server may
     // clamp the page size below NOTIFICATIONS_LIMIT, and the endpoint reports its
@@ -2883,7 +2969,7 @@ function createAppState() {
     // page therefore keeps "load more" available, and the page after it (empty)
     // turns the button off — one extra request instead of silently hiding
     // notifications.
-    notificationsHasMore.value.set(key, incoming.length > 0);
+    setPayloadEntry(notificationsHasMore.value, key, incoming.length > 0);
   }
 
   function handleNotificationMarkedRead(data: { instanceId: string; id: number; error?: string }) {
@@ -2895,13 +2981,15 @@ function createAppState() {
     // A later success clears an earlier failure, the way handleNotifications does.
     errors.delete(key);
     const list = notifications.value.get(key) ?? [];
-    notifications.value.set(
+    setPayloadEntry(
+      notifications.value,
       key,
       list.map((notification) => (notification.id === data.id ? { ...notification, unread: false } : notification)),
     );
     // Keep the badge slot in sync so the count drops before the next poll.
     const polled = polledNotifications.value.get(data.instanceId) ?? [];
-    polledNotifications.value.set(
+    setPayloadEntry(
+      polledNotifications.value,
       data.instanceId,
       polled.map((notification) => (notification.id === data.id ? { ...notification, unread: false } : notification)),
     );
@@ -2916,12 +3004,14 @@ function createAppState() {
     // A later success clears an earlier failure, the way handleNotifications does.
     errors.delete(key);
     const list = notifications.value.get(key) ?? [];
-    notifications.value.set(
+    setPayloadEntry(
+      notifications.value,
       key,
       list.map((notification) => ({ ...notification, unread: false })),
     );
     const polled = polledNotifications.value.get(data.instanceId) ?? [];
-    polledNotifications.value.set(
+    setPayloadEntry(
+      polledNotifications.value,
       data.instanceId,
       polled.map((notification) => ({ ...notification, unread: false })),
     );
@@ -2942,7 +3032,7 @@ function createAppState() {
       setError(key, data.error);
     } else {
       errors.delete(key);
-      fileHistories.value.set(key, data.commits ?? []);
+      setPayloadEntry(fileHistories.value, key, data.commits ?? []);
     }
   }
 
@@ -2966,7 +3056,7 @@ function createAppState() {
         tags: data.tags ?? [],
         releases: data.releases ?? [],
       };
-      repoRefs.value.set(key, value);
+      setPayloadEntry(repoRefs.value, key, value);
       repoRefsCache.set(key, value);
     }
   }
@@ -4454,16 +4544,129 @@ function createAppState() {
     postMessage({ command: 'getRepositories', instanceId });
   }
 
+  /** `${instanceId}:${owner}/${repo}` — the prefix of every repo-scoped payload key. */
+  function repoScopePrefix(instanceId: string, owner: string, repo: string): string {
+    return `${instanceId}:${owner}/${repo}`;
+  }
+
+  /**
+   * Releases everything held for one repository: its reactive payload slots
+   * (issue and pull request lists and details, timelines, diffs, file trees, CI
+   * runs and job logs) and the TTL response caches that back them. Called when
+   * the user navigates to another repository, so a long session (the whole
+   * webview is kept alive with `retainContextWhenHidden`) frees what it no longer
+   * shows instead of holding it until the window closes. The TTL caches are
+   * dropped together with the payloads on purpose: leaving a live cache entry
+   * behind would make the next visit a cache hit whose payload has just been
+   * deleted, and the view would sit on an empty list.
+   *
+   * `MAX_PAYLOAD_ENTRIES` is the second half of the policy: it bounds how many
+   * repositories, issues, paths or queries may be held at once even when the user
+   * only ever navigates forward.
+   */
+  function clearRepoPayloads(prefix: string): void {
+    clearRepoScope(repoDetails.value, prefix);
+    clearRepoScope(issueDetails.value, prefix);
+    clearRepoScope(pullRequestDetails.value, prefix);
+    clearRepoScope(repoIssues.value, prefix);
+    clearRepoScope(repoPullRequests.value, prefix);
+    clearRepoScope(repoBranchCommits.value, prefix);
+    clearRepoScope(pullRequestFiles.value, prefix);
+    clearRepoScope(pullRequestComments.value, prefix);
+    clearRepoScope(pullRequestCommits.value, prefix);
+    clearRepoScope(repoContents.value, prefix);
+    clearRepoScope(repoRefs.value, prefix);
+    clearRepoScope(repoFileSearchResults.value, prefix);
+    clearRepoScope(repoFileSearchTruncated.value, prefix);
+    clearRepoScope(fileHistories.value, prefix);
+    clearRepoScope(repoLabels.value, prefix);
+    clearRepoScope(repoAssignees.value, prefix);
+    clearRepoScope(repoMilestones.value, prefix);
+    clearRepoScope(actionRuns.value, prefix);
+    clearRepoScope(actionRunsPage.value, prefix);
+    clearRepoScope(actionRunsHasMore.value, prefix);
+    clearRepoScope(actionRunTotalCount.value, prefix);
+    clearRepoScope(actionRunDetails.value, prefix);
+    clearRepoScope(actionRunJobs.value, prefix);
+    clearRepoScope(actionRunArtifacts.value, prefix);
+    clearRepoScope(actionJobLogs.value, prefix);
+    clearRepoScope(issueSubscriptions.value, prefix);
+    clearRepoScope(issueTrackedTimes.value, prefix);
+    clearRepoScope(issueDependencies.value, prefix);
+    clearRepoScope(issueReactions.value, prefix);
+    clearRepoScope(commentReactions.value, prefix);
+
+    const inScope = (key: string) => isInRepoScope(key, prefix);
+    repoDetailsCache.deleteWhere(inScope);
+    issueDetailCache.deleteWhere(inScope);
+    pullRequestDetailCache.deleteWhere(inScope);
+    pullRequestCommentsCache.deleteWhere(inScope);
+    pullRequestFilesCache.deleteWhere(inScope);
+    pullRequestCommitsCache.deleteWhere(inScope);
+    repoContentsCache.deleteWhere(inScope);
+    repoRefsCache.deleteWhere(inScope);
+    repoBranchCommitsCache.deleteWhere(inScope);
+    repoLabelsCache.deleteWhere(inScope);
+    repoAssigneesCache.deleteWhere(inScope);
+    repoMilestonesCache.deleteWhere(inScope);
+    repoIssuesFetchedAt.deleteWhere(inScope);
+    repoPullRequestsFetchedAt.deleteWhere(inScope);
+  }
+
+  /**
+   * Drops one repository's issue lists — every state and search key — together
+   * with the "list is fresh" marks that guard them. The marks must go too: the
+   * loader only refetches when both the list and its mark are missing, so a
+   * deleted slot would otherwise be served as fresh for the rest of the TTL.
+   */
+  function invalidateRepoIssueLists(prefix: string): void {
+    clearByPrefix(repoIssues.value, `${prefix}:issues:`);
+    repoIssuesFetchedAt.deleteWhere((key) => key.startsWith(`${prefix}:issues:`));
+  }
+
+  /** Same as `invalidateRepoIssueLists` for the pull request lists. */
+  function invalidateRepoPullRequestLists(prefix: string): void {
+    clearByPrefix(repoPullRequests.value, `${prefix}:pulls:`);
+    repoPullRequestsFetchedAt.deleteWhere((key) => key.startsWith(`${prefix}:pulls:`));
+  }
+
+  // The repository the route currently points at. Navigating to another one
+  // releases the payloads of the one left behind; the views stay alive in the
+  // keep-alive cache, so nothing else would free them. A router hook rather than
+  // a `watch`: a watcher created here would live in the effect scope of whichever
+  // component happened to call `useAppState()` first and would stop working once
+  // the keep-alive cache evicts that component.
+  let activeRepoScope: string | undefined;
+  router.afterEach((to) => {
+    const instanceId = to.params.instanceId;
+    const owner = to.params.owner;
+    const repo = to.params.repo;
+    const scope =
+      typeof instanceId === 'string' && typeof owner === 'string' && typeof repo === 'string'
+        ? repoScopePrefix(instanceId, owner, repo)
+        : undefined;
+    const previous = activeRepoScope;
+    activeRepoScope = scope;
+    if (previous && previous !== scope) {
+      clearRepoPayloads(previous);
+    }
+  });
+
   /**
    * Handle the host "refresh instances" command: drop the instance-level TTL
-   * caches and force-reload the dashboard lists (repositories, my issues, my
-   * pull requests) for every known instance. In-flight requests are left alone
-   * — the load functions dedupe on their loading keys.
+   * caches and the payload slots they back, then force-reload the dashboard lists
+   * (repositories, my issues, my pull requests) for every known instance.
+   * Without dropping the payloads a refresh would leave the stale list on screen
+   * while the forced request is in flight. In-flight requests are left alone —
+   * the load functions dedupe on their loading keys.
    */
   function refreshInstanceData() {
     repositoriesCache.clear();
     myIssuesCache.clear();
     myPullRequestsCache.clear();
+    repositories.value.clear();
+    myIssues.value.clear();
+    myPullRequests.value.clear();
     for (const instance of instances.value) {
       loadRepositories(instance.id, true);
       loadMyIssues(instance.id, 'open', true);
@@ -4658,6 +4861,7 @@ function createAppState() {
     lastSavedPullRequest,
     lastWorktreeCancelled,
     lastWorktreeError,
+    lastDispatchCancelled,
     openExternal,
     openWorktreePath,
     copyToClipboard,
