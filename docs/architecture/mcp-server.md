@@ -60,6 +60,9 @@ mcp-server process (Node, bundled: out/mcp-server.js)
 Forgejo instance REST API
 ```
 
+The same binary can also start with **no environment at all** — see
+[Zero-configuration launch](#zero-configuration-launch) below.
+
 - **Entry point:** `packages/forgejo-toolkit/mcp/server.ts`, bundled by
   esbuild to `out/mcp-server.js` as a third build artifact (next to
   `extension.js` and the webview bundle). An esbuild plugin rejects any
@@ -120,6 +123,87 @@ instance id>)`).
   the attribution is unambiguous (a single linked repository, or the active
   editor verifiably inside the attributed one), so it may be false on every
   entry.
+
+## Zero-configuration launch
+
+The server definitions above only exist where VS Code resolves extension
+contributions. Sessions that read a **static** MCP configuration instead —
+a workspace `.mcp.json`, the Agents window's Agent Host — can carry only
+`command` + `args`, with no per-instance environment. For those, the same
+`out/mcp-server.js` starts with no `FORGEJO_MCP_*` variables at all and
+discovers the instance itself (`mcp/autoConfig.ts`, wired into `server.ts`;
+all of it is skipped the moment `FORGEJO_MCP_INSTANCE_URL` is set, so the
+VS Code-spawned path is unchanged).
+
+A static configuration cannot point at `out/mcp-server.js` directly: the
+install directory is versioned (`cpf23333.forgejo-toolkit-<version>`), so
+the path breaks on every upgrade. The extension therefore additionally
+publishes a **stable-path shim** in the same globalStorage directory:
+`globalStorage/mcp-server.js`, a one-line CommonJS `require` of the current
+installation's bundle (`out/mcp-server.js` runs `main()` at module scope,
+so the `require` starts the server; the path inside is written with forward
+slashes so a Windows install path needs no backslash escaping). It is
+rewritten on every activation — only when the content changed, so a plain
+window load does not bump the file's mtime — which is what makes the fixed
+path self-healing across upgrades. `deactivate()` does not remove it, and
+it is written regardless of the instance list: it describes the
+installation, not the accounts. The
+`forgejoToolkit.copyAgentsWindowMcpConfig` command generates the `.mcp.json`
+snippet with this path (clipboard, or merged into the workspace's
+`.mcp.json` preserving any other `servers` entries; an unparseable existing
+file is reported and left untouched).
+
+To make that possible, the extension host additionally publishes an
+**instance registry** next to the per-window state files:
+`globalStorage/mcp-instances.json`, a fixed name shared by all windows,
+holding `{ updatedAt, instances: [{ id, url, name }] }` — the URL with its
+userinfo stripped, and never a token. It is written on activation and on
+every instance-list change, through the same atomic write; `deactivate()`
+does not remove it (it describes account configuration, not window state),
+and an emptied instance list is written as an empty array rather than
+deleting the file, so a consumer can tell "no instances" apart from
+"extension never ran".
+
+When `FORGEJO_MCP_INSTANCE_URL` is absent, startup resolves the instance in
+this order:
+
+1. **Data directory.** `FORGEJO_MCP_DATA_DIR` wins when set (tests and
+   unconventional installs point it straight at the directory containing
+   `mcp-instances.json`). Otherwise the platform defaults are searched:
+   `%APPDATA%\Code\User\globalStorage\cpf23333.forgejo-toolkit` (Windows),
+   `~/Library/Application Support/Code/User/globalStorage/...` (macOS),
+   `~/.config/Code/User/globalStorage/...` (Linux, honoring
+   `XDG_CONFIG_HOME`), each also under `Code - Insiders`, plus one glob level
+   of profile variants (`User/profiles/*/globalStorage/...`). The editor's
+   `state.vscdb` and the OS keychain are deliberately _not_ read: the
+   database schema is an internal that changes between versions, and a
+   headless child touching the keychain would trip the OS credential prompt.
+   No registry anywhere — or one that does not parse — is a startup error
+   whose message lists the directories searched.
+2. **Workspace state shortcut.** The newest readable `mcp-workspace-*.json`
+   whose entries place the process's working directory in a known checkout
+   answers the instance URL directly (paths compared resolved, case-folded
+   on Windows only). Only the newest file is consulted; a stale older file
+   must not outvote the git fallback.
+3. **Git remote matching.** The working directory's `.git/config` is parsed
+   as INI (never by spawning git; the gitfile/commondir form of worktrees is
+   followed), and each remote — origin first — is matched against the
+   registry: http(s) remotes compare host **and** port plus the instance's
+   deployment sub-path as a prefix, ssh/scp remotes compare host plus
+   sub-path and ignore the transport port. This is a vscode-free simplified
+   variant of `remoteMatchesInstance` in `src/worktree/gitOperations.ts`,
+   which cannot be reused because that module imports `vscode`. When several
+   registry instances match the same remote (two accounts on one host), the
+   first wins and a stderr note says so — the registry carries no username,
+   so the owner namespace cannot disambiguate; a known limitation.
+4. **No match** is a startup error listing the registry's (credential-free)
+   instance URLs and pointing at `FORGEJO_MCP_INSTANCE_URL`.
+
+The token still comes only from `FORGEJO_MCP_TOKEN`; a zero-configuration
+launch without it reads anonymously (public data only). When the discovery
+saw a workspace state file, its path also feeds `get_workspace_repository`
+as if `FORGEJO_MCP_STATE_FILE` had been set; an explicit variable always
+wins.
 
 ## Minimum VS Code version
 
@@ -271,15 +355,16 @@ implying a capability the tools do not have. Registration lives in
 
 ## Environment variables
 
-| Variable                    | Content                                                                                                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FORGEJO_MCP_INSTANCE_URL`  | The instance URL, verbatim (credential userinfo is refused at configuration time; only a value stored by an older extension version can still carry it) |
-| `FORGEJO_MCP_INSTANCE_ID`   | The configured instance's id; matched against state-file entries before the URL                                                                         |
-| `FORGEJO_MCP_TOKEN`         | The instance's access token                                                                                                                             |
-| `FORGEJO_MCP_SYNC_API_URLS` | `'false'` disables rewriting API URLs to the instance URL                                                                                               |
-| `FORGEJO_MCP_PROXY`         | The editor's `http.proxy`, when configured                                                                                                              |
-| `FORGEJO_MCP_STATE_FILE`    | This window's workspace → repository state file                                                                                                         |
-| `FORGEJO_MCP_DEBUG`         | `'true'` enables debug logging on the child's stderr                                                                                                    |
+| Variable                    | Content                                                                                                                                                                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `FORGEJO_MCP_INSTANCE_URL`  | The instance URL, verbatim (credential userinfo is refused at configuration time; only a value stored by an older extension version can still carry it). Optional: when absent, the server auto-discovers the instance (see Zero-configuration launch) |
+| `FORGEJO_MCP_INSTANCE_ID`   | The configured instance's id; matched against state-file entries before the URL                                                                                                                                                                        |
+| `FORGEJO_MCP_TOKEN`         | The instance's access token. Optional: without it the tools read anonymously (public data only), which is what an `mcp.json` the Agent Host reads natively should use rather than storing a token at rest                                              |
+| `FORGEJO_MCP_SYNC_API_URLS` | `'false'` disables rewriting API URLs to the instance URL                                                                                                                                                                                              |
+| `FORGEJO_MCP_PROXY`         | The editor's `http.proxy`, when configured                                                                                                                                                                                                             |
+| `FORGEJO_MCP_STATE_FILE`    | This window's workspace → repository state file                                                                                                                                                                                                        |
+| `FORGEJO_MCP_DATA_DIR`      | Explicit override for the directory auto-discovery reads `mcp-instances.json` from (tests, unconventional installs); absent: the platform defaults                                                                                                     |
+| `FORGEJO_MCP_DEBUG`         | `'true'` enables debug logging on the child's stderr                                                                                                                                                                                                   |
 
 ## Security model
 
@@ -310,6 +395,15 @@ implying a capability the tools do not have. Registration lives in
   confirmed in the VS Code UI (also to stay aligned with the Codeberg hosting
   rules: no autonomous agents acting on the user's behalf without per-action
   confirmation).
+- The server never requests MCP _sampling_ (server-initiated model calls via
+  `createMessage`): it is a plain tool/prompt surface and makes no LLM calls of
+  its own. VS Code still shows its generic per-server "Configure Model Access"
+  menu entry for it — that setting is a no-op here. If a future feature wants
+  server-side model use (e.g. an agent-facing tool that self-summarizes),
+  sampling is the MCP-native route and this document must then cover the
+  model-access grant; UI-facing AI features (like the planned PR description
+  draft) should instead use `vscode.lm` on the host, where the webview is not
+  an MCP client at all.
 
 ## Testing
 
@@ -321,6 +415,9 @@ implying a capability the tools do not have. Registration lives in
   `src/__tests__/mcpWorkspaceState.test.ts`, the reader (filtering, instance
   attribution, missing/corrupt file) in `mcp/__tests__/workspaceState.test.ts`,
   and the multi-definition provider in `src/__tests__/mcpServerProvider.test.ts`.
+  The zero-configuration discovery (registry reading, state-file shortcut,
+  `.git/config` remote matching, failure messages) is covered by
+  `mcp/__tests__/autoConfig.test.ts`; `server.ts` is only the wiring.
 - Integration: the server connected over the MCP SDK's `InMemoryTransport`,
   asserting the tool listing and a round trip per tool group —
   `mcp/__tests__/server.test.ts`.

@@ -5,6 +5,7 @@ import type { ConfigManager } from '../config';
 import type { ReadmeContentProvider } from '../readmeProvider';
 import { COMMAND_ADD_COMMENT, PullReviewCommentController } from '../comments/pullReviewCommentController';
 import { copyPermalink } from './permalink';
+import { copyAgentsWindowMcpConfig } from './agentsWindowMcpConfig';
 import { publishToForgejo } from './publish';
 import {
   COMMAND_CREATE_ISSUE_FROM_COMMENT,
@@ -116,6 +117,14 @@ export function registerCommands(
         const err = userFacingErrorMessage(error);
         logger.error(`[copyPermalink] ${err}`);
         void showErrorWithLog(vscode.l10n.t('Failed to copy permalink: {0}', err));
+      });
+    }),
+
+    vscode.commands.registerCommand('forgejoToolkit.copyAgentsWindowMcpConfig', () => {
+      copyAgentsWindowMcpConfig(context, logger).catch((error: unknown) => {
+        const err = userFacingErrorMessage(error);
+        logger.error(`[copyAgentsWindowMcpConfig] ${err}`);
+        void showErrorWithLog(vscode.l10n.t('Failed to generate the MCP configuration: {0}', err));
       });
     }),
 

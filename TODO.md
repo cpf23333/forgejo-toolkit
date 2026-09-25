@@ -5,6 +5,7 @@
 ## 发布 0.0.1（代码侧已完成，等待人工步骤）
 
 - [ ] 推送 `main`：领先 `codeberg` / `origin`，条数以 `git rev-list --count <remote>/main..main` 为准（不写死，避免过期）
+- [ ] 新 MCP 功能的真实环境走查（2026-09-25 新增，协议级 E2E 已过）：生产构建后在真实 VS Code 里确认——Chat 工具列表出现每个有 token 实例各自的 `Forgejo: <实例名>` server（共 29 个工具）、prompt 选择器出现 `review-pull-request` / `analyze-ci-failure` / `triage-issue` 三个模板、让 agent 回答「这个仓库的 open issues」验证它会自动调 `get_workspace_repository`
 - [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **11 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断；`extension/NOTICE` 那条用于确认 DOMPurify 的 Apache-2.0 许可文本随包发出；`extension/out/webview/codicon.css` 与 `codicon.ttf` 两条是本次新增，用于确认 webview 的图标字体确实随包发出——只跑 webview 构建不会发现该 hook 失效），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`
 - [ ] 商店发布（需凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，步骤见 `docs/release.md` 的 Checklist
 - [ ] 发布后回填：① 把根 `CHANGELOG.md` 的 `## [Unreleased]` 改成 `## [0.0.1] - <发布日期>`，并原样复制到 `packages/forgejo-toolkit/CHANGELOG.md`（`packagingFiles.test.ts` 要求两份逐字节一致）；② 删掉 `README.md` / `README.zh.md` 安装段的「Not published yet / 尚未发布」提示，把 Marketplace 与 Open VSX 链接恢复成正常入口，并与 `docs/release.md` 的实际发布渠道对齐；③ 复核 `KNOWN_ISSUES` 中与版本相关的条目
@@ -16,7 +17,7 @@
 - [ ] P2 `X-Total-Count` 仍拿不到：**不是**共享请求层的问题——`packages/shared/src/request/index.ts` 的 `ResponseConfig` 一直返回 `headers`，丢掉它的是生成的 operation 包装层：每个 `packages/forgejo-api/src/generated/client/*.ts` 函数都只 `return res.data`（如 `issueListIssues.ts`）。所以列表总数与「是否还有更多」无法精确展示；要修得改生成流程让包装层透出 `headers`/`status`，或在调用处绕开包装层直接用请求客户端。通知分页已按「只有空页才算结束」处理，列表截断按「长度达到 500 即可能被截断」提示
 - [ ] P5 低优先级（等上游）：`vscode-tree` 内按钮（IconActionButton）的 Enter/Space 被库自身 `keydown` 的 `preventDefault` 抑制（`@vscode-elements/elements` 2.5.1 既有行为）
 - [ ] 等上游版本：Forgejo v17（约 2026-10 底）的 workflow / job rerun（`forgejo#13924`，用 ≥17.0 版本闸门，并同步移除 `KNOWN_ISSUES` 对应条目）；Actions 日志 ndjson + 服务端过滤（#12820 / #12821，低优先级）
-- [ ] 规划中的功能：MCP Phase 2 写工具（默认关 + 设置逐项开启 + 不标 `readOnlyHint`）、`forgejoToolkit.mcpEnabled` 开关
+- [ ] 规划中的功能：`forgejoToolkit.mcpEnabled` 开关；MCP Phase 2 写工具见「AI / MCP 规划」一节
 - [ ] P3 打包优化：`out/mcp-server.js` 里约 **350 KB** 的代码与 `out/extension.js` 重复——`packages/forgejo-toolkit/esbuild.js`（约 7–47 行）为扩展宿主和 MCP 服务器各配一份 esbuild，共享运行时（生成客户端、`shared` 请求层、zod 等）被打进两个包。做法是让两份 bundle 共用一个 chunk（或把 MCP 入口作为第二个 entry 输出），但**必须跑一次构建才能核对体积与 `forbid-vscode` 约束**，因此暂缓（决定：等发版后再做）
 - [ ] P3 打包优化：onboarding / review 评论两个面板各自加载的是整份 dashboard webview 入口（`webview/src/main.ts` 在入口里同步注册 13 个 `@vscode-elements/elements` 模块，入口 335 KB，而面板 chunk 只有 8 KB / 5 KB），所以打开评论编辑器要解析整个 dashboard 外壳。做法是按面板拆分 webview 入口，或把 dashboard 主体改成懒加载路由；同样需要构建核对，因此暂缓
 - [ ] P4 「创建 PR」状态栏仍会拉取整个打开中 PR 列表（上限 500 条 ≈ 10 次请求）才能回答分支查询。正确但浪费：要真正减少请求数需要在 `client.ts` 暴露分页方法（例如 `getRepoPullRequests(owner, repo, state, { page, limit })`），再由状态栏只取第一页。当前实现会在达到 500 条上限时写一条明确的警告日志，因此计数不会悄悄出错。改动涉及共享 API 面，留到发版后
@@ -35,7 +36,6 @@
 - [ ] **P3 copilot-instructions 生成器**：一键为仓库写入「本仓库 = 实例 X 的 owner/repo，可用 forgejo-toolkit MCP 工具」片段，与 `get_workspace_repository` 互补（事先告知 vs 主动问）
 - [ ] **P3 通知 AI 摘要**：通知列表「总结讨论」按钮，`vscode.lm` 浓缩时间线
 - [ ] Phase 2 写工具的确认模型设计（先于实现）：无头 MCP 进程弹不了 VS Code 确认框，只能靠逐项设置开关 + 不标 `readOnlyHint`（交给 VS Code 工具审批）+ description 写明副作用；首批只开创建评论 / 提交 review / 重跑 workflow
-- [ ] Phase 2 前置：把 MCP 实例级过滤下沉到取数之前（见「第十轮审查后待修」一节的中危条目）
 
 ## 走查与实测
 
@@ -65,7 +65,7 @@
 
 ## 第十轮审查后待修（2026-09-23 第十轮全仓扫描 + 独立复核）
 
-- [ ] **medium** MCP 的实例级过滤发生在服务端 500 行上限**之外**：工具拿到的是已被截断的分页结果，再按实例过滤，于是「结果里没有该实例的条目」既可能是真的没有、也可能是被上限挤掉。要修得把实例过滤下沉到取数之前（或在结果里带上「因上限而可能缺失」的标记），涉及 `mcp/tools.ts` 的入参传递，暂记
+- [x] ~~**medium** MCP 的实例级过滤发生在服务端 500 行上限**之外**~~（2026-09-25 消解：`eef4045` 的多实例 fan-out 让每个 MCP server 只服务一个实例，工具面已不存在跨实例过滤点；同一提交引入的 `get_workspace_repository` 按实例 id 过滤本地状态文件，不涉及分页上限）
 - [ ] **low** 401/403 toast 的 URL 脱敏没有单元测试：该文件的 vscode mock 里 `window.showErrorMessage` 对宿主模块返回 `undefined`（同一对象在测试内直接调用却返回 promise），脱敏本身由 shared 的 `toPublicInstance` 测试与既有的 `redactInstanceUrl` 测试覆盖
 - [ ] **low** 「全部标为已读」跨实例（按钮文案与 tooltip 已如实说明）**刻意不做确认框**：与 VS Code 自身的通知「全部标为已读」以及 Forgejo Web UI 的同类操作一致，且确认框会挡住整个窗口；如日后要加，按 AGENTS.md 应加在宿主（`viewProvider` 的 `markAllNotificationsRead` 分派处），webview 侧不得自行 `showConfirm`
 - [ ] **low** `remoteComparisonKeys` 对绝对路径 scp 远端（`host:/srv/git/repo.git`）仍按「末两段是 owner/repo」解析。**决定：维持现状**——`host:/srv/git/owner/repo.git` 这种自管目录布局末两段本身就是正确的 owner/repo，与错误情形无法区分，拒绝会误伤真实场景；等上游有明确语义再定

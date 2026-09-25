@@ -65,6 +65,29 @@ MCP Server 只有在满足以下全部条件时才会注册：
 
 不能。目前全部 MCP 工具均为只读（`readOnlyHint`），agent 可以查询 Issue、PR、Actions 运行记录和代码，但无法改动任何数据。写操作工具未来可能以「默认关闭、逐项开启」的方式提供。注意：VS Code 对只读工具**不会**在调用前弹确认框，因此保证来自工具面本身——每个工具都是 `GET`（唯一例外是 `get_workspace_repository`，它只读取扩展在本地发布的状态文件），且会进入请求路径的输入都做了校验，构造参数无法跳到其他接口。
 
+### 「配置模型访问」对本扩展的 MCP server 有什么作用？
+
+目前没有作用。这个菜单项是 VS Code 对所有 MCP server 统一显示的，控制的是 server 通过 MCP _采样_（sampling，由 server 主动发起的模型调用）可以使用哪些模型。本扩展的 server 从不发起采样——它只提供只读工具调用——所以该设置对它没有实际效果。
+
+### Agents 窗口里能用这个 MCP server 吗？
+
+不能通过扩展的贡献来使用：VS Code 不会在 Agents 窗口（Agent Host）会话中解析扩展贡献的 MCP server——这是平台限制，也是扩展不声明 `agentsWindow` 能力的原因。可行的做法是用静态的工作区 `.mcp.json` 指向扩展在 globalStorage 里维护的 shim：
+
+```json
+{
+  "servers": {
+    "forgejo": {
+      "command": "node",
+      "args": ["%APPDATA%\\Code\\User\\globalStorage\\cpf23333.forgejo-toolkit\\mcp-server.js"]
+    }
+  }
+}
+```
+
+（macOS 上目录是 `~/Library/Application Support/Code/User/globalStorage/cpf23333.forgejo-toolkit`，Linux 上是 `~/.config/Code/User/globalStorage/cpf23333.forgejo-toolkit`；Insiders 版本把 `Code` 换成 `Code - Insiders`。）可以手动写这个文件，也可以运行 **Forgejo Toolkit: 为 Agents 窗口复制 MCP 配置** 命令，把片段复制到剪贴板或合并进工作区的 `.mcp.json`。路径是 shim `mcp-server.js` 而不是带版本号的安装目录：扩展每次激活都会重写它，所以升级后依然有效。
+
+无需任何环境变量：server 会自己发现扩展发布的实例注册表，并根据会话工作区的 git remote 自动匹配实例。没有 `FORGEJO_MCP_TOKEN` 时为匿名只读（仅公开数据）。零配置版本不含秘密，但仍建议不要把 `.mcp.json` 提交进 git——绝对路径是机器相关的，而一旦加了 `env` 块，token 就会以明文落在可共享的文件里。
+
 ## 故障排除
 
 ### 点击仓库没有反应

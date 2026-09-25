@@ -5,6 +5,7 @@ import { probeServerVersion, redactInstanceUrl } from '../src/api/versionProbe';
 import { setDefaultRequestDispatcher } from '../src/api/client';
 import { createProxyDispatcher, getProxyFetch, resolveProxyUrl } from '../src/api/proxy';
 import { createMcpServer } from './mcpServer';
+import { resolveAutoConfiguration } from './autoConfig';
 
 // A stdio MCP server must keep stdout clean for the protocol framing, so all
 // diagnostics go to stderr. The token is never logged: request logs carry
@@ -24,11 +25,39 @@ const logger: ClientLogger = {
 };
 
 async function main(): Promise<void> {
-  const url = process.env.FORGEJO_MCP_INSTANCE_URL;
-  const token = process.env.FORGEJO_MCP_TOKEN;
-  if (!url || !token) {
-    console.error('forgejo-toolkit MCP server: FORGEJO_MCP_INSTANCE_URL and FORGEJO_MCP_TOKEN must both be set.');
-    process.exit(1);
+  let url = process.env.FORGEJO_MCP_INSTANCE_URL;
+  let stateFile = process.env.FORGEJO_MCP_STATE_FILE;
+  // Zero-configuration launch: a static workspace `.mcp.json` can carry only
+  // command + args, so a server started that way has no instance URL in its
+  // environment and discovers it instead — from the extension's published
+  // instance registry plus this working directory's workspace state or git
+  // remotes (see mcp/autoConfig.ts). When FORGEJO_MCP_INSTANCE_URL *is* set
+  // the launch behaves exactly as before; auto-discovery never overrides it.
+  if (!url) {
+    const auto = await resolveAutoConfiguration();
+    if (auto.status === 'failed') {
+      console.error(`forgejo-toolkit MCP server: ${auto.message}`);
+      process.exit(1);
+    }
+    url = auto.url;
+    // The discovered state file feeds get_workspace_repository when the
+    // launch environment never provided one; an explicit one always wins.
+    stateFile ??= auto.stateFile;
+    logger.info(
+      `No FORGEJO_MCP_INSTANCE_URL configured; auto-matched instance ${redactInstanceUrl(url)} ` +
+        (auto.via === 'state-file' ? 'via the workspace state file.' : 'via the git remotes of the working directory.'),
+    );
+    if (auto.note) {
+      logger.info(auto.note);
+    }
+  }
+  // The token is optional: without it the tools read anonymously, which is
+  // enough for public repositories. This matters for configs the Agent Host
+  // reads natively (workspace `.mcp.json`, `~/.copilot/mcp-config.json`),
+  // where a plaintext token would be at rest in a shareable file.
+  const token = process.env.FORGEJO_MCP_TOKEN || '';
+  if (!token) {
+    logger.info('FORGEJO_MCP_TOKEN is not set; reading anonymously (only public data is visible).');
   }
 
   const syncApiUrls = process.env.FORGEJO_MCP_SYNC_API_URLS === 'false' ? false : undefined;
@@ -49,8 +78,9 @@ async function main(): Promise<void> {
     // The extension host's workspace → repository mapping, for the
     // get_workspace_repository tool. Optional: absent when the server is
     // launched without it, the tool stays registered and answers
-    // "not configured" instead of failing.
-    stateFile: process.env.FORGEJO_MCP_STATE_FILE,
+    // "not configured" instead of failing. A zero-configuration launch fills
+    // this with the newest discovered state file (see the auto-match above).
+    stateFile,
   });
   // The extension host probes the server version on activation and caches it per
   // instance URL, but this process has its own module state and never runs

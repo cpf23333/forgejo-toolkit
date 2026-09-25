@@ -16,7 +16,12 @@
 - **通知**：未读角标、筛选、后台轮询并弹出 VS Code 提醒。
 - **CI / Actions**：运行记录、job 日志、制品下载、取消与触发 workflow。
 - **发布与克隆**：把本地仓库发布到实例；通过 VS Code 的 Git: Clone 按关键字在服务端搜索并克隆仓库。
+- **面向 AI agent 的 MCP server**：每个已配置实例都会暴露为 Copilot agent mode 的独立只读 MCP server——29 个工具（Issue、PR、Actions、代码浏览、工作区仓库识别）、prompt 模板、零配置自动匹配实例。
 - **本地化**：English 与中文。
+
+## 命令
+
+所有命令都在命令面板（`Ctrl+Shift+P`，前缀 `Forgejo Toolkit`）中：打开仪表板、打开设置向导、打开设置、刷新实例、复制永久链接、发布到 Forgejo、查看日志、从当前分支创建 PR、添加审查评论、删除审查评论、为 Agents 窗口复制 MCP 配置。部分命令也出现在编辑器右键菜单、源代码管理视图或状态栏中。
 
 ## 截图
 
@@ -37,6 +42,7 @@
 - 扩展通过 REST API（`/api/v1`）与 Forgejo 通信。
 - 访问令牌存储在 VS Code SecretStorage 中（绝不写入明文设置）。
 - webview 使用 `acquireVsCodeApi()` 与扩展宿主通信。
+- MCP server 需要 VS Code ≥ 1.102，在 agent mode 中自动出现（零配置）。在 Agents 窗口中，扩展贡献的 server 不会进入 Agent Host 会话（VS Code 当前的平台限制）——可在命令面板运行「为 Agents 窗口复制 MCP 配置」生成指向稳定路径（升级不失效）的 `.mcp.json`。
 
 ## 开发
 

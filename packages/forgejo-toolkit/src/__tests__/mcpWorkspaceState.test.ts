@@ -4,7 +4,10 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
-import type { McpWorkspaceStateFile } from '@cpf23333-forgejo-toolkit/shared/mcp/workspaceState';
+import type {
+  McpInstanceRegistryFile,
+  McpWorkspaceStateFile,
+} from '@cpf23333-forgejo-toolkit/shared/mcp/workspaceState';
 import type { ConfigManager } from '../config';
 import type { Logger } from '../logger';
 import type { DetectLinkedRepositoriesResult } from '../worktree/gitOperations';
@@ -19,10 +22,16 @@ vi.mock('../worktree/gitOperations', async (importOriginal) => {
 
 import { detectLinkedRepositories } from '../worktree/gitOperations';
 import {
+  buildInstanceRegistryPayload,
+  buildMcpServerShimContent,
   buildWorkspaceStatePayload,
   cleanupMcpWorkspaceState,
+  mcpInstanceRegistryFilePath,
+  mcpServerShimFilePath,
   mcpWorkspaceStateFilePath,
   registerMcpWorkspaceStateSync,
+  writeMcpInstanceRegistry,
+  writeMcpServerShim,
   writeMcpWorkspaceState,
 } from '../mcpWorkspaceState';
 
@@ -247,6 +256,157 @@ describe('writeMcpWorkspaceState', () => {
   });
 });
 
+describe('writeMcpServerShim', () => {
+  let tempDir: string;
+  let logger: Logger;
+  let context: vscode.ExtensionContext;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-shim-test-'));
+    logger = makeLogger();
+    context = {
+      subscriptions: [] as { dispose(): unknown }[],
+      globalStorageUri: { fsPath: path.join(tempDir, 'globalStorage') },
+      // A Windows-style install path on purpose: the shim is a JS string
+      // literal, so backslashes must not survive into it unescaped.
+      extensionUri: { fsPath: 'D:\\extensions\\cpf23333.forgejo-toolkit-0.0.1' },
+    } as unknown as vscode.ExtensionContext;
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('writes a shim that requires the current installation’s server bundle, with forward slashes', async () => {
+    await writeMcpServerShim(context, logger);
+
+    const shimFilePath = mcpServerShimFilePath(context);
+    expect(path.basename(shimFilePath)).toBe('mcp-server.js');
+    const content = fs.readFileSync(shimFilePath, 'utf8');
+    expect(content).toContain("require('D:/extensions/cpf23333.forgejo-toolkit-0.0.1/out/mcp-server.js');");
+    expect(content).not.toContain('\\');
+  });
+
+  it('leaves an unchanged shim untouched instead of bumping its mtime on every activation', async () => {
+    await writeMcpServerShim(context, logger);
+    const shimFilePath = mcpServerShimFilePath(context);
+    // Pin the mtime to a recognizable past value: a rewrite would replace it
+    // with the current time, so equality proves the second write was skipped.
+    const pinned = new Date('2020-01-01T00:00:00Z');
+    fs.utimesSync(shimFilePath, pinned, pinned);
+
+    await writeMcpServerShim(context, logger);
+
+    expect(fs.statSync(shimFilePath).mtimeMs).toBe(pinned.getTime());
+  });
+
+  it('rewrites the shim when the install path changes (extension upgrade)', async () => {
+    await writeMcpServerShim(context, logger);
+    const shimFilePath = mcpServerShimFilePath(context);
+    (context as { extensionUri: { fsPath: string } }).extensionUri = {
+      fsPath: 'D:\\extensions\\cpf23333.forgejo-toolkit-0.0.2',
+    };
+
+    await writeMcpServerShim(context, logger);
+
+    const content = fs.readFileSync(shimFilePath, 'utf8');
+    expect(content).toContain("require('D:/extensions/cpf23333.forgejo-toolkit-0.0.2/out/mcp-server.js');");
+  });
+
+  it('escapes a single quote in the install path so the shim stays valid JS', () => {
+    (context as { extensionUri: { fsPath: string } }).extensionUri = { fsPath: "/home/it's me/.vscode/extensions" };
+
+    const content = buildMcpServerShimContent(context);
+
+    expect(content).toContain("require('/home/it\\'s me/.vscode/extensions/out/mcp-server.js');");
+  });
+
+  it('logs and swallows a write failure instead of propagating it', async () => {
+    // Advisory like the registry: a missing shim only breaks the static
+    // `.mcp.json` launch path, so a failure must not surface as an extension
+    // error.
+    const blockedPath = path.join(tempDir, 'blocked');
+    fs.writeFileSync(blockedPath, 'a file, not a directory', 'utf8');
+    (context as { globalStorageUri: { fsPath: string } }).globalStorageUri = { fsPath: blockedPath };
+
+    await expect(writeMcpServerShim(context, logger)).resolves.toBeUndefined();
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('MCP server shim write failed'));
+  });
+});
+
+describe('buildInstanceRegistryPayload', () => {
+  it('publishes id, stripped URL and name — never the token', () => {
+    // The registry is read by MCP processes launched outside VS Code's spawn
+    // path; it must be credential-free even though the configured instance
+    // object carries its token in memory.
+    const payload = buildInstanceRegistryPayload([
+      makeInstance({ url: 'https://token-abc123@forgejo.example.com' }),
+      makeInstance({ id: 'instance-2', url: 'https://other.example.com', name: 'Other' }),
+    ]);
+
+    expect(typeof payload.updatedAt).toBe('string');
+    expect(payload.instances).toEqual([
+      { id: 'instance-1', url: 'https://forgejo.example.com/', name: 'Example' },
+      { id: 'instance-2', url: 'https://other.example.com', name: 'Other' },
+    ]);
+    expect(JSON.stringify(payload)).not.toContain('secret-token');
+  });
+});
+
+describe('writeMcpInstanceRegistry', () => {
+  let tempDir: string;
+  let registryFilePath: string;
+  let logger: Logger;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-registry-test-'));
+    registryFilePath = path.join(tempDir, 'state', 'mcp-instances.json');
+    logger = makeLogger();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function configWith(instances: ForgejoInstance[]): ConfigManager {
+    return { getInstances: () => instances } as unknown as ConfigManager;
+  }
+
+  it('writes the registry at the fixed file name, creating the globalStorage directory', async () => {
+    await writeMcpInstanceRegistry(registryFilePath, configWith([makeInstance()]), logger);
+
+    const written = JSON.parse(fs.readFileSync(registryFilePath, 'utf8')) as McpInstanceRegistryFile;
+    expect(written.instances).toHaveLength(1);
+    expect(written.instances[0]).toMatchObject({ id: 'instance-1', url: 'https://forgejo.example.com' });
+    // The file is the contract with the zero-config MCP child: no credential
+    // may reach it.
+    expect(fs.readFileSync(registryFilePath, 'utf8')).not.toContain('secret-token');
+  });
+
+  it('writes an empty array when no instances are configured instead of deleting the file', async () => {
+    // "No instances configured" must stay distinguishable from "extension
+    // never ran" for the discovering MCP child, so an emptied list is a
+    // written file with an empty array, not a removed file.
+    await writeMcpInstanceRegistry(registryFilePath, configWith([makeInstance()]), logger);
+    await writeMcpInstanceRegistry(registryFilePath, configWith([]), logger);
+
+    const written = JSON.parse(fs.readFileSync(registryFilePath, 'utf8')) as McpInstanceRegistryFile;
+    expect(written.instances).toEqual([]);
+  });
+
+  it('logs and swallows a write failure instead of propagating it', async () => {
+    // Advisory like the state file: the VS Code-spawned children never read
+    // the registry, so a failure must not surface as an extension error.
+    const blockedPath = path.join(tempDir, 'blocked');
+    fs.writeFileSync(blockedPath, 'a file, not a directory', 'utf8');
+
+    await expect(
+      writeMcpInstanceRegistry(path.join(blockedPath, 'mcp-instances.json'), configWith([makeInstance()]), logger),
+    ).resolves.toBeUndefined();
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('MCP instance registry write failed'));
+  });
+});
+
 describe('registerMcpWorkspaceStateSync', () => {
   let tempDir: string;
   let context: vscode.ExtensionContext;
@@ -261,6 +421,7 @@ describe('registerMcpWorkspaceStateSync', () => {
     context = {
       subscriptions: [] as { dispose(): unknown }[],
       globalStorageUri: { fsPath: tempDir },
+      extensionUri: { fsPath: path.join(tempDir, 'extension-install') },
     } as unknown as vscode.ExtensionContext;
   });
 
@@ -284,6 +445,58 @@ describe('registerMcpWorkspaceStateSync', () => {
   function lastListener(mock: ReturnType<typeof vi.fn>): (arg?: unknown) => void {
     return mock.mock.calls[mock.mock.calls.length - 1][0] as (arg?: unknown) => void;
   }
+
+  it('writes the instance registry eagerly at registration, without waiting for the state debounce', async () => {
+    // A zero-configuration MCP child can start the moment the extension ran
+    // once; the registry write is not debounced and needs no detection.
+    register();
+
+    const registryFilePath = mcpInstanceRegistryFilePath(context);
+    expect(path.basename(registryFilePath)).toBe('mcp-instances.json');
+    await until(() => fs.existsSync(registryFilePath));
+
+    const written = JSON.parse(fs.readFileSync(registryFilePath, 'utf8')) as McpInstanceRegistryFile;
+    expect(written.instances).toEqual([]);
+  });
+
+  it('writes the stable-path shim at registration even with no instances configured', async () => {
+    // The shim describes the installation, not the accounts: an empty
+    // instance list must not skip it, or a static `.mcp.json` would keep
+    // pointing at a stale install path after an upgrade.
+    register();
+
+    const shimFilePath = mcpServerShimFilePath(context);
+    await until(() => fs.existsSync(shimFilePath));
+
+    expect(fs.readFileSync(shimFilePath, 'utf8')).toContain('extension-install/out/mcp-server.js');
+  });
+
+  it('rewrites the registry from the same instances-changed listener as the state file', async () => {
+    // One listener serves both files: an instance add/remove must update the
+    // registry and the state file together, not on separate subscriptions
+    // that could drift.
+    let instances = [makeInstance()];
+    let instancesChangedListener: (() => void) | undefined;
+    const config = {
+      getInstances: () => instances,
+      onInstancesChanged: (listener: () => void) => {
+        instancesChangedListener = listener;
+        return { dispose: vi.fn() };
+      },
+    } as unknown as ConfigManager;
+    registerMcpWorkspaceStateSync(context, config, logger);
+    const registryFilePath = mcpInstanceRegistryFilePath(context);
+    await until(() => fs.existsSync(registryFilePath));
+
+    instances = [];
+    instancesChangedListener?.();
+    await until(
+      () => (JSON.parse(fs.readFileSync(registryFilePath, 'utf8')) as McpInstanceRegistryFile).instances.length === 0,
+    );
+
+    const written = JSON.parse(fs.readFileSync(registryFilePath, 'utf8')) as McpInstanceRegistryFile;
+    expect(written.instances).toEqual([]);
+  });
 
   it('names the file with the pid and a per-window nonce', () => {
     const stateFilePath = register();
@@ -388,6 +601,7 @@ describe('cleanupMcpWorkspaceState', () => {
     const context = {
       subscriptions: [] as { dispose(): unknown }[],
       globalStorageUri: { fsPath: tempDir },
+      extensionUri: { fsPath: path.join(tempDir, 'extension-install') },
     } as unknown as vscode.ExtensionContext;
     const config = {
       getInstances: () => [],

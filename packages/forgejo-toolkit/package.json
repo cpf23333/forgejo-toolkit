@@ -195,6 +195,12 @@
         "title": "%command.addPullReviewComment.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(comment)"
+      },
+      {
+        "command": "forgejoToolkit.copyAgentsWindowMcpConfig",
+        "title": "%command.copyAgentsWindowMcpConfig.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(copy)"
       }
     ],
     "viewsContainers": {

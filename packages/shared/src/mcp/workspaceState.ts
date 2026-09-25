@@ -48,3 +48,49 @@ export interface McpWorkspaceStateFile {
   updatedAt: string;
   repositories: McpWorkspaceStateRepository[];
 }
+
+/**
+ * One configured instance as the instance registry publishes it.
+ *
+ * The registry exists so an MCP server launched outside VS Code's own spawn
+ * path (a static workspace `.mcp.json` carries only `command` + `args`, no
+ * per-instance environment) can still discover which instances exist and pick
+ * one by matching the working directory's git remote. It is the only
+ * configuration such a process can see: the extension's instance list lives in
+ * the editor's state database and its tokens in SecretStorage/keychain, both
+ * of which are deliberately not read by the MCP process (the database schema
+ * is an internal that changes between versions, and touching the OS keychain
+ * from a headless child would trip the OS credential prompt — see
+ * mcp/autoConfig.ts, which consumes this file).
+ */
+export interface McpInstanceRegistryEntry {
+  /** Id of the configured instance, so a consumer can tell two accounts on one host apart. */
+  id: string;
+  /**
+   * Instance URL with credential userinfo removed entirely
+   * (`stripUrlUserinfo`): the file must never carry credentials, and a token
+   * never appears here — the consumer authenticates anonymously or through its
+   * own `FORGEJO_MCP_TOKEN`.
+   */
+  url: string;
+  /** Display name of the instance, for messages that name the match. */
+  name: string;
+}
+
+/**
+ * The fixed-name `mcp-instances.json` the extension host writes next to the
+ * per-window state files in its globalStorage directory.
+ *
+ * Unlike the state files it describes account configuration, not window
+ * state, so it is shared by every window and survives restarts: `deactivate()`
+ * does not delete it, and an emptied instance list is written as an empty
+ * array rather than removing the file. Several windows write the same fixed
+ * name concurrently — they all derive the content from the same shared
+ * configuration, and each write is atomic (write-through-temp + rename), so a
+ * reader only ever sees one complete snapshot.
+ */
+export interface McpInstanceRegistryFile {
+  /** ISO timestamp of the last write, for debugging staleness. */
+  updatedAt: string;
+  instances: McpInstanceRegistryEntry[];
+}

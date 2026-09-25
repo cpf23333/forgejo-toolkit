@@ -65,12 +65,16 @@ search, Actions, and a read-only MCP server for AI agents.
 - **Actions.** Workflow run history with incremental paging, run detail with
   jobs, logs and artifacts, artifact download, cancellation of a running run, and
   manual workflow dispatch with inputs.
-- **MCP server.** The first configured instance with a stored access token is
-  exposed to MCP clients
-  (VS Code ≥ 1.102) as a read-only stdio server covering Issues, PRs,
-  notifications, repositories, search, Actions, files, commits, reviews and
-  metadata, with input validation and result truncation. The token travels
-  through the child's environment and never appears in schemas, results or logs.
+- **MCP server.** Every configured instance with a stored access token is
+  exposed to MCP clients (VS Code ≥ 1.102) as its own read-only stdio server
+  covering Issues, PRs, notifications, repositories, search, Actions, files,
+  commits, reviews and metadata, with input validation and result truncation.
+  A `get_workspace_repository` tool maps the open workspace to its repository
+  on the matching instance, prompt templates (`review-pull-request`,
+  `analyze-ci-failure`, `triage-issue`) package common read-only workflows, and
+  `get_ci_failure_summary` condenses a failed Actions run into error lines and
+  log tails sized for an agent's context. The token travels through the
+  child's environment and never appears in schemas, results or logs.
 - **Settings and localization.** Language switch, debug logging to the
   "Forgejo Toolkit" output channel, worktree configuration, and English/Chinese
   localization for the webview, the extension manifest and the packaged README.

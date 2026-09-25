@@ -258,5 +258,16 @@
   "... (truncated: log exceeds the {0} MB limit)": "……（已截断：日志超过 {0} MB 上限）",
   "Forgejo artifact {0} download stalled: no data received for {1} seconds.": "Forgejo artifact {0} 下载停滞：{1} 秒内没有收到任何数据。",
   "Forgejo artifact {0} returned no response body.": "Forgejo artifact {0} 没有返回响应体。",
-  "Forgejo artifact {0} exceeds the {1} size limit and was not downloaded.": "Forgejo artifact {0} 超过 {1} 的大小限制，未被下载。"
+  "Forgejo artifact {0} exceeds the {1} size limit and was not downloaded.": "Forgejo artifact {0} 超过 {1} 的大小限制，未被下载。",
+  "MCP server configuration for the Agents window is ready. It references the stable shim the extension rewrites on every activation, so it survives extension upgrades.": "Agents 窗口的 MCP server 配置已就绪。它引用扩展每次激活时都会重写的稳定 shim，因此扩展升级后依然有效。",
+  "Copy to Clipboard": "复制到剪贴板",
+  "Write to Workspace .mcp.json": "写入工作区 .mcp.json",
+  "MCP configuration copied to clipboard": "MCP 配置已复制到剪贴板",
+  "The generated .mcp.json contains no secrets, but it references a machine-specific path, so committing it to git is not recommended.": "生成的 .mcp.json 不含任何密钥，但引用了机器相关的路径，因此不建议提交进 git。",
+  "Write .mcp.json": "写入 .mcp.json",
+  "The existing .mcp.json is not valid JSON": "已存在的 .mcp.json 不是有效的 JSON",
+  "The existing .mcp.json must contain a JSON object": "已存在的 .mcp.json 顶层必须是 JSON 对象",
+  "Failed to write .mcp.json (the existing file was left unchanged): {0}": "写入 .mcp.json 失败（已存在的文件未被修改）：{0}",
+  "MCP configuration written to {0}": "MCP 配置已写入 {0}",
+  "Failed to generate the MCP configuration: {0}": "生成 MCP 配置失败：{0}"
 }

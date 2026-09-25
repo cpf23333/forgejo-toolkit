@@ -16,7 +16,12 @@ A VS Code extension for [Forgejo](https://forgejo.org/) (and Codeberg) with a ri
 - **Notifications**: unread badge, filtering, background polling with VS Code alerts.
 - **CI / Actions**: runs, job logs, artifacts download, cancel and trigger workflows.
 - **Publish & clone**: publish a local repository to your instance, or clone through VS Code's Git: Clone with server-side search.
+- **MCP server for AI agents**: every configured instance is exposed to Copilot agent mode as its own read-only MCP server — 29 tools (issues, PRs, Actions, code browsing, workspace repository detection), prompt templates, and automatic instance matching with zero setup.
 - **Localization**: English and 中文.
+
+## Commands
+
+Every command lives in the Command Palette (`Ctrl+Shift+P`, prefix `Forgejo Toolkit`): Open Dashboard, Open Setup Guide, Open Settings, Refresh Instances, Copy Permalink, Publish to Forgejo, View Log, Create PR from Current Branch, Add Pull Review Comment, Delete Review Comment, and Copy MCP Config for Agents Window. Some also appear in the editor context menu, the SCM view, or the status bar.
 
 ## Screenshots
 
@@ -37,6 +42,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) (and Codeberg) with a ri
 - The extension communicates with Forgejo via the REST API (`/api/v1`).
 - Access tokens are stored in VS Code SecretStorage (never in plain settings).
 - The webview uses `acquireVsCodeApi()` to communicate with the extension host.
+- The MCP server needs VS Code ≥ 1.102 and appears automatically in agent mode (no setup). In the Agents window, extension-contributed servers do not reach Agent Host sessions (a current VS Code limitation) — run **"Copy MCP Config for Agents Window"** from the Command Palette to generate a `.mcp.json` pointing at a stable, upgrade-proof path instead.
 
 ## Development
 

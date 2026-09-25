@@ -13,7 +13,7 @@ import {
   MCP_ENV_SYNC_API_URLS,
   MCP_ENV_TOKEN,
 } from '../mcpServerProvider';
-import { mcpWorkspaceStateFilePath } from '../mcpWorkspaceState';
+import { mcpWorkspaceStateFilePath, whenMcpStateWritesSettled } from '../mcpWorkspaceState';
 import type { ConfigManager } from '../config';
 import type { ForgejoInstance } from '../config';
 import type { Logger } from '../logger';
@@ -92,7 +92,7 @@ describe('registerMcpServerProvider', () => {
     vi.mocked(vscode.EventEmitter).mockClear();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers();
     // A test that replaced the proxy configuration mock must not leak it into
     // the next setup().
@@ -104,8 +104,13 @@ describe('registerMcpServerProvider', () => {
       }
     }
     // The workspace-state sync writes into this real directory when a test
-    // fires a trigger; do not leave the files behind.
-    fs.rmSync(SHARED_GLOBAL_STORAGE, { recursive: true, force: true });
+    // fires a trigger; do not leave the files behind. The registry write is
+    // eager (fired at registration, no debounce), so the removal must first
+    // wait out the in-flight write: its still-open `.part` handle makes a
+    // directory removal fail with EPERM on Windows, and retrying only narrows
+    // the race instead of closing it.
+    await whenMcpStateWritesSettled();
+    fs.rmSync(SHARED_GLOBAL_STORAGE, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it('registers the provider under the contributed id', () => {

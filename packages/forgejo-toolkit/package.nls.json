@@ -12,6 +12,7 @@
   "command.createPrFromCurrentBranch.title": "Create PR from Current Branch",
   "command.deletePullReviewComment.title": "Delete Review Comment",
   "command.addPullReviewComment.title": "Add Pull Review Comment",
+  "command.copyAgentsWindowMcpConfig.title": "Copy MCP Config for Agents Window",
   "config.locale.description": "Display language for the Forgejo Toolkit panel",
   "config.debug.description": "Enable debug logging to the Forgejo Toolkit output channel",
   "config.worktreeOpenMode.description": "How to open a PR worktree after it is created",

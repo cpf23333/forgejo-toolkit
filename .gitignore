@@ -5,3 +5,6 @@ dist
 .DS_Store
 *.log
 .impeccable/
+
+# Local MCP config may contain tokens; the Agents-window setup docs tell users to keep it out of git
+.mcp.json
