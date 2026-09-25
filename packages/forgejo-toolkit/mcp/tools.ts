@@ -1,7 +1,13 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { LIST_ITEM_LIMIT, MAX_SEARCH_RESULTS, REPO_DETAIL_LIST_LIMIT, type ForgejoClient } from '../src/api/client';
-import { userFacingErrorMessage } from '../src/api/errors-core';
+import {
+  LIST_ITEM_LIMIT,
+  MAX_JOB_LOG_LENGTH,
+  MAX_SEARCH_RESULTS,
+  REPO_DETAIL_LIST_LIMIT,
+  type ForgejoClient,
+} from '../src/api/client';
+import { toApiError, userFacingErrorMessage } from '../src/api/errors-core';
 import { resolveWorkspaceRepository } from './workspaceState';
 
 /**
@@ -78,6 +84,12 @@ export interface ActionJobLogArgs extends RepoRefArgs {
   jobId: number;
 }
 
+export interface CiFailureSummaryArgs extends RepoRefArgs {
+  runId: number;
+  /** Also list the jobs that passed (name and status only; their logs are never read). */
+  includePassedJobs?: boolean;
+}
+
 export interface FileContentArgs extends RepoRefArgs {
   path: string;
   ref?: string;
@@ -149,6 +161,255 @@ function assertCompleteRepoScope(owner?: string, repo?: string): void {
  * only fires at the `LIST_ITEM_LIMIT` cap. The server's own matcher is the
  * truth here, and the tool descriptions say what it matches.
  */
+
+/**
+ * One failed job's evidence inside a `get_ci_failure_summary` result.
+ *
+ * `log` is absent when no extraction could be produced and `extractionNote`
+ * then says why, so a failed job never disappears from the summary without a
+ * reason attached to it.
+ */
+export interface CiJobFailureSummary {
+  id?: number;
+  name?: string;
+  status?: string;
+  log?: CiJobLogSummary;
+  extractionNote?: string;
+}
+
+/** What was extracted from one failed job's log, and how it was cut. */
+export interface CiJobLogSummary {
+  /** Characters the client returned, i.e. after its own 10 MB cap. */
+  logCharacters: number;
+  /**
+   * True when `getActionJobLog`'s own cap cut the log before this tool saw it.
+   * That cap keeps the head, so `tail` then holds the end of the first 10 MB —
+   * not the end of the real log — and the real log's size is unknown.
+   */
+  truncatedByClient: boolean;
+  /** Set only when `truncatedByClient`: a plain-language marker for the agent. */
+  truncationNote?: string;
+  /** Total lines in the log as the client returned it. */
+  logLines: number;
+  /** Error-looking lines with their surrounding context, oldest shown first. */
+  errorContext: string;
+  /** How many lines matched the error patterns, before the display cap. */
+  errorMatchCount: number;
+  /** True when matched error lines had to be dropped to fit the slice. */
+  errorContextTruncated: boolean;
+  /** The last lines of the log; the end of the log is what is kept. */
+  tail: string;
+  /** Lines present in `tail`. */
+  tailLines: number;
+  /** True when `tail` holds fewer lines than `CI_TAIL_LINE_COUNT`. */
+  tailTruncated: boolean;
+}
+
+/**
+ * Whether a job's status (or a GitHub-compatible `conclusion`) reports a
+ * failure. The Forgejo Actions vocabulary (`models/actions/status.go`) calls it
+ * `failure`; `error` is the same outcome under an older spelling, which is also
+ * what `isActionStatusFailed` in the webview treats as failed.
+ */
+export function isFailedActionJob(job: { status?: string; conclusion?: string }): boolean {
+  return isFailureStatus(job.status) || isFailureStatus(job.conclusion);
+}
+
+function isFailureStatus(status?: string): boolean {
+  return status === 'failure' || status === 'error';
+}
+
+/** Context lines kept on each side of a matched error line. */
+export const CI_ERROR_CONTEXT_LINES = 2;
+/** Matched error lines shown per failed job, keeping those nearest the end. */
+export const CI_ERROR_MATCH_LIMIT = 20;
+/** Lines kept from the end of each failed job log. */
+export const CI_TAIL_LINE_COUNT = 100;
+/**
+ * Total characters of extracted text shared by all failed jobs.
+ *
+ * `callTool` caps each string field at `MAX_TOOL_TEXT_LENGTH` and the whole
+ * serialized result at `MAX_TOOL_RESULT_LENGTH`, and both caps keep the start.
+ * A payload that relied on them would therefore lose the log tail this tool
+ * exists to deliver, so the extractor stays well inside both caps by itself.
+ */
+export const CI_SUMMARY_EXTRACT_BUDGET = 48 * 1024;
+/**
+ * Ceiling for one job, so a single noisy log cannot consume the shared budget.
+ * Must stay below `MAX_TOOL_TEXT_LENGTH`: the tail takes 60% of it and the
+ * error lines the rest, so neither slice can trip the per-field cap.
+ */
+export const CI_SUMMARY_MAX_JOB_BUDGET = 12 * 1024;
+/**
+ * Smallest slice worth producing. Below it the remaining failed jobs are listed
+ * without extraction instead of each getting a few unreadable characters.
+ */
+export const CI_SUMMARY_MIN_JOB_BUDGET = 1536;
+/** Share of a job's slice that goes to the log tail: the failure prints last. */
+const CI_TAIL_BUDGET_SHARE = 0.6;
+
+/**
+ * What counts as an error-looking line. Broad on purpose — the agent reads the
+ * lines and judges them — but the benign patterns below stop a build's progress
+ * output from filling the slice with phrases like "0 errors" or "error-free".
+ */
+const CI_ERROR_LINE_PATTERN =
+  /##\[error\]|\bpanic(?:ked)?\b|\bfatal\b|\bexception\b|\b[A-Za-z]+Error\b|\bfail(?:ed|ures?)?\b|\berrors?\b|\bexit code\s*[1-9]\d*/i;
+/** Lines that contain an error word without reporting a failure. */
+const CI_BENIGN_ERROR_PATTERN =
+  /\b(?:no|zero|without)\s+(?:errors?|failures?)\b|\berror-?free\b|\berrors?:\s*0\b|\b0\s+errors?\b/i;
+/** Markers that report a failure outright, benign wording notwithstanding. */
+const CI_STRONG_ERROR_PATTERN =
+  /##\[error\]|\bpanic(?:ked)?\b|\bfatal\b|\bexception\b|\b[A-Za-z]+Error\b|\bexit code\s*[1-9]\d*/i;
+
+/**
+ * Whether a line looks like it reports a failure. A line that only counts zero
+ * errors (or talks about error handling) is skipped unless it also carries an
+ * unambiguous marker such as `##[error]`, a panic or a non-zero exit code.
+ */
+export function isCiErrorLine(line: string): boolean {
+  if (!CI_ERROR_LINE_PATTERN.test(line)) {
+    return false;
+  }
+  return CI_STRONG_ERROR_PATTERN.test(line) || !CI_BENIGN_ERROR_PATTERN.test(line);
+}
+
+/**
+ * Whether the log string is the head slice produced by `getActionJobLog`'s own
+ * 10 MB cap rather than the whole log. The cap is injectable so a test does not
+ * need a 10 MB fixture.
+ */
+export function logWasTruncatedByClient(log: string, cap: number = MAX_JOB_LOG_LENGTH): boolean {
+  return log.length > cap;
+}
+
+/** `lineNumber: text` for one 1-based inclusive line range. */
+function formatNumberedLines(lines: readonly string[], start: number, end: number): string {
+  const selected: string[] = [];
+  for (let index = start; index <= end; index += 1) {
+    selected.push(`${index + 1}: ${lines[index]}`);
+  }
+  return selected.join('\n');
+}
+
+/**
+ * The error-looking lines of `log`, each with `CI_ERROR_CONTEXT_LINES` lines of
+ * context, merged so overlapping windows print once and numbered by their log
+ * line.
+ *
+ * Only the last `CI_ERROR_MATCH_LIMIT` matches are kept. A CI log repeats words
+ * like "error" in early progress output while the failure that ended the job
+ * prints last, so keeping the earliest matches would spend the whole slice on
+ * noise. When the slice is still too small for those matches, the oldest ones
+ * are dropped first and `truncated` says so.
+ */
+export function extractCiErrorContext(
+  log: string,
+  maxChars: number = Math.floor(CI_SUMMARY_MAX_JOB_BUDGET * (1 - CI_TAIL_BUDGET_SHARE)),
+): { text: string; matchCount: number; truncated: boolean } {
+  const logLines = log.split(/\r?\n/);
+  const matchIndexes: number[] = [];
+  for (let index = 0; index < logLines.length; index += 1) {
+    if (isCiErrorLine(logLines[index])) {
+      matchIndexes.push(index);
+    }
+  }
+  const matchCount = matchIndexes.length;
+  const kept = matchIndexes.slice(-CI_ERROR_MATCH_LIMIT);
+  const windows: { start: number; end: number }[] = [];
+  for (const index of kept) {
+    const start = Math.max(0, index - CI_ERROR_CONTEXT_LINES);
+    const end = Math.min(logLines.length - 1, index + CI_ERROR_CONTEXT_LINES);
+    const previous = windows[windows.length - 1];
+    if (previous && start <= previous.end + 1) {
+      previous.end = Math.max(previous.end, end);
+    } else {
+      windows.push({ start, end });
+    }
+  }
+
+  // Walk the windows from the end so the match closest to the failure survives
+  // a tight slice, then reorder what fit.
+  let truncated = kept.length < matchCount;
+  const blocks: string[] = [];
+  let used = 0;
+  for (let index = windows.length - 1; index >= 0; index -= 1) {
+    const { start, end } = windows[index];
+    const block = formatNumberedLines(logLines, start, end);
+    if (blocks.length === 0) {
+      if (block.length > maxChars) {
+        // Even the nearest window alone is over budget: keep its start, where
+        // the matched line's block begins, rather than dropping the only
+        // evidence there is.
+        blocks.push(block.slice(0, maxChars));
+        truncated = true;
+        break;
+      }
+    } else if (used + block.length + 1 > maxChars) {
+      truncated = true;
+      break;
+    }
+    blocks.unshift(block);
+    used += block.length + 1;
+  }
+  return { text: blocks.join('\n'), matchCount, truncated };
+}
+
+/**
+ * The last `CI_TAIL_LINE_COUNT` lines of `log`, numbered, shortened from the
+ * front until it fits `maxChars`. The end of the log is the part that survives:
+ * a failing step prints its error there, which is exactly what the raw log
+ * tool's head-keeping budget loses.
+ */
+export function extractCiLogTail(
+  log: string,
+  maxChars: number = Math.floor(CI_SUMMARY_MAX_JOB_BUDGET * CI_TAIL_BUDGET_SHARE),
+): { text: string; lineCount: number; truncated: boolean } {
+  const logLines = log.split(/\r?\n/);
+  const requestedStart = Math.max(0, logLines.length - CI_TAIL_LINE_COUNT);
+  let start = requestedStart;
+  let truncated = requestedStart > 0;
+  while (start < logLines.length - 1 && formatNumberedLines(logLines, start, logLines.length - 1).length > maxChars) {
+    start += 1;
+    truncated = true;
+  }
+  let text = formatNumberedLines(logLines, start, logLines.length - 1);
+  if (text.length > maxChars) {
+    // One line alone can exceed the slice (a minified stack trace); keep its
+    // end, where the failure usually is.
+    text = text.slice(text.length - maxChars);
+    truncated = true;
+  }
+  return { text, lineCount: logLines.length - start, truncated };
+}
+
+/** Extracts a failed job's evidence from its log within `budget` characters. */
+export function summarizeCiJobLog(
+  log: string,
+  budget: number = CI_SUMMARY_MAX_JOB_BUDGET,
+  clientCap: number = MAX_JOB_LOG_LENGTH,
+): CiJobLogSummary {
+  const tailBudget = Math.floor(budget * CI_TAIL_BUDGET_SHARE);
+  const error = extractCiErrorContext(log, budget - tailBudget);
+  const tail = extractCiLogTail(log, tailBudget);
+  const truncatedByClient = logWasTruncatedByClient(log, clientCap);
+  return {
+    logCharacters: log.length,
+    truncatedByClient,
+    // The client cap is the one cut that can hide the failure entirely, because
+    // it removes the tail instead of the head; the flags alone are easy to miss.
+    truncationNote: truncatedByClient
+      ? 'the client cut this log at its own job-log cap, keeping the start: the tail above is not the end of the real log, its real size is unknown, and only the Forgejo web UI can show the rest'
+      : undefined,
+    logLines: log.split(/\r?\n/).length,
+    errorContext: error.text,
+    errorMatchCount: error.matchCount,
+    errorContextTruncated: error.truncated,
+    tail: tail.text,
+    tailLines: tail.lineCount,
+    tailTruncated: tail.truncated,
+  };
+}
 
 /**
  * Plain async handlers behind the MCP tools, exported for unit tests: they
@@ -237,6 +498,76 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
     get_action_run_jobs: (args: ActionRunRefArgs) => client.getActionRunJobs(args.owner, args.repo, args.runId),
 
     get_action_job_log: (args: ActionJobLogArgs) => client.getActionJobLog(args.owner, args.repo, args.jobId),
+
+    // One call replaces list_action_runs + get_action_run_jobs + one
+    // get_action_job_log per failed job, and — unlike the raw log tool, whose
+    // result budget keeps the *head* — it returns the end of each failed job's
+    // log together with the error-looking lines. Everything it extracts is
+    // pre-sized to the shared result budget (see the constants above), so
+    // callTool's own truncation never has to cut the tail it worked to obtain.
+    get_ci_failure_summary: async (args: CiFailureSummaryArgs) => {
+      const jobs = await client.getActionRunJobs(args.owner, args.repo, args.runId);
+      const failedJobs = jobs.filter(isFailedActionJob);
+      const passedJobs = jobs.filter((job) => !isFailedActionJob(job));
+      const failures: CiJobFailureSummary[] = [];
+      let remainingBudget = CI_SUMMARY_EXTRACT_BUDGET;
+      let budgetExhausted = false;
+
+      for (const [index, job] of failedJobs.entries()) {
+        const summary: CiJobFailureSummary = { id: job.id, name: job.name, status: job.status };
+        if (job.id === undefined) {
+          summary.extractionNote = 'the job carries no id, so its log cannot be read';
+          failures.push(summary);
+          continue;
+        }
+        // Split what is left evenly over the failed jobs not yet handled, capped
+        // so one job cannot take the whole budget.
+        const share = Math.min(CI_SUMMARY_MAX_JOB_BUDGET, Math.floor(remainingBudget / (failedJobs.length - index)));
+        if (budgetExhausted || share < CI_SUMMARY_MIN_JOB_BUDGET) {
+          // Once a useful slice is impossible it stays impossible for the rest,
+          // so the flag keeps this deterministic instead of letting a later job
+          // grab a larger share.
+          budgetExhausted = true;
+          summary.extractionNote = `log extraction skipped: the shared ${Math.round(CI_SUMMARY_EXTRACT_BUDGET / 1024)} KB budget cannot give this and the remaining failed jobs a useful slice; read this job's log with get_action_job_log instead`;
+          failures.push(summary);
+          continue;
+        }
+        remainingBudget -= share;
+        try {
+          const log = await client.getActionJobLog(args.owner, args.repo, job.id);
+          summary.log = summarizeCiJobLog(log, share);
+        } catch (error) {
+          // A cancelled call is not a per-job failure: absorbing it would let a
+          // cancelled tool call come back as a successful partial summary. A
+          // timeout stays a per-job problem (the other jobs are still useful).
+          if (toApiError(error).kind === 'cancelled') {
+            throw error;
+          }
+          // One unreadable log (a job that never uploaded one, a transient
+          // failure) must not discard the other jobs' evidence; the reason is
+          // carried with the job instead. userFacingErrorMessage never includes
+          // request headers, so the token cannot leak here.
+          summary.extractionNote = `log unavailable: ${userFacingErrorMessage(error)}`;
+        }
+        failures.push(summary);
+      }
+
+      return {
+        runId: args.runId,
+        jobCount: jobs.length,
+        failedJobCount: failedJobs.length,
+        // Every job that did not report a failure. `passedJobs` carries the real
+        // status, so a skipped or cancelled job is not read as a success.
+        passedJobCount: passedJobs.length,
+        failures,
+        // Only when asked: a passed job's log is rarely worth the budget, and
+        // the count above already says how many were left out.
+        passedJobs:
+          args.includePassedJobs === true
+            ? passedJobs.map((job) => ({ id: job.id, name: job.name, status: job.status }))
+            : undefined,
+      };
+    },
 
     get_action_run_artifacts: (args: ActionRunRefArgs) =>
       client.getActionRunArtifacts(args.owner, args.repo, args.runId),
@@ -429,6 +760,7 @@ const PAGED_LISTS: Record<ToolName, readonly string[]> = {
   list_action_runs: NO_PAGED_LISTS,
   get_action_run_jobs: NO_PAGED_LISTS,
   get_action_job_log: NO_PAGED_LISTS,
+  get_ci_failure_summary: NO_PAGED_LISTS,
   get_action_run_artifacts: PAGED_RESULT,
   get_file_content: NO_PAGED_LISTS,
   list_repo_contents: NO_PAGED_LISTS,
@@ -811,6 +1143,24 @@ export function registerTools(
       annotations: readOnly,
     },
     async (args, extra) => callTool('get_action_job_log', () => handlersFor(extra).get_action_job_log(args)),
+  );
+
+  server.registerTool(
+    'get_ci_failure_summary',
+    {
+      description: `Summarize why an Actions workflow run failed, in one call instead of list_action_runs + get_action_run_jobs + one get_action_job_log per failed job. For every failed job it returns the error-looking lines with ${CI_ERROR_CONTEXT_LINES} lines of context around each, plus the last ${CI_TAIL_LINE_COUNT} lines of that job's log — the end is where a failing step prints its error, and it is exactly what get_action_job_log loses, since that tool's ~10 KB budget keeps the start of one raw log. The result also says how much of each log was seen (logCharacters, logLines, errorMatchCount) and flags every cut: tailTruncated/errorContextTruncated, and truncatedByClient when the log exceeded the client's own 10 MB cap, in which case not even this tool could see the real tail and the full log has to be read in the Forgejo web UI. One shared extraction budget covers all failed jobs, so a job may report that extraction was skipped; read such a job with get_action_job_log. Use get_action_job_log only when you need the raw log around a line this summary flagged. Set includePassedJobs to also list the jobs that passed (name and status only).`,
+      inputSchema: {
+        owner: ownerRequiredSchema,
+        repo: repoRequiredSchema,
+        runId: z.number().int().positive().describe('Workflow run ID (from list_action_runs).'),
+        includePassedJobs: z
+          .boolean()
+          .optional()
+          .describe('Also list the jobs that passed (name and status only, no logs). Default: false.'),
+      },
+      annotations: readOnly,
+    },
+    async (args, extra) => callTool('get_ci_failure_summary', () => handlersFor(extra).get_ci_failure_summary(args)),
   );
 
   server.registerTool(

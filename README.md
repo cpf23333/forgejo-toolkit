@@ -91,9 +91,9 @@ The extension ships a built-in MCP server that lets AI assistants — such as Co
 - **Requirements**: VS Code ≥ 1.102 and at least one configured instance with an access token. If neither is available, the server is simply not registered.
 - **Usage**: open Copilot chat in agent mode and ask in natural language, e.g. "list my issues" or "show the CI log of the latest failed run in this repo".
 - **Proxy**: requests honour the editor's `http.proxy` setting, which wins over the environment's `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` (each name is read in either case), and the setting is forwarded to the MCP server process as `FORGEJO_MCP_PROXY`.
-- **Tool overview**: 28 tools in four groups —
+- **Tool overview**: 29 tools in four groups —
   - **Core**: issues, pull requests, timelines, notifications, repository info, and search (e.g. `list_issues`, `get_pull_request`).
-  - **Actions**: run history, run jobs, job logs, and artifacts (e.g. `list_action_runs`, `get_action_run_jobs`, `get_action_job_log`).
+  - **Actions**: run history, run jobs, job logs, CI failure summaries, and artifacts (e.g. `list_action_runs`, `get_action_run_jobs`, `get_action_job_log`, `get_ci_failure_summary`).
   - **Code reading**: file contents and directory listings, repository file search, branches, tags, commits, file history, and PR diffs (e.g. `list_repo_contents`, `get_file_content`, `search_repo_files`, `get_pr_diff`).
   - **Review & metadata**: PR reviews, releases, labels, milestones, and your own repositories (e.g. `list_pull_reviews`, `whoami`).
 - **Security**:

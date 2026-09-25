@@ -24,6 +24,19 @@
 - [ ] P4 多窗口重复轮询/探测（每个窗口各跑一份通知轮询与版本探测，首次运行向导标记也存在竞态）已作为平台代价记录在 `KNOWN_ISSUES.md`；若之后要收敛，可选方向是用 globalState 时间戳做「一个窗口主导」的租约
 - [ ] 已知的平台代价（无解，仅记录）：贡献 `mcpServerDefinitionProviders` 后，VS Code 会为查询 MCP 定义而**主动激活**扩展（上游 issue microsoft/vscode#266221「MCP server 导致扩展在所有工作区、连空工作区都被激活」）。官方激活事件清单里没有 MCP 条目（`onStartupFinished` 本身是标准事件），所以既不需要也无法声明专门事件；这一条只是记录代价本身——激活事件的实际取法（已补 `onStartupFinished`）与实测数据见下方「走查与实测」
 
+## AI / MCP 规划（2026-09-25 评审后立项）
+
+按建议优先级排序；MCP 侧无头进程的输出文案保持英文（既有约定），webview 侧文案走 i18n 双语 JSON。
+
+- [ ] **P1 面向 agent 上下文预算的聚合工具**：`get_pr_review_brief`（一次返回 diff 统计 + 评审状态 + 未解决评论，替代连续 4 次调用）
+- [ ] **P2 PR 描述生成（`vscode.lm` 试点）**：创建 PR 表单加「生成描述」按钮，diff + commit 列表生成草稿填入 body。需验证 Copilot 订阅缺失时的降级路径；代码片段会发给模型供应商，加默认关闭的设置开关
+- [ ] **P2 Issue 分诊建议**：按内容建议 labels/assignees（把现有 label 描述喂给模型选）
+- [ ] **P2 AI 预评审（draft-only）**：PR diff 视图「AI 预评审」，意见只落成 pending review 草稿、逐条人工确认后才提交（与 Codeberg 对 LLM 自主维护的忌讳对齐）
+- [ ] **P3 copilot-instructions 生成器**：一键为仓库写入「本仓库 = 实例 X 的 owner/repo，可用 forgejo-toolkit MCP 工具」片段，与 `get_workspace_repository` 互补（事先告知 vs 主动问）
+- [ ] **P3 通知 AI 摘要**：通知列表「总结讨论」按钮，`vscode.lm` 浓缩时间线
+- [ ] Phase 2 写工具的确认模型设计（先于实现）：无头 MCP 进程弹不了 VS Code 确认框，只能靠逐项设置开关 + 不标 `readOnlyHint`（交给 VS Code 工具审批）+ description 写明副作用；首批只开创建评论 / 提交 review / 重跑 workflow
+- [ ] Phase 2 前置：把 MCP 实例级过滤下沉到取数之前（见「第十轮审查后待修」一节的中危条目）
+
 ## 走查与实测
 
 - 走查清单在 `tools/ui-review/README.md` 的「Release walkthrough checklist」；跑 mock 走查需要 `pnpm --filter forgejo-toolkit build:extension`（不带 `--production`，否则 mock 被剥掉）。

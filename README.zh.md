@@ -75,9 +75,9 @@ pnpm --filter forgejo-toolkit package
 - **要求**：VS Code ≥ 1.102，且至少配置了一个带 access token 的实例；不满足时静默不注册。
 - **使用方式**：在 Copilot 聊天中切换到 agent mode，直接用自然语言提问，例如「list my issues」或「看一下这个仓库最近一次失败运行的 CI 日志」。
 - **代理**：请求会遵循编辑器的 `http.proxy` 设置，其优先级高于环境变量 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（三者的大小写拼写都会读取），该设置会以 `FORGEJO_MCP_PROXY` 转发给 MCP 服务进程。
-- **工具概览**：28 个工具，分为四组——
+- **工具概览**：29 个工具，分为四组——
   - **基础**：Issue、PR、时间线、通知、仓库信息与搜索（如 `list_issues`、`get_pull_request`）。
-  - **Actions**：运行历史、run 的 job 列表、job 日志与制品（如 `list_action_runs`、`get_action_run_jobs`、`get_action_job_log`）。
+  - **Actions**：运行历史、run 的 job 列表、job 日志、CI 失败摘要与制品（如 `list_action_runs`、`get_action_run_jobs`、`get_action_job_log`、`get_ci_failure_summary`）。
   - **代码读取**：文件内容与目录列表、仓库内文件搜索、分支、标签、提交、文件历史与 PR diff（如 `list_repo_contents`、`get_file_content`、`search_repo_files`、`get_pr_diff`）。
   - **Review 与元数据**：PR 评审、Release、标签、里程碑与自己的仓库（如 `list_pull_reviews`、`whoami`）。
 - **安全说明**：

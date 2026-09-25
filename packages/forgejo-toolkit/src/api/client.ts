@@ -186,7 +186,10 @@ const MAX_ITEMS = LIST_ITEM_LIMIT;
 export { LIST_ITEM_LIMIT };
 // Raw payload caps: CI logs are loaded fully into memory; artifacts stream to
 // disk and only carry a large defensive cap against unbounded writes.
-const MAX_JOB_LOG_LENGTH = 10 * 1024 * 1024;
+// Exported for the MCP `get_ci_failure_summary` tool: that cap keeps the head
+// of a log, so the tool has to tell the agent when the "tail" it extracted is
+// only the end of what this cap left, not the end of the real log.
+export const MAX_JOB_LOG_LENGTH = 10 * 1024 * 1024;
 const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024 * 1024;
 // Guard for the recursive git tree loop against servers that ignore the
 // pagination params and keep returning the same page with truncated=true.

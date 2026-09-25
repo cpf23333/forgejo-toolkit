@@ -4,11 +4,18 @@ import { ForgejoClient, LIST_ITEM_LIMIT, MAX_SEARCH_RESULTS } from '../../src/ap
 import { ApiError, toApiError } from '../../src/api/errors-core';
 import {
   buildToolHandlers,
+  CI_TAIL_LINE_COUNT,
+  extractCiErrorContext,
+  extractCiLogTail,
+  isCiErrorLine,
+  isFailedActionJob,
   listTruncationNote,
+  logWasTruncatedByClient,
   registerTools,
   repoSearchTruncationNote,
   isSafePathSegment,
   isSafeRepoPath,
+  summarizeCiJobLog,
   truncateLargeStrings,
   MAX_TOOL_TEXT_LENGTH,
 } from '../tools';
@@ -40,6 +47,32 @@ import {
  * drift apart.
  */
 const GET_REPO_LIST_CAP = 10;
+
+/** The `get_ci_failure_summary` result shape, for typed assertions in tests. */
+interface CiSummaryResult {
+  runId: number;
+  jobCount: number;
+  failedJobCount: number;
+  passedJobCount: number;
+  failures: {
+    id?: number;
+    name?: string;
+    status?: string;
+    extractionNote?: string;
+    log?: {
+      logCharacters: number;
+      truncatedByClient: boolean;
+      logLines: number;
+      errorContext: string;
+      errorMatchCount: number;
+      errorContextTruncated: boolean;
+      tail: string;
+      tailLines: number;
+      tailTruncated: boolean;
+    };
+  }[];
+  passedJobs?: { id?: number; name?: string; status?: string }[];
+}
 
 describe('MCP tool handlers with MSW', () => {
   beforeAll(() => {
@@ -354,6 +387,137 @@ describe('MCP tool handlers with MSW', () => {
     const handlers = createHandlers();
     const log = await handlers.get_action_job_log({ owner: 'demo-user', repo: 'demo-repo', jobId: 101 });
     expect(log).toBe('build log output');
+  });
+
+  /**
+   * The summary result as `get_ci_failure_summary` returns it, so the assertions
+   * below can read the fields without re-declaring the shape at every call.
+   */
+  function parseCiSummary(result: { content: { text: string }[] } | undefined): CiSummaryResult {
+    return JSON.parse(result?.content[0].text ?? 'null') as CiSummaryResult;
+  }
+
+  /** A failed build log whose error sits near the end, where a failing step prints. */
+  function failedBuildLog(): string {
+    const progress = Array.from({ length: 120 }, (_, i) => `step ${i + 1}: compiling module ${i + 1}`);
+    return [
+      ...progress,
+      'make: *** [Makefile:12: all] Error 2',
+      'error: build failed with exit code 1',
+      'runner: job finished',
+    ].join('\n');
+  }
+
+  it('get_ci_failure_summary extracts the error lines and the log tail of a failed job', async () => {
+    const log = failedBuildLog();
+    const { call, calls } = registerWithStubClient({
+      getActionRunJobs: async () => [{ id: 7, name: 'build', status: 'failure' }],
+      getActionJobLog: async () => log,
+    });
+
+    const summary = parseCiSummary(
+      await call('get_ci_failure_summary', { owner: 'demo-user', repo: 'demo-repo', runId: 42 }),
+    );
+
+    expect(calls.map((entry) => entry.name)).toEqual(['getActionRunJobs', 'getActionJobLog']);
+    expect(calls[1].args).toEqual(['demo-user', 'demo-repo', 7]);
+    expect(summary.failedJobCount).toBe(1);
+    expect(summary.failures[0].log?.errorContext).toContain('error: build failed with exit code 1');
+    // The tail keeps the end of the log — exactly the part the raw log tool's
+    // head-keeping ~10 KB budget loses.
+    expect(summary.failures[0].log?.tail).toContain('runner: job finished');
+    expect(summary.failures[0].log?.tail).not.toContain('step 1: compiling');
+    expect(summary.failures[0].log?.tailTruncated).toBe(true);
+    expect(summary.failures[0].log?.truncatedByClient).toBe(false);
+    expect(summary.failures[0].log?.logCharacters).toBe(log.length);
+  });
+
+  it('get_ci_failure_summary reports no failures when every job passed', async () => {
+    // The shared fixture's single job is a success, so the real client reaches
+    // the handler through MSW and the tool must answer "nothing failed" without
+    // reading any log.
+    const handlers = createHandlers();
+    const summary = (await handlers.get_ci_failure_summary({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      runId: 42,
+    })) as CiSummaryResult;
+
+    expect(summary.failedJobCount).toBe(0);
+    expect(summary.failures).toEqual([]);
+    expect(summary.passedJobCount).toBe(1);
+    expect(summary.passedJobs).toBeUndefined();
+  });
+
+  it('get_ci_failure_summary lists passed jobs only when asked, and never reads their logs', async () => {
+    const { call, calls } = registerWithStubClient({
+      getActionRunJobs: async () => [
+        { id: 7, name: 'build', status: 'failure' },
+        { id: 8, name: 'lint', status: 'success' },
+      ],
+      getActionJobLog: async () => 'error: failed with exit code 1',
+    });
+
+    const withoutPassed = parseCiSummary(
+      await call('get_ci_failure_summary', { owner: 'demo-user', repo: 'demo-repo', runId: 42 }),
+    );
+    expect(withoutPassed.passedJobCount).toBe(1);
+    expect(withoutPassed.passedJobs).toBeUndefined();
+
+    const withPassed = parseCiSummary(
+      await call('get_ci_failure_summary', {
+        owner: 'demo-user',
+        repo: 'demo-repo',
+        runId: 42,
+        includePassedJobs: true,
+      }),
+    );
+    // Name and status only: no log is extracted for a job that passed.
+    expect(withPassed.passedJobs).toEqual([{ id: 8, name: 'lint', status: 'success' }]);
+    expect(withPassed.passedJobs?.[0]).not.toHaveProperty('log');
+    expect(calls.filter((entry) => entry.name === 'getActionJobLog').map((entry) => entry.args[2])).toEqual([7, 7]);
+  });
+
+  it('get_ci_failure_summary keeps one unreadable log from discarding the others', async () => {
+    const { call } = registerWithStubClient({
+      getActionRunJobs: async () => [
+        { id: 7, name: 'build', status: 'failure' },
+        { id: 8, name: 'test', status: 'error' },
+      ],
+      getActionJobLog: async (...args: unknown[]) => {
+        if (args[2] === 7) {
+          throw new Error('Forgejo API error 404: Not Found');
+        }
+        return 'error: tests failed with exit code 1';
+      },
+    });
+
+    const summary = parseCiSummary(
+      await call('get_ci_failure_summary', { owner: 'demo-user', repo: 'demo-repo', runId: 42 }),
+    );
+
+    expect(summary.failedJobCount).toBe(2);
+    expect(summary.failures[0].log).toBeUndefined();
+    expect(summary.failures[0].extractionNote).toContain('log unavailable');
+    expect(summary.failures[1].log?.errorContext).toContain('tests failed');
+  });
+
+  it('does not report a cancelled log read as an unreadable log', async () => {
+    // A cancellation is not a per-job failure: absorbing it would let a
+    // cancelled tool call come back as a successful partial summary.
+    const abortError = new Error('This operation was aborted');
+    abortError.name = 'AbortError';
+    const { call } = registerWithStubClient({
+      getActionRunJobs: async () => [{ id: 7, name: 'build', status: 'failure' }],
+      getActionJobLog: async () => {
+        throw abortError;
+      },
+    });
+
+    const result = await call('get_ci_failure_summary', { owner: 'demo-user', repo: 'demo-repo', runId: 42 });
+
+    expect(result?.isError).toBe(true);
+    expect(result?.content[0].text ?? '').not.toContain('log unavailable');
   });
 
   it('get_action_run_artifacts returns the artifacts of a run', async () => {
@@ -846,6 +1010,151 @@ describe('truncateLargeStrings', () => {
     expect(truncateLargeStrings(42)).toBe(42);
     expect(truncateLargeStrings(null)).toBe(null);
     expect(truncateLargeStrings(undefined)).toBe(undefined);
+  });
+});
+
+describe('CI failure extraction', () => {
+  it('recognizes failure statuses and ignores the others', () => {
+    expect(isFailedActionJob({ status: 'failure' })).toBe(true);
+    expect(isFailedActionJob({ status: 'error' })).toBe(true);
+    // A GitHub-compatible payload may report the outcome as `conclusion`.
+    expect(isFailedActionJob({ conclusion: 'failure' })).toBe(true);
+    for (const job of [{ status: 'success' }, { status: 'cancelled' }, { status: 'skipped' }, {}]) {
+      expect(isFailedActionJob(job), JSON.stringify(job)).toBe(false);
+    }
+  });
+
+  it('matches error lines without flagging benign error wording', () => {
+    for (const line of [
+      'error: cannot find module',
+      'FAIL src/index.test.ts',
+      'panic: runtime error: index out of range',
+      'fatal: not a git repository',
+      'AssertionError: expected 1 to equal 2',
+      'Process completed with exit code 1',
+      '##[error]Process completed with exit code 2',
+    ]) {
+      expect(isCiErrorLine(line), line).toBe(true);
+    }
+    for (const line of [
+      'compiled with 0 errors',
+      'no failures detected',
+      'error-free build',
+      'errors: 0 warnings: 3',
+      'step 4: all tests passed',
+    ]) {
+      expect(isCiErrorLine(line), line).toBe(false);
+    }
+  });
+
+  it('keeps context around the matches nearest the end of the log', () => {
+    const log = [
+      'line 1',
+      'error: early noise',
+      'line 3',
+      'line 4',
+      ...Array.from({ length: 30 }, (_, i) => `progress ${i}`),
+      'error: the real failure',
+      'line after',
+    ].join('\n');
+
+    const result = extractCiErrorContext(log, 4096);
+
+    expect(result.matchCount).toBe(2);
+    expect(result.truncated).toBe(false);
+    expect(result.text).toContain('error: early noise');
+    expect(result.text).toContain('line 3');
+    expect(result.text).toContain('error: the real failure');
+    expect(result.text).toContain('line after');
+  });
+
+  it('drops the oldest matches when a log repeats an error word', () => {
+    const log = Array.from({ length: 50 }, (_, i) => `error ${i}`).join('\n');
+
+    const result = extractCiErrorContext(log, 4096);
+
+    expect(result.matchCount).toBe(50);
+    expect(result.truncated).toBe(true);
+    expect(result.text).toContain('50: error 49');
+    expect(result.text).not.toContain('1: error 0');
+  });
+
+  it('shortens the error context to the budget instead of losing the match', () => {
+    const log = [`error: the failure ${'z'.repeat(80)}`, ...Array.from({ length: 40 }, (_, i) => `context ${i}`)].join(
+      '\n',
+    );
+
+    const result = extractCiErrorContext(log, 60);
+
+    expect(result.truncated).toBe(true);
+    expect(result.text).toContain('error: the failure');
+    expect(result.text.length).toBeLessThanOrEqual(60);
+  });
+
+  it('keeps the end of a log tail and marks the line cut', () => {
+    const log = Array.from({ length: 150 }, (_, i) => `line ${i + 1}`).join('\n');
+
+    const result = extractCiLogTail(log, 4096);
+
+    expect(result.lineCount).toBe(CI_TAIL_LINE_COUNT);
+    expect(result.truncated).toBe(true);
+    expect(result.text).toContain('150: line 150');
+    expect(result.text.startsWith('51: line 51')).toBe(true);
+  });
+
+  it('shortens the tail from the front when the slice is smaller than the line count', () => {
+    const log = Array.from({ length: 100 }, (_, i) => `line ${i + 1} ${'x'.repeat(50)}`).join('\n');
+
+    const result = extractCiLogTail(log, 500);
+
+    expect(result.lineCount).toBeLessThan(CI_TAIL_LINE_COUNT);
+    expect(result.truncated).toBe(true);
+    expect(result.text).toContain('line 100');
+    // The kept part is the end of the log, not its start.
+    expect(Number(result.text.split('\n')[0].split(':')[0])).toBeGreaterThan(1);
+  });
+
+  it('flags the client cap without needing a 10 MB fixture', () => {
+    // The cap is injectable precisely so this test does not have to build one.
+    expect(logWasTruncatedByClient('x'.repeat(100), 99)).toBe(true);
+    expect(logWasTruncatedByClient('x'.repeat(99), 99)).toBe(false);
+    expect(logWasTruncatedByClient('short')).toBe(false);
+  });
+
+  it('marks a log the client had already cut before the tool saw it', () => {
+    // A tiny cap stands in for the client's 10 MB cap: this is the cut that can
+    // hide the failure entirely, because it removes the tail rather than the
+    // head, so it has to reach the agent as prose and not only as a flag.
+    const summary = summarizeCiJobLog('x'.repeat(100), 1024, 99);
+
+    expect(summary.truncatedByClient).toBe(true);
+    expect(summary.truncationNote).toContain('not the end of the real log');
+    expect(summary.truncationNote).toContain('web UI');
+  });
+
+  it('leaves the truncation marker unset when the whole log was read', () => {
+    const summary = summarizeCiJobLog('build ok', 1024, 99);
+
+    expect(summary.truncatedByClient).toBe(false);
+    expect(summary.truncationNote).toBeUndefined();
+  });
+
+  it('sizes both slices of a job summary to the shared budget', () => {
+    const log = ['error: boom', ...Array.from({ length: 300 }, (_, i) => `line ${i}`)].join('\n');
+
+    const summary = summarizeCiJobLog(log, 1024);
+
+    expect(summary.logCharacters).toBe(log.length);
+    expect(summary.logLines).toBe(301);
+    expect(summary.truncatedByClient).toBe(false);
+    expect(summary.errorContext).toContain('error: boom');
+    expect(summary.errorMatchCount).toBe(1);
+    expect(summary.tail).toContain('line 299');
+    expect(summary.tailTruncated).toBe(true);
+    // The slices the handler hands out match the split `summarizeCiJobLog`
+    // applies: tail 60%, error lines 40% of the shared budget.
+    expect(summary.tail.length).toBeLessThanOrEqual(Math.floor(1024 * 0.6));
+    expect(summary.errorContext.length).toBeLessThanOrEqual(Math.floor(1024 * 0.4));
   });
 });
 
@@ -1359,5 +1668,17 @@ describe('tool descriptions and schemas', () => {
     expect(config?.description).toContain('next page');
     expect(config?.description).toContain('updated_at');
     expect(config?.inputSchema?.before?.description ?? '').toContain('updated_at');
+  });
+
+  it('tells the caller how the failure summary differs from the raw log tool', () => {
+    // The two tools overlap in name and subject, so the description has to say
+    // which one to reach for: the summary returns the tail where the failure
+    // prints, while get_action_job_log keeps the head of one raw log.
+    const config = captureConfigs().get('get_ci_failure_summary');
+
+    expect(config?.description).toContain('get_action_job_log');
+    expect(config?.description).toContain('tail');
+    expect(config?.description).toContain('truncatedByClient');
+    expect(config?.inputSchema?.includePassedJobs?.description ?? '').toContain('Default: false');
   });
 });

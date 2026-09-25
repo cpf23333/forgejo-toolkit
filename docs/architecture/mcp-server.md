@@ -152,18 +152,31 @@ state.
 
 ### Actions
 
-| Tool                       | Maps to                 |
-| -------------------------- | ----------------------- |
-| `list_action_runs`         | `listActionRuns`        |
-| `get_action_run_jobs`      | `getActionRunJobs`      |
-| `get_action_job_log`       | `getActionJobLog`       |
-| `get_action_run_artifacts` | `getActionRunArtifacts` |
+| Tool                       | Maps to                                               |
+| -------------------------- | ----------------------------------------------------- |
+| `list_action_runs`         | `listActionRuns`                                      |
+| `get_action_run_jobs`      | `getActionRunJobs`                                    |
+| `get_action_job_log`       | `getActionJobLog`                                     |
+| `get_ci_failure_summary`   | `getActionRunJobs` + `getActionJobLog` per failed job |
+| `get_action_run_artifacts` | `getActionRunArtifacts`                               |
 
 The Actions endpoints only exist on Forgejo/Gitea ≥ 1.19. The version gate
 lives inside the client methods (`MIN_ACTIONS_VERSION`, fail-open when the
 server version is unknown); the resulting error propagates to the tool layer
 unchanged, so the tools themselves carry no extra gating. Job logs arrive as
 one large string and are truncated to ~10 KB by the result budget.
+
+`get_ci_failure_summary` is the context-budget counterpart to that truncation:
+instead of one `get_action_job_log` call per failed job — whose ~10 KB budget
+keeps the _start_ of the log, exactly the end where a failing step prints — it
+returns, in a single call, the error-looking lines with surrounding context and
+the last ~100 lines of each failed job's log. Every slice is pre-sized to a
+shared extraction budget so `truncateLargeStrings` never has to cut the tail it
+worked to obtain, and each job reports whether its log was cut (`tailTruncated`,
+`errorContextTruncated`) or cut before the tool saw it (`truncatedByClient`, the
+client's own 10 MB cap, which keeps the head — the real tail is then only
+readable in the Forgejo web UI). Passed jobs are listed with name and status only
+when `includePassedJobs` is set, and are never read.
 
 ### Code reading
 
@@ -224,6 +237,38 @@ bound: the path arrives through the process environment, which a hand-edited
 launch can point anywhere. It is the tool an agent should call first when
 the user says "this repo" / "the current project" without naming owner/repo.
 
+## Prompts
+
+Three MCP prompts ship next to the tools: parameterised instruction templates a
+user can start from the agent host's prompt picker. A prompt performs no I/O of
+its own — it expands into a single user message that names the tools to call, the
+order to call them in and the answer shape to produce — so it needs no client,
+no result budget and no `readOnlyHint`. The read-only guarantee still comes from
+the tools a template names, and each template repeats it in prose so an expansion
+cannot be read as permission to write.
+
+| Prompt                | Arguments                   | Purpose                                                                                                                                                                                                 |
+| --------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `review-pull-request` | `owner?`, `repo?`, `index?` | `get_pull_request` → `get_pr_diff` → `get_pr_timeline` → `list_pull_reviews`, then a summary, findings ordered by severity (each with file/line evidence) and suggestions; never submits a review.      |
+| `analyze-ci-failure`  | `owner?`, `repo?`, `runId?` | `list_action_runs` (find the failing run) → `get_ci_failure_summary` (error lines + log tails) → `get_action_job_log` only for raw context, then the root cause, a suggested fix and a flakiness check. |
+| `triage-issue`        | `owner?`, `repo?`, `index?` | `get_issue` → `list_labels` / `get_repo` (plus `search` for duplicates), then suggested labels, a priority and next steps.                                                                              |
+
+All arguments are optional. When `owner`/`repo` are absent, the template tells
+the agent to call `get_workspace_repository` first and to use what it returns; a
+missing number is resolved with the matching listing tool
+(`list_pull_requests`, `list_action_runs`, `list_issues`). Prompt arguments are
+strings on the wire, so `index` and `runId` are declared as strings and the
+template turns them back into the number the tools expect. The SDK builds and
+validates the argument object itself, so a client with no values to pass must
+send an empty `arguments` object rather than omitting the field.
+
+Prompts are an entry point onto the tool surface, not a second implementation of
+it: a template may only name tools that exist in `tools.ts`, and it describes
+their limits (per-field and whole-result truncation, capped lists) instead of
+implying a capability the tools do not have. Registration lives in
+`packages/forgejo-toolkit/mcp/prompts.ts` and is wired next to `registerTools` in
+`createMcpServer`.
+
 ## Environment variables
 
 | Variable                    | Content                                                                                                                                                 |
@@ -279,6 +324,10 @@ the user says "this repo" / "the current project" without naming owner/repo.
 - Integration: the server connected over the MCP SDK's `InMemoryTransport`,
   asserting the tool listing and a round trip per tool group —
   `mcp/__tests__/server.test.ts`.
+- Prompts: the same `InMemoryTransport` harness asserts the prompt listing
+  (names, descriptions, all-optional argument schemas) and the text each
+  template expands to, both with arguments supplied and with none —
+  `mcp/__tests__/prompts.test.ts`.
 - Manual: VS Code agent mode smoke test ("list my issues") against a real
   instance — done for Phase 1 before release.
 
@@ -289,5 +338,3 @@ the user says "this repo" / "the current project" without naming owner/repo.
   `merge_pull_request`, `mark_notification_read`. Omitting `readOnlyHint` on
   these makes VS Code ask the user to confirm each tool call; they will
   additionally require individual opt-in in extension settings (default off).
-- **MCP prompts:** preset prompt templates (e.g. "review this PR") on top of
-  the tool surface.

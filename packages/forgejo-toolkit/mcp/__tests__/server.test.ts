@@ -64,6 +64,7 @@ describe('MCP server over InMemoryTransport', () => {
         'get_action_job_log',
         'get_action_run_artifacts',
         'get_action_run_jobs',
+        'get_ci_failure_summary',
         'get_file_content',
         'get_file_history',
         'get_issue',

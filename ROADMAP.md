@@ -177,6 +177,8 @@
   - Review 与元数据扩展：PR 评审、whoami、Release、标签、里程碑、当前用户仓库列表。
 - 工具入参校验：`owner`/`repo`/文件路径拒绝路径分隔符与 `..`（生成客户端会原样拼接 URL），并限制单次结果总量（64 KB，带截断标记）。
 - 只读工具不弹确认框（`readOnlyHint` 的既定行为），保证来自工具面本身：全部映射到 `GET`，路径类入参均校验。
+- MCP Prompts：三个只读提示模板 `review-pull-request` / `analyze-ci-failure` / `triage-issue`，把工具按固定顺序串成工作流并规定回答结构（评审意见、CI 根因、issue 分诊建议）。参数全部可选：缺省 owner/repo 时指引先调 `get_workspace_repository`，缺省编号时指引先用对应的列表工具解析。提示模板本身无副作用，不改动只读工具面与安全模型。
+- 面向 agent 上下文预算的 CI 失败摘要工具 `get_ci_failure_summary`：一次调用取 run 内每个失败 job 的错误行（各带 2 行上下文）与日志尾部（约 100 行），并标注每处截断——包括客户端 10 MB 上限只保留头部、导致真实尾部不可见的情形；替代连续调用 `get_action_run_jobs` + 每个失败 job 一次 `get_action_job_log`，并避开后者「只保留日志头部 10 KB」而恰好丢掉失败信息的问题。提取文本按共享预算预分片，不依赖 `truncateLargeStrings` 兜底。
 
 ## 后续迭代
 
