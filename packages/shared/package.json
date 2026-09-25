@@ -20,6 +20,10 @@
       "types": "./src/git/url.ts",
       "default": "./src/git/url.ts"
     },
+    "./mcp/workspaceState": {
+      "types": "./src/mcp/workspaceState.ts",
+      "default": "./src/mcp/workspaceState.ts"
+    },
     "./limits": {
       "types": "./src/limits.ts",
       "default": "./src/limits.ts"

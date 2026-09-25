@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { ConfigManager } from './config';
 import { redactUrlUserinfo } from './utils/redactUrlUserinfo';
+import { mcpWorkspaceStateFilePath, registerMcpWorkspaceStateSync } from './mcpWorkspaceState';
 import type { Logger } from './logger';
 
 /** Contribution id; must match contributes.mcpServerDefinitionProviders in package.json. */
@@ -12,14 +13,26 @@ export const MCP_ENV_TOKEN = 'FORGEJO_MCP_TOKEN';
 export const MCP_ENV_SYNC_API_URLS = 'FORGEJO_MCP_SYNC_API_URLS';
 /** The editor's `http.proxy`, forwarded so the child uses the same proxy. */
 export const MCP_ENV_PROXY = 'FORGEJO_MCP_PROXY';
+/**
+ * This window's workspace → repository state file (see mcpWorkspaceState.ts),
+ * shared by every server definition of the window: the mapping describes the
+ * workspace, not the instance.
+ */
+export const MCP_ENV_STATE_FILE = 'FORGEJO_MCP_STATE_FILE';
 
 /**
- * Exposes the first configured Forgejo instance that has a stored access token
- * to VS Code agent mode as a stdio MCP server (out/mcp-server.js). The instance
- * URL and token reach the child process exclusively through environment
- * variables — never through tool schemas, results, or log output. When the
- * instance list changes — or the editor's `http.proxy` changes, since that
- * setting is read here and forwarded to the child — the provider fires
+ * Exposes every configured Forgejo instance that has a stored access token to
+ * VS Code agent mode as a stdio MCP server (out/mcp-server.js) — one
+ * definition per instance, so an agent can reach several instances in the
+ * same session. Each instance's URL and token reach its child process
+ * exclusively through environment variables — never through tool schemas,
+ * results, or log output. Every child also receives this window's workspace
+ * state file (see mcpWorkspaceState.ts), which lets the
+ * `get_workspace_repository` tool resolve "this repository" against the
+ * window's actual workspace.
+ *
+ * When the instance list changes — or the editor's `http.proxy` changes, since
+ * that setting is read here and forwarded to the child — the provider fires
  * onDidChangeMcpServerDefinitions so VS Code re-resolves.
  */
 export function registerMcpServerProvider(
@@ -43,45 +56,52 @@ export function registerMcpServerProvider(
     }),
   );
 
+  // The state file's own listeners and its cold-start write; registered here
+  // because the MCP feature is its only consumer.
+  registerMcpWorkspaceStateSync(context, config, logger);
+
   const provider: vscode.McpServerDefinitionProvider = {
     onDidChangeMcpServerDefinitions: onDidChange.event,
     provideMcpServerDefinitions: () => {
-      // The first instance that can actually be used, not simply the first one:
-      // an instance without a stored token would otherwise hide a later,
-      // configured one and leave the tools unregistered entirely.
       const instances = config.getInstances();
-      const instance = instances.find((candidate) => candidate.token);
-      if (!instance) {
-        const first = instances[0];
-        if (first) {
-          logger.debug(`MCP server definitions skipped: instance ${first.name} has no stored token.`);
-        }
-        return [];
-      }
       const serverPath = vscode.Uri.joinPath(context.extensionUri, 'out', 'mcp-server.js').fsPath;
-      const env: Record<string, string> = {
-        [MCP_ENV_INSTANCE_URL]: instance.url,
-        [MCP_ENV_TOKEN]: instance.token,
-        // The headless process cannot read the extension's settings, so the
-        // per-instance URL-sync flag travels with the launch environment:
-        // otherwise a user who disabled syncing (reverse proxy, split
-        // hostnames) would get rewritten links from the tools.
-        [MCP_ENV_SYNC_API_URLS]: String(instance.syncApiUrlsToInstanceUrl ?? true),
-      };
+      const stateFilePath = mcpWorkspaceStateFilePath(context);
       // The editor's proxy setting is not in the child's environment either;
       // without it, MCP requests would connect directly while the extension's
       // own requests go through the proxy. Environment proxies still work in the
       // child (it inherits this process's environment), so this only carries the
-      // setting.
-      const configuredProxy = vscode.workspace.getConfiguration('http').get<string>('proxy');
-      if (typeof configuredProxy === 'string' && configuredProxy.trim()) {
-        env[MCP_ENV_PROXY] = configuredProxy.trim();
+      // setting. Read once per resolution and shared by every definition.
+      const configuredProxy = vscode.workspace.getConfiguration('http').get<string>('proxy')?.trim();
+      const definitions: vscode.McpServerDefinition[] = [];
+      for (const instance of instances) {
+        // An instance without a stored token cannot authenticate its child;
+        // it is skipped (and reported) rather than hiding the usable ones.
+        if (!instance.token) {
+          logger.debug(
+            `MCP server definition skipped: instance ${instance.name || redactUrlUserinfo(instance.url)} has no stored token.`,
+          );
+          continue;
+        }
+        const env: Record<string, string> = {
+          [MCP_ENV_INSTANCE_URL]: instance.url,
+          [MCP_ENV_TOKEN]: instance.token,
+          // The headless process cannot read the extension's settings, so the
+          // per-instance URL-sync flag travels with the launch environment:
+          // otherwise a user who disabled syncing (reverse proxy, split
+          // hostnames) would get rewritten links from the tools.
+          [MCP_ENV_SYNC_API_URLS]: String(instance.syncApiUrlsToInstanceUrl ?? true),
+          [MCP_ENV_STATE_FILE]: stateFilePath,
+        };
+        if (configuredProxy) {
+          env[MCP_ENV_PROXY] = configuredProxy;
+        }
+        // The label is user-visible (the MCP server list), so the stored URL's
+        // userinfo never reaches it. The launch environment above keeps the real
+        // value, which the headless server needs to authenticate.
+        const label = instance.name ? `Forgejo: ${instance.name}` : `Forgejo: ${redactUrlUserinfo(instance.url)}`;
+        definitions.push(new vscode.McpStdioServerDefinition(label, process.execPath, [serverPath], env));
       }
-      // The label is user-visible (the MCP server list), so the stored URL's
-      // userinfo never reaches it. The launch environment above keeps the real
-      // value, which the headless server needs to authenticate.
-      const label = instance.name ? `Forgejo: ${instance.name}` : `Forgejo: ${redactUrlUserinfo(instance.url)}`;
-      return [new vscode.McpStdioServerDefinition(label, process.execPath, [serverPath], env)];
+      return definitions;
     },
   };
 

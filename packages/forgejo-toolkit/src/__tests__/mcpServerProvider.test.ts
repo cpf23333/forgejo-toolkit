@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   registerMcpServerProvider,
   MCP_SERVER_DEFINITION_PROVIDER_ID,
   MCP_ENV_INSTANCE_URL,
   MCP_ENV_PROXY,
+  MCP_ENV_STATE_FILE,
   MCP_ENV_SYNC_API_URLS,
   MCP_ENV_TOKEN,
 } from '../mcpServerProvider';
@@ -46,6 +49,10 @@ function setup() {
   const context = {
     subscriptions: [] as { dispose(): unknown }[],
     extensionUri: { fsPath: '/ext' },
+    // A real (writable) directory: the workspace-state sync this registration
+    // starts writes its file here when a test fires a trigger or lets the
+    // cold-start timer run.
+    globalStorageUri: { fsPath: path.join(os.tmpdir(), `forgejo-mcp-provider-test-${process.pid}`) },
   } as unknown as import('vscode').ExtensionContext;
 
   const logger = { debug: vi.fn() } as unknown as Logger;
@@ -57,7 +64,7 @@ function setup() {
   const configurationListener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls[
     configListenerCalls
   ]?.[0];
-  return { registerSpy, provider, instanceListeners, instances, configurationListener };
+  return { registerSpy, provider, instanceListeners, instances, configurationListener, logger };
 }
 
 function makeInstance(overrides: Partial<ForgejoInstance> = {}): ForgejoInstance {
@@ -88,23 +95,32 @@ describe('registerMcpServerProvider', () => {
     expect(definitions).toEqual([]);
   });
 
-  it('injects the first instance URL and token via environment only', async () => {
+  it('registers one definition per token-bearing instance', async () => {
     const { provider, instances } = setup();
-    instances.push(makeInstance(), makeInstance({ id: 'instance-2', url: 'https://other.example.com' }));
+    instances.push(
+      makeInstance(),
+      makeInstance({ id: 'instance-2', url: 'https://other.example.com', name: 'Other', token: 'second-token' }),
+    );
 
     const definitions = (await provider.provideMcpServerDefinitions(
       new AbortController().signal as never,
     )) as unknown as CapturedDefinition[];
 
-    expect(definitions).toHaveLength(1);
-    const definition = definitions[0];
-    expect(definition.command).toBe(process.execPath);
-    expect(definition.args[0]).toContain('mcp-server.js');
-    expect(definition.env[MCP_ENV_INSTANCE_URL]).toBe('https://forgejo.example.com');
-    expect(definition.env[MCP_ENV_TOKEN]).toBe('secret-token');
-    // The token must never appear outside the env channel.
-    expect(definition.label).not.toContain('secret-token');
-    expect(definition.args.join(' ')).not.toContain('secret-token');
+    expect(definitions).toHaveLength(2);
+    const [first, second] = definitions;
+    expect(first.command).toBe(process.execPath);
+    expect(first.args[0]).toContain('mcp-server.js');
+    expect(first.env[MCP_ENV_INSTANCE_URL]).toBe('https://forgejo.example.com');
+    expect(first.env[MCP_ENV_TOKEN]).toBe('secret-token');
+    expect(first.label).toBe('Forgejo: Example');
+    expect(second.env[MCP_ENV_INSTANCE_URL]).toBe('https://other.example.com');
+    expect(second.env[MCP_ENV_TOKEN]).toBe('second-token');
+    expect(second.label).toBe('Forgejo: Other');
+    // The tokens must never appear outside the env channel.
+    for (const definition of definitions) {
+      expect(definition.label).not.toContain('token');
+      expect(definition.args.join(' ')).not.toContain('token');
+    }
   });
 
   it('returns no definitions when the instance has no stored token', async () => {
@@ -114,11 +130,11 @@ describe('registerMcpServerProvider', () => {
     expect(definitions).toEqual([]);
   });
 
-  it('uses a later instance when the first one has no token', async () => {
-    // Picking strictly the first instance left the tools unregistered although a
-    // usable one was configured.
-    const { provider, instances } = setup();
-    instances.push(makeInstance({ token: '' }), makeInstance({ id: 'instance-2', name: 'Second' }));
+  it('skips tokenless instances individually and logs each skip', async () => {
+    // A tokenless instance used to hide every later, usable one; now it is
+    // skipped on its own and the usable instance still gets a definition.
+    const { provider, instances, logger } = setup();
+    instances.push(makeInstance({ token: '', name: 'Tokenless' }), makeInstance({ id: 'instance-2', name: 'Second' }));
 
     const definitions = (await provider.provideMcpServerDefinitions(
       new AbortController().signal as never,
@@ -127,6 +143,7 @@ describe('registerMcpServerProvider', () => {
     expect(definitions).toHaveLength(1);
     expect(definitions[0].env[MCP_ENV_TOKEN]).toBe('secret-token');
     expect(definitions[0].label).toContain('Second');
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('Tokenless'));
   });
 
   it('keeps credential userinfo out of the server label', async () => {
@@ -142,6 +159,21 @@ describe('registerMcpServerProvider', () => {
     expect(definitions[0].label).not.toContain('token-abc123');
     expect(definitions[0].label).toContain('forgejo.example.com');
     expect(definitions[0].env[MCP_ENV_INSTANCE_URL]).toBe('https://token-abc123@forgejo.example.com');
+  });
+
+  it('hands every definition this window’s workspace state file', async () => {
+    const { provider, instances } = setup();
+    instances.push(makeInstance(), makeInstance({ id: 'instance-2', url: 'https://other.example.com', name: 'Other' }));
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    // One file per window, shared by every instance's server: the mapping
+    // describes the workspace, not the instance.
+    const stateFile = definitions[0].env[MCP_ENV_STATE_FILE];
+    expect(stateFile).toContain(`mcp-workspace-${process.pid}.json`);
+    expect(definitions[1].env[MCP_ENV_STATE_FILE]).toBe(stateFile);
   });
 
   it('passes the per-instance API URL sync flag to the child process', async () => {
@@ -202,7 +234,9 @@ describe('registerMcpServerProvider', () => {
 
   it('re-resolves when the instance list changes', () => {
     const { instanceListeners } = setup();
-    expect(instanceListeners).toHaveLength(1);
+    // Two listeners: the provider's own re-resolution and the workspace-state
+    // sync's rewrite. The provider registers first.
+    expect(instanceListeners).toHaveLength(2);
     instanceListeners[0]([]);
     const emitter = vi.mocked(vscode.EventEmitter).mock.results[0].value as { fire: ReturnType<typeof vi.fn> };
     expect(emitter.fire).toHaveBeenCalledTimes(1);

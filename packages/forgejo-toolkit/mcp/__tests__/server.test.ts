@@ -72,6 +72,7 @@ describe('MCP server over InMemoryTransport', () => {
         'get_pull_request',
         'get_pull_review_comments',
         'get_repo',
+        'get_workspace_repository',
         'list_action_runs',
         'list_branches',
         'list_commits',

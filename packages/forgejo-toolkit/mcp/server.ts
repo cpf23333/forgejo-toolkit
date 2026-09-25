@@ -39,7 +39,14 @@ async function main(): Promise<void> {
   const proxyDispatcher = createProxyDispatcher(resolveProxyUrl(process.env, process.env.FORGEJO_MCP_PROXY));
   setDefaultRequestDispatcher(proxyDispatcher, proxyDispatcher ? getProxyFetch() : undefined);
   const client = new ForgejoClient(url, token, logger, syncApiUrls);
-  const server = createMcpServer(client);
+  const server = createMcpServer(client, {
+    instanceUrl: url,
+    // The extension host's workspace → repository mapping, for the
+    // get_workspace_repository tool. Optional: absent when the server is
+    // launched without it, the tool stays registered and answers
+    // "not configured" instead of failing.
+    stateFile: process.env.FORGEJO_MCP_STATE_FILE,
+  });
   // The extension host probes the server version on activation and caches it per
   // instance URL, but this process has its own module state and never runs
   // activation — without a probe here the Actions version gate

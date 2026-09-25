@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { LIST_ITEM_LIMIT, MAX_SEARCH_RESULTS, REPO_DETAIL_LIST_LIMIT, type ForgejoClient } from '../src/api/client';
 import { userFacingErrorMessage } from '../src/api/errors-core';
+import { resolveWorkspaceRepository } from './workspaceState';
 
 /**
  * Per-field size budget for tool results: issue/PR bodies, comment text and
@@ -101,6 +102,20 @@ export interface ReviewRefArgs extends IssueRefArgs {
 }
 
 /**
+ * Workspace context the extension host passes down to the MCP child through
+ * its launch environment (see src/mcpWorkspaceState.ts). Both fields are
+ * optional: the server can also run without them (e.g. in unit tests), in
+ * which case `get_workspace_repository` stays registered and answers
+ * "not configured" instead of disappearing from the tool surface.
+ */
+export interface WorkspaceContextOptions {
+  /** Path of this window's workspace state file (FORGEJO_MCP_STATE_FILE). */
+  stateFile?: string;
+  /** This process's own instance URL (FORGEJO_MCP_INSTANCE_URL), matched against state entries. */
+  instanceUrl?: string;
+}
+
+/**
  * `owner` and `repo` are both optional on the list tools, and without them the
  * handler answers the wider "everything involving me" question. A caller that
  * supplies only one of the two is asking about a repository, so falling back to
@@ -133,8 +148,14 @@ function assertCompleteRepoScope(owner?: string, repo?: string): void {
  * return the untruncated payload and let errors propagate. The MCP
  * registration (registerTools) adds truncation and error rendering on top.
  */
-export function buildToolHandlers(client: ForgejoClient) {
+export function buildToolHandlers(client: ForgejoClient, workspaceContext: WorkspaceContextOptions = {}) {
   return {
+    // Reads the state file fresh on every call: the workspace changes while
+    // this long-lived process runs, and a cached answer would quietly go
+    // stale. Needs no HTTP, so the client's abort signal does not apply.
+    get_workspace_repository: () =>
+      resolveWorkspaceRepository(workspaceContext.stateFile, workspaceContext.instanceUrl),
+
     // The scope assertion stays in a synchronous arrow so a half-specified
     // scope throws (rather than rejecting) before any request is issued. The
     // keyword goes to the server on both branches (see the note above), so no
@@ -389,6 +410,7 @@ const NO_PAGED_LISTS: readonly string[] = [];
  * lists have been classified.
  */
 const PAGED_LISTS: Record<ToolName, readonly string[]> = {
+  get_workspace_repository: NO_PAGED_LISTS,
   list_issues: PAGED_RESULT,
   get_issue: ['comments'],
   list_pull_requests: PAGED_RESULT,
@@ -571,15 +593,30 @@ async function callTool(tool: ToolName, run: () => Promise<unknown>) {
  * own MAX_ITEMS caps). Tool names and descriptions are English literals on
  * purpose — they are read by LLM agents, not by users.
  */
-export function registerTools(server: McpServer, client: ForgejoClient): void {
-  const handlers = buildToolHandlers(client);
+export function registerTools(
+  server: McpServer,
+  client: ForgejoClient,
+  workspaceContext: WorkspaceContextOptions = {},
+): void {
+  const handlers = buildToolHandlers(client, workspaceContext);
   // A cancelled tool call should abort its HTTP requests. The SDK passes the signal
   // in the tool callback's second argument, and `withSignal` is cheap, so the
   // handlers are rebuilt around a signalling client instead of threading a
   // parameter through all of them.
   const handlersFor = (extra?: { signal?: AbortSignal }) =>
-    extra?.signal ? buildToolHandlers(client.withSignal(extra.signal)) : handlers;
+    extra?.signal ? buildToolHandlers(client.withSignal(extra.signal), workspaceContext) : handlers;
   const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
+
+  server.registerTool(
+    'get_workspace_repository',
+    {
+      description:
+        'Resolve the Forgejo repository the user is working in, from the workspace the editor has open. Call this first whenever the user refers to "this repository", "the current project", or similar without naming owner and repo, then pass the returned owner/repo to the other tools. When several repositories match, the one whose `active` flag is true is the repository the user is looking at. When the workspace repositories belong to a different configured Forgejo instance, the answer names that instance — use its MCP server instead of this one. When no workspace information is available, ask the user for owner and repo.',
+      inputSchema: {},
+      annotations: readOnly,
+    },
+    async (_args, extra) => callTool('get_workspace_repository', () => handlersFor(extra).get_workspace_repository()),
+  );
 
   server.registerTool(
     'list_issues',

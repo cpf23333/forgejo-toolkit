@@ -48,10 +48,11 @@ process via environment variables (never via tool results or logs).
 
 ```
 VS Code (agent mode)
-  │  spawns via McpStdioServerDefinition
+  │  spawns via McpStdioServerDefinition (one per token-bearing instance)
   ▼
 mcp-server process (Node, bundled: out/mcp-server.js)
-  │  reads FORGEJO_MCP_INSTANCE_URL / FORGEJO_MCP_TOKEN / FORGEJO_MCP_SYNC_API_URLS / FORGEJO_MCP_PROXY from env
+  │  reads FORGEJO_MCP_INSTANCE_URL / FORGEJO_MCP_TOKEN / FORGEJO_MCP_SYNC_API_URLS /
+  │  FORGEJO_MCP_PROXY / FORGEJO_MCP_STATE_FILE from env
   ▼
 @cpf23333-forgejo-toolkit/api + shared request layer
   │
@@ -68,13 +69,15 @@ Forgejo instance REST API
   extension. Environment-specific behavior (toasts, localization) goes
   through the `ForgejoClientHost` hooks; the MCP process keeps the default
   headless host, where those hooks are no-ops / English passthrough.
-- **Instance selection:** exactly one instance is exposed per server
-  process — the first configured instance that has a stored access token
-  (insertion order). Instances without a token are skipped so that one which is
-  still waiting for its token cannot hide a later, usable instance; when no
-  instance has a token, no server definition is returned. The definition
-  provider re-resolves on `onDidChangeMcpServerDefinitions` when instances
-  change. Multi-instance fan-out remains a future direction (see below).
+- **Instance selection:** one server definition per configured instance that
+  has a stored access token, so an agent can reach several instances in the
+  same session. Instances without a token are skipped (and logged at debug
+  level) so one that is still waiting for its token cannot hide the usable
+  ones; when no instance has a token, no server definition is returned. The
+  definition provider re-resolves on `onDidChangeMcpServerDefinitions` when
+  instances change. Each label is `Forgejo: <instance name>` (falling back to
+  the credential-redacted URL), which is how the agent tells the per-instance
+  servers apart.
 - **Token flow:** `activate()` reads the token from SecretStorage and passes
   it as `env` in `McpStdioServerDefinition`. Tokens never appear in tool
   schemas, results, or log output.
@@ -87,6 +90,24 @@ Forgejo instance REST API
   own requests go through the proxy). There is no
   way to launch this stdio server from an external MCP client: the URL and
   token are injected by VS Code at spawn time.
+- **Workspace state flow:** every window also publishes which workspace
+  repositories are linked to which configured instance, so the
+  `get_workspace_repository` tool can resolve "this repository" without the
+  user naming owner/repo. The host reuses `detectLinkedRepositories` (the same
+  scan the status bar and the sidebar run, with its shared 10 s cache) and
+  atomically writes the result to
+  `globalStorage/mcp-workspace-<extension-host-pid>.json` — one file per
+  window, because windows may have different workspaces open. The write is
+  triggered by instance-list changes, workspace-folder changes, active-editor
+  changes (debounced), and one delayed write after registration; failures are
+  logged and swallowed, because the mapping is advisory. The file's path
+  travels to the child as `FORGEJO_MCP_STATE_FILE` (shared by all of the
+  window's server definitions) and the child re-reads it on every tool call —
+  never caches it — so a workspace change is visible within a write cycle. The
+  file never carries credentials (instance URLs are userinfo-stripped, remote
+  URLs are the display-redacted values), and `deactivate()` deletes it
+  best-effort; a crash-orphaned file is harmless because nothing but the
+  window's own children ever learns its path.
 
 ## Minimum VS Code version
 
@@ -168,6 +189,34 @@ inline review comment. `get_pull_review_comments` therefore stays as a
 dedicated tool; the extension's own review-comment controller relies on the
 same endpoint for exactly this reason.
 
+### Workspace context
+
+| Tool                       | Maps to                                                      |
+| -------------------------- | ------------------------------------------------------------ |
+| `get_workspace_repository` | the window's workspace state file (`FORGEJO_MCP_STATE_FILE`) |
+
+`get_workspace_repository` answers "which repository is the user working
+in?" from the host-published state file: the repositories of _this_ server's
+instance (with the `active` flag marking the one the editor context is
+attributed to), or — when the workspace's repositories belong to other
+configured instances — which instance each of them belongs to, so the agent
+knows to use that instance's MCP server. A missing, unreadable, or
+unconfigured state file is an ordinary answer ("no workspace information" /
+"not configured"), not an error, and the tool stays registered either way to
+keep the tool surface stable. It is the tool an agent should call first when
+the user says "this repo" / "the current project" without naming owner/repo.
+
+## Environment variables
+
+| Variable                    | Content                                                              |
+| --------------------------- | -------------------------------------------------------------------- |
+| `FORGEJO_MCP_INSTANCE_URL`  | The instance URL, verbatim (may embed credentials for legacy setups) |
+| `FORGEJO_MCP_TOKEN`         | The instance's access token                                          |
+| `FORGEJO_MCP_SYNC_API_URLS` | `'false'` disables rewriting API URLs to the instance URL            |
+| `FORGEJO_MCP_PROXY`         | The editor's `http.proxy`, when configured                           |
+| `FORGEJO_MCP_STATE_FILE`    | This window's workspace → repository state file                      |
+| `FORGEJO_MCP_DEBUG`         | `'true'` enables debug logging on the child's stderr                 |
+
 ## Security model
 
 - The tool surface is read-only by design; write tools (below) will ship
@@ -201,7 +250,11 @@ same endpoint for exactly this reason.
 - Unit: tool handlers against the MSW mock server (same fixtures as
   `client.test.ts`) — `mcp/__tests__/tools.test.ts`. That file also covers the
   path-segment / repository-path guards (`isSafePathSegment`, `isSafeRepoPath`)
-  directly, since the handlers are called without MCP schema validation.
+  directly, since the handlers are called without MCP schema validation. The
+  workspace state file has its own round-trip tests: the writer in
+  `src/__tests__/mcpWorkspaceState.test.ts`, the reader (filtering, instance
+  attribution, missing/corrupt file) in `mcp/__tests__/workspaceState.test.ts`,
+  and the multi-definition provider in `src/__tests__/mcpServerProvider.test.ts`.
 - Integration: the server connected over the MCP SDK's `InMemoryTransport`,
   asserting the tool listing and a round trip per tool group —
   `mcp/__tests__/server.test.ts`.
@@ -215,8 +268,5 @@ same endpoint for exactly this reason.
   `merge_pull_request`, `mark_notification_read`. Omitting `readOnlyHint` on
   these makes VS Code ask the user to confirm each tool call; they will
   additionally require individual opt-in in extension settings (default off).
-- **Multi-instance fan-out:** one server per configured instance, or an
-  `instance` tool parameter, instead of the single token-bearing default
-  instance.
 - **MCP prompts:** preset prompt templates (e.g. "review this PR") on top of
   the tool surface.

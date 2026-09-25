@@ -20,6 +20,7 @@ import { createVscodeClientHost } from './api/vscodeClientHost';
 import { probeServerVersion } from './api/versionProbe';
 import { registerForgejoRemoteSourceProviders } from './clone/remoteSourceProvider';
 import { registerMcpServerProvider } from './mcpServerProvider';
+import { cleanupMcpWorkspaceState } from './mcpWorkspaceState';
 import { maybeShowWelcomeOnboarding } from './welcome';
 import { logger } from './logger';
 
@@ -152,6 +153,8 @@ export async function activate(context: vscode.ExtensionContext) {
   logger.info('Forgejo Toolkit extension activated');
 }
 
-export function deactivate() {
-  // cleanup if needed
+export async function deactivate(): Promise<void> {
+  // Deletes this window's MCP workspace-state file (best-effort; see the
+  // function for why a crash-orphaned file is harmless).
+  await cleanupMcpWorkspaceState(logger);
 }
