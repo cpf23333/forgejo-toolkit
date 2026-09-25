@@ -88,6 +88,7 @@ vi.mock('vscode', () => ({
   },
   extensions: {
     getExtension: vi.fn(),
+    onDidChange: vi.fn(() => ({ dispose: vi.fn() })),
   },
   l10n: {
     // Real `vscode.l10n.t` substitutes positional placeholders (`{0}`, `{1}`, …)

@@ -378,13 +378,125 @@ describe('resolveAutoConfiguration', () => {
   });
 
   it('fails cleanly when the cwd is not a git repository and no state file matches', async () => {
-    // No .git at all: remote matching is skipped and the error names the
-    // empty registry as the reason nothing could be matched.
+    // No .git at all and no state file to guess from: remote matching and the
+    // fallback are both skipped, and the error names the empty registry as the
+    // reason nothing could be matched.
     writeRegistry(dataDir, registryFile());
 
     const result = await resolveAutoConfiguration(options());
 
     expect(result.status).toBe('failed');
+  });
+
+  it('falls back to the active entry of the newest state file when the cwd matches nothing', async () => {
+    // The Agents window's Agent Host launches the server with the user's home
+    // directory as cwd: not a checkout, not in any state file. The fallback
+    // guesses the instance the user most recently worked with — the entry the
+    // writer flagged active — instead of exiting with an error.
+    writeRegistry(dataDir, registryFile([{}]));
+    writeStateFile(dataDir, 'mcp-workspace-1234-abcd1234.json', [
+      {
+        instanceId: 'instance-1',
+        instanceUrl: 'https://forgejo.example.com',
+        owner: 'demo-user',
+        repo: 'demo-repo',
+        localPath: path.join(tempDir, 'some-checkout'),
+        active: false,
+      },
+      {
+        instanceId: 'instance-2',
+        instanceUrl: 'https://other.example.com',
+        owner: 'org',
+        repo: 'lib',
+        localPath: path.join(tempDir, 'other-checkout'),
+        active: true,
+      },
+    ]);
+
+    const result = await resolveAutoConfiguration(options());
+
+    expect(result).toMatchObject({ status: 'matched', url: 'https://other.example.com', via: 'state-file-fallback' });
+  });
+
+  it('falls back to the first entry when no entry is flagged active', async () => {
+    // The writer only sets active on unambiguous attribution, so it may be
+    // false on every entry; the first entry is the fallback's fallback.
+    writeRegistry(dataDir, registryFile([{}]));
+    writeStateFile(dataDir, 'mcp-workspace-1234-abcd1234.json', [
+      {
+        instanceId: 'instance-1',
+        instanceUrl: 'https://forgejo.example.com',
+        owner: 'demo-user',
+        repo: 'demo-repo',
+        localPath: path.join(tempDir, 'some-checkout'),
+        active: false,
+      },
+      {
+        instanceId: 'instance-2',
+        instanceUrl: 'https://other.example.com',
+        owner: 'org',
+        repo: 'lib',
+        localPath: path.join(tempDir, 'other-checkout'),
+        active: false,
+      },
+    ]);
+
+    const result = await resolveAutoConfiguration(options());
+
+    expect(result).toMatchObject({ status: 'matched', url: 'https://forgejo.example.com', via: 'state-file-fallback' });
+  });
+
+  it('guesses from the newest state file only, ignoring older files', async () => {
+    // The older file's active entry names a different instance; the newest
+    // file is the one whose guess counts — stale second opinions must not
+    // outvote it.
+    writeRegistry(dataDir, registryFile([{}]));
+    const older = writeStateFile(dataDir, 'mcp-workspace-1111-aaaa1111.json', [
+      {
+        instanceId: 'instance-2',
+        instanceUrl: 'https://other.example.com',
+        owner: 'org',
+        repo: 'lib',
+        localPath: path.join(tempDir, 'other-checkout'),
+        active: true,
+      },
+    ]);
+    writeStateFile(dataDir, 'mcp-workspace-2222-bbbb2222.json', [
+      {
+        instanceId: 'instance-1',
+        instanceUrl: 'https://forgejo.example.com',
+        owner: 'demo-user',
+        repo: 'demo-repo',
+        localPath: path.join(tempDir, 'some-checkout'),
+        active: true,
+      },
+    ]);
+    fs.utimesSync(older, new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
+
+    const result = await resolveAutoConfiguration(options());
+
+    expect(result).toMatchObject({ status: 'matched', url: 'https://forgejo.example.com', via: 'state-file-fallback' });
+  });
+
+  it('prefers a git remote match over the state-file fallback guess', async () => {
+    // The fallback is a guess; a real remote match of the working directory
+    // always beats it.
+    writeRegistry(dataDir, registryFile([{}]));
+    writeStateFile(dataDir, 'mcp-workspace-1234-abcd1234.json', [
+      {
+        instanceId: 'instance-2',
+        instanceUrl: 'https://other.example.com',
+        owner: 'org',
+        repo: 'lib',
+        localPath: path.join(tempDir, 'other-checkout'),
+        active: true,
+      },
+    ]);
+    writeGitConfig(cwd, '[remote "origin"]\n\turl = https://forgejo.example.com/demo-user/demo-repo.git\n');
+
+    const result = await resolveAutoConfiguration(options());
+
+    expect(result).toMatchObject({ status: 'matched', url: 'https://forgejo.example.com', via: 'git-remote' });
   });
 
   it('matches the state-file localPath case-insensitively on Windows', async () => {

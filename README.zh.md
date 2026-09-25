@@ -63,19 +63,19 @@ pnpm --filter forgejo-toolkit package
 
 所有命令都可以从命令面板（`Ctrl+Shift+P`，前缀 `Forgejo Toolkit`）调用；部分命令也出现在编辑器右键菜单和状态栏中。
 
-| 命令                        | 作用                                                                 |
-| --------------------------- | -------------------------------------------------------------------- |
-| 打开仪表板                  | 在侧边栏打开 Forgejo 仪表盘。                                        |
-| 打开设置向导                | 打开首次使用的设置向导。                                             |
-| 打开设置                    | 打开扩展设置视图。                                                   |
-| 刷新实例                    | 重新读取实例配置并刷新仪表盘。                                       |
-| 复制永久链接                | 复制当前文件或选区的永久链接（也可从编辑器右键菜单调用）。           |
-| 发布到 Forgejo              | 把当前仓库发布到你的实例（也可从源代码管理视图调用）。               |
-| 查看日志                    | 打开「Forgejo Toolkit」输出频道。                                    |
-| 从当前分支创建 PR           | 从当前分支创建 Pull Request（也可从状态栏调用）。                    |
-| 添加审查评论                | 在当前 diff 行添加评审评论（也可从 diff 编辑器的行号右键菜单调用）。 |
-| 删除审查评论                | 删除光标处的评审评论。                                               |
-| 为 Agents 窗口复制 MCP 配置 | 复制或写入一份可直接使用的 `.mcp.json`（见 MCP Server 一节）。       |
+| 命令                        | 作用                                                                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 打开仪表板                  | 在侧边栏打开 Forgejo 仪表盘。                                                                                                  |
+| 打开设置向导                | 打开首次使用的设置向导。                                                                                                       |
+| 打开设置                    | 打开扩展设置视图。                                                                                                             |
+| 刷新实例                    | 重新读取实例配置并刷新仪表盘。                                                                                                 |
+| 复制永久链接                | 复制当前文件或选区的永久链接（也可从编辑器右键菜单调用）。                                                                     |
+| 发布到 Forgejo              | 把当前仓库发布到你的实例（也可从源代码管理视图调用）。                                                                         |
+| 查看日志                    | 打开「Forgejo Toolkit」输出频道。                                                                                              |
+| 从当前分支创建 PR           | 从当前分支创建 Pull Request（也可从状态栏调用）。                                                                              |
+| 添加审查评论                | 在当前 diff 行添加评审评论（也可从 diff 编辑器的行号右键菜单调用）。                                                           |
+| 删除审查评论                | 删除光标处的评审评论。                                                                                                         |
+| 为 Agents 窗口复制 MCP 配置 | 写入或复制一份可直接使用的 Agents 窗口 MCP 配置（用户级 `mcp.json`、工作区 `.vscode/mcp.json` 或剪贴板；见 MCP Server 一节）。 |
 
 ## 兼容性
 
@@ -108,7 +108,7 @@ pnpm --filter forgejo-toolkit package
 
 ### 在 Agents 窗口（或任何静态 `mcp.json` 宿主）中使用
 
-上面的 server 是由扩展贡献的，而 VS Code **不会**在 Agents 窗口（Agent Host）会话中解析扩展贡献的 MCP server——这是平台限制。要在那里使用，把工作区 `.mcp.json` 指向扩展在 globalStorage 里维护的 **shim**：
+上面的 server 是由扩展贡献的，而 VS Code **不会**在 Agents 窗口（Agent Host）会话中解析扩展贡献的 MCP server——这是平台限制。要在那里使用，通过一份静态 MCP 配置注册它，配置指向扩展在 globalStorage 里维护的 **shim**：
 
 ```json
 {
@@ -123,9 +123,15 @@ pnpm --filter forgejo-toolkit package
 
 globalStorage 目录因平台而异：Windows 上是 `%APPDATA%\Code\User\globalStorage\cpf23333.forgejo-toolkit`，macOS 上是 `~/Library/Application Support/Code/User/globalStorage/cpf23333.forgejo-toolkit`，Linux 上是 `~/.config/Code/User/globalStorage/cpf23333.forgejo-toolkit`（Insiders 版本把 `Code` 换成 `Code - Insiders`）。
 
-有两种方式：运行 **Forgejo Toolkit: 为 Agents 窗口复制 MCP 配置** 命令——它可以把片段复制到剪贴板，或直接合并进工作区的 `.mcp.json`——或者手动粘贴上面的 JSON。无论哪种方式，路径都是 shim `mcp-server.js`，而不是真正的 server bundle：扩展每次激活都会重写 shim 指向当前安装目录，所以配置在扩展升级后依然有效（它替代了带版本号的 `cpf23333.forgejo-toolkit-<版本>` 安装路径，后者升级即失效）。
+有三个文件可以承载这段配置，读取方各不相同：
 
-无需任何环境变量：server 会自己发现扩展发布的实例注册表，并通过匹配会话工作区的 git remote 来选择实例（工作目录由会话的工作区决定，与配置文件无关）。如果 `env` 里没有 `FORGEJO_MCP_TOKEN`，则以匿名方式只读——只能看到公开数据。零配置版本不含任何秘密，但一般仍建议不要把 `.mcp.json` 提交进 git：机器相关的绝对路径（以及一旦你加了 `env` 块后的 token）不属于仓库。
+- **`<profile>/User/mcp.json`**（推荐）——VS Code 的用户级 MCP 注册表：对当前 profile 的所有工作区生效，且 VS Code 会把它转发给 Agent Host 会话。
+- **工作区内的 `.vscode/mcp.json`**——VS Code 只为该工作区读取它，并以同样方式转发。
+- **工作区根目录的 `.mcp.json`**——只有 Agent Host 原生读它：VS Code 自己会忽略（报 "Cannot start unknown MCP server customization"），而开启工作树隔离的会话根本看不到它，因为会话的工作区是隔离的 worktree，不是你的检出目录。
+
+最简单的做法是运行 **Forgejo Toolkit: 为 Agents 窗口复制 MCP 配置** 命令——它可以把片段合并进用户级 `mcp.json` 或工作区 `.vscode/mcp.json`，也可以复制到剪贴板。无论哪种方式，路径都是 shim `mcp-server.js`，而不是真正的 server bundle：扩展每次激活都会重写 shim 指向当前安装目录，所以配置在扩展升级后依然有效（它替代了带版本号的 `cpf23333.forgejo-toolkit-<版本>` 安装路径，后者升级即失效）。
+
+无需任何环境变量：server 会自己发现扩展发布的实例注册表，并通过匹配会话工作区的 git remote 来选择实例（工作目录由会话的工作区决定，与配置文件无关）。如果 `env` 里没有 `FORGEJO_MCP_TOKEN`，则以匿名方式只读——只能看到公开数据。零配置版本不含任何秘密，但一般仍建议不要把工作区 `mcp.json` 提交进 git：机器相关的绝对路径（以及一旦你加了 `env` 块后的 token）不属于仓库。
 
 ## 截图
 

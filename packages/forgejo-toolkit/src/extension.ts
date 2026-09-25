@@ -21,6 +21,7 @@ import { probeServerVersion } from './api/versionProbe';
 import { registerForgejoRemoteSourceProviders } from './clone/remoteSourceProvider';
 import { registerMcpServerProvider } from './mcpServerProvider';
 import { cleanupMcpWorkspaceState } from './mcpWorkspaceState';
+import { watchForExtensionUpdate } from './updateNotifier';
 import { maybeShowWelcomeOnboarding } from './welcome';
 import { logger } from './logger';
 
@@ -50,6 +51,9 @@ export async function activate(context: vscode.ExtensionContext) {
   );
   logger.watch();
   context.subscriptions.push({ dispose: () => logger.dispose() });
+  // Prompt for the reload a .vsix update needs once it lands under a running
+  // window (see updateNotifier).
+  watchForExtensionUpdate(context, logger);
 
   // Auth-failure toasts and localized client messages go through these hooks;
   // the headless MCP server process keeps the no-op defaults.

@@ -71,7 +71,7 @@ Nothing today. VS Code shows that menu entry for every MCP server; it controls w
 
 ### Can I use the MCP server in the Agents window?
 
-Not through the extension's contribution: VS Code does not resolve extension-contributed MCP servers in Agents window (Agent Host) sessions — a platform limitation, which is why the extension does not declare the `agentsWindow` capability. What works is a static workspace `.mcp.json` pointing at the shim the extension maintains in its globalStorage:
+Not through the extension's contribution: VS Code does not resolve extension-contributed MCP servers in Agents window (Agent Host) sessions — a platform limitation, which is why the extension does not declare the `agentsWindow` capability. What works is a static MCP configuration pointing at the shim the extension maintains in its globalStorage:
 
 ```json
 {
@@ -84,9 +84,18 @@ Not through the extension's contribution: VS Code does not resolve extension-con
 }
 ```
 
-(On macOS the directory is `~/Library/Application Support/Code/User/globalStorage/cpf23333.forgejo-toolkit`, on Linux `~/.config/Code/User/globalStorage/cpf23333.forgejo-toolkit`; Insiders builds use `Code - Insiders` instead of `Code`.) You can write the file by hand or run the **Forgejo Toolkit: Copy MCP Config for Agents Window** command, which copies the snippet to the clipboard or merges it into the workspace's `.mcp.json`. The path is the shim `mcp-server.js`, not the versioned install directory: the extension rewrites it on every activation, so it survives extension upgrades.
+(On macOS the directory is `~/Library/Application Support/Code/User/globalStorage/cpf23333.forgejo-toolkit`, on Linux `~/.config/Code/User/globalStorage/cpf23333.forgejo-toolkit`; Insiders builds use `Code - Insiders` instead of `Code`.) Where the snippet should live: the user-level `<profile>/User/mcp.json` is recommended (VS Code's registry — applies to every workspace of the profile and is forwarded to Agent Host sessions); a workspace `.vscode/mcp.json` works for one workspace only. A `.mcp.json` at the workspace root is read natively by the Agent Host only — VS Code ignores it, and worktree-isolated sessions never see it. You can write the file by hand or run the **Forgejo Toolkit: Copy MCP Config for Agents Window** command, which merges the snippet into the user-level `mcp.json`, the workspace `.vscode/mcp.json`, or copies it to the clipboard. The path is the shim `mcp-server.js`, not the versioned install directory: the extension rewrites it on every activation, so it survives extension upgrades.
 
 No environment variables are needed: the server discovers the extension's published instance registry and auto-matches the instance from the session workspace's git remote. Without `FORGEJO_MCP_TOKEN` it reads anonymously (public data only). The zero-configuration variant contains no secrets, but still avoid committing `.mcp.json` into git — the absolute path is machine-specific, and an `env` block with a token would be a secret at rest in a shareable file.
+
+### Why do `whoami` and account-level calls answer "Invalid or expired credentials" in the Agents window?
+
+Because that server runs without a token. An MCP server started from a static `mcp.json` is launched by VS Code's Agent Host, not by the extension — and the extension is the only component allowed to read tokens from VS Code SecretStorage and inject them at spawn time. Nothing reaches into SecretStorage from an external process: that boundary is deliberate (it is what keeps tokens off disk and out of logs), so there is no "just read it from the extension" path.
+
+What you can do instead:
+
+- Use the main window's Copilot chat for account-level operations — the extension-contributed server there carries the token automatically.
+- Or add the token yourself: `"env": { "FORGEJO_MCP_TOKEN": "<your token>" }` in the server entry of the user-level `mcp.json`. That is a plaintext secret at rest in your private user directory — acceptable, but know what you are doing, and prefer a token scoped to read-only access.
 
 ## Troubleshooting
 

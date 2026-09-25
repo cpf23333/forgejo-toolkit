@@ -42,7 +42,7 @@
 - 扩展通过 REST API（`/api/v1`）与 Forgejo 通信。
 - 访问令牌存储在 VS Code SecretStorage 中（绝不写入明文设置）。
 - webview 使用 `acquireVsCodeApi()` 与扩展宿主通信。
-- MCP server 需要 VS Code ≥ 1.102，在 agent mode 中自动出现（零配置）。在 Agents 窗口中，扩展贡献的 server 不会进入 Agent Host 会话（VS Code 当前的平台限制）——可在命令面板运行「为 Agents 窗口复制 MCP 配置」生成指向稳定路径（升级不失效）的 `.mcp.json`。
+- MCP server 需要 VS Code ≥ 1.102，在 agent mode 中自动出现（零配置）。在 Agents 窗口中，扩展贡献的 server 不会进入 Agent Host 会话（VS Code 当前的平台限制）——可在命令面板运行「为 Agents 窗口复制 MCP 配置」，写入指向稳定路径（升级不失效）的用户级 `mcp.json`（或工作区 `.vscode/mcp.json`）。
 
 ## 开发
 

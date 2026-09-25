@@ -71,7 +71,7 @@ MCP Server 只有在满足以下全部条件时才会注册：
 
 ### Agents 窗口里能用这个 MCP server 吗？
 
-不能通过扩展的贡献来使用：VS Code 不会在 Agents 窗口（Agent Host）会话中解析扩展贡献的 MCP server——这是平台限制，也是扩展不声明 `agentsWindow` 能力的原因。可行的做法是用静态的工作区 `.mcp.json` 指向扩展在 globalStorage 里维护的 shim：
+不能通过扩展的贡献来使用：VS Code 不会在 Agents 窗口（Agent Host）会话中解析扩展贡献的 MCP server——这是平台限制，也是扩展不声明 `agentsWindow` 能力的原因。可行的做法是用一份静态 MCP 配置指向扩展在 globalStorage 里维护的 shim：
 
 ```json
 {
@@ -84,9 +84,18 @@ MCP Server 只有在满足以下全部条件时才会注册：
 }
 ```
 
-（macOS 上目录是 `~/Library/Application Support/Code/User/globalStorage/cpf23333.forgejo-toolkit`，Linux 上是 `~/.config/Code/User/globalStorage/cpf23333.forgejo-toolkit`；Insiders 版本把 `Code` 换成 `Code - Insiders`。）可以手动写这个文件，也可以运行 **Forgejo Toolkit: 为 Agents 窗口复制 MCP 配置** 命令，把片段复制到剪贴板或合并进工作区的 `.mcp.json`。路径是 shim `mcp-server.js` 而不是带版本号的安装目录：扩展每次激活都会重写它，所以升级后依然有效。
+（macOS 上目录是 `~/Library/Application Support/Code/User/globalStorage/cpf23333.forgejo-toolkit`，Linux 上是 `~/.config/Code/User/globalStorage/cpf23333.forgejo-toolkit`；Insiders 版本把 `Code` 换成 `Code - Insiders`。）这段配置放在哪里：推荐用户级 `<profile>/User/mcp.json`（VS Code 的注册表——对当前 profile 的所有工作区生效，并会转发给 Agent Host 会话）；工作区 `.vscode/mcp.json` 只对单个工作区生效。工作区根目录的 `.mcp.json` 只有 Agent Host 原生读——VS Code 会忽略它，而工作树隔离的会话根本看不到它。可以手动写文件，也可以运行 **Forgejo Toolkit: 为 Agents 窗口复制 MCP 配置** 命令，把片段合并进用户级 `mcp.json`、工作区 `.vscode/mcp.json`，或复制到剪贴板。路径是 shim `mcp-server.js` 而不是带版本号的安装目录：扩展每次激活都会重写它，所以升级后依然有效。
 
 无需任何环境变量：server 会自己发现扩展发布的实例注册表，并根据会话工作区的 git remote 自动匹配实例。没有 `FORGEJO_MCP_TOKEN` 时为匿名只读（仅公开数据）。零配置版本不含秘密，但仍建议不要把 `.mcp.json` 提交进 git——绝对路径是机器相关的，而一旦加了 `env` 块，token 就会以明文落在可共享的文件里。
+
+### 为什么在 Agents 窗口里 `whoami` 等账户级调用报「Invalid or expired credentials」？
+
+因为那边的 server 是不带 token 启动的。从静态 `mcp.json` 启动的 MCP server 是由 VS Code 的 Agent Host 拉起的，不经过扩展——而只有扩展被允许从 VS Code SecretStorage 读 token 并在 spawn 时注入。不存在「让 server 自己去扩展配置里取」的路径：这个边界是刻意的（它保证 token 不落盘、不进日志），外部进程读取 SecretStorage 等同于凭证窃取，我们不实现。
+
+可以改用：
+
+- 在**主窗口**的 Copilot Chat 里做账户级操作——扩展贡献的 server 会自动携带 token。
+- 或者自己在用户级 `mcp.json` 的 server 条目里加 `"env": { "FORGEJO_MCP_TOKEN": "<你的 token>" }`。这等于把明文 token 落盘在你的私有用户目录——可接受但要清楚这一点，并建议用只读权限的 token。
 
 ## 故障排除
 

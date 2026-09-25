@@ -128,12 +128,13 @@ instance id>)`).
 
 The server definitions above only exist where VS Code resolves extension
 contributions. Sessions that read a **static** MCP configuration instead —
-a workspace `.mcp.json`, the Agents window's Agent Host — can carry only
-`command` + `args`, with no per-instance environment. For those, the same
-`out/mcp-server.js` starts with no `FORGEJO_MCP_*` variables at all and
-discovers the instance itself (`mcp/autoConfig.ts`, wired into `server.ts`;
-all of it is skipped the moment `FORGEJO_MCP_INSTANCE_URL` is set, so the
-VS Code-spawned path is unchanged).
+the user-level `<profile>/User/mcp.json`, a workspace `.vscode/mcp.json`,
+a root `.mcp.json` read natively by the Agents window's Agent Host — can
+carry only `command` + `args`, with no per-instance environment. For those,
+the same `out/mcp-server.js` starts with no `FORGEJO_MCP_*` variables at
+all and discovers the instance itself (`mcp/autoConfig.ts`, wired into
+`server.ts`; all of it is skipped the moment `FORGEJO_MCP_INSTANCE_URL` is
+set, so the VS Code-spawned path is unchanged).
 
 A static configuration cannot point at `out/mcp-server.js` directly: the
 install directory is versioned (`cpf23333.forgejo-toolkit-<version>`), so
@@ -147,11 +148,21 @@ rewritten on every activation — only when the content changed, so a plain
 window load does not bump the file's mtime — which is what makes the fixed
 path self-healing across upgrades. `deactivate()` does not remove it, and
 it is written regardless of the instance list: it describes the
-installation, not the accounts. The
-`forgejoToolkit.copyAgentsWindowMcpConfig` command generates the `.mcp.json`
-snippet with this path (clipboard, or merged into the workspace's
-`.mcp.json` preserving any other `servers` entries; an unparseable existing
-file is reported and left untouched).
+installation, not the accounts.
+
+The `forgejoToolkit.copyAgentsWindowMcpConfig` command generates the
+snippet with this shim path and offers three destinations: the user-level
+`mcp.json` (derived from `globalStorageUri` — two levels up is the owning
+profile's `User` directory, so a profile install lands in its own
+profile's registry, matching VS Code's per-profile MCP configuration), the
+workspace's `.vscode/mcp.json`, or the clipboard. Both write targets are
+merged (`servers` key merged, a same-named `forgejo` entry overridden, an
+unparseable existing file reported and left untouched). A root `.mcp.json`
+is deliberately **not** a write target: VS Code does not read it ("Cannot
+start unknown MCP server customization"), only the Agent Host does — and
+sessions with worktree isolation never see it, because the session
+workspace is the isolated worktree, not the user's checkout. VS Code reads
+the two targets above and forwards them to Agent Host sessions instead.
 
 To make that possible, the extension host additionally publishes an
 **instance registry** next to the per-window state files:
@@ -196,7 +207,17 @@ this order:
    registry instances match the same remote (two accounts on one host), the
    first wins and a stderr note says so — the registry carries no username,
    so the owner namespace cannot disambiguate; a known limitation.
-4. **No match** is a startup error listing the registry's (credential-free)
+4. **Last-resort guess from the newest state file.** Some MCP hosts launch
+   the server with a working directory that is no checkout at all — VS Code's
+   Agents window runs Agent Host servers from the user's home directory — so
+   both steps above can miss while the user clearly _has_ a Forgejo workflow.
+   The newest state file's `active` entry (the repository the editor context
+   is attributed to), or its first entry when nothing is flagged, then
+   supplies the instance URL. Because this is a guess that can pick the wrong
+   instance for the task at hand, the stderr log line says so explicitly
+   ("working directory matched nothing; verify this is the instance you
+   intend").
+5. **No match** is a startup error listing the registry's (credential-free)
    instance URLs and pointing at `FORGEJO_MCP_INSTANCE_URL`.
 
 The token still comes only from `FORGEJO_MCP_TOKEN`; a zero-configuration
@@ -372,6 +393,16 @@ implying a capability the tools do not have. Registration lives in
   disabled by default.
 - Tokens are injected via process env only; the server scrubs them from any
   error it returns (`userFacingErrorMessage` never includes headers).
+- That injection happens exclusively at spawn time, by the extension host. A
+  server started from a static `mcp.json` (the Agents window / Agent Host
+  route) is launched by VS Code without the extension, so it has no token and
+  reads anonymously. There is deliberately no fallback that would let the
+  child read SecretStorage itself — reaching into the OS credential store from
+  an external process is what credential theft looks like, and the boundary is
+  what keeps tokens off disk and out of logs. A user who needs authenticated
+  calls on that route puts `FORGEJO_MCP_TOKEN` into the `env` of their own
+  `mcp.json` entry by hand (a plaintext secret at rest; a read-only-scoped
+  token is recommended), or uses the main window where the injection exists.
 - Tool results truncate large bodies (comments, diffs, logs) to a fixed
   budget (~10 KB per field) and cap the whole serialized result (64 KB), with
   an explicit marker when either cap fires, to protect the agent's context

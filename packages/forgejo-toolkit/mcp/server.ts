@@ -43,9 +43,17 @@ async function main(): Promise<void> {
     // The discovered state file feeds get_workspace_repository when the
     // launch environment never provided one; an explicit one always wins.
     stateFile ??= auto.stateFile;
+    // The fallback phrasing says "guess" on purpose: the working directory
+    // matched nothing, so the instance came from the most recent workspace
+    // the extension saw — which may not be the one this session is about.
+    const viaMessage =
+      auto.via === 'state-file'
+        ? 'via the workspace state file.'
+        : auto.via === 'git-remote'
+          ? 'via the git remotes of the working directory.'
+          : 'via the most recent workspace state file (working directory matched nothing; verify this is the instance you intend).';
     logger.info(
-      `No FORGEJO_MCP_INSTANCE_URL configured; auto-matched instance ${redactInstanceUrl(url)} ` +
-        (auto.via === 'state-file' ? 'via the workspace state file.' : 'via the git remotes of the working directory.'),
+      `No FORGEJO_MCP_INSTANCE_URL configured; auto-matched instance ${redactInstanceUrl(url)} ${viaMessage}`,
     );
     if (auto.note) {
       logger.info(auto.note);

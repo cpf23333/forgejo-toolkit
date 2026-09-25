@@ -79,19 +79,19 @@ that use it, such as VSCodium.
 
 All commands are available from the Command Palette (`Ctrl+Shift+P`, prefix `Forgejo Toolkit`); some also appear in editor context menus and the status bar.
 
-| Command                           | What it does                                                                                  |
-| --------------------------------- | --------------------------------------------------------------------------------------------- |
-| Open Dashboard                    | Opens the Forgejo dashboard in the sidebar.                                                   |
-| Open Setup Guide                  | Opens the first-run setup wizard.                                                             |
-| Open Settings                     | Opens the extension settings view.                                                            |
-| Refresh Instances                 | Re-reads the instance configuration and refreshes the dashboard.                              |
-| Copy Permalink                    | Copies a permanent link to the current file or selection (also in the editor context menu).   |
-| Publish to Forgejo                | Publishes the current repository to your instance (also in the SCM view).                     |
-| View Log                          | Opens the "Forgejo Toolkit" output channel.                                                   |
-| Create PR from Current Branch     | Creates a pull request from the current branch (also in the status bar).                      |
-| Add Pull Review Comment           | Adds a review comment on the current diff line (also in the diff editor's line context menu). |
-| Delete Review Comment             | Deletes the review comment under the cursor.                                                  |
-| Copy MCP Config for Agents Window | Copies or writes a ready-to-use `.mcp.json` for the Agents window (see MCP Server).           |
+| Command                           | What it does                                                                                                                                          |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open Dashboard                    | Opens the Forgejo dashboard in the sidebar.                                                                                                           |
+| Open Setup Guide                  | Opens the first-run setup wizard.                                                                                                                     |
+| Open Settings                     | Opens the extension settings view.                                                                                                                    |
+| Refresh Instances                 | Re-reads the instance configuration and refreshes the dashboard.                                                                                      |
+| Copy Permalink                    | Copies a permanent link to the current file or selection (also in the editor context menu).                                                           |
+| Publish to Forgejo                | Publishes the current repository to your instance (also in the SCM view).                                                                             |
+| View Log                          | Opens the "Forgejo Toolkit" output channel.                                                                                                           |
+| Create PR from Current Branch     | Creates a pull request from the current branch (also in the status bar).                                                                              |
+| Add Pull Review Comment           | Adds a review comment on the current diff line (also in the diff editor's line context menu).                                                         |
+| Delete Review Comment             | Deletes the review comment under the cursor.                                                                                                          |
+| Copy MCP Config for Agents Window | Writes or copies a ready-to-use MCP config for the Agents window (user-level `mcp.json`, workspace `.vscode/mcp.json`, or clipboard; see MCP Server). |
 
 ## Compatibility
 
@@ -124,7 +124,7 @@ The extension ships a built-in MCP server that lets AI assistants — such as Co
 
 ### Using the server in the Agents window (or any static `mcp.json` host)
 
-The server definitions above are contributed by the extension, and VS Code does **not** resolve extension-contributed MCP servers in Agents window (Agent Host) sessions — a platform limitation. To use the server there, point a workspace `.mcp.json` at the **shim** the extension maintains in its globalStorage:
+The server definitions above are contributed by the extension, and VS Code does **not** resolve extension-contributed MCP servers in Agents window (Agent Host) sessions — a platform limitation. To use the server there, register it through a static MCP configuration pointing at the **shim** the extension maintains in its globalStorage:
 
 ```json
 {
@@ -139,9 +139,15 @@ The server definitions above are contributed by the extension, and VS Code does 
 
 The globalStorage directory differs per platform: `%APPDATA%\Code\User\globalStorage\cpf23333.forgejo-toolkit` on Windows, `~/Library/Application Support/Code/User/globalStorage/cpf23333.forgejo-toolkit` on macOS, `~/.config/Code/User/globalStorage/cpf23333.forgejo-toolkit` on Linux (Insiders builds use `Code - Insiders` instead of `Code`).
 
-Two ways to get there: run the **Forgejo Toolkit: Copy MCP Config for Agents Window** command — it can copy the snippet to the clipboard or merge it into the workspace's `.mcp.json` for you — or paste the JSON above by hand. Either way the path is the shim `mcp-server.js`, not the real server bundle: the extension rewrites the shim on every activation to point at the current installation, so the configuration survives extension upgrades (the versioned `cpf23333.forgejo-toolkit-<version>` install path it replaces would not).
+Three files can carry this snippet, and different consumers read them:
 
-No environment variables are needed: the server discovers the extension's published instance registry on its own and picks the instance by matching the session workspace's git remote (the working directory is decided by the session's workspace, not by the config file). Without a `FORGEJO_MCP_TOKEN` in `env` it reads anonymously — only public data is visible. The zero-configuration variant contains no secrets, but as a general rule don't commit `.mcp.json` into git: machine-specific absolute paths (and tokens, if you ever add an `env` block) don't belong in the repository.
+- **`<profile>/User/mcp.json`** (recommended) — VS Code's user-level MCP registry: applies to every workspace of the profile, and VS Code forwards it to Agent Host sessions.
+- **`.vscode/mcp.json`** inside a workspace — VS Code reads it for that workspace only and forwards it the same way.
+- **`.mcp.json` at the workspace root** — read natively by the Agent Host only: VS Code itself ignores it ("Cannot start unknown MCP server customization"), and sessions with worktree isolation never see it, because the session workspace is the isolated worktree, not your checkout.
+
+The easiest way to write one is the **Forgejo Toolkit: Copy MCP Config for Agents Window** command — it merges the snippet into the user-level `mcp.json` or the workspace `.vscode/mcp.json`, or copies it to the clipboard. Either way the path is the shim `mcp-server.js`, not the real server bundle: the extension rewrites the shim on every activation to point at the current installation, so the configuration survives extension upgrades (the versioned `cpf23333.forgejo-toolkit-<version>` install path it replaces would not).
+
+No environment variables are needed: the server discovers the extension's published instance registry on its own and picks the instance by matching the session workspace's git remote (the working directory is decided by the session's workspace, not by the config file). Without a `FORGEJO_MCP_TOKEN` in `env` it reads anonymously — only public data is visible. The zero-configuration variant contains no secrets, but as a general rule don't commit a workspace `mcp.json` into git: machine-specific absolute paths (and tokens, if you ever add an `env` block) don't belong in the repository.
 
 ## Known Limitations
 

@@ -42,7 +42,7 @@ Every command lives in the Command Palette (`Ctrl+Shift+P`, prefix `Forgejo Tool
 - The extension communicates with Forgejo via the REST API (`/api/v1`).
 - Access tokens are stored in VS Code SecretStorage (never in plain settings).
 - The webview uses `acquireVsCodeApi()` to communicate with the extension host.
-- The MCP server needs VS Code ≥ 1.102 and appears automatically in agent mode (no setup). In the Agents window, extension-contributed servers do not reach Agent Host sessions (a current VS Code limitation) — run **"Copy MCP Config for Agents Window"** from the Command Palette to generate a `.mcp.json` pointing at a stable, upgrade-proof path instead.
+- The MCP server needs VS Code ≥ 1.102 and appears automatically in agent mode (no setup). In the Agents window, extension-contributed servers do not reach Agent Host sessions (a current VS Code limitation) — run **"Copy MCP Config for Agents Window"** from the Command Palette to write the user-level `mcp.json` (or a workspace `.vscode/mcp.json`) pointing at a stable, upgrade-proof path instead.
 
 ## Development
 

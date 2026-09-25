@@ -5,7 +5,7 @@
 ## 发布 0.0.1（代码侧已完成，等待人工步骤）
 
 - [ ] 推送 `main`：领先 `codeberg` / `origin`，条数以 `git rev-list --count <remote>/main..main` 为准（不写死，避免过期）
-- [ ] 新 MCP 功能的真实环境走查（2026-09-25 新增，协议级 E2E 已过）：生产构建后在真实 VS Code 里确认——Chat 工具列表出现每个有 token 实例各自的 `Forgejo: <实例名>` server（共 29 个工具）、prompt 选择器出现 `review-pull-request` / `analyze-ci-failure` / `triage-issue` 三个模板、让 agent 回答「这个仓库的 open issues」验证它会自动调 `get_workspace_repository`
+- [ ] 新 MCP 功能的真实环境走查（2026-09-25 新增，协议级 E2E 已过）：生产构建后在真实 VS Code 里确认——Chat 工具列表出现每个有 token 实例各自的 `Forgejo: <实例名>` server（共 29 个工具）、prompt 选择器出现 `review-pull-request` / `analyze-ci-failure` / `triage-issue` 三个模板、让 agent 回答「这个仓库的 open issues」验证它会自动调 `get_workspace_repository`；另覆盖 Agents 窗口路径（2026-09-26 补）：在 Agents 窗口的工作区跑一次「为 Agents 窗口复制 MCP 配置」命令生成 `.mcp.json`，确认 Agent Host 会话能列出并调用工具、零配置自动匹配实例正确（git remote / 状态文件捷径各验一次）、匿名只读提示出现在 server 日志
 - [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **11 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断；`extension/NOTICE` 那条用于确认 DOMPurify 的 Apache-2.0 许可文本随包发出；`extension/out/webview/codicon.css` 与 `codicon.ttf` 两条是本次新增，用于确认 webview 的图标字体确实随包发出——只跑 webview 构建不会发现该 hook 失效），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`
 - [ ] 商店发布（需凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，步骤见 `docs/release.md` 的 Checklist
 - [ ] 发布后回填：① 把根 `CHANGELOG.md` 的 `## [Unreleased]` 改成 `## [0.0.1] - <发布日期>`，并原样复制到 `packages/forgejo-toolkit/CHANGELOG.md`（`packagingFiles.test.ts` 要求两份逐字节一致）；② 删掉 `README.md` / `README.zh.md` 安装段的「Not published yet / 尚未发布」提示，把 Marketplace 与 Open VSX 链接恢复成正常入口，并与 `docs/release.md` 的实际发布渠道对齐；③ 复核 `KNOWN_ISSUES` 中与版本相关的条目
@@ -65,10 +65,7 @@
 
 ## 第十轮审查后待修（2026-09-23 第十轮全仓扫描 + 独立复核）
 
-- [x] ~~**medium** MCP 的实例级过滤发生在服务端 500 行上限**之外**~~（2026-09-25 消解：`eef4045` 的多实例 fan-out 让每个 MCP server 只服务一个实例，工具面已不存在跨实例过滤点；同一提交引入的 `get_workspace_repository` 按实例 id 过滤本地状态文件，不涉及分页上限）
 - [ ] **low** 401/403 toast 的 URL 脱敏没有单元测试：该文件的 vscode mock 里 `window.showErrorMessage` 对宿主模块返回 `undefined`（同一对象在测试内直接调用却返回 promise），脱敏本身由 shared 的 `toPublicInstance` 测试与既有的 `redactInstanceUrl` 测试覆盖
-- [ ] **low** 「全部标为已读」跨实例（按钮文案与 tooltip 已如实说明）**刻意不做确认框**：与 VS Code 自身的通知「全部标为已读」以及 Forgejo Web UI 的同类操作一致，且确认框会挡住整个窗口；如日后要加，按 AGENTS.md 应加在宿主（`viewProvider` 的 `markAllNotificationsRead` 分派处），webview 侧不得自行 `showConfirm`
-- [ ] **low** `remoteComparisonKeys` 对绝对路径 scp 远端（`host:/srv/git/repo.git`）仍按「末两段是 owner/repo」解析。**决定：维持现状**——`host:/srv/git/owner/repo.git` 这种自管目录布局末两段本身就是正确的 owner/repo，与错误情形无法区分，拒绝会误伤真实场景；等上游有明确语义再定
 
 ## 第八轮审查后待修（2026-09-23；第六、七、八轮的确认项已全部修复并验证）
 

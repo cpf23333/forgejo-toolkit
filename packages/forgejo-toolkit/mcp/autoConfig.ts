@@ -22,7 +22,13 @@ import { stripUrlUserinfo } from '../src/utils/redactUrlUserinfo';
  *      `mcp-workspace-*.json` whose entries place the process's working
  *      directory inside a known checkout answers the instance URL directly,
  *   4. otherwise match the working directory's git remotes (parsed from
- *      `.git/config`, never by spawning git) against the registry.
+ *      `.git/config`, never by spawning git) against the registry,
+ *   5. as a last resort, guess from the newest state file: its `active` entry
+ *      (or its first entry) names the instance the user most recently worked
+ *      with. This is what keeps the server usable when the MCP host launches
+ *      it with a working directory that is no checkout at all — VS Code's
+ *      Agents window runs Agent Host servers from the user's home directory.
+ *      The guess is always announced on stderr, because it can be wrong.
  *
  * What this deliberately does *not* read: the editor's `state.vscdb` (where
  * the instance list actually lives) and the OS keychain (where tokens live).
@@ -67,7 +73,7 @@ export type AutoConfigResult =
       status: 'matched';
       /** The instance URL to connect to (userinfo-stripped, as the registry publishes it). */
       url: string;
-      via: 'state-file' | 'git-remote';
+      via: 'state-file' | 'git-remote' | 'state-file-fallback';
       /**
        * The newest readable workspace state file discovered along the way, so
        * the server can offer it to `get_workspace_repository` even when
@@ -230,9 +236,10 @@ async function readRegistries(
 
 /**
  * The newest readable workspace state file across the candidate directories.
- * Only the newest is consulted for the localPath shortcut: older files belong
- * to workspaces that were not touched as recently, and a stale second opinion
- * is worse than falling through to git remote matching.
+ * Only the newest is consulted — for the localPath shortcut and for the
+ * last-resort fallback alike: older files belong to workspaces that were not
+ * touched as recently, and a stale second opinion is worse than falling
+ * through to the next matching stage.
  */
 async function newestStateFile(dirs: string[]): Promise<string | undefined> {
   let newest: { filePath: string; mtimeMs: number } | undefined;
@@ -275,12 +282,12 @@ function normalizeLocalPath(localPath: string, platform: NodeJS.Platform): strin
 }
 
 /**
- * The instance URL of the state-file entry whose checkout contains the
- * working directory, if any. Entries are read leniently (writer and reader
- * can be on different extension versions); a file that does not parse simply
- * yields no shortcut, leaving remote matching to try.
+ * The repository entries of a state file, read leniently (writer and reader
+ * can be on different extension versions): entries without a usable
+ * localPath/instanceUrl pair are skipped, and a file that does not parse
+ * yields undefined — leaving the later matching stages to try.
  */
-async function matchStateFileEntry(stateFilePath: string, options: AutoConfigOptions): Promise<string | undefined> {
+async function readStateFileEntries(stateFilePath: string): Promise<Record<string, unknown>[] | undefined> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(await fs.promises.readFile(stateFilePath, 'utf8'));
@@ -291,20 +298,41 @@ async function matchStateFileEntry(stateFilePath: string, options: AutoConfigOpt
   if (!Array.isArray(list)) {
     return undefined;
   }
+  return (list as unknown[]).filter(
+    (entry): entry is Record<string, unknown> =>
+      !!entry &&
+      typeof entry === 'object' &&
+      typeof (entry as Record<string, unknown>).localPath === 'string' &&
+      typeof (entry as Record<string, unknown>).instanceUrl === 'string',
+  );
+}
+
+/**
+ * The instance URL of the state-file entry whose checkout contains the
+ * working directory, if any.
+ */
+function matchStateFileEntry(entries: Record<string, unknown>[], options: AutoConfigOptions): string | undefined {
   const cwd = normalizeLocalPath(options.cwd, options.platform);
-  for (const entry of list as unknown[]) {
-    if (!entry || typeof entry !== 'object') {
-      continue;
-    }
-    const candidate = entry as Record<string, unknown>;
-    if (typeof candidate.localPath !== 'string' || typeof candidate.instanceUrl !== 'string') {
-      continue;
-    }
-    if (normalizeLocalPath(candidate.localPath, options.platform) === cwd) {
-      return candidate.instanceUrl;
+  for (const candidate of entries) {
+    if (normalizeLocalPath(candidate.localPath as string, options.platform) === cwd) {
+      return candidate.instanceUrl as string;
     }
   }
   return undefined;
+}
+
+/**
+ * The fallback guess: the instance URL of the entry flagged `active` — the
+ * repository the user's editor context is attributed to — or, when no entry
+ * is flagged (the writer only sets the flag on unambiguous attribution), of
+ * the first entry. Either way this is the instance the user most recently
+ * worked with, which is the best available answer when the working directory
+ * itself matches nothing.
+ */
+function fallbackStateFileEntryUrl(entries: Record<string, unknown>[]): string | undefined {
+  const active = entries.find((entry) => entry.active === true);
+  const pick = active ?? entries[0];
+  return pick?.instanceUrl as string | undefined;
 }
 
 /**
@@ -519,10 +547,12 @@ export async function resolveAutoConfiguration(
   }
 
   // Shortcut: the newest workspace state file may already know which instance
-  // this working directory's checkout belongs to.
+  // this working directory's checkout belongs to. The entries are read once
+  // and shared with the last-resort fallback below.
   const stateFile = await newestStateFile(dirs);
-  if (stateFile) {
-    const instanceUrl = await matchStateFileEntry(stateFile, options);
+  const stateEntries = stateFile ? await readStateFileEntries(stateFile) : undefined;
+  if (stateEntries) {
+    const instanceUrl = matchStateFileEntry(stateEntries, options);
     if (instanceUrl) {
       return { status: 'matched', url: instanceUrl, via: 'state-file', stateFile };
     }
@@ -540,6 +570,18 @@ export async function resolveAutoConfiguration(
         ? `Several configured instances match ${stripUrlUserinfo(match.remoteUrl)}; using the first (${match.instance.name || match.instance.url}). Set FORGEJO_MCP_INSTANCE_URL to pick another.`
         : undefined,
     };
+  }
+
+  // Last resort: the working directory matched nothing (the Agents window's
+  // Agent Host launches servers from the user's home directory, which is no
+  // checkout at all), so guess the instance the user most recently worked
+  // with from the newest state file. This can pick the wrong instance for
+  // the task at hand — the caller logs it as a guess, not as a match.
+  if (stateEntries) {
+    const fallbackUrl = fallbackStateFileEntryUrl(stateEntries);
+    if (fallbackUrl) {
+      return { status: 'matched', url: fallbackUrl, via: 'state-file-fallback', stateFile };
+    }
   }
 
   const configured =

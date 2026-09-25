@@ -8,12 +8,27 @@ import {
   buildAgentsWindowMcpConfig,
   copyAgentsWindowMcpConfig,
   mergeMcpConfigIntoFile,
+  userMcpJsonPath,
   type AgentsWindowMcpConfig,
 } from '../agentsWindowMcpConfig';
 import { mcpServerShimFilePath } from '../../mcpWorkspaceState';
 
 function makeLogger(): Logger {
   return { debug: vi.fn(), info: vi.fn(), error: vi.fn() } as unknown as Logger;
+}
+
+/**
+ * The shared vscode mock's `Uri.joinPath` stringifies its arguments, which
+ * turns a plain `{ fsPath }` base into "[object Object]/...". The product
+ * code joins real Uris, so these tests substitute an implementation that
+ * resolves the segments against the base's fsPath — close enough to the
+ * real `joinPath` for the relative `..` segments the command uses.
+ */
+function mockRealisticJoinPath(): void {
+  vi.mocked(vscode.Uri.joinPath).mockImplementation(
+    (base: vscode.Uri, ...segments: string[]) =>
+      ({ fsPath: path.join(base.fsPath, ...segments), scheme: 'file' }) as vscode.Uri,
+  );
 }
 
 describe('buildAgentsWindowMcpConfig', () => {
@@ -24,6 +39,23 @@ describe('buildAgentsWindowMcpConfig', () => {
   });
 });
 
+describe('userMcpJsonPath', () => {
+  beforeEach(() => {
+    mockRealisticJoinPath();
+  });
+
+  it('resolves two levels above globalStorageUri: the profile’s User directory', () => {
+    // globalStorage is `<profile>/User/globalStorage/<publisher>.<name>`;
+    // the user-level MCP registry lives in the profile's User directory,
+    // and a profile install must land in its own profile's mcp.json.
+    const context = {
+      globalStorageUri: { fsPath: path.join('profiles', 'work', 'User', 'globalStorage', 'cpf23333.forgejo-toolkit') },
+    } as unknown as vscode.ExtensionContext;
+
+    expect(userMcpJsonPath(context)).toBe(path.join('profiles', 'work', 'User', 'mcp.json'));
+  });
+});
+
 describe('mergeMcpConfigIntoFile', () => {
   let tempDir: string;
   let mcpJsonPath: string;
@@ -31,7 +63,7 @@ describe('mergeMcpConfigIntoFile', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-config-test-'));
-    mcpJsonPath = path.join(tempDir, '.mcp.json');
+    mcpJsonPath = path.join(tempDir, 'mcp.json');
   });
 
   afterEach(() => {
@@ -42,6 +74,23 @@ describe('mergeMcpConfigIntoFile', () => {
     await mergeMcpConfigIntoFile(mcpJsonPath, config);
 
     expect(JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'))).toEqual(config);
+  });
+
+  it('creates a missing user-level file with the inputs scaffold VS Code writes there', async () => {
+    await mergeMcpConfigIntoFile(mcpJsonPath, config, { servers: {}, inputs: [] });
+
+    expect(JSON.parse(fs.readFileSync(mcpJsonPath, 'utf8'))).toEqual({
+      servers: { forgejo: { command: 'node', args: ['/storage/mcp-server.js'] } },
+      inputs: [],
+    });
+  });
+
+  it('creates the parent directory when the target lives in a not-yet-existing .vscode', async () => {
+    const nested = path.join(tempDir, 'workspace', '.vscode', 'mcp.json');
+
+    await mergeMcpConfigIntoFile(nested, config);
+
+    expect(JSON.parse(fs.readFileSync(nested, 'utf8'))).toEqual(config);
   });
 
   it('merges into an existing file, keeping other servers and top-level keys', async () => {
@@ -94,6 +143,7 @@ describe('mergeMcpConfigIntoFile', () => {
 describe('copyAgentsWindowMcpConfig', () => {
   let tempDir: string;
   let workspaceDir: string;
+  let userDir: string;
   let logger: Logger;
   let context: vscode.ExtensionContext;
 
@@ -101,13 +151,15 @@ describe('copyAgentsWindowMcpConfig', () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-command-test-'));
     workspaceDir = path.join(tempDir, 'workspace');
     fs.mkdirSync(workspaceDir);
+    userDir = path.join(tempDir, 'User');
     logger = makeLogger();
     context = {
       subscriptions: [] as { dispose(): unknown }[],
-      globalStorageUri: { fsPath: path.join(tempDir, 'globalStorage') },
+      globalStorageUri: { fsPath: path.join(userDir, 'globalStorage', 'cpf23333.forgejo-toolkit') },
       extensionUri: { fsPath: 'D:\\extensions\\cpf23333.forgejo-toolkit-0.0.1' },
     } as unknown as vscode.ExtensionContext;
     vi.clearAllMocks();
+    mockRealisticJoinPath();
   });
 
   afterEach(() => {
@@ -133,6 +185,29 @@ describe('copyAgentsWindowMcpConfig', () => {
     );
   });
 
+  it('offers the user-level write first, then the workspace write, then the clipboard', async () => {
+    openWorkspace();
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce(undefined);
+
+    await copyAgentsWindowMcpConfig(context, logger);
+
+    const [, ...actions] = vi.mocked(vscode.window.showInformationMessage).mock.calls[0];
+    expect(actions).toEqual([
+      'Write to User mcp.json (Recommended)',
+      'Write to Workspace .vscode/mcp.json',
+      'Copy to Clipboard',
+    ]);
+  });
+
+  it('offers no workspace write when no workspace folder is open', async () => {
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce(undefined);
+
+    await copyAgentsWindowMcpConfig(context, logger);
+
+    const [, ...actions] = vi.mocked(vscode.window.showInformationMessage).mock.calls[0];
+    expect(actions).toEqual(['Write to User mcp.json (Recommended)', 'Copy to Clipboard']);
+  });
+
   it('copies the snippet to the clipboard', async () => {
     vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce('Copy to Clipboard' as never);
 
@@ -142,50 +217,68 @@ describe('copyAgentsWindowMcpConfig', () => {
     const copied = vi.mocked(vscode.env.clipboard.writeText).mock.calls[0][0];
     expect(JSON.parse(copied)).toEqual({
       servers: {
-        forgejo: { command: 'node', args: [path.join(tempDir, 'globalStorage', 'mcp-server.js')] },
+        forgejo: {
+          command: 'node',
+          args: [path.join(userDir, 'globalStorage', 'cpf23333.forgejo-toolkit', 'mcp-server.js')],
+        },
       },
     });
   });
 
-  it('offers no write action when no workspace folder is open', async () => {
-    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce(undefined);
-
-    await copyAgentsWindowMcpConfig(context, logger);
-
-    const [, ...actions] = vi.mocked(vscode.window.showInformationMessage).mock.calls[0];
-    expect(actions).toEqual(['Copy to Clipboard']);
-  });
-
-  it('merges the snippet into the workspace .mcp.json after the advisory is confirmed', async () => {
-    openWorkspace();
-    // The first info message picks the write action; the modal warning
+  it('writes the user-level mcp.json of the owning profile after the advisory is confirmed', async () => {
+    // The first info message picks the user write action; the modal warning
     // default (extension-setup) accepts its first action, i.e. the write.
-    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce('Write to Workspace .mcp.json' as never);
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce(
+      'Write to User mcp.json (Recommended)' as never,
+    );
 
     await copyAgentsWindowMcpConfig(context, logger);
 
-    const written = JSON.parse(fs.readFileSync(path.join(workspaceDir, '.mcp.json'), 'utf8'));
-    expect(written.servers.forgejo.args).toEqual([path.join(tempDir, 'globalStorage', 'mcp-server.js')]);
+    const target = path.join(userDir, 'mcp.json');
+    const written = JSON.parse(fs.readFileSync(target, 'utf8'));
+    expect(written.servers.forgejo.args).toEqual([
+      path.join(userDir, 'globalStorage', 'cpf23333.forgejo-toolkit', 'mcp-server.js'),
+    ]);
+    // A fresh user-level file carries the inputs scaffold VS Code itself
+    // writes there.
+    expect(written.inputs).toEqual([]);
   });
 
-  it('does not touch the workspace file when the advisory is declined', async () => {
+  it('merges the snippet into the workspace .vscode/mcp.json after the advisory is confirmed', async () => {
     openWorkspace();
-    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce('Write to Workspace .mcp.json' as never);
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce(
+      'Write to Workspace .vscode/mcp.json' as never,
+    );
+
+    await copyAgentsWindowMcpConfig(context, logger);
+
+    const written = JSON.parse(fs.readFileSync(path.join(workspaceDir, '.vscode', 'mcp.json'), 'utf8'));
+    expect(written.servers.forgejo.args).toEqual([
+      path.join(userDir, 'globalStorage', 'cpf23333.forgejo-toolkit', 'mcp-server.js'),
+    ]);
+  });
+
+  it('does not touch any file when the advisory is declined', async () => {
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce(
+      'Write to User mcp.json (Recommended)' as never,
+    );
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined);
 
     await copyAgentsWindowMcpConfig(context, logger);
 
-    expect(fs.existsSync(path.join(workspaceDir, '.mcp.json'))).toBe(false);
+    expect(fs.existsSync(path.join(userDir, 'mcp.json'))).toBe(false);
   });
 
-  it('reports a broken existing .mcp.json and leaves it unchanged', async () => {
-    openWorkspace();
-    fs.writeFileSync(path.join(workspaceDir, '.mcp.json'), '{ not json', 'utf8');
-    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce('Write to Workspace .mcp.json' as never);
+  it('reports a broken existing mcp.json and leaves it unchanged', async () => {
+    fs.mkdirSync(userDir, { recursive: true });
+    fs.writeFileSync(path.join(userDir, 'mcp.json'), '{ not json', 'utf8');
+    vi.mocked(vscode.window.showInformationMessage).mockResolvedValueOnce(
+      'Write to User mcp.json (Recommended)' as never,
+    );
 
     await copyAgentsWindowMcpConfig(context, logger);
 
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('not valid JSON'));
-    expect(fs.readFileSync(path.join(workspaceDir, '.mcp.json'), 'utf8')).toBe('{ not json');
+    expect(fs.readFileSync(path.join(userDir, 'mcp.json'), 'utf8')).toBe('{ not json');
   });
 });
