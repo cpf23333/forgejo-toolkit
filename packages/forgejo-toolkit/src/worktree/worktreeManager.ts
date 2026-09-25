@@ -63,6 +63,15 @@ export const CACHE_REPO_MAX_COUNT = 20;
  * checkout's directory and its immediate entries (see isAgedOut).
  */
 export const WORKTREE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * A `<name>.git.clone-owner.<token>` marker file older than this is reclaimed by
+ * the sweep. cloneRepository deletes its own marker when the attempt settles, so
+ * a marker that outlives a day can only be the orphan of a crashed process; while
+ * it sits there, every failure cleanup for that path declines (the marker reads
+ * as "another window's clone is in flight"), so a crash would otherwise disable
+ * that cleanup forever.
+ */
+export const CLONE_OWNER_MARKER_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Verify that a directory can serve as the worktree cache: create it when it
@@ -289,9 +298,11 @@ export class WorktreeManager {
 
   /**
    * Lazily removes what the cache directory accumulated: bare clones
-   * (`<cacheDir>/repos/*.git`) and abandoned worktree checkouts
+   * (`<cacheDir>/repos/*.git`), orphaned clone-ownership markers a crashed
+   * `cloneRepository` left beside them, and abandoned worktree checkouts
    * (`<cacheDir>/worktrees/*`). Triggered from worktree operations — never a
-   * timer. Returns the removed names (repositories first, then worktrees).
+   * timer. Returns the removed names (repositories first, then worktrees);
+   * reclaimed markers are bookkeeping files, not caches, so they are not listed.
    *
    * `protectedPaths` names bare clones the caller is using right now (a clone it
    * just touched, before it has a worktree record that would protect it). Such a
@@ -315,6 +326,29 @@ export class WorktreeManager {
     const reposDir = path.join(this.getCacheDirectory(), 'repos');
     const resolvedReposDir = path.resolve(reposDir);
     const entries = await fs.promises.readdir(reposDir, { withFileTypes: true }).catch(() => [] as fs.Dirent[]);
+    // Before the repo sweep below (and its early return for an empty directory):
+    // reclaim the `.clone-owner.*` marker a crashed clone attempt left behind, or
+    // it would sit there forever and make cloneRepository's failure cleanup
+    // decline this path indefinitely (the marker reads as "another clone is in
+    // flight"). Only a marker older than CLONE_OWNER_MARKER_MAX_AGE_MS goes: its
+    // owner deletes it when the attempt settles, so a young one may belong to a
+    // clone running right now, and a failed clone leaves a *fresh* marker that
+    // must survive until that attempt's own cleanup has read it.
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.includes('.clone-owner.')) {
+        continue;
+      }
+      const markerPath = path.join(reposDir, entry.name);
+      const stats = await fs.promises.stat(markerPath).catch(() => undefined);
+      // Unreadable counts as young: the age decides a deletion, so a marker whose
+      // state cannot be probed is never deleted on the strength of a failed read.
+      if (!stats || now - stats.mtimeMs <= CLONE_OWNER_MARKER_MAX_AGE_MS) {
+        continue;
+      }
+      // Best-effort: a marker that cannot be deleted stays and is retried by the
+      // next sweep.
+      await fs.promises.rm(markerPath, { force: true }).catch(() => undefined);
+    }
     const candidates = entries.filter((entry) => entry.isDirectory() && entry.name.endsWith('.git'));
     if (candidates.length === 0) {
       return [];
@@ -453,11 +487,17 @@ function pathKey(target: string): string {
  * Whether a checkout has been untouched for WORKTREE_MAX_AGE_MS.
  *
  * The newest mtime of the directory *and of its immediate entries* is what
- * counts, not the root's alone: a linked worktree's root mtime only moves when
- * an entry is added to or removed from the root itself, while editing
- * `src/file.ts` updates `src`'s mtime. Reading the root alone would age out a
- * checkout its owner still works in. Only immediate entries are read, so a
- * `node_modules`-sized tree is never walked.
+ * counts. A directory's mtime only moves when a direct child is added,
+ * removed or renamed — editing `src/file.ts` updates that file's own mtime,
+ * not `src`'s — so this probe notices churn at the root and edits to
+ * top-level files, but cannot see work happening deeper in the tree; for
+ * that, it is equivalent to reading the root mtime alone. That blind spot is
+ * accepted: age is only one of three conditions a deletion requires (the path
+ * must also be unreferenced and carry the abandoned-worktree marker), so a
+ * checkout whose record and marker are gone is not kept alive by an edit the
+ * probe cannot see, and a live checkout is protected by its record, not by
+ * this probe. Only immediate entries are read, so a `node_modules`-sized tree
+ * is never walked.
  *
  * Anything unreadable counts as recent: the age is what decides a deletion, so
  * a directory whose state cannot be determined must never be deleted on the

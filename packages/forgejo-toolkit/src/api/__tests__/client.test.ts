@@ -93,6 +93,39 @@ describe('ForgejoClient with MSW', () => {
     expect(user.email).toBe(mockUser.email);
   });
 
+  describe('Authorization header', () => {
+    function captureAuthorization(): () => string | null {
+      let seen: string | null = null;
+      mockServer.use(
+        http.get('https://*/api/v1/user', ({ request }) => {
+          seen = request.headers.get('authorization');
+          return HttpResponse.json(mockUser);
+        }),
+      );
+      return () => seen;
+    }
+
+    it('sends the token as the Authorization header', async () => {
+      const seen = captureAuthorization();
+      await createClient().getCurrentUser();
+      expect(seen()).toBe('token mock-token');
+    });
+
+    it('sends no Authorization header when the token is empty (anonymous access)', async () => {
+      // `Authorization: token ` with an empty credential makes some servers
+      // reject the request outright instead of treating it as anonymous.
+      const seen = captureAuthorization();
+      await new ForgejoClient('https://forgejo.example.com', '').getCurrentUser();
+      expect(seen()).toBeNull();
+    });
+
+    it('sends no Authorization header when the token is only whitespace', async () => {
+      const seen = captureAuthorization();
+      await new ForgejoClient('https://forgejo.example.com', '   ').getCurrentUser();
+      expect(seen()).toBeNull();
+    });
+  });
+
   it('fetches user stopwatches', async () => {
     const client = createClient();
     const stopwatches = await client.getUserStopWatches();
@@ -1609,6 +1642,70 @@ describe('ForgejoClient with MSW', () => {
     });
   });
 
+  describe('sub-path deployments on one host', () => {
+    // Two instances can share a host under different sub-paths (`/a`, `/b`) and
+    // even share a token; they are different servers, so an origin-keyed cache
+    // would let one answer the other with the wrong repository data.
+    const subPathClients = () => ({
+      clientA: new ForgejoClient('https://forgejo.example.com/a', 'shared-token'),
+      // The trailing slash exercises the key normalization: both spellings of
+      // one deployment must share their entries.
+      clientA2: new ForgejoClient('https://forgejo.example.com/a/', 'shared-token'),
+      clientB: new ForgejoClient('https://forgejo.example.com/b', 'shared-token'),
+    });
+
+    it('does not share the git tree cache between two sub-path deployments', async () => {
+      mockServer.use(
+        http.get('https://forgejo.example.com/a/api/v1/repos/:owner/:repo/git/trees/:sha', () =>
+          HttpResponse.json({ tree: [{ path: 'a-only.ts', type: 'blob', sha: 'sha-a', size: 1 }], truncated: false }),
+        ),
+        http.get('https://forgejo.example.com/b/api/v1/repos/:owner/:repo/git/trees/:sha', () =>
+          HttpResponse.json({ tree: [{ path: 'b-only.ts', type: 'blob', sha: 'sha-b', size: 1 }], truncated: false }),
+        ),
+      );
+      const { clientA, clientA2, clientB } = subPathClients();
+
+      const filesA = (await clientA.searchRepoFiles('demo-user', 'demo-repo', 'main', 'only')).files.map(
+        (entry) => entry.path,
+      );
+      const filesB = (await clientB.searchRepoFiles('demo-user', 'demo-repo', 'main', 'only')).files.map(
+        (entry) => entry.path,
+      );
+      // The two spellings of deployment /a share their cached tree.
+      const filesA2 = (await clientA2.searchRepoFiles('demo-user', 'demo-repo', 'main', 'only')).files.map(
+        (entry) => entry.path,
+      );
+
+      expect(filesA).toEqual(['a-only.ts']);
+      expect(filesB).toEqual(['b-only.ts']);
+      expect(filesA2).toEqual(['a-only.ts']);
+    });
+
+    it('does not share the repo contents memo between two sub-path deployments', async () => {
+      const entryFor = (marker: string) => ({
+        name: 'file.txt',
+        path: 'file.txt',
+        type: 'file',
+        content: Buffer.from(marker).toString('base64'),
+      });
+      mockServer.use(
+        http.get('https://forgejo.example.com/a/api/v1/repos/:owner/:repo/contents/:path', () =>
+          HttpResponse.json(entryFor('from-a')),
+        ),
+        http.get('https://forgejo.example.com/b/api/v1/repos/:owner/:repo/contents/:path', () =>
+          HttpResponse.json(entryFor('from-b')),
+        ),
+      );
+      const { clientA, clientB } = subPathClients();
+
+      const contentsA = await clientA.getRepoContents('demo-user', 'demo-repo', 'file.txt');
+      const contentsB = await clientB.getRepoContents('demo-user', 'demo-repo', 'file.txt');
+
+      expect(Buffer.from(contentsA[0].content ?? '', 'base64').toString()).toBe('from-a');
+      expect(Buffer.from(contentsB[0].content ?? '', 'base64').toString()).toBe('from-b');
+    });
+  });
+
   describe('Branch, tag, and release CRUD', () => {
     it('creates a branch', async () => {
       const client = createClient();
@@ -1704,6 +1801,20 @@ describe('ForgejoClient with MSW', () => {
       const result = await client.searchMentions('demo-user', 'demo-repo', 'login', 'all');
       expect(result.users.length).toBeGreaterThan(0);
       expect(result.issues.length).toBeGreaterThan(0);
+    });
+
+    it('logs a failed mention lookup instead of swallowing it silently', async () => {
+      // The suggestions are best-effort (a failed lookup must not break the
+      // composer), but a silently dropped failure made a systematically broken
+      // endpoint undiagnosable — `_probe` logs for the same reason.
+      mockServer.use(http.get('https://*/api/v1/users/search', () => new HttpResponse(null, { status: 500 })));
+      const logger = { isDebugEnabled: () => true, debug: vi.fn(), info: vi.fn(), error: vi.fn() };
+      const client = new ForgejoClient('https://forgejo.example.com', 'mock-token', logger);
+
+      const result = await client.searchMentions('demo-user', 'demo-repo', 'login', 'user');
+
+      expect(result.users).toEqual([]);
+      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('searchMentions users'));
     });
 
     it('fetches user preview', async () => {
@@ -1953,6 +2064,46 @@ describe('ForgejoClient with MSW', () => {
       // The numeric id is what the delete endpoint takes; dropping it left the
       // webview unable to remove an attachment it had just uploaded.
       expect(attachment.id).toBe(mockIssueAttachment.id);
+    });
+
+    it('leaves the download URL unset instead of inventing /attachments/undefined when the uuid is missing', async () => {
+      // The fallback URL is built from the uuid; without one the old code
+      // produced a working-looking link that only 404s when opened.
+      mockServer.use(
+        http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/assets', () =>
+          HttpResponse.json({ id: 21, name: 'screenshot.png' }),
+        ),
+      );
+      const client = createClient();
+
+      const attachment = await client.createIssueAttachment(
+        'demo-user',
+        'demo-repo',
+        1,
+        new Uint8Array([1, 2, 3]),
+        'screenshot.png',
+      );
+
+      expect(attachment.browser_download_url).toBeUndefined();
+    });
+
+    it('builds the fallback download URL without a double slash for an instance URL with a trailing slash', async () => {
+      mockServer.use(
+        http.post('https://*/api/v1/repos/:owner/:repo/issues/:index/assets', () =>
+          HttpResponse.json({ id: 21, uuid: 'attach-uuid', name: 'screenshot.png' }),
+        ),
+      );
+      const client = new ForgejoClient('https://forgejo.example.com/', 'mock-token');
+
+      const attachment = await client.createIssueAttachment(
+        'demo-user',
+        'demo-repo',
+        1,
+        new Uint8Array([1, 2, 3]),
+        'screenshot.png',
+      );
+
+      expect(attachment.browser_download_url).toBe('https://forgejo.example.com/attachments/attach-uuid');
     });
 
     it('deletes an issue attachment', async () => {
@@ -2425,6 +2576,18 @@ describe('ForgejoClient with MSW', () => {
   });
 
   describe('Pagination', () => {
+    it('treats a non-array page answer (a 204 the shared client surfaces as {}) as an empty page', async () => {
+      // The shared request client answers 204/205/304 with `{}` rather than an
+      // array; spreading that into the accumulator would throw, so a non-array
+      // page is treated as the end of the list.
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/branches', () => new HttpResponse(null, { status: 204 })),
+      );
+      const client = createClient();
+
+      await expect(client.getRepoBranches('demo-user', 'demo-repo')).resolves.toEqual([]);
+    });
+
     it('fetches all branch pages until a short page is returned', async () => {
       const client = createClient();
       const requestedPages: number[] = [];
@@ -2652,9 +2815,11 @@ describe('ForgejoClient with MSW', () => {
       const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'artifact-test-'));
       try {
         const target = path.join(dir, 'huge.zip');
+        // The message interpolates the cap actually in force — here the small
+        // test value, not the 2 GB default.
         await expect(
           client.downloadActionArtifactToFile('demo-user', 'demo-repo', 1, target, undefined, 4),
-        ).rejects.toThrow(/exceeds the 2 GB size limit/);
+        ).rejects.toThrow(/exceeds the 4 bytes size limit/);
         // The oversized download must not leave a file behind.
         await expect(fs.promises.access(target)).rejects.toThrow();
         await expect(fs.promises.access(`${target}.part`)).rejects.toThrow();
@@ -3306,6 +3471,64 @@ describe('ForgejoClient with MSW', () => {
 
       expect(result[0].html_url).toBe('https://configured.example.com/demo-user/repo-0');
       expect(result[1].html_url).toBe('https://configured.example.com/demo-user/repo-1');
+    });
+
+    it('does not skip a same-shaped payload when only the values change to carry URLs', () => {
+      // The fingerprint is structural, so the memo verdict may only ever be
+      // recorded for a URL-free payload — and URL-ness is part of the
+      // fingerprint, so the second response below (identical keys, identical
+      // types, but `html_url` now holds a URL on the detected origin) must not
+      // hit the verdict the first one recorded.
+      const client = new ForgejoClient('https://configured.example.com', 'mock-token');
+      const internals = client as unknown as Internals;
+      const urlFree = [
+        { id: 1, name: 'repo-0', html_url: '' },
+        { id: 2, name: 'repo-1', html_url: '' },
+      ];
+      expect(internals._rewriteResponseData(urlFree)).toBe(urlFree);
+
+      const withUrls = [
+        { id: 1, name: 'repo-0', html_url: 'https://api-host.example.net/demo-user/repo-0' },
+        { id: 2, name: 'repo-1', html_url: 'https://api-host.example.net/demo-user/repo-1' },
+      ];
+      const result = internals._rewriteResponseData(withUrls);
+
+      expect(result).not.toBe(withUrls);
+      expect(result[0].html_url).toBe('https://configured.example.com/demo-user/repo-0');
+      expect(result[1].html_url).toBe('https://configured.example.com/demo-user/repo-1');
+    });
+
+    it('rewrites an avatar URL that sits on the detected server origin', () => {
+      // Avatars are excluded from origin *detection* (an external avatar host
+      // must not win the vote), but an avatar served by the instance itself
+      // sits on the detected origin. The webview proxies avatars only when
+      // they are same-origin with the configured URL, so leaving this one
+      // alone renders a broken image for an instance the webview cannot reach.
+      const client = new ForgejoClient('https://configured.example.com', 'mock-token');
+      const internals = client as unknown as Internals;
+      const payload = {
+        html_url: 'https://api-host.example.net/demo-user/demo-repo',
+        owner: { login: 'demo-user', avatar_url: 'https://api-host.example.net/avatars/demo-user.png' },
+      };
+
+      const result = internals._rewriteResponseData(payload);
+
+      expect(result.html_url).toBe('https://configured.example.com/demo-user/demo-repo');
+      expect(result.owner.avatar_url).toBe('https://configured.example.com/avatars/demo-user.png');
+    });
+
+    it('rewrites the payload when only an avatar URL points at the detected origin', () => {
+      // Once the origin is known from an earlier payload, a payload whose only
+      // detected-origin URL is an avatar still needs the rewrite pass; the
+      // avatar exclusion belongs to detection, not to the rewrite trigger.
+      const client = new ForgejoClient('https://configured.example.com', 'mock-token');
+      const internals = client as unknown as Internals;
+      internals._rewriteResponseData({ html_url: 'https://api-host.example.net/demo-user/demo-repo' });
+
+      const payload = { login: 'demo-user', avatar_url: 'https://api-host.example.net/avatars/demo-user.png' };
+      const result = internals._rewriteResponseData(payload);
+
+      expect(result.avatar_url).toBe('https://configured.example.com/avatars/demo-user.png');
     });
 
     it('leaves an avatar or website URL on an external host alone', () => {

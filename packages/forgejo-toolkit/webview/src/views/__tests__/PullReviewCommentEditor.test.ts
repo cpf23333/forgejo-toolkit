@@ -341,3 +341,68 @@ describe('PullReviewCommentEditor completion-reply attribution', () => {
     wrapper.unmount();
   });
 });
+
+/**
+ * The completion message is the only thing that releases `submitting`, and this
+ * panel posts with `postMessage` directly — it is not covered by the main
+ * panel's `registerPending` timeout. A host that never answers would leave the
+ * buttons disabled for the rest of the session, so the editor arms its own
+ * one-minute fallback.
+ */
+describe('PullReviewCommentEditor submit timeout', () => {
+  beforeEach(() => {
+    postMessageMock.mockClear();
+  });
+
+  it('releases the guard when the host never answers', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mountEditor(createContext());
+      await wrapper.find('[data-stub="easymde"]').setValue('hello');
+      const submitButton = wrapper.findAll('vscode-button')[0];
+
+      await submitButton.trigger('click');
+      expect(postMessageMock).toHaveBeenCalledTimes(1);
+
+      // A click inside the timeout window is still guarded.
+      await vi.advanceTimersByTimeAsync(59_000);
+      await submitButton.trigger('click');
+      expect(postMessageMock).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await submitButton.trigger('click');
+      expect(postMessageMock).toHaveBeenCalledTimes(2);
+      wrapper.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not release the guard a second time after a real answer cleared the timer', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mountEditor(createContext({ mode: 'review', pendingReviewId: 5 }));
+
+      // Buttons: addToReview, submitReview, cancelReview, close.
+      const cancelButton = wrapper.findAll('vscode-button')[2];
+      await cancelButton.trigger('click');
+      expect(postMessageMock).toHaveBeenCalledTimes(1);
+
+      dispatchHostReply('pullReviewDeleted');
+      await nextTick();
+
+      // The answer cleared the fallback timer: a new request posted after the
+      // original window must stay guarded by its own timer, not be released
+      // early by the previous one's.
+      await vi.advanceTimersByTimeAsync(30_000);
+      await cancelButton.trigger('click');
+      expect(postMessageMock).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(31_000);
+      await cancelButton.trigger('click');
+      expect(postMessageMock).toHaveBeenCalledTimes(2);
+      wrapper.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

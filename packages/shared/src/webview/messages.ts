@@ -93,6 +93,10 @@ function redactUserinfo(url: string): string {
  * Exported because the webview's instance *forms* build a functional URL from
  * what the user typed (the token-settings link), where there is no
  * `PublicForgejoInstance` to read `functionalUrl` from.
+ *
+ * Only ever call this on http(s) instance URLs. It must not be reused for git
+ * remotes: an `ssh://` remote's userinfo is the login name, and stripping it
+ * would silently re-target the remote (`ssh://git@host/...` → `ssh://host/...`).
  */
 export function stripUserinfo(url: string): string {
   if (!url.includes('@')) {
@@ -113,6 +117,25 @@ export function stripUserinfo(url: string): string {
   parsed.password = '';
   return parsed.toString();
 }
+
+/**
+ * An instance entry as sent to the webview in the `importInstancesPreview`
+ * reply: every field of `ForgejoInstance` except `token`.
+ *
+ * The import file's tokens stay in the extension host — stashed on preview and
+ * rehydrated by id when the import is confirmed — so the preview payload must
+ * never carry one. `token?: never` makes that exclusion structural instead of
+ * a sender-side convention (the same defense-in-depth idea as
+ * `PublicForgejoInstance`/`toPublicInstance` above): an entry that still holds
+ * a token fails to type-check at the reply's construction site instead of
+ * leaking silently the day an edit forgets to strip it. The property is
+ * declared optional rather than omitted so a token-less
+ * `Omit<ForgejoInstance, 'token'>` object stays assignable to it.
+ */
+export type ImportPreviewInstance = Omit<ForgejoInstance, 'token'> & {
+  /** Never present: token values never cross into the webview process. */
+  token?: never;
+};
 
 export function toPublicInstance(instance: ForgejoInstance): PublicForgejoInstance {
   return {
@@ -838,11 +861,13 @@ export type HostToWebviewMessage =
   | {
       command: 'importInstancesPreview';
       /**
-       * Instances from the export file with `token` stripped to '' — token
-       * values never leave the extension host. The host keeps the full
-       * entries stashed and rehydrates them by id on `importInstances`.
+       * Instances from the export file without their tokens: the field is
+       * excluded at the type level (`ImportPreviewInstance`), so a payload
+       * that still carries a token does not compile at the sender. The host
+       * keeps the full entries stashed and rehydrates them by id on
+       * `importInstances`.
        */
-      instances: ForgejoInstance[];
+      instances: ImportPreviewInstance[];
       existingIds: string[];
       /**
        * Parallel to `instances`: true when the token collides with a

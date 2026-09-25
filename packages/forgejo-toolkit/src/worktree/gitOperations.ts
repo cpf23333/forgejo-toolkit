@@ -7,7 +7,7 @@ import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolki
 import { isSshOrGitRemote, normalizeGitUrl } from '@cpf23333-forgejo-toolkit/shared/git/url';
 import { ForgejoClient } from '../api/client';
 import { createTimedCache } from '../utils/timedCache';
-import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
+import { redactUrlUserinfo, redactUserinfoInText } from '../utils/redactUrlUserinfo';
 import { logger } from '../logger';
 
 const execFile = promisify(cp.execFile);
@@ -117,7 +117,11 @@ export class GitTimeoutError extends Error {
  *
  * On failure, cp.execFile errors embed the full command line in error.message,
  * so only git's stderr is re-thrown: it never echoes the command line (and any
- * credential it carries). When there is no stderr — the process could not be
+ * credential it carries). The stderr itself is still passed through the
+ * credential mask (see gitStderrError): an older git echoes the URL it failed
+ * against (`fatal: unable to access 'https://user:token@host/...': …`), and the
+ * user's own remote configuration may have given that URL credentials. When
+ * there is no stderr — the process could not be
  * spawned at all — the reason is reported instead of a constant: a user with no
  * git on the extension host's PATH (or a wrong `git.path`) otherwise gets no
  * hint about what to fix.
@@ -125,7 +129,7 @@ export class GitTimeoutError extends Error {
 function describeGitFailure(error: unknown, gitPath: string): Error {
   const stderr = (error as { stderr?: unknown }).stderr;
   if (typeof stderr === 'string' && stderr.trim()) {
-    return new Error(stderr.trim());
+    return gitStderrError(stderr.trim());
   }
   const code = (error as { code?: unknown }).code;
   if (code === 'ENOENT') {
@@ -134,6 +138,21 @@ function describeGitFailure(error: unknown, gitPath: string): Error {
   return new Error(
     vscode.l10n.t('Failed to run Git at "{0}"{1}.', gitPath, typeof code === 'string' ? ` (${code})` : ''),
   );
+}
+
+/**
+ * The error a failed git command reports from its stderr.
+ *
+ * Every caller that checks `stderr` for "error" and rethrows used to hand the
+ * text over verbatim, and stderr can quote the remote URL it operated on — an
+ * older git answers a failed transfer with `fatal: unable to access
+ * 'https://user:token@host/owner/repo.git': …`. The credentials there come from
+ * the user's own remote configuration, not from this extension, but the message
+ * reaches the webview error banner and the log either way, so the userinfo of
+ * any embedded URL is masked before the text becomes an Error.
+ */
+function gitStderrError(stderr: string): Error {
+  return new Error(redactUserinfoInText(stderr));
 }
 
 /**
@@ -376,7 +395,10 @@ export function isSafeRemoteName(value: string): boolean {
 /** Refuses an unusable remote name instead of handing it to `git` as an option. */
 function assertRemoteName(value: string): void {
   if (!isSafeRemoteName(value)) {
-    throw new Error(`"${value}" is not a usable git remote name`);
+    // Localized: the failure surfaces to the user through the view provider's
+    // error forwarding (e.g. a `branch.<name>.remote` configured as `--all`
+    // reaching the push path).
+    throw new Error(vscode.l10n.t('"{0}" is not a usable git remote name', value));
   }
 }
 
@@ -642,9 +664,10 @@ export async function resolveRemoteForRepo(
 }
 
 export async function addRemote(dirPath: string, remote: string, url: string): Promise<void> {
+  assertRemoteName(remote);
   const { stderr } = await runGit(['remote', 'add', remote, url], dirPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
-    throw new Error(stderr);
+    throw gitStderrError(stderr);
   }
 }
 
@@ -785,7 +808,10 @@ export async function pushBranch(
     } else if (!pushUrls.every((url) => remoteMatchesInstance(url, tokenInstanceUrl))) {
       // Do not include the URL in the message: it may embed credentials.
       throw new Error(
-        `Push aborted: the push target of remote "${remote}" does not belong to the expected Forgejo instance (check remote.<name>.pushurl)`,
+        vscode.l10n.t(
+          'Push aborted: the push target of remote "{0}" does not belong to the expected Forgejo instance (check remote.<name>.pushurl)',
+          remote,
+        ),
       );
     }
   }
@@ -798,7 +824,7 @@ export async function pushBranch(
   // A push transfers as much as a fetch does, so it gets the same long cap.
   const { stderr } = await runGit(args, dirPath, authEnv(token), GIT_LONG_TIMEOUT_MS);
   if (stderr && stderr.toLowerCase().includes('error')) {
-    throw new Error(stderr);
+    throw gitStderrError(stderr);
   }
 }
 
@@ -880,12 +906,22 @@ export async function getGitHeadPath(dirPath: string): Promise<string | undefine
  * Create the shared bare cache clone at `targetPath`.
  *
  * On failure the partial clone is removed, but only the one this call made and
- * only while it is still provably incomplete. A `git clone` killed at its
- * timeout (or one that failed before git wrote `remote.origin.url`) leaves a
- * directory that looks like a valid cache clone, and the caller treats a
- * directory that exists as usable — the retry skips the clone and every later
- * attempt fails with "No git remote in the local repository points at
- * owner/repo". The leftovers must therefore be reclaimed.
+ * only while it is still provably incomplete. Two shapes of leftover are worth
+ * telling apart, because this gate only ever sees one of them:
+ *
+ * - A clone that fails *early* (an immediate spawn/dns/argv failure before git
+ *   lays the repository down, or one killed so early the config never landed)
+ *   leaves a directory without `remote.origin.url` in its `config`. The caller
+ *   treats any existing directory as a usable cache clone, so this leftover
+ *   must be reclaimed here, or every retry fails with "No git remote in the
+ *   local repository points at owner/repo".
+ * - A clone killed at its *timeout* is different: git writes
+ *   `remote.origin.url` into `<targetPath>/config` before the transfer starts,
+ *   so the completeness probe (`hasUsableOriginRemote`) reads the leftovers as
+ *   "has an origin remote" and this function deliberately does *not* delete
+ *   them. Recognising a timed-out clone as an incomplete cache (an empty
+ *   object store, no refs) and rebuilding it is the caller's job — the view
+ *   provider's cache-integrity probe — not this existence gate's.
  *
  * The cache directory is shared by every VS Code window (`_bareCloneInFlight`
  * dedupes inside one extension host only), so "the path did not exist before
@@ -895,20 +931,33 @@ export async function getGitHeadPath(dirPath: string): Promise<string | undefine
  * the clone the first window is still writing into (breaking its in-flight
  * fetch/worktree add and the checkouts whose gitdir lives inside it).
  *
- * Chosen mechanism: an ownership marker plus a completeness gate.
+ * Chosen mechanism: a per-call ownership marker plus a completeness gate.
  *
- * - Before cloning, this call creates `<targetPath>.clone-owner` holding a
- *   unique token (this extension host's pid plus a per-call nonce).
- * - Cleanup happens only when that marker is still the one this call wrote AND
- *   `<targetPath>/config` does not carry a usable `remote.origin.url`. A marker
- *   another call wrote means the directory is somebody else's; a complete clone
- *   is left alone no matter whose marker is there, which is what protects a
- *   clone another window already finished or is still using.
+ * - Before cloning, this call creates `<targetPath>.clone-owner.<token>`, where
+ *   the token (this extension host's pid plus a per-call nonce) is part of the
+ *   marker's file *name*. One marker per call, not one shared marker file: a
+ *   single `<targetPath>.clone-owner` could be overwritten by the second window
+ *   between this call's marker write and the end of its clone, and that
+ *   window's failed clone would then find *its own* token in the marker and
+ *   reclaim the directory this call is still writing.
+ * - Cleanup happens only when this call's marker file still exists AND the
+ *   path did not exist before this call AND `<targetPath>/config` carries no
+ *   usable `remote.origin.url` AND no *other* `.clone-owner.*` marker sits
+ *   beside it. Another call's marker means a clone is in flight, so this call
+ *   declines (the safe direction); the other call removes its own marker when
+ *   it settles, so a failure of this call after that still cleans up. A
+ *   complete clone is left alone no matter whose markers are there, which is
+ *   what protects a clone another window already finished or is still using.
+ * - Whatever the outcome, this call deletes its own marker in a `finally`. A
+ *   marker orphaned by a crashed process makes every later cleanup on this
+ *   path decline — again the safe direction — until the lazy cache sweep
+ *   reclaims markers older than a day (see `WorktreeManager._cleanupCachedRepos`,
+ *   which is what keeps a crash from disabling failure cleanup here forever).
  * - The marker lives beside the directory, not inside it, so it never appears
  *   as content of the clone and cannot itself be mistaken for clone state.
  *
- * A directory the user created by hand is never deleted either: it has no
- * marker of ours, so the first condition already excludes it.
+ * A directory the user created by hand is never deleted either: it existed
+ * before this call, so the second condition already excludes it.
  */
 export async function cloneRepository(url: string, targetPath: string, token?: string): Promise<void> {
   const existedBeforeCall = await fs.promises.access(targetPath).then(
@@ -916,8 +965,8 @@ export async function cloneRepository(url: string, targetPath: string, token?: s
     () => false,
   );
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
-  const markerPath = cloneMarkerPath(targetPath);
   const markerToken = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const markerPath = `${targetPath}.clone-owner.${markerToken}`;
   let markerWritten = false;
   try {
     // Written before the clone so a concurrent window's failure cleanup can
@@ -933,22 +982,21 @@ export async function cloneRepository(url: string, targetPath: string, token?: s
     // in the cloned repository's remote URL nor visible in git's command line.
     // --quiet keeps clone progress out of stderr (huge repos would overflow
     // execFile's 1MB maxBuffer); fatal errors are still printed, so the check
-    // below is unaffected.
+    // below is unaffected. The `--` separator keeps an option-looking URL or
+    // path from being parsed as one (`git clone [options] [--] <repo> [<dir>]`);
+    // both values are extension-built and scheme-prefixed in practice, so this
+    // aligns with the defense convention the other commands in this module follow.
     const { stderr } = await runGit(
-      ['clone', '--bare', '--quiet', url, targetPath],
+      ['clone', '--bare', '--quiet', '--', url, targetPath],
       undefined,
       authEnv(token),
       GIT_LONG_TIMEOUT_MS,
     );
     if (stderr && stderr.toLowerCase().includes('error')) {
-      throw new Error(stderr);
+      throw gitStderrError(stderr);
     }
   } catch (error) {
-    if (
-      markerWritten &&
-      !existedBeforeCall &&
-      (await isThisCallsIncompleteClone(targetPath, markerPath, markerToken))
-    ) {
+    if (markerWritten && !existedBeforeCall && (await isThisCallsIncompleteClone(targetPath, markerPath))) {
       // Best-effort: the directory is this call's partial output, and a delete
       // that fails (a file still held open by the killed child on Windows) must
       // not replace the clone's own failure.
@@ -959,52 +1007,70 @@ export async function cloneRepository(url: string, targetPath: string, token?: s
         // an existing directory) rather than reported here.
       }
     }
+    throw error;
+  } finally {
+    // Success or failure, this call's own marker goes away with the call: it is
+    // what lets another window's cleanup recognise a clone in flight, so it
+    // must not outlive the attempt it belongs to.
     if (markerWritten) {
       await fs.promises.rm(markerPath, { force: true }).catch(() => undefined);
     }
-    throw error;
   }
-  // Success: the clone is complete, so nothing may delete it. The marker would
-  // only ever be stale after this point.
-  if (markerWritten) {
-    await fs.promises.rm(markerPath, { force: true }).catch(() => undefined);
-  }
-}
-
-/** Where `cloneRepository` records which call owns an in-progress clone. */
-function cloneMarkerPath(targetPath: string): string {
-  return `${targetPath}.clone-owner`;
 }
 
 /**
  * Whether the directory at `targetPath` is still this call's own, unfinished
- * clone output — the only thing the failure path may delete. Both conditions
- * are required, and each rules out a different way of deleting someone else's
+ * clone output — the only thing the failure path may delete. Every condition
+ * is required, and each rules out a different way of deleting someone else's
  * clone (see cloneRepository).
  */
-async function isThisCallsIncompleteClone(
-  targetPath: string,
-  markerPath: string,
-  markerToken: string,
-): Promise<boolean> {
+async function isThisCallsIncompleteClone(targetPath: string, markerPath: string): Promise<boolean> {
   try {
-    const owner = await fs.promises.readFile(markerPath, 'utf8');
-    if (owner.trim() !== markerToken) {
-      return false;
-    }
+    // The token is part of the marker's file name, so existence alone proves
+    // this call wrote it; the content is never compared.
+    await fs.promises.readFile(markerPath, 'utf8');
   } catch {
     return false;
   }
-  return !(await hasUsableOriginRemote(targetPath));
+  if (await hasUsableOriginRemote(targetPath)) {
+    return false;
+  }
+  return !(await hasOtherCloneOwnerMarker(targetPath, markerPath));
+}
+
+/**
+ * Whether another call's ownership marker sits beside `targetPath`, meaning
+ * that call's clone may still be in flight. While one does, the failing call
+ * must not reclaim the directory: its own clone failed (typically with
+ * "destination path already exists") precisely because the other call created
+ * it. The marker owner deletes its marker when it settles, so declining here
+ * never strands this call's leftovers permanently.
+ */
+async function hasOtherCloneOwnerMarker(targetPath: string, ownMarkerPath: string): Promise<boolean> {
+  let names: string[];
+  try {
+    names = await fs.promises.readdir(path.dirname(targetPath));
+  } catch {
+    // The directory cannot be listed, so another in-flight clone cannot be
+    // ruled out; declining the cleanup is the safe direction.
+    return true;
+  }
+  const markerPrefix = `${path.basename(targetPath)}.clone-owner.`;
+  const ownMarkerName = path.basename(ownMarkerPath);
+  return names.some((name) => name.startsWith(markerPrefix) && name !== ownMarkerName);
 }
 
 /**
  * Whether a bare repository directory carries the `remote.origin.url` a
- * finished `git clone` writes. Its own or a caller's separate helper would
- * disagree on which file to read, so the probe is kept here, next to the only
- * caller.
+ * finished `git clone` writes.
+ *
+ * Shared by `isThisCallsIncompleteClone` (the clone failure cleanup) and the
+ * open flow's cache-clone reuse check: both must agree on what "a complete
+ * clone" means, because a directory that fails this probe is poison for the
+ * open flow — every later attempt would skip the clone and fail at remote
+ * resolution instead.
  */
-async function hasUsableOriginRemote(repoPath: string): Promise<boolean> {
+export async function hasUsableOriginRemote(repoPath: string): Promise<boolean> {
   try {
     const config = await fs.promises.readFile(path.join(repoPath, 'config'), 'utf8');
     // The `url = …` line of the remote git wrote; the section header
@@ -1027,14 +1093,17 @@ async function hasUsableOriginRemote(repoPath: string): Promise<boolean> {
 function assertGitRevision(value: string, label: string): void {
   // eslint-disable-next-line no-control-regex -- control characters cannot appear in a ref either
   if (value.startsWith('-') || /[\s\u0000-\u001f]/.test(value)) {
-    throw new Error(`${label} "${value}" is not a valid git revision`);
+    // Localized like assertRemoteName: the message can reach the user through
+    // the view provider's error forwarding. `label` stays an English git term
+    // (`branch`, `refspec`, ...) — it names the git concept, not UI prose.
+    throw new Error(vscode.l10n.t('{0} "{1}" is not a valid git revision', label, value));
   }
 }
 
 /**`git` accepts an abbreviated SHA from 4 characters up; anything else is not a commit. */
 function assertCommitSha(value: string): void {
   if (!/^[0-9a-f]{4,64}$/i.test(value)) {
-    throw new Error(`"${value}" is not a commit SHA`);
+    throw new Error(vscode.l10n.t('"{0}" is not a commit SHA', value));
   }
 }
 export async function fetchPullRequestHead(
@@ -1073,7 +1142,7 @@ async function runFetchPullRequestHead(
     GIT_LONG_TIMEOUT_MS,
   );
   if (stderr && stderr.toLowerCase().includes('error')) {
-    throw new Error(stderr);
+    throw gitStderrError(stderr);
   }
 }
 
@@ -1229,7 +1298,7 @@ export async function createWorktreeFromBranch(
       GIT_LONG_TIMEOUT_MS,
     );
     if (stderr && stderr.toLowerCase().includes('error')) {
-      throw new Error(stderr);
+      throw gitStderrError(stderr);
     }
   } catch (error) {
     await rethrowAfterKilledWorktreeAdd(repoPath, worktreePath, error);
@@ -1247,7 +1316,7 @@ export async function createWorktree(repoPath: string, worktreePath: string, bra
       GIT_LONG_TIMEOUT_MS,
     );
     if (stderr && stderr.toLowerCase().includes('error')) {
-      throw new Error(stderr);
+      throw gitStderrError(stderr);
     }
   } catch (error) {
     await rethrowAfterKilledWorktreeAdd(repoPath, worktreePath, error);
@@ -1264,7 +1333,7 @@ export async function fetchBranch(repoPath: string, remote: string, branch: stri
   assertRemoteName(remote);
   const { stderr } = await runGit(['fetch', remote, '--', branch], repoPath, authEnv(token), GIT_LONG_TIMEOUT_MS);
   if (stderr && stderr.toLowerCase().includes('error')) {
-    throw new Error(stderr);
+    throw gitStderrError(stderr);
   }
 }
 
@@ -1343,7 +1412,7 @@ async function runCreateWorktreeWithNewBranch(
       GIT_LONG_TIMEOUT_MS,
     );
     if (stderr && stderr.toLowerCase().includes('error')) {
-      throw new Error(stderr);
+      throw gitStderrError(stderr);
     }
   } catch (error) {
     await rethrowAfterKilledWorktreeAdd(repoPath, worktreePath, error);
@@ -1365,7 +1434,11 @@ async function assertResetIsSafe(repoPath: string, newBranch: string, startPoint
   }
   if (!startSha) {
     throw new Error(
-      `branch "${newBranch}" already exists and the start point "${startPoint}" cannot be resolved; refusing to reset it without knowing what it would lose`,
+      vscode.l10n.t(
+        'branch "{0}" already exists and the start point "{1}" cannot be resolved; refusing to reset it without knowing what it would lose',
+        newBranch,
+        startPoint,
+      ),
     );
   }
   // Commits the leftover branch has that startPoint does not reach. Zero
@@ -1375,7 +1448,11 @@ async function assertResetIsSafe(repoPath: string, newBranch: string, startPoint
   const ownCommits = await countCommitsNotReachableFrom(repoPath, existingSha, startSha);
   if (ownCommits === undefined || ownCommits > 0) {
     throw new Error(
-      `branch "${newBranch}" already exists at ${existingSha.slice(0, 7)} and has commits of its own; delete the branch before starting work on it again`,
+      vscode.l10n.t(
+        'branch "{0}" already exists at {1} and has commits of its own; delete the branch before starting work on it again',
+        newBranch,
+        existingSha.slice(0, 7),
+      ),
     );
   }
 }
@@ -1423,8 +1500,10 @@ export async function removeWorktreeAndPrune(repoPath: string, worktreePath: str
  * Throwaway branch naming used for PR worktrees (`pr-<n>-<sha7>`, the same
  * name WorktreeManager.removeWorktree deletes). The pattern guard keeps a
  * real user branch safe when a stale directory somehow has one checked out.
+ * Exported so the PR worktree open flow can apply the same gate when it
+ * deletes the branch a failed checkout left behind.
  */
-const PR_THROWAWAY_BRANCH_PATTERN = /^pr-\d+-[0-9a-f]{7}$/;
+export const PR_THROWAWAY_BRANCH_PATTERN = /^pr-\d+-[0-9a-f]{7}$/;
 
 /** Local work a forced stale-worktree removal would destroy. */
 export interface StalePrWorktreeInfo {
@@ -1603,7 +1682,7 @@ export async function deleteBranch(repoPath: string, branch: string): Promise<vo
   assertGitRevision(branch, 'branch');
   const { stderr } = await runGit(['branch', '-D', branch], repoPath);
   if (stderr && stderr.toLowerCase().includes('error')) {
-    throw new Error(stderr);
+    throw gitStderrError(stderr);
   }
 }
 
@@ -1848,7 +1927,12 @@ export async function revertMergeCommit(
     throw await revertFailedError(error instanceof Error ? error.message : String(error));
   }
   if (revertResult.stderr && revertResult.stderr.toLowerCase().includes('error')) {
-    throw await revertFailedError(revertResult.stderr);
+    // The catch path above is redacted by runGit itself; this stderr is the one
+    // place a failure message bypasses gitStderrError, so it goes through the
+    // same credential mask before it is embedded: an older git quotes the remote
+    // URL it operated on (`fatal: unable to access 'https://user:token@host/…'`),
+    // and the user's own remote configuration may have given it credentials.
+    throw await revertFailedError(redactUserinfoInText(revertResult.stderr));
   }
 
   // The commit the revert just created. The failed-push undo may drop this one

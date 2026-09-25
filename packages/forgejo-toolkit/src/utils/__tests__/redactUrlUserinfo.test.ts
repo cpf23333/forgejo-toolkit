@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasUrlUserinfo, redactUrlUserinfo, stripUrlUserinfo } from '../redactUrlUserinfo';
+import { hasUrlUserinfo, redactUrlUserinfo, redactUserinfoInText, stripUrlUserinfo } from '../redactUrlUserinfo';
 
 /**
  * The single implementation of "remove credentials from a URL before logging
@@ -135,5 +135,35 @@ describe('hasUrlUserinfo', () => {
     expect(hasUrlUserinfo('git@forgejo.example.com:alice/repo.git')).toBe(false);
     expect(hasUrlUserinfo('forgejo.example.com')).toBe(false);
     expect(hasUrlUserinfo('')).toBe(false);
+  });
+});
+
+/**
+ * The same masking rule applied to prose rather than to a value that is wholly
+ * a URL: git's stderr quotes the remote it failed against, and the user's own
+ * remote configuration may have given that URL credentials.
+ */
+describe('redactUserinfoInText', () => {
+  it('masks the credentials of a URL quoted inside a git error message', () => {
+    expect(
+      redactUserinfoInText(
+        "fatal: unable to access 'https://alice:s3cret@forgejo.example.com/owner/repo.git/': The requested URL returned error: 403",
+      ),
+    ).toBe(
+      "fatal: unable to access 'https://alice:***@forgejo.example.com/owner/repo.git/': The requested URL returned error: 403",
+    );
+  });
+
+  it('masks a token written in the username position, wherever it appears', () => {
+    expect(
+      redactUserinfoInText("fatal: Authentication failed for 'https://s3cret@forgejo.example.com/owner/repo.git/'"),
+    ).toBe("fatal: Authentication failed for 'https://***@forgejo.example.com/owner/repo.git/'");
+  });
+
+  it('leaves credential-free messages untouched', () => {
+    expect(redactUserinfoInText("fatal: repository 'https://forgejo.example.com/owner/repo.git/' not found")).toBe(
+      "fatal: repository 'https://forgejo.example.com/owner/repo.git/' not found",
+    );
+    expect(redactUserinfoInText('fatal: refusing to fetch into branch')).toBe('fatal: refusing to fetch into branch');
   });
 });

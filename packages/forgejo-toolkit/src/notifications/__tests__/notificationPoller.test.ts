@@ -359,6 +359,29 @@ describe('NotificationPoller', () => {
     poller.dispose();
   });
 
+  it('logs instead of crashing when the toast action handler throws', async () => {
+    // openNotifications runs synchronously inside the toast's .then callback; a
+    // throw there used to surface as an unhandled rejection.
+    mockGetNotifications.mockResolvedValue([notification(1)]);
+    const config = createFakeConfig([instanceA]);
+    const context = createFakeContext();
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockResolvedValue('Open');
+    sender.openNotifications.mockImplementation(() => {
+      throw new Error('view gone');
+    });
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(sender.openNotifications).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('view gone'));
+    poller.dispose();
+  });
+
   it('reports a mark-all-read failure without touching the unread state or re-polling', async () => {
     mockGetNotifications.mockResolvedValue([notification(1)]);
     const config = createFakeConfig([instanceA]);
@@ -561,6 +584,169 @@ describe('NotificationPoller', () => {
       nextPage,
       nextPage.map((row) => row.id),
     );
+    poller.dispose();
+  });
+
+  it('does not run a follow-up round for an instance added mid-round once stopped', async () => {
+    // A joined round only covers the instances it started with, so an instance
+    // added mid-round schedules one follow-up round. After `stop()` the poller
+    // is off: the in-flight round settling must not start polling again.
+    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
+    mockGetNotifications.mockReturnValue(
+      new Promise<ForgejoNotification[]>((resolve) => {
+        resolveRequests = resolve;
+      }),
+    );
+    const instances = [instanceA];
+    let listener: (() => void) | undefined;
+    const config = createFakeConfig(instances, (l) => {
+      listener = l;
+    });
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+
+    instances.push(instanceB);
+    listener!();
+    await vi.advanceTimersByTimeAsync(0);
+    poller.stop();
+
+    resolveRequests([]);
+    await vi.advanceTimersByTimeAsync(0);
+    // No follow-up round for the added instance: the poller was stopped.
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+    poller.dispose();
+  });
+
+  it('does not re-report notifications as new while the seen-id write keeps failing', async () => {
+    // When the baseline cannot be persisted (e.g. a read-only state store), the
+    // persisted map stays one round behind. Reading it again on the next poll
+    // used to report the same notifications as new on every single round.
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    const config = createFakeConfig([instanceA]);
+    const context = createFakeContext();
+    // A baseline exists, so notification 2 counts as new on the first poll.
+    context.store.set('forgejoToolkit.seenNotificationIds', { a: [1] });
+    context.globalState.update = async () => {
+      throw new Error('state store is read-only');
+    };
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+
+    // The write keeps failing, but the in-memory baseline stands in: no
+    // repeated toast for the same notifications.
+    await vi.advanceTimersByTimeAsync(300_000);
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+    poller.dispose();
+  });
+
+  it('persists the in-memory baseline once the seen-id write recovers', async () => {
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    const config = createFakeConfig([instanceA]);
+    const context = createFakeContext();
+    context.store.set('forgejoToolkit.seenNotificationIds', { a: [1] });
+    let failWrites = true;
+    context.globalState.update = async (key: string, value: unknown) => {
+      if (failWrites) {
+        throw new Error('state store is read-only');
+      }
+      context.store.set(key, value);
+    };
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    // Baseline [1, 2] exists only in memory; nothing is persisted.
+    expect(context.store.get('forgejoToolkit.seenNotificationIds')).toEqual({ a: [1] });
+
+    // The write recovers: the next reconcile persists the whole map again,
+    // including the rounds that only lived in memory.
+    failWrites = false;
+    mockGetNotifications.mockResolvedValue([notification(1), notification(2), notification(3)]);
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    // Notification 3 is reported as new (exactly once; notification 2 was
+    // already toasted by the first round), and the whole baseline — including
+    // the round that only lived in memory — is persisted now.
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(2);
+    const seen = context.store.get('forgejoToolkit.seenNotificationIds') as Record<string, number[]>;
+    expect(seen.a).toEqual([1, 2, 3]);
+    poller.dispose();
+  });
+
+  it('does not run a follow-up round when polling was disabled while a round was in flight', async () => {
+    // start() must not mark the poller started when polling is disabled:
+    // `_started` also gates the follow-up round that an in-flight round owes a
+    // newly added instance, and a disabled poller that still carried the flag
+    // would poll once more when the in-flight round settles.
+    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
+    mockGetNotifications.mockReturnValue(
+      new Promise<ForgejoNotification[]>((resolve) => {
+        resolveRequests = resolve;
+      }),
+    );
+    const instances = [instanceA];
+    let listener: (() => void) | undefined;
+    let pollingEnabled = true;
+    const config = createFakeConfig(instances, (l) => {
+      listener = l;
+    });
+    config.isNotificationPollingEnabled = () => pollingEnabled;
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+
+    // An instance is added mid-round: the restart joins the in-flight round and
+    // owes a follow-up for the instance it cannot cover.
+    instances.push(instanceB);
+    listener!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+
+    // Polling is then disabled; the config change restarts the poller.
+    pollingEnabled = false;
+    listener!();
+
+    resolveRequests([]);
+    await vi.advanceTimersByTimeAsync(0);
+    // The poller is off: settling the in-flight round must not start the
+    // follow-up round for the added instance.
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+    poller.dispose();
+  });
+
+  it('does not toast new notifications from a round that was in flight when the poller stopped', async () => {
+    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
+    mockGetNotifications.mockReturnValue(
+      new Promise<ForgejoNotification[]>((resolve) => {
+        resolveRequests = resolve;
+      }),
+    );
+    const config = createFakeConfig([instanceA]);
+    const context = createFakeContext();
+    // A persisted baseline, so the polled notification counts as new.
+    context.store.set('forgejoToolkit.seenNotificationIds', { a: [1] });
+    const poller = createPoller(config, context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockGetNotifications).toHaveBeenCalledTimes(1);
+
+    // The round is still in flight when the poller is stopped (polling disabled
+    // or the extension shutting down): its findings must not toast afterwards.
+    poller.stop();
+    resolveRequests([notification(1), notification(2)]);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
     poller.dispose();
   });
 });

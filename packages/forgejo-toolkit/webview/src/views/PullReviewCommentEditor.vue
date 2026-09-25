@@ -20,6 +20,31 @@ const body = ref('');
 // the matching completion message (success, failure, or a declined confirm);
 // postMessage is fire-and-forget, so resetting earlier would allow duplicates.
 const submitting = ref(false);
+// The completion message is the only thing that releases `submitting`, and
+// this panel posts directly (it is a standalone webview, not covered by the
+// main panel's registerPending timeout), so a dropped host reply would disable
+// the buttons for the rest of the session. One minute matches the webview's
+// default request budget (DEFAULT_REQUEST_TIMEOUT_MS in useAppState, which
+// this bundle must not import); after it the guard is released. The panel has
+// no error surface of its own, so the timeout just re-enables the buttons.
+const SUBMIT_TIMEOUT_MS = 60_000;
+let submitTimeout: ReturnType<typeof setTimeout> | undefined;
+
+function clearSubmitTimeout() {
+  if (submitTimeout) {
+    clearTimeout(submitTimeout);
+    submitTimeout = undefined;
+  }
+}
+
+function beginSubmitting() {
+  submitting.value = true;
+  clearSubmitTimeout();
+  submitTimeout = setTimeout(() => {
+    submitTimeout = undefined;
+    submitting.value = false;
+  }, SUBMIT_TIMEOUT_MS);
+}
 const pendingReviewId = ref<number | undefined>(props.context.pendingReviewId);
 const reviewEvent = ref<PullReviewSubmitEvent>('COMMENT');
 
@@ -65,6 +90,7 @@ function handleMessage(event: MessageEvent) {
     // Another context's completion is not this editor's answer: it must not
     // release the guard (see isOwnReply).
     if (isOwnReply(data)) {
+      clearSubmitTimeout();
       submitting.value = false;
     }
     return;
@@ -82,6 +108,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('message', handleMessage);
+  clearSubmitTimeout();
 });
 
 const title = computed(() => {
@@ -119,7 +146,7 @@ async function submit(modeToUse: 'single' | 'review') {
   if (!text || submitting.value) {
     return;
   }
-  submitting.value = true;
+  beginSubmitting();
   postMessage({
     command: 'submitPullReviewComment',
     instanceId: props.context.instanceId,
@@ -152,7 +179,7 @@ async function submitReview() {
   if (submitting.value || typeof pendingReviewId.value !== 'number') {
     return;
   }
-  submitting.value = true;
+  beginSubmitting();
   postMessage({
     command: 'submitPullReview',
     instanceId: props.context.instanceId,
@@ -169,7 +196,7 @@ function cancelReview() {
   if (submitting.value || typeof pendingReviewId.value !== 'number') {
     return;
   }
-  submitting.value = true;
+  beginSubmitting();
   postMessage({
     command: 'deletePullReview',
     instanceId: props.context.instanceId,
@@ -185,7 +212,19 @@ function uploadImage(file: File, onSuccess: (url: string) => void, onError: (err
   state
     .uploadIssueAttachment(props.context.instanceId, props.context.owner, props.context.repo, props.context.index, file)
     .then((attachment) => {
-      onSuccess(attachment.browser_download_url ?? `/attachments/${attachment.uuid}`);
+      // Prefer the uuid's relative path: the host rewrites it against the
+      // current instance at render time (resolveAttachmentImages), while an
+      // absolute `browser_download_url` stored in the comment body dies when
+      // the instance's domain changes. A reply with neither identifier cannot
+      // be linked: inserting `/attachments/undefined` would leave a dead image
+      // in the body, so the upload reports failure instead (same fallback as
+      // IssueDetail's).
+      const url = attachment.uuid ? `/attachments/${attachment.uuid}` : (attachment.browser_download_url ?? '');
+      if (!url) {
+        onError(t('common.imageUploadFailed'));
+        return;
+      }
+      onSuccess(url);
     })
     .catch((error: unknown) => {
       onError(error instanceof Error ? error.message : String(error));

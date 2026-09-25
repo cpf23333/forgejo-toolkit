@@ -260,6 +260,43 @@ describe('PullRequestDetail sidebar panels', () => {
     wrapper.unmount();
   });
 
+  it('does not clear re-typed values when an unrelated time operation settles after a failed add', async () => {
+    const wrapper = await mountView();
+    const fields = wrapper.findAll('.time-tracking-form vscode-textfield');
+    (fields[1].element as HTMLInputElement).value = '30';
+    await fields[1].trigger('input');
+    await nextTick();
+
+    const addButton = wrapper.find('.time-tracking-form vscode-button');
+    await addButton.trigger('click');
+    expect(state.addIssueTime).toHaveBeenCalledTimes(1);
+
+    // The add failed: the values stay for a retry and the error is shown.
+    state.loading.set(TIMES_KEY, true);
+    await nextTick();
+    state.errors.set(TIMES_KEY, 'add time failed');
+    state.loading.set(TIMES_KEY, false);
+    await nextTick();
+
+    // The user adjusts the values for the retry...
+    (fields[1].element as HTMLInputElement).value = '45';
+    await fields[1].trigger('input');
+    await nextTick();
+
+    // ...and an unrelated operation on the same key (a stopwatch start/stop
+    // reloads the tracked times) settles cleanly. That settle is not the failed
+    // add's success: it must not clear what the user just typed.
+    state.errors.delete(TIMES_KEY);
+    state.loading.set(TIMES_KEY, true);
+    await nextTick();
+    state.loading.set(TIMES_KEY, false);
+    await nextTick();
+
+    await addButton.trigger('click');
+    expect(state.addIssueTime).toHaveBeenNthCalledWith(2, 'inst-1', 'owner', 'repo', 1, 45 * 60);
+    wrapper.unmount();
+  });
+
   // The stopwatch list is instance-wide (`userStopwatchesKey`), so its failure is
   // not the tracked-times one: it used to be read by nothing, and the panel fell
   // back to an empty list — which is what "no timer is running" looks like. The

@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { ForgejoClient } from './api/client';
+import type { ForgejoContentEntry } from './api/types';
 import { userFacingErrorMessage } from './api/errors';
 import { ConfigManager } from './config';
 import { logger } from './logger';
-import { base64ToUint8Array } from './repoFileProvider';
+import { base64ToUint8Array, unreadableEntryError } from './repoFileProvider';
 import { missingPayloadNotice } from './utils/payloadNotice';
 
 export interface ForgejoPrUriParams {
@@ -19,6 +20,64 @@ export interface ForgejoPrUriParams {
 }
 
 export const FORGEJO_PR_SCHEME = 'forgejo-pr';
+
+/**
+ * Parse a `forgejo-pr` URI into the parameters the diff views carry, or
+ * `undefined` when the URI is not one this extension builds. This is the single
+ * strict parser for the scheme: the file system provider, the review-comment
+ * controller and the permalink command all consume these URIs, and the three
+ * used to parse them with different fallbacks (an unparseable index degrading
+ * to 0, a missing ref degrading to the default branch). The fallbacks were
+ * dropped because both mislabel what the URI addresses — "PR 0" names no pull
+ * request, and the contents endpoint answers an empty ref with the *default
+ * branch* while the URI claims a specific sha — so a URI missing either is
+ * invalid outright (the same refusal repoFileProvider.ts applies).
+ *
+ * One deliberate exception: `prDecorationProvider.ts` keeps its own lenient
+ * `parseUri`, because it only reads the `status` field to pick a decoration
+ * badge — a malformed URI degrading to "no decoration" is harmless, while the
+ * consumers above address content and comments, where a misread parameter
+ * would show the wrong data.
+ */
+export function parseForgejoPrUri(uri: vscode.Uri): ForgejoPrUriParams | undefined {
+  if (uri.scheme !== FORGEJO_PR_SCHEME || !uri.query) {
+    return undefined;
+  }
+  try {
+    const query = JSON.parse(uri.query) as Partial<ForgejoPrUriParams>;
+    const pathMatch = uri.path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
+    if (!pathMatch) {
+      return undefined;
+    }
+    const [, instanceId, owner, repo, filepath] = pathMatch;
+    // Only a number or a numeric string: `Number(query.index)` alone would
+    // also accept `true` (→ 1) and `null` (→ 0).
+    const index =
+      typeof query.index === 'number'
+        ? query.index
+        : typeof query.index === 'string'
+          ? Number(query.index)
+          : Number.NaN;
+    if (!Number.isInteger(index) || index < 1) {
+      return undefined;
+    }
+    if (!query.ref) {
+      return undefined;
+    }
+    return {
+      instanceId,
+      owner,
+      repo,
+      index,
+      ref: query.ref,
+      path: filepath,
+      isBase: query.isBase ?? false,
+      status: query.status,
+    };
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * The notice served in place of a file whose payload Forgejo withheld. Kept
@@ -74,23 +133,20 @@ export class ForgejoPrDiffFileSystemProvider implements vscode.FileSystemProvide
 
     const instance = this._config.getInstances().find((i) => i.id === instanceId);
     if (!instance) {
-      throw new Error(vscode.l10n.t('Forgejo instance not found: {0}', instanceId));
+      // A FileSystemError, like every other failure this provider reports (and
+      // like the sibling repo provider at repoFileProvider.ts): a plain Error
+      // bypasses VS Code's file-system error handling.
+      throw vscode.FileSystemError.FileNotFound(vscode.l10n.t('Forgejo instance not found: {0}', instanceId));
     }
 
+    // Only the fetch itself is wrapped: the entry interpretation below throws
+    // this provider's own FileSystemErrors, and routing those through the
+    // catch would re-wrap a deliberate FileNotFound/Unavailable as a generic
+    // load failure.
+    let entries: ForgejoContentEntry[];
     try {
       const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-      const entries = await client.getRepoContents(owner, repo, params.path, ref);
-      const entry = entries[0];
-      if (!entry || entry.type !== 'file') {
-        throw new Error(`Unexpected contents response for ${params.path}@${ref}`);
-      }
-      if (!entry.content) {
-        const notice = missingPayloadNotice(entry.size);
-        return notice ? new TextEncoder().encode(`${notice}\n`) : new Uint8Array(0);
-      }
-      // Decode base64 straight to bytes: routing binary content through a
-      // UTF-8 string would corrupt it.
-      return base64ToUint8Array(entry.content);
+      entries = await client.getRepoContents(owner, repo, params.path, ref);
     } catch (error) {
       // A 404 used to be reported as empty bytes, which is indistinguishable
       // from a genuinely empty side: the diff then showed every line of the file
@@ -103,6 +159,32 @@ export class ForgejoPrDiffFileSystemProvider implements vscode.FileSystemProvide
       logger.error(`Failed to fetch Forgejo PR file content for ${uri.toString()}: ${err}`);
       throw vscode.FileSystemError.Unavailable(vscode.l10n.t('Could not load {0} at {1}: {2}', params.path, ref, err));
     }
+
+    const entry = entries[0];
+    // A single entry is only this file when the API echoed the requested path;
+    // otherwise the URI named a directory and the answer is its listing, whose
+    // first child must not be served as this file's content (the same echo
+    // check `RepoFileSystemProvider.readFile` applies).
+    if (!entry || entry.path !== params.path || entry.type === 'dir') {
+      throw vscode.FileSystemError.FileNotFound(uri);
+    }
+    if (entry.type !== 'file') {
+      // A symlink or submodule echoed back for the requested path carries no
+      // blob of its own; explain that (with the same localized error the repo
+      // provider serves) instead of failing with an untranslated generic Error.
+      // A server that does provide the payload owns the answer: serve it.
+      if (entry.content) {
+        return base64ToUint8Array(entry.content);
+      }
+      throw unreadableEntryError(entry.type ?? 'file');
+    }
+    if (!entry.content) {
+      const notice = missingPayloadNotice(entry.size);
+      return notice ? new TextEncoder().encode(`${notice}\n`) : new Uint8Array(0);
+    }
+    // Decode base64 straight to bytes: routing binary content through a
+    // UTF-8 string would corrupt it.
+    return base64ToUint8Array(entry.content);
   }
 
   writeFile(_uri: vscode.Uri, _content: Uint8Array, _options: { create: boolean; overwrite: boolean }): void {
@@ -128,40 +210,13 @@ export class ForgejoPrDiffFileSystemProvider implements vscode.FileSystemProvide
     return vscode.FileSystemError.NoPermissions();
   }
 
-  private _parseUri(uri: vscode.Uri): ForgejoPrUriParams | undefined {
-    if (!uri.query) {
-      return undefined;
-    }
-    try {
-      const query = JSON.parse(uri.query) as Partial<ForgejoPrUriParams>;
-      const pathMatch = uri.path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
-      if (!pathMatch) {
-        return undefined;
-      }
-      const [, instanceId, owner, repo, filepath] = pathMatch;
-      const index = typeof query.index === 'number' ? query.index : Number(query.index);
-      return {
-        instanceId,
-        owner,
-        repo,
-        index: Number.isNaN(index) ? 0 : index,
-        ref: query.ref ?? '',
-        path: filepath,
-        isBase: query.isBase ?? false,
-        status: query.status,
-      };
-    } catch {
-      return undefined;
-    }
-  }
-
   /**
    * The parsed parameters, or `FileNotFound` when the URI is not one this
    * provider builds. `readFile` and `stat` both go through this so they can
    * never disagree about a URI neither of them can serve.
    */
   private _requireUri(uri: vscode.Uri): ForgejoPrUriParams {
-    const params = this._parseUri(uri);
+    const params = parseForgejoPrUri(uri);
     if (!params) {
       throw vscode.FileSystemError.FileNotFound(uri);
     }

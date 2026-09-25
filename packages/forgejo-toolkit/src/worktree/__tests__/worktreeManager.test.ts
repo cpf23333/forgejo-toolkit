@@ -20,6 +20,7 @@ import {
   WorktreeInfo,
   CACHE_REPO_MAX_AGE_MS,
   CACHE_REPO_MAX_COUNT,
+  CLONE_OWNER_MARKER_MAX_AGE_MS,
   WORKTREE_MAX_AGE_MS,
 } from '../worktreeManager';
 
@@ -485,6 +486,31 @@ describe('WorktreeManager cached repo cleanup', () => {
     } finally {
       await fs.promises.rm(emptyDir, { recursive: true, force: true });
     }
+  });
+
+  it('reclaims a clone-owner marker older than a day, but never a fresh one', async () => {
+    // cloneRepository deletes its own marker when the attempt settles, so an old
+    // marker can only be the orphan of a crashed process — and while it sits
+    // there, every failure cleanup for that path declines as if a clone were
+    // still in flight. A fresh marker may belong to a clone running right now
+    // (or to a failed attempt whose own cleanup has not read it yet), so it
+    // stays.
+    const now = Date.now();
+    const staleMarker = path.join(cacheDir, 'repos', 'owner-repo.git.clone-owner.1-2-aaa');
+    const freshMarker = path.join(cacheDir, 'repos', 'other-repo.git.clone-owner.1-2-bbb');
+    await fs.promises.writeFile(staleMarker, '1-2-aaa');
+    await fs.promises.writeFile(freshMarker, '1-2-bbb');
+    const stale = new Date(now - CLONE_OWNER_MARKER_MAX_AGE_MS - 60_000);
+    await fs.promises.utimes(staleMarker, stale, stale);
+    const { manager } = createManager();
+
+    const removed = await manager.cleanupCachedRepos(now);
+
+    expect(await exists(staleMarker)).toBe(false);
+    expect(await exists(freshMarker)).toBe(true);
+    // Markers are bookkeeping files, not caches: they are not reported in the
+    // removed-names list the caller logs as "unused cached repositories".
+    expect(removed).toEqual([]);
   });
 });
 

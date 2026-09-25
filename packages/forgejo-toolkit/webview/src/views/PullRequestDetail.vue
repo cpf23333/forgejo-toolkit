@@ -12,6 +12,7 @@ import ModalDialog from '../components/ModalDialog.vue';
 import PullRequestForm from '../components/PullRequestForm.vue';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import { stateLabel } from '../utils/stateLabel';
+import { labelStyle } from '../utils/labelColor';
 import { functionalInstanceBase } from '../utils/instanceUrl';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
@@ -886,10 +887,16 @@ function addManualTime() {
 }
 
 // The form clears only once the server accepted what was typed. A failure keeps
-// the values (and shows the error below) so a retry needs no retyping.
+// the values (and shows the error below) so a retry needs no retyping — but the
+// pending mark must still be released with the failed request: left set, the
+// next settle of this key (a stopwatch start/stop shares it) would read as this
+// add's success and clear whatever the user typed in the meantime.
 watch(trackedTimesSaving, (saving, wasSaving) => {
-  if (manualTimePending.value && wasSaving && !saving && !trackedTimesError.value) {
-    manualTimePending.value = false;
+  if (!manualTimePending.value || !wasSaving || saving) {
+    return;
+  }
+  manualTimePending.value = false;
+  if (!trackedTimesError.value) {
     manualTimeHours.value = 0;
     manualTimeMinutes.value = 0;
   }
@@ -1076,6 +1083,12 @@ function handleCommitOpenDiff(payload: {
   baseSha: string;
   headSha: string;
 }) {
+  // A root commit has no parent, so CommitDiffList reports an empty baseSha;
+  // the strict forgejo-pr URI parser refuses an empty ref, and a base side is
+  // meaningless here anyway — same guard as handleOpenDiff.
+  if (!payload.baseSha || !payload.headSha) {
+    return;
+  }
   state.openPullRequestDiff(
     instanceId.value,
     owner.value,
@@ -1094,7 +1107,7 @@ function handleCommitOpenSelectedDiffs(payload: {
   baseSha: string;
   headSha: string;
 }) {
-  if (payload.files.length === 0) {
+  if (payload.files.length === 0 || !payload.baseSha || !payload.headSha) {
     return;
   }
   state.openSelectedPullRequestDiffs(
@@ -1218,22 +1231,6 @@ function formatAbsoluteDate(date: string): string {
   } catch {
     return date;
   }
-}
-
-function labelStyle(color?: string): string {
-  if (!color) {
-    return '';
-  }
-  return `background-color: #${color}; color: ${isLightColor(color) ? '#000' : '#fff'};`;
-}
-
-function isLightColor(hex: string): boolean {
-  const normalized = hex.replace('#', '');
-  const r = parseInt(normalized.substring(0, 2), 16);
-  const g = parseInt(normalized.substring(2, 4), 16);
-  const b = parseInt(normalized.substring(4, 6), 16);
-  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-  return brightness > 128;
 }
 
 function prStateClass(state?: string, merged?: boolean): string {

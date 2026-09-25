@@ -98,8 +98,11 @@ function repoFileReadFailure(uri: vscode.Uri, error: unknown): vscode.FileSystem
  * user can do instead, rather than reporting the path as missing — a listed
  * entry is not a missing one, and `FileNotFound` for a path the same provider
  * just reported as existing is what made the three methods disagree.
+ *
+ * Exported for the PR diff provider (`prFileSystemProvider.ts`), whose
+ * `readFile` must answer the same entry kinds the same way.
  */
-function unreadableEntryError(type: string): vscode.FileSystemError {
+export function unreadableEntryError(type: string): vscode.FileSystemError {
   const what =
     type === 'submodule'
       ? vscode.l10n.t('This path is a git submodule, which has no file content to open')

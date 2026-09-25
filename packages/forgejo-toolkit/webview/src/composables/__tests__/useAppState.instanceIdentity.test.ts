@@ -284,6 +284,46 @@ describe('useAppState instance identity changes', () => {
 
     expect(state.repositories.value.get(INSTANCE_A.id)).toHaveLength(1);
   });
+
+  /**
+   * The instance id is derived from the URL and account, so removing an instance
+   * and re-adding the same server within the session reports the same id with an
+   * unchanged identity — the change detection above never fires. Payloads the
+   * removal left behind would be served as the re-added instance's data for the
+   * rest of their TTL, so a removal drops them like an identity change does.
+   */
+  it('drops the cached payloads of a removed instance, so a same-session re-add starts clean', async () => {
+    const { state } = await createState();
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+    seedInstanceData(state);
+    vscodeApiMock.postMessage.mockClear();
+
+    dispatchMessage({ command: 'instances', data: [] });
+    await nextTick();
+
+    // The removed instance's payloads, marks and TTL caches are gone, and no
+    // reload is issued for an instance that no longer exists.
+    expect(state.repositories.value.has(INSTANCE_A.id)).toBe(false);
+    expect(state.issueDetails.value.has(`${INSTANCE_A.id}:owner/repo#issue-1`)).toBe(false);
+    expect(state.repoIssuesFetchedAt.has(`${INSTANCE_A.id}:owner/repo:issues:open`)).toBe(false);
+    expect(state.repositoriesCache.has(INSTANCE_A.id)).toBe(false);
+    expect(state.myIssuesCache.has(`${INSTANCE_A.id}:open`)).toBe(false);
+    expect(vscodeApiMock.postMessage).not.toHaveBeenCalled();
+
+    dispatchMessage({ command: 'instances', data: [INSTANCE_A] });
+    await nextTick();
+
+    // Nothing of the deleted instance survives the re-add...
+    expect(state.repositories.value.has(INSTANCE_A.id)).toBe(false);
+    expect(state.issueDetails.value.has(`${INSTANCE_A.id}:owner/repo#issue-1`)).toBe(false);
+    // ...so the next dashboard load really asks the server again instead of
+    // answering from a cache the removed instance left behind.
+    state.loadRepositories(INSTANCE_A.id);
+    expect(vscodeApiMock.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'getRepositories', instanceId: INSTANCE_A.id }),
+    );
+  });
 });
 
 /**

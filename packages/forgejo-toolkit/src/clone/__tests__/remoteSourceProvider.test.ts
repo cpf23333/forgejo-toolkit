@@ -305,19 +305,71 @@ describe('registerForgejoRemoteSourceProviders', () => {
     expect(providers).toHaveLength(1);
   });
 
-  it('logs and gives up when the git API cannot be obtained', async () => {
-    getExtension().mockReturnValue({
-      activate: vi.fn(async () => ({
-        enabled: true,
-        getAPI: vi.fn(() => {
+  it('retries the setup on the next enablement flip when getAPI fails', async () => {
+    // A getAPI failure used to be final: the providers stayed unregistered
+    // until the window reloaded even after the git extension recovered.
+    const { api, providers } = createFakeGitApi();
+    let enablementListener: ((enabled: boolean) => void) | undefined;
+    let apiAvailable = false;
+    const gitExports = {
+      enabled: true,
+      getAPI: vi.fn(() => {
+        if (!apiAvailable) {
           throw new Error('git extension disabled');
-        }),
-      })),
-    } as never);
+        }
+        return api;
+      }),
+      onDidChangeEnablement: vi.fn((listener: (enabled: boolean) => void) => {
+        enablementListener = listener;
+        return { dispose: vi.fn() };
+      }),
+    };
+    getExtension().mockReturnValue({ activate: vi.fn(async () => gitExports) } as never);
     const config = createConfig([testInstance]);
 
     await registerForgejoRemoteSourceProviders(createFakeContext() as never, config);
 
+    // The failure is logged and armed a retry instead of registering.
+    expect(gitExports.getAPI).toHaveBeenCalledTimes(1);
+    expect(providers).toHaveLength(0);
     expect(config.onInstancesChanged).not.toHaveBeenCalled();
+    expect(gitExports.onDidChangeEnablement).toHaveBeenCalledTimes(1);
+
+    // The git extension recovers and flips enablement: setup runs again.
+    apiAvailable = true;
+    enablementListener?.(true);
+    expect(providers).toHaveLength(1);
+    expect(config.onInstancesChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the retry armed when an enablement flip still cannot provide the API', async () => {
+    const { api, providers } = createFakeGitApi();
+    let enablementListener: ((enabled: boolean) => void) | undefined;
+    let apiAvailable = false;
+    const gitExports = {
+      enabled: true,
+      getAPI: vi.fn(() => {
+        if (!apiAvailable) {
+          throw new Error('git extension disabled');
+        }
+        return api;
+      }),
+      onDidChangeEnablement: vi.fn((listener: (enabled: boolean) => void) => {
+        enablementListener = listener;
+        return { dispose: vi.fn() };
+      }),
+    };
+    getExtension().mockReturnValue({ activate: vi.fn(async () => gitExports) } as never);
+    const config = createConfig([testInstance]);
+
+    await registerForgejoRemoteSourceProviders(createFakeContext() as never, config);
+
+    // A flip whose getAPI still throws must not disarm the retry.
+    enablementListener?.(true);
+    expect(providers).toHaveLength(0);
+
+    apiAvailable = true;
+    enablementListener?.(true);
+    expect(providers).toHaveLength(1);
   });
 });

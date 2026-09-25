@@ -34,7 +34,8 @@ types `Client`, `RequestConfig`, `ResponseConfig`, `RequestFetch`,
 
 - resolves the URL from `baseURL` + `url` + serialized `params` (`buildUrl`),
 - merges `Accept: application/json`, JSON-encodes the body and sets
-  `Content-Type` (inside `client`),
+  `Content-Type: application/json` when the caller did not supply a content type
+  (any casing) of its own (inside `client`),
 - optional `credentials`, `signal`, and an undici `dispatcher`/`fetchImpl` pair
   for proxies,
 - returns `{ data, status, statusText, headers }`, normalizing 204/205/304 to `{}`.
@@ -134,7 +135,7 @@ second type argument (e.g. `ResponseErrorConfig<RepoGet404>` in
 
 The host then classifies the thrown `Error` with `toApiError`
 (`packages/forgejo-toolkit/src/api/errors-core.ts`) into an `ApiError` carrying
-`kind` (`network` | `timeout` | `tls` | `http` | `unknown` | `proxy`), `status`,
+`kind` (`network` | `timeout` | `cancelled` | `tls` | `http` | `unknown` | `proxy`), `status`,
 `rawMessage`, and a localized `userMessage` getter. `proxy` is the
 connection-failure case with a proxy dispatcher installed: the failure is
 attributed to the configured proxy, and the instance itself may be fine. Because

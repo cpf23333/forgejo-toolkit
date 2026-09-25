@@ -93,6 +93,10 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
     fetchPullRequestHead: vi.fn(),
     findLocalRepo: vi.fn(),
     getRefCommitSha: vi.fn(),
+    // Default: a directory that exists counts as a complete cache clone, so
+    // tests that simulate clones by plain mkdir keep their old meaning; the
+    // incomplete-remnant tests override this per case.
+    hasUsableOriginRemote: vi.fn(async () => true),
     inspectPrWorktree: vi.fn(),
     isCurrentWorkspaceBaseRepo: vi.fn(),
     isGitRepository: vi.fn(),
@@ -106,6 +110,9 @@ vi.mock('../../worktree/gitOperations', async (importOriginal) => {
     },
     listRemotes: vi.fn(async () => []),
     openWorktree: vi.fn(async () => true),
+    // The open flow's failure path gates its throwaway-branch cleanup on this
+    // pattern; keep the real one so the gate itself is exercised.
+    PR_THROWAWAY_BRANCH_PATTERN: actual.PR_THROWAWAY_BRANCH_PATTERN,
     // Used by the worktree create paths to ask before they create a checkout;
     // keep the real semantics (the shared vscode mock's folder state).
     requiresWorkspaceReplacement: actual.requiresWorkspaceReplacement,
@@ -128,6 +135,7 @@ vi.mock('../../api/proxy', async (importOriginal) => {
 
 import {
   AVATAR_CACHE_MAX_BYTES,
+  AVATAR_FETCH_MAX_BYTES,
   ForgejoToolkitViewProvider,
   clearResolvedAvatarCache,
   instanceCacheSuffix,
@@ -148,6 +156,7 @@ import {
   fetchPullRequestHead,
   findLocalRepo,
   getRefCommitSha,
+  hasUsableOriginRemote,
   inspectPrWorktree,
   isCurrentWorkspaceBaseRepo,
   isGitRepository,
@@ -321,6 +330,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     vi.mocked(isCurrentWorkspaceBaseRepo).mockReset();
     vi.mocked(cloneRepository).mockReset();
     vi.mocked(getRefCommitSha).mockReset();
+    // Default "complete clone" verdict (see the mock above): per-test overrides
+    // must not leak into the next test.
+    vi.mocked(hasUsableOriginRemote).mockReset().mockResolvedValue(true);
     vi.mocked(removeWorktreeAndPrune).mockReset();
     vi.mocked(openWorktree).mockReset().mockResolvedValue(true);
     vi.mocked(resolveRemoteForRepo).mockReset().mockResolvedValue('origin');
@@ -546,6 +558,37 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       });
       expect(client).not.toHaveBeenCalled();
       expect(config.getInstances()[0].url).toBe(testInstance.url);
+    });
+
+    it('answers a failed saveInstance with a status-only error, not the response body', async () => {
+      // Same rule as testConnection (see connectionFailureMessage): the body of
+      // a 409/422 is remote-authored and must not be reflected into the
+      // webview, so the reply carries the bare status instead.
+      clientMocks.getCurrentUser.mockRejectedValue(
+        new Error('Forgejo API error 422: {"message":"server-authored reason"}'),
+      );
+
+      fake.send({ command: 'saveInstance', url: 'https://forgejo.example.com', token: 'tok' });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result?.success).toBe(false);
+      expect(String(result?.error)).toContain('The instance rejected the request');
+      expect(String(result?.error)).not.toContain('server-authored reason');
+    });
+
+    it('answers a failed editInstance with a status-only error, not the response body', async () => {
+      clientMocks.getCurrentUser.mockRejectedValue(
+        new Error('Forgejo API error 409: {"message":"server-authored reason"}'),
+      );
+
+      fake.send({ command: 'editInstance', id: testInstance.id, url: 'https://forgejo.example.com', token: 'tok' });
+      await flushDispatches();
+
+      const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+      expect(result?.success).toBe(false);
+      expect(String(result?.error)).toContain('The instance rejected the request');
+      expect(String(result?.error)).not.toContain('server-authored reason');
     });
   });
 
@@ -1386,13 +1429,18 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     });
   });
 
-  it('explains a file whose payload the contents API withheld', async () => {
-    // The API answers `content: ""` with the real size for files above its payload
-    // limit; without the notice the viewer and the README preview show nothing.
-    clientMocks.getRepoContents.mockResolvedValueOnce([
+  it('forwards repo contents entries unchanged (a withheld payload is explained on open, not in the listing)', async () => {
+    // The webview's file browser renders only name/path/type/size and opens
+    // files through openRepoFile → repoFileProvider, which serves the
+    // withheld-payload explanation with the entry-type check a listing-level
+    // injection could not make (a symlink's empty content is not a withheld
+    // payload). An earlier version rewrote `content` here; nothing read it.
+    const rawEntries = [
       { name: 'big.bin', path: 'big.bin', type: 'file', size: 12 * 1024 * 1024, content: '' },
+      { name: 'link', path: 'link', type: 'symlink', size: 8, target: 'small.txt' },
       { name: 'small.txt', path: 'small.txt', type: 'file', size: 3, content: 'YWJj' },
-    ]);
+    ];
+    clientMocks.getRepoContents.mockResolvedValueOnce(rawEntries);
 
     fake.send({
       command: 'getRepoContents',
@@ -1405,12 +1453,26 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     await flushDispatches();
 
     const reply = postedMessages(fake.posted).find((m) => m.command === 'repoContents');
-    const entries = (reply?.entries ?? []) as Array<{ name: string; content?: string }>;
-    const big = entries.find((entry) => entry.name === 'big.bin');
-    const small = entries.find((entry) => entry.name === 'small.txt');
-    expect(Buffer.from(big?.content ?? '', 'base64').toString('utf8')).toContain('MiB');
-    // A genuinely empty file keeps its empty content.
-    expect(small?.content).toBe('YWJj');
+    expect(reply?.entries).toEqual(rawEntries);
+  });
+
+  it('re-runs the linked repository detection (debounced) when the instance set changes', async () => {
+    // The onboarding panel's save/remove paths never detect on their own; this
+    // subscription is what converges them with the sidebar's handlers.
+    const listener = vi.mocked(config.onInstancesChanged).mock.calls[0]?.[0] as (() => void) | undefined;
+    expect(listener).toBeDefined();
+    vi.useFakeTimers();
+    try {
+      fake.posted.length = 0;
+      listener!();
+      // Debounced like the active-editor trigger: nothing is scanned yet.
+      await vi.advanceTimersByTimeAsync(100);
+      expect(postedMessages(fake.posted).some((m) => m.command === 'linkedRepository')).toBe(false);
+      await vi.advanceTimersByTimeAsync(300);
+      expect(postedMessages(fake.posted).some((m) => m.command === 'linkedRepository')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   describe('README payload notice', () => {
@@ -2051,8 +2113,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const preview = postedMessages(fake.posted).find((m) => m.command === 'importInstancesPreview');
       const previewInstances = preview?.instances as Array<Record<string, unknown>>;
       expect(previewInstances).toHaveLength(2);
-      // No token value leaves the host in the preview payload.
-      expect(previewInstances.every((instance) => instance.token === '')).toBe(true);
+      // No token value leaves the host in the preview payload — the key is
+      // omitted entirely (see stripInstanceTokens).
+      expect(previewInstances.every((instance) => !('token' in instance))).toBe(true);
       expect(JSON.stringify(preview)).not.toContain('file-token');
 
       await confirmImport({ command: 'importInstances', ids: ['imported-1'] });
@@ -2654,6 +2717,50 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     });
   });
 
+  describe('load/mutation requests carrying no instanceId', () => {
+    // A malformed message (instanceId missing or not a string) used to slip
+    // past the deleted-instance pre-check, which only fired on a string value;
+    // the handler's `_findInstance(undefined)` then missed and returned without
+    // replying, and the webview's loading state never cleared.
+    it('answers a load request without instanceId through its own result shape', async () => {
+      fake.send({ command: 'getRepoDetail', owner: 'owner', repo: 'repo' });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'repoDetail');
+      expect(reply).toMatchObject({
+        owner: 'owner',
+        repo: 'repo',
+        error: 'The request could not be completed',
+      });
+      // Nothing to echo: the request carried no instanceId, so the reply does
+      // not invent one.
+      expect(reply?.instanceId).toBeUndefined();
+    });
+
+    it('answers a mutation request without instanceId through its own result shape', async () => {
+      fake.send({ command: 'deleteIssue', owner: 'owner', repo: 'repo', index: 5 });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'issueDeleted');
+      expect(reply).toMatchObject({
+        owner: 'owner',
+        repo: 'repo',
+        index: 5,
+        error: 'The request could not be completed',
+      });
+      expect(reply?.instanceId).toBeUndefined();
+    });
+
+    it('still lets a valid request through to its handler', async () => {
+      clientMocks.getRepoDetail.mockResolvedValue({ repository: { name: 'repo' } });
+      fake.send({ command: 'getRepoDetail', instanceId: testInstance.id, owner: 'owner', repo: 'repo' });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      // The pre-check passed the message on: the handler ran and answered.
+      expect(clientMocks.getRepoDetail).toHaveBeenCalledWith('owner', 'repo');
+    });
+  });
+
   describe('failure replies echo the action the request carried', () => {
     // The shared contract documents `action` as echoed from the request. The
     // handlers used to hardcode it ('add' for every dependency/reaction
@@ -3067,6 +3174,54 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(postedMessages(fake.posted).filter((m) => m.command === 'worktreeOpened')).toHaveLength(2);
     });
 
+    /** The cache path the flow derives for the seeded instance and owner/repo. */
+    function cacheRepoPath() {
+      return path.join(cacheDir, 'repos', `owner-repo-${instanceCacheSuffix(testInstance)}.git`);
+    }
+
+    it('reclaims an incomplete cache clone remnant and re-clones it', async () => {
+      // A `git clone` killed mid-transfer leaves a directory without a usable
+      // `remote.origin.url`. An existence-only reuse check skips the clone for
+      // it forever, and every open then fails at remote resolution instead.
+      primeClonePath();
+      const remnant = cacheRepoPath();
+      await fs.promises.mkdir(remnant, { recursive: true });
+      await fs.promises.writeFile(path.join(remnant, 'sentinel'), 'leftover', 'utf8');
+      vi.mocked(hasUsableOriginRemote).mockResolvedValue(false);
+      vi.mocked(cloneRepository).mockImplementation(async (_url: string, target: string) => {
+        await fs.promises.mkdir(target, { recursive: true });
+      });
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
+
+      // The remnant was deleted (its sentinel is gone) and the path re-cloned.
+      expect(vi.mocked(cloneRepository)).toHaveBeenCalledTimes(1);
+      await expect(fs.promises.access(path.join(remnant, 'sentinel'))).rejects.toThrow();
+    });
+
+    it('leaves an incomplete cache clone alone while another window owns it', async () => {
+      // The `<basename>.clone-owner.*` marker says another extension host is
+      // cloning into the path right now; deleting its work would break that
+      // clone, so the remnant is left in place and the previous "exists means
+      // reuse" behavior applies (this attempt fails later at remote resolution,
+      // which is transient once the other clone lands).
+      primeClonePath();
+      const remnant = cacheRepoPath();
+      await fs.promises.mkdir(remnant, { recursive: true });
+      await fs.promises.writeFile(path.join(remnant, 'sentinel'), 'leftover', 'utf8');
+      const markerPath = `${remnant}.clone-owner.1234-abcd`;
+      await fs.promises.writeFile(markerPath, '1234-abcd', 'utf8');
+      vi.mocked(hasUsableOriginRemote).mockResolvedValue(false);
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeOpened'));
+
+      expect(vi.mocked(cloneRepository)).not.toHaveBeenCalled();
+      await fs.promises.access(path.join(remnant, 'sentinel'));
+      await fs.promises.access(markerPath);
+    });
+
     it('gives the same owner/repo on two instances different worktree directories', async () => {
       primeClonePath();
       vi.mocked(cloneRepository).mockImplementation(async (_url: string, target: string) => {
@@ -3203,6 +3358,49 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       const records = context.globalState.get('forgejoToolkit.worktrees') as Array<Record<string, unknown>>;
       expect(records).toHaveLength(1);
       expect(records[0].headSha).toBe('newsha1234567890');
+    });
+
+    it('deletes the throwaway branch when the checkout creation fails', async () => {
+      // The fetch refspec created `pr-1-abcdef1` and the sha check passed; the
+      // failed `worktree add` must not leak that branch in the repository.
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'abcdef1234567890' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo' as never);
+      vi.mocked(inspectPrWorktree).mockResolvedValue({ state: 'missing' });
+      vi.mocked(fetchPullRequestHead).mockResolvedValue(undefined);
+      vi.mocked(getRefCommitSha).mockResolvedValue('abcdef1234567890');
+      vi.mocked(createWorktreeFromBranch).mockRejectedValue(new Error('worktree add failed'));
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeError'));
+
+      expect(vi.mocked(deleteBranch)).toHaveBeenCalledWith('/src/repo', 'pr-1-abcdef1');
+      // Nothing was recorded: the open failed before a worktree existed.
+      expect(context.globalState.get('forgejoToolkit.worktrees')).toBeUndefined();
+    });
+
+    it('keeps a branch whose name is not the throwaway pattern when the checkout creation fails', async () => {
+      // The delete is gated on the `pr-<n>-<sha7>` pattern so a branch the flow
+      // did not create as a throwaway is never touched. A non-hex head sha
+      // (unexpected API data) produces a name outside the pattern.
+      clientMocks.getPullRequestDetail.mockResolvedValue({
+        title: 'Demo PR',
+        head: { ref: 'feature', sha: 'zz1234567890ab' },
+        base: { ref: 'main' },
+      });
+      vi.mocked(isCurrentWorkspaceBaseRepo).mockResolvedValue('/src/repo' as never);
+      vi.mocked(inspectPrWorktree).mockResolvedValue({ state: 'missing' });
+      vi.mocked(fetchPullRequestHead).mockResolvedValue(undefined);
+      vi.mocked(getRefCommitSha).mockResolvedValue('zz1234567890ab');
+      vi.mocked(createWorktreeFromBranch).mockRejectedValue(new Error('worktree add failed'));
+
+      fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 1 });
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeError'));
+
+      expect(vi.mocked(deleteBranch)).not.toHaveBeenCalled();
     });
 
     it('creates no branch and records nothing when the user declines replacing the workspace', async () => {
@@ -4299,10 +4497,10 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     });
 
     it('evicts the least recently used avatar once the byte budget is exceeded', async () => {
-      // Each avatar is over half the budget, so the second one has to evict the
-      // first: the entry cap alone (100) would let both stay and hold ~8 MiB per
-      // 100 avatars of base64 text.
-      const imageBytes = Math.ceil(AVATAR_CACHE_MAX_BYTES * 0.6);
+      // Each avatar sits just under the fetch cap; four of them exceed the
+      // cache's byte budget: the entry cap alone (100) would let them all stay
+      // and hold megabytes of base64 text.
+      const imageBytes = AVATAR_FETCH_MAX_BYTES - 1024;
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -4311,20 +4509,87 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         headers: { get: () => 'image/png' },
       });
       vi.stubGlobal('fetch', fetchMock);
-      const first = `${testInstance.url}/avatars/big-1.png`;
-      const second = `${testInstance.url}/avatars/big-2.png`;
+      const urlAt = (n: number) => `${testInstance.url}/avatars/big-${n}.png`;
 
-      await resolveAvatar(first);
-      expect(resolvedAvatarCacheBytesForTest()).toBeGreaterThan(0);
-      await resolveAvatar(second);
+      for (let i = 0; i < 4; i++) {
+        await resolveAvatar(urlAt(i));
+      }
 
-      // The budget holds after the insertion, and the evicted first URL is
-      // fetched again while the second is still a hit.
+      // The budget holds after the insertions, and the evicted first URL is
+      // fetched again while the latest is still a hit.
       expect(resolvedAvatarCacheBytesForTest()).toBeLessThanOrEqual(AVATAR_CACHE_MAX_BYTES);
-      await resolveAvatar(second);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      await resolveAvatar(first);
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      await resolveAvatar(urlAt(3));
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      await resolveAvatar(urlAt(0));
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+    });
+
+    it('refuses an avatar whose Content-Length exceeds the fetch cap without reading the body', async () => {
+      const arrayBuffer = vi.fn(async () => new Uint8Array([1, 2, 3]).buffer);
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        arrayBuffer,
+        headers: {
+          get: (name: string) =>
+            name.toLowerCase() === 'content-length' ? String(AVATAR_FETCH_MAX_BYTES + 1) : 'image/png',
+        },
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const url = `${testInstance.url}/avatars/declared-too-big.png`;
+
+      // The declared size alone settles it: no body bytes are buffered.
+      expect(await resolveAvatar(url)).toBe(url);
+      expect(arrayBuffer).not.toHaveBeenCalled();
+    });
+
+    it('stops reading a streamed avatar body once it grows past the fetch cap', async () => {
+      // No Content-Length: the counted stream read is the only thing standing
+      // between the host and an unbounded payload.
+      const cancel = vi.fn(async () => undefined);
+      const chunks = [new Uint8Array(AVATAR_FETCH_MAX_BYTES), new Uint8Array(1)];
+      let index = 0;
+      const read = vi.fn(async () =>
+        index < chunks.length ? { done: false, value: chunks[index++] } : { done: true, value: undefined },
+      );
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: { get: () => null },
+        body: { getReader: () => ({ read, cancel }) },
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const url = `${testInstance.url}/avatars/streamed-too-big.png`;
+
+      expect(await resolveAvatar(url)).toBe(url);
+      // The second chunk already crossed the cap; the rest is never read.
+      expect(read).toHaveBeenCalledTimes(2);
+      expect(cancel).toHaveBeenCalled();
+    });
+
+    it('resolves a streamed avatar body under the fetch cap', async () => {
+      const chunks = [new Uint8Array([1, 2]), new Uint8Array([3])];
+      let index = 0;
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? 'image/png' : null) },
+        body: {
+          getReader: () => ({
+            read: vi.fn(async () =>
+              index < chunks.length ? { done: false, value: chunks[index++] } : { done: true, value: undefined },
+            ),
+            cancel: vi.fn(async () => undefined),
+          }),
+        },
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      // The two chunks are concatenated before the base64 encoding.
+      expect(await resolveAvatar(`${testInstance.url}/avatars/streamed.png`)).toBe('data:image/png;base64,AQID');
     });
   });
 

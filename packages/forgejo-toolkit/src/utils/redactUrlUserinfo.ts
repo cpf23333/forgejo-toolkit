@@ -89,6 +89,23 @@ export function hasUrlUserinfo(url: string): boolean {
 }
 
 /**
+ * `redactUrlUserinfo` applied to every credential-carrying URL inside a longer
+ * text rather than to a value that is wholly a URL.
+ *
+ * The case that needs it is git's stderr: an older git answers a failed
+ * transfer with `fatal: unable to access 'https://user:token@host/...': …`,
+ * echoing the remote URL — which the *user's own* remote configuration may
+ * have given credentials — into what becomes the extension's error message.
+ * `redactUrlUserinfo` alone cannot help there: it parses its whole input as
+ * one URL and returns a multi-line message untouched. Only candidates that
+ * carry an `@` in userinfo position are rewritten; everything else (plain
+ * URLs, the surrounding prose) stays byte-for-byte as git printed it.
+ */
+export function redactUserinfoInText(text: string): string {
+  return text.replace(/[a-z][a-z0-9+.-]*:\/\/[^\s'"<>]*@[^\s'"<>]*/gi, (candidate) => redactUrlUserinfo(candidate));
+}
+
+/**
  * The parse-and-rewrite core shared by both helpers: a URL with no `@` at all,
  * an unparseable value, or one whose userinfo is already empty is returned
  * exactly as given (so a scp-style remote or a local path is never mangled).

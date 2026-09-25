@@ -1,39 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import type { ConfigManager } from '../config';
-import { detectLinkedRepository, getCurrentCommitSha } from '../worktree/gitOperations';
-import { FORGEJO_PR_SCHEME, type ForgejoPrUriParams } from '../prFileSystemProvider';
+import { detectLinkedRepository, getCurrentCommitSha, runGit } from '../worktree/gitOperations';
+import { FORGEJO_PR_SCHEME, parseForgejoPrUri } from '../prFileSystemProvider';
 import { stripUrlUserinfo } from '../utils/redactUrlUserinfo';
-
-function parseForgejoPrUri(uri: vscode.Uri): ForgejoPrUriParams | undefined {
-  if (uri.scheme !== FORGEJO_PR_SCHEME) {
-    return undefined;
-  }
-  if (!uri.query) {
-    return undefined;
-  }
-  try {
-    const query = JSON.parse(uri.query) as Partial<ForgejoPrUriParams>;
-    const pathMatch = uri.path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
-    if (!pathMatch) {
-      return undefined;
-    }
-    const [, instanceId, owner, repo, filepath] = pathMatch;
-    const index = typeof query.index === 'number' ? query.index : Number(query.index);
-    return {
-      instanceId,
-      owner,
-      repo,
-      index: Number.isNaN(index) ? 0 : index,
-      ref: query.ref ?? '',
-      path: filepath,
-      isBase: query.isBase ?? false,
-      status: query.status,
-    };
-  } catch {
-    return undefined;
-  }
-}
 
 function lineRangeFragment(selection: vscode.Selection): string {
   const start = selection.start.line + 1;
@@ -56,6 +26,24 @@ export function encodePermalinkPath(filePath: string): string {
     .join('/');
 }
 
+/**
+ * Whether any remote-tracking branch of the repository contains `sha`, or
+ * undefined when git cannot answer (git missing, repository unreadable). A
+ * blob URL built from a HEAD commit no remote branch contains resolves to a
+ * 404 on the instance, so the caller warns about the link instead of failing
+ * the copy: the commit may be pushed any moment, and an unanswerable check
+ * must not block copying. The sha comes from the local `rev-parse`, so it is
+ * trusted and needs no validation of its own.
+ */
+async function isCommitOnRemoteBranch(repoPath: string, sha: string): Promise<boolean | undefined> {
+  try {
+    const { stdout } = await runGit(['branch', '--remotes', '--contains', sha], repoPath);
+    return stdout.trim().length > 0;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function copyPermalink(config: ConfigManager): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
@@ -66,6 +54,10 @@ export async function copyPermalink(config: ConfigManager): Promise<void> {
   const uri = editor.document.uri;
   const selection = editor.selection;
   let permalink: string | undefined;
+  // True only when git positively reported the commit as absent from every
+  // remote-tracking branch; an unanswerable check stays false (see
+  // isCommitOnRemoteBranch).
+  let commitMayBeUnpushed = false;
 
   if (uri.scheme === FORGEJO_PR_SCHEME) {
     const params = parseForgejoPrUri(uri);
@@ -129,6 +121,11 @@ export async function copyPermalink(config: ConfigManager): Promise<void> {
     }
     const normalizedUrl = stripUrlUserinfo(instance.url).replace(/\/$/, '');
     permalink = `${normalizedUrl}/${linked.owner}/${linked.repo}/blob/${sha}/${encodePermalinkPath(relativePath)}${lineRangeFragment(selection)}`;
+    // The blob URL names the local HEAD commit. Until that commit is pushed,
+    // the link resolves to a 404 for anyone following it — the copy still
+    // happens (the user may be about to push), but the confirmation says the
+    // link is not live yet.
+    commitMayBeUnpushed = (await isCommitOnRemoteBranch(linked.localPath, sha)) === false;
   } else {
     vscode.window.showWarningMessage(vscode.l10n.t('Permalink is not supported for this file type'));
     return;
@@ -139,5 +136,11 @@ export async function copyPermalink(config: ConfigManager): Promise<void> {
   }
 
   await vscode.env.clipboard.writeText(permalink);
-  vscode.window.showInformationMessage(vscode.l10n.t('Permalink copied to clipboard'));
+  if (commitMayBeUnpushed) {
+    vscode.window.showInformationMessage(
+      vscode.l10n.t('Permalink copied to clipboard (the commit may not be pushed yet)'),
+    );
+  } else {
+    vscode.window.showInformationMessage(vscode.l10n.t('Permalink copied to clipboard'));
+  }
 }

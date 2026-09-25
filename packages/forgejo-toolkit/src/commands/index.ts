@@ -21,6 +21,15 @@ import { userFacingErrorMessage } from '../api/errors';
 // trigger is dropped silently (the first run still owns the UI).
 let publishToForgejoInFlight = false;
 
+// Same guard for createPrFromCurrentBranch: it is reachable from the status
+// bar, and a quick double-click would otherwise stack two copies of the
+// input-box flow and push the branch twice. The guard deliberately covers only
+// the create flow: an invocation carrying `args.index` is pure navigation to
+// an existing pull request (no input boxes, no push), so it must still work
+// while a create flow sits at an input box — and it must not arm or release
+// the guard itself.
+let createPrFromCurrentBranchInFlight = false;
+
 /**
  * Resolves the 1-based editor line an invocation referred to, from the shapes a
  * contributed command can be called with:
@@ -43,6 +52,39 @@ function isLineNumberArgument(value: unknown): value is { lineNumber: number } {
   return (
     typeof value === 'object' && value !== null && typeof (value as { lineNumber?: unknown }).lineNumber === 'number'
   );
+}
+
+/**
+ * The document uri an invocation names, if any. `editor/lineNumber/context`
+ * forwards its `arg` as a single `{ lineNumber, uri }` object, while the
+ * documented `(uri, lineNumbers, ...)` order passes the uri itself as the first
+ * argument.
+ */
+function uriArgumentOf(value: unknown): unknown {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const candidate = value as { scheme?: unknown; uri?: unknown };
+  if (typeof candidate.scheme === 'string') {
+    return candidate;
+  }
+  return candidate.uri;
+}
+
+/**
+ * The argument crosses the command bridge as a plain object, so identity and
+ * `instanceof` are out; compare the fields a uri carries instead.
+ */
+function sameDocumentUri(a: vscode.Uri, b: unknown): boolean {
+  if (!b || typeof b !== 'object') {
+    return false;
+  }
+  const candidate = b as Partial<vscode.Uri>;
+  if (typeof candidate.scheme !== 'string' || candidate.scheme !== a.scheme) {
+    return false;
+  }
+  const path = typeof candidate.path === 'string' ? candidate.path : candidate.fsPath;
+  return typeof path === 'string' && (path === a.path || path === a.fsPath);
 }
 
 export function registerCommands(
@@ -101,16 +143,42 @@ export function registerCommands(
     vscode.commands.registerCommand(
       'forgejoToolkit.createPrFromCurrentBranch',
       (args?: CreatePrFromCurrentBranchArgs) => {
-        createPrFromCurrentBranch(config, viewProvider, args).catch((error: unknown) => {
-          const err = userFacingErrorMessage(error);
-          logger.error(`[createPrFromCurrentBranch] ${err}`);
-          void showErrorWithLog(vscode.l10n.t('Failed to create pull request: {0}', err));
-        });
+        // Navigation to an existing PR bypasses the guard entirely: it shares
+        // nothing with the create flow, so it is neither blocked by it nor
+        // allowed to flip its flag (see the declaration comment).
+        const isCreateFlow = typeof args?.index !== 'number';
+        if (isCreateFlow) {
+          if (createPrFromCurrentBranchInFlight) {
+            logger.info('[createPrFromCurrentBranch] Ignored invocation while a create-PR flow is already running');
+            return;
+          }
+          createPrFromCurrentBranchInFlight = true;
+        }
+        createPrFromCurrentBranch(config, viewProvider, args)
+          .catch((error: unknown) => {
+            const err = userFacingErrorMessage(error);
+            logger.error(`[createPrFromCurrentBranch] ${err}`);
+            void showErrorWithLog(vscode.l10n.t('Failed to create pull request: {0}', err));
+          })
+          .finally(() => {
+            if (isCreateFlow) {
+              createPrFromCurrentBranchInFlight = false;
+            }
+          });
       },
     ),
 
     vscode.commands.registerCommand(COMMAND_ADD_COMMENT, (first?: unknown, second?: unknown) => {
-      const editor = vscode.window.activeTextEditor;
+      // The gutter menu passes the document uri along with the clicked line; with
+      // several editors visible (a diff editor is two), the active editor is not
+      // necessarily the one the click happened on, so resolve the target by uri
+      // first and fall back to the active editor (command palette / editor
+      // context menu invocations carry no uri).
+      const uri = uriArgumentOf(first);
+      const byUri = uri
+        ? (vscode.window.visibleTextEditors ?? []).find((candidate) => sameDocumentUri(candidate.document.uri, uri))
+        : undefined;
+      const editor = byUri ?? vscode.window.activeTextEditor;
       if (!editor) {
         vscode.window.showWarningMessage(vscode.l10n.t('No active editor'));
         return;

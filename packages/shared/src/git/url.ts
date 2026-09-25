@@ -24,6 +24,19 @@ export function isSshOrGitRemote(url: string): boolean {
   return cleaned.startsWith('git@') || cleaned.startsWith('ssh://') || cleaned.startsWith('git://');
 }
 
+/**
+ * Normalize a git remote URL to a lowercase `host/owner/repo` form and split
+ * out the owner and repository names; returns `undefined` for input that is
+ * not a parseable remote or has no owner/repo path.
+ *
+ * Not called by the toolkit's production code today: the active implementation
+ * lives in the extension host's `worktree/gitOperations.ts`
+ * (`parseRemoteUrl`/`remoteComparisonKeys`), which inherits this function's
+ * structural rules — scp-style `git@host:path` syntax, transport-level
+ * ssh/git ports stripped, http(s) ports kept, `.git` suffix and trailing
+ * slashes removed, lowercase comparison form. Kept exported as a public
+ * utility API of the shared package.
+ */
 export function normalizeGitRemote(url: string): { normalized: string; owner: string; repo: string } | undefined {
   const cleaned = url.trim();
   let hostPath: string | undefined;

@@ -92,18 +92,29 @@ interface PullReviewCommentTarget {
 
 /**
  * Request/response commands this panel answers through the command's own
- * completion reply instead of the generic `requestError`: the editor clears its
- * `submitting` flag on the completion command alone and posts no `_requestId`
- * (`PullReviewCommentEditor.vue`), so an unanswered request wedges every button
- * forever. A handler that throws before replying — e.g. the `ForgejoClient`
- * constructor rejecting an instance URL that is not absolute — must still
- * produce this reply.
+ * completion reply instead of the generic `requestError`: the editor posts no
+ * `_requestId` and clears its `submitting` flag only on the completion command
+ * whose carried context matches its own (`isOwnReply` in
+ * `PullReviewCommentEditor.vue`), so an unanswered request — or a reply
+ * missing the context — wedges every button forever. A handler that throws
+ * before replying — e.g. the `ForgejoClient` constructor rejecting an instance
+ * URL that is not absolute — must still produce this reply.
  */
 const COMPLETION_REPLY_COMMANDS: Record<string, HostToWebviewMessage['command']> = {
   submitPullReviewComment: 'pullReviewCommentSubmitted',
   submitPullReview: 'pullReviewSubmitted',
   deletePullReview: 'pullReviewDeleted',
 };
+
+/**
+ * Upper bound for the byte array an attachment upload message may carry. The
+ * webview is untrusted input and the bytes travel as a JSON array of numbers,
+ * so without a cap a forged message could make the host allocate — and then
+ * upload — an arbitrary amount of memory. 32 MiB matches the payload caps
+ * used elsewhere in the extension (`REPO_CONTENTS_CACHE_MAX_BYTES` in
+ * `api/client.ts`, `MAX_RESOLVED_IMAGE_BYTES` in `resolveAttachmentImages.ts`).
+ */
+const MAX_ATTACHMENT_BYTES = 32 * 1024 * 1024;
 
 /** Reply command → the request command it completes (see above). */
 const COMPLETION_REQUEST_COMMANDS = new Map<string, string>(
@@ -240,6 +251,13 @@ export class PullReviewCommentPanel implements vscode.Disposable {
         if (dispatchCommand && completionReply) {
           this._unansweredRequests.add(dispatchCommand);
         }
+        // The context this dispatch is answering, snapshotted before any handler
+        // awaits: the panel is a singleton and a context switch replaces
+        // `_context` mid-request, so the `finally` fallback below must answer
+        // with the snapshot — reading the live `_context` there would attribute
+        // the error reply to whatever pull request the user switched to (see
+        // `PullReviewCommentTarget`, which the handlers snapshot the same way).
+        const dispatchContext = this._context;
         try {
           // Repository identity from the webview is interpolated verbatim into
           // API paths (`/repos/${owner}/${repo}/…`), where the URL parser
@@ -343,9 +361,13 @@ export class PullReviewCommentPanel implements vscode.Disposable {
             this._unansweredRequests.delete(dispatchCommand);
             logger.error(`Pull review comment handler for "${dispatchCommand}" ended without replying`);
             // The completion command is the only reply the editor can route, so
-            // the fallback uses it instead of the generic `requestError`.
+            // the fallback uses it instead of the generic `requestError`. The
+            // repo params come from the dispatch-time snapshot, not the live
+            // `_context`: the handler may have awaited, and a context switch in
+            // between would otherwise attribute this error to the editor the
+            // user opened meanwhile.
             (this._reply as (command: string, data: Record<string, unknown>) => void)(completionReply, {
-              ...this._repoParams(this._context),
+              ...this._repoParams(dispatchContext),
               error: vscode.l10n.t('The request could not be completed'),
             });
           }
@@ -386,15 +408,34 @@ export class PullReviewCommentPanel implements vscode.Disposable {
   }
 
   private _switchContext(reviewContext: PullReviewCommentContext, callbacks?: PullReviewCommentPanelCallbacks): void {
-    if (this._contextKey(reviewContext) === this._contextKey(this._context)) {
-      this._setContext(reviewContext, callbacks);
-      return;
-    }
+    // Same-key switches ride the chain too: applying one synchronously while a
+    // different-key switch is still queued behind its discard confirmation
+    // inverted the user's action order — the same-key switch landed first and
+    // the confirmed switch then overwrote it, so the panel ended on the context
+    // the user had asked for *earlier*, not latest.
+    //
+    // The key comparison runs when the queued switch executes, not when it is
+    // enqueued: by then `_context` is whatever the earlier switches settled on.
+    // A switch whose key matches the then-current context is a no-confirmation
+    // fast path (the editor key is unchanged, so no draft can be lost and no
+    // modal may appear); only a genuinely different key asks.
+    //
     // Recover the chain after a failure (e.g. the confirmation prompt throws);
     // otherwise every later switch would ride on a rejected promise and
     // silently never run.
     this._contextSwitch = this._contextSwitch
-      .then(() => this._confirmAndSetContext(reviewContext, callbacks))
+      .then(() => {
+        if (this._disposed) {
+          // The panel may already be disposed when this queued switch runs
+          // (the switch is chained on `_contextSwitch`, and `_dispose` ran
+          // past it): retitling it is pointless, and `_confirmAndSetContext`'s
+          // own guard covers the different-key path.
+          return undefined;
+        }
+        return this._contextKey(reviewContext) === this._contextKey(this._context)
+          ? this._setContext(reviewContext, callbacks)
+          : this._confirmAndSetContext(reviewContext, callbacks);
+      })
       .catch((error: unknown) => {
         const err = userFacingErrorMessage(error);
         logger.error(`Failed to switch pull review comment context: ${err}`);
@@ -760,7 +801,7 @@ export class PullReviewCommentPanel implements vscode.Disposable {
       return;
     }
 
-    if (typeof data.name !== 'string' || !Array.isArray(data.data)) {
+    if (typeof data.name !== 'string' || !Array.isArray(data.data) || data.data.length > MAX_ATTACHMENT_BYTES) {
       this._reply('issueAttachmentCreated', {
         instanceId: instance.id,
         owner,
@@ -895,16 +936,29 @@ export class PullReviewCommentPanel implements vscode.Disposable {
    * Capture the context a request handler is answering, before its first await.
    * The handler then answers with this object and only touches the panel while
    * `_context` is still `target.context` (see `PullReviewCommentTarget`).
+   *
+   * The pending review id comes from the host's own context, never from the
+   * webview message: webview messages are untrusted input (the repo identity in
+   * them is validated through `isSafeRepoIdentity` for the same reason), and a
+   * forged `reviewId` would otherwise make the host submit or delete whatever
+   * review the message names. The reported value only crosses the trust
+   * boundary as a consistency signal — a disagreement between the editor and
+   * the host state it mirrors is worth a log line, never an action.
    */
-  private _captureTarget(pendingReviewId: number | undefined): PullReviewCommentTarget {
+  private _captureTarget(reportedReviewId: number | undefined): PullReviewCommentTarget {
     const context = this._context;
+    if (typeof reportedReviewId === 'number' && reportedReviewId !== context.pendingReviewId) {
+      logger.info(
+        `Ignoring webview-reported pending review id ${reportedReviewId}: the host context holds ${context.pendingReviewId ?? 'none'}`,
+      );
+    }
     return {
       context,
       instanceId: context.instanceId,
       owner: context.owner,
       repo: context.repo,
       index: context.index,
-      pendingReviewId,
+      pendingReviewId: context.pendingReviewId,
     };
   }
 

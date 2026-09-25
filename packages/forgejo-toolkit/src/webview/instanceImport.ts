@@ -1,11 +1,23 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type {
+  ExportSettings,
+  ForgejoInstance,
+  ImportPreviewInstance,
+} from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { isHttpUrl } from './connectionTest';
 import { hasUrlUserinfo } from '../utils/redactUrlUserinfo';
 
 export const MAX_IMPORT_PBKDF2_ITERATIONS = 1_000_000;
+
+/**
+ * Size cap for an import file. The file is read into memory as a whole — and,
+ * when encrypted, decrypted as a whole — so a hostile or accidental huge pick
+ * would stall the extension host on the read alone. Refused before a single
+ * byte is read.
+ */
+export const MAX_IMPORT_FILE_BYTES = 16 * 1024 * 1024;
 
 /**
  * Signals that the user dismissed the password prompt. Callers answer with a
@@ -135,13 +147,16 @@ export function computeImportTokenConflicts(imported: ForgejoInstance[], existin
 }
 
 /**
- * Copies of the imported instances with the token blanked out, for the
- * preview payload sent to the webview. The preview only renders non-secret
- * fields (conflict flags travel in a parallel array); token values stay in
- * the extension host and are rehydrated by id when the import is confirmed.
+ * Copies of the imported instances with the token key omitted entirely, for
+ * the preview payload sent to the webview. The preview only renders
+ * non-secret fields (conflict flags travel in a parallel array); token values
+ * stay in the extension host and are rehydrated by id when the import is
+ * confirmed. Returning `ImportPreviewInstance[]` makes the exclusion
+ * structural: the reply's construction sites fail to type-check if a token
+ * survives.
  */
-export function stripInstanceTokens(instances: ForgejoInstance[]): ForgejoInstance[] {
-  return instances.map((instance) => ({ ...instance, token: '' }));
+export function stripInstanceTokens(instances: ForgejoInstance[]): ImportPreviewInstance[] {
+  return instances.map(({ token: _token, ...rest }) => rest);
 }
 
 /**
@@ -166,8 +181,10 @@ export function stripInstanceTokens(instances: ForgejoInstance[]): ForgejoInstan
  *
  * `id` is forwarded as-is: the file may name an id that is already stored,
  * and this function has no view of the stored list. ConfigManager.addInstance
- * enforces the id/url origin consistency that makes reusing a stored id safe
- * (see isSameOriginUrl), so no check belongs here.
+ * resolves a colliding id through `resolveInstanceIdCollision`, which compares
+ * the full URL (trailing slashes stripped) and forks a fresh id when it
+ * differs, so a stored entry's id — and the secret keyed under it — can never
+ * be silently rebound to a URL from the file. No check belongs here.
  */
 export function sanitizeImportedInstances(items: unknown[]): { valid: ForgejoInstance[]; dropped: number } {
   const valid: ForgejoInstance[] = [];
@@ -202,6 +219,16 @@ export function sanitizeImportedInstances(items: unknown[]): { valid: ForgejoIns
 }
 
 export async function readExportDataFromUri(uri: vscode.Uri): Promise<ExportData> {
+  const stat = await fs.promises.stat(uri.fsPath);
+  if (stat.size > MAX_IMPORT_FILE_BYTES) {
+    throw new Error(
+      vscode.l10n.t(
+        'The import file is too large ({0} MiB); the limit is {1} MiB',
+        (stat.size / (1024 * 1024)).toFixed(1),
+        MAX_IMPORT_FILE_BYTES / (1024 * 1024),
+      ),
+    );
+  }
   const content = await fs.promises.readFile(uri.fsPath, 'utf8');
   const parsed = JSON.parse(content) as {
     encrypted?: boolean;

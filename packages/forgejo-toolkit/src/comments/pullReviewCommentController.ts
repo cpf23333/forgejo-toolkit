@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ForgejoClient } from '../api/client';
 import { ConfigManager } from '../config';
-import { FORGEJO_PR_SCHEME, type ForgejoPrUriParams } from '../prFileSystemProvider';
+import { FORGEJO_PR_SCHEME, parseForgejoPrUri, type ForgejoPrUriParams } from '../prFileSystemProvider';
 import { parsePullDiff, type ParsedPullDiff } from '../utils/parseDiff';
 import { resolveReviewCommentLine } from './reviewCommentPosition';
 import { pullReviewThreadKey, pullReviewThreadMatchesScope, type PullReviewThreadScope } from './pullReviewThreadKeys';
@@ -133,6 +133,17 @@ export class PullReviewCommentController implements vscode.Disposable {
    * again, so a recovery followed by a fresh failure still warns.
    */
   private readonly _warnedIncompleteReviews = new Map<string, string>();
+  /**
+   * Fingerprint of the error the whole-load failure toast was last shown for,
+   * keyed by the pull request it belongs to (`_reviewDataCacheKey`), mirroring
+   * `_warnedIncompleteReviews` for the *partial* failure. A failed load is not
+   * what `_reviewDataCache` holds (only successful loads are cached) and
+   * `_reviewDataInFlight` only coalesces while the fetch runs, so every document
+   * render of the pull request — one per open diff document, plus one per focus
+   * change — re-fetches and, without this map, re-toasts the identical error.
+   * A recovered load clears the entry, so a failure after a recovery warns again.
+   */
+  private readonly _warnedLoadFailures = new Map<string, string>();
   // VS Code's built-in comment-thread range decoration is an inline decoration:
   // the first line (the thread range always starts at column 0) and interior
   // lines get a full-width band via line-break fill, but the final line is
@@ -276,6 +287,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     this._threads.clear();
     this._commentContextMap.clear();
     this._warnedIncompleteReviews.clear();
+    this._warnedLoadFailures.clear();
     // The cache holds parsed diffs (several MiB for a large patch) and lives for
     // the controller's lifetime; release them with it instead of waiting for a
     // TTL that nothing will read again.
@@ -315,33 +327,6 @@ export class PullReviewCommentController implements vscode.Disposable {
       isBase: params.isBase,
       ref: params.ref,
     };
-  }
-
-  private _parseUri(uri: vscode.Uri): ForgejoPrUriParams | undefined {
-    if (uri.scheme !== FORGEJO_PR_SCHEME || !uri.query) {
-      return undefined;
-    }
-    try {
-      const query = JSON.parse(uri.query) as Partial<ForgejoPrUriParams>;
-      const pathMatch = uri.path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
-      if (!pathMatch) {
-        return undefined;
-      }
-      const [, instanceId, owner, repo, filepath] = pathMatch;
-      const index = typeof query.index === 'number' ? query.index : Number(query.index);
-      return {
-        instanceId,
-        owner,
-        repo,
-        index: Number.isNaN(index) ? 0 : index,
-        ref: query.ref ?? '',
-        path: filepath,
-        isBase: query.isBase ?? false,
-        status: query.status,
-      };
-    } catch {
-      return undefined;
-    }
   }
 
   private _reviewDataCacheKey(params: { instanceId: string; owner: string; repo: string; index: number }): string {
@@ -429,7 +414,7 @@ export class PullReviewCommentController implements vscode.Disposable {
     if (document.uri.scheme !== FORGEJO_PR_SCHEME) {
       return Promise.resolve();
     }
-    const params = this._parseUri(document.uri);
+    const params = parseForgejoPrUri(document.uri);
     if (!params) {
       return Promise.resolve();
     }
@@ -460,8 +445,12 @@ export class PullReviewCommentController implements vscode.Disposable {
   }
 
   private async _loadAndRender(document: vscode.TextDocument, params: ForgejoPrUriParams): Promise<void> {
+    const cacheKey = this._reviewDataCacheKey(params);
     try {
       const { data, fetched } = await this._loadReviewData(params);
+      // A successful load means a previously reported whole-load failure is
+      // over; clear its memory so a failure after this recovery toasts again.
+      this._warnedLoadFailures.delete(cacheKey);
       // A review whose comments failed to load is kept in `data.reviews` (so a
       // pending review stays visible, see _fetchReviewData) but its threads are
       // necessarily missing. Say so: otherwise the diff looks like a complete
@@ -476,7 +465,6 @@ export class PullReviewCommentController implements vscode.Disposable {
       // stays silent while a different set — or a different pull request whose
       // failing review shares a numeric id — still warns.
       if (fetched) {
-        const cacheKey = this._reviewDataCacheKey(params);
         if (data.incompleteReviewIds.length > 0) {
           const fingerprint = data.incompleteReviewIds.slice().sort().join(',');
           if (fingerprint !== this._warnedIncompleteReviews.get(cacheKey)) {
@@ -508,9 +496,18 @@ export class PullReviewCommentController implements vscode.Disposable {
       );
       // Logging alone left a revoked token, a rate limit or an outage looking
       // exactly like "this file has no comments": the diff opened with zero
-      // threads and nothing else. Say that the load failed — once per document
-      // render, not per comment.
-      void vscode.window.showErrorMessage(vscode.l10n.t('Could not load the review comments for this file: {0}', err));
+      // threads and nothing else. Say that the load failed — but only once per
+      // distinct failure per pull request, not per document render: a failed
+      // load is never cached (see _loadReviewData) and `_reviewDataInFlight`
+      // only coalesces while a fetch runs, so without the fingerprint check
+      // every open diff document of the pull request — and every focus change,
+      // which re-renders — re-fetched and re-toasted the identical error.
+      if (this._warnedLoadFailures.get(cacheKey) !== err) {
+        this._warnedLoadFailures.set(cacheKey, err);
+        void vscode.window.showErrorMessage(
+          vscode.l10n.t('Could not load the review comments for this file: {0}', err),
+        );
+      }
     }
   }
 
@@ -585,6 +582,20 @@ export class PullReviewCommentController implements vscode.Disposable {
           // command finds no context and returns silently. Dropping afterwards
           // removes only the old values that are not reused (a moved line).
           const replacement = await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName);
+          // _createComment awaits attachment resolution, and the document may
+          // have closed while it was in flight: `_onCloseDocument` then already
+          // disposed `existing` and removed it from `_threads`, so writing the
+          // replacement into it would mutate a dead thread, and the
+          // replacement's freshly registered context would be orphaned. Drop
+          // the orphan and stop rendering a document that is gone.
+          if (document.isClosed || !this._threads.has(key)) {
+            this._dropOrphanedCommentContext(replacement);
+            if (document.isClosed) {
+              documentClosed = true;
+              break;
+            }
+            continue;
+          }
           this._dropCommentContexts(existing);
           existing.range = threadRange;
           existing.comments = [replacement];
@@ -592,16 +603,21 @@ export class PullReviewCommentController implements vscode.Disposable {
           continue;
         }
 
-        // _createComment awaits attachment resolution; re-check that the
-        // document is still open before creating a thread for it (same race
-        // as the post-load guard in _loadAndRender).
+        // _createComment awaits attachment resolution, and the document may
+        // close while it is in flight, so the closed check must come AFTER the
+        // await and before the thread is created (same race as the post-load
+        // guard in _loadAndRender): checking before the await could never
+        // observe a close that happens during it, and a thread created for a
+        // closed document lingers in the Comments panel forever — no further
+        // close event arrives for it. The never-attached comment's context is
+        // orphaned the same way as in the existing-thread branch above.
+        const newComment = await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName);
         if (document.isClosed) {
+          this._dropOrphanedCommentContext(newComment);
           documentClosed = true;
           break;
         }
-        const thread = this._controller.createCommentThread(uri, threadRange, [
-          await this._createComment(params, reviewId, comment, resolved.line + 1, instanceName),
-        ]);
+        const thread = this._controller.createCommentThread(uri, threadRange, [newComment]);
         thread.canReply = false;
         thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
         this._threads.set(key, thread);
@@ -694,6 +710,20 @@ export class PullReviewCommentController implements vscode.Disposable {
     }
   }
 
+  // _createComment registers its context before the caller has attached the
+  // comment to a thread. When the caller then abandons the comment (the
+  // document closed while the registration was awaited), no tracked thread
+  // ever carries it, so _dropCommentContexts never reaches it and the entry
+  // would sit in the map forever. Delete it — unless a live thread happens to
+  // carry the same encoded value (a concurrent render of the same comment),
+  // whose Delete command still needs the entry.
+  private _dropOrphanedCommentContext(comment: vscode.Comment): void {
+    const contextValue = comment.contextValue;
+    if (contextValue && !this._contextValueInUse(contextValue)) {
+      this._commentContextMap.delete(contextValue);
+    }
+  }
+
   /** Whether any thread this controller still tracks carries `contextValue`. */
   private _contextValueInUse(contextValue: string): boolean {
     for (const thread of this._threads.values()) {
@@ -768,7 +798,7 @@ export class PullReviewCommentController implements vscode.Disposable {
   }
 
   async addComment(editor: vscode.TextEditor, lineNumber?: number): Promise<void> {
-    const params = this._parseUri(editor.document.uri);
+    const params = parseForgejoPrUri(editor.document.uri);
     if (!params) {
       vscode.window.showWarningMessage(vscode.l10n.t('No Forgejo PR diff file is active'));
       return;
@@ -903,13 +933,20 @@ export class PullReviewCommentController implements vscode.Disposable {
       this._logger?.error(
         `Failed to reload pull request reviews for ${params.owner}/${params.repo}#${params.index}: ${err}`,
       );
+      // The mutation itself already succeeded and was reported as such; without
+      // a visible notice here the diff threads simply stay stale and the user
+      // would never know the refresh failed. Warn instead of throwing: the
+      // failure must not rewrite the caller's success path.
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('The change was applied, but refreshing the review threads failed: {0}', err),
+      );
       return;
     }
     // Load once, then re-render every open document of the pull request with
     // the same data (previously each document triggered its own full load).
     const renders: Promise<void>[] = [];
     for (const document of vscode.workspace.textDocuments) {
-      const docParams = this._parseUri(document.uri);
+      const docParams = parseForgejoPrUri(document.uri);
       if (
         docParams &&
         docParams.instanceId === params.instanceId &&

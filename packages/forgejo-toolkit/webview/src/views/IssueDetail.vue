@@ -13,6 +13,7 @@ import ModalDialog from '../components/ModalDialog.vue';
 import IssueForm from '../components/IssueForm.vue';
 import EasyMdeEditor from '../components/EasyMdeEditor.vue';
 import { stateLabel } from '../utils/stateLabel';
+import { labelStyle } from '../utils/labelColor';
 import { functionalInstanceBase } from '../utils/instanceUrl';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
@@ -605,10 +606,16 @@ function addManualTime() {
 }
 
 // The form clears only once the server accepted what was typed. A failure keeps
-// the values (and shows the error below) so a retry needs no retyping.
+// the values (and shows the error below) so a retry needs no retyping — but the
+// pending mark must still be released with the failed request: left set, the
+// next settle of this key (a stopwatch start/stop shares it) would read as this
+// add's success and clear whatever the user typed in the meantime.
 watch(trackedTimesSaving, (saving, wasSaving) => {
-  if (manualTimePending.value && wasSaving && !saving && !trackedTimesError.value) {
-    manualTimePending.value = false;
+  if (!manualTimePending.value || !wasSaving || saving) {
+    return;
+  }
+  manualTimePending.value = false;
+  if (!trackedTimesError.value) {
     manualTimeHours.value = 0;
     manualTimeMinutes.value = 0;
   }
@@ -979,26 +986,6 @@ function formatAbsoluteDate(date: string): string {
   } catch {
     return date;
   }
-}
-
-function labelStyle(color?: string): string {
-  if (!color) {
-    return '';
-  }
-  return `background-color: #${color}; color: ${isLightColor(color) ? '#000' : '#fff'};`;
-}
-
-function isLightColor(hex: string): boolean {
-  const normalized = hex.replace('#', '');
-  const r = parseInt(normalized.substring(0, 2), 16) / 255;
-  const g = parseInt(normalized.substring(2, 4), 16) / 255;
-  const b = parseInt(normalized.substring(4, 6), 16) / 255;
-  const luminance = 0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b);
-  return luminance > 0.5;
-}
-
-function channelLuminance(channel: number): number {
-  return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
 }
 
 function reloadIssue() {

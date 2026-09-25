@@ -3,6 +3,7 @@ import * as path from 'path';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { isSameOriginUrl } from './webview/instanceImport';
 import { isHttpUrl } from './webview/connectionTest';
+import { resolveInstanceIdCollision } from './instanceIdentity';
 import { hasUrlUserinfo } from './utils/redactUrlUserinfo';
 import { WorktreeManager } from './worktree/worktreeManager';
 import { logger } from './logger';
@@ -40,6 +41,36 @@ export class ConfigManager {
   // Loads tokens from SecretStorage into memory and migrates legacy plaintext
   // tokens out of globalState. Must be called once during extension activation.
   async init(): Promise<void> {
+    // Keep the in-memory token table in sync with SecretStorage: other windows
+    // share the storage but not this Map, so without this their token edits
+    // would only apply here after a reload. Disposed with the extension context.
+    // Registered before the migration below on purpose: `secrets.get`/`store`
+    // can reject on a system without a working keyring, and a throw there must
+    // not skip this registration — the listener is what keeps this window's
+    // tokens in sync for the rest of the session.
+    this.context.subscriptions.push(
+      this.context.secrets.onDidChange((event) => {
+        if (!event.key.startsWith(TOKEN_SECRET_PREFIX)) {
+          return;
+        }
+        const id = event.key.slice(TOKEN_SECRET_PREFIX.length);
+        void this.context.secrets.get(event.key).then(
+          (secret) => {
+            if (secret === undefined) {
+              this._tokens.delete(id);
+            } else {
+              this._tokens.set(id, secret);
+            }
+            this._onInstancesChanged.fire(this.getInstances());
+          },
+          (error: unknown) => {
+            logger.error(
+              `Failed to refresh stored token for instance ${id}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          },
+        );
+      }),
+    );
     const stored = this._getStoredInstances();
     let migrated = false;
     for (const instance of stored) {
@@ -67,32 +98,6 @@ export class ConfigManager {
         true,
       );
     }
-    // Keep the in-memory token table in sync with SecretStorage: other windows
-    // share the storage but not this Map, so without this their token edits
-    // would only apply here after a reload. Disposed with the extension context.
-    this.context.subscriptions.push(
-      this.context.secrets.onDidChange((event) => {
-        if (!event.key.startsWith(TOKEN_SECRET_PREFIX)) {
-          return;
-        }
-        const id = event.key.slice(TOKEN_SECRET_PREFIX.length);
-        void this.context.secrets.get(event.key).then(
-          (secret) => {
-            if (secret === undefined) {
-              this._tokens.delete(id);
-            } else {
-              this._tokens.set(id, secret);
-            }
-            this._onInstancesChanged.fire(this.getInstances());
-          },
-          (error: unknown) => {
-            logger.error(
-              `Failed to refresh stored token for instance ${id}: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          },
-        );
-      }),
-    );
   }
 
   getInstances(): ForgejoInstance[] {
@@ -123,31 +128,62 @@ export class ConfigManager {
     if (hasUrlUserinfo(instance.url)) {
       throw new Error(vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'));
     }
+    // A stored entry with the same id but a different URL is a different
+    // instance, not an edit of this one: instanceIdFor folds path punctuation
+    // (`/a-b` and `/a/b` slug identically), and an import file can name a known
+    // id with an arbitrary URL. Overwriting the stored entry would lose the
+    // first instance and — because init() rehydrates tokens by id — rebind its
+    // stored secret to the new URL, handing the token to a host it was never
+    // paired with. The newcomer gets a fresh id derived from its URL instead,
+    // so the existing entry and its credential stay untouched; a re-add of the
+    // unchanged instance keeps its id and still updates in place.
+    const entry = {
+      ...instance,
+      id: resolveInstanceIdCollision(instance.id, instance.url, this._getStoredInstances()),
+    };
     // Token semantics (shared with updateInstance): a non-empty token is
     // stored in SecretStorage; an empty token means "keep the existing
-    // credential". Re-adding an instance id without re-entering its token
-    // (e.g. re-import) therefore preserves the stored secret instead of
-    // wiping it — but only when the URL stays on the same origin. An import
-    // file can name a known id with a different URL, and silently rebinding
-    // the stored secret to that host would hand the token over (editInstance
-    // refuses the same move).
-    const stored = this._getStoredInstances().find((i) => i.id === instance.id);
-    if (instance.token) {
-      await this.context.secrets.store(this._tokenSecretKey(instance.id), instance.token);
-      this._tokens.set(instance.id, instance.token);
-    } else if (stored && !isSameOriginUrl(stored.url, instance.url)) {
-      // Different origin: the stored secret belongs to the original URL, so it
-      // must not survive under this id at all. `init()` rehydrates tokens by
-      // instance id, so merely dropping the in-memory copy would re-attach the
-      // old token to the new URL (and thus send it to that host) at the next
-      // activation. Deleting it leaves this entry token-less, so the UI asks
-      // for a fresh credential.
-      this._tokens.delete(instance.id);
-      await this.context.secrets.delete(this._tokenSecretKey(instance.id));
+    // credential" (e.g. re-import). Keeping is only possible for the unchanged
+    // URL: the collision resolution above guarantees that a stored entry with
+    // this id has exactly this URL, so the secret under it can never be
+    // re-attached to a different host. The slot's previous value is captured
+    // before the store so a failed instance-list write below can roll the
+    // secret back instead of leaving a value no stored entry points at.
+    const previousToken = entry.token
+      ? (this._tokens.get(entry.id) ?? (await this.context.secrets.get(this._tokenSecretKey(entry.id))))
+      : undefined;
+    if (entry.token) {
+      await this.context.secrets.store(this._tokenSecretKey(entry.id), entry.token);
+      this._tokens.set(entry.id, entry.token);
     }
-    const instances = this._getStoredInstances().filter((i) => i.id !== instance.id);
-    instances.push({ ...instance, token: '' });
-    await this._writeInstancesMerged(instances);
+    const instances = this._getStoredInstances().filter((i) => i.id !== entry.id);
+    instances.push({ ...entry, token: '' });
+    try {
+      await this._writeInstancesMerged(instances);
+    } catch (error) {
+      // The write failed, so no entry names this id — the freshly stored
+      // token would be an orphan. Restore the slot's previous value (or drop
+      // the new one when the slot was empty), best-effort: a failed restore
+      // must not replace the write's own error.
+      if (entry.token) {
+        if (previousToken === undefined) {
+          this._tokens.delete(entry.id);
+          try {
+            await this.context.secrets.delete(this._tokenSecretKey(entry.id));
+          } catch {
+            // Best-effort; see above.
+          }
+        } else {
+          this._tokens.set(entry.id, previousToken);
+          try {
+            await this.context.secrets.store(this._tokenSecretKey(entry.id), previousToken);
+          } catch {
+            // Best-effort; see above.
+          }
+        }
+      }
+      throw error;
+    }
     this._onInstancesChanged.fire(this.getInstances());
   }
 
@@ -159,6 +195,10 @@ export class ConfigManager {
    * that `fetch` cannot request would fail every call with a message blaming the
    * instance. Callers that already gate the URL (the sidebar's editInstance)
    * are not the only ones — this is the boundary itself.
+   *
+   * A `url` update that moves to another origin without a new token also drops
+   * the stored secret: the credential belongs to the URL it was entered for and
+   * must never be sent to a different host.
    */
   async updateInstance(id: string, updates: Partial<Omit<ForgejoInstance, 'id'>>): Promise<void> {
     const instances = this._getStoredInstances();
@@ -169,13 +209,78 @@ export class ConfigManager {
     if (updates.url !== undefined && (!isHttpUrl(updates.url) || hasUrlUserinfo(updates.url))) {
       throw new Error(vscode.l10n.t('Enter a valid http(s) URL for the Forgejo instance.'));
     }
-    // An empty token update means "unchanged", so the stored secret is kept.
+    // An empty token update means "unchanged", so the stored secret is kept —
+    // unless the URL moves to another origin. The secret belongs to the stored
+    // URL and must not follow the entry to a host it was never paired with:
+    // addInstance gives an id reused with a different URL a fresh id for the
+    // same reason, but an update edits in place, so the secret has to go
+    // instead. It is deleted from memory and SecretStorage both — init()
+    // rehydrates tokens by id, so a surviving stored copy would be re-attached
+    // to the new URL at the next activation. The entry is left token-less and
+    // the UI asks for a fresh credential.
+    //
+    // Both mutations capture the slot's previous value first: the
+    // instance-list write below may fail, and the rollback then needs the value
+    // it is restoring. For the new-token branch this matters as much as for
+    // the origin-switch one — a failed write leaves the entry at its old URL
+    // while the slot holds a token issued for the new host. `previousToken`
+    // stays undefined when this update does not touch the secret slot, so the
+    // catch can tell "nothing to roll back" apart from "the slot was empty"
+    // (whose rollback deletes the freshly stored value).
+    let previousToken: { value: string | undefined } | undefined;
     if (updates.token) {
+      previousToken = { value: this._tokens.get(id) ?? (await this.context.secrets.get(this._tokenSecretKey(id))) };
       await this.context.secrets.store(this._tokenSecretKey(id), updates.token);
       this._tokens.set(id, updates.token);
+    } else if (updates.url !== undefined && !isSameOriginUrl(instances[index].url, updates.url)) {
+      previousToken = { value: this._tokens.get(id) ?? (await this.context.secrets.get(this._tokenSecretKey(id))) };
+      this._tokens.delete(id);
+      try {
+        await this.context.secrets.delete(this._tokenSecretKey(id));
+      } catch (error) {
+        // The delete failed before the URL write below ran, so storage still
+        // holds "old URL + old token" — a consistent pair. Restore the
+        // in-memory copy to match it instead of leaving this session with a
+        // token-less view of an instance that still has its secret.
+        if (previousToken.value !== undefined) {
+          this._tokens.set(id, previousToken.value);
+        }
+        throw error;
+      }
     }
     instances[index] = { ...instances[index], ...updates, token: '' };
-    await this._writeInstancesMerged(instances);
+    try {
+      await this._writeInstancesMerged(instances);
+    } catch (error) {
+      // The delete-then-write order is deliberate (a token must never survive
+      // in storage next to a URL it was not paired with), but when the write
+      // fails the new URL never landed — leaving the secret slot mutated would
+      // strand the instance at its old URL with no credential (origin switch)
+      // or with a token issued for a host the entry does not name (new token).
+      // Put the previous value back in memory and SecretStorage — or remove
+      // the freshly stored one when the slot was empty — best-effort: a failed
+      // restore must not replace the write's own error. Then rethrow.
+      if (previousToken !== undefined) {
+        if (previousToken.value === undefined) {
+          this._tokens.delete(id);
+          try {
+            await this.context.secrets.delete(this._tokenSecretKey(id));
+          } catch {
+            // Best-effort: a failed delete must not replace the write's own
+            // error; the in-memory removal at least keeps this session working.
+          }
+        } else {
+          this._tokens.set(id, previousToken.value);
+          try {
+            await this.context.secrets.store(this._tokenSecretKey(id), previousToken.value);
+          } catch {
+            // Best-effort: a failed re-store must not replace the write's own
+            // error; the in-memory token at least keeps this session working.
+          }
+        }
+      }
+      throw error;
+    }
     this._onInstancesChanged.fire(this.getInstances());
   }
 
@@ -200,10 +305,44 @@ export class ConfigManager {
       .getWorktrees()
       .filter((worktree) => worktree.instanceId === id)
       .map((worktree) => worktree.worktreePath);
+    // Capture the slot's previous value first, as addInstance/updateInstance do:
+    // the instance-list write below may fail, and the rollback then needs the
+    // credential it restores. The in-memory table wins over a SecretStorage
+    // read so a token another window rotated is not clobbered by a stale read.
+    const previousToken = this._tokens.get(id) ?? (await this.context.secrets.get(this._tokenSecretKey(id)));
     this._tokens.delete(id);
-    await this.context.secrets.delete(this._tokenSecretKey(id));
+    try {
+      await this.context.secrets.delete(this._tokenSecretKey(id));
+    } catch (error) {
+      // The delete failed before the list write ran, so storage still holds the
+      // entry and its secret — a consistent pair. Restore the in-memory copy to
+      // match instead of leaving this session with a token-less view of an
+      // instance that is still fully configured.
+      if (previousToken !== undefined) {
+        this._tokens.set(id, previousToken);
+      }
+      throw error;
+    }
     const instances = this._getStoredInstances().filter((i) => i.id !== id);
-    await this._writeInstancesMerged(instances, id);
+    try {
+      await this._writeInstancesMerged(instances, id);
+    } catch (error) {
+      // The write failed, so the entry is still stored — but its credential is
+      // already gone from memory and SecretStorage. Put it back, best-effort: a
+      // failed restore must not replace the write's own error.
+      if (previousToken !== undefined) {
+        this._tokens.set(id, previousToken);
+        try {
+          await this.context.secrets.store(this._tokenSecretKey(id), previousToken);
+        } catch {
+          // Best-effort; see above.
+        }
+      }
+      throw error;
+    }
+    // Runs only after the instance list write landed: the records are forgotten
+    // once the instance is really gone, so a failed write above needs no
+    // worktree rollback.
     const forgottenWorktrees = await this._worktrees.forgetInstanceWorktrees(id);
     this._onInstancesChanged.fire(this.getInstances());
     return { removed: forgottenWorktrees, strandedCheckouts };

@@ -344,6 +344,31 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     expect(vi.mocked(clearLinkedRepositoryCache)).toHaveBeenCalled();
   });
 
+  it('answers a saveInstance failure with a status-only message, never the response body', async () => {
+    // A 409/422 body is remote-authored content; userFacingErrorMessage would
+    // embed it, and it must not be reflected into the webview (the sidebar's
+    // saveInstance replies through connectionFailureMessage for the same
+    // reason). The log keeps the full message.
+    const { ForgejoClient } = await import('../../api/client');
+    vi.mocked(ForgejoClient).mockImplementationOnce(function () {
+      return {
+        getCurrentUser: vi.fn().mockRejectedValue(new Error('Forgejo API error 409: {"message":"remote-authored"}')),
+      } as never;
+    });
+    const loggerError = vi.spyOn(logger, 'error');
+
+    fake.send({ command: 'saveInstance', url: 'https://new.example.com', token: 'tok' });
+    await flushDispatches();
+
+    const result = postedMessages(fake.posted).find((m) => m.command === 'saveInstanceResult');
+    expect(result).toMatchObject({ success: false });
+    expect(String(result?.error)).toContain('rejected the request');
+    expect(String(result?.error)).toContain('409');
+    expect(String(result?.error)).not.toContain('remote-authored');
+    // The log keeps the full message, body included.
+    expect(loggerError.mock.calls.map((call) => String(call[0])).join('\n')).toContain('remote-authored');
+  });
+
   it('answers the setup guide getRepositories probe with the repository list', async () => {
     // The guide sends this load right after a save and reads the answer out of
     // its `repos-<id>` slot, which only a `repositories` reply clears. Before

@@ -140,20 +140,20 @@ function mockRevParseShas(shasByRef: Record<string, string>, revListCounts: Reco
 }
 
 /**
- * Makes `fs.promises.readFile` answer as the clone's ownership marker readback:
- * a `.clone-owner` read returns whatever `writeFile` last wrote (the token the
- * call under test generated), and any other read fails, so the completeness
+ * Makes `fs.promises.readFile` answer as the clone's ownership marker probe:
+ * a `<target>.clone-owner.<token>` read succeeds (the token is part of the
+ * marker's file name, so its existence already proves this call wrote it; the
+ * content is never compared), and any other read fails, so the completeness
  * probe sees no `remote.origin.url`. Without this the mocked `readFile` answers
  * `undefined`, which the marker check reads as "not mine" and no cleanup runs.
  */
 function installOwnMarkerReadback(): void {
   vi.mocked(fs.promises.writeFile).mockImplementation(async () => undefined);
   vi.mocked(fs.promises.readFile).mockImplementation(async (file: unknown) => {
-    if (!String(file).endsWith('.clone-owner')) {
+    if (!String(file).includes('.clone-owner.')) {
       throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
     }
-    const written = vi.mocked(fs.promises.writeFile).mock.calls.at(-1)?.[1];
-    return String(written ?? '');
+    return '';
   });
 }
 
@@ -740,7 +740,9 @@ describe('gitOperations argument passing', () => {
     await cloneRepository('https://forgejo.example.com/a/b.git', '/tmp/b');
     expect(mocks.execFile).toHaveBeenCalledWith(
       'git',
-      ['clone', '--bare', '--quiet', 'https://forgejo.example.com/a/b.git', '/tmp/b'],
+      // `--` separates the options from the repository URL and target path,
+      // the convention the module's other commands follow.
+      ['clone', '--bare', '--quiet', '--', 'https://forgejo.example.com/a/b.git', '/tmp/b'],
       expect.anything(),
       expect.any(Function),
     );
@@ -793,7 +795,10 @@ describe('gitOperations argument passing', () => {
   });
 
   it('addRemote passes remote and url as single argv entries', async () => {
-    const remote = 'fork$(touch pwned)';
+    // Shell metacharacters without whitespace: the name passes the
+    // assertRemoteName guard (which only refuses names git would read as an
+    // option) and still proves the values reach git as single argv entries.
+    const remote = 'fork$(touch)pwned';
     const url = 'https://forgejo.example.com/a/b.git" && evil';
     await addRemote('/repo', remote, url);
     expect(mocks.execFile).toHaveBeenCalledWith(
@@ -802,6 +807,15 @@ describe('gitOperations argument passing', () => {
       expect.anything(),
       expect.any(Function),
     );
+  });
+
+  it('addRemote refuses a remote name git would read as an option', async () => {
+    // Same guard as the fetch/push helpers: a name starting with `-` would be
+    // parsed as an option of `git remote add` itself.
+    await expect(addRemote('/repo', '--upload-pack=evil', 'https://forgejo.example.com/a/b.git')).rejects.toThrow(
+      /not a usable git remote name/,
+    );
+    expect(mocks.execFile).not.toHaveBeenCalled();
   });
 
   it('createWorktreeFromBranch passes branch and path as single argv entries', async () => {
@@ -1564,6 +1578,49 @@ describe('revertMergeCommit branch guard and token push', () => {
     );
   });
 
+  it('masks credentials embedded in the stderr of a failed revert result', async () => {
+    // The revert command can exit 0 while still reporting the failure on stderr
+    // (the caller checks stderr for "error"). That stderr used to be embedded
+    // into the message verbatim — the one failure path that bypassed the
+    // credential mask every other git failure goes through: an older git quotes
+    // the remote URL it operated on, and the user's own remote configuration
+    // may have given that URL credentials.
+    mocks.execFile.mockImplementation(
+      (_file: string, args: string[], _options: unknown, callback: ExecFileCallback) => {
+        const cmd = args.join(' ');
+        if (cmd.startsWith('rev-parse HEAD')) {
+          callback(null, { stdout: 'c0ffee1\n', stderr: '' } as unknown as string, '');
+          return;
+        }
+        if (cmd.startsWith('revert -m 1')) {
+          callback(
+            null,
+            {
+              stdout: '',
+              stderr:
+                "error: could not revert abc123... see 'https://alice:secret-token-xyz@forgejo.example.com/owner/repo.git'",
+            } as unknown as string,
+            '',
+          );
+          return;
+        }
+        if (cmd.startsWith('rev-parse --absolute-git-dir')) {
+          callback(null, { stdout: '/repo/.git\n', stderr: '' } as unknown as string, '');
+          return;
+        }
+        callback(null, { stdout: '', stderr: '' } as unknown as string, '');
+      },
+    );
+
+    const failure = await revertMergeCommit('/repo', 'abc123').catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    const message = (failure as Error).message;
+    expect(message).toContain('could not revert');
+    expect(message).not.toContain('secret-token-xyz');
+    expect(message).toContain('https://alice:***@forgejo.example.com/owner/repo.git');
+  });
+
   it('accepts an scp push target whose login is not "git"', async () => {
     // Both guards in this flow must read the owner/repo out of the scp form
     // (isExpectedRepo here, remoteMatchesInstance inside pushBranch): git's scp
@@ -2063,14 +2120,21 @@ describe('git timeouts', () => {
     );
   });
 
-  it('removes a markerless partial clone only when this call owns it', async () => {
-    // The directory was absent before the call, but the ownership marker is
-    // not this call's (a second window wrote its own before this one got
-    // there) — the in-flight clone belongs to that window and must survive.
+  it('leaves the partial clone alone while another call has a clone in flight', async () => {
+    // The directory was absent before the call, but another window's marker
+    // file sits next to it: that window's clone is still running (this call's
+    // failed with "destination path already exists" because of it), and the
+    // cleanup must not `rm -rf` the directory the other window is writing.
     vi.mocked(fs.promises.access).mockRejectedValue(
       Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
     );
-    vi.mocked(fs.promises.readFile).mockResolvedValue('another-window-999-1-abc');
+    installOwnMarkerReadback();
+    // The other in-flight call's per-call marker: the same
+    // `<target>.clone-owner.` prefix with a different token. Its owner removes
+    // it when it settles, so this call's cleanup only declines for now.
+    (fs.promises.readdir as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+      'owner-repo.git.clone-owner.999-1-abc',
+    ]);
     mocks.execFile.mockImplementation(
       (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
         callback(
@@ -2091,6 +2155,42 @@ describe('git timeouts', () => {
       recursive: true,
       force: true,
     });
+    // This call's own marker is removed even though the cleanup declined; a
+    // leftover marker would make every later cleanup on this path decline too.
+    expect(vi.mocked(fs.promises.rm)).toHaveBeenCalledWith(expect.stringContaining('.clone-owner.'), {
+      force: true,
+    });
+  });
+
+  it('reclaims the partial clone once the other call settled and removed its marker', async () => {
+    // Same failure as above, but the other window already finished (success or
+    // failure — either way it deleted its own marker), so no marker but this
+    // call's is left and the incomplete directory is this call's to clean up.
+    vi.mocked(fs.promises.access).mockRejectedValue(
+      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
+    );
+    installOwnMarkerReadback();
+    (fs.promises.readdir as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: unknown, callback: ExecFileCallback) => {
+        callback(
+          Object.assign(new Error('fatal: destination path already exists'), {
+            stderr: 'fatal: destination path already exists',
+          }),
+          '',
+          'fatal: destination path already exists',
+        );
+      },
+    );
+
+    await expect(
+      cloneRepository('https://forgejo.example.com/owner/repo.git', '/cache/repos/owner-repo.git'),
+    ).rejects.toThrow('already exists');
+
+    expect(vi.mocked(fs.promises.rm)).toHaveBeenCalledWith('/cache/repos/owner-repo.git', {
+      recursive: true,
+      force: true,
+    });
   });
 
   it('leaves a complete clone alone even when this call owns the marker', async () => {
@@ -2100,8 +2200,10 @@ describe('git timeouts', () => {
     vi.mocked(fs.promises.access).mockRejectedValue(
       Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
     );
+    // The completeness probe reads `<targetPath>/config`; the separators are
+    // normalized because path.join produces backslashes on Windows.
     vi.mocked(fs.promises.readFile).mockImplementation(async (file: unknown) =>
-      String(file).endsWith('/config')
+      String(file).replace(/\\/g, '/').endsWith('/config')
         ? '[remote "origin"]\n\turl = https://forgejo.example.com/owner/repo.git\n'
         : 'this-calls-own-marker-read-back',
     );

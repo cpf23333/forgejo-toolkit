@@ -259,6 +259,51 @@ describe('RepoIssues create body rewrite', () => {
     }
   });
 
+  it('stops waiting for the rewrite when the view is unmounted', async () => {
+    prepare();
+    // The host never answers this rewrite.
+    state.editIssue.mockImplementation((_instanceId: string, _owner: string, _repo: string, index: number) => {
+      state.loading.set(keyFor('inst-1', 'owner', 'repoA', index), true);
+    });
+    vi.useFakeTimers();
+    try {
+      const wrapper = mountView();
+      await nextTick();
+      const objectUrl = pickImage(wrapper);
+      await nextTick();
+
+      wrapper.findComponent(IssueFormStub).vm.$emit('submit', {
+        title: 'New issue',
+        body: `before ![image](${objectUrl}) after`,
+        labels: [],
+        assignees: [],
+      });
+      await flushPromises();
+      expect(state.editIssue).toHaveBeenCalledTimes(1);
+
+      // keep-alive evicts the view while the rewrite reply is still pending.
+      wrapper.unmount();
+      await flushPromises();
+
+      // The wait settled on unmount: no retry is posted from a view that is
+      // gone, and nothing is reported on its closed dialog.
+      expect(state.editIssue).toHaveBeenCalledTimes(1);
+      expect(state.errors.get(CREATE_FORM_KEY)).toBeUndefined();
+      expect(state.openIssueDetail).not.toHaveBeenCalled();
+
+      // The watcher is gone with the view: a late reply (or the wait's own
+      // timeout firing afterwards) changes nothing.
+      state.loading.set(keyFor('inst-1', 'owner', 'repoA', 7), false);
+      await vi.advanceTimersByTimeAsync(60_000);
+      await flushPromises();
+      expect(state.editIssue).toHaveBeenCalledTimes(1);
+      expect(state.errors.get(CREATE_FORM_KEY)).toBeUndefined();
+      expect(state.openIssueDetail).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('navigates straight away when nothing needed rewriting', async () => {
     prepare();
     const wrapper = mountView();

@@ -2,10 +2,16 @@ import * as fs from 'fs';
 import { createHash } from 'crypto';
 import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
-import { buildUrl, client as baseClient, encodePathSegment } from '@cpf23333-forgejo-toolkit/shared/request';
+import {
+  buildUrl,
+  client as baseClient,
+  encodePathSegment,
+  mergeHeaders,
+} from '@cpf23333-forgejo-toolkit/shared/request';
 import { LIST_ITEM_LIMIT, MAX_REPO_FILE_SEARCH_RESULTS } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { toApiError, requestContextFor } from './errors-core';
 import { getForgejoClientHost } from './clientHost';
+import type { TranslateFn } from './translate';
 import { assertActionsSupported } from './serverVersion';
 import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 import type { Client, RequestConfig, RequestFetch, ResponseConfig } from '@cpf23333-forgejo-toolkit/shared/request';
@@ -242,8 +248,9 @@ interface TreeCacheEntry {
 
 // Shared across ForgejoClient instances: the view provider constructs a
 // client per message, so an instance field would die with each request and
-// the TTL would never pay off. Entries are keyed by origin + token hash +
-// repo + ref, so same-origin accounts never share cached trees. Bounded with
+// the TTL would never pay off. Entries are keyed by instance URL (origin AND
+// sub-path, so two deployments sharing a host never alias) + token hash +
+// repo + ref, so same-host accounts never share cached trees. Bounded with
 // simple oldest-first eviction.
 const treeCache = new Map<string, TreeCacheEntry>();
 const MAX_TREE_CACHE_ENTRIES = 50;
@@ -422,14 +429,18 @@ export function invalidateRepoContentCaches(): void {
 
 /**
  * Server origin detected for a configured instance, keyed by that instance's
- * origin, and the response shapes already proven to need no rewriting.
+ * full normalized URL (origin + sub-path), and the response shapes already
+ * proven to need no rewriting.
  *
  * Both are module-level for the same reason as `treeCache`: the view provider
  * constructs a ForgejoClient per message, so per-instance state dies with each
- * request and the scan/copy would run again on every response. Keyed by
- * configured origin, so two accounts on different instances never share a
- * verdict. Both memos are small — one entry per configured instance origin, one
- * per response shape — and the shape memo is capped at `MAX_ORIGIN_MEMO_ENTRIES`.
+ * request and the scan/copy would run again on every response. The detection
+ * memo is keyed by the configured instance URL rather than the bare origin
+ * because a reverse proxy can route two sub-paths of one host (`/a`, `/b`) to
+ * different backends whose payloads point at different internal origins; an
+ * origin-keyed verdict would hand the first backend's answer to the second.
+ * Both memos are small — one entry per configured instance, one per response
+ * shape — and the shape memo is capped at `MAX_ORIGIN_MEMO_ENTRIES`.
  */
 const detectedOriginByConfigured = new Map<string, string>();
 const noRewriteShapes = new Set<string>();
@@ -454,16 +465,18 @@ export function clearDetectedServerOrigins(): void {
 }
 
 /**
- * A cheap structural fingerprint of a JSON response: property names and array
- * lengths, sampling at most `SHAPE_SAMPLE_ITEMS` items and `SHAPE_MAX_DEPTH`
- * levels. Two responses of the same endpoint share it, so the verdict "this
- * shape carries no URL to rewrite" is reusable.
+ * A cheap structural fingerprint of a JSON response: property names, array
+ * lengths, and — for strings — whether the value *is* an http(s) URL, sampling
+ * at most `SHAPE_SAMPLE_ITEMS` items and `SHAPE_MAX_DEPTH` levels.
  *
- * Sampling — rather than hashing every value — is what makes it cheaper than the
- * scan it replaces on a 500-item list, and it stays faithful because a verdict
- * is only reused when the remote server answered the same shape as before: a
- * response that suddenly carries URLs is a different login/instance and has its
- * own `configuredOrigin` key.
+ * Sampling — rather than hashing every value — is what makes it cheaper than
+ * the scan it replaces on a 500-item list. The URL-ness of each string slot
+ * must be part of the fingerprint because the no-rewrite verdict is recorded
+ * only for payloads that hold no URL value at all: two responses can share
+ * every key and array length and still differ in which strings hold URLs (an
+ * `html_url` left empty in one response and filled in the next), and a
+ * structure-only fingerprint let the memo skip the rewrite the second response
+ * needed.
  */
 const SHAPE_SAMPLE_ITEMS = 2;
 const SHAPE_MAX_DEPTH = 4;
@@ -483,7 +496,24 @@ function _shapeFingerprint(value: unknown, depth = 0): string {
     const entries = Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     return `{${entries.map(([key, item]) => `${key}=${_shapeFingerprint(item, depth + 1)}`).join(';')}}`;
   }
+  if (typeof value === 'string') {
+    return isHttpUrlValue(value) ? 'url' : 'string';
+  }
   return typeof value;
+}
+
+/**
+ * Whether a string value is itself an http(s) URL — the only values
+ * `_rewriteUrls` can change. A prose field that merely *mentions* a URL does
+ * not parse as one and stays plain text for the fingerprint.
+ */
+function isHttpUrlValue(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -538,12 +568,6 @@ export interface MentionSearchResult {
   issues: MentionIssueItem[];
 }
 
-/**
- * Adds an abort signal to a request config. Exported so the merge can be asserted
- * directly: a mocked HTTP layer rebuilds the Request and drops the caller signal,
- * which hides this from an end-to-end test.
- */
-
 /** Adds a Node fetch dispatcher (proxy agent) to a request config. */
 export function withDispatcher<TRequestData>(
   config: RequestConfig<TRequestData>,
@@ -594,14 +618,28 @@ export function requestSignalFor(callerSignal?: AbortSignal, clientSignal?: Abor
   ]) as AbortSignal;
 }
 
+/**
+ * Adds an abort signal to a request config. Exported so the merge can be asserted
+ * directly: a mocked HTTP layer rebuilds the Request and drops the caller signal,
+ * which hides this from an end-to-end test.
+ */
 export function withAbortSignal<TRequestData>(
   config: RequestConfig<TRequestData>,
   signal?: AbortSignal,
 ): RequestConfig<TRequestData> {
   return signal ? { ...config, signal } : config;
 }
+
 export class ForgejoClient {
   private readonly configuredOrigin: string;
+  /**
+   * The configured instance URL normalized for cache keys: origin plus
+   * sub-path, no trailing slash, no userinfo. The bare origin is not enough —
+   * two deployments can share a host under different sub-paths (`/a` vs `/b`)
+   * and, when they use the same token, an origin-keyed cache would let one
+   * deployment's client read the other's trees and file bodies.
+   */
+  private readonly configuredInstanceUrl: string;
   /** Node fetch dispatcher (undici ProxyAgent) for hosts behind a proxy. */
   private readonly requestDispatcher?: unknown;
   /** The fetch that understands `requestDispatcher` (the bundled undici). */
@@ -624,7 +662,13 @@ export class ForgejoClient {
     this.abortSignal = options?.signal;
     this.requestDispatcher = options?.dispatcher;
     this.requestFetch = options?.fetch;
-    this.configuredOrigin = new URL(this.url.replace(/\/$/, '')).origin;
+    const configured = new URL(this.url.replace(/\/+$/, ''));
+    this.configuredOrigin = configured.origin;
+    // Userinfo is deliberately absent from the key: the token hash below
+    // already separates accounts, and credentials have no business in cache
+    // keys. The trailing slash is stripped so two spellings of one deployment
+    // share their entries.
+    this.configuredInstanceUrl = `${configured.origin}${configured.pathname}`.replace(/\/+$/, '');
     this.syncApiUrlsToInstanceUrl = syncApiUrlsToInstanceUrl ?? true;
     this.tokenCacheKey = createHash('sha256').update(token).digest('hex').slice(0, 16);
   }
@@ -687,7 +731,12 @@ export class ForgejoClient {
     // MAX_ITEMS would report one request too many.
     let requests = 0;
     while (all.length < MAX_ITEMS) {
-      const items = (await fetchPage(page)) ?? [];
+      const fetched = await fetchPage(page);
+      // The shared request client answers a 204/205/304 (or an empty 200 body)
+      // with `{}` rather than an array, and `?? []` does not catch that:
+      // spreading a non-array below would throw. Treat any non-array answer as
+      // an empty page, which the empty-page rule below already handles.
+      const items = Array.isArray(fetched) ? fetched : [];
       requests++;
       const firstItemKey = items.length > 0 ? JSON.stringify(items[0]) : undefined;
       if (firstItemKey !== undefined && firstItemKey === previousFirstItemKey) {
@@ -858,8 +907,13 @@ export class ForgejoClient {
     });
     const text = (response as unknown as string) ?? '';
     // CI logs can be arbitrarily large; cap what is kept in memory and shown.
+    // The suffix reaches the webview's log view, so it goes through the host's
+    // translate seam (English passthrough for the headless MCP host) and names
+    // the actual cap instead of a hardcoded number that can drift from
+    // MAX_JOB_LOG_LENGTH.
     if (text.length > MAX_JOB_LOG_LENGTH) {
-      return `${text.slice(0, MAX_JOB_LOG_LENGTH)}\n... (truncated: log exceeds the 10 MB limit)`;
+      const limitMb = MAX_JOB_LOG_LENGTH / (1024 * 1024);
+      return `${text.slice(0, MAX_JOB_LOG_LENGTH)}\n${getForgejoClientHost().t('... (truncated: log exceeds the {0} MB limit)', limitMb)}`;
     }
     return text;
   }
@@ -916,6 +970,18 @@ export class ForgejoClient {
     // No total cap: a 2 GB artifact on a slow link legitimately takes longer
     // than any fixed timeout. Instead an idle watchdog aborts the download
     // only when no bytes arrive for API_REQUEST_TIMEOUT_MS.
+    const t = getForgejoClientHost().t;
+    // The error for a watchdog abort, needed on both sides of the stream
+    // setup; the idle window is interpolated so the message cannot drift from
+    // API_REQUEST_TIMEOUT_MS.
+    const stalledError = () =>
+      new Error(
+        t(
+          'Forgejo artifact {0} download stalled: no data received for {1} seconds.',
+          artifactId,
+          API_REQUEST_TIMEOUT_MS / 1000,
+        ),
+      );
     const controller = new AbortController();
     let stalled = false;
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -941,7 +1007,7 @@ export class ForgejoClient {
         clearTimeout(idleTimer);
       }
       if (stalled) {
-        throw new Error(`Forgejo artifact ${artifactId} download stalled: no data received for 30 seconds.`);
+        throw stalledError();
       }
       throw error;
     }
@@ -949,18 +1015,27 @@ export class ForgejoClient {
       if (idleTimer !== undefined) {
         clearTimeout(idleTimer);
       }
-      throw new Error(`Forgejo artifact ${artifactId} returned no response body.`);
+      throw new Error(t('Forgejo artifact {0} returned no response body.', artifactId));
     }
 
     const tempPath = `${targetPath}.part`;
     let written = 0;
     // Defensive cap against unbounded writes; enforced mid-stream so the
-    // download aborts as soon as the limit is crossed.
+    // download aborts as soon as the limit is crossed. The message interpolates
+    // the cap actually in force — tests pass a small `maxBytes`.
     const counter = new Transform({
       transform(chunk: Uint8Array, _encoding, callback) {
         written += chunk.length;
         if (written > maxBytes) {
-          callback(new Error(`Forgejo artifact ${artifactId} exceeds the 2 GB size limit and was not downloaded.`));
+          callback(
+            new Error(
+              t(
+                'Forgejo artifact {0} exceeds the {1} size limit and was not downloaded.',
+                artifactId,
+                formatSizeLimit(maxBytes),
+              ),
+            ),
+          );
           return;
         }
         resetIdleWatchdog();
@@ -979,7 +1054,7 @@ export class ForgejoClient {
     } catch (error) {
       await fs.promises.rm(tempPath, { force: true }).catch(() => undefined);
       if (stalled) {
-        throw new Error(`Forgejo artifact ${artifactId} download stalled: no data received for 30 seconds.`);
+        throw stalledError();
       }
       throw error;
     } finally {
@@ -1073,11 +1148,17 @@ export class ForgejoClient {
     } else {
       switch ((readmeFile as { type?: string }).type) {
         case 'symlink':
-          // `size` here is the *link target's* length, not a payload size.
-          entry.notice = readmeSymlinkNotice((readmeFile as { target?: string }).target);
+          // `size` here is the *link target's* length, not a payload size. The
+          // notice reaches the webview's README preview, so it is localized
+          // through the host seam (English passthrough for the headless MCP
+          // host), like the CI-log and artifact messages.
+          entry.notice = readmeSymlinkNotice(getForgejoClientHost().t, (readmeFile as { target?: string }).target);
           return entry;
         case 'submodule':
-          entry.notice = readmeSubmoduleNotice((readmeFile as { submodule_git_url?: string }).submodule_git_url);
+          entry.notice = readmeSubmoduleNotice(
+            getForgejoClientHost().t,
+            (readmeFile as { submodule_git_url?: string }).submodule_git_url,
+          );
           return entry;
         case 'dir':
           // Defensive: a directory answers with its listing (an array, handled
@@ -1299,12 +1380,14 @@ export class ForgejoClient {
    */
   async getRepoContents(owner: string, repo: string, path: string, ref?: string): Promise<ForgejoContentEntry[]> {
     const params = ref ? { ref } : undefined;
-    // The key carries the token hash for the same reason the tree cache does
-    // (see `_getRepoTree`): two accounts on one origin see different bytes for
-    // the same path, and this memo is shared across client instances.
+    // The key carries the full instance URL (not the bare origin) and the token
+    // hash for the same reason the tree cache does (see `_getRepoTree`): two
+    // deployments can share a host under different sub-paths, and two accounts
+    // on one instance see different bytes for the same path — this memo is
+    // shared across client instances.
     const cacheKey = this.abortSignal
       ? undefined
-      : cacheKeyFor(this.configuredOrigin, this.tokenCacheKey, owner, repo, path, ref ?? '');
+      : cacheKeyFor(this.configuredInstanceUrl, this.tokenCacheKey, owner, repo, path, ref ?? '');
     if (cacheKey) {
       const cached = repoContentsCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
@@ -1409,7 +1492,11 @@ export class ForgejoClient {
     repo: string,
     ref: string,
   ): Promise<{ entries: GitEntry[]; truncated: boolean }> {
-    const key = cacheKeyFor(this.configuredOrigin, this.tokenCacheKey, owner, repo, ref);
+    // The full instance URL keys the cache, not the bare origin: two
+    // deployments sharing a host under different sub-paths (`/a` vs `/b`) are
+    // different servers, and with a shared token an origin-level key would let
+    // one answer the other's search from a stale tree.
+    const key = cacheKeyFor(this.configuredInstanceUrl, this.tokenCacheKey, owner, repo, ref);
     const cached = treeCache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
       return { entries: cached.value, truncated: cached.truncated };
@@ -1547,7 +1634,7 @@ export class ForgejoClient {
       const data = result as Attachment;
       return {
         ...data,
-        browser_download_url: data.browser_download_url ?? `${this.url}/attachments/${data.uuid}`,
+        browser_download_url: data.browser_download_url ?? attachmentDownloadUrl(this.url, data.uuid),
       };
     });
   }
@@ -1853,12 +1940,25 @@ export class ForgejoClient {
       searchUsers
         ? userSearch({ q: query, limit: 10 }, { client: this._client() })
             .then((result) => (result?.data ?? []) as User[])
-            .catch(() => [] as User[])
+            // Best-effort like `_probe`: a failed suggestion lookup must not
+            // break the composer, but the failure is logged so a systematically
+            // failing endpoint stays diagnosable.
+            .catch((error: unknown) => {
+              this.logger?.debug(
+                `[probe] searchMentions users: ${redactErrorDetail(error instanceof Error ? error.message : String(error))}`,
+              );
+              return [] as User[];
+            })
         : Promise.resolve([] as User[]),
       searchIssues
         ? issueListIssues(owner, repo, { state: 'all', q: query, limit: 10 }, { client: this._client() })
             .then((issues) => (issues ?? []) as ForgejoIssue[])
-            .catch(() => [] as ForgejoIssue[])
+            .catch((error: unknown) => {
+              this.logger?.debug(
+                `[probe] searchMentions issues: ${redactErrorDetail(error instanceof Error ? error.message : String(error))}`,
+              );
+              return [] as ForgejoIssue[];
+            })
         : Promise.resolve([] as ForgejoIssue[]),
     ]);
 
@@ -2099,7 +2199,7 @@ export class ForgejoClient {
         uuid: data.uuid ?? '',
         name: data.name ?? filename,
         size: data.size,
-        browser_download_url: data.browser_download_url ?? `${this.url}/attachments/${data.uuid}`,
+        browser_download_url: data.browser_download_url ?? attachmentDownloadUrl(this.url, data.uuid),
       };
     });
   }
@@ -2305,7 +2405,7 @@ export class ForgejoClient {
             uuid: a.uuid ?? '',
             name: a.name ?? '',
             size: a.size,
-            browser_download_url: a.browser_download_url ?? `${this.url}/attachments/${a.uuid}`,
+            browser_download_url: a.browser_download_url ?? attachmentDownloadUrl(this.url, a.uuid),
           })),
         );
       } catch (error) {
@@ -2382,7 +2482,7 @@ export class ForgejoClient {
         uuid: data.uuid ?? '',
         name: data.name ?? filename,
         size: data.size,
-        browser_download_url: data.browser_download_url ?? `${this.url}/attachments/${data.uuid}`,
+        browser_download_url: data.browser_download_url ?? attachmentDownloadUrl(this.url, data.uuid),
       };
     });
   }
@@ -2546,8 +2646,17 @@ export class ForgejoClient {
 
     // Per response shape, not per client instance: the view provider builds a
     // ForgejoClient for every message, so an instance field alone never spares
-    // the next request the scan. The fingerprint below only samples the first
-    // few items of each array, so it stays cheap on a 500-item list.
+    // the next request the scan. The fingerprint only samples the first few
+    // items of each array, so it stays cheap on a 500-item list.
+    //
+    // A shape verdict may only ever be recorded for a payload that holds no
+    // http(s) URL value at all (`_containsHttpUrlValue` below): a URL-free
+    // payload has nothing to rewrite no matter which origin is detected, and
+    // the fingerprint marks URL-valued strings apart from plain text, so a
+    // later same-structure payload whose values DO include URLs produces a
+    // different fingerprint and can never hit the memo. Memoizing on structure
+    // alone skipped the rewrite for a same-shaped payload that carried URLs
+    // pointing at the detected origin.
     const shape = `${this.configuredOrigin}|${_shapeFingerprint(data)}`;
     if (noRewriteShapes.has(shape)) {
       return data;
@@ -2556,7 +2665,9 @@ export class ForgejoClient {
     const detected = this._serverOriginFor(data);
     if (!detected) {
       // The payload names no server origin at all: nothing can be rewritten.
-      rememberShape(shape);
+      if (!this._containsHttpUrlValue(data)) {
+        rememberShape(shape);
+      }
       return data;
     }
 
@@ -2564,8 +2675,14 @@ export class ForgejoClient {
       // Nothing in the payload points at the detected origin, so the rewrite
       // would change no value. Returning the payload as it arrived skips the
       // deep copy that used to be paid on every response — 85-150 ms for a
-      // 500-item list.
-      rememberShape(shape);
+      // 500-item list. The shape is only memoized when the payload is URL-free
+      // (see above): a payload whose URLs all sit on the configured origin, or
+      // under keys the rewrite never touches, needs no copy either, but its
+      // shape must not become a verdict for the same structure carrying
+      // detected-origin URLs later.
+      if (!this._containsHttpUrlValue(data)) {
+        rememberShape(shape);
+      }
       return data;
     }
 
@@ -2574,15 +2691,35 @@ export class ForgejoClient {
   }
 
   /**
+   * Whether any string value in the payload is itself an http(s) URL — the
+   * only values `_rewriteUrls` can change. This is the gate for the
+   * no-rewrite shape memo: a payload with no URL values can never need a
+   * rewrite, whatever origin the server is detected at.
+   */
+  private _containsHttpUrlValue(data: unknown): boolean {
+    if (typeof data === 'string') {
+      return isHttpUrlValue(data);
+    }
+    if (Array.isArray(data)) {
+      return data.some((item) => this._containsHttpUrlValue(item));
+    }
+    if (data && typeof data === 'object') {
+      return Object.values(data).some((item) => this._containsHttpUrlValue(item));
+    }
+    return false;
+  }
+
+  /**
    * The server origin a payload's API-provided URLs point at, or undefined when
    * it holds none.
    *
-   * Detection walks the payload, so its result is memoized per configured origin
-   * in `detectedOriginByConfigured`; that memo, not the `detectedServerOrigin`
-   * instance field, is what survives the per-message client rebuild.
+   * Detection walks the payload, so its result is memoized per configured
+   * instance URL in `detectedOriginByConfigured`; that memo, not the
+   * `detectedServerOrigin` instance field, is what survives the per-message
+   * client rebuild.
    */
   private _serverOriginFor(data: unknown): string | undefined {
-    const memoized = detectedOriginByConfigured.get(this.configuredOrigin);
+    const memoized = detectedOriginByConfigured.get(this.configuredInstanceUrl);
     if (memoized !== undefined) {
       return memoized;
     }
@@ -2590,16 +2727,29 @@ export class ForgejoClient {
     if (!detected) {
       return undefined;
     }
-    detectedOriginByConfigured.set(this.configuredOrigin, detected);
+    detectedOriginByConfigured.set(this.configuredInstanceUrl, detected);
     this.detectedServerOrigin = detected;
     return detected;
   }
 
-  /** True when any string value is a URL on `origin` (the same keys detection skips). */
+  /**
+   * True when any string value is a URL on `origin` that the rewrite would
+   * change.
+   *
+   * `website` and `original_url` are skipped like detection skips them: they
+   * are display-only links that legitimately point away from the server.
+   * `avatar_url` is NOT skipped here (it is excluded only from detection, where
+   * an external avatar host must not win the origin vote): an avatar served by
+   * the instance itself sits on the detected origin, and the webview resolves
+   * avatars by same-origin comparison against the *configured* URL
+   * (`viewProvider._resolveAvatarUrl`), so an avatar left on the detected
+   * origin would never be fetched with the token and renders broken for an
+   * instance the webview cannot reach directly.
+   */
   private _hasUrlOnOrigin(data: unknown, origin: string): boolean {
     const visit = (value: unknown, key?: string): boolean => {
       if (typeof value === 'string') {
-        if (key === 'avatar_url' || key === 'website' || key === 'original_url') {
+        if (key === 'website' || key === 'original_url') {
           return false;
         }
         const parsed = this._parseUrl(value);
@@ -2737,7 +2887,11 @@ export class ForgejoClient {
             requestFetch,
           ),
           baseURL,
-          headers: mergeHeaders(config.headers, { Authorization: `token ${this.token}` }),
+          // No token means anonymous access to a public instance; sending
+          // `Authorization: token ` with an empty credential makes some
+          // servers reject the request outright instead of treating it as
+          // anonymous.
+          headers: mergeHeaders(config.headers, this.token.trim() ? { Authorization: `token ${this.token}` } : {}),
         });
 
         if (debugEnabled) {
@@ -2850,21 +3004,6 @@ async function mapWithConcurrency<T>(
   await Promise.all(workers);
 }
 
-function mergeHeaders(...headers: Array<RequestConfig['headers'] | undefined>): Record<string, string> {
-  return headers.reduce<Record<string, string>>((merged, h) => {
-    if (!h) {
-      return merged;
-    }
-    const entries = Array.isArray(h) ? h : Object.entries(h);
-    for (const [key, value] of entries) {
-      if (value !== undefined) {
-        merged[key] = String(value);
-      }
-    }
-    return merged;
-  }, {});
-}
-
 function decodeBase64(content: string): string {
   if (typeof Buffer !== 'undefined') {
     return Buffer.from(content, 'base64').toString('utf-8');
@@ -2929,23 +3068,71 @@ function submoduleNotice(path: string, gitUrl?: string): string {
  * to the link target's length, so that size is not the README's and must never
  * become a withheld-payload notice. Kept separate from `symlinkNotice` because
  * the caller here is the dashboard's README preview, not a file read: it says
- * where the text lives rather than asking for a different path.
+ * where the text lives rather than asking for a different path. That preview is
+ * webview UI, so the sentence is localized through the host's TranslateFn (the
+ * headless MCP host passes the English text through).
  */
-function readmeSymlinkNotice(target?: string): string {
+function readmeSymlinkNotice(t: TranslateFn, target?: string): string {
   return target
-    ? `${README_PATH} is a symlink to ${target}, so Forgejo returned no text for it. Open ${target} in the Forgejo web UI to read it.`
-    : `${README_PATH} is a symlink that points elsewhere in the repository, so Forgejo returned no text for it. Open it in the Forgejo web UI to read it.`;
+    ? t(
+        '{0} is a symlink to {1}, so Forgejo returned no text for it. Open {1} in the Forgejo web UI to read it.',
+        README_PATH,
+        target,
+      )
+    : t(
+        '{0} is a symlink that points elsewhere in the repository, so Forgejo returned no text for it. Open it in the Forgejo web UI to read it.',
+        README_PATH,
+      );
 }
 
 /**
  * The answer for a README that is a submodule: the entry names its own
  * repository and carries no payload at all (its size is 0), so there is no text
- * this repository can show and none was withheld.
+ * this repository can show and none was withheld. Localized through the host's
+ * TranslateFn for the same reason as `readmeSymlinkNotice`.
  */
-function readmeSubmoduleNotice(gitUrl?: string): string {
+function readmeSubmoduleNotice(t: TranslateFn, gitUrl?: string): string {
   return gitUrl
-    ? `${README_PATH} is a submodule whose own repository is at ${gitUrl}, so this repository holds no README text for it. Open the submodule in the Forgejo web UI to read it there.`
-    : `${README_PATH} is a submodule, a separate repository, so this repository holds no README text for it. Open it in the Forgejo web UI.`;
+    ? t(
+        '{0} is a submodule whose own repository is at {1}, so this repository holds no README text for it. Open the submodule in the Forgejo web UI to read it there.',
+        README_PATH,
+        gitUrl,
+      )
+    : t(
+        '{0} is a submodule, a separate repository, so this repository holds no README text for it. Open it in the Forgejo web UI.',
+        README_PATH,
+      );
+}
+
+/**
+ * The download URL for an attachment whose response carried no
+ * `browser_download_url`. A missing `uuid` yields undefined rather than a
+ * working-looking `/attachments/undefined` link that only 404s when opened, and
+ * the instance URL's trailing slash is stripped so the join cannot produce a
+ * double slash.
+ */
+function attachmentDownloadUrl(instanceUrl: string, uuid: string | undefined): string | undefined {
+  if (!uuid) {
+    return undefined;
+  }
+  return `${instanceUrl.replace(/\/+$/, '')}/attachments/${uuid}`;
+}
+
+/**
+ * A byte cap rendered for an error message, in the largest unit the value
+ * divides evenly into: the default artifact cap reads "2 GB", while the small
+ * caps tests pass stay exact instead of rounding to "0 GB".
+ */
+function formatSizeLimit(bytes: number): string {
+  const gib = 1024 ** 3;
+  const mib = 1024 ** 2;
+  if (bytes % gib === 0) {
+    return `${bytes / gib} GB`;
+  }
+  if (bytes % mib === 0) {
+    return `${bytes / mib} MB`;
+  }
+  return `${bytes} bytes`;
 }
 
 // The generated API clients interpolate path parameters into the URL without

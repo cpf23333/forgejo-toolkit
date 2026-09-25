@@ -73,6 +73,18 @@ export class NotificationPoller implements vscode.Disposable {
   private readonly _knownUnreadIds = new Map<string, number[]>();
 
   /**
+   * The seen-id baseline of the last reconcile whose `globalState` write
+   * FAILED. The baseline is read back from `globalState` on every reconcile,
+   * so a write that never landed would leave the stored map one round behind
+   * and the same notifications would be reported as new on every poll until a
+   * write succeeds. While a write is outstanding, this in-memory copy is the
+   * authoritative baseline instead; a successful write clears it again
+   * (persistence is authoritative then, which also picks up changes another
+   * window made).
+   */
+  private _unpersistedSeenIds: Map<string, Set<number>> | undefined;
+
+  /**
    * Bumped whenever a successful "Mark all as read" clears the view. A poll
    * reply that was already in flight when that happened describes the state
    * before the clear, so pushing it would resurrect the rows the user just
@@ -104,11 +116,15 @@ export class NotificationPoller implements vscode.Disposable {
     if (this._disposed || this._started) {
       return;
     }
-    this._started = true;
     if (!this._config.isNotificationPollingEnabled()) {
       this._logger?.debug('Notification polling is disabled');
       return;
     }
+    // Set only once polling is actually on: the follow-up-round guard in
+    // `_pollOnce` (and the toast gate in `_pollAll`) read `_started` as
+    // "polling is running", and a disabled poller that still carried the flag
+    // would run a follow-up round when an in-flight one settles.
+    this._started = true;
     this._scheduleAll(true);
   }
 
@@ -171,7 +187,10 @@ export class NotificationPoller implements vscode.Disposable {
     this._pollInFlight = round.finally(() => {
       if (this._pollRoundId === roundId) {
         this._pollInFlight = undefined;
-        if (this._pollAgainRequested && !this._disposed) {
+        // A stopped poller must not run the follow-up round: `stop()` drops the
+        // interval, and without the `_started` check an in-flight round whose
+        // instance set changed would still poll once more afterwards.
+        if (this._pollAgainRequested && !this._disposed && this._started) {
           this._pollAgainRequested = false;
           void this._pollOnce();
         }
@@ -218,7 +237,9 @@ export class NotificationPoller implements vscode.Disposable {
         }
       }),
     );
-    if (batches.length > 0 && !this._disposed) {
+    // A round that was in flight when the poller stopped (disabled or disposed
+    // meanwhile) must not toast either: the user turned polling off.
+    if (batches.length > 0 && !this._disposed && this._started) {
       this._showAggregatedNotification(batches);
     }
   }
@@ -320,7 +341,10 @@ export class NotificationPoller implements vscode.Disposable {
         // keep the queue alive after a failed write
       })
       .then(async () => {
-        const allSeen = this._getAllSeenIds();
+        // While the previous write is outstanding, the persisted map is one
+        // round behind; the in-memory copy is the baseline then (see
+        // `_unpersistedSeenIds`).
+        const allSeen = this._unpersistedSeenIds ?? this._getAllSeenIds();
         // Without a persisted baseline (fresh install) every unread
         // notification would be reported as "new" on the first poll; the first
         // poll for an instance only establishes the baseline.
@@ -333,8 +357,14 @@ export class NotificationPoller implements vscode.Disposable {
         try {
           const serialized = Object.fromEntries([...allSeen].map(([key, value]) => [key, [...value]]));
           await this._context.globalState.update(SEEN_NOTIFICATION_IDS_KEY, serialized);
+          // The baseline reached disk; the in-memory copy must not shadow
+          // newer persisted state (another window's reconcile) any more.
+          this._unpersistedSeenIds = undefined;
         } catch {
-          // ignore persistence errors
+          // The baseline did not reach disk: keep it in memory so the next
+          // reconcile does not re-report this round's notifications as new on
+          // every poll until a write succeeds.
+          this._unpersistedSeenIds = allSeen;
         }
         return newNotifications;
       });
@@ -370,15 +400,22 @@ export class NotificationPoller implements vscode.Disposable {
     const openLabel = vscode.l10n.t('Open');
     const markAllReadLabel = vscode.l10n.t('Mark all as read');
 
-    vscode.window.showInformationMessage(message, openLabel, markAllReadLabel).then((selection) => {
-      if (selection === openLabel) {
-        this._sender.openNotifications();
-      } else if (selection === markAllReadLabel) {
-        for (const batch of batches) {
-          void this._markAllRead(batch.instance);
+    // Promise.resolve flattens the Thenable: the catch below then also covers a
+    // synchronous throw inside the callback (openNotifications), which must not
+    // surface as an unhandled rejection.
+    void Promise.resolve(vscode.window.showInformationMessage(message, openLabel, markAllReadLabel))
+      .then((selection) => {
+        if (selection === openLabel) {
+          this._sender.openNotifications();
+        } else if (selection === markAllReadLabel) {
+          for (const batch of batches) {
+            void this._markAllRead(batch.instance);
+          }
         }
-      }
-    });
+      })
+      .catch((error: unknown) => {
+        this._logger?.error(`Failed to handle the notification toast action: ${userFacingErrorMessage(error)}`);
+      });
   }
 
   private async _markAllRead(instance: ForgejoInstance): Promise<void> {

@@ -21,6 +21,7 @@ This rule takes precedence over any compacted summary, TODO list, or earlier use
 ## Package scope
 
 - Use `@cpf23333-forgejo-toolkit/` for all workspace packages, not `@forgejo/`.
+- Exception: `packages/forgejo-toolkit` itself is named `forgejo-toolkit` without a scope, because the package name doubles as the VS Code extension ID and extension IDs do not allow an `@scope/name` form. Do not "fix" this one into the scope.
 
 ## Code content
 

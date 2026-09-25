@@ -27,6 +27,7 @@ import {
   fetchPullRequestHead,
   findLocalRepo,
   getRefCommitSha,
+  hasUsableOriginRemote,
   inspectPrWorktree,
   isCurrentWorkspaceBaseRepo,
   isGitRepository,
@@ -34,6 +35,7 @@ import {
   isRevertInProgress,
   listRemotes,
   openWorktree,
+  PR_THROWAWAY_BRANCH_PATTERN,
   removeWorktreeAndPrune,
   requiresWorkspaceReplacement,
   resolveRemoteForRepo,
@@ -291,6 +293,13 @@ const MAX_RESOLVED_AVATARS = 100;
  * full-size images while keeping the worst case bounded.
  */
 export const AVATAR_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+/**
+ * Hard cap for one avatar fetch, applied before and during the body read: a
+ * data URL is ~4/3 of the bytes fetched, and a handful of multi-megabyte
+ * "avatars" (a malicious or misconfigured server can answer any size) would
+ * otherwise be buffered whole and then pinned in the cache above.
+ */
+export const AVATAR_FETCH_MAX_BYTES = 2 * 1024 * 1024;
 const AVATAR_FAILURE_TTL_MS = 60_000;
 /**
  * Successes are content-addressed by URL, but the entry still expires: an
@@ -454,6 +463,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         // with no record behind it.
         this._sendWorktrees();
         this._refreshWebviewInstanceOrigins();
+        // The onboarding panel's save/remove paths change the instance set
+        // without running the detection this provider's own handlers perform;
+        // detecting here converges both entry points. Debounced like the
+        // active-editor trigger (the sidebar handlers also detect directly),
+        // and the scan cache keys on the instance id/url list, so an add/remove
+        // misses the cache on its own while a token-only change keeps it.
+        this._scheduleLinkedRepositoryDetect();
       }),
     );
     this._context.subscriptions.push(
@@ -708,15 +724,28 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
     // error instead of spinning forever (the handlers themselves bail out
     // silently). The reply echoes the request fields, which is how the
     // webview routes it to the right loading key.
+    //
+    // The guard fires on a missing/empty `instanceId` too, not only on an
+    // unknown one: a malformed message otherwise reaches the handler, whose
+    // `_findInstance(undefined)` lookup misses and returns without replying —
+    // the webview's loading state would never clear. Echoing the request
+    // fields stays safe there as well: with no `instanceId` on the request the
+    // reply simply carries none.
     const resultCommand = LOAD_RESULT_COMMANDS[message.command] ?? MUTATION_RESULT_COMMANDS[message.command];
-    if (resultCommand && typeof message.instanceId === 'string' && !this._findInstance(message.instanceId)) {
-      logger.error(`${message.command} failed: instance not found: ${message.instanceId}`);
-      this._replyResultShapedError(
-        message,
-        resultCommand,
-        vscode.l10n.t('The Forgejo instance is no longer configured'),
-      );
-      return;
+    if (resultCommand) {
+      const instanceId =
+        typeof message.instanceId === 'string' && message.instanceId.length > 0 ? message.instanceId : undefined;
+      if (instanceId === undefined || !this._findInstance(instanceId)) {
+        logger.error(`${message.command} failed: instance not found: ${String(message.instanceId)}`);
+        this._replyResultShapedError(
+          message,
+          resultCommand,
+          instanceId === undefined
+            ? vscode.l10n.t('The request could not be completed')
+            : vscode.l10n.t('The Forgejo instance is no longer configured'),
+        );
+        return;
+      }
     }
     switch (message.command) {
       case 'getInitialState': {
@@ -867,7 +896,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`saveInstance failed: ${err}`);
-          this._reply('saveInstanceResult', { success: false, error: err });
+          // The reply gets the status-only rendering (as testConnection's does):
+          // userFacingErrorMessage embeds the upstream response body for
+          // 409/422, and that remote-authored content must not be reflected
+          // into the webview (see connectionFailureMessage).
+          this._reply('saveInstanceResult', { success: false, error: connectionFailureMessage(error) });
         }
         return;
       }
@@ -951,7 +984,11 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`editInstance failed: ${err}`);
-          this._reply('saveInstanceResult', { success: false, error: err });
+          // Same status-only reply as saveInstance above (see
+          // connectionFailureMessage): the upstream response body a 409/422
+          // embeds is remote-authored and must not be reflected into the
+          // webview.
+          this._reply('saveInstanceResult', { success: false, error: connectionFailureMessage(error) });
         }
         return;
       }
@@ -3642,15 +3679,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         }
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
-          const rawEntries = await client.getRepoContents(owner, repo, path, ref || undefined);
-          // Forgejo omits the payload of files above `[api] DEFAULT_MAX_BLOB_SIZE`
-          // (10 MiB by default) and reports the real size instead, which the file browser
-          // and the README preview would render as an empty document. Serve the same
-          // localized explanation the PR diff provider uses.
-          const entries = rawEntries.map((entry) => {
-            const notice = entry.content ? undefined : missingPayloadNotice(entry.size);
-            return notice ? { ...entry, content: Buffer.from(`${notice}\n`).toString('base64') } : entry;
-          });
+          // The entries are forwarded as the API returned them. The webview's
+          // file browser only renders name/path/type/size and opens files
+          // through openRepoFile → repoFileProvider, which is where a withheld
+          // payload (files above `[api] DEFAULT_MAX_BLOB_SIZE`) gets its
+          // explanation — with the entry-type check that keeps symlinks and
+          // submodules from being misread as withheld files.
+          const entries = await client.getRepoContents(owner, repo, path, ref || undefined);
           if (logger.isDebugEnabled()) {
             // Debug logging is off by default, and a directory can hold
             // thousands of entries: the stringify of every name/path/type must
@@ -5090,6 +5125,71 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Self-healing for a half-written cache clone. A bare-clone directory that
+   * exists but carries no usable `remote.origin.url` (a `git clone` killed
+   * mid-transfer, or a leftover of a failed cross-window cleanup) used to
+   * poison the cache path forever: existence alone satisfied the reuse check,
+   * so every later open skipped the clone and failed at remote resolution with
+   * "No git remote in the local repository points at …". The existence check is
+   * therefore upgraded to a completeness check (`hasUsableOriginRemote`, the
+   * same probe the clone's own failure cleanup applies).
+   *
+   * Returns whether a usable cache clone remains at `cacheRepoPath`:
+   *
+   * - Complete clone: left alone (true).
+   * - Incomplete, with a `<basename>.clone-owner.*` marker beside it: another
+   *   extension host is cloning into it right now (`cloneRepository` writes
+   *   that marker before it starts). It is not this call's to delete, so the
+   *   previous "exists means reuse" behavior is kept (true); this attempt then
+   *   fails at remote resolution exactly as it does today, which is transient —
+   *   the in-flight clone replaces the remnant.
+   * - Incomplete, no marker: nobody owns the remnant, so it is deleted and the
+   *   caller treats the path as absent (false), re-cloning from scratch.
+   *
+   * A marker appearing between the scan and the `rm` is the race this cannot
+   * close; it is accepted because `cloneRepository`'s own completeness-gated
+   * cleanup bounds the damage of a doubly-removed partial clone, and deleting
+   * nothing would resurrect the permanent-poison failure this fixes.
+   */
+  private async _reclaimIncompleteCacheClone(cacheRepoPath: string): Promise<boolean> {
+    if (await hasUsableOriginRemote(cacheRepoPath)) {
+      return true;
+    }
+    if (await this._hasCloneInFlightMarker(cacheRepoPath)) {
+      return true;
+    }
+    try {
+      await fs.promises.rm(cacheRepoPath, { recursive: true, force: true });
+      logger.info(`Deleted the incomplete cache clone left at ${cacheRepoPath}; the next step re-clones it`);
+      return false;
+    } catch (error) {
+      // A delete that fails (a file still held open on Windows) must not break
+      // the flow: fall back to the old behavior and let remote resolution
+      // report the remnant as before.
+      logger.error(`Could not remove the incomplete cache clone at ${cacheRepoPath}: ${userFacingErrorMessage(error)}`);
+      return true;
+    }
+  }
+
+  /**
+   * Whether a `cloneRepository` ownership marker (`<target>.clone-owner.<token>`)
+   * sits beside `cacheRepoPath`, meaning another extension host may still be
+   * cloning into it. The marker naming mirrors cloneRepository and must stay in
+   * sync with it. Failing closed: when the directory cannot even be listed, an
+   * in-flight clone cannot be ruled out, so the remnant is reported as owned.
+   */
+  private async _hasCloneInFlightMarker(cacheRepoPath: string): Promise<boolean> {
+    let names: string[];
+    try {
+      names = await fs.promises.readdir(path.dirname(cacheRepoPath));
+    } catch {
+      return true;
+    }
+    const markerPrefix = `${path.basename(cacheRepoPath)}.clone-owner.`;
+    return names.some((name) => name.startsWith(markerPrefix));
+  }
+
+  /**
    * Resolve the local checkout a worktree can be added to: the current
    * workspace, a previously used local clone, or the shared bare cache
    * (offering to clone or pick a folder). Never replies to the webview; the
@@ -5123,10 +5223,13 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
       // first one's clone (its remotes point at the other host, so the
       // subsequent "which remote belongs to this repo" lookup fails).
       const cacheRepoPath = path.join(cacheDir, 'repos', `${owner}-${repo}-${instanceCacheSuffix(instance)}.git`);
-      const cacheRepoExisted = await fs.promises
+      let cacheRepoExisted = await fs.promises
         .access(cacheRepoPath)
         .then(() => true)
         .catch(() => false);
+      if (cacheRepoExisted) {
+        cacheRepoExisted = await this._reclaimIncompleteCacheClone(cacheRepoPath);
+      }
 
       const choice = await vscode.window.showQuickPick(
         [
@@ -5821,7 +5924,23 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      await createWorktreeFromBranch(sourceRepoPath, worktreePath, localBranch);
+      try {
+        await createWorktreeFromBranch(sourceRepoPath, worktreePath, localBranch);
+      } catch (error) {
+        // The fetch refspec created `localBranch` for this checkout, and a
+        // failed `worktree add` does not remove it — the throwaway
+        // `pr-<n>-<sha7>` branch would leak in the repository. Drop it here,
+        // matching the convention removeWorktree/discardStalePrWorktree
+        // follow: only a name matching the throwaway pattern is deleted (a
+        // real user branch is never named this way), and the delete is
+        // best-effort — a leftover that survives is reclaimed by the
+        // stale-registration recovery in fetchPullRequestHead on the next
+        // attempt.
+        if (PR_THROWAWAY_BRANCH_PATTERN.test(localBranch)) {
+          await deleteBranch(sourceRepoPath, localBranch).catch(() => undefined);
+        }
+        throw error;
+      }
 
       const worktree: WorktreeInfo = {
         id: `${instanceId}:${owner}/${repo}#pr-${index}`,
@@ -5977,8 +6096,65 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
           logger.error(`[avatar] fetch failed: ${response.status} ${response.statusText}`);
           return null;
         }
-        const buffer = await response.arrayBuffer();
-        const base64 = Buffer.from(buffer).toString('base64');
+        // A declared size already over the cap makes the body unread: nothing
+        // is buffered for a payload that would be dropped afterwards anyway.
+        // The URL is same-origin (the caller only passes those) and logged
+        // redacted like the other avatar lines.
+        const declaredLength = Number(response.headers.get('content-length'));
+        if (Number.isFinite(declaredLength) && declaredLength > AVATAR_FETCH_MAX_BYTES) {
+          logger.error(
+            `[avatar] response too large (Content-Length ${declaredLength}), skipping: ${redactUrlUserinfo(absoluteUrl)}`,
+          );
+          return null;
+        }
+        // `arrayBuffer()` would buffer the whole body before any budget could
+        // apply, so read the stream with a counter instead — the same counting
+        // discipline downloadActionArtifactToFile applies with its Transform.
+        // A missing or understated Content-Length then still cannot pull an
+        // unbounded payload into memory.
+        let buffer: Buffer;
+        if (response.body) {
+          const reader = response.body.getReader();
+          const chunks: Uint8Array[] = [];
+          let received = 0;
+          let tooLarge = false;
+          try {
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) {
+                break;
+              }
+              received += value.byteLength;
+              if (received > AVATAR_FETCH_MAX_BYTES) {
+                tooLarge = true;
+                break;
+              }
+              chunks.push(value);
+            }
+          } finally {
+            // Cancel on the early exit so the underlying connection is released
+            // instead of draining the rest of the body in the background.
+            await reader.cancel().catch(() => undefined);
+          }
+          if (tooLarge) {
+            logger.error(
+              `[avatar] response body grew past ${AVATAR_FETCH_MAX_BYTES} bytes, skipping: ${redactUrlUserinfo(absoluteUrl)}`,
+            );
+            return null;
+          }
+          buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
+        } else {
+          // No stream to count (a non-standard fetch implementation): read
+          // whole, but still enforce the cap on what was buffered.
+          buffer = Buffer.from(await response.arrayBuffer());
+          if (buffer.byteLength > AVATAR_FETCH_MAX_BYTES) {
+            logger.error(
+              `[avatar] response too large (${buffer.byteLength} bytes), skipping: ${redactUrlUserinfo(absoluteUrl)}`,
+            );
+            return null;
+          }
+        }
+        const base64 = buffer.toString('base64');
         const contentType = response.headers.get('content-type') ?? 'image/png';
         logger.debug(`[avatar] resolved to data:${contentType};base64,${base64.slice(0, 40)}...`);
         return `data:${contentType};base64,${base64}`;

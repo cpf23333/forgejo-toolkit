@@ -136,9 +136,13 @@ function applyEditorLabel() {
   textareaRef.value?.setAttribute('aria-label', name);
 }
 
+// The menu is mounted inside this editor's own wrapper (tribute's
+// `menuContainer` option), so the lookup must be scoped the same way: several
+// editors can be on the page at once, and a document-wide lookup would see
+// another editor's open menu and swallow this editor's Enter/Up/Down keys.
 function isTributeActive(): boolean {
-  const container = document.querySelector('.tribute-container') as HTMLElement | null;
-  return container !== null && container.style.display !== 'none';
+  const container = wrapperRef.value?.querySelector('.tribute-container') as HTMLElement | null | undefined;
+  return container != null && container.style.display !== 'none';
 }
 
 function getActivePreviewElement(): HTMLElement | null {
@@ -194,7 +198,10 @@ function searchMentionsDebounced(
   text: string,
   callback: (result: any[]) => void,
 ) {
-  const cacheKey = `${type}:${text}`;
+  // Scoped by repository: the watch below re-attaches tribute when
+  // instanceId/owner/repo change in place, and a key without the scope would
+  // serve the previous repository's results for the rest of the cache window.
+  const cacheKey = `${instanceId}:${owner}/${repo}:${type}:${text}`;
   const cached = mentionSearchCache.get(cacheKey);
   if (cached) {
     callback(type === 'user' ? cached.users : cached.issues);
@@ -245,7 +252,7 @@ async function attachMentions() {
           const original = item.original as MentionUser;
           const avatar = original.avatar_url
             ? `<img src="${escapeHtml(original.avatar_url)}" class="mention-avatar" alt="" />`
-            : `<span class="mention-avatar mention-avatar-fallback"><vscode-icon name="account" :size="16"></vscode-icon></span>`;
+            : `<span class="mention-avatar mention-avatar-fallback"><vscode-icon name="account" size="16"></vscode-icon></span>`;
           const fullName = original.full_name
             ? `<span class="mention-fullname">${escapeHtml(original.full_name)}</span>`
             : '';
@@ -267,7 +274,7 @@ async function attachMentions() {
           const original = item.original as MentionIssue;
           const icon = original.is_pull ? 'git-pull-request' : 'issues';
           const stateClass = original.state === 'open' ? 'state-open' : 'state-closed';
-          return `<div class="mention-item mention-issue"><vscode-icon name="${icon}" :size="14" class="mention-issue-icon ${stateClass}"></vscode-icon><span class="mention-issue-number">#${escapeHtml(original.value)}</span><span class="mention-issue-title">${escapeHtml(original.title)}</span></div>`;
+          return `<div class="mention-item mention-issue"><vscode-icon name="${icon}" size="14" class="mention-issue-icon ${stateClass}"></vscode-icon><span class="mention-issue-number">#${escapeHtml(original.value)}</span><span class="mention-issue-title">${escapeHtml(original.title)}</span></div>`;
         },
         values: (text: string, callback: (result: any[]) => void) => {
           searchMentionsDebounced(instanceId, owner, repo, 'issue', text, callback);

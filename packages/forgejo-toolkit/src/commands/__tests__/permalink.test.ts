@@ -7,6 +7,7 @@ import type { ConfigManager } from '../../config';
 const gitMocks = vi.hoisted(() => ({
   detectLinkedRepository: vi.fn(),
   getCurrentCommitSha: vi.fn(),
+  runGit: vi.fn(),
 }));
 vi.mock('../../worktree/gitOperations', () => gitMocks);
 
@@ -102,6 +103,69 @@ describe('copyPermalink sides without a blob', () => {
 });
 
 /**
+ * A forgejo-pr URI that is missing its ref (or carries an unusable index) used
+ * to parse with fallbacks, so the command handed out a `/blob//path` link that
+ * resolves to a 404. Parsing is strict now: such a URI is rejected with the
+ * parse-failure warning instead of producing a broken permalink.
+ */
+describe('copyPermalink strict PR URI parsing', () => {
+  function createConfig(): ConfigManager {
+    return {
+      getInstances: () => [
+        {
+          id: 'inst-1',
+          url: 'https://forgejo.example.com',
+          token: '',
+          name: 'user@forgejo.example.com',
+          username: 'user',
+        },
+      ],
+    } as unknown as ConfigManager;
+  }
+
+  function prEditorWithQuery(query: string) {
+    return {
+      document: {
+        uri: { scheme: FORGEJO_PR_SCHEME, path: '/inst-1/owner/repo/src/index.ts', query },
+      },
+      selection: { start: { line: 0 }, end: { line: 0 } },
+    };
+  }
+
+  afterEach(() => {
+    (vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = undefined;
+    vi.mocked(vscode.env.clipboard.writeText).mockClear();
+    vi.mocked(vscode.window.showWarningMessage).mockClear();
+  });
+
+  it('warns instead of copying a blob link without a ref', async () => {
+    (vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = prEditorWithQuery(
+      JSON.stringify({ index: 2 }),
+    );
+
+    await copyPermalink(createConfig());
+
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining('Unable to parse Forgejo PR file URI'),
+    );
+    expect(vscode.env.clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it('warns instead of copying when the index names no pull request', async () => {
+    (vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = prEditorWithQuery(
+      JSON.stringify({ index: 'not-a-number', ref: 'sha1' }),
+    );
+
+    await copyPermalink(createConfig());
+
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining('Unable to parse Forgejo PR file URI'),
+    );
+    expect(vscode.env.clipboard.writeText).not.toHaveBeenCalled();
+  });
+});
+
+/**
  * The clipboard is the one place a permalink leaves the extension as a value the
  * user pastes elsewhere, so a credential embedded in the configured instance URL
  * must never reach it.
@@ -179,5 +243,91 @@ describe('copyPermalink credential redaction', () => {
     const copied = vi.mocked(vscode.env.clipboard.writeText).mock.calls[0][0];
     expect(copied).toBe('https://forgejo.example.com/owner/repo/blob/sha1/src/index.ts#L1');
     expect(copied).not.toContain('//owner');
+  });
+});
+
+/**
+ * The `file`-scheme permalink names the local HEAD commit; while that commit is
+ * on no remote-tracking branch the blob URL resolves to a 404 for whoever
+ * follows it. The copy still happens (the push may be imminent), but the
+ * confirmation says the link is not live yet.
+ */
+describe('copyPermalink unpushed commit note', () => {
+  function createConfig(): ConfigManager {
+    return {
+      getInstances: () => [
+        {
+          id: 'inst-1',
+          url: 'https://forgejo.example.com',
+          token: '',
+          name: 'user@forgejo.example.com',
+          username: 'user',
+        },
+      ],
+    } as unknown as ConfigManager;
+  }
+
+  function fileEditor() {
+    return {
+      document: { uri: { scheme: 'file', fsPath: '/repo/src/index.ts' } },
+      selection: { start: { line: 0 }, end: { line: 0 } },
+    };
+  }
+
+  afterEach(() => {
+    (vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = undefined;
+    vi.mocked(vscode.env.clipboard.writeText).mockClear();
+    vi.mocked(vscode.window.showInformationMessage).mockClear();
+    gitMocks.detectLinkedRepository.mockReset();
+    gitMocks.getCurrentCommitSha.mockReset();
+    gitMocks.runGit.mockReset();
+  });
+
+  function setupFilePermalink() {
+    (vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = fileEditor();
+    gitMocks.detectLinkedRepository.mockResolvedValue({
+      instanceId: 'inst-1',
+      owner: 'owner',
+      repo: 'repo',
+      localPath: '/repo',
+    });
+    gitMocks.getCurrentCommitSha.mockResolvedValue('abc123');
+  }
+
+  it('notes in the confirmation when HEAD is on no remote-tracking branch', async () => {
+    setupFilePermalink();
+    // `git branch --remotes --contains` prints nothing for an unpushed commit.
+    gitMocks.runGit.mockResolvedValue({ stdout: '', stderr: '' });
+
+    await copyPermalink(createConfig());
+
+    expect(gitMocks.runGit).toHaveBeenCalledWith(['branch', '--remotes', '--contains', 'abc123'], '/repo');
+    expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith(
+      'https://forgejo.example.com/owner/repo/blob/abc123/src/index.ts#L1',
+    );
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('may not be pushed yet'));
+  });
+
+  it('copies without the note when a remote-tracking branch contains HEAD', async () => {
+    setupFilePermalink();
+    gitMocks.runGit.mockResolvedValue({ stdout: '  origin/main\n', stderr: '' });
+
+    await copyPermalink(createConfig());
+
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('Permalink copied to clipboard');
+  });
+
+  it('keeps the plain confirmation when git cannot answer the containment check', async () => {
+    // The check failing (no git, an unreadable repository) must not block or
+    // annotate the copy: "unknown" is not "unpushed".
+    setupFilePermalink();
+    gitMocks.runGit.mockRejectedValue(new Error('git not found'));
+
+    await copyPermalink(createConfig());
+
+    expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith(
+      'https://forgejo.example.com/owner/repo/blob/abc123/src/index.ts#L1',
+    );
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('Permalink copied to clipboard');
   });
 });

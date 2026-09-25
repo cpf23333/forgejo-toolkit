@@ -131,21 +131,61 @@ export function buildUrl(config: RequestConfig): string {
   return targetUrl;
 }
 
+/**
+ * Merge header sets left to right into one record.
+ *
+ * Header names are case-insensitive (RFC 9110 §5.1), so a plain key-equal merge
+ * would let `Content-Type` and `content-type` coexist in the result — which
+ * undici then serializes as one illegal combined header. A later set overrides
+ * an earlier one under case-insensitive comparison, and the *later* spelling of
+ * the name is the one kept. `undefined` values are skipped, so a generated
+ * operation's optional header never erases a default.
+ */
 export function mergeHeaders(...headers: Array<RequestConfig['headers'] | undefined>): Record<string, string> {
-  return headers.reduce<Record<string, string>>((merged, h) => {
+  const merged: Record<string, string> = {};
+  // Lowercased name → the spelling currently in `merged`, so an override under
+  // a different casing can drop the earlier spelling rather than duplicate it.
+  const spellingByName = new Map<string, string>();
+  for (const h of headers) {
     if (!h) {
-      return merged;
+      continue;
     }
     const entries = Array.isArray(h) ? h : Object.entries(h);
-    entries.forEach(([key, value]) => {
-      if (value !== undefined) {
-        merged[key] = String(value);
+    for (const [key, value] of entries) {
+      if (value === undefined) {
+        continue;
       }
-    });
-    return merged;
-  }, {});
+      const existingSpelling = spellingByName.get(key.toLowerCase());
+      if (existingSpelling !== undefined && existingSpelling !== key) {
+        delete merged[existingSpelling];
+      }
+      spellingByName.set(key.toLowerCase(), key);
+      merged[key] = String(value);
+    }
+  }
+  return merged;
 }
 
+/**
+ * Minimal fetch-based client used by the generated API operations.
+ *
+ * Contract points a caller must know, because this client deliberately stays
+ * thin:
+ *
+ * - **No built-in timeout.** `config.signal` is forwarded to fetch and nothing
+ *   else bounds the request. Callers must supply their own timeout signal
+ *   (e.g. `AbortSignal.timeout(...)` or an `AbortController` on a timer);
+ *   without one a stalled server holds the request open forever. Inside the
+ *   toolkit every production call goes through the host-side `ForgejoClient`,
+ *   which applies its own timeout (`API_REQUEST_TIMEOUT_MS`), but this package
+ *   is a reusable library and other consumers get no such guard.
+ * - **Credentials across redirects.** Callers pass their `Authorization` (or
+ *   other credential) header through `config.headers`; it is then safe to send
+ *   only because the fetch specification — as implemented by undici, which
+ *   backs Node's global fetch — strips the `Authorization` header when a
+ *   redirect crosses origins. A non-compliant `fetchImpl` would break that
+ *   guarantee, so a custom implementation must follow the same rule.
+ */
 export const client: Client = async <TResponseData, _TError = unknown, TRequestData = unknown>(
   paramsConfig: RequestConfig<TRequestData>,
 ): Promise<ResponseConfig<TResponseData>> => {
@@ -156,14 +196,27 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
   const body =
     paramsConfig.data instanceof FormData
       ? paramsConfig.data
-      : // Explicit null/undefined check: falsy values like 0, '', or false are
-        // legitimate JSON bodies and must not be dropped.
-        paramsConfig.data !== undefined && paramsConfig.data !== null
-        ? JSON.stringify(paramsConfig.data)
-        : undefined;
+      : // A string body is sent verbatim (e.g. renderMarkdownRaw's text/plain
+        // payload): JSON.stringify would wrap it in quotes and contradict the
+        // operation's declared content type.
+        typeof paramsConfig.data === 'string'
+        ? paramsConfig.data
+        : // Explicit null/undefined check: falsy values like 0 or false are
+          // legitimate JSON bodies and must not be dropped.
+          paramsConfig.data !== undefined && paramsConfig.data !== null
+          ? JSON.stringify(paramsConfig.data)
+          : undefined;
 
-  if (body !== undefined && !(paramsConfig.data instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
+  if (body !== undefined && !(paramsConfig.data instanceof FormData) && typeof paramsConfig.data !== 'string') {
+    // Set the JSON Content-Type only when the caller did not supply one under
+    // any casing: assigning the key directly would both override an
+    // operation's own content type (e.g. renderMarkdownRaw's text/plain) and
+    // let `Content-Type`/`content-type` coexist, bypassing the case-insensitive
+    // dedup mergeHeaders applies. A string body gets no default either — fetch
+    // applies its own text/plain for those.
+    if (!Object.keys(headers).some((key) => key.toLowerCase() === 'content-type')) {
+      headers['Content-Type'] = 'application/json';
+    }
   }
 
   // A dispatcher is only understood by the fetch that shares its undici copy, so

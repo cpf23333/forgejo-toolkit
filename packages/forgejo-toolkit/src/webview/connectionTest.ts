@@ -26,9 +26,12 @@ export function isHttpUrl(value: string): boolean {
  * loading it — so the reply carries the failure kind (or bare status code)
  * instead of anything the remote server authored.
  *
- * Non-HTTP failures (timeout, TLS, plain network) use the shared API-layer
- * rendering, so a certificate problem is named as such rather than being
- * flattened into the generic "check that it is running" advice.
+ * Non-HTTP failures (timeout, cancellation, TLS, proxy, plain network) use the
+ * shared API-layer rendering, so a certificate problem is named as such rather
+ * than being flattened into the generic "check that it is running" advice, and
+ * a proxied failure names the proxy instead of the instance. The `proxy` kind
+ * only arrives on an error ForgejoClient already classified (its `viaProxy`
+ * context lives with the request, not on a raw fetch failure).
  *
  * Shared by the sidebar and the setup wizard: both test a webview-supplied URL.
  */
@@ -36,8 +39,10 @@ export function connectionFailureMessage(error: unknown): string {
   const apiError = toApiError(error);
   switch (apiError.kind) {
     case 'timeout':
+    case 'cancelled':
     case 'tls':
     case 'network':
+    case 'proxy':
       return apiErrorUserMessage(apiError);
     case 'http':
       return apiError.status === undefined

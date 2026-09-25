@@ -112,8 +112,9 @@ State changes through three routes:
   its request asked for. Correlated replies carry the `_requestId` the webview
   generated (`registerPending`) and resolve or reject the waiting promise;
   `requestError` rejects it when the host's handler produced no reply, and the
-  webview's own timeout rejects after 60 s (5 min for the host-confirmed
-  attachment deletes).
+  webview's own timeout rejects after 60 s — 5 min for the requests the host
+  may block on a human decision: the host-confirmed attachment deletes and the
+  `showInputBox`/`showConfirm` native dialogs.
 
 The request/reply protocol itself is documented in
 [communication.md](./communication.md).

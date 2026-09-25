@@ -21,9 +21,11 @@ vi.mock('vscode', () => ({
   // and writes its output through an output channel on the failing paths.
   workspace: { getConfiguration: () => ({ get: () => undefined }) },
   window: { createOutputChannel: () => ({ appendLine: vi.fn(), show: vi.fn(), dispose: vi.fn() }) },
-  // The provider only throws FileSystemError.Unavailable; the real class
-  // flattens VS Code's file-system error codes, which nothing here asserts on.
+  // The provider reports its own judgments (a URI naming no served file, an
+  // entry that cannot be opened) as FileSystemError too; the real class
+  // flattens VS Code's file-system error codes, which the tests assert on.
   FileSystemError: {
+    FileNotFound: (uri?: unknown) => Object.assign(new Error(`FileNotFound: ${String(uri)}`), { code: 'FileNotFound' }),
     Unavailable: (message?: string) => Object.assign(new Error(String(message)), { code: 'Unavailable' }),
   },
 }));
@@ -59,7 +61,7 @@ function notFoundError(): ApiError {
   return new ApiError('http', 'Forgejo API error 404: Not Found ({"message":"file does not exist"})', 404);
 }
 
-describe('ForgejoPrFileSystemProvider.readFile', () => {
+describe('ForgejoPrDiffFileSystemProvider.readFile', () => {
   beforeEach(() => {
     clientMocks.getRepoContents.mockReset();
     vi.mocked(vscode.l10n.t).mockClear();
@@ -127,5 +129,52 @@ describe('ForgejoPrFileSystemProvider.readFile', () => {
     const bytes = await provider.readFile(prUri());
 
     expect(new TextDecoder().decode(bytes)).toContain('browser');
+  });
+
+  it('refuses an answer whose entry does not echo the requested path instead of serving another file', async () => {
+    // The contents endpoint answers a file path with that file alone and a
+    // directory path with its children; without the echo check, a directory
+    // URI whose first child is a file was served as the requested file's
+    // content. The sibling repo provider applies the same check.
+    clientMocks.getRepoContents.mockResolvedValue([
+      { type: 'file', path: 'src/other.ts', content: Buffer.from('other').toString('base64') },
+    ]);
+
+    const provider = new ForgejoPrDiffFileSystemProvider(createConfig());
+
+    await expect(provider.readFile(prUri())).rejects.toThrow(/FileNotFound/);
+  });
+
+  it('explains an unreadable symlink with the shared message instead of a generic failure', async () => {
+    clientMocks.getRepoContents.mockResolvedValue([{ type: 'symlink', path: 'src/index.ts', size: 9 }]);
+
+    const provider = new ForgejoPrDiffFileSystemProvider(createConfig());
+    const failure = await provider.readFile(prUri()).catch((error: unknown) => error);
+
+    expect((failure as { code?: string }).code).toBe('Unavailable');
+    expect((failure as Error).message).toContain('symbolic link');
+  });
+
+  it('explains an unreadable submodule with the shared message instead of a generic failure', async () => {
+    clientMocks.getRepoContents.mockResolvedValue([{ type: 'submodule', path: 'src/index.ts', size: 0 }]);
+
+    const provider = new ForgejoPrDiffFileSystemProvider(createConfig());
+    const failure = await provider.readFile(prUri()).catch((error: unknown) => error);
+
+    expect((failure as { code?: string }).code).toBe('Unavailable');
+    expect((failure as Error).message).toContain('submodule');
+  });
+
+  it('serves a symlink or submodule whose content the server did send', async () => {
+    // The entry has a payload, so nothing is invented and nothing is refused —
+    // the server owns the answer, whatever the declared type says.
+    clientMocks.getRepoContents.mockResolvedValue([
+      { type: 'symlink', path: 'src/index.ts', size: 5, content: Buffer.from('hello').toString('base64') },
+    ]);
+
+    const provider = new ForgejoPrDiffFileSystemProvider(createConfig());
+    const bytes = await provider.readFile(prUri());
+
+    expect(new TextDecoder().decode(bytes)).toBe('hello');
   });
 });

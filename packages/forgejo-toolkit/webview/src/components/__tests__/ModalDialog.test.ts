@@ -22,8 +22,15 @@ describe('ModalDialog', () => {
   beforeEach(() => {
     showConfirmMock.mockReset();
     if (typeof HTMLDialogElement !== 'undefined') {
-      HTMLDialogElement.prototype.showModal = vi.fn();
-      HTMLDialogElement.prototype.close = vi.fn();
+      // jsdom does not implement showModal()/close(); mock them to track the
+      // open state the way the real element does, so a second close on an
+      // already-closed dialog is observable in the tests.
+      HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+        this.setAttribute('open', '');
+      });
+      HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+        this.removeAttribute('open');
+      });
     }
   });
 
@@ -92,6 +99,25 @@ describe('ModalDialog', () => {
 
     const dialog = wrapper.find('dialog').element as HTMLDialogElement;
     expect(dialog.close).toHaveBeenCalled();
+  });
+
+  it('does not call close again after a native close (e.g. Esc) already closed the dialog', async () => {
+    const wrapper = mountDialog({ props: { open: true } });
+    const dialog = wrapper.find('dialog').element as HTMLDialogElement;
+
+    // The browser closed the element itself: `open` is already false and the
+    // close event forwards to the parent, which answers with open=false. Calling
+    // close() on the already-closed dialog throws InvalidStateError.
+    dialog.removeAttribute('open');
+    await wrapper.find('dialog').trigger('close');
+    await wrapper.setProps({ open: false });
+
+    expect(wrapper.emitted('close')).toHaveLength(1);
+    expect(dialog.close).not.toHaveBeenCalled();
+
+    // The dialog can still be reopened afterwards.
+    await wrapper.setProps({ open: true });
+    expect(dialog.showModal).toHaveBeenCalledTimes(2);
   });
 
   it('emits close when close button is clicked', async () => {

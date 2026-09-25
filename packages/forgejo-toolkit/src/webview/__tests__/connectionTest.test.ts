@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { connectionFailureMessage, isHttpUrl } from '../connectionTest';
+import { ApiError } from '../../api/errors';
 
 describe('isHttpUrl', () => {
   it('accepts http and https targets only', () => {
@@ -25,9 +26,27 @@ describe('connectionFailureMessage', () => {
     expect(connectionFailureMessage(new TypeError('fetch failed'))).toContain('Cannot connect');
   });
 
+  it('names the proxy for a proxied connection failure instead of blaming the instance', () => {
+    // ForgejoClient classifies a fetch failure with a proxy dispatcher
+    // installed as kind 'proxy' (its `viaProxy` context); the reply must point
+    // at the proxy, not at the instance behind it.
+    const message = connectionFailureMessage(new ApiError('proxy', 'fetch failed'));
+
+    expect(message).toContain('proxy');
+    expect(message).not.toContain('Cannot connect to the instance');
+  });
+
   it('keeps the timeout message for an aborted request', () => {
     expect(connectionFailureMessage(Object.assign(new Error('aborted'), { name: 'TimeoutError' }))).toContain(
       'timed out',
+    );
+  });
+
+  it('reports a caller-driven abort as a cancellation, not a timeout', () => {
+    // An AbortError means the caller cancelled the request; answering "the
+    // instance is not responding" would name the wrong cause.
+    expect(connectionFailureMessage(Object.assign(new Error('aborted'), { name: 'AbortError' }))).toBe(
+      'The request was cancelled.',
     );
   });
 

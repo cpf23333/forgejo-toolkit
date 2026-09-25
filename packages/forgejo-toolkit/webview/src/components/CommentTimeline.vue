@@ -96,7 +96,16 @@ const editUploadsInFlight = computed(() => uploadingCommentCount.value > 0);
 const editCloseNeedsConfirm = computed(() => editDirty.value || editUploadsInFlight.value);
 
 function commentKey(comment: ForgejoTimelineComment): string {
-  return String(comment.id ?? `${comment.type ?? 'event'}-${comment.created_at ?? ''}-${comment.user?.login ?? ''}`);
+  if (comment.id !== undefined) {
+    return String(comment.id);
+  }
+  // Events without an id fall back to type/time/author, which collides for two
+  // same-second events of one kind by one user — and the key doubles as the
+  // rendered-body/render-failure cache slot, so a collision mixes their bodies.
+  // Append the position in the timeline: it is append-only (refetches replace
+  // the whole array in the same order), so the index is stable per event.
+  const position = props.comments.indexOf(comment);
+  return `${comment.type ?? 'event'}-${comment.created_at ?? ''}-${comment.user?.login ?? ''}-${position}`;
 }
 
 async function renderComment(comment: ForgejoTimelineComment) {

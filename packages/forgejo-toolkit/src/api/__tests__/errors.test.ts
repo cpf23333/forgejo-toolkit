@@ -15,14 +15,17 @@ describe('toApiError', () => {
     expect(toApiError(original)).toBe(original);
   });
 
-  it('classifies timeouts by error name', () => {
+  it('classifies timeouts and cancellations apart, both by error name', () => {
+    // `fetch` rejects with a TimeoutError when an AbortSignal timeout elapses,
+    // and with an AbortError when the caller aborts (e.g. a cancelled MCP tool
+    // call); only the first may blame the instance for not responding.
     const timeout = new Error('The operation was aborted due to timeout');
     timeout.name = 'TimeoutError';
     expect(toApiError(timeout).kind).toBe('timeout');
 
     const aborted = new Error('This operation was aborted');
     aborted.name = 'AbortError';
-    expect(toApiError(aborted).kind).toBe('timeout');
+    expect(toApiError(aborted).kind).toBe('cancelled');
   });
 
   it('classifies HTTP errors and extracts the status code', () => {
@@ -35,7 +38,7 @@ describe('toApiError', () => {
 
   it('classifies fetch failures and socket errors as network errors', () => {
     expect(toApiError(new TypeError('fetch failed')).kind).toBe('network');
-    expect(toApiError(new Error('connect ECONNREFUSED 127.0.0.1:3000')).kind).toBe('network');
+    expect(toApiError(new Error('connect ECONNREFUSED forgejo.example.com:3000')).kind).toBe('network');
     expect(toApiError(new Error('getaddrinfo ENOTFOUND forgejo.example.com')).kind).toBe('network');
     expect(toApiError(new Error('socket hang up')).kind).toBe('network');
   });
@@ -131,12 +134,22 @@ describe('extractApiErrorMessage', () => {
 });
 
 describe('apiErrorUserMessage', () => {
-  function messageFor(kind: 'network' | 'timeout' | 'tls' | 'http' | 'unknown', raw: string, status?: number): string {
+  function messageFor(
+    kind: 'network' | 'timeout' | 'cancelled' | 'tls' | 'http' | 'unknown',
+    raw: string,
+    status?: number,
+  ): string {
     return apiErrorUserMessage(new ApiError(kind, raw, status));
   }
 
   it('renders a timeout message without the raw text', () => {
     expect(messageFor('timeout', 'aborted')).toContain('timed out');
+  });
+
+  it('renders a cancelled message that does not blame the instance', () => {
+    const message = messageFor('cancelled', 'This operation was aborted');
+    expect(message).toBe('The request was cancelled.');
+    expect(message).not.toContain('timed out');
   });
 
   it('renders a network message without the raw text', () => {
@@ -146,13 +159,13 @@ describe('apiErrorUserMessage', () => {
   it('blames the proxy, not the instance, for a connection failure through one', () => {
     // A refused proxy connection is also ECONNREFUSED; the network message would
     // tell the user to check whether the instance is running.
-    const proxied = toApiError(new Error('connect ECONNREFUSED 127.0.0.1:3128'), {
+    const proxied = toApiError(new Error('connect ECONNREFUSED proxy.example.com:3128'), {
       resource: 'repository',
       owner: 'demo-user',
       repo: 'demo-repo',
       viaProxy: true,
     });
-    const direct = toApiError(new Error('connect ECONNREFUSED 127.0.0.1:3128'), {
+    const direct = toApiError(new Error('connect ECONNREFUSED proxy.example.com:3128'), {
       resource: 'repository',
       owner: 'demo-user',
       repo: 'demo-repo',
@@ -320,6 +333,17 @@ describe('requestResourceFor', () => {
     expect(
       requestResourceFor('https://forgejo.example.com/api/v1/repos/demo-user/demo-repo/branches?page=2&limit=50'),
     ).toEqual({ resource: 'branch', owner: 'demo-user', repo: 'demo-repo' });
+  });
+
+  it('locates the API root past a sub-path prefix that contains an api segment', () => {
+    // A sub-path deployment prefixes every request path, and the prefix may
+    // contain an `api` segment. Matching the first segment named `api` missed
+    // the API root entirely (the next prefix segment is not `v1`) or sliced
+    // inside the prefix; the root is the last `api/v1` pair, the one the
+    // client appends to the configured URL.
+    expect(
+      requestResourceFor('https://forgejo.example.com/mirror/api/api/v1/repos/demo-user/demo-repo/issues'),
+    ).toEqual({ resource: 'issue', owner: 'demo-user', repo: 'demo-repo' });
   });
 
   it('decodes an encoded scope so the message shows the real name', () => {

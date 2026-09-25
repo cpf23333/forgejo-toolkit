@@ -90,10 +90,7 @@ export class ForgejoRemoteSourceProvider implements RemoteSourceProvider {
  * This provider has no way to reach that path: the git extension performs the
  * clone itself from the URL we hand back. So the userinfo is stripped rather
  * than embedded: the configured token is never written to disk, and a private
- * repository clone then relies on the user's own git credential helper — the
- * same reasoning `cloneRepository` follows when it passes the token through
- * env-based git config (`authEnv` in `worktree/gitOperations.ts`) instead of
- * putting it in the URL.
+ * repository clone then relies on the user's own git credential helper.
  *
  * Masking the credential instead of removing it (`https://alice:***@host`) would
  * be worse than leaving it: `***` is not a credential, so the clone could only
@@ -149,15 +146,17 @@ export async function registerForgejoRemoteSourceProviders(
     },
   });
 
-  const setup = () => {
+  // Returns whether the providers are registered; a failure is recoverable (see
+  // the enablement listener below), so it is reported rather than thrown.
+  const setup = (): boolean => {
     let api: GitApi;
     try {
       // getAPI throws while the git extension is disabled.
       api = gitExports.getAPI(1);
     } catch (error) {
       const err = userFacingErrorMessage(error);
-      logger.error(`Git API is unavailable; Forgejo clone sources are unavailable: ${err}`);
-      return;
+      logger.error(`Git API is unavailable; Forgejo clone sources are unavailable for now: ${err}`);
+      return false;
     }
     // The providers resolve their instance through the config manager, so an
     // edited instance takes effect without re-registering (registrations are
@@ -169,20 +168,33 @@ export async function registerForgejoRemoteSourceProviders(
         syncRemoteSourceProviders(api, instances, registrations, resolveInstance),
       ),
     );
+    return true;
   };
 
-  if (gitExports.enabled) {
-    setup();
-  } else {
-    // Rare: git is installed but currently disabled. Register lazily once it
-    // becomes enabled instead of failing permanently.
+  // A failed or unavailable setup is not permanent: the git extension can be
+  // (re-)enabled later, and without this listener the providers would stay
+  // unregistered until the window reloaded. The listener retries once per
+  // enablement flip and disposes itself only on success — a flip whose getAPI
+  // still throws keeps the retry armed for the next one.
+  const retryOnEnablement = () => {
     const listener = gitExports.onDidChangeEnablement((enabled) => {
-      if (enabled) {
+      if (enabled && setup()) {
         listener.dispose();
-        setup();
       }
     });
     context.subscriptions.push(listener);
+  };
+
+  if (gitExports.enabled) {
+    if (!setup()) {
+      // Enabled but getAPI threw (a transient git-extension state): arm the
+      // same recovery path as the disabled case.
+      retryOnEnablement();
+    }
+  } else {
+    // Rare: git is installed but currently disabled. Register lazily once it
+    // becomes enabled instead of failing permanently.
+    retryOnEnablement();
   }
 }
 

@@ -512,6 +512,36 @@ describe('PullReviewCommentController load coalescing', () => {
     expect(state.diffFetches).toBe(2);
     controller.dispose();
   });
+
+  it('warns when the post-mutation refresh fails instead of staying silent', async () => {
+    // The mutation itself was already applied and reported by the panel; a
+    // refresh failure that only hits the log would leave the diff threads stale
+    // with no sign anything went wrong.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    await openDocument(makeDocument(false));
+    vi.mocked(vscode.window.showWarningMessage).mockClear();
+
+    state.diffError = new Error('offline');
+    try {
+      const internals = controller as unknown as {
+        _refreshOpenPrDocuments(params: {
+          instanceId: string;
+          owner: string;
+          repo: string;
+          index: number;
+        }): Promise<void>;
+      };
+      await internals._refreshOpenPrDocuments({ instanceId: INSTANCE_ID, owner: 'owner', repo: 'repo', index: 2 });
+
+      expect(vi.mocked(vscode.window.showWarningMessage)).toHaveBeenCalledWith(
+        expect.stringContaining('refreshing the review threads failed'),
+      );
+    } finally {
+      state.diffError = null;
+      controller.dispose();
+    }
+  });
 });
 
 describe('PullReviewCommentController context key', () => {
@@ -544,8 +574,13 @@ describe('PullReviewCommentController comment context cleanup', () => {
   beforeEach(() => {
     state.createdThreads.length = 0;
     state.openHandlers.length = 0;
+    state.closeHandlers.length = 0;
     state.comments = null;
   });
+
+  function contextCount(controller: PullReviewCommentController): number {
+    return (controller as unknown as { _commentContextMap: Map<string, unknown> })._commentContextMap.size;
+  }
 
   it('drops the comment context when a re-render disposes its thread', async () => {
     vi.useFakeTimers();
@@ -611,19 +646,19 @@ describe('PullReviewCommentController comment context cleanup', () => {
     const headThread = state.createdThreads[0];
     const contextValue = (headThread.comments[0] as { contextValue?: string }).contextValue as string;
 
-    // A second render with two comments on the same side: the first updates the
-    // existing thread, and building its replacement comment awaits attachment
-    // resolution. The document closes during that await, so the loop must stop
-    // before creating the second thread — and must still run the prune
-    // afterwards, or the head thread stays in the panel and in the map while the
-    // second comment's thread is never attached to anything.
+    // A second render with two comments on the same side: the first builds its
+    // comment through an attachment resolution, and the document closes during
+    // that await. The loop must stop before attaching a thread for it — a
+    // thread created for a closed document would leak into the Comments panel
+    // (no further close event ever arrives for it) — and must still run the
+    // prune afterwards, or the head thread stays in the panel and in the map.
     state.comments = [
       { id: 301, path: 'src/index.ts', position: 2, body: 'head note' },
       { id: 303, path: 'src/index.ts', position: 3, body: 'another head note' },
     ];
     let finishAttachment!: () => void;
-    // The replacement comment for the first entry is built through an
-    // attachment resolution, which is where the document closes.
+    // The comment for the first entry is built through an attachment
+    // resolution, which is where the document closes.
     const attachmentSpy = vi
       .spyOn(attachmentResolver, 'resolveAttachmentImages')
       .mockImplementation(() => new Promise<string>((resolve) => (finishAttachment = () => resolve('body'))));
@@ -640,9 +675,57 @@ describe('PullReviewCommentController comment context cleanup', () => {
 
       expect(headThread.dispose).toHaveBeenCalled();
       expect(controller.getCommentContext(contextValue)).toBeUndefined();
-      // The thread this render did attach (comment 301) stays; only the
-      // orphaned one from the earlier render is gone.
-      expect(threadCount(controller)).toBe(1);
+      // No thread was attached for either comment of the aborted render, and
+      // the comment built mid-close left no context behind: the only thread
+      // ever created is the first render's, and the map is empty.
+      expect(state.createdThreads).toHaveLength(1);
+      expect(threadCount(controller)).toBe(0);
+      expect(contextCount(controller)).toBe(0);
+    } finally {
+      attachmentSpy.mockRestore();
+      controller.dispose();
+    }
+  });
+
+  it('drops the orphaned replacement when the document closes mid-await of an in-place update', async () => {
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const closeDocument = state.closeHandlers[0];
+
+    const headDocument = makeDocument(false);
+    await openDocument(headDocument);
+    const headThread = state.createdThreads[0];
+    const originalComment = headThread.comments[0];
+    const contextValue = (originalComment as { contextValue?: string }).contextValue as string;
+
+    // A refresh re-renders the same comment, taking the in-place update
+    // branch: building the replacement awaits attachment resolution, and the
+    // document closes during that await. The close event disposes the thread
+    // and removes it from `_threads`, so writing the replacement into it would
+    // resurrect a dead thread — and the replacement's context, registered
+    // before the guard could run, would stay in the map forever.
+    let finishAttachment!: () => void;
+    const attachmentSpy = vi
+      .spyOn(attachmentResolver, 'resolveAttachmentImages')
+      .mockImplementation(() => new Promise<string>((resolve) => (finishAttachment = () => resolve('body'))));
+    try {
+      vi.setSystemTime(Date.now() + 60_000);
+      const pendingRender = openDocument(headDocument);
+      await flushUntil(() => finishAttachment !== undefined);
+      headDocument.isClosed = true;
+      closeDocument(headDocument);
+      finishAttachment();
+      await pendingRender;
+
+      // Disposed once, by the close event — not again by the render — and the
+      // dead thread still carries the original comment, not the replacement.
+      expect(headThread.dispose).toHaveBeenCalledTimes(1);
+      expect(headThread.comments[0]).toBe(originalComment);
+      expect(threadCount(controller)).toBe(0);
+      // The replacement re-registered the same encoded context value (the
+      // encoding is pure over the coordinates); the guard must drop it again.
+      expect(controller.getCommentContext(contextValue)).toBeUndefined();
+      expect(contextCount(controller)).toBe(0);
     } finally {
       attachmentSpy.mockRestore();
       controller.dispose();
@@ -975,6 +1058,58 @@ describe('PullReviewCommentController multi-line comments', () => {
   });
 });
 
+describe('PullReviewCommentController strict URI parsing', () => {
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.diffFetches = 0;
+    panelState.createOrShow.mockClear();
+    vi.mocked(vscode.window.showWarningMessage).mockClear();
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+  });
+
+  it('ignores a forgejo-pr document whose URI carries no usable ref', async () => {
+    // The old fallback parsed a missing/empty ref as the default branch, so
+    // threads were rendered — and comments anchored — against content the URI
+    // never named. Strict parsing treats the document as not ours: no fetch,
+    // no threads.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+
+    await openDocument(makeDocument(false, { ref: '' }));
+
+    expect(state.diffFetches).toBe(0);
+    expect(threadCount(controller)).toBe(0);
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('warns in addComment instead of acting on an unparseable PR diff URI', async () => {
+    // The command used to proceed with the fallback parse (PR 0, default
+    // branch); it must refuse with the same "no PR diff file" notice any
+    // non-PR editor gets.
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const editor = {
+      document: makeDocument(false, { ref: '' }),
+      selection: {
+        isEmpty: true,
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 0 },
+        active: { line: 0 },
+      },
+    };
+
+    await controller.addComment(editor as never);
+
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining('No Forgejo PR diff file is active'),
+    );
+    expect(panelState.createOrShow).not.toHaveBeenCalled();
+    expect(state.diffFetches).toBe(0);
+    controller.dispose();
+  });
+});
+
 describe('PullReviewCommentController review data cache lifetime', () => {
   beforeEach(() => {
     state.createdThreads.length = 0;
@@ -1298,6 +1433,120 @@ describe('PullReviewCommentController review comments fan-out', () => {
       expect(context.pendingReviewId).toBe(11);
       controller.dispose();
     } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+/**
+ * A whole-load failure is never cached (`_loadReviewData` only stores successful
+ * loads) and the in-flight map only coalesces while a fetch runs, so every
+ * document render of the pull request re-fetches. Without the per-pull-request
+ * fingerprint, each of those renders re-toasted the identical error — one toast
+ * per open diff document, plus one per focus change.
+ */
+describe('PullReviewCommentController load-failure toast dedup', () => {
+  beforeEach(() => {
+    state.createdThreads.length = 0;
+    state.openHandlers.length = 0;
+    state.editorHandlers.length = 0;
+    state.diffFetches = 0;
+    state.diffError = null;
+    vi.mocked(vscode.window.showErrorMessage).mockClear();
+  });
+
+  it('toasts a whole-load failure once per pull request while the failure persists', async () => {
+    state.diffError = new Error('network down');
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const activeEditor = state.editorHandlers[0];
+    const shown = vi.mocked(vscode.window.showErrorMessage);
+
+    try {
+      await openDocument(makeDocument(false));
+      await openDocument(makeDocument(true));
+      // A focus change re-enters the load path too.
+      activeEditor({ document: makeDocument(false) });
+      await flushUntil(() => state.diffFetches >= 3);
+
+      // Every render re-fetched (nothing is cached), but the toast appeared once.
+      expect(state.diffFetches).toBeGreaterThanOrEqual(3);
+      expect(shown).toHaveBeenCalledTimes(1);
+      expect(shown).toHaveBeenCalledWith(expect.stringContaining('Could not load the review comments'));
+    } finally {
+      state.diffError = null;
+      controller.dispose();
+    }
+  });
+
+  it('scopes the failure memory per pull request', async () => {
+    state.diffError = new Error('network down');
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const shown = vi.mocked(vscode.window.showErrorMessage);
+
+    try {
+      await openDocument(makeDocument(false));
+      expect(shown).toHaveBeenCalledTimes(1);
+
+      // A different pull request failing with the same error has not been
+      // reported yet: its toast must not be swallowed by the first one's.
+      await openDocument(makeDocument(false, { index: 3 }));
+      expect(shown).toHaveBeenCalledTimes(2);
+    } finally {
+      state.diffError = null;
+      controller.dispose();
+    }
+  });
+
+  it('toasts again when a different failure replaces the reported one', async () => {
+    state.diffError = new Error('network down');
+    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+    const openDocument = state.openHandlers[0];
+    const shown = vi.mocked(vscode.window.showErrorMessage);
+
+    try {
+      await openDocument(makeDocument(false));
+      expect(shown).toHaveBeenCalledTimes(1);
+
+      // A new fingerprint (e.g. the network recovered and the token is now the
+      // problem) is a failure the user has not heard about.
+      state.diffError = new Error('token expired');
+      await openDocument(makeDocument(false));
+      expect(shown).toHaveBeenCalledTimes(2);
+    } finally {
+      state.diffError = null;
+      controller.dispose();
+    }
+  });
+
+  it('toasts again after the load recovers and fails again', async () => {
+    vi.useFakeTimers();
+    try {
+      state.diffError = new Error('network down');
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
+      const shown = vi.mocked(vscode.window.showErrorMessage);
+
+      await openDocument(makeDocument(false));
+      expect(shown).toHaveBeenCalledTimes(1);
+
+      // The instance recovers: the successful load clears the failure memory.
+      state.diffError = null;
+      await openDocument(makeDocument(false));
+      expect(threadCount(controller)).toBeGreaterThan(0);
+
+      // The same failure returns: it is a new failure after a recovery, and
+      // the user must hear about it. The cache TTL has to expire first, or the
+      // cached success would answer the re-render without a fetch.
+      state.diffError = new Error('network down');
+      vi.setSystemTime(Date.now() + 60_000);
+      await openDocument(makeDocument(false));
+
+      expect(shown).toHaveBeenCalledTimes(2);
+      controller.dispose();
+    } finally {
+      state.diffError = null;
       vi.useRealTimers();
     }
   });

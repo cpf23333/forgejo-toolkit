@@ -194,6 +194,29 @@ describe('importInstancesPreview dropped count', () => {
   });
 });
 
+describe('importInstancesPreview token exclusion', () => {
+  it('type-checks preview entries that carry no token field', () => {
+    // The preview renders non-secret fields only: the token is stashed
+    // host-side and rehydrated by id on confirm, so the wire entry has no
+    // token property at all.
+    const reply = makeImportPreviewReply({
+      instances: [{ id: 'instance-1', url: 'https://forgejo.example.com', name: 'Example', username: 'demo-user' }],
+    });
+
+    expect(reply.instances).toHaveLength(1);
+  });
+
+  it('rejects an entry that still carries a token', () => {
+    // `token?: never` turns what used to be a sender-side convention (the host
+    // blanks the token by hand) into a compile-time exclusion: a payload that
+    // still carries one must not type-check.
+    // @ts-expect-error -- the preview payload must never carry a token
+    const reply = makeImportPreviewReply({ instances: [makeInstance()] });
+
+    expect(reply.instances[0]?.id).toBe('instance-1');
+  });
+});
+
 /**
  * The reply fields the host sends that no consumer reads yet. They stay in the
  * contract because the extension host sends them (removing one would break the

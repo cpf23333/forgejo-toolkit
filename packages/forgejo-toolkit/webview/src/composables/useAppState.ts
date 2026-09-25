@@ -4,13 +4,40 @@ import { useI18n } from 'vue-i18n';
 import type { ForgejoInstance } from '../types/instance';
 
 const loading = reactive(new Map<string, boolean>());
-const errors = reactive(new Map<string, string>());
 
-// The tracking maps above and some payload maps only ever grow. Cap them:
+// The tracking maps and some payload maps only ever grow. Cap them:
 // once the limit is hit, the oldest entry (Maps iterate in insertion order)
 // is evicted. Evicted loading/error entries are harmless — reads default to
 // `?? false` / `undefined`.
-const MAX_TRACKING_ENTRIES = 500;
+export const MAX_TRACKING_ENTRIES = 500;
+
+/**
+ * The error map's bound, enforced by the map itself. `setError` capped its own
+ * writes, but views also record failures directly (`state.errors.set(...)`),
+ * which bypassed the cap entirely and let the map grow without limit.
+ *
+ * Rewriting an existing key updates it in place — no eviction, and the key
+ * keeps its position in the insertion order — matching the semantics
+ * `setError` always had. Only a brand-new key past the cap evicts the oldest
+ * entry.
+ */
+class BoundedMap<K, V> extends Map<K, V> {
+  constructor(private readonly maxEntries: number) {
+    super();
+  }
+
+  override set(key: K, value: V): this {
+    if (!this.has(key) && this.size >= this.maxEntries) {
+      const oldest = this.keys().next();
+      if (!oldest.done) {
+        this.delete(oldest.value);
+      }
+    }
+    return super.set(key, value);
+  }
+}
+
+const errors = reactive(new BoundedMap<string, string>(MAX_TRACKING_ENTRIES));
 const MAX_SEARCH_ENTRIES = 50;
 // The host caps a single CI job log at 10 MB but not how many are kept, so a
 // session that browses runs in several repositories would hold every log in
@@ -256,8 +283,9 @@ import type {
   ExportSettings,
   HostToWebviewMessage,
   LinkedRepository,
-  // Import/export payloads carry the token; the regular instance list never does.
-  ForgejoInstance as ExportedForgejoInstance,
+  // The import preview payload never carries tokens (structurally excluded);
+  // the regular instance list never does either.
+  ImportPreviewInstance,
 } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { createTimedCache } from '../utils/createTimedCache';
@@ -644,7 +672,7 @@ function createAppState() {
   );
   const exportInstancesResult = ref<{ success: boolean; path?: string; error?: string } | undefined>(undefined);
   const importInstancesResult = ref<{ success: boolean; count?: number; error?: string } | undefined>(undefined);
-  // Preview data from the host: token fields are stripped to '' host-side
+  // Preview data from the host: token keys are omitted host-side
   // (conflict flags travel in `tokenConflicts`); confirmation goes back as
   // ids only (see confirmImportInstances). `error` is set when the host could
   // not read the file (corrupt JSON, wrong password, no valid instances): the
@@ -652,7 +680,7 @@ function createAppState() {
   // empty-list success state.
   const importPreview = ref<
     | {
-        instances: ExportedForgejoInstance[];
+        instances: ImportPreviewInstance[];
         existingIds: string[];
         tokenConflicts?: boolean[];
         settings?: ExportSettings;
@@ -923,6 +951,15 @@ function createAppState() {
         // the dashboard items are already mounted, so nothing else would ask the
         // host again and the instance would render with no rows and no spinner.
         const changed = changedInstanceIdentities(instances.value, next);
+        // A removal needs the same clear. The id is derived from the URL and
+        // account, so re-adding the same server within the session brings the
+        // same id back: payloads the removal left behind would be served from
+        // the caches as the deleted instance's data for the rest of their TTL.
+        // Clearing here makes a re-add start clean (the remounted dashboard item
+        // asks again), and the epoch bump marks requests still in flight for the
+        // removed server so their late replies are refused after the re-add.
+        const surviving = new Set(next.map((instance) => instance.id));
+        const removed = instances.value.filter((instance) => !surviving.has(instance.id));
         instances.value = next;
         for (const instanceId of changed) {
           // Any outstanding notification request was sent for the server this
@@ -931,6 +968,10 @@ function createAppState() {
           instanceIdentityEpoch.set(instanceId, (instanceIdentityEpoch.get(instanceId) ?? 0) + 1);
           clearInstancePayloads(instanceId);
           reloadInstanceLists(instanceId);
+        }
+        for (const instance of removed) {
+          instanceIdentityEpoch.set(instance.id, (instanceIdentityEpoch.get(instance.id) ?? 0) + 1);
+          clearInstancePayloads(instance.id);
         }
         break;
       }
@@ -1888,7 +1929,7 @@ function createAppState() {
           break;
         }
         const previewMessage = message as {
-          instances?: ExportedForgejoInstance[];
+          instances?: ImportPreviewInstance[];
           existingIds?: string[];
           tokenConflicts?: boolean[];
           settings?: ExportSettings;
@@ -4267,7 +4308,21 @@ function createAppState() {
   }): Promise<string | undefined> {
     const id = `input-${++inputRequestId}`;
     return new Promise((resolve) => {
-      inputBoxPromises.set(id, resolve);
+      // The reply waits on a human decision in a native dialog, not on a
+      // network round-trip, so the default 60 s request budget would abandon a
+      // dialog the user simply left open; the host's long-operation budget (5
+      // min, same as its own modal confirmations) fits instead. A reply that
+      // never arrives resolves as "user cancelled" — what a dismissed dialog
+      // answers — so the awaiting caller's guard flag cannot stay stuck.
+      const timer = setTimeout(() => {
+        if (inputBoxPromises.delete(id)) {
+          resolve(undefined);
+        }
+      }, HOST_LONG_OPERATION_TIMEOUT_MS);
+      inputBoxPromises.set(id, (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      });
       postMessage({ command: 'showInputBox', id, ...options });
     });
   }
@@ -4275,7 +4330,17 @@ function createAppState() {
   function showConfirm(message: string): Promise<boolean> {
     const id = `confirm-${++inputRequestId}`;
     return new Promise((resolve) => {
-      confirmPromises.set(id, resolve);
+      // Same budget and reasoning as showInputBox above; a timeout resolves
+      // "not confirmed", which is also what a dismissed dialog answers.
+      const timer = setTimeout(() => {
+        if (confirmPromises.delete(id)) {
+          resolve(false);
+        }
+      }, HOST_LONG_OPERATION_TIMEOUT_MS);
+      confirmPromises.set(id, (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      });
       postMessage({
         command: 'showConfirm',
         id,

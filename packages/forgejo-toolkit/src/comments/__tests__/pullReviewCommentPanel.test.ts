@@ -6,7 +6,9 @@ const clientMocks = vi.hoisted(() => ({
     async (_owner: string, _repo: string, _index: number, _comment: Record<string, unknown>) => ({ id: 42 }),
   ),
   addPullReviewComment: vi.fn(async () => ({})),
+  submitPullReview: vi.fn(async () => ({})),
   deletePullReview: vi.fn(async () => ({})),
+  createIssueAttachment: vi.fn(async () => ({ id: 9, uuid: 'att-uuid', name: 'shot.png', size: 3 })),
   renderMarkdown: vi.fn(async (text: string) => `<p>${text}</p>`),
   searchMentions: vi.fn(async () => ({ users: [{ value: 'alice' }], issues: [{ value: '#1' }] })),
 }));
@@ -24,7 +26,9 @@ vi.mock('../../api/client', () => ({
     }
     createPendingPullReview = clientMocks.createPendingPullReview;
     addPullReviewComment = clientMocks.addPullReviewComment;
+    submitPullReview = clientMocks.submitPullReview;
     deletePullReview = clientMocks.deletePullReview;
+    createIssueAttachment = clientMocks.createIssueAttachment;
     renderMarkdown = clientMocks.renderMarkdown;
     searchMentions = clientMocks.searchMentions;
   },
@@ -299,7 +303,7 @@ describe('PullReviewCommentPanel.createOrShow', () => {
     });
   });
 
-  it('clears stale callbacks when the reuse caller passes none', () => {
+  it('clears stale callbacks when the reuse caller passes none', async () => {
     const fakePanel = createFakePanel();
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
 
@@ -310,6 +314,11 @@ describe('PullReviewCommentPanel.createOrShow', () => {
       { onSubmitted: vi.fn() },
     );
     PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, createConfig(), createContext());
+
+    // Same-key switches ride the serialized switch chain (a synchronous
+    // application could overtake a queued confirmed switch), so the context
+    // replacement lands in a microtask.
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(panelInternals(panel)._callbacks).toBeUndefined();
   });
@@ -325,7 +334,13 @@ describe('PullReviewCommentPanel.createOrShow', () => {
     // Declining the modal confirm resolves with undefined.
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValue(undefined as never);
 
-    PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, createConfig(), createContext());
+    // The pending review id is host state (see `_captureTarget`), so the
+    // context — not the message — is what carries it.
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      createConfig(),
+      createContext({ pendingReviewId: 5 }),
+    );
     await messageHandler?.({ command: 'deletePullReview', reviewId: 5 });
 
     // The webview waits for this reply to reset its loading state; without it
@@ -357,13 +372,17 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     } as unknown as ConfigManager;
   }
 
-  function openPanel(instanceUrl = 'https://forgejo.example.com', callbacks?: PullReviewCommentPanelCallbacks) {
+  function openPanel(
+    instanceUrl = 'https://forgejo.example.com',
+    callbacks?: PullReviewCommentPanelCallbacks,
+    contextOverrides?: Partial<PullReviewCommentContext>,
+  ) {
     const fakePanel = createFakePanel();
     vi.mocked(vscode.window.createWebviewPanel).mockReturnValue(fakePanel as unknown as vscode.WebviewPanel);
     const panel = PullReviewCommentPanel.createOrShow(
       vscode.Uri.file('/ext') as vscode.Uri,
       configWithInstance(instanceUrl),
-      createContext(),
+      createContext(contextOverrides),
       callbacks,
     );
     return { fakePanel, panel, send: (message: unknown) => fakePanel.send(message) };
@@ -602,6 +621,88 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     expect(vscode.l10n.t).toHaveBeenCalledWith('No pending review');
   });
 
+  it('submits the review the host context holds, ignoring a forged reviewId in the message', async () => {
+    // Webview messages are untrusted input: the pending review id is host
+    // state, so a message naming another review must not retarget the submit
+    // (see `_captureTarget`).
+    const { logger } = await import('../../logger');
+    const infoSpy = vi.spyOn(logger, 'info');
+    try {
+      const { send } = openPanel('https://forgejo.example.com', undefined, { pendingReviewId: 5 });
+
+      await send({ command: 'submitPullReview', reviewId: 999, event: 'APPROVED', body: 'lgtm' });
+
+      expect(clientMocks.submitPullReview).toHaveBeenCalledWith('demo-user', 'demo-repo', 2, 5, 'APPROVED', 'lgtm');
+      expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('999'));
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('deletes the review the host context holds, ignoring a forged reviewId in the message', async () => {
+    const { send } = openPanel('https://forgejo.example.com', undefined, { pendingReviewId: 5 });
+    // Earlier tests replace the shared mock's confirmation default, so the
+    // accept path is queued explicitly.
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Cancel Review' as never);
+
+    await send({ command: 'deletePullReview', reviewId: 999 });
+
+    expect(clientMocks.deletePullReview).toHaveBeenCalledWith('demo-user', 'demo-repo', 2, 5);
+  });
+
+  it('uploads an attachment within the size cap', async () => {
+    const { fakePanel, send } = openPanel();
+    await send({
+      command: 'createIssueAttachment',
+      instanceId: 'demo',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 2,
+      name: 'shot.png',
+      data: [1, 2, 3],
+      _requestId: 'req-att-ok',
+    });
+
+    expect(clientMocks.createIssueAttachment).toHaveBeenCalledWith(
+      'demo-user',
+      'demo-repo',
+      2,
+      new Uint8Array([1, 2, 3]),
+      'shot.png',
+    );
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'issueAttachmentCreated', _requestId: 'req-att-ok', uuid: 'att-uuid' }),
+    );
+  });
+
+  it('rejects an attachment upload above the size cap', async () => {
+    // The bytes arrive as a JSON array of numbers, one element per byte, and
+    // the webview is untrusted: without the cap a forged message would make
+    // the host allocate and upload an arbitrary amount of memory.
+    const { fakePanel, send } = openPanel();
+    await send({
+      command: 'createIssueAttachment',
+      instanceId: 'demo',
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 2,
+      name: 'big.bin',
+      // A holey array claims 32 MiB + 1 of payload without allocating it; the
+      // guard only reads the length.
+      data: new Array(32 * 1024 * 1024 + 1),
+      _requestId: 'req-att-big',
+    });
+
+    expect(clientMocks.createIssueAttachment).not.toHaveBeenCalled();
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'issueAttachmentCreated',
+        _requestId: 'req-att-big',
+        error: vscode.l10n.t('Invalid attachment data'),
+      }),
+    );
+  });
+
   it('rejects a mention search carrying a hostile owner', async () => {
     const { fakePanel, send } = openPanel();
     clientMocks.searchMentions.mockClear();
@@ -675,7 +776,9 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
   });
 
   it('answers a throwing submitPullReview handler through pullReviewSubmitted', async () => {
-    const { fakePanel, send } = openPanel('forgejo.example.com');
+    // The pending review id lives in the host context; the message's reviewId
+    // only echoes it (see `_captureTarget`).
+    const { fakePanel, send } = openPanel('forgejo.example.com', undefined, { pendingReviewId: 5 });
 
     await expect(send({ command: 'submitPullReview', reviewId: 5, event: 'COMMENT' })).resolves.toBeUndefined();
 
@@ -685,7 +788,7 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
   });
 
   it('answers a throwing deletePullReview handler through pullReviewDeleted', async () => {
-    const { fakePanel, send } = openPanel('forgejo.example.com');
+    const { fakePanel, send } = openPanel('forgejo.example.com', undefined, { pendingReviewId: 5 });
     // Earlier tests replace the shared mock's confirmation default, so the
     // accept path is queued explicitly.
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Cancel Review' as never);
@@ -926,7 +1029,7 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
 
   it('keeps a delete that resolves after a context switch on the context it started with', async () => {
     const onDeleted = vi.fn();
-    const { fakePanel, panel, send } = openPanel('https://forgejo.example.com', { onDeleted });
+    const { fakePanel, panel, send } = openPanel('https://forgejo.example.com', { onDeleted }, { pendingReviewId: 5 });
 
     // Hold the confirmation modal open, then the delete request itself.
     let confirmDelete!: (choice: unknown) => void;
@@ -973,6 +1076,95 @@ describe('PullReviewCommentPanel shared-composable requests', () => {
     });
     expect(onDeleted).not.toHaveBeenCalled();
     expect(fakePanel.dispose).not.toHaveBeenCalled();
+  });
+
+  it('answers the fallback completion reply with the context the request arrived from', async () => {
+    // The delete handler awaits its confirmation modal before reaching anything
+    // outside its own try/catch, so a rejected modal is answered by the
+    // dispatcher's fallback. That fallback used to read the live `_context` —
+    // attributing the error to the pull request the user switched to while the
+    // modal was up.
+    const { fakePanel, send } = openPanel('https://forgejo.example.com', undefined, { pendingReviewId: 5 });
+    let failConfirm!: (error: unknown) => void;
+    vi.mocked(vscode.window.showWarningMessage).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          failConfirm = reject;
+        }) as never,
+    );
+    const dispatch = send({ command: 'deletePullReview', reviewId: 5 });
+
+    // The user opens another pull request's comment while the modal is up.
+    const newContext = createContext({ index: 3, path: 'src/other.ts', lineNumber: 4, pendingReviewId: 7 });
+    await switchTo(fakePanel, PullReviewCommentPanel.currentPanel!, newContext);
+    fakePanel.webview.postMessage.mockClear();
+
+    failConfirm(new Error('modal failed'));
+    await expect(dispatch).resolves.toBeUndefined();
+
+    // The fallback answers for the pull request the delete was started from,
+    // not the one now on screen.
+    expect(fakePanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'pullReviewDeleted', index: 2, error: expect.any(String) }),
+    );
+    expect(
+      postedMessages(fakePanel).filter((message) => message.command === 'pullReviewDeleted' && message.index === 3),
+    ).toEqual([]);
+  });
+
+  it('applies a same-key switch queued behind a confirmed different-key switch in click order', async () => {
+    // C0 is the initial context (lineNumber 1). The user clicks line 9 (A, a
+    // different key: queued behind its discard confirmation) and, while the
+    // modal is up, re-opens the original line (B, the same key as C0). Applied
+    // synchronously, B used to land under the pending modal and the confirmed
+    // switch then overwrote it — the panel ended on A, the context the user
+    // had asked for *earlier*.
+    const { fakePanel, panel } = openPanel();
+    const contextB = createContext();
+
+    let confirmDiscard!: (choice: unknown) => void;
+    vi.mocked(vscode.window.showWarningMessage).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          confirmDiscard = resolve;
+        }) as never,
+    );
+    PullReviewCommentPanel.createOrShow(
+      vscode.Uri.file('/ext') as vscode.Uri,
+      configWithInstance(),
+      createContext({ lineNumber: 9 }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fakePanel.receive({ command: 'pullReviewCommentDraftState', dirty: true });
+    await vi.waitFor(() => {
+      expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+    });
+
+    // The same-key switch is queued behind the pending one instead of applied
+    // synchronously.
+    PullReviewCommentPanel.createOrShow(vscode.Uri.file('/ext') as vscode.Uri, configWithInstance(), contextB);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(panelInternals(panel)._context).not.toBe(contextB);
+    expect(panelInternals(panel)._context.lineNumber).toBe(1);
+
+    // Confirming the discard applies A; the queued switch to B then runs. Its
+    // key differs from A, so the draft is queried again (clean) — but no
+    // second modal is shown. B's query lands in the same microtask flush as
+    // A's `_setContext`, so count the queries instead of clearing the mock.
+    const draftQueries = () =>
+      postedMessages(fakePanel).filter((message) => message.command === 'queryPullReviewCommentDraft').length;
+    confirmDiscard('Discard Draft');
+    await vi.waitFor(() => {
+      expect(panelInternals(panel)._context.lineNumber).toBe(9);
+    });
+    await vi.waitFor(() => {
+      expect(draftQueries()).toBe(2);
+    });
+    fakePanel.receive({ command: 'pullReviewCommentDraftState', dirty: false });
+    await vi.waitFor(() => {
+      expect(panelInternals(panel)._context).toBe(contextB);
+    });
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledTimes(1);
   });
 });
 

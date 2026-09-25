@@ -128,6 +128,16 @@ describe('mergeHeaders', () => {
     });
   });
 
+  it('overrides case-insensitively, keeping the later spelling of the name', () => {
+    // Header names are case-insensitive, so `Content-Type` and `content-type`
+    // must not coexist in the merged record (they would serialize as one
+    // illegal combined header).
+    expect(mergeHeaders({ 'Content-Type': 'text/plain' }, { 'content-type': 'application/json' })).toEqual({
+      'content-type': 'application/json',
+    });
+    expect(mergeHeaders([['X-Custom', '1']], { 'x-custom': '2' }, [['X-CUSTOM', '3']])).toEqual({ 'X-CUSTOM': '3' });
+  });
+
   it('skips undefined entries', () => {
     expect(
       mergeHeaders(
@@ -369,6 +379,79 @@ describe('client', () => {
     });
 
     expect(requestSpy).toHaveBeenCalledWith({ name: 'new-repo' });
+  });
+
+  it('sends a string body verbatim instead of JSON-encoding it', async () => {
+    // renderMarkdownRaw's data is a raw markdown string; JSON.stringify would
+    // wrap it in quotes and contradict the operation's text/plain declaration.
+    let receivedBody = '';
+    let receivedContentType: string | null = null;
+    mockServer.use(
+      http.post('http://example.com/api/markdown/raw', async ({ request }) => {
+        receivedBody = await request.text();
+        receivedContentType = request.headers.get('content-type');
+        return HttpResponse.text('ok');
+      }),
+    );
+
+    await client({
+      baseURL: 'http://example.com',
+      url: '/api/markdown/raw',
+      method: 'POST',
+      data: '# hi',
+      responseType: 'text',
+      headers: { 'Content-Type': 'text/plain' },
+    });
+
+    expect(receivedBody).toBe('# hi');
+    expect(receivedContentType).toBe('text/plain');
+  });
+
+  it('keeps a caller-supplied Content-Type instead of forcing application/json', async () => {
+    // An operation that posts a non-JSON body (e.g. renderMarkdownRaw's
+    // text/plain) must not have its content type overwritten by the default.
+    let receivedContentType: string | null = null;
+    mockServer.use(
+      http.post('http://example.com/api/markdown', ({ request }) => {
+        receivedContentType = request.headers.get('content-type');
+        return HttpResponse.text('ok');
+      }),
+    );
+
+    await client({
+      baseURL: 'http://example.com',
+      url: '/api/markdown',
+      method: 'POST',
+      data: '# hi',
+      responseType: 'text',
+      headers: { 'Content-Type': 'text/plain' },
+    });
+
+    expect(receivedContentType).toBe('text/plain');
+  });
+
+  it('matches a caller-supplied content-type case-insensitively', async () => {
+    // A lowercase spelling must suppress the JSON default too: setting
+    // `Content-Type` alongside it would serialize as one illegal combined
+    // header (see mergeHeaders).
+    let receivedContentType: string | null = null;
+    mockServer.use(
+      http.post('http://example.com/api/markdown', ({ request }) => {
+        receivedContentType = request.headers.get('content-type');
+        return HttpResponse.text('ok');
+      }),
+    );
+
+    await client({
+      baseURL: 'http://example.com',
+      url: '/api/markdown',
+      method: 'POST',
+      data: '# hi',
+      responseType: 'text',
+      headers: { 'content-type': 'text/plain' },
+    });
+
+    expect(receivedContentType).toBe('text/plain');
   });
 
   it('sends FormData without JSON serialization', async () => {

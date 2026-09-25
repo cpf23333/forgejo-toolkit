@@ -40,10 +40,17 @@ const dialogRef = ref<HTMLDialogElement | null>(null);
 const titleId = useId();
 
 function updateDialog(open: boolean) {
+  const dialog = dialogRef.value;
+  // A native close (Esc when the dirty guard let the cancel through) already
+  // closed the element: close() on it throws InvalidStateError, as does
+  // showModal() on a dialog that is already open. Only act on a real change.
+  if (!dialog || dialog.open === open) {
+    return;
+  }
   if (open) {
-    dialogRef.value?.showModal();
+    dialog.showModal();
   } else {
-    dialogRef.value?.close();
+    dialog.close();
   }
 }
 

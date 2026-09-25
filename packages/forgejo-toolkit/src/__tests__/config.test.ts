@@ -74,11 +74,27 @@ describe('ConfigManager', () => {
     expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
   });
 
-  it('keeps the stored secret on an empty-token same-origin re-add with another path', async () => {
+  it('derives a fresh id when an id is re-added with a different URL', async () => {
+    // Same id + different URL is a different instance (slug collisions such as
+    // `/a-b` vs `/a/b`, or an import file naming a known id), not an edit:
+    // overwriting the stored entry would lose the first instance and rebind its
+    // secret to the new URL.
     await config.addInstance(instance);
     await config.addInstance({ ...instance, token: '', url: 'https://forgejo.example.com/other/mount' });
-    expect(config.getInstances()[0].url).toBe('https://forgejo.example.com/other/mount');
-    expect(config.getInstances()[0].token).toBe('token-1');
+
+    const instances = config.getInstances();
+    expect(instances).toHaveLength(2);
+    const [original, added] = instances;
+    expect(original.id).toBe(instance.id);
+    expect(original.url).toBe(instance.url);
+    expect(original.token).toBe('token-1');
+    expect(added.url).toBe('https://forgejo.example.com/other/mount');
+    expect(added.id).not.toBe(instance.id);
+    expect(added.id.startsWith(`${instance.id}-`)).toBe(true);
+    // The newcomer's fresh id has no stored secret, so an empty-token add
+    // leaves it without a credential rather than borrowing the original's.
+    expect(added.token).toBe('');
+    expect(fake.secretStore.has(`forgejoToolkit.instanceToken.${added.id}`)).toBe(false);
   });
 
   it('does not expose the stored secret when an empty-token re-add switches origin', async () => {
@@ -87,35 +103,76 @@ describe('ConfigManager', () => {
     // stored token must not follow it to the new host.
     await config.addInstance({ ...instance, token: '', url: 'https://evil.example', name: 'x', username: 'x' });
 
-    const [stored] = config.getInstances();
-    expect(stored.url).toBe('https://evil.example');
-    expect(stored.token).toBe('');
-    // The secret must be removed, not merely hidden: tokens are rehydrated by
-    // instance id, so a surviving entry would be attached to the new URL again
-    // at the next activation.
-    expect(fake.secretStore.has('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe(false);
+    const instances = config.getInstances();
+    expect(instances).toHaveLength(2);
+    const added = instances.find((i) => i.url === 'https://evil.example');
+    expect(added?.token).toBe('');
+    // The original entry and its credential stay bound to the original URL;
+    // the secret is stored under the original id only.
+    const original = instances.find((i) => i.id === instance.id);
+    expect(original?.url).toBe(instance.url);
+    expect(original?.token).toBe('token-1');
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
   });
 
-  it('does not rehydrate the old secret for the new origin after a reload', async () => {
+  it('does not rehydrate a secret for the colliding entry after a reload', async () => {
     await config.addInstance(instance);
     await config.addInstance({ ...instance, token: '', url: 'https://evil.example', name: 'x', username: 'x' });
 
     // Simulate the next activation over the same storage: init() reads the
-    // secret by id, so this is where a surviving entry would leak the token.
+    // secret by id, and the derived id has no secret stored under it.
     const reloaded = new ConfigManager(fake.context as never);
     await reloaded.init();
 
-    const [stored] = reloaded.getInstances();
-    expect(stored.url).toBe('https://evil.example');
-    expect(stored.token).toBe('');
+    const instances = reloaded.getInstances();
+    expect(instances.find((i) => i.url === 'https://evil.example')?.token).toBe('');
+    expect(instances.find((i) => i.id === instance.id)?.token).toBe('token-1');
   });
 
-  it('still accepts a new token on a different-origin re-add', async () => {
+  it('stores a new token under the derived id on a colliding re-add', async () => {
     await config.addInstance(instance);
     await config.addInstance({ ...instance, token: 'token-2', url: 'https://evil.example' });
 
-    expect(config.getInstances()[0].token).toBe('token-2');
-    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-2');
+    const instances = config.getInstances();
+    expect(instances).toHaveLength(2);
+    const added = instances.find((i) => i.url === 'https://evil.example');
+    expect(added?.token).toBe('token-2');
+    expect(fake.secretStore.get(`forgejoToolkit.instanceToken.${added?.id}`)).toBe('token-2');
+    expect(instances.find((i) => i.id === instance.id)?.token).toBe('token-1');
+  });
+
+  it('gives two instances whose paths slug to the same id distinct ids with their own tokens', async () => {
+    // `/a-b` and `/a/b` fold to the same slug, so both compute
+    // `forgejo.example.com-a-b-user`: the second add must not overwrite the
+    // first (see resolveInstanceIdCollision).
+    const first = {
+      ...instance,
+      id: 'forgejo.example.com-a-b-user',
+      url: 'https://forgejo.example.com/a-b',
+      token: 'token-1',
+    };
+    const second = {
+      ...instance,
+      id: 'forgejo.example.com-a-b-user',
+      url: 'https://forgejo.example.com/a/b',
+      token: 'token-2',
+    };
+    await config.addInstance(first);
+    await config.addInstance(second);
+
+    const instances = config.getInstances();
+    expect(instances).toHaveLength(2);
+    const storedFirst = instances.find((i) => i.url === first.url);
+    const storedSecond = instances.find((i) => i.url === second.url);
+    expect(storedFirst?.id).toBe(first.id);
+    expect(storedFirst?.token).toBe('token-1');
+    expect(storedSecond?.id).not.toBe(first.id);
+    expect(storedSecond?.token).toBe('token-2');
+    // The derivation is deterministic: removing and re-adding the second
+    // instance lands on the same id again.
+    await config.removeInstance(storedSecond?.id ?? '');
+    await config.addInstance(second);
+    expect(config.getInstances().find((i) => i.url === second.url)?.id).toBe(storedSecond?.id);
   });
 
   it('refuses a non-http(s) URL instead of storing it', async () => {
@@ -159,7 +216,8 @@ describe('ConfigManager', () => {
 
   it('fails closed on an unparseable stored URL instead of reusing the stored secret', async () => {
     // A stored entry can predate the scheme/parse checks (hand-edited storage, an
-    // older build), so the token path must still treat it as a different origin.
+    // older build). Its URL differs from the re-added one, so the re-add gets a
+    // fresh id and the secret stays bound to the broken entry alone.
     await fake.context.globalState.update('forgejoToolkit.instances', [
       { ...instance, token: '', url: 'not a valid url' },
     ]);
@@ -167,8 +225,12 @@ describe('ConfigManager', () => {
 
     await config.addInstance({ ...instance, token: '' });
 
-    expect(config.getInstances()[0].token).toBe('');
-    expect(fake.secretStore.has('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe(false);
+    const instances = config.getInstances();
+    expect(instances).toHaveLength(2);
+    const added = instances.find((i) => i.url === instance.url);
+    expect(added?.id).not.toBe(instance.id);
+    expect(added?.token).toBe('');
+    expect(instances.find((i) => i.id === instance.id)?.url).toBe('not a valid url');
   });
 
   it('keeps the stored secret on an empty-token update and replaces it on a non-empty one', async () => {
@@ -179,6 +241,177 @@ describe('ConfigManager', () => {
 
     await config.updateInstance(instance.id, { token: 'token-2' });
     expect(config.getInstances()[0].token).toBe('token-2');
+  });
+
+  it('drops the stored secret when an update moves the URL to another origin without a new token', async () => {
+    // An empty token update means "unchanged", but the stored credential belongs
+    // to the stored URL: keeping it would send the token to a host it was never
+    // paired with (addInstance gives a colliding id a fresh id for the same
+    // reason; an update edits in place, so the secret has to go instead).
+    await config.addInstance(instance);
+    await config.updateInstance(instance.id, { url: 'https://evil.example' });
+
+    const [stored] = config.getInstances();
+    expect(stored.url).toBe('https://evil.example');
+    expect(stored.token).toBe('');
+    // Deleted, not merely hidden: init() rehydrates tokens by id, so a
+    // surviving SecretStorage entry would be re-attached to the new URL at the
+    // next activation.
+    expect(fake.secretStore.has('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe(false);
+  });
+
+  it('restores the dropped secret when the instance write fails after an origin switch', async () => {
+    // The delete-then-write order keeps the token from ever sitting next to a
+    // URL it was not paired with; when the write fails, the new URL never
+    // landed, so the credential must be put back rather than lost.
+    await config.addInstance(instance);
+    const realUpdate = fake.context.globalState.update;
+    fake.context.globalState.update = async () => {
+      throw new Error('storage full');
+    };
+    try {
+      await expect(config.updateInstance(instance.id, { url: 'https://evil.example' })).rejects.toThrow('storage full');
+    } finally {
+      fake.context.globalState.update = realUpdate;
+    }
+
+    const [stored] = config.getInstances();
+    // (The fake store returns its array by reference, so the in-place edit of
+    // the entry is visible regardless of the failed write; what the rollback
+    // must restore is the credential.)
+    expect(stored.token).toBe('token-1');
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
+  });
+
+  it('restores the replaced secret when the instance write fails after a token update', async () => {
+    // The new token is stored before the instance list is written; when the
+    // write fails the entry keeps its old URL, so the slot must not keep a
+    // token that was issued for the new host.
+    await config.addInstance(instance);
+    const realUpdate = fake.context.globalState.update;
+    fake.context.globalState.update = async () => {
+      throw new Error('storage full');
+    };
+    try {
+      await expect(config.updateInstance(instance.id, { token: 'token-2' })).rejects.toThrow('storage full');
+    } finally {
+      fake.context.globalState.update = realUpdate;
+    }
+
+    expect(config.getInstances()[0].token).toBe('token-1');
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
+  });
+
+  it('deletes the freshly stored secret when the write fails and the slot was empty', async () => {
+    // With no previous credential to restore, the rollback of a failed write
+    // removes the token the update just stored: the entry still names the old
+    // URL, and a leftover token would authenticate against it without the user
+    // ever having saved that pairing.
+    await config.addInstance({ ...instance, token: '' });
+    const realUpdate = fake.context.globalState.update;
+    fake.context.globalState.update = async () => {
+      throw new Error('storage full');
+    };
+    try {
+      await expect(config.updateInstance(instance.id, { token: 'token-2' })).rejects.toThrow('storage full');
+    } finally {
+      fake.context.globalState.update = realUpdate;
+    }
+
+    expect(config.getInstances()[0].token).toBe('');
+    expect(fake.secretStore.has('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe(false);
+  });
+
+  it('keeps the secret dropped when the origin switch succeeds', async () => {
+    // The rollback above restores the credential only on a failed write; a
+    // successful origin switch must still leave the instance token-less.
+    await config.addInstance(instance);
+    await config.updateInstance(instance.id, { url: 'https://evil.example' });
+
+    expect(config.getInstances()[0].token).toBe('');
+    expect(fake.secretStore.has('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe(false);
+  });
+
+  it('rolls back the stored token when addInstance fails to write the instance list', async () => {
+    // The secret is stored before the list write; if the write fails no entry
+    // names the id, so the fresh token must not be left as an orphan.
+    const realUpdate = fake.context.globalState.update;
+    fake.context.globalState.update = async () => {
+      throw new Error('storage full');
+    };
+    try {
+      await expect(config.addInstance(instance)).rejects.toThrow('storage full');
+    } finally {
+      fake.context.globalState.update = realUpdate;
+    }
+
+    expect(fake.secretStore.has('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe(false);
+    expect(config.getInstances()).toHaveLength(0);
+  });
+
+  it('restores the previous token when a re-add fails to write the instance list', async () => {
+    await config.addInstance(instance);
+    const realUpdate = fake.context.globalState.update;
+    fake.context.globalState.update = async () => {
+      throw new Error('storage full');
+    };
+    try {
+      await expect(config.addInstance({ ...instance, token: 'token-2' })).rejects.toThrow('storage full');
+    } finally {
+      fake.context.globalState.update = realUpdate;
+    }
+
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
+    expect(config.getInstances()[0].token).toBe('token-1');
+  });
+
+  it('restores the in-memory token when the secret delete of an origin switch fails', async () => {
+    // The delete failed before the URL write ran, so storage still holds the
+    // consistent "old URL + old token" pair; the in-memory copy must match it
+    // instead of leaving this session with a token-less view of the instance.
+    await config.addInstance(instance);
+    const realDelete = fake.context.secrets.delete;
+    fake.context.secrets.delete = async () => {
+      throw new Error('keyring unavailable');
+    };
+    try {
+      await expect(config.updateInstance(instance.id, { url: 'https://evil.example' })).rejects.toThrow(
+        'keyring unavailable',
+      );
+    } finally {
+      fake.context.secrets.delete = realDelete;
+    }
+
+    expect(config.getInstances()[0].token).toBe('token-1');
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
+  });
+
+  it('does not reattach the dropped secret to the new origin after a reload', async () => {
+    await config.addInstance(instance);
+    await config.updateInstance(instance.id, { url: 'https://evil.example' });
+
+    const reloaded = new ConfigManager(fake.context as never);
+    await reloaded.init();
+
+    const [stored] = reloaded.getInstances();
+    expect(stored.url).toBe('https://evil.example');
+    expect(stored.token).toBe('');
+  });
+
+  it('keeps the stored secret when an update changes only the path on the same origin', async () => {
+    await config.addInstance(instance);
+    await config.updateInstance(instance.id, { url: 'https://forgejo.example.com/other/mount' });
+
+    expect(config.getInstances()[0].url).toBe('https://forgejo.example.com/other/mount');
+    expect(config.getInstances()[0].token).toBe('token-1');
+  });
+
+  it('accepts a new token together with an origin switch', async () => {
+    await config.addInstance(instance);
+    await config.updateInstance(instance.id, { url: 'https://evil.example', token: 'token-2' });
+
+    expect(config.getInstances()[0].token).toBe('token-2');
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-2');
   });
 
   it('refuses a URL update that embeds a credential, keeping the stored one', async () => {
@@ -209,6 +442,66 @@ describe('ConfigManager', () => {
     expect(config.getInstances()).toHaveLength(0);
   });
 
+  it('restores the token when the instance-list write fails during removal', async () => {
+    // The token is deleted before the list write; when the write fails the
+    // entry is still stored, so its credential must be put back in memory and
+    // SecretStorage instead of leaving a configured instance with no token.
+    await config.addInstance(instance);
+    await fake.context.globalState.update('forgejoToolkit.worktrees', [
+      {
+        id: 'w1',
+        instanceId: instance.id,
+        owner: 'owner',
+        repo: 'repo',
+        prIndex: 1,
+        prTitle: 'title',
+        headBranch: 'feature',
+        headSha: 'abc1234',
+        baseBranch: 'main',
+        sourceRepoPath: '/cache/repos/owner-repo.git',
+        worktreePath: '/cache/worktrees/w1',
+        createdAt: 0,
+      },
+    ]);
+    const realUpdate = fake.context.globalState.update;
+    fake.context.globalState.update = async (key: string, value: unknown) => {
+      if (key === 'forgejoToolkit.instances') {
+        throw new Error('storage full');
+      }
+      return realUpdate(key, value);
+    };
+    try {
+      await expect(config.removeInstance(instance.id)).rejects.toThrow('storage full');
+    } finally {
+      fake.context.globalState.update = realUpdate;
+    }
+
+    expect(config.getInstances()[0]?.token).toBe('token-1');
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
+    // The write failed before the forget ran, so the worktree record survives:
+    // the instance it belongs to was never removed.
+    const worktrees = fake.context.globalState.get('forgejoToolkit.worktrees', []) as Array<{ id: string }>;
+    expect(worktrees.map((w) => w.id)).toEqual(['w1']);
+  });
+
+  it('restores the in-memory token when the secret delete of a removal fails', async () => {
+    // The delete failed before the list write ran, so storage still holds the
+    // consistent "entry + secret" pair; the in-memory copy must match it.
+    await config.addInstance(instance);
+    const realDelete = fake.context.secrets.delete;
+    fake.context.secrets.delete = async () => {
+      throw new Error('keyring unavailable');
+    };
+    try {
+      await expect(config.removeInstance(instance.id)).rejects.toThrow('keyring unavailable');
+    } finally {
+      fake.context.secrets.delete = realDelete;
+    }
+
+    expect(config.getInstances()[0]?.token).toBe('token-1');
+    expect(fake.secretStore.get('forgejoToolkit.instanceToken.forgejo.example.com-user')).toBe('token-1');
+  });
+
   it('migrates legacy plaintext tokens from globalState into SecretStorage on init', async () => {
     await fake.context.globalState.update('forgejoToolkit.instances', [instance]);
     await config.init();
@@ -216,6 +509,33 @@ describe('ConfigManager', () => {
     const stored = fake.context.globalState.get('forgejoToolkit.instances', []) as ForgejoInstance[];
     expect(stored[0].token).toBe('');
     expect(config.getInstances()[0].token).toBe('token-1');
+  });
+
+  it('keeps the SecretStorage listener alive when the init migration throws', async () => {
+    // On a system without a working keyring, secrets.get/store reject during
+    // the migration; the onDidChange registration must not be skipped along
+    // with the failed migration, or this window would stop tracking other
+    // windows' token edits for the rest of the session.
+    await fake.context.globalState.update('forgejoToolkit.instances', [instance]);
+    const realGet = fake.context.secrets.get;
+    fake.context.secrets.get = async () => {
+      throw new Error('no keyring');
+    };
+    await expect(config.init()).rejects.toThrow('no keyring');
+    expect(fake.context.subscriptions).toHaveLength(1);
+
+    // The listener registered before the migration is still live.
+    fake.context.secrets.get = realGet;
+    const fireSpy = (config as unknown as { _onInstancesChanged: { fire: ReturnType<typeof vi.fn> } })
+      ._onInstancesChanged.fire;
+    fireSpy.mockClear();
+    const tokenKey = 'forgejoToolkit.instanceToken.forgejo.example.com-user';
+    await fake.context.secrets.store(tokenKey, 'token-rotated');
+    fake.fireSecretChange(tokenKey);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(config.getInstances()[0].token).toBe('token-rotated');
+    expect(fireSpy).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes the in-memory token table when SecretStorage changes elsewhere', async () => {

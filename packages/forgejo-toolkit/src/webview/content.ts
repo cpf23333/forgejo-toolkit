@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 
 export interface WebviewContentOptions {
   panelMode?: 'onboarding' | 'pullReviewComment';
@@ -160,11 +161,15 @@ export function toInstanceOrigins(instanceUrls: string[]): string[] {
   return [...origins];
 }
 
+/**
+ * The CSP nonce. It gates every script tag in the generated HTML, so it must
+ * be unguessable: `Math.random` is not a cryptographic source, and a
+ * predictable nonce lets injected markup ride the script-src exception. 24
+ * random bytes render as 32 base64url characters — the length the previous
+ * alphabet-based implementation produced. This module only runs on the
+ * extension host (it is imported by the view provider and the review-comment
+ * panel, never bundled into the webview), so node:crypto is available.
+ */
 function getNonce(): string {
-  let text = '';
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
+  return crypto.randomBytes(24).toString('base64url');
 }

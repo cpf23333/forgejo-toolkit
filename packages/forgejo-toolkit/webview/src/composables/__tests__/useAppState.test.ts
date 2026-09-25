@@ -1933,6 +1933,52 @@ describe('useAppState', () => {
 
       await expect(promise).resolves.toBe(true);
     });
+
+    it('showInputBox resolves as cancelled when the host never answers', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+      vi.useFakeTimers();
+      try {
+        const promise = state.showInputBox({ prompt: 'Enter name' });
+
+        // Still pending past the default request budget: the dialog waits on a
+        // human decision in a native dialog, not on a network round-trip.
+        let settled = false;
+        void promise.then(() => {
+          settled = true;
+        });
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(settled).toBe(false);
+
+        // The host's long-operation budget (5 min) is the fallback: it resolves
+        // as "user cancelled" so the awaiting caller cannot hang forever.
+        await vi.advanceTimersByTimeAsync(240_000);
+        await expect(promise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('showConfirm resolves as declined when the host never answers', async () => {
+      const { state } = await createState();
+      vscodePostMessage().mockClear();
+      vi.useFakeTimers();
+      try {
+        const promise = state.showConfirm('Are you sure?');
+
+        let settled = false;
+        void promise.then(() => {
+          settled = true;
+        });
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(settled).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(240_000);
+        await expect(promise).resolves.toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('actionRunDeleted cleanup', () => {
@@ -2235,7 +2281,7 @@ describe('useAppState', () => {
 
       dispatchMessage({
         command: 'importInstancesPreview',
-        instances: [{ id: 'inst-2', url: 'https://forgejo.example.com', token: 't' }],
+        instances: [{ id: 'inst-2', url: 'https://forgejo.example.com' }],
         existingIds: [],
         tokenConflicts: [true],
       });

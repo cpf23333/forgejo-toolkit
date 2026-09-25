@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import EasyMdeEditor from './EasyMdeEditor.vue';
 import DateTimePicker from './DateTimePicker.vue';
 import { createPendingUploads } from '../utils/pendingUploads';
+import { labelStyle } from '../utils/labelColor';
 import type { ForgejoLabel, ForgejoMilestone } from '../types/api';
 
 const { t } = useI18n();
@@ -239,28 +240,6 @@ function toggleAssignee(login: string) {
   } else {
     selectedAssignees.value.push(login);
   }
-}
-
-// Same contrast computation as IssueForm: the label color comes from the
-// server, so the text color must adapt instead of assuming white works.
-function labelStyle(color?: string): string {
-  if (!color) {
-    return '';
-  }
-  return `background-color: #${color}; color: ${isLightColor(color) ? '#000' : '#fff'};`;
-}
-
-function isLightColor(hex: string): boolean {
-  const normalized = hex.replace('#', '');
-  const r = parseInt(normalized.substring(0, 2), 16) / 255;
-  const g = parseInt(normalized.substring(2, 4), 16) / 255;
-  const b = parseInt(normalized.substring(4, 6), 16) / 255;
-  const luminance = 0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b);
-  return luminance > 0.5;
-}
-
-function channelLuminance(channel: number): number {
-  return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
 }
 
 async function handleSubmit() {

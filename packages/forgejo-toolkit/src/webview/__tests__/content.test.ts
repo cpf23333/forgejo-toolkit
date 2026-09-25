@@ -107,7 +107,8 @@ describe('getWebviewContent', () => {
   it('rewrites bundle resource URLs and nonces every script tag', () => {
     const html = render();
     expect(html).toContain(`src="${CSP_SOURCE}/bundle/main.js"`);
-    const nonce = /script-src 'nonce-([A-Za-z0-9]+)'/.exec(extractCsp(html))![1];
+    // The nonce is base64url (crypto.randomBytes), whose alphabet adds - and _.
+    const nonce = /script-src 'nonce-([A-Za-z0-9_-]+)'/.exec(extractCsp(html))![1];
     for (const match of html.matchAll(/<script /g)) {
       const tag = html.slice(match.index, html.indexOf('>', match.index));
       expect(tag).toContain(`nonce="${nonce}"`);

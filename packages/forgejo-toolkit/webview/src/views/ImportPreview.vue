@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAppState } from '../composables/useAppState';
-import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
+import type { ImportPreviewInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { ForgejoInstance as CurrentForgejoInstance } from '../types/instance';
 
 const { t } = useI18n();
@@ -20,11 +20,13 @@ const existingIds = computed(() => new Set(preview.value?.existingIds ?? []));
 // the webview, so the check cannot run here.
 const tokenConflicts = computed(() => preview.value?.tokenConflicts ?? []);
 const settings = computed(() => preview.value?.settings);
-// `settings` is a raw cast of the imported file (the host only checks the values
-// when it applies them, see `src/webview/instanceImport.ts`), so `locale` can be
-// any string. Building the key from it rendered the key itself for an unknown
-// locale — vue-i18n falls back to the key when the message is missing — so the
-// name is looked up only for the locales this webview actually ships.
+// The host whitelists the settings before they reach the preview
+// (`sanitizeImportedSettings` in `src/webview/instanceImport.ts` keeps only
+// the known locales and worktree modes), but the payload type is what an
+// older host build forwarded unchecked, so `locale` cannot be trusted to be
+// one this webview ships. Building the key from an unknown locale rendered
+// the key itself — vue-i18n falls back to the key when the message is
+// missing — so the name is looked up only for the known locales.
 const KNOWN_LOCALES: readonly string[] = ['en', 'zh'];
 const localeLabel = computed(() => {
   const locale = settings.value?.locale;
@@ -69,7 +71,7 @@ const currentInstancesById = computed(() => {
   return map;
 });
 
-function getCurrentInstance(instance: ForgejoInstance): CurrentForgejoInstance | undefined {
+function getCurrentInstance(instance: ImportPreviewInstance): CurrentForgejoInstance | undefined {
   return currentInstancesById.value.get(instance.id);
 }
 
@@ -115,11 +117,11 @@ const allSelected = computed(
   () => instances.value.length > 0 && instances.value.every((instance) => selectedIds.value.has(instance.id)),
 );
 
-function isExisting(instance: ForgejoInstance): boolean {
+function isExisting(instance: ImportPreviewInstance): boolean {
   return existingIds.value.has(instance.id);
 }
 
-function toggle(instance: ForgejoInstance, event: Event) {
+function toggle(instance: ImportPreviewInstance, event: Event) {
   const checked = (event.target as HTMLInputElement).checked;
   const next = new Set(selectedIds.value);
   if (checked) {

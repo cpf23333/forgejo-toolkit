@@ -68,6 +68,7 @@ describe('registerCommands', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = undefined;
+    (vscode.window as { visibleTextEditors?: unknown }).visibleTextEditors = [];
   });
 
   it('ignores a second publishToForgejo invocation while one is running', async () => {
@@ -106,6 +107,114 @@ describe('registerCommands', () => {
     publish();
     expect(mocks.publishToForgejo).toHaveBeenCalledTimes(2);
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('push failed'), 'View Log');
+  });
+
+  it('ignores a second createPrFromCurrentBranch invocation while one is running', async () => {
+    // The flow mixes input boxes and pushes (and is reachable from the status
+    // bar), so a quick double-click must not stack two runs of it.
+    let finishCreate!: () => void;
+    mocks.createPrFromCurrentBranch.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCreate = resolve;
+        }),
+    );
+    const handlers = registerHandlers();
+    const createPr = handlers.get('forgejoToolkit.createPrFromCurrentBranch')!;
+
+    createPr();
+    createPr();
+    expect(mocks.createPrFromCurrentBranch).toHaveBeenCalledTimes(1);
+
+    finishCreate();
+    await flushAsync();
+    // After the first run settled the command is armed again.
+    createPr();
+    expect(mocks.createPrFromCurrentBranch).toHaveBeenCalledTimes(2);
+    // Let the second run settle too so the module-level in-flight flag does
+    // not leak into the next test.
+    finishCreate();
+    await flushAsync();
+  });
+
+  it('re-arms createPrFromCurrentBranch after a failure', async () => {
+    mocks.createPrFromCurrentBranch.mockRejectedValue(new Error('push failed'));
+    const handlers = registerHandlers();
+    const createPr = handlers.get('forgejoToolkit.createPrFromCurrentBranch')!;
+
+    createPr();
+    await flushAsync();
+    createPr();
+    expect(mocks.createPrFromCurrentBranch).toHaveBeenCalledTimes(2);
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('push failed'), 'View Log');
+  });
+
+  it('lets a navigation invocation (args.index) through while a create flow is running', async () => {
+    // The args.index path only opens an existing pull request — no input boxes,
+    // no push — so it must not be blocked by the create-flow guard: otherwise a
+    // click on the status bar's existing-PR entry is silently dropped while a
+    // creation sits at an input box.
+    let finishers: Array<() => void> = [];
+    mocks.createPrFromCurrentBranch.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishers.push(resolve);
+        }),
+    );
+    const handlers = registerHandlers();
+    const createPr = handlers.get('forgejoToolkit.createPrFromCurrentBranch')!;
+
+    createPr();
+    createPr({ index: 7 });
+    expect(mocks.createPrFromCurrentBranch).toHaveBeenCalledTimes(2);
+    expect(mocks.createPrFromCurrentBranch).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), {
+      index: 7,
+    });
+
+    // Settle both runs so the module-level guard does not leak into the next
+    // test.
+    for (const finish of finishers) {
+      finish();
+    }
+    finishers = [];
+    await flushAsync();
+  });
+
+  it('does not let a navigation invocation release the create-flow guard', async () => {
+    // Navigation neither takes nor releases the guard: if it cleared the flag
+    // on settle, a quick navigation finishing mid-create would unguard the
+    // still-running create flow and let a second one stack.
+    let finishCreate!: () => void;
+    let finishNavigation!: () => void;
+    mocks.createPrFromCurrentBranch.mockImplementation(
+      (_config: unknown, _viewProvider: unknown, args?: { index?: number }) =>
+        new Promise<void>((resolve) => {
+          if (typeof args?.index === 'number') {
+            finishNavigation = resolve;
+          } else {
+            finishCreate = resolve;
+          }
+        }),
+    );
+    const handlers = registerHandlers();
+    const createPr = handlers.get('forgejoToolkit.createPrFromCurrentBranch')!;
+
+    createPr();
+    createPr({ index: 7 });
+    finishNavigation();
+    await flushAsync();
+    // The create flow is still running, so a second create stays blocked even
+    // though the navigation already settled.
+    createPr();
+    expect(mocks.createPrFromCurrentBranch).toHaveBeenCalledTimes(2);
+
+    finishCreate();
+    await flushAsync();
+    // Once the create flow settles the command is armed again.
+    createPr();
+    expect(mocks.createPrFromCurrentBranch).toHaveBeenCalledTimes(3);
+    finishCreate();
+    await flushAsync();
   });
 
   it('reports copyPermalink failures with a View Log action', async () => {
@@ -186,6 +295,71 @@ describe('registerCommands', () => {
     await flushAsync();
 
     expect(mocks.addComment).toHaveBeenCalledWith(expect.anything(), 4);
+  });
+
+  it('targets the visible editor the invocation uri names, not the active one', async () => {
+    // With a diff editor open both sides are visible; the gutter click names
+    // the side it happened on, and the active editor may be the other one.
+    const activeEditor = {
+      document: { uri: { scheme: 'forgejo-pr', path: '/i/o/r/base.ts', query: '{}' } },
+      selection: { active: { line: 0 } },
+    };
+    const clickedEditor = {
+      document: { uri: { scheme: 'forgejo-pr', path: '/i/o/r/head.ts', query: '{}' } },
+      selection: { active: { line: 0 } },
+    };
+    (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = activeEditor;
+    (vscode.window as { visibleTextEditors?: unknown }).visibleTextEditors = [activeEditor, clickedEditor];
+    const handlers = registerHandlers();
+
+    handlers.get('forgejoToolkit.addPullReviewComment')!({
+      lineNumber: 3,
+      uri: { scheme: 'forgejo-pr', path: '/i/o/r/head.ts', query: '{}' },
+    });
+    await flushAsync();
+
+    expect(mocks.addComment).toHaveBeenCalledWith(clickedEditor, 2);
+  });
+
+  it('uses the uri-named visible editor even when no editor is active', async () => {
+    const visibleEditor = {
+      document: { uri: { scheme: 'forgejo-pr', path: '/i/o/r/head.ts', query: '{}' } },
+      selection: { active: { line: 0 } },
+    };
+    (vscode.window as { visibleTextEditors?: unknown }).visibleTextEditors = [visibleEditor];
+    const handlers = registerHandlers();
+
+    handlers.get('forgejoToolkit.addPullReviewComment')!({
+      lineNumber: 2,
+      uri: { scheme: 'forgejo-pr', path: '/i/o/r/head.ts', query: '{}' },
+    });
+    await flushAsync();
+
+    expect(mocks.addComment).toHaveBeenCalledWith(visibleEditor, 1);
+    expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the active editor when the uri matches no visible editor', async () => {
+    // The document may have closed between the click and the dispatch; the
+    // active editor is the best target left.
+    const activeEditor = {
+      document: { uri: { scheme: 'forgejo-pr', path: '/i/o/r/base.ts', query: '{}' } },
+      selection: { active: { line: 5 } },
+    };
+    (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = activeEditor;
+    (vscode.window as { visibleTextEditors?: unknown }).visibleTextEditors = [
+      { document: { uri: { scheme: 'forgejo-pr', path: '/i/o/r/other.ts', query: '{}' } } },
+    ];
+    const handlers = registerHandlers();
+
+    handlers.get('forgejoToolkit.addPullReviewComment')!({
+      lineNumber: 2,
+      uri: { scheme: 'forgejo-pr', path: '/i/o/r/gone.ts', query: '{}' },
+    });
+    await flushAsync();
+
+    // The line still comes from the click; only the editor fell back.
+    expect(mocks.addComment).toHaveBeenCalledWith(activeEditor, 1);
   });
 });
 

@@ -10,6 +10,7 @@ import {
   decryptExportData,
   ImportCancelledError,
   isSameOriginUrl,
+  MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_PBKDF2_ITERATIONS,
   readExportDataFromUri,
   sanitizeImportedInstances,
@@ -74,14 +75,17 @@ describe('computeImportTokenConflicts', () => {
 });
 
 describe('stripInstanceTokens', () => {
-  it('blanks tokens while keeping every other field intact', () => {
+  it('omits the token key while keeping every other field intact', () => {
     const imported: ForgejoInstance[] = [
       { ...instance('a', 'tok-a'), syncApiUrlsToInstanceUrl: true },
       instance('b', 'tok-b'),
     ];
     const stripped = stripInstanceTokens(imported);
-    expect(stripped[0]).toEqual({ ...imported[0], token: '' });
-    expect(stripped[1]).toEqual({ ...imported[1], token: '' });
+    const { token: _tokenA, ...restA } = imported[0];
+    const { token: _tokenB, ...restB } = imported[1];
+    expect(stripped[0]).toEqual(restA);
+    expect(stripped[1]).toEqual(restB);
+    expect(stripped.every((entry) => !('token' in entry))).toBe(true);
     // The stash keeps the real tokens; stripping must not mutate it.
     expect(imported[0].token).toBe('tok-a');
   });
@@ -234,6 +238,22 @@ describe('readExportDataFromUri', () => {
     fs.writeFileSync(file, '{ "version": 1, "instances": [');
 
     await expect(readExportDataFromUri(vscode.Uri.file(file))).rejects.toThrow(SyntaxError);
+  });
+
+  it('rejects a file above the import size cap before reading it', async () => {
+    // The file is read (and, when encrypted, decrypted) into memory whole, so
+    // an oversized pick must be refused by its stat size alone.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'instance-import-'));
+    const file = path.join(dir, 'export.json');
+    fs.writeFileSync(file, Buffer.alloc(MAX_IMPORT_FILE_BYTES + 1));
+
+    await expect(readExportDataFromUri(vscode.Uri.file(file))).rejects.toThrow('too large');
+    // The message goes through l10n.t, so the bundle provides the translation.
+    expect(vi.mocked(vscode.l10n.t)).toHaveBeenCalledWith(
+      'The import file is too large ({0} MiB); the limit is {1} MiB',
+      expect.any(String),
+      MAX_IMPORT_FILE_BYTES / (1024 * 1024),
+    );
   });
 });
 

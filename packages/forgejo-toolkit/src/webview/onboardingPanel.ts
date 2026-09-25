@@ -35,8 +35,6 @@ export class OnboardingWebviewPanel {
   private _disposables: vscode.Disposable[] = [];
   /** Request ids currently being handled; a reply removes the id (see `_reply`). */
   private readonly _unansweredRequests = new Set<string>();
-  /** URL of the instance currently being tested (not yet saved); merged into the CSP instance origins. */
-  private _editingInstanceUrl: string | undefined;
   /**
    * Full instance entries (tokens included) from the latest import preview,
    * kept host-side so token values never cross into the webview. Same
@@ -174,6 +172,16 @@ export class OnboardingWebviewPanel {
                 this._reply('testConnectionResult', { success: false, error: vscode.l10n.t('Invalid input') });
                 return;
               }
+              // Unlike the sidebar's testConnection (viewProvider), this handler
+              // reads no `instanceId` and never falls back to a stored token
+              // when the field is empty. That difference is intentional today:
+              // the wizard only tests instances that are not saved yet
+              // (Onboarding.vue calls this for new instances), so there is no
+              // stored token to fall back to. If the wizard ever learns to edit
+              // an existing instance, align this with the sidebar's same-origin
+              // stored-token fallback first — otherwise testing a private
+              // instance with an empty token field fails here while the same
+              // edit succeeds in the sidebar.
               // Same guard as the sidebar: only http(s) targets may be reached,
               // so a compromised webview cannot aim the host at a `file:` URL or
               // an intranet host. A URL that embeds a credential is refused for
@@ -188,9 +196,6 @@ export class OnboardingWebviewPanel {
                 });
                 return;
               }
-              // Remember the URL being tested so the next HTML regeneration
-              // includes its origin in the CSP (it is not saved yet).
-              this._editingInstanceUrl = url;
               try {
                 const client = new ForgejoClient(url, token, logger);
                 const user = await client.getCurrentUser();
@@ -248,15 +253,18 @@ export class OnboardingWebviewPanel {
                 clearServerVersion(normalizedUrl);
                 clearLinkedRepositoryCache();
                 void probeServerVersion(normalizedUrl, token, logger, syncApiUrlsToInstanceUrl);
-                // Saved now: getInstances() covers the origin again.
-                this._editingInstanceUrl = undefined;
                 this._reply('instances', { data: this._config.getInstances().map(toPublicInstance) });
                 this._reply('saveInstanceResult', { success: true });
                 vscode.window.showInformationMessage(vscode.l10n.t('Connected to Forgejo as {0}', user.login));
               } catch (error) {
                 const err = userFacingErrorMessage(error);
                 logger.error(`onboarding saveInstance failed: ${err}`);
-                this._reply('saveInstanceResult', { success: false, error: err });
+                // Same status-only reply as the sidebar's saveInstance (see
+                // connectionFailureMessage): userFacingErrorMessage embeds the
+                // upstream response body for 409/422, and that remote-authored
+                // content must not be reflected into the webview. The log keeps
+                // the full message.
+                this._reply('saveInstanceResult', { success: false, error: connectionFailureMessage(error) });
               }
               return;
             }
@@ -770,12 +778,6 @@ export class OnboardingWebviewPanel {
     const configured = vscode.workspace.getConfiguration('forgejoToolkit').get<'en' | 'zh' | undefined>('locale');
     const locale = resolveLocale(configured);
     const instanceUrls = this._config.getInstances().map((i) => i.url);
-    // The instance currently being tested is not saved yet, so getInstances()
-    // does not cover it; without its origin the CSP would block its images in
-    // markdown previews.
-    if (this._editingInstanceUrl) {
-      instanceUrls.push(this._editingInstanceUrl);
-    }
     this._panel.webview.html = getWebviewContent(this._panel.webview, this._extensionUri.fsPath, {
       panelMode: 'onboarding',
       locale,

@@ -1,6 +1,6 @@
 import { passthroughTranslate, type TranslateFn } from './translate';
 
-export type ApiErrorKind = 'network' | 'timeout' | 'tls' | 'http' | 'unknown' | 'proxy';
+export type ApiErrorKind = 'network' | 'timeout' | 'cancelled' | 'tls' | 'http' | 'unknown' | 'proxy';
 
 /**
  * Node/undici error codes and messages that mean "the TLS handshake failed
@@ -90,10 +90,14 @@ function describeErrorChain(error: unknown): string {
 }
 
 /**
- * Classify an error thrown by the shared fetch client. Timeouts (AbortSignal),
- * certificate/TLS failures and network failures (instance down, DNS, refused
- * connection) are told apart from HTTP error statuses so the UI can show a
- * meaningful localized message instead of a raw `fetch failed`.
+ * Classify an error thrown by the shared fetch client. Timeouts (an elapsed
+ * AbortSignal timeout), caller-driven cancellations (a manual abort, e.g. an
+ * MCP tool call the user cancelled), certificate/TLS failures and network
+ * failures (instance down, DNS, refused connection) are told apart from HTTP
+ * error statuses so the UI can show a meaningful localized message instead of
+ * a raw `fetch failed`. Cancellation is kept distinct from timeout: both
+ * surface as an aborted `fetch`, but "the instance is not responding" is a
+ * misleading answer to a request the caller itself cancelled.
  */
 export function toApiError(error: unknown, context?: RequestResource): ApiError {
   if (error instanceof ApiError) {
@@ -101,8 +105,11 @@ export function toApiError(error: unknown, context?: RequestResource): ApiError 
   }
   const raw = error instanceof Error ? error.message : String(error);
   const name = error instanceof Error ? error.name : '';
-  if (name === 'TimeoutError' || name === 'AbortError') {
+  if (name === 'TimeoutError') {
     return new ApiError('timeout', raw);
+  }
+  if (name === 'AbortError') {
+    return new ApiError('cancelled', raw);
   }
   const httpMatch = raw.match(/Forgejo API error (\d+):/);
   if (httpMatch) {
@@ -186,6 +193,8 @@ export function apiErrorUserMessage(error: ApiError): string {
   switch (error.kind) {
     case 'timeout':
       return translate('The request timed out. The instance is not responding.');
+    case 'cancelled':
+      return translate('The request was cancelled.');
     case 'network':
       return translate('Cannot connect to the instance. Check that it is running and that the URL is correct.');
     case 'proxy':
@@ -312,8 +321,19 @@ function apiPathOf(url: string): string[] | undefined {
   } catch {
     return undefined;
   }
-  const apiIndex = segments.indexOf('api');
-  if (apiIndex === -1 || segments[apiIndex + 1] !== 'v1') {
+  // An instance deployed under a sub-path prefixes every request path, and that
+  // prefix may itself contain an `api` segment (`/mirror/api/api/v1/...`). The
+  // API root is the LAST `api/v1` segment pair — the one the client appends —
+  // so matching the first `api` segment would slice inside the deployment
+  // prefix and either misread the resource path or miss the API root entirely.
+  let apiIndex = -1;
+  for (let index = segments.length - 2; index >= 0; index -= 1) {
+    if (segments[index] === 'api' && segments[index + 1] === 'v1') {
+      apiIndex = index;
+      break;
+    }
+  }
+  if (apiIndex === -1) {
     return undefined;
   }
   return segments.slice(apiIndex + 2);

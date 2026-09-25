@@ -36,6 +36,7 @@ vi.mock('../../logger', () => ({
 
 import { ForgejoIssueMentionProvider, getMentionRange, isMentionTriggerContext } from '../issueMentionProvider';
 import { detectLinkedRepositories } from '../../worktree/gitOperations';
+import { ForgejoClient } from '../../api/client';
 import type { ConfigManager } from '../../config';
 
 const INSTANCE_URL = 'https://forgejo.example.com';
@@ -396,5 +397,69 @@ describe('document link credential redaction', () => {
     expect(targets[0]).not.toContain('secret-token');
     // The host stays, so the link still resolves to the right server.
     expect(targets[0]).toBe('https://forgejo.example.com/owner/repo/issues/7');
+  });
+});
+
+describe('cancellation', () => {
+  beforeEach(() => {
+    detectMock.mockReset();
+    detectMock.mockResolvedValue(linkedResult('inst-c1') as never);
+    vi.mocked(ForgejoClient).mockReset();
+  });
+
+  it('returns no document links when the request is cancelled during the repository scan', async () => {
+    const token = { isCancellationRequested: false };
+    detectMock.mockImplementation(async () => {
+      token.isCancellationRequested = true;
+      return linkedResult('inst-c1') as never;
+    });
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-c1']));
+
+    // VS Code discards a cancelled request's result; the links must not be
+    // built from a stale scan.
+    const links = await provider.provideDocumentLinks(makeFileDocument('see #1') as never, token as never);
+    expect(links).toEqual([]);
+  });
+
+  it('returns no completions when the request is cancelled during the repository scan', async () => {
+    const token = { isCancellationRequested: false };
+    detectMock.mockImplementation(async () => {
+      token.isCancellationRequested = true;
+      return linkedResult('inst-c1') as never;
+    });
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-c1']));
+    const document = { uri: { scheme: 'file' }, lineAt: () => ({ text: 'see #' }) };
+
+    const items = await provider.provideCompletionItems(
+      document as never,
+      { line: 0, character: 5 } as never,
+      token as never,
+      { triggerCharacter: '#' } as never,
+    );
+    expect(items).toEqual([]);
+  });
+
+  it('returns no completions when the request is cancelled during the list fetch', async () => {
+    const token = { isCancellationRequested: false };
+    vi.mocked(ForgejoClient).mockImplementation(function () {
+      return {
+        getRepoIssues: async () => {
+          token.isCancellationRequested = true;
+          return [{ number: 1, title: 'one' }];
+        },
+        getRepoPullRequests: async () => [],
+      };
+    } as never);
+    const provider = new ForgejoIssueMentionProvider(createConfig(['inst-c1']));
+    const document = { uri: { scheme: 'file' }, lineAt: () => ({ text: 'see #' }) };
+
+    // The fetched lists must not be turned into items for a discarded request.
+    const items = await provider.provideCompletionItems(
+      document as never,
+      { line: 0, character: 5 } as never,
+      token as never,
+      { triggerCharacter: '#' } as never,
+    );
+    expect(items).toEqual([]);
   });
 });

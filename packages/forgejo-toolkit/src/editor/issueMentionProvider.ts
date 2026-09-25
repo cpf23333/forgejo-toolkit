@@ -177,10 +177,13 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
 
   async provideDocumentLinks(
     document: vscode.TextDocument,
-    _token: vscode.CancellationToken,
+    token: vscode.CancellationToken,
   ): Promise<vscode.DocumentLink[]> {
     const context = await getRepoContext(document, this.config);
-    if (!context) {
+    // The repository scan above awaits (git probes, cached but async): the
+    // document may have changed and this request been cancelled meanwhile, and
+    // VS Code discards a cancelled request's result anyway.
+    if (!context || token.isCancellationRequested) {
       return [];
     }
 
@@ -230,7 +233,7 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
   async provideCompletionItems(
     document: vscode.TextDocument,
     position: vscode.Position,
-    _token: vscode.CancellationToken,
+    token: vscode.CancellationToken,
     completionContext: vscode.CompletionContext,
   ): Promise<vscode.CompletionItem[]> {
     const trigger = completionContext.triggerCharacter;
@@ -258,7 +261,9 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
     }
 
     const context = await getRepoContext(document, this.config);
-    if (!context) {
+    // Cancelled while the repository scan was in flight: VS Code discards a
+    // cancelled request's result, so skip the (expensive) list fetches below.
+    if (!context || token.isCancellationRequested) {
       return [];
     }
 
@@ -278,6 +283,12 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
           this.getCachedList('issues', context, () => client.getRepoIssues(context.owner, context.repo, 'open')),
           this.getCachedList('prs', context, () => client.getRepoPullRequests(context.owner, context.repo, 'open')),
         ]);
+        // The list fetches above are the network round trips: if the request
+        // was cancelled while they ran, building items from them is wasted
+        // work — VS Code discards the result of a cancelled request.
+        if (token.isCancellationRequested) {
+          return [];
+        }
         const seen = new Set<number>();
         for (const issue of issues) {
           if (issue.number === undefined || seen.has(issue.number)) {
@@ -305,6 +316,10 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
         const users = await this.getCachedList('assignees', context, () =>
           client.getRepoAssignees(context.owner, context.repo),
         );
+        // Same cancellation check as the `#` branch above.
+        if (token.isCancellationRequested) {
+          return [];
+        }
         for (const username of users) {
           const item = new vscode.CompletionItem(`@${username}`, vscode.CompletionItemKind.User);
           item.insertText = `@${username}`;

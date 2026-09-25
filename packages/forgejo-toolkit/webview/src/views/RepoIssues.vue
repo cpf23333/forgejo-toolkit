@@ -311,35 +311,62 @@ const BODY_REWRITE_TIMEOUT_MS = 60_000;
 const BODY_REWRITE_ATTEMPTS = 2;
 
 /**
+ * Settle functions of the reply waits still on the wire. Their watchers are
+ * created from an event handler, so no component effect scope owns them and an
+ * unmount cannot stop them through Vue — they are settled from `onUnmounted`
+ * instead.
+ */
+const pendingReplyWaits = new Set<(answered: boolean) => void>();
+// True once the view is gone (keep-alive eviction): a create flow still
+// awaiting a reply must not post another round-trip or report to a dialog
+// that no longer exists.
+let isUnmounted = false;
+
+onUnmounted(() => {
+  isUnmounted = true;
+  // Settle as unanswered so the flow unwinds now instead of waiting out the
+  // timeout on a view that no longer exists.
+  for (const settle of pendingReplyWaits) {
+    settle(false);
+  }
+});
+
+/**
  * Waits for the host to answer an edit dispatched on `key`.
  *
  * `editIssue` is a fire-and-forget message: it reports its reply by clearing the
  * key's loading slot, and its failure on that key's error slot. Watching those two
  * is the only way to learn the outcome here, and the outcome is what decides
  * whether the session's `blob:` image URLs may be released. Resolves `false` when
- * the host never answered, so a lost reply is reported instead of hanging the
- * create flow.
+ * the host never answered or the view was unmounted first, so a lost reply is
+ * reported instead of hanging the create flow.
  */
 function waitForFormReply(key: string): Promise<boolean> {
   return new Promise((resolve) => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const stop = watch(
+    let stopWatch: (() => void) | undefined;
+    // Every settle path — reply, timeout, unmount — tears the wait down
+    // itself: the watcher has no owning scope (see pendingReplyWaits), so
+    // nothing else stops it.
+    const settle = (answered: boolean) => {
+      pendingReplyWaits.delete(settle);
+      if (timer) {
+        clearTimeout(timer);
+      }
+      stopWatch?.();
+      resolve(answered);
+    };
+    stopWatch = watch(
       () => [state.loading.get(key) ?? false, state.errors.get(key)] as const,
       ([loadingNow]) => {
         if (loadingNow) {
           return;
         }
-        if (timer) {
-          clearTimeout(timer);
-        }
-        stop();
-        resolve(true);
+        settle(true);
       },
     );
-    timer = setTimeout(() => {
-      stop();
-      resolve(false);
-    }, BODY_REWRITE_TIMEOUT_MS);
+    timer = setTimeout(() => settle(false), BODY_REWRITE_TIMEOUT_MS);
+    pendingReplyWaits.add(settle);
   });
 }
 
@@ -377,6 +404,11 @@ async function rewriteBodyAfterCreate(
   const key = issueFormKey(target.instanceId, target.owner, target.repo, issueNumber);
   let failure = t('common.requestFailed');
   for (let attempt = 0; attempt < BODY_REWRITE_ATTEMPTS; attempt += 1) {
+    // An unmount settled the wait as unanswered; the create flow is abandoned
+    // with the view, so no further rewrite may be posted from it.
+    if (isUnmounted) {
+      return failure;
+    }
     state.errors.delete(key);
     state.editIssue(target.instanceId, target.owner, target.repo, issueNumber, { title, body });
     // `editIssue` marks the key busy before it posts. A key that is not busy has
@@ -467,6 +499,10 @@ async function handleCreateSubmit(data: {
       // view navigates: a failure has to be visible and recoverable, not filed
       // under the key of a dialog that is closing.
       const rewriteFailure = await rewriteBodyAfterCreate(target, issueNumber, data.title, updatedBody);
+      if (isUnmounted) {
+        // The dialog that would render the outcome is gone; report nothing.
+        return;
+      }
       if (rewriteFailure !== undefined) {
         // Keep everything a retry needs: the created issue's number (a resubmit
         // then rewrites instead of creating a duplicate issue), the session's
