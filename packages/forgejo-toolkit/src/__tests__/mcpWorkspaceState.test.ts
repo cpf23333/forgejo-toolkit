@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import type { ForgejoInstance, LinkedRepository } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { McpWorkspaceStateFile } from '@cpf23333-forgejo-toolkit/shared/mcp/workspaceState';
 import type { ConfigManager } from '../config';
@@ -28,6 +28,10 @@ import {
 
 const detectMock = vi.mocked(detectLinkedRepositories);
 
+function makeLogger(): Logger {
+  return { debug: vi.fn(), info: vi.fn() } as unknown as Logger;
+}
+
 function makeInstance(overrides: Partial<ForgejoInstance> = {}): ForgejoInstance {
   return {
     id: 'instance-1',
@@ -50,12 +54,44 @@ function makeRepo(overrides: Partial<LinkedRepository> = {}): LinkedRepository {
   };
 }
 
+/** Points the mocked active editor at a path (undefined: no editor open). */
+function setActiveEditor(fsPath: string | undefined): void {
+  (vscode.window as { activeTextEditor?: unknown }).activeTextEditor = fsPath
+    ? { document: { uri: { fsPath } } }
+    : undefined;
+}
+
+/**
+ * Polls a condition in real time. A `setImmediate` spin does not work here:
+ * the fs work behind a promise chain completes in real milliseconds while the
+ * spin burns through its rounds in microseconds without yielding real time.
+ */
+async function until(condition: () => boolean, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) {
+      throw new Error('until() timed out waiting for the expected effect');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  // Let the continuations behind the observed effect settle.
+  await new Promise((resolve) => setTimeout(resolve, 5));
+}
+
+afterEach(() => {
+  setActiveEditor(undefined);
+  vi.useRealTimers();
+});
+
 describe('buildWorkspaceStatePayload', () => {
-  it('maps every linked repository and marks only the attributed one active', () => {
+  it('maps every linked repository and marks the verified active one', () => {
     const instances = [makeInstance(), makeInstance({ id: 'instance-2', url: 'https://other.example.com' })];
     const first = makeRepo();
     const second = makeRepo({ instanceId: 'instance-2', owner: 'org', repo: 'lib', localPath: '/workspace/lib' });
     const detected: DetectLinkedRepositoriesResult = { linked: second, all: [first, second], unpublished: [] };
+    // With more than one match, the flag follows the editor: it is set only
+    // because the active editor verifiably sits inside the attributed repo.
+    setActiveEditor('/workspace/lib/src/index.ts');
 
     const payload = buildWorkspaceStatePayload(instances, detected);
 
@@ -70,6 +106,41 @@ describe('buildWorkspaceStatePayload', () => {
       active: false,
     });
     expect(payload.repositories[1]).toMatchObject({ instanceId: 'instance-2', active: true });
+  });
+
+  it('marks the single linked repository active without needing the editor', () => {
+    // One match is unambiguous on its own: there is nothing else the user
+    // could be looking at.
+    const repo = makeRepo();
+    const detected: DetectLinkedRepositoriesResult = { linked: repo, all: [repo], unpublished: [] };
+
+    const payload = buildWorkspaceStatePayload([makeInstance()], detected);
+
+    expect(payload.repositories[0].active).toBe(true);
+  });
+
+  it('flags nothing active when the attribution is only the fallback pick', () => {
+    // Several matches and no editor to confirm the pick: detection still
+    // returns matches[0] as linked, but that is weaker than what the flag
+    // promises the agent, so no entry is flagged.
+    const first = makeRepo();
+    const second = makeRepo({ instanceId: 'instance-1', owner: 'org', repo: 'lib', localPath: '/workspace/lib' });
+    const detected: DetectLinkedRepositoriesResult = { linked: second, all: [first, second], unpublished: [] };
+
+    const payload = buildWorkspaceStatePayload([makeInstance()], detected);
+
+    expect(payload.repositories.map((entry) => entry.active)).toEqual([false, false]);
+  });
+
+  it('flags nothing active when the editor sits outside the attributed repository', () => {
+    const first = makeRepo();
+    const second = makeRepo({ instanceId: 'instance-1', owner: 'org', repo: 'lib', localPath: '/workspace/lib' });
+    const detected: DetectLinkedRepositoriesResult = { linked: second, all: [first, second], unpublished: [] };
+    setActiveEditor('/elsewhere/notes.txt');
+
+    const payload = buildWorkspaceStatePayload([makeInstance()], detected);
+
+    expect(payload.repositories.map((entry) => entry.active)).toEqual([false, false]);
   });
 
   it('strips credential userinfo from the instance URL', () => {
@@ -99,12 +170,13 @@ describe('buildWorkspaceStatePayload', () => {
 describe('writeMcpWorkspaceState', () => {
   let tempDir: string;
   let stateFilePath: string;
-  const logger = { debug: vi.fn() } as unknown as Logger;
+  let logger: Logger;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-state-test-'));
-    stateFilePath = path.join(tempDir, 'state', `mcp-workspace-${process.pid}.json`);
+    stateFilePath = path.join(tempDir, 'state', `mcp-workspace-${process.pid}-testnonce.json`);
     detectMock.mockReset();
+    logger = makeLogger();
   });
 
   afterEach(() => {
@@ -125,8 +197,12 @@ describe('writeMcpWorkspaceState', () => {
     const written = JSON.parse(fs.readFileSync(stateFilePath, 'utf8')) as McpWorkspaceStateFile;
     expect(written.repositories).toHaveLength(1);
     expect(written.repositories[0]).toMatchObject({ owner: 'demo-user', repo: 'demo-repo', active: true });
-    // The file is the contract with the MCP child: no credential may reach it.
-    expect(fs.readFileSync(stateFilePath, 'utf8')).not.toContain('secret-token');
+    // The file is the contract with the MCP child: no credential may reach
+    // it, and the dropped remoteUrl field (a masked value nothing read) must
+    // not come back.
+    const raw = fs.readFileSync(stateFilePath, 'utf8');
+    expect(raw).not.toContain('secret-token');
+    expect(written.repositories[0]).not.toHaveProperty('remoteUrl');
   });
 
   it('writes an empty mapping when nothing is linked, so the child can tell it apart from a missing file', async () => {
@@ -147,6 +223,153 @@ describe('writeMcpWorkspaceState', () => {
     expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('git exploded'));
     expect(fs.existsSync(stateFilePath)).toBe(false);
   });
+
+  it('surfaces a write failure at info level once per failure streak', async () => {
+    // The logger has no warn level, so info is the visible channel; repeating
+    // failures stay debug-only until a write succeeds and resets the streak.
+    // The flag is module state, so a successful write first: the previous
+    // test's failure must not leak into this streak.
+    detectMock.mockResolvedValue({ linked: undefined, all: [], unpublished: [] });
+    await writeMcpWorkspaceState(stateFilePath, configWith([makeInstance()]), logger);
+
+    detectMock.mockRejectedValue(new Error('git exploded'));
+    await writeMcpWorkspaceState(stateFilePath, configWith([makeInstance()]), logger);
+    await writeMcpWorkspaceState(stateFilePath, configWith([makeInstance()]), logger);
+    expect(vi.mocked(logger.info)).toHaveBeenCalledTimes(1);
+
+    detectMock.mockResolvedValue({ linked: undefined, all: [], unpublished: [] });
+    await writeMcpWorkspaceState(stateFilePath, configWith([makeInstance()]), logger);
+    expect(vi.mocked(logger.info)).toHaveBeenCalledTimes(1);
+
+    detectMock.mockRejectedValue(new Error('git exploded again'));
+    await writeMcpWorkspaceState(stateFilePath, configWith([makeInstance()]), logger);
+    expect(vi.mocked(logger.info)).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('registerMcpWorkspaceStateSync', () => {
+  let tempDir: string;
+  let context: vscode.ExtensionContext;
+  let logger: Logger;
+  const emptyDetection: DetectLinkedRepositoriesResult = { linked: undefined, all: [], unpublished: [] };
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-state-test-'));
+    detectMock.mockReset();
+    detectMock.mockResolvedValue(emptyDetection);
+    logger = makeLogger();
+    context = {
+      subscriptions: [] as { dispose(): unknown }[],
+      globalStorageUri: { fsPath: tempDir },
+    } as unknown as vscode.ExtensionContext;
+  });
+
+  afterEach(() => {
+    for (const subscription of context.subscriptions) {
+      subscription.dispose();
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function register(): string {
+    const config = {
+      getInstances: () => [],
+      onInstancesChanged: () => ({ dispose: vi.fn() }),
+    } as unknown as ConfigManager;
+    registerMcpWorkspaceStateSync(context, config, logger);
+    return mcpWorkspaceStateFilePath(context);
+  }
+
+  /** The listener this registration added to a vscode event mock. */
+  function lastListener(mock: ReturnType<typeof vi.fn>): (arg?: unknown) => void {
+    return mock.mock.calls[mock.mock.calls.length - 1][0] as (arg?: unknown) => void;
+  }
+
+  it('names the file with the pid and a per-window nonce', () => {
+    const stateFilePath = register();
+    expect(path.basename(stateFilePath)).toMatch(new RegExp(`^mcp-workspace-${process.pid}-[0-9a-f]{8}\\.json$`));
+  });
+
+  it('sweeps state files orphaned by dead pids, keeping this window’s own', async () => {
+    // 999999 is not a multiple of 4, so it is not even a valid Windows pid,
+    // and no ordinary test host runs a process with it: the probe must see it
+    // as dead. The nonce-less name is the pre-nonce format, also swept.
+    const orphan = path.join(tempDir, 'mcp-workspace-999999-abcdef12.json');
+    const legacyOrphan = path.join(tempDir, 'mcp-workspace-999999.json');
+    const orphanPart = path.join(tempDir, 'mcp-workspace-999999-abcdef12.json.part');
+    fs.writeFileSync(orphan, '{}', 'utf8');
+    fs.writeFileSync(legacyOrphan, '{}', 'utf8');
+    fs.writeFileSync(orphanPart, '{}', 'utf8');
+
+    const ownFile = register();
+    fs.writeFileSync(ownFile, '{}', 'utf8');
+    await until(() => !fs.existsSync(orphan) && !fs.existsSync(legacyOrphan) && !fs.existsSync(orphanPart));
+
+    expect(fs.existsSync(ownFile)).toBe(true);
+  });
+
+  it('merges rapid editor switches into a single debounced write', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const stateFilePath = register();
+    const editorListener = lastListener(vi.mocked(vscode.window.onDidChangeActiveTextEditor));
+
+    editorListener();
+    editorListener();
+    editorListener();
+    await vi.advanceTimersByTimeAsync(300);
+    // The debounce fired and enqueued the write; the write itself is real fs
+    // work, so go back to real timers before waiting on it.
+    vi.useRealTimers();
+    await until(() => fs.existsSync(stateFilePath));
+
+    expect(detectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not write when deactivation lands while detection is in flight', async () => {
+    // The workspace-folders trigger enqueues immediately; gating detection
+    // holds the write open across the cleanup call, so the disposed check is
+    // the only thing standing between this and a recreated file.
+    let resolveDetect!: (value: DetectLinkedRepositoriesResult) => void;
+    detectMock.mockReturnValue(
+      new Promise<DetectLinkedRepositoriesResult>((resolve) => {
+        resolveDetect = resolve;
+      }),
+    );
+    const stateFilePath = register();
+    lastListener(vi.mocked(vscode.workspace.onDidChangeWorkspaceFolders))();
+    await until(() => detectMock.mock.calls.length === 1);
+
+    // cleanup awaits the in-flight write, which is still waiting on
+    // detection — so resolve detection only after cleanup has started.
+    const cleanup = cleanupMcpWorkspaceState(logger);
+    resolveDetect(emptyDetection);
+    await cleanup;
+
+    expect(fs.existsSync(stateFilePath)).toBe(false);
+  });
+
+  it('waits for an in-flight write before cleanup resolves', async () => {
+    let resolveDetect!: (value: DetectLinkedRepositoriesResult) => void;
+    detectMock.mockReturnValue(
+      new Promise<DetectLinkedRepositoriesResult>((resolve) => {
+        resolveDetect = resolve;
+      }),
+    );
+    register();
+    lastListener(vi.mocked(vscode.workspace.onDidChangeWorkspaceFolders))();
+    await until(() => detectMock.mock.calls.length === 1);
+
+    let cleaned = false;
+    const cleanup = cleanupMcpWorkspaceState(logger).then(() => {
+      cleaned = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(cleaned).toBe(false);
+
+    resolveDetect(emptyDetection);
+    await cleanup;
+    expect(cleaned).toBe(true);
+  });
 });
 
 describe('cleanupMcpWorkspaceState', () => {
@@ -154,6 +377,7 @@ describe('cleanupMcpWorkspaceState', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-state-test-'));
+    detectMock.mockReset();
   });
 
   afterEach(() => {
@@ -169,10 +393,10 @@ describe('cleanupMcpWorkspaceState', () => {
       getInstances: () => [],
       onInstancesChanged: () => ({ dispose: vi.fn() }),
     } as unknown as ConfigManager;
-    const logger = { debug: vi.fn() } as unknown as Logger;
+    const logger = makeLogger();
     registerMcpWorkspaceStateSync(context, config, logger);
     const stateFilePath = mcpWorkspaceStateFilePath(context);
-    expect(stateFilePath).toBe(path.join(tempDir, `mcp-workspace-${process.pid}.json`));
+    expect(path.basename(stateFilePath)).toMatch(new RegExp(`^mcp-workspace-${process.pid}-[0-9a-f]{8}\\.json$`));
     fs.writeFileSync(stateFilePath, '{}', 'utf8');
 
     await cleanupMcpWorkspaceState(logger);

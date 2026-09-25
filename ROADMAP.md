@@ -169,7 +169,7 @@
 
 - 通过 VS Code `contributes.mcpServerDefinitionProviders` 将每个已配置且存有访问令牌的 Forgejo 实例各暴露为一个 MCP 服务器（每实例一个 definition，label 为 `Forgejo: <实例名>`），供 Copilot agent mode 等 MCP 客户端使用，零配置（VS Code ≥ 1.102）。
 - token 从 SecretStorage 经进程环境变量注入 stdio 子进程，不出现在工具 schema / 结果 / 日志中；无实例或无 token 时静默不注册（无 token 的实例逐个跳过并记 debug 日志），实例增删后自动重解析。
-- 工作区 → 仓库映射工具 `get_workspace_repository`：宿主把当前工作区链接到的仓库按窗口写入 `globalStorage/mcp-workspace-<pid>.json`（复用检测的共享扫描缓存，原子写入，不含凭据），路径经 `FORGEJO_MCP_STATE_FILE` 传给 MCP 子进程；子进程每次调用实时重读，按实例 URL 过滤，并能把属于其他实例的仓库指向对应的服务器。AI 在用户说「这个仓库 / 当前项目」而未给 owner/repo 时先调它。
+- 工作区 → 仓库映射工具 `get_workspace_repository`：宿主把当前工作区链接到的仓库按窗口写入 `globalStorage/mcp-workspace-<pid>-<nonce>.json`（复用检测的共享扫描缓存，串行化的原子写入，不含凭据），路径经 `FORGEJO_MCP_STATE_FILE` 传给 MCP 子进程；子进程每次调用实时重读，按实例 id（旧版宿主回退到实例 URL）过滤，并能把属于其他实例的仓库指向对应的服务器。AI 在用户说「这个仓库 / 当前项目」而未给 owner/repo 时先调它。
 - Phase 1 只读工具集（全部标记 `readOnlyHint`，大字段截断保护上下文）：
   - 基础工具：Issue / PR / 时间线 / 通知 / 仓库信息 / 全局搜索。
   - Actions 扩展：运行历史、job 列表、job 日志、制品列表。

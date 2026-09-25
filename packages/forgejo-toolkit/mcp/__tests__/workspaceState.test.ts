@@ -22,7 +22,6 @@ function stateFile(overrides: Partial<McpWorkspaceStateFile> = {}): McpWorkspace
         owner: 'demo-user',
         repo: 'demo-repo',
         localPath: '/workspace/demo-repo',
-        remoteUrl: 'https://forgejo.example.com/demo-user/demo-repo.git',
         active: true,
       },
       {
@@ -31,7 +30,6 @@ function stateFile(overrides: Partial<McpWorkspaceStateFile> = {}): McpWorkspace
         owner: 'org',
         repo: 'lib',
         localPath: '/workspace/lib',
-        remoteUrl: 'https://other.example.com/org/lib.git',
         active: false,
       },
     ],
@@ -59,6 +57,24 @@ describe('resolveWorkspaceRepository', () => {
   it('answers "not configured" when no state file was passed to the process', async () => {
     const result = await resolveWorkspaceRepository(undefined, 'https://forgejo.example.com');
     expect(result.status).toBe('not_configured');
+  });
+
+  it('answers "not configured" when the path does not name a state file', async () => {
+    // The path arrives through the process environment, which a hand-edited
+    // launch can point anywhere; only this extension's own file names are
+    // read.
+    const foreign = path.join(tempDir, 'state.json');
+    fs.writeFileSync(foreign, JSON.stringify(stateFile()), 'utf8');
+    const result = await resolveWorkspaceRepository(foreign, 'https://forgejo.example.com');
+    expect(result.status).toBe('not_configured');
+  });
+
+  it('answers "unavailable" for an implausibly large file without reading it', async () => {
+    // The writer publishes a handful of repositories; a megabyte of "state"
+    // is not something this process should parse.
+    writeState(`{"padding":"${'x'.repeat(1024 * 1024)}"}`);
+    const result = await resolveWorkspaceRepository(stateFilePath, 'https://forgejo.example.com');
+    expect(result.status).toBe('unavailable');
   });
 
   it('answers "unavailable" when the state file does not exist', async () => {
@@ -107,6 +123,67 @@ describe('resolveWorkspaceRepository', () => {
     // needs it to authenticate), while the state file is written stripped.
     writeState(stateFile());
     const result = await resolveWorkspaceRepository(stateFilePath, 'https://token-abc123@forgejo.example.com');
+    expect(result.status).toBe('matched');
+  });
+
+  it('prefers the instance id over the URL, so two accounts on one host stay apart', async () => {
+    // Two configured instances, same host URL, one token each: a URL match
+    // alone would hand both MCP servers the same repositories.
+    const twoAccounts = stateFile({
+      repositories: [
+        {
+          instanceId: 'account-alice',
+          instanceUrl: 'https://forgejo.example.com',
+          owner: 'alice',
+          repo: 'demo-repo',
+          localPath: '/workspace/demo-repo',
+          active: true,
+        },
+        {
+          instanceId: 'account-bob',
+          instanceUrl: 'https://forgejo.example.com',
+          owner: 'bob',
+          repo: 'fork',
+          localPath: '/workspace/fork',
+          active: false,
+        },
+      ],
+    });
+    writeState(twoAccounts);
+
+    const alice = await resolveWorkspaceRepository(stateFilePath, 'https://forgejo.example.com', 'account-alice');
+    expect(alice.status).toBe('matched');
+    if (alice.status !== 'matched') {
+      throw new Error('unreachable');
+    }
+    expect(alice.repositories.map((entry) => entry.repo)).toEqual(['demo-repo']);
+
+    // Bob's server sees no match of its own and is told which other instance
+    // serves the workspace repositories.
+    const bob = await resolveWorkspaceRepository(stateFilePath, 'https://forgejo.example.com', 'account-bob');
+    expect(bob.status).toBe('matched');
+    if (bob.status !== 'matched') {
+      throw new Error('unreachable');
+    }
+    expect(bob.repositories.map((entry) => entry.repo)).toEqual(['fork']);
+  });
+
+  it('falls back to the URL comparison when the process has no instance id', async () => {
+    // A child spawned by an older host build never received
+    // FORGEJO_MCP_INSTANCE_ID; it keeps the pre-id behavior, ambiguity and
+    // all.
+    writeState(stateFile());
+    const result = await resolveWorkspaceRepository(stateFilePath, 'https://forgejo.example.com', undefined);
+    expect(result.status).toBe('matched');
+  });
+
+  it('reads a legacy file that still carries the dropped remoteUrl field', async () => {
+    // Writer and reader can be on different extension versions; fields this
+    // version no longer knows must not break the read.
+    const legacy = stateFile() as unknown as { repositories: Record<string, unknown>[] };
+    legacy.repositories[0].remoteUrl = 'https://forgejo.example.com/demo-user/demo-repo.git';
+    writeState(legacy);
+    const result = await resolveWorkspaceRepository(stateFilePath, 'https://forgejo.example.com');
     expect(result.status).toBe('matched');
   });
 
@@ -172,7 +249,7 @@ describe('get_workspace_repository tool wiring', () => {
   it('passes the workspace context through to the handler', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgejo-mcp-reader-test-'));
     try {
-      const stateFilePath = path.join(tempDir, 'state.json');
+      const stateFilePath = path.join(tempDir, 'mcp-workspace-state.json');
       fs.writeFileSync(stateFilePath, JSON.stringify(stateFile()), 'utf8');
       const handlers = buildToolHandlers({} as never, {
         stateFile: stateFilePath,

@@ -71,18 +71,18 @@ pnpm --filter forgejo-toolkit package
 
 扩展内置 MCP Server，让 Copilot agent mode 等 AI 助手可以用自然语言查询你的 Forgejo 实例。
 
-- **零配置**：首个已配置且已保存 access token 的 Forgejo 实例会通过 VS Code 的 `contributes.mcpServerDefinitionProviders` API 自动暴露给 MCP 客户端，无需任何额外设置，也不用单独启动服务。
+- **零配置**：每个已配置且已保存 access token 的 Forgejo 实例都会通过 VS Code 的 `contributes.mcpServerDefinitionProviders` API 各自暴露为一个 MCP server，agent 可以在同一会话中访问多个实例，无需任何额外设置，也不用单独启动服务。
 - **要求**：VS Code ≥ 1.102，且至少配置了一个带 access token 的实例；不满足时静默不注册。
 - **使用方式**：在 Copilot 聊天中切换到 agent mode，直接用自然语言提问，例如「list my issues」或「看一下这个仓库最近一次失败运行的 CI 日志」。
 - **代理**：请求会遵循编辑器的 `http.proxy` 设置，其优先级高于环境变量 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（三者的大小写拼写都会读取），该设置会以 `FORGEJO_MCP_PROXY` 转发给 MCP 服务进程。
-- **工具概览**：约 27 个工具，分为四组——
+- **工具概览**：28 个工具，分为四组——
   - **基础**：Issue、PR、时间线、通知、仓库信息与搜索（如 `list_issues`、`get_pull_request`）。
   - **Actions**：运行历史、run 的 job 列表、job 日志与制品（如 `list_action_runs`、`get_action_run_jobs`、`get_action_job_log`）。
   - **代码读取**：文件内容与目录列表、仓库内文件搜索、分支、标签、提交、文件历史与 PR diff（如 `list_repo_contents`、`get_file_content`、`search_repo_files`、`get_pr_diff`）。
   - **Review 与元数据**：PR 评审、Release、标签、里程碑与自己的仓库（如 `list_pull_reviews`、`whoami`）。
 - **安全说明**：
   - 全部工具均为只读（`readOnlyHint`），agent 无法修改实例上的任何数据。
-  - 由于是只读工具，VS Code 不会在每次调用前弹确认框。约束来自工具面本身：每个工具都只映射到 `GET` 接口，且所有会进入请求路径的输入（`owner`、`repo`、文件路径）都做了校验，构造参数无法跳到其他接口。
+  - 由于是只读工具，VS Code 不会在每次调用前弹确认框。约束来自工具面本身：每个工具都只映射到 `GET` 接口（唯一例外是 `get_workspace_repository`，它只读取扩展在本地发布的状态文件），且所有会进入请求路径的输入（`owner`、`repo`、文件路径）都做了校验，构造参数无法跳到其他接口。
   - token 从 SecretStorage 经进程环境变量注入 stdio 子进程，不会出现在工具 schema、工具结果或日志中。
   - 过大的响应字段与超长结果会被截断，保护 agent 的上下文窗口。
   - 增删实例后会自动重新解析暴露的 server。

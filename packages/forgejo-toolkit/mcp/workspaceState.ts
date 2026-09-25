@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import type { McpWorkspaceStateRepository } from '@cpf23333-forgejo-toolkit/shared/mcp/workspaceState';
 import { stripUrlUserinfo } from '../src/utils/redactUrlUserinfo';
 
@@ -74,13 +75,15 @@ function readRepositories(parsed: unknown): McpWorkspaceStateRepository[] | unde
       typeof candidate.repo === 'string' &&
       typeof candidate.localPath === 'string'
     ) {
+      // Fields this version no longer knows (a legacy file's `remoteUrl`,
+      // say) are simply not read — the entry-level check above is what keeps
+      // a foreign entry out.
       repositories.push({
         instanceId: typeof candidate.instanceId === 'string' ? candidate.instanceId : '',
         instanceUrl: candidate.instanceUrl,
         owner: candidate.owner,
         repo: candidate.repo,
         localPath: candidate.localPath,
-        remoteUrl: typeof candidate.remoteUrl === 'string' ? candidate.remoteUrl : '',
         active: candidate.active === true,
       });
     }
@@ -93,6 +96,22 @@ const UNAVAILABLE: WorkspaceRepositoryResult = {
   message:
     'No workspace repository information is available: the extension host has not published a readable state file. Ask the user for the repository owner and name.',
 };
+
+/**
+ * The state file path arrives through this process's own environment — which
+ * the extension host wrote, but a hand-edited MCP configuration or an
+ * external launcher can carry anything. Only the names this extension itself
+ * produces are read; anything else is treated as "not configured" rather than
+ * reading a file that was never meant for this tool.
+ */
+const STATE_FILE_BASENAME = /^mcp-workspace-.+\.json$/;
+
+/**
+ * Upper bound for a file this process will parse. The writer publishes a
+ * handful of workspace repositories, so anything near a megabyte is not a
+ * state file this version wrote — refuse it instead of spending the memory.
+ */
+const MAX_STATE_FILE_BYTES = 1024 * 1024;
 
 /**
  * Answers "which repository is the user working in?" for the
@@ -111,6 +130,7 @@ const UNAVAILABLE: WorkspaceRepositoryResult = {
 export async function resolveWorkspaceRepository(
   stateFile: string | undefined,
   instanceUrl: string | undefined,
+  ownInstanceId?: string,
 ): Promise<WorkspaceRepositoryResult> {
   if (!stateFile) {
     return {
@@ -119,8 +139,23 @@ export async function resolveWorkspaceRepository(
         'This MCP server was not launched with workspace information (FORGEJO_MCP_STATE_FILE is not set). Ask the user for the repository owner and name.',
     };
   }
+  if (!STATE_FILE_BASENAME.test(path.basename(stateFile))) {
+    return {
+      status: 'not_configured',
+      message: `The configured state file path does not name a workspace state file (expected a mcp-workspace-*.json name, got "${path.basename(stateFile)}"). Ask the user for the repository owner and name.`,
+    };
+  }
   let raw: string;
   try {
+    // stat before reading: a wildly oversized file is refused on its size
+    // alone, without paying for the read.
+    const stats = await fs.promises.stat(stateFile);
+    if (stats.size > MAX_STATE_FILE_BYTES) {
+      return {
+        status: 'unavailable',
+        message: `The workspace state file is ${stats.size} bytes, far larger than any state file the extension writes. Refusing to read it; ask the user for the repository owner and name.`,
+      };
+    }
     raw = await fs.promises.readFile(stateFile, 'utf8');
   } catch {
     return UNAVAILABLE;
@@ -145,9 +180,17 @@ export async function resolveWorkspaceRepository(
     };
   }
   const ownInstance = instanceUrl ? normalizeInstanceUrl(instanceUrl) : undefined;
-  const matched = ownInstance
-    ? repositories.filter((entry) => normalizeInstanceUrl(entry.instanceUrl) === ownInstance)
-    : [];
+  // Two instances can share one host URL (two accounts, two tokens); a URL
+  // match alone would hand both servers the same repositories. The instance
+  // id is the precise key, but only hosts new enough to publish it set
+  // FORGEJO_MCP_INSTANCE_ID — when it is absent (a child spawned by an older
+  // host build), fall back to the URL comparison and accept the ambiguity
+  // that comparison cannot resolve.
+  const matched = ownInstanceId
+    ? repositories.filter((entry) => entry.instanceId === ownInstanceId)
+    : ownInstance
+      ? repositories.filter((entry) => normalizeInstanceUrl(entry.instanceUrl) === ownInstance)
+      : [];
   if (matched.length > 0) {
     return {
       status: 'matched',

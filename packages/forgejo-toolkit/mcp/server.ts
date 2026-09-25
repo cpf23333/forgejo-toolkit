@@ -41,6 +41,11 @@ async function main(): Promise<void> {
   const client = new ForgejoClient(url, token, logger, syncApiUrls);
   const server = createMcpServer(client, {
     instanceUrl: url,
+    // The configured instance's id, matched against state-file entries before
+    // the URL so two accounts on the same host stay apart. Absent when the
+    // host that spawned this process predates the variable; the resolver then
+    // falls back to the URL comparison.
+    instanceId: process.env.FORGEJO_MCP_INSTANCE_ID,
     // The extension host's workspace → repository mapping, for the
     // get_workspace_repository tool. Optional: absent when the server is
     // launched without it, the tool stays registered and answers

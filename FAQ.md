@@ -63,7 +63,7 @@ If any condition is missing, the extension silently skips registration — check
 
 ### Can the AI agent modify my repository through this extension?
 
-No. All MCP tools are currently read-only (`readOnlyHint`), so the agent can query issues, PRs, Actions runs, and code, but cannot change anything. Write tools may be added in the future as opt-in features — disabled by default and enabled one by one. Note that VS Code does not ask for confirmation before a read-only tool call, so the guarantee rests on the tool surface itself: every tool is a `GET`, and request-path inputs are validated so a crafted argument cannot reach a different endpoint.
+No. All MCP tools are currently read-only (`readOnlyHint`), so the agent can query issues, PRs, Actions runs, and code, but cannot change anything. Write tools may be added in the future as opt-in features — disabled by default and enabled one by one. Note that VS Code does not ask for confirmation before a read-only tool call, so the guarantee rests on the tool surface itself: every tool is a `GET` (the one exception, `get_workspace_repository`, only reads a local state file the extension publishes), and request-path inputs are validated so a crafted argument cannot reach a different endpoint.
 
 ## Troubleshooting
 

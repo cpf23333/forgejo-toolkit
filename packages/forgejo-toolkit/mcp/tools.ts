@@ -113,6 +113,13 @@ export interface WorkspaceContextOptions {
   stateFile?: string;
   /** This process's own instance URL (FORGEJO_MCP_INSTANCE_URL), matched against state entries. */
   instanceUrl?: string;
+  /**
+   * This process's own instance id (FORGEJO_MCP_INSTANCE_ID). Matched before
+   * the URL so two accounts on the same host stay apart; absent when the host
+   * that spawned this process predates the variable, in which case the
+   * resolver falls back to the URL.
+   */
+  instanceId?: string;
 }
 
 /**
@@ -154,7 +161,7 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
     // this long-lived process runs, and a cached answer would quietly go
     // stale. Needs no HTTP, so the client's abort signal does not apply.
     get_workspace_repository: () =>
-      resolveWorkspaceRepository(workspaceContext.stateFile, workspaceContext.instanceUrl),
+      resolveWorkspaceRepository(workspaceContext.stateFile, workspaceContext.instanceUrl, workspaceContext.instanceId),
 
     // The scope assertion stays in a synchronous arrow so a half-specified
     // scope throws (rather than rejecting) before any request is issued. The
@@ -611,7 +618,7 @@ export function registerTools(
     'get_workspace_repository',
     {
       description:
-        'Resolve the Forgejo repository the user is working in, from the workspace the editor has open. Call this first whenever the user refers to "this repository", "the current project", or similar without naming owner and repo, then pass the returned owner/repo to the other tools. When several repositories match, the one whose `active` flag is true is the repository the user is looking at. When the workspace repositories belong to a different configured Forgejo instance, the answer names that instance — use its MCP server instead of this one. When no workspace information is available, ask the user for owner and repo.',
+        'Resolve the Forgejo repository the user is working in, from the workspace the editor has open. Call this first whenever the user refers to "this repository", "the current project", or similar without naming owner and repo, then pass the returned owner/repo to the other tools. When several repositories match, the one whose `active` flag is true is the repository the user is most likely looking at — the flag is best-effort and only set when the attribution is unambiguous, so it may be false on every entry. When the workspace repositories belong to a different configured Forgejo instance, the answer names that instance — use its MCP server instead of this one. When no workspace information is available, ask the user for owner and repo.',
       inputSchema: {},
       annotations: readOnly,
     },

@@ -1,16 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   registerMcpServerProvider,
   MCP_SERVER_DEFINITION_PROVIDER_ID,
+  MCP_ENV_INSTANCE_ID,
   MCP_ENV_INSTANCE_URL,
   MCP_ENV_PROXY,
   MCP_ENV_STATE_FILE,
   MCP_ENV_SYNC_API_URLS,
   MCP_ENV_TOKEN,
 } from '../mcpServerProvider';
+import { mcpWorkspaceStateFilePath } from '../mcpWorkspaceState';
 import type { ConfigManager } from '../config';
 import type { ForgejoInstance } from '../config';
 import type { Logger } from '../logger';
@@ -21,6 +24,11 @@ interface CapturedDefinition {
   args: string[];
   env: Record<string, string>;
 }
+
+/** Every context a setup() produced, drained (disposed) by afterEach. */
+const createdContexts: { subscriptions: { dispose(): unknown }[] }[] = [];
+
+const SHARED_GLOBAL_STORAGE = path.join(os.tmpdir(), `forgejo-mcp-provider-test-${process.pid}`);
 
 function setup() {
   const registerSpy = vi.fn((_id: string, _provider: import('vscode').McpServerDefinitionProvider) => ({
@@ -52,10 +60,11 @@ function setup() {
     // A real (writable) directory: the workspace-state sync this registration
     // starts writes its file here when a test fires a trigger or lets the
     // cold-start timer run.
-    globalStorageUri: { fsPath: path.join(os.tmpdir(), `forgejo-mcp-provider-test-${process.pid}`) },
+    globalStorageUri: { fsPath: SHARED_GLOBAL_STORAGE },
   } as unknown as import('vscode').ExtensionContext;
+  createdContexts.push(context);
 
-  const logger = { debug: vi.fn() } as unknown as Logger;
+  const logger = { debug: vi.fn(), info: vi.fn() } as unknown as Logger;
 
   const configListenerCalls = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.length;
   registerMcpServerProvider(context, config, logger);
@@ -64,7 +73,7 @@ function setup() {
   const configurationListener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls[
     configListenerCalls
   ]?.[0];
-  return { registerSpy, provider, instanceListeners, instances, configurationListener, logger };
+  return { registerSpy, provider, instanceListeners, instances, configurationListener, logger, context };
 }
 
 function makeInstance(overrides: Partial<ForgejoInstance> = {}): ForgejoInstance {
@@ -81,6 +90,22 @@ function makeInstance(overrides: Partial<ForgejoInstance> = {}): ForgejoInstance
 describe('registerMcpServerProvider', () => {
   beforeEach(() => {
     vi.mocked(vscode.EventEmitter).mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    // A test that replaced the proxy configuration mock must not leak it into
+    // the next setup().
+    vi.mocked(vscode.workspace.getConfiguration).mockReset();
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({ get: vi.fn(), update: vi.fn() } as never);
+    for (const context of createdContexts.splice(0)) {
+      for (const subscription of context.subscriptions) {
+        subscription.dispose();
+      }
+    }
+    // The workspace-state sync writes into this real directory when a test
+    // fires a trigger; do not leave the files behind.
+    fs.rmSync(SHARED_GLOBAL_STORAGE, { recursive: true, force: true });
   });
 
   it('registers the provider under the contributed id', () => {
@@ -112,9 +137,11 @@ describe('registerMcpServerProvider', () => {
     expect(first.args[0]).toContain('mcp-server.js');
     expect(first.env[MCP_ENV_INSTANCE_URL]).toBe('https://forgejo.example.com');
     expect(first.env[MCP_ENV_TOKEN]).toBe('secret-token');
+    expect(first.env[MCP_ENV_INSTANCE_ID]).toBe('instance-1');
     expect(first.label).toBe('Forgejo: Example');
     expect(second.env[MCP_ENV_INSTANCE_URL]).toBe('https://other.example.com');
     expect(second.env[MCP_ENV_TOKEN]).toBe('second-token');
+    expect(second.env[MCP_ENV_INSTANCE_ID]).toBe('instance-2');
     expect(second.label).toBe('Forgejo: Other');
     // The tokens must never appear outside the env channel.
     for (const definition of definitions) {
@@ -170,10 +197,33 @@ describe('registerMcpServerProvider', () => {
     )) as unknown as CapturedDefinition[];
 
     // One file per window, shared by every instance's server: the mapping
-    // describes the workspace, not the instance.
+    // describes the workspace, not the instance. The name carries the pid and
+    // a per-window nonce, so a recycled pid cannot read a dead window's file.
     const stateFile = definitions[0].env[MCP_ENV_STATE_FILE];
-    expect(stateFile).toContain(`mcp-workspace-${process.pid}.json`);
+    expect(stateFile).toMatch(new RegExp(`mcp-workspace-${process.pid}-[0-9a-f]{8}\\.json$`));
     expect(definitions[1].env[MCP_ENV_STATE_FILE]).toBe(stateFile);
+  });
+
+  it('disambiguates duplicate labels with a stable discriminator, leaving unique labels alone', async () => {
+    // Two accounts on one host often share the instance name; identical
+    // labels would be indistinguishable in the MCP server list.
+    const { provider, instances } = setup();
+    instances.push(
+      makeInstance({ id: 'instance-1', name: 'Work', username: 'alice' }),
+      // No username on this one: the id is the fallback discriminator.
+      makeInstance({ id: 'instance-2', name: 'Work', username: '' }),
+      makeInstance({ id: 'instance-3', name: 'Personal', url: 'https://other.example.com' }),
+    );
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    expect(definitions.map((definition) => definition.label)).toEqual([
+      'Forgejo: Work (alice)',
+      'Forgejo: Work (instance-2)',
+      'Forgejo: Personal',
+    ]);
   });
 
   it('passes the per-instance API URL sync flag to the child process', async () => {
@@ -221,6 +271,25 @@ describe('registerMcpServerProvider', () => {
     getConfiguration.mockReturnValue({ get: vi.fn(), update: vi.fn() } as never);
   });
 
+  it('ignores a non-string proxy setting instead of failing the whole resolution', async () => {
+    // A hand-edited settings.json can store any JSON type under http.proxy;
+    // calling .trim() on a number used to throw inside
+    // provideMcpServerDefinitions and take every server definition down.
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+      get: (key: string) => (key === 'proxy' ? 3128 : undefined),
+      update: vi.fn(),
+    } as never);
+    const { provider, instances } = setup();
+    instances.push(makeInstance());
+
+    const definitions = (await provider.provideMcpServerDefinitions(
+      new AbortController().signal as never,
+    )) as unknown as CapturedDefinition[];
+
+    expect(definitions).toHaveLength(1);
+    expect(definitions[0].env[MCP_ENV_PROXY]).toBeUndefined();
+  });
+
   it('omits the proxy variable when no proxy is configured', async () => {
     const { provider, instances } = setup();
     instances.push(makeInstance());
@@ -240,6 +309,26 @@ describe('registerMcpServerProvider', () => {
     instanceListeners[0]([]);
     const emitter = vi.mocked(vscode.EventEmitter).mock.results[0].value as { fire: ReturnType<typeof vi.fn> };
     expect(emitter.fire).toHaveBeenCalledTimes(1);
+  });
+
+  it('rewrites the workspace state file from the sync listener when the instance list changes', async () => {
+    // The second listener belongs to registerMcpWorkspaceStateSync: it must
+    // actually write, not merely be registered. Only setTimeout is faked, so
+    // the debounce is controllable while the write's real fs work still runs.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { instanceListeners, context } = setup();
+
+    instanceListeners[1]([]);
+    await vi.advanceTimersByTimeAsync(300);
+
+    // The workspace has no folders in this mock, so detection resolves to an
+    // empty mapping; what matters is that the file appears at all.
+    const stateFilePath = mcpWorkspaceStateFilePath(context);
+    await vi.waitFor(() => {
+      expect(fs.existsSync(stateFilePath)).toBe(true);
+    });
+    const written = JSON.parse(fs.readFileSync(stateFilePath, 'utf8')) as { repositories: unknown[] };
+    expect(written.repositories).toEqual([]);
   });
 
   it('re-resolves when the editor proxy setting changes so the child stops using a stale proxy', () => {

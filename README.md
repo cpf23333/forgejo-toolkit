@@ -87,18 +87,18 @@ that use it, such as VSCodium.
 
 The extension ships a built-in MCP server that lets AI assistants — such as Copilot agent mode — query your Forgejo instance in natural language.
 
-- **Zero configuration**: the first configured Forgejo instance that has a stored access token is automatically exposed to MCP clients via VS Code's `contributes.mcpServerDefinitionProviders` API. No extra setup, no separate server to run.
+- **Zero configuration**: every configured Forgejo instance that has a stored access token is automatically exposed to MCP clients as its own server via VS Code's `contributes.mcpServerDefinitionProviders` API, so an agent can reach several instances in the same session. No extra setup, no separate server to run.
 - **Requirements**: VS Code ≥ 1.102 and at least one configured instance with an access token. If neither is available, the server is simply not registered.
 - **Usage**: open Copilot chat in agent mode and ask in natural language, e.g. "list my issues" or "show the CI log of the latest failed run in this repo".
 - **Proxy**: requests honour the editor's `http.proxy` setting, which wins over the environment's `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` (each name is read in either case), and the setting is forwarded to the MCP server process as `FORGEJO_MCP_PROXY`.
-- **Tool overview**: about 27 tools in four groups —
+- **Tool overview**: 28 tools in four groups —
   - **Core**: issues, pull requests, timelines, notifications, repository info, and search (e.g. `list_issues`, `get_pull_request`).
   - **Actions**: run history, run jobs, job logs, and artifacts (e.g. `list_action_runs`, `get_action_run_jobs`, `get_action_job_log`).
   - **Code reading**: file contents and directory listings, repository file search, branches, tags, commits, file history, and PR diffs (e.g. `list_repo_contents`, `get_file_content`, `search_repo_files`, `get_pr_diff`).
   - **Review & metadata**: PR reviews, releases, labels, milestones, and your own repositories (e.g. `list_pull_reviews`, `whoami`).
 - **Security**:
   - All tools are strictly read-only (`readOnlyHint`) — the agent cannot modify anything on your instance.
-  - Because they are read-only, VS Code runs them without a per-call confirmation prompt. The tool surface is what keeps the agent in bounds: every tool maps to a `GET` endpoint, and every input that becomes part of a request path is validated (`owner`, `repo`, file paths) so a crafted argument cannot reach another endpoint.
+  - Because they are read-only, VS Code runs them without a per-call confirmation prompt. The tool surface is what keeps the agent in bounds: every tool maps to a `GET` endpoint (the one exception, `get_workspace_repository`, only reads a local state file the extension publishes), and every input that becomes part of a request path is validated (`owner`, `repo`, file paths) so a crafted argument cannot reach another endpoint.
   - Your token is injected from SecretStorage into the stdio subprocess via a process environment variable; it never appears in tool schemas, tool results, or logs.
   - Large response fields and oversized results are truncated to protect the agent's context window.
   - Adding or removing instances re-resolves the exposed server automatically.
