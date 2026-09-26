@@ -61,7 +61,7 @@ function mountItem(instance: ForgejoInstance) {
 }
 
 function copyButton(wrapper: ReturnType<typeof mountItem>) {
-  return wrapper.find('button[aria-label="Copy clone URL"]');
+  return wrapper.find('button[aria-label="Copy Clone URL"]');
 }
 
 /**

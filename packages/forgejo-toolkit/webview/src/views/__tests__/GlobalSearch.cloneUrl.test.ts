@@ -72,7 +72,7 @@ function seedResults() {
 }
 
 function cloneButton(wrapper: VueWrapper) {
-  const buttons = wrapper.findAll('button[aria-label="Copy clone URL"]');
+  const buttons = wrapper.findAll('button[aria-label="Copy Clone URL"]');
   expect(buttons).toHaveLength(1);
   return buttons[0];
 }
@@ -134,7 +134,7 @@ describe('GlobalSearch clone URL', () => {
     const wrapper = mountSearch();
     await typeQuery(wrapper, 'alpha');
 
-    expect(wrapper.findAll('button[aria-label="Copy clone URL"]')).toHaveLength(0);
+    expect(wrapper.findAll('button[aria-label="Copy Clone URL"]')).toHaveLength(0);
     expect(stateMock.copyToClipboard).not.toHaveBeenCalled();
     wrapper.unmount();
   });

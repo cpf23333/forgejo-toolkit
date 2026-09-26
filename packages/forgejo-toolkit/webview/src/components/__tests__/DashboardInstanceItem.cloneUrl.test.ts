@@ -72,7 +72,7 @@ function mountItem() {
 }
 
 function cloneButton(wrapper: ReturnType<typeof mountItem>) {
-  return wrapper.findAll('button[aria-label="Copy clone URL"]');
+  return wrapper.findAll('button[aria-label="Copy Clone URL"]');
 }
 
 describe('DashboardInstanceItem clone URL', () => {
