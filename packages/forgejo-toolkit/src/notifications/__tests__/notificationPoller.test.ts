@@ -60,8 +60,7 @@ function createFakeConfig(
   };
 }
 
-function createFakeContext() {
-  const store = new Map<string, unknown>();
+function createFakeContext(store = new Map<string, unknown>()) {
   return {
     store,
     globalState: {
@@ -193,6 +192,124 @@ describe('NotificationPoller', () => {
     const seen = context.store.get('forgejoToolkit.seenNotificationIds') as Record<string, number[]>;
     expect(seen.a).toEqual([7]);
     expect(seen.b).toEqual([7]);
+    poller.dispose();
+  });
+
+  it("does not drop another window's baseline when writing back this window's stale snapshot", async () => {
+    // Two windows share one backing store (`globalState`). Window A's snapshot
+    // was taken before window B configured instance b and persisted b's
+    // baseline. Writing A's snapshot back whole deleted b's entry, and b's next
+    // poll then took the `hadBaseline === false` branch — swallowing that
+    // round's new notifications instead of reporting them.
+    const store = new Map<string, unknown>();
+    const contextA = createFakeContext(store);
+    const contextB = createFakeContext(store);
+    let failWrites = true;
+    contextA.globalState.update = async (key: string, value: unknown) => {
+      if (failWrites) {
+        throw new Error('state store is read-only');
+      }
+      store.set(key, value);
+    };
+
+    // Window A: its write fails, so its baseline snapshot lives in memory only.
+    mockGetNotifications.mockResolvedValue(paged([notification(1)]));
+    const pollerA = createPoller(createFakeConfig([instanceA]), contextA);
+    pollerA.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.has('forgejoToolkit.seenNotificationIds')).toBe(false);
+
+    // Window B: configures instance b and persists its baseline.
+    mockGetNotifications.mockResolvedValue(paged([notification(7)]));
+    const pollerB = createPoller(createFakeConfig([instanceB]), contextB);
+    pollerB.start();
+    await vi.advanceTimersByTimeAsync(0);
+    pollerB.stop();
+    expect(store.get('forgejoToolkit.seenNotificationIds')).toEqual({ b: [7] });
+
+    // Window A's write recovers: its next reconcile must merge onto the stored
+    // map rather than overwrite it with its own snapshot.
+    failWrites = false;
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(store.get('forgejoToolkit.seenNotificationIds')).toEqual({ a: [1, 2], b: [7] });
+
+    // The surviving baseline is what keeps the defect from being observable:
+    // window B's next poll still has a baseline for b, so its new notification
+    // is reported instead of being swallowed as a first-poll baseline.
+    mockGetNotifications.mockResolvedValue(paged([notification(7), notification(8)]));
+    pollerB.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(2);
+    pollerA.dispose();
+  });
+
+  it('drops the persisted baseline of an instance that was legitimately removed', async () => {
+    mockGetNotifications.mockResolvedValue(paged([notification(7)]));
+    const instances = [instanceA, instanceB];
+    const context = createFakeContext();
+    const poller = createPoller(createFakeConfig(instances), context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(context.store.get('forgejoToolkit.seenNotificationIds')).toEqual({ a: [7], b: [7] });
+
+    // b is removed from the shared instance list. This window wrote b's
+    // baseline, so it is the one that may drop it now that the instance is gone.
+    instances.pop();
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(context.store.get('forgejoToolkit.seenNotificationIds')).toEqual({ a: [7] });
+    poller.dispose();
+  });
+
+  it('leaves the baseline of an instance this window never observed alone', async () => {
+    // The other half of the removal rule: an entry this window never wrote may
+    // be live state of another window (an instance it configured after this
+    // window last read the instance list), so absence from this window's view
+    // alone must not delete it.
+    mockGetNotifications.mockResolvedValue(paged([notification(7)]));
+    const context = createFakeContext();
+    context.store.set('forgejoToolkit.seenNotificationIds', { b: [1] });
+    const poller = createPoller(createFakeConfig([instanceA]), context);
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(context.store.get('forgejoToolkit.seenNotificationIds')).toEqual({ a: [7], b: [1] });
+    poller.dispose();
+  });
+
+  it('keeps the ordinary single-window add/notify/remove flow unchanged', async () => {
+    const instances = [instanceA];
+    const context = createFakeContext();
+    const poller = createPoller(createFakeConfig(instances), context);
+
+    // First poll: baseline only, no toast for the pre-existing unread row.
+    mockGetNotifications.mockResolvedValue(paged([notification(1)]));
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+    expect(context.store.get('forgejoToolkit.seenNotificationIds')).toEqual({ a: [1] });
+
+    // A new notification toasts exactly once and joins a's baseline.
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+    expect(context.store.get('forgejoToolkit.seenNotificationIds')).toEqual({ a: [1, 2] });
+
+    // An instance added later gains its own baseline without disturbing a's.
+    instances.push(instanceB);
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(context.store.get('forgejoToolkit.seenNotificationIds')).toEqual({ a: [1, 2], b: [1, 2] });
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
+
+    // Removing it drops exactly its entry.
+    instances.pop();
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(context.store.get('forgejoToolkit.seenNotificationIds')).toEqual({ a: [1, 2] });
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
     poller.dispose();
   });
 

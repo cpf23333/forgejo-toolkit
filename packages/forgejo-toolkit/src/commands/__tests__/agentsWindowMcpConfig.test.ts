@@ -180,8 +180,11 @@ describe('copyAgentsWindowMcpConfig', () => {
 
     const shimFilePath = mcpServerShimFilePath(context);
     expect(fs.existsSync(shimFilePath)).toBe(true);
-    expect(fs.readFileSync(shimFilePath, 'utf8')).toContain(
-      "import('D:/extensions/cpf23333.forgejo-toolkit-0.0.1/out/mcp-server.mjs')",
+    // The specifier is a `file://` URL: a dynamic `import()` is resolved as a
+    // URL, so a Windows drive-letter path is refused by the ESM loader and the
+    // shim this command hands the user could never start the server.
+    expect(fs.readFileSync(shimFilePath, 'utf8')).toMatch(
+      /import\("file:\/\/\/D:\/extensions\/cpf23333\.forgejo-toolkit-0\.0\.1\/out\/mcp-server\.mjs"\)/,
     );
   });
 

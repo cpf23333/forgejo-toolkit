@@ -75,16 +75,49 @@ export class NotificationPoller implements vscode.Disposable {
   private readonly _knownUnreadIds = new Map<string, number[]>();
 
   /**
-   * The seen-id baseline of the last reconcile whose `globalState` write
+   * This window's own entries of the seen-id baseline whose `globalState` write
    * FAILED. The baseline is read back from `globalState` on every reconcile,
    * so a write that never landed would leave the stored map one round behind
    * and the same notifications would be reported as new on every poll until a
-   * write succeeds. While a write is outstanding, this in-memory copy is the
-   * authoritative baseline instead; a successful write clears it again
-   * (persistence is authoritative then, which also picks up changes another
-   * window made).
+   * write succeeds. While a write is outstanding, these in-memory entries are
+   * the authoritative baseline of the instances this window observed; a
+   * successful write clears the map again (persistence is authoritative then,
+   * which also picks up changes another window made).
+   *
+   * It holds entries this window owns only (see `_ownedSeenInstanceIds`):
+   * entries another window wrote are still on the shared key, and carrying a
+   * stale copy of them here would make the next write revert them.
    */
   private _unpersistedSeenIds: Map<string, Set<number>> | undefined;
+
+  /**
+   * The instance ids whose persisted baseline this window has itself written —
+   * the instances it actually observed. `globalState` is shared with every
+   * other window (they are separate extension hosts over the same state), so
+   * the stored map is not this window's to overwrite as a whole:
+   *
+   * - Writing: a reconcile reads the stored map back and overlays only this
+   *   window's entries, so an entry another window wrote (for example the first
+   *   baseline of an instance it configured after this window last read the
+   *   instance list) is never carried away by a stale snapshot. Writing the
+   *   whole in-memory map instead deleted that entry, and the owner's next poll
+   *   then took the `hadBaseline === false` branch and swallowed that round's
+   *   notifications. See `_reconcileSeenIds`.
+   * - Deleting: `get`→`update` is not atomic and there is no cross-window
+   *   change event, so "this id is missing from the configured instance list"
+   *   cannot by itself be told apart from "another window configured that
+   *   instance after this window last looked". Resolved the honest way: only an
+   *   entry this window observed may be deleted (its id is in here and is gone
+   *   from the configured list). An entry this window never wrote is left
+   *   alone, because it is not this window's to judge; if it really is dead
+   *   state, a window that did observe the instance drops it on its next
+   *   reconcile — and every polling window polls every configured instance.
+   *   The price of not guessing is that a baseline can outlive its observer
+   *   when that window was reloaded before the instance was removed; that is
+   *   inert state under a key nothing reads any more, which is the conservative
+   *   side of the trade.
+   */
+  private readonly _ownedSeenInstanceIds = new Set<string>();
 
   /**
    * Bumped whenever a successful "Mark all as read" clears the view. A poll
@@ -406,30 +439,46 @@ export class NotificationPoller implements vscode.Disposable {
         // keep the queue alive after a failed write
       })
       .then(async () => {
-        // While the previous write is outstanding, the persisted map is one
-        // round behind; the in-memory copy is the baseline then (see
-        // `_unpersistedSeenIds`).
-        const allSeen = this._unpersistedSeenIds ?? this._getAllSeenIds();
+        // The stored map is read once, here: it carries both the baseline this
+        // reconcile decides against and the foreign entries the write below
+        // must carry over. Reading it outside this synchronous span (or
+        // substituting this window's whole in-memory copy for it) is what made
+        // the write a blind whole-table overwrite of a possibly stale snapshot.
+        const stored = this._getAllSeenIds();
+        // While the previous write is outstanding, the stored map is one round
+        // behind for the instances this window owns; its in-memory copy is the
+        // baseline for them then (see `_unpersistedSeenIds`).
+        const baseline = this._unpersistedSeenIds?.get(instanceId) ?? stored.get(instanceId);
         // Without a persisted baseline (fresh install) every unread
         // notification would be reported as "new" on the first poll; the first
         // poll for an instance only establishes the baseline.
-        const hadBaseline = allSeen.has(instanceId);
-        const seenIds = allSeen.get(instanceId) ?? new Set<number>();
+        const hadBaseline = baseline !== undefined;
+        const seenIds = baseline ?? new Set<number>();
         const newNotifications = hadBaseline
           ? notifications.filter((notification) => typeof notification.id === 'number' && !seenIds.has(notification.id))
           : [];
-        allSeen.set(instanceId, new Set(ids));
+        // From here on the instance's baseline is this window's to update (and,
+        // once the instance is gone, to delete); see `_ownedSeenInstanceIds`.
+        this._ownedSeenInstanceIds.add(instanceId);
+        const merged = this._mergeBaselineForWrite(stored, instanceId, new Set(ids));
         try {
-          const serialized = Object.fromEntries([...allSeen].map(([key, value]) => [key, [...value]]));
+          const serialized = Object.fromEntries([...merged].map(([key, value]) => [key, [...value]]));
           await this._context.globalState.update(SEEN_NOTIFICATION_IDS_KEY, serialized);
           // The baseline reached disk; the in-memory copy must not shadow
           // newer persisted state (another window's reconcile) any more.
           this._unpersistedSeenIds = undefined;
         } catch {
-          // The baseline did not reach disk: keep it in memory so the next
-          // reconcile does not re-report this round's notifications as new on
-          // every poll until a write succeeds.
-          this._unpersistedSeenIds = allSeen;
+          // The baseline did not reach disk: keep the entries this window owns
+          // in memory so the next reconcile does not re-report this round's
+          // notifications as new on every poll until a write succeeds, and so
+          // the next successful write flushes them too.
+          const pending = new Map<string, Set<number>>();
+          for (const [id, value] of merged) {
+            if (this._ownedSeenInstanceIds.has(id)) {
+              pending.set(id, value);
+            }
+          }
+          this._unpersistedSeenIds = pending;
         }
         return newNotifications;
       });
@@ -440,6 +489,47 @@ export class NotificationPoller implements vscode.Disposable {
       () => undefined,
     );
     return reconcile;
+  }
+
+  /**
+   * The baseline payload one reconcile persists: the map read back out of
+   * `globalState` (passed in from the reconcile, read in its synchronous span,
+   * immediately before this write), with this window's own entries overlaid and
+   * its legitimately removed instances dropped.
+   *
+   * The stored map is shared with every other window and `get`→`update` is not
+   * atomic, so serializing this window's snapshot back whole would drop an
+   * entry another window added meanwhile — in particular the first baseline of
+   * an instance it configured after this window last read the instance list.
+   * Only the entries this window observed are written; everything else is
+   * carried over from the read. The write is still not atomic across windows,
+   * but the merge shrinks the clobber window to the span between the read and
+   * the `update` call, the same trade-off `config.ts::_writeInstancesMerged`
+   * and `worktreeManager.ts::removeWorktree` document.
+   *
+   * Deleting is limited to what this window can speak for:
+   * `_ownedSeenInstanceIds` states the rule and why absence alone is not
+   * treated as proof of removal.
+   */
+  private _mergeBaselineForWrite(
+    stored: Map<string, Set<number>>,
+    instanceId: string,
+    seenIds: Set<number>,
+  ): Map<string, Set<number>> {
+    const merged = stored;
+    // This window's entries that did not reach disk yet win over the stored
+    // copies of them: the stored map is one round behind for those.
+    for (const [id, value] of this._unpersistedSeenIds ?? []) {
+      merged.set(id, value);
+    }
+    merged.set(instanceId, seenIds);
+    const configuredIds = new Set(this._config.getInstances().map((instance) => instance.id));
+    for (const id of [...merged.keys()]) {
+      if (!configuredIds.has(id) && this._ownedSeenInstanceIds.has(id)) {
+        merged.delete(id);
+      }
+    }
+    return merged;
   }
 
   private _getAllSeenIds(): Map<string, Set<number>> {

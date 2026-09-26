@@ -32,6 +32,7 @@ import {
   registerMcpWorkspaceStateSync,
   writeMcpInstanceRegistry,
   writeMcpServerShim,
+  whenMcpStateWritesSettled,
   writeMcpWorkspaceState,
 } from '../mcpWorkspaceState';
 
@@ -188,7 +189,11 @@ describe('writeMcpWorkspaceState', () => {
     logger = makeLogger();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Every write this window enqueued must settle before the directory goes: a
+    // still-open `.part` handle makes the removal fail on Windows, and retrying
+    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    await whenMcpStateWritesSettled();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -273,18 +278,47 @@ describe('writeMcpServerShim', () => {
     } as unknown as vscode.ExtensionContext;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Every write this window enqueued must settle before the directory goes: a
+    // still-open `.part` handle makes the removal fail on Windows, and retrying
+    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    await whenMcpStateWritesSettled();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('writes a shim that imports the current installation’s server bundle, with forward slashes', async () => {
+  it('writes a shim that imports the current installation’s server bundle as a file URL', async () => {
     await writeMcpServerShim(context, logger);
 
     const shimFilePath = mcpServerShimFilePath(context);
     expect(path.basename(shimFilePath)).toBe('mcp-server.js');
     const content = fs.readFileSync(shimFilePath, 'utf8');
-    expect(content).toContain("import('D:/extensions/cpf23333.forgejo-toolkit-0.0.1/out/mcp-server.mjs')");
+    // A dynamic `import()` specifier is a URL: a Windows drive-letter path is
+    // read as the scheme `d:` and the ESM loader refuses to start the server.
+    expect(content).toMatch(/import\(["']file:\/\/[^"']*mcp-server\.mjs["']\)/);
     expect(content).not.toContain('\\');
+  });
+
+  it('writes a specifier Node can actually resolve, not just one that looks right', async () => {
+    // The text-only assertions above are what let the drive-letter form ship:
+    // nothing ever resolved the specifier. This builds the shim for a real
+    // install layout and imports what it names, exactly as Node would.
+    const extensionRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'fj-shim-install-'));
+    try {
+      fs.mkdirSync(path.join(extensionRoot, 'out'), { recursive: true });
+      fs.writeFileSync(path.join(extensionRoot, 'out', 'mcp-server.mjs'), 'export const started = true;\n', 'utf8');
+      const probeContext = {
+        extensionUri: { fsPath: extensionRoot },
+      } as unknown as vscode.ExtensionContext;
+
+      const content = buildMcpServerShimContent(probeContext);
+      const specifier = /import\(["']([^"']+)["']\)/.exec(content)?.[1];
+      expect(specifier).toBeDefined();
+
+      const loaded = (await import(/* @vite-ignore */ specifier!)) as { started?: boolean };
+      expect(loaded.started).toBe(true);
+    } finally {
+      fs.rmSync(extensionRoot, { recursive: true, force: true });
+    }
   });
 
   it('leaves an unchanged shim untouched instead of bumping its mtime on every activation', async () => {
@@ -310,15 +344,20 @@ describe('writeMcpServerShim', () => {
     await writeMcpServerShim(context, logger);
 
     const content = fs.readFileSync(shimFilePath, 'utf8');
-    expect(content).toContain("import('D:/extensions/cpf23333.forgejo-toolkit-0.0.2/out/mcp-server.mjs')");
+    expect(content).toContain('cpf23333.forgejo-toolkit-0.0.2');
+    expect(content).toMatch(/import\(["']file:\/\/[^"']*mcp-server\.mjs["']\)/);
   });
 
-  it('escapes a single quote in the install path so the shim stays valid JS', () => {
+  it('keeps a quote in the install path from breaking the shim', () => {
     (context as { extensionUri: { fsPath: string } }).extensionUri = { fsPath: "/home/it's me/.vscode/extensions" };
 
     const content = buildMcpServerShimContent(context);
 
-    expect(content).toContain("import('/home/it\\'s me/.vscode/extensions/out/mcp-server.mjs')");
+    // The specifier is a JSON string literal, so the quote is carried verbatim
+    // (percent-encoded where a URL cannot carry it) instead of needing an escape
+    // the generated file could get wrong.
+    expect(content).toMatch(/import\("file:\/\/[^"]*it's[^"]*mcp-server\.mjs"\)/);
+    expect(content).not.toContain("\\'");
   });
 
   it('logs and swallows a write failure instead of propagating it', async () => {
@@ -364,7 +403,11 @@ describe('writeMcpInstanceRegistry', () => {
     logger = makeLogger();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Every write this window enqueued must settle before the directory goes: a
+    // still-open `.part` handle makes the removal fail on Windows, and retrying
+    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    await whenMcpStateWritesSettled();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -425,10 +468,14 @@ describe('registerMcpWorkspaceStateSync', () => {
     } as unknown as vscode.ExtensionContext;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     for (const subscription of context.subscriptions) {
       subscription.dispose();
     }
+    // Every write this window enqueued must settle before the directory goes: a
+    // still-open `.part` handle makes the removal fail on Windows, and retrying
+    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    await whenMcpStateWritesSettled();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -468,7 +515,9 @@ describe('registerMcpWorkspaceStateSync', () => {
     const shimFilePath = mcpServerShimFilePath(context);
     await until(() => fs.existsSync(shimFilePath));
 
-    expect(fs.readFileSync(shimFilePath, 'utf8')).toContain('extension-install/out/mcp-server.mjs');
+    expect(fs.readFileSync(shimFilePath, 'utf8')).toMatch(
+      /import\(["']file:\/\/[^"']*extension-install\/out\/mcp-server\.mjs["']\)/,
+    );
   });
 
   it('rewrites the registry from the same instances-changed listener as the state file', async () => {
@@ -593,7 +642,11 @@ describe('cleanupMcpWorkspaceState', () => {
     detectMock.mockReset();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Every write this window enqueued must settle before the directory goes: a
+    // still-open `.part` handle makes the removal fail on Windows, and retrying
+    // the removal only narrows that race (see whenMcpStateWritesSettled).
+    await whenMcpStateWritesSettled();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 

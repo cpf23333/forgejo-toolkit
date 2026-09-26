@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   registerMcpServerProvider,
+  MCP_ENABLED_SETTING,
   MCP_SERVER_DEFINITION_PROVIDER_ID,
   MCP_ENV_INSTANCE_ID,
   MCP_ENV_INSTANCE_URL,
@@ -13,10 +14,24 @@ import {
   MCP_ENV_SYNC_API_URLS,
   MCP_ENV_TOKEN,
 } from '../mcpServerProvider';
-import { mcpWorkspaceStateFilePath, whenMcpStateWritesSettled } from '../mcpWorkspaceState';
+import {
+  mcpInstanceRegistryFilePath,
+  mcpServerShimFilePath,
+  mcpWorkspaceStateFilePath,
+  whenMcpStateWritesSettled,
+} from '../mcpWorkspaceState';
 import type { ConfigManager } from '../config';
 import type { ForgejoInstance } from '../config';
 import type { Logger } from '../logger';
+
+// The broker binds a real endpoint (a named pipe or a unix socket), so it is
+// replaced here: what the provider must be shown to control is *when* it is
+// started and stopped, not what it does when it runs.
+const brokerMocks = vi.hoisted(() => ({
+  startMcpBrokerIfFirst: vi.fn(() => Promise.resolve()),
+  cleanupMcpBroker: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('../mcpBroker', () => brokerMocks);
 
 interface CapturedDefinition {
   label: string;
@@ -30,7 +45,27 @@ const createdContexts: { subscriptions: { dispose(): unknown }[] }[] = [];
 
 const SHARED_GLOBAL_STORAGE = path.join(os.tmpdir(), `forgejo-mcp-provider-test-${process.pid}`);
 
-function setup() {
+/**
+ * Points the (mocked) configuration at one value of the MCP switch. The proxy
+ * read in provideMcpServerDefinitions goes through the same mock and must stay
+ * unset.
+ */
+function setMcpEnabled(value: boolean): void {
+  vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+    get: (key: string) => (key === 'mcpEnabled' ? value : undefined),
+    update: vi.fn(),
+  } as never);
+}
+
+/** Fires the configuration change event the way VS Code reports a settings edit. */
+function changeSetting(
+  configurationListener: ((event: import('vscode').ConfigurationChangeEvent) => unknown) | undefined,
+  section: string,
+): void {
+  configurationListener?.({ affectsConfiguration: (candidate: string) => candidate === section } as never);
+}
+
+function setup(options: { mcpEnabled?: boolean; getterSubscriptions?: boolean } = {}) {
   const registerSpy = vi.fn((_id: string, _provider: import('vscode').McpServerDefinitionProvider) => ({
     dispose: vi.fn(),
   }));
@@ -45,35 +80,65 @@ function setup() {
   };
 
   const instanceListeners: ((instances: ForgejoInstance[]) => void)[] = [];
+  // The dispose handle of each onInstancesChanged subscription, so a test can
+  // tell "the listener was unregistered" from "it is still attached".
+  const instanceListenerDisposals: ReturnType<typeof vi.fn>[] = [];
   const instances: ForgejoInstance[] = [];
   const config = {
     getInstances: () => instances,
     onInstancesChanged: (listener: (value: ForgejoInstance[]) => void) => {
       instanceListeners.push(listener);
-      return { dispose: vi.fn() };
+      const dispose = vi.fn();
+      instanceListenerDisposals.push(dispose);
+      return { dispose };
     },
   } as unknown as ConfigManager;
 
-  const context = {
-    subscriptions: [] as { dispose(): unknown }[],
-    extensionUri: { fsPath: '/ext' },
-    // A real (writable) directory: the workspace-state sync this registration
-    // starts writes its file here when a test fires a trigger or lets the
-    // cold-start timer run.
-    globalStorageUri: { fsPath: SHARED_GLOBAL_STORAGE },
-  } as unknown as import('vscode').ExtensionContext;
+  const contextSubscriptions: { dispose(): unknown }[] = [];
+  const context = (options.getterSubscriptions
+    ? // The real ExtensionContext exposes `subscriptions` as a getter-only
+      // accessor, which is what the child context in startMcpSurface has to
+      // work around. A plain writable array here would hide that.
+      Object.defineProperty(
+        {
+          extensionUri: { fsPath: '/ext' },
+          globalStorageUri: { fsPath: SHARED_GLOBAL_STORAGE },
+        },
+        'subscriptions',
+        { get: () => contextSubscriptions, configurable: false, enumerable: true },
+      )
+    : {
+        subscriptions: contextSubscriptions,
+        extensionUri: { fsPath: '/ext' },
+        // A real (writable) directory: the workspace-state sync this
+        // registration starts writes its file here when a test fires a
+        // trigger or lets the cold-start timer run.
+        globalStorageUri: { fsPath: SHARED_GLOBAL_STORAGE },
+      }) as unknown as import('vscode').ExtensionContext;
   createdContexts.push(context);
 
   const logger = { debug: vi.fn(), info: vi.fn() } as unknown as Logger;
 
+  if (options.mcpEnabled !== undefined) {
+    setMcpEnabled(options.mcpEnabled);
+  }
   const configListenerCalls = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls.length;
   registerMcpServerProvider(context, config, logger);
-  const provider = registerSpy.mock.calls[0][1];
+  const provider = registerSpy.mock.calls[0]?.[1] as import('vscode').McpServerDefinitionProvider;
   // The listener this call registered, not one left over from another setup().
   const configurationListener = vi.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls[
     configListenerCalls
   ]?.[0];
-  return { registerSpy, provider, instanceListeners, instances, configurationListener, logger, context };
+  return {
+    registerSpy,
+    provider,
+    instanceListeners,
+    instanceListenerDisposals,
+    instances,
+    configurationListener,
+    logger,
+    context,
+  };
 }
 
 function makeInstance(overrides: Partial<ForgejoInstance> = {}): ForgejoInstance {
@@ -90,6 +155,21 @@ function makeInstance(overrides: Partial<ForgejoInstance> = {}): ForgejoInstance
 describe('registerMcpServerProvider', () => {
   beforeEach(() => {
     vi.mocked(vscode.EventEmitter).mockClear();
+    brokerMocks.startMcpBrokerIfFirst.mockClear();
+    brokerMocks.cleanupMcpBroker.mockClear();
+  });
+
+  it('starts the surface on a context whose subscriptions is a getter, like the real one', () => {
+    // VS Code's ExtensionContext exposes `subscriptions` as a getter-only
+    // accessor, so assigning through the child context's prototype chain threw
+    // `Cannot assign to read only property` in strict mode and took the whole
+    // activation with it: the state sync and the broker are registered after
+    // that point, and in a real window nothing MCP-related ever started.
+    const { registerSpy } = setup({ getterSubscriptions: true });
+
+    // Registration is the last thing the surface does, so reaching it proves the
+    // child context was built and everything before it ran.
+    expect(registerSpy).toHaveBeenCalled();
   });
 
   afterEach(async () => {
@@ -117,6 +197,82 @@ describe('registerMcpServerProvider', () => {
     const { registerSpy } = setup();
     expect(registerSpy).toHaveBeenCalledTimes(1);
     expect(registerSpy.mock.calls[0][0]).toBe(MCP_SERVER_DEFINITION_PROVIDER_ID);
+  });
+
+  it('does not register the provider while forgejoToolkit.mcpEnabled is off', () => {
+    // The setting is the user's way of taking the whole MCP surface away from
+    // clients; a definition provider that is never registered cannot hand one
+    // out, and the contributed provider id simply stays unresolved.
+    const { registerSpy, configurationListener } = setup({ mcpEnabled: false });
+
+    expect(registerSpy).not.toHaveBeenCalled();
+    expect(configurationListener).toBeDefined();
+  });
+
+  it('does no MCP work at all while off: no broker, no workspace state, no registry, no shim', async () => {
+    const { context, instanceListeners, instances } = setup({ mcpEnabled: false });
+    instances.push(makeInstance());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // "Not registered" must mean the supporting work is skipped too: the
+    // registry and the shim are what a statically launched (third-party MCP
+    // client) process discovers, and the state file is what answers
+    // get_workspace_repository for it.
+    expect(brokerMocks.startMcpBrokerIfFirst).not.toHaveBeenCalled();
+    expect(instanceListeners).toHaveLength(0);
+    await whenMcpStateWritesSettled();
+    expect(fs.existsSync(mcpInstanceRegistryFilePath(context))).toBe(false);
+    expect(fs.existsSync(mcpServerShimFilePath(context))).toBe(false);
+    expect(fs.existsSync(mcpWorkspaceStateFilePath(context))).toBe(false);
+  });
+
+  it('maintains the broker, the registry and the shim while enabled', async () => {
+    // The counterpart of the assertion above: with the switch on, the files do
+    // appear — otherwise "absent while disabled" would pass for the wrong
+    // reason.
+    const { context, instances } = setup();
+    instances.push(makeInstance());
+
+    await whenMcpStateWritesSettled();
+
+    expect(brokerMocks.startMcpBrokerIfFirst).toHaveBeenCalledTimes(1);
+    expect(fs.existsSync(mcpInstanceRegistryFilePath(context))).toBe(true);
+    expect(fs.existsSync(mcpServerShimFilePath(context))).toBe(true);
+  });
+
+  it('withdraws the registration when the setting is turned off, and restores it when turned back on', async () => {
+    const { registerSpy, configurationListener, instanceListenerDisposals } = setup();
+    const registration = registerSpy.mock.results[0].value as { dispose: ReturnType<typeof vi.fn> };
+    expect(registerSpy).toHaveBeenCalledTimes(1);
+    expect(instanceListenerDisposals).toHaveLength(2);
+
+    setMcpEnabled(false);
+    changeSetting(configurationListener, MCP_ENABLED_SETTING);
+
+    expect(registration.dispose).toHaveBeenCalledTimes(1);
+    // The supporting surface goes with it: the instance listeners that feed
+    // the definitions and the state file are unregistered, and the broker
+    // stops forwarding authenticated sessions.
+    expect(instanceListenerDisposals.every((dispose) => dispose.mock.calls.length === 1)).toBe(true);
+    expect(brokerMocks.cleanupMcpBroker).toHaveBeenCalledTimes(1);
+
+    // ...and turning it back on needs no window reload: a fresh registration
+    // plus a fresh broker are created.
+    setMcpEnabled(true);
+    changeSetting(configurationListener, MCP_ENABLED_SETTING);
+    expect(registerSpy).toHaveBeenCalledTimes(2);
+    expect(brokerMocks.startMcpBrokerIfFirst).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves the registration alone when an unrelated setting changes', () => {
+    const { registerSpy, configurationListener } = setup();
+    const registration = registerSpy.mock.results[0].value as { dispose: ReturnType<typeof vi.fn> };
+
+    changeSetting(configurationListener, 'forgejoToolkit.notificationPollingEnabled');
+
+    expect(registration.dispose).not.toHaveBeenCalled();
+    expect(registerSpy).toHaveBeenCalledTimes(1);
+    expect(brokerMocks.cleanupMcpBroker).not.toHaveBeenCalled();
   });
 
   it('skips registration on an editor without the MCP definition API instead of failing activation', () => {
