@@ -75,6 +75,15 @@ search, Actions, and a read-only MCP server for AI agents.
   `get_ci_failure_summary` condenses a failed Actions run into error lines and
   log tails sized for an agent's context. The token travels through the
   child's environment and never appears in schemas, results or logs.
+  The Agents window and other MCP clients (Kimi Code, Cline, etc.) load the
+  server from a static `mcp.json` instead: a stable, upgrade-proof shim path
+  (written by the extension on every activation) plus zero-configuration
+  instance auto-matching (git remote / workspace state) make the config
+  secret-free. When the extension host is running, a broker lets that static
+  server forward to the extension over a local pipe with a per-launch
+  handshake key, so authenticated tools work there too — the token never
+  leaves the extension host or touches disk. A **Copy MCP Config for Agents
+  Window** command generates the config.
 - **Settings and localization.** Language switch, debug logging to the
   "Forgejo Toolkit" output channel, worktree configuration, and English/Chinese
   localization for the webview, the extension manifest and the packaged README.

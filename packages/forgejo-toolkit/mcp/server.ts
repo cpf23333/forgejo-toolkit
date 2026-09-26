@@ -5,7 +5,8 @@ import { probeServerVersion, redactInstanceUrl } from '../src/api/versionProbe';
 import { setDefaultRequestDispatcher } from '../src/api/client';
 import { createProxyDispatcher, getProxyFetch, resolveProxyUrl } from '../src/api/proxy';
 import { createMcpServer } from './mcpServer';
-import { resolveAutoConfiguration } from './autoConfig';
+import { discoverBrokerRegistration, resolveAutoConfiguration } from './autoConfig';
+import { BrokerSessionError, BrokerUnavailableError, forwardToBroker } from './brokerForwarder';
 
 // A stdio MCP server must keep stdout clean for the protocol framing, so all
 // diagnostics go to stderr. The token is never logged: request logs carry
@@ -34,6 +35,45 @@ async function main(): Promise<void> {
   // remotes (see mcp/autoConfig.ts). When FORGEJO_MCP_INSTANCE_URL *is* set
   // the launch behaves exactly as before; auto-discovery never overrides it.
   if (!url) {
+    // Broker mode, tried before the zero-configuration launch: when the
+    // extension host runs, it publishes a broker registration
+    // (mcp-broker.json) and this process becomes a pure forwarder — the real
+    // tool logic, token included, executes inside the extension host and the
+    // token never crosses into this process. Only reachable when no explicit
+    // instance URL was configured: an explicit launch keeps serving directly.
+    const broker = await discoverBrokerRegistration();
+    if (broker) {
+      try {
+        logger.info(
+          `No FORGEJO_MCP_INSTANCE_URL configured; forwarding to the extension-host broker at ${broker.endpoint}.`,
+        );
+        const result = await forwardToBroker({
+          endpoint: broker.endpoint,
+          authToken: broker.authToken,
+          cwd: process.cwd(),
+        });
+        logger.info(
+          result.reason === 'input-ended'
+            ? 'The MCP client closed its stdin; forwarding session over.'
+            : 'The extension-host broker closed the connection (the window was closed or the extension deactivated); MCP session over.',
+        );
+        process.exit(0);
+      } catch (error) {
+        if (error instanceof BrokerSessionError) {
+          // The session was already established when it broke; restarting as
+          // a different (anonymous) server mid-session would be worse than a
+          // clean stop the MCP client can report.
+          console.error(`forgejo-toolkit MCP forwarder: ${error.message}`);
+          process.exit(1);
+        }
+        if (!(error instanceof BrokerUnavailableError)) {
+          throw error;
+        }
+        // No broker after all (stale registration file, rejected handshake):
+        // degrade to the anonymous zero-configuration launch below.
+        logger.info(`Extension-host broker unavailable (${error.message}); falling back to local auto-matching.`);
+      }
+    }
     const auto = await resolveAutoConfiguration();
     if (auto.status === 'failed') {
       console.error(`forgejo-toolkit MCP server: ${auto.message}`);

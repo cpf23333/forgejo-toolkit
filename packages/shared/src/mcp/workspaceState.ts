@@ -94,3 +94,56 @@ export interface McpInstanceRegistryFile {
   updatedAt: string;
   instances: McpInstanceRegistryEntry[];
 }
+
+/**
+ * The broker registration the extension host publishes as the fixed-name
+ * `mcp-broker.json` next to the per-window state files in its globalStorage
+ * directory (writer: src/mcpBroker.ts; consumer: mcp/brokerForwarder.ts).
+ *
+ * The broker is how an MCP server launched from a static `mcp.json` (the
+ * Agents window's Agent Host) gets *authenticated* tools without a token ever
+ * leaving the extension host: the launched process is a pure forwarder that
+ * pipes its stdio to the broker over a local named pipe / unix socket, and the
+ * real tool logic — with the token — runs inside the extension host process.
+ *
+ * Security model of the `authToken` field: it is a random per-broker-launch
+ * secret, not a Forgejo token. It gates the pipe so that another process of
+ * the same user (or, on a shared machine, another local process that can
+ * guess the endpoint name) cannot make the extension host issue authenticated
+ * requests on its behalf. The file lands in the same globalStorage directory
+ * as the workspace state files — same-user readable — which is accepted on
+ * purpose: anyone who can read this file already runs with the user's own
+ * privileges and could read the editor's token-bearing state database
+ * instead. What the file must *never* carry is the Forgejo token itself, and
+ * it does not: only this broker-local handshake secret. A forwarded session
+ * proves "same local user who can read globalStorage", nothing more — exactly
+ * the trust level the VS Code-spawned path already grants its stdio children.
+ *
+ * Unlike the instance registry, this file is removed by `deactivate()`: it
+ * describes a live listener owned by one window, not account configuration.
+ * A crash-orphaned file is harmless — the forwarder's connect simply fails
+ * and it falls back to the zero-configuration launch.
+ */
+export interface McpBrokerRegistryFile {
+  /** Schema version, pinned at 1 so a newer writer is detectable. */
+  version: 1;
+  /**
+   * Pid of the extension host process that owns the broker, for staleness
+   * debugging. Consumers treat connect failure — not this pid — as the
+   * authority on liveness.
+   */
+  pid: number;
+  /**
+   * Where the broker listens: a `\\.\pipe\…` name on Windows, a unix socket
+   * path elsewhere. Contains no credentials.
+   */
+  endpoint: string;
+  /**
+   * The per-launch handshake secret (random hex, 64 chars). The forwarder
+   * sends it as the first line of the connection; a mismatch disconnects the
+   * session immediately. Never logged by either side.
+   */
+  authToken: string;
+  /** ISO timestamp of the broker start, for debugging staleness. */
+  startedAt: string;
+}

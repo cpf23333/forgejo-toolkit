@@ -149,6 +149,8 @@ The easiest way to write one is the **Forgejo Toolkit: Copy MCP Config for Agent
 
 No environment variables are needed: the server discovers the extension's published instance registry on its own and picks the instance by matching the session workspace's git remote (the working directory is decided by the session's workspace, not by the config file). Without a `FORGEJO_MCP_TOKEN` in `env` it reads anonymously — only public data is visible. The zero-configuration variant contains no secrets, but as a general rule don't commit a workspace `mcp.json` into git: machine-specific absolute paths (and tokens, if you ever add an `env` block) don't belong in the repository.
 
+**Authenticated without a token in the config (broker mode)**: while the extension is running in any window, the statically launched server does not stay anonymous — it transparently forwards into a local broker inside the extension host (a named pipe on Windows, a unix socket elsewhere), where the real tools run with the token. Your token never leaves the extension process and never lands in the `mcp.json` file; a per-launch handshake secret published in the extension's globalStorage (readable only by your own user) is what authorizes the forwarder. When no extension window is running, the same static configuration still works — it just falls back to anonymous, read-only access. Nothing to configure either way.
+
 ## Known Limitations
 
 See [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) (English) and [KNOWN_ISSUES.zh.md](./KNOWN_ISSUES.zh.md) (Chinese).

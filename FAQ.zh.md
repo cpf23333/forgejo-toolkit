@@ -86,13 +86,15 @@ MCP Server 只有在满足以下全部条件时才会注册：
 
 （macOS 上目录是 `~/Library/Application Support/Code/User/globalStorage/cpf23333.forgejo-toolkit`，Linux 上是 `~/.config/Code/User/globalStorage/cpf23333.forgejo-toolkit`；Insiders 版本把 `Code` 换成 `Code - Insiders`。）这段配置放在哪里：推荐用户级 `<profile>/User/mcp.json`（VS Code 的注册表——对当前 profile 的所有工作区生效，并会转发给 Agent Host 会话）；工作区 `.vscode/mcp.json` 只对单个工作区生效。工作区根目录的 `.mcp.json` 只有 Agent Host 原生读——VS Code 会忽略它，而工作树隔离的会话根本看不到它。可以手动写文件，也可以运行 **Forgejo Toolkit: 为 Agents 窗口复制 MCP 配置** 命令，把片段合并进用户级 `mcp.json`、工作区 `.vscode/mcp.json`，或复制到剪贴板。路径是 shim `mcp-server.js` 而不是带版本号的安装目录：扩展每次激活都会重写它，所以升级后依然有效。
 
-无需任何环境变量：server 会自己发现扩展发布的实例注册表，并根据会话工作区的 git remote 自动匹配实例。没有 `FORGEJO_MCP_TOKEN` 时为匿名只读（仅公开数据）。零配置版本不含秘密，但仍建议不要把 `.mcp.json` 提交进 git——绝对路径是机器相关的，而一旦加了 `env` 块，token 就会以明文落在可共享的文件里。
+无需任何环境变量：server 会自己发现扩展发布的实例注册表，并根据会话工作区的 git remote 自动匹配实例。只要有任一扩展窗口在运行，server 还会转发到扩展宿主进程内的本地 broker，无需在此文件里写 token 即可获得认证能力；没有窗口运行时为匿名只读（仅公开数据），除非你设置 `FORGEJO_MCP_TOKEN`。零配置版本不含秘密，但仍建议不要把 `.mcp.json` 提交进 git——绝对路径是机器相关的，而一旦加了 `env` 块，token 就会以明文落在可共享的文件里。
 
 ### 为什么在 Agents 窗口里 `whoami` 等账户级调用报「Invalid or expired credentials」？
 
-因为那边的 server 是不带 token 启动的。从静态 `mcp.json` 启动的 MCP server 是由 VS Code 的 Agent Host 拉起的，不经过扩展——而只有扩展被允许从 VS Code SecretStorage 读 token 并在 spawn 时注入。不存在「让 server 自己去扩展配置里取」的路径：这个边界是刻意的（它保证 token 不落盘、不进日志），外部进程读取 SecretStorage 等同于凭证窃取，我们不实现。
+因为那个 server 当前不带 token 运行——现在这只会在**没有任何运行着扩展的 VS Code 窗口**时发生。只要有任一扩展窗口打开，静态启动的 server 就会转发到扩展宿主进程内的本地 broker，由 broker 带着 token 在宿主进程里执行工具，所以 Agents 窗口里的 `whoami` 无需在配置文件里写 token 也能工作。如果你确实在那里看到凭据错误，先确认有激活了 Forgejo Toolkit 的 VS Code 窗口在运行（broker 在扩展激活时启动）。
 
-可以改用：
+背景：从静态 `mcp.json` 启动的 MCP server 由 VS Code 的 Agent Host 拉起，不经过扩展——而只有扩展被允许从 VS Code SecretStorage 读 token 并在 spawn 时注入。不存在「让 server 自己去扩展配置里取」的路径：这个边界是刻意的（它保证 token 不落盘、不进日志），外部进程读取 SecretStorage 等同于凭证窃取，我们不实现。broker 的意义正是在不破坏这个边界的前提下桥接它：token 不出扩展宿主进程；转发器只是通过扩展 globalStorage 里发布的、每次启动随机生成的握手密钥，证明自己是同用户的本地进程。
+
+在没有扩展窗口运行时，可以改用：
 
 - 在**主窗口**的 Copilot Chat 里做账户级操作——扩展贡献的 server 会自动携带 token。
 - 或者自己在用户级 `mcp.json` 的 server 条目里加 `"env": { "FORGEJO_MCP_TOKEN": "<你的 token>" }`。这等于把明文 token 落盘在你的私有用户目录——可接受但要清楚这一点，并建议用只读权限的 token。

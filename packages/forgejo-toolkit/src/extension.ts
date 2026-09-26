@@ -20,6 +20,7 @@ import { createVscodeClientHost } from './api/vscodeClientHost';
 import { probeServerVersion } from './api/versionProbe';
 import { registerForgejoRemoteSourceProviders } from './clone/remoteSourceProvider';
 import { registerMcpServerProvider } from './mcpServerProvider';
+import { cleanupMcpBroker, startMcpBrokerIfFirst } from './mcpBroker';
 import { cleanupMcpWorkspaceState } from './mcpWorkspaceState';
 import { watchForExtensionUpdate } from './updateNotifier';
 import { maybeShowWelcomeOnboarding } from './welcome';
@@ -153,6 +154,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Expose the configured instances to agent mode as MCP tools.
   registerMcpServerProvider(context, config, logger);
+  // The local broker that lets a statically launched (tokenless) MCP server
+  // forward into this host; never throws — a broker failure only means the
+  // anonymous zero-configuration fallback stays in effect.
+  context.subscriptions.push({ dispose: () => void cleanupMcpBroker(logger) });
+  void startMcpBrokerIfFirst(context, config, logger);
 
   logger.info('Forgejo Toolkit extension activated');
 }
@@ -161,4 +167,8 @@ export async function deactivate(): Promise<void> {
   // Deletes this window's MCP workspace-state file (best-effort; see the
   // function for why a crash-orphaned file is harmless).
   await cleanupMcpWorkspaceState(logger);
+  // Stops this window's MCP broker and deletes its registration file, so a
+  // forwarder launched afterwards fails its connect fast and falls back to
+  // the zero-configuration launch instead of hanging on a dead endpoint.
+  await cleanupMcpBroker(logger);
 }

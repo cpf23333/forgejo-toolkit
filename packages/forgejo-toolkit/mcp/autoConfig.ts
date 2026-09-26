@@ -50,6 +50,12 @@ const EXTENSION_GLOBAL_STORAGE_ID = 'cpf23333.forgejo-toolkit';
 const INSTANCE_REGISTRY_BASENAME = 'mcp-instances.json';
 
 /**
+ * Fixed file name of the broker registration (writer: src/mcpBroker.ts), in
+ * the same globalStorage directories as the instance registry.
+ */
+const BROKER_REGISTRY_BASENAME = 'mcp-broker.json';
+
+/**
  * The state file naming scheme, mirroring the reader-side guard in
  * mcp/workspaceState.ts: only names this extension itself produces are read.
  * The `.part` temporary of an interrupted atomic write does not end in
@@ -484,6 +490,82 @@ export function remoteMatchesInstanceUrl(remoteUrl: string, instanceUrl: string)
     }
     return rest.split('/').filter(Boolean).length >= 2;
   });
+}
+
+export interface BrokerRegistration {
+  /** The broker's listen endpoint, as the registration publishes it. */
+  endpoint: string;
+  /** The per-launch handshake secret. Sent once, never logged. */
+  authToken: string;
+  /** Owning extension host pid (informational; liveness is decided by connecting). */
+  pid: number;
+  /** The registration file this came from, for log messages. */
+  filePath: string;
+}
+
+/**
+ * Finds the broker registration a forwarder should try, if any: the newest
+ * readable `mcp-broker.json` across the candidate data directories.
+ *
+ * Only one broker exists at a time (the first window to bind the endpoint
+ * wins; see src/mcpBroker.ts), but several globalStorage directories can each
+ * hold a file — one per VS Code flavor/profile — and the live broker is in
+ * whichever window started first, so every directory is scanned. Newest
+ * mtime wins, matching the state-file discovery's staleness policy. The pid
+ * is *not* probed: a stale file only costs one refused connect, and the
+ * forwarder treats any connect/handshake failure as "no broker" and falls
+ * back to the zero-configuration launch.
+ *
+ * The file is a trust boundary like the registry (another extension version
+ * may have written it), so every field is checked structurally and an
+ * unusable file is skipped rather than failing the discovery.
+ */
+export async function discoverBrokerRegistration(
+  options: AutoConfigOptions = defaultOptions(),
+): Promise<BrokerRegistration | undefined> {
+  const { dirs } = await discoverDataDirs(options);
+  let newest: { registration: BrokerRegistration; mtimeMs: number } | undefined;
+  for (const dir of dirs) {
+    const filePath = path.join(dir, BROKER_REGISTRY_BASENAME);
+    let stats: fs.Stats;
+    try {
+      stats = await fs.promises.stat(filePath);
+      if (!stats.isFile() || stats.size > MAX_FILE_BYTES) {
+        continue;
+      }
+    } catch {
+      continue;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
+    } catch {
+      continue;
+    }
+    const candidate = parsed as Record<string, unknown> | null;
+    if (
+      !candidate ||
+      candidate.version !== 1 ||
+      typeof candidate.endpoint !== 'string' ||
+      typeof candidate.authToken !== 'string' ||
+      typeof candidate.pid !== 'number'
+    ) {
+      continue;
+    }
+    if (newest && stats.mtimeMs <= newest.mtimeMs) {
+      continue;
+    }
+    newest = {
+      mtimeMs: stats.mtimeMs,
+      registration: {
+        endpoint: candidate.endpoint,
+        authToken: candidate.authToken,
+        pid: candidate.pid,
+        filePath,
+      },
+    };
+  }
+  return newest?.registration;
 }
 
 export interface RemoteInstanceMatch {

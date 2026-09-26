@@ -221,10 +221,99 @@ this order:
    instance URLs and pointing at `FORGEJO_MCP_INSTANCE_URL`.
 
 The token still comes only from `FORGEJO_MCP_TOKEN`; a zero-configuration
-launch without it reads anonymously (public data only). When the discovery
-saw a workspace state file, its path also feeds `get_workspace_repository`
+launch without it reads anonymously (public data only) **unless the extension
+host's broker is reachable** — see [Broker mode](#broker-mode) below, which is
+tried before everything in this section. When the discovery saw a workspace
+state file, its path also feeds `get_workspace_repository`
 as if `FORGEJO_MCP_STATE_FILE` had been set; an explicit variable always
 wins.
+
+## Broker mode
+
+Zero-configuration launch still leaves a statically launched server
+_anonymous_: a static `mcp.json` carries no environment, so no token reaches
+the child. Broker mode closes that gap without moving the token. When the
+extension host is running, one window (the first to bind the endpoint) starts
+a local **broker** — `net.createServer` on a named pipe (Windows) or unix
+socket — and the statically launched `mcp-server.js` becomes a pure
+forwarder that bridges its stdio onto the broker connection. The real tool
+logic, token included, executes inside the extension host process; the token
+never crosses into the forwarder.
+
+```
+static mcp.json host (Agents window / third-party client)
+  │  spawns: node mcp-server.js        (no FORGEJO_MCP_* env)
+  ▼
+forwarder (this process)               mcp/brokerForwarder.ts
+  │  reads globalStorage/mcp-broker.json → { endpoint, authToken }
+  │  connects, sends { authToken, cwd } as the first NDJSON line
+  │  then pipes stdin ↔ socket ↔ stdout verbatim
+  ▼  named pipe \\.\pipe\forgejo-toolkit-mcp-<user hash> / unix socket in tmpdir
+broker in the extension host           mcp/brokerServer.ts + src/mcpBroker.ts
+  │  per connection: own createMcpServer(ForgejoClient(token)) over a
+  │  SocketTransport (same NDJSON framing as stdio)
+  ▼
+Forgejo instance REST API
+```
+
+- **Registration.** The broker publishes `globalStorage/mcp-broker.json`
+  (`McpBrokerRegistryFile` in `packages/shared/src/mcp/workspaceState.ts`):
+  `{ version: 1, pid, endpoint, authToken, startedAt }`, written atomically.
+  The forwarder discovers it through the same data-directory scan as the
+  instance registry (`discoverBrokerRegistration` in mcp/autoConfig.ts);
+  newest mtime wins across flavors/profiles.
+- **Handshake.** The forwarder's first line is `{ authToken, cwd }`. The
+  broker compares the token in constant time and disconnects immediately on a
+  mismatch (the presented value is never logged); on a match it answers
+  `{ "ok": true }` and the socket carries the MCP session verbatim — MCP
+  stdio framing is NDJSON, so the pipe uses the same framing and neither side
+  re-encodes. A connection that never completes its handshake is dropped
+  after 10 s. The `cwd` is what the broker uses to resolve the session's
+  instance.
+- **Sessions.** Every connection gets its own `McpServer` instance — the MCP
+  SDK binds a server to a single transport — built from a `ForgejoClient`
+  carrying the resolved instance's token. The version gate reuses the
+  extension host's existing probe cache (activation already probes every
+  instance), so the broker never probes again. The workspace state file
+  passed to `get_workspace_repository` is the owning window's own.
+- **Instance resolution** (per session): if the forwarder's cwd sits inside a
+  checkout this window has linked to an instance (via the shared
+  `detectLinkedRepositories` scan cache), that instance wins; otherwise the
+  first token-bearing instance answers — the Agents window launches servers
+  from the user's home directory, which is no checkout at all, and an
+  authenticated instance beats an anonymous one. A detected instance without
+  a token loses to the token-bearing fallback.
+- **Lifecycle.** Multi-window: the first window to bind the endpoint wins;
+  other windows' `listen` fails with EADDRINUSE/EACCES and they step aside
+  with a debug log (and no registration write). On unix a leftover socket
+  file from a crashed broker is distinguished from a live owner by a connect
+  probe: refused means stale, so it is unlinked and the listen retried once.
+  `deactivate()` closes the broker and deletes the registration file; a
+  crash-orphaned file is harmless because the forwarder's connect simply
+  fails. When the broker closes mid-session the forwarder exits with a clear
+  stderr message, and the MCP client reports the server as stopped.
+- **Degradation order.** Startup with no `FORGEJO_MCP_INSTANCE_URL` tries, in
+  order: broker forwarding → the zero-configuration discovery above. Any
+  pre-handshake failure (no registration file, connect refused, rejected
+  handshake, timeout) falls through to the anonymous zero-configuration
+  launch. A failure _after_ the handshake does not: silently restarting an
+  in-flight session as a different, anonymous server would be worse than a
+  clean stop.
+
+### Security model (broker)
+
+The `authToken` in `mcp-broker.json` is a random per-broker-launch secret
+(32 bytes, hex), **not** a Forgejo token — the file never carries one. It
+gates the pipe so an unrelated local process cannot make the extension host
+issue authenticated requests on its behalf. The file lives in the same
+same-user-readable globalStorage directory as the workspace state files;
+anyone who can read it already runs with the user's privileges and could
+read the editor's token-bearing state database instead, so publishing the
+handshake secret there grants no new capability. What a forwarded session
+proves is "same local user who can read globalStorage" — exactly the trust
+level the VS Code-spawned path already grants its stdio children. The secret
+is sent once per connection and never logged by either side (the broker's
+rejection log deliberately omits the presented value).
 
 ## Minimum VS Code version
 
@@ -395,14 +484,18 @@ implying a capability the tools do not have. Registration lives in
   error it returns (`userFacingErrorMessage` never includes headers).
 - That injection happens exclusively at spawn time, by the extension host. A
   server started from a static `mcp.json` (the Agents window / Agent Host
-  route) is launched by VS Code without the extension, so it has no token and
-  reads anonymously. There is deliberately no fallback that would let the
-  child read SecretStorage itself — reaching into the OS credential store from
-  an external process is what credential theft looks like, and the boundary is
-  what keeps tokens off disk and out of logs. A user who needs authenticated
-  calls on that route puts `FORGEJO_MCP_TOKEN` into the `env` of their own
-  `mcp.json` entry by hand (a plaintext secret at rest; a read-only-scoped
-  token is recommended), or uses the main window where the injection exists.
+  route) is launched by VS Code without the extension — but while the
+  extension host runs, its **broker** serves such launches with full
+  authenticated tools inside the host process (see [Broker mode](#broker-mode));
+  the token still never leaves the host. Only when no broker is reachable
+  does the static route degrade to anonymous reads. There is deliberately no
+  fallback that would let the child read SecretStorage itself — reaching into
+  the OS credential store from an external process is what credential theft
+  looks like, and the boundary is what keeps tokens off disk and out of logs.
+  A user who needs authenticated calls with the extension _not_ running puts
+  `FORGEJO_MCP_TOKEN` into the `env` of their own `mcp.json` entry by hand (a
+  plaintext secret at rest; a read-only-scoped token is recommended), or uses
+  the main window where the injection exists.
 - Tool results truncate large bodies (comments, diffs, logs) to a fixed
   budget (~10 KB per field) and cap the whole serialized result (64 KB), with
   an explicit marker when either cap fires, to protect the agent's context
@@ -449,6 +542,13 @@ implying a capability the tools do not have. Registration lives in
   The zero-configuration discovery (registry reading, state-file shortcut,
   `.git/config` remote matching, failure messages) is covered by
   `mcp/__tests__/autoConfig.test.ts`; `server.ts` is only the wiring.
+  The broker is covered end to end over real sockets (named pipes on Windows,
+  socket files elsewhere): handshake rejection, an initialize → tools/list
+  round trip through the forwarder bridge, parallel sessions, and shutdown
+  signalling — `mcp/__tests__/broker.test.ts`; the registration discovery by
+  the same autoConfig test file; the host-side wiring (registration file
+  lifecycle, endpoint contention, instance resolution) by
+  `src/__tests__/mcpBroker.test.ts`.
 - Integration: the server connected over the MCP SDK's `InMemoryTransport`,
   asserting the tool listing and a round trip per tool group —
   `mcp/__tests__/server.test.ts`.

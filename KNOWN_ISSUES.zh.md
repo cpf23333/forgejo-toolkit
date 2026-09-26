@@ -219,6 +219,12 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 
 规避方法：通过 Forgejo 网页界面删除，网页端知道当前账号是否站点管理员。
 
+## Agents 窗口（Agent Host）的会话看不到扩展贡献的 MCP server
+
+扩展通过 `mcpServerDefinitionProviders` 贡献的 MCP server 只会被普通窗口里 VS Code 内置聊天消费。Agents 窗口的会话运行在 Agent Host 上，它的 MCP 配置从 `mcp.json` 文件发现——扩展的注册永远不会到达那里。`agentsWindow` 能力也帮不上：它只控制扩展自身能否在那个窗口运行。这是 VS Code 的平台限制，扩展侧无法通过声明绕过。
+
+规避方法：用一份静态 `mcp.json` 指向扩展在 globalStorage 里维护的 shim（见 FAQ「Agents 窗口里能用这个 MCP server 吗？」）。扩展宿主运行期间，broker 会把该 server 经本地管道转发给扩展，认证工具在那里也可用、token 不落盘；扩展宿主不在时降级为匿名只读（仅公开数据）。
+
 ---
 
 _各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_

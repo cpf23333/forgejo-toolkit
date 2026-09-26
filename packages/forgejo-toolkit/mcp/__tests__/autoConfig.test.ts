@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import type { McpInstanceRegistryFile } from '@cpf23333-forgejo-toolkit/shared/mcp/workspaceState';
 import {
+  discoverBrokerRegistration,
   discoverDataDirs,
   matchInstanceForRemotes,
   remoteMatchesInstanceUrl,
@@ -524,4 +525,86 @@ describe('resolveAutoConfiguration', () => {
   // duplicated here; what this module guarantees is that the override env it
   // *does* own — FORGEJO_MCP_DATA_DIR — short-circuits all default discovery,
   // covered by the discoverDataDirs test above.
+});
+
+describe('discoverBrokerRegistration', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-broker-discovery-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  /** Writes an `mcp-broker.json` stand-in into a data directory. */
+  function writeBrokerFile(dir: string, value: unknown): string {
+    fs.mkdirSync(dir, { recursive: true });
+    const filePath = path.join(dir, 'mcp-broker.json');
+    fs.writeFileSync(filePath, typeof value === 'string' ? value : JSON.stringify(value), 'utf8');
+    return filePath;
+  }
+
+  function validBroker(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      version: 1,
+      pid: 4321,
+      endpoint: '\\\\.\\pipe\\forgejo-toolkit-mcp-abcdef123456',
+      authToken: 'a'.repeat(64),
+      startedAt: '2026-01-01T00:00:00.000Z',
+      ...overrides,
+    };
+  }
+
+  it('returns undefined when no data directory holds a broker file', async () => {
+    const options = makeOptions({
+      cwd: tempDir,
+      env: { FORGEJO_MCP_DATA_DIR: path.join(tempDir, 'empty') },
+    });
+    await expect(discoverBrokerRegistration(options)).resolves.toBeUndefined();
+  });
+
+  it('reads a valid registration from the FORGEJO_MCP_DATA_DIR directory', async () => {
+    const dataDir = path.join(tempDir, 'data');
+    const filePath = writeBrokerFile(dataDir, validBroker());
+    const options = makeOptions({ cwd: tempDir, env: { FORGEJO_MCP_DATA_DIR: dataDir } });
+
+    const result = await discoverBrokerRegistration(options);
+
+    expect(result).toMatchObject({
+      endpoint: '\\\\.\\pipe\\forgejo-toolkit-mcp-abcdef123456',
+      authToken: 'a'.repeat(64),
+      pid: 4321,
+      filePath,
+    });
+  });
+
+  it('skips files that do not match the schema instead of failing', async () => {
+    const dataDir = path.join(tempDir, 'data');
+    writeBrokerFile(dataDir, validBroker({ version: 2 }));
+    const options = makeOptions({ cwd: tempDir, env: { FORGEJO_MCP_DATA_DIR: dataDir } });
+    await expect(discoverBrokerRegistration(options)).resolves.toBeUndefined();
+
+    writeBrokerFile(dataDir, 'not json at all');
+    await expect(discoverBrokerRegistration(options)).resolves.toBeUndefined();
+  });
+
+  it('picks the newest file across the platform-default flavor directories', async () => {
+    const userDir = (flavor: string): string =>
+      path.join(tempDir, '.config', flavor, 'User', 'globalStorage', 'cpf23333.forgejo-toolkit');
+    const stableDir = userDir('Code');
+    const insidersDir = userDir('Code - Insiders');
+    writeBrokerFile(stableDir, validBroker({ endpoint: 'stable-endpoint' }));
+    const insidersFile = writeBrokerFile(insidersDir, validBroker({ endpoint: 'insiders-endpoint' }));
+    // Stable is older: the newest mtime wins, matching the state-file
+    // discovery's staleness policy.
+    const older = new Date(Date.now() - 60_000);
+    fs.utimesSync(path.join(stableDir, 'mcp-broker.json'), older, older);
+
+    const options = makeOptions({ cwd: tempDir, env: {}, platform: 'linux', homeDir: tempDir });
+    const result = await discoverBrokerRegistration(options);
+
+    expect(result).toMatchObject({ endpoint: 'insiders-endpoint', filePath: insidersFile });
+  });
 });

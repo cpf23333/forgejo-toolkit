@@ -219,6 +219,12 @@ Workaround: keep the number of windows with the extension enabled low, raise `fo
 
 Workaround: remove the entry through the Forgejo web UI, which knows the account's administrator flag.
 
+## Agents window (Agent Host) sessions do not see extension-contributed MCP servers
+
+The MCP server the extension contributes through `mcpServerDefinitionProviders` is only consumed by VS Code's built-in chat in regular windows. Sessions in the Agents window run on the Agent Host, which discovers its MCP configuration from `mcp.json` files — an extension's registration never reaches it. The `agentsWindow` capability does not help either: it only controls whether the extension itself may run in that window. This is a VS Code platform limitation, not something an extension can declare around.
+
+Workaround: use a static `mcp.json` pointing at the shim the extension maintains in its globalStorage (see the FAQ entry "Can I use the MCP server in the Agents window?"). While the extension host is running, the broker forwards that server to the extension over a local pipe, so authenticated tools work there with no token on disk; with no extension host running the server degrades to anonymous, public-data-only reads.
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._
