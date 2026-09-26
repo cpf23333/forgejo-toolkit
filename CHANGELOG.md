@@ -19,6 +19,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `forgejoToolkit.mcpEnabled` (default on): turning it off withdraws the MCP
+  server definitions and stops the workspace mapping and the local broker, so no
+  agent reaches your instances through them.
+- **Write Copilot Instructions** command: writes (or updates) a short section in
+  the workspace repository's `.github/copilot-instructions.md` naming the
+  Forgejo instance and repository the workspace maps to.
+- Two design documents for future work: the confirmation model for MCP write
+  tools, and a multi-window polling lease.
+
+### Changed
+
+- Each webview surface downloads only what it renders: the onboarding wizard and
+  the review-comment editor have their own entry instead of booting the whole
+  dashboard shell (about 16% and 29% less to load), and a build-time check fails
+  if a panel ever reaches the dashboard again.
+- The create-PR status bar asks the server for the branch's pull requests
+  instead of reading the whole open list every time (ten requests become one in
+  the common case), and its "may be past the list cap" warning now appears only
+  when the pull request really is missing.
+- The 401/403 guidance re-appears when the stored token changes, instead of
+  staying silent for the rest of the session.
+- API failures carry a structured error (status, headers, body), so a
+  server-authored message is rendered directly instead of being re-parsed out of
+  the message text.
+
+### Fixed
+
+- Windows: the stable-path MCP shim (the `.mcp.json` and Agents-window launch
+  route) could not start at all, because it pointed at a path the ESM loader
+  refuses.
+- Two VS Code windows no longer discard each other's notification baseline,
+  which could swallow a notification round after an instance was added.
+- A list that is exactly at the 500-row cap is no longer called truncated when
+  the server's own total proves it complete.
+- A README that is a symlink or a submodule is described as such (in your
+  language) instead of being reported as an oversized withheld file.
+- Accessibility: every progress ring announces a localized name instead of
+  English "Loading"; the test/save outcome is announced; the view filter no
+  longer claims a tab relationship it cannot deliver; the dashboard is not
+  remounted (nor its title announced twice) when reopened.
+- A failed comment reaction, dependency change, or labels/assignees/milestones
+  load now says so instead of looking like an empty result, and the timer state
+  is not presented as "not running" when it could not be read.
+- The review-comment editor no longer clears its submitting guard for a reply
+  belonging to another pull request, and the panel no longer closes the editor
+  you just opened when a submit resolves after you switched.
+- Comment bodies no longer disappear after flipping the comment sort order, and
+  a failed image upload no longer leaves its message in another comment's
+  editor.
+
 ## [0.0.1] - 2026-09-26
 
 First public release (0.0.1). Forgejo Toolkit brings Forgejo and Codeberg into

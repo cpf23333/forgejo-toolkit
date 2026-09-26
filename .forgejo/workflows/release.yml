@@ -202,9 +202,11 @@ jobs:
           unzip -l "$VSIX" > /tmp/vsix-contents.txt
           # Everything a distribution needs: the two bundles, the manifest, the
           # license and changelog copies the packaging step requires, plus the
-          # localized l10n/walkthrough files, the webview entry point (a webview
-          # build that silently stopped running would otherwise ship as a .vsix
-          # that opens to an empty panel) and the codicon assets the webview only
+          # localized l10n/walkthrough files, one document per webview surface
+          # (a webview build that silently stopped emitting one of them would
+          # otherwise ship as a .vsix whose panel opens empty — the dashboard is
+          # index.html, the wizard and the review-comment editor have their own)
+          # and the codicon assets the webview only
           # links at runtime (copied next to the bundle by the `copyCodicons`
           # closeBundle hook in webview/vite.config.ts — if that hook stops
           # running, the webview build stays green while every icon disappears).
@@ -228,6 +230,8 @@ jobs:
             extension/l10n/bundle.l10n.json \
             extension/walkthrough/addInstance.md \
             extension/out/webview/index.html \
+            extension/out/webview/onboarding.html \
+            extension/out/webview/pullReviewComment.html \
             extension/out/webview/codicon.css \
             extension/out/webview/codicon.ttf; do
             grep -qi "$entry" /tmp/vsix-contents.txt || { echo "MISSING: $entry"; cat /tmp/vsix-contents.txt; exit 1; }

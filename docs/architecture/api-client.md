@@ -120,32 +120,39 @@ server in `packages/forgejo-toolkit/src/test/mocks/` (`handlers.ts`, `data/`).
 
 ## Error handling
 
-The shared client throws a plain `Error`, not the generated error type. Its
-message is `` `Forgejo API error ${status}: ${detail}` `` (thrown by `client` in
-`packages/shared/src/request/index.ts`), where `detail` is the response body
-(truncated, or described when the body is not JSON, see `describedBody`); a 200
-whose body is not JSON also throws (`nonJsonSuccessBodyError`).
+The shared client throws a `RequestError`, carrying `status`, `statusText`,
+`headers` and `body` beside the human-readable message
+(`packages/shared/src/request/index.ts`). The message is still
+`` `Forgejo API error ${status}: ${detail}` ``, where `detail` is the response
+body (truncated, or described when the body is not JSON, see `describedBody`), so
+anything that logs or matches the old shape keeps working; a 200 whose body is
+not JSON also throws (`nonJsonSuccessBodyError`). `body` is the parsed JSON when
+the response declared JSON and it parsed, otherwise the raw text (empty string
+for an empty body) — read the field rather than re-parsing the message.
 
-The type alias `ResponseErrorConfig<TError> = TError`
-(`packages/shared/src/request/index.ts:37-48`) only fills the generated wrappers'
-second type argument (e.g. `ResponseErrorConfig<RepoGet404>` in
-`repoGet.ts`). Nothing ever throws that value: the fields of a generated error type
-(`errors`, `url`, …) are undefined at runtime, so do not narrow a `catch` to
-`RepoGet404` and read them.
+The type alias `ResponseErrorConfig<TError> = RequestError<TError>`
+(`packages/shared/src/request/index.ts`) fills the generated wrappers' second type
+argument (e.g. `ResponseErrorConfig<RepoGet404>` in `repoGet.ts`) and now names
+what is really thrown; `TError` describes the documented body shape, which is not
+validated at runtime, so do not narrow a `catch` to `RepoGet404` and read its
+fields off the body without checking.
 
-The host then classifies the thrown `Error` with `toApiError`
+The host classifies the thrown error with `toApiError`
 (`packages/forgejo-toolkit/src/api/errors-core.ts`) into an `ApiError` carrying
 `kind` (`network` | `timeout` | `cancelled` | `tls` | `http` | `unknown` | `proxy`), `status`,
-`rawMessage`, and a localized `userMessage` getter. `proxy` is the
+`body`, `rawMessage`, and a localized `userMessage` getter. `proxy` is the
 connection-failure case with a proxy dispatcher installed: the failure is
-attributed to the configured proxy, and the instance itself may be fine. Because
-the structured body is not preserved on the error, the host recovers a
-server-provided message by parsing the JSON object embedded in the error message
-text (`messageFromErrorBody` in the same file). The extension host forwards the
-rendered message to the webview, which displays it.
+attributed to the configured proxy, and the instance itself may be fine. A
+server-provided message is rendered from `ApiError.body` when the body is a JSON
+object with a non-empty `message`; every other error — a hand-built one, a test
+stub, or one whose class identity was lost across a serialization boundary — still
+falls back to searching the message text (`extractApiErrorMessage`, unchanged).
+The extension host forwards the rendered message to the webview, which displays
+it.
 
-So: catch `Error` (or the host's `ApiError`); read `message`/`ApiError.userMessage`,
-never generated error fields.
+So: catch `Error` (or the host's `ApiError`); for a failure the shared client
+produced, read `status`/`body`; otherwise read `message`/`ApiError.userMessage`,
+and never trust generated error fields.
 
 ## Adding custom endpoints
 

@@ -220,4 +220,22 @@ Two harness limits worth knowing before planning a flow:
   `out/mcp-server.mjs` with an instance URL/token read from an instances export and
   drives it over stdio JSON-RPC, which is how the checklist's MCP items are
   covered without agent mode: tool surface, hostile-input validation and the
-  truncation marker on large results. The token is never printed.
+  truncation marker on large results. The token is never printed. Because it sets
+  `FORGEJO_MCP_INSTANCE_URL`/`FORGEJO_MCP_TOKEN`, it exercises the **direct-launch**
+  mode, not broker mode: to check the broker, launch the server with **no**
+  instance variables and let it forward.
+- **Broker verification needs its own home directory.** The broker endpoint is
+  derived from the _user_ profile (`sha256(username + homedir)`), not from
+  `--user-data-dir`, so an isolated dev host started next to a running real VS Code
+  finds the pipe already owned and **steps aside silently by design** (the
+  extension stays healthy, and a check that just looks for "no error" would pass
+  while proving nothing). Redirect `USERPROFILE`/`HOME` when launching the harness
+  if the broker path is what you are verifying, and confirm the dev host bound its
+  own `\\.\pipe\forgejo-toolkit-mcp-<hash>` before drawing conclusions. With a
+  custom `--user-data-dir`, also set `FORGEJO_MCP_DATA_DIR` for the launcher, since
+  instance discovery only scans the standard `%APPDATA%\Code\User[…]/profiles\*`
+  layout. The stable-path shim lives in the profile's
+  `globalStorage/cpf23333.forgejo-toolkit/mcp-server.js`; running it with `node`
+  and getting `ERR_UNSUPPORTED_ESM_URL_SCHEME` means the shim's specifier is a
+  path rather than a `file://` URL (a Windows-only failure a text-only assertion
+  cannot catch).

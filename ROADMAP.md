@@ -182,6 +182,21 @@
 - 面向 agent 上下文预算的 CI 失败摘要工具 `get_ci_failure_summary`：一次调用取 run 内每个失败 job 的错误行（各带 2 行上下文）与日志尾部（约 100 行），并标注每处截断——包括客户端 10 MB 上限只保留头部、导致真实尾部不可见的情形；替代连续调用 `get_action_run_jobs` + 每个失败 job 一次 `get_action_job_log`，并避开后者「只保留日志头部 10 KB」而恰好丢掉失败信息的问题。提取文本按共享预算预分片，不依赖 `truncateLargeStrings` 兜底。
 - 面向 agent 上下文预算的 PR 评审摘要工具 `get_pr_review_brief`：一次调用返回 PR 头部（标题/状态/作者/基头分支/合并阻塞）、diff 统计（文件数与总增删行，外加按文件的增删行表——不含 diff 文本）、每个 reviewer 的最新结论与汇总判断、以及未解决的 inline 评审评论（path/line/作者/时间/正文），替代评审起步时的 `get_pull_request` + `get_pr_diff` + `get_pr_timeline` + `list_pull_reviews` 四次调用；描述注明 diff 文本、描述、commit 与时间线仍需按需回退原工具。评论按 review 逐条读取（上游没有一次取全的端点），以 4 并发有界扇出，单个 review 读取失败只计入 `unreadableReviewCount`；被解决的会话按 Forgejo 只写在首条评论上的 `resolver` 整体排除。各段预分片（文件表 100 行/16 KB，评论 50 条/24 KB、单条正文 1 KB），`truncated`/`truncatedBy`/`bodyTruncated` 标注每处裁剪且总数保持精确，不依赖 `truncateLargeStrings` 兜底。
 
+### 0.0.1 之后（首个发布版之后的加固与优化）
+
+- **MCP 开关**：`forgejoToolkit.mcpEnabled`（默认开）。关闭时不注册 MCP server 定义、不维护 shim / 实例注册表 / 工作区映射，并停掉本地 broker；共享的 shim 与注册表文件保留（其他窗口可能仍开着），已连接的客户端继续使用它已启动的进程直到重载窗口。运行时切换即刻生效，不留陈旧监听。
+- **Copilot 指令生成命令**：`forgejoToolkit.writeCopilotInstructions` 走既有归因路径解析工作区仓库，在 `<仓库根>/.github/copilot-instructions.md` 创建 / 追加 / 原地更新一段声明（只声称只读能力），标记不完整或重复时**完全不写入**并警告，URL 去凭据、原子写入。
+- **Webview 入口按面拆分**：dashboard / onboarding / 评论编辑器各自一份 HTML 与入口模块，面板不再下载 dashboard 外壳（onboarding −15.9%、评论面板 −28.8%），并加构建期图断言：面板一旦触达 `App.vue`/router/vue-router 或未使用的 `@vscode-elements` 模块即构建失败。
+- **精确截断**：`X-Total-Count` 贯通到全部列表方法（含 11 个此前只返回裸数组的方法新增 `<name>WithTotal` 形式）与 MCP 工具结果，恰好 500 条的完整列表不再被说成截断，真实被截断时报出真实数字；`get_pr_review_brief` 的 `reviewStatus.truncated` 同样按服务端总数判断。
+- **结构化错误契约**：`shared/request` 抛 `RequestError{status,statusText,headers,body}`（消息格式不变），宿主从字段分类与渲染服务端消息，正则只作为外来错误回退。
+- **列表回包按请求归属**：三个列表命令（`getRepositories`/`getMyIssues`/`getMyPullRequests`）请求带 `_requestId`、宿主原样回显、webview 严格按 id 归属——被替换服务器的迟到回包在**任意到达顺序**下都不会再写进列表或缓存；向导面板同样回显。
+- **多窗口通知基线合并**：已读基线改为「只覆盖本窗口拥有的条目」的合并写，删除也要求「配置里没有了 且 本窗口拥有」，窗口之间不再互相清空基线。
+- **凭据轮换后重新提示**：401/403 提示的去重键折入所失败凭据的指纹（SHA-256 前缀 + 长度），同一 URL 换了令牌会重新提示，令牌本身不入日志、不入提示。
+- **创建 PR 状态栏按分支查询**：改用拉取列表的 `head` 过滤 + 命中即停的分页（常见的首页命中 10 次请求 → 1 次），"可能超出上限"的警告只在真的没找到时出现。
+- **可访问性与播报**：16 处进度环改用本地化的 `aria-label`（此前每次都播报英文 "Loading"）；Test/Save 结果进 live region；视图过滤控件不再冒充 tab 关系；`openDashboard` 不再重挂载与重复播报；依赖/反应/标签等失败不再伪装成空结果；计时器状态读不到时不再显示为"未运行"。
+- **MCP shim 修复**：`91b7650` 改 ESM 后 shim 写成驱动器路径，Windows 上被 ESM 加载器拒绝（外部启动器完全起不来）；改用 `pathToFileURL` 生成的 `file://` 说明符，并补一条真正解析该说明符的测试。
+- **两份设计文档**（实现待定）：`docs/design/mcp-write-tools-confirmation.md`（写工具的人类确认模型）与 `docs/design/multi-window-polling-lease.md`（多窗口轮询租约）。
+
 ## 后续迭代
 
 ### 设置与数据

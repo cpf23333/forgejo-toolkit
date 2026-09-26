@@ -59,9 +59,9 @@ The file is written to `packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix`
 
 ### Open VSX
 
-An [Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) listing
-(for editors such as VSCodium) is planned but not published yet; until then
-VSCodium users can install the `.vsix` from the release page.
+An [Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) listing is
+not published at the moment; VSCodium users can install the `.vsix` from the
+release page instead.
 
 ## Usage
 
@@ -88,6 +88,7 @@ All commands are available from the Command Palette (`Ctrl+Shift+P`, prefix `For
 | Add Pull Review Comment           | Adds a review comment on the current diff line (also in the diff editor's line context menu).                                                         |
 | Delete Review Comment             | Deletes the review comment under the cursor.                                                                                                          |
 | Copy MCP Config for Agents Window | Writes or copies a ready-to-use MCP config for the Agents window (user-level `mcp.json`, workspace `.vscode/mcp.json`, or clipboard; see MCP Server). |
+| Write Copilot Instructions        | Writes (or updates) a short Forgejo section in the linked repository's `.github/copilot-instructions.md`; the rest of the file is never touched.      |
 
 ## Compatibility
 
@@ -103,7 +104,9 @@ The extension ships a built-in MCP server that lets AI assistants — such as Co
 
 - **Zero configuration**: every configured Forgejo instance that has a stored access token is automatically exposed to MCP clients as its own server via VS Code's `contributes.mcpServerDefinitionProviders` API, so an agent can reach several instances in the same session. No extra setup, no separate server to run.
 - **Requirements**: VS Code ≥ 1.102 and at least one configured instance with an access token. If neither is available, the server is simply not registered.
+- **Turning it off**: `forgejoToolkit.mcpEnabled` (on by default) owns the whole surface. With it off, no server definitions are registered, the workspace-repository mapping, the instance registry and the stable-path shim are not maintained (and are stopped at once if the setting is turned off while a window is running), and the local broker is stopped, so a statically configured client cannot reach this host either. The setting applies immediately — **no window reload is needed** — but a client that is _already_ connected keeps the server process VS Code spawned for it until you reload the window: the extension never owned that process.
 - **Usage**: open Copilot chat in agent mode and ask in natural language, e.g. "list my issues" or "show the CI log of the latest failed run in this repo".
+- **Repository context**: the **Forgejo Toolkit: Write Copilot Instructions** command writes a short, clearly delimited section into the linked repository's `.github/copilot-instructions.md` naming `<instance>/<owner>/<repo>` and the read-only `forgejo-toolkit` tools, so an agent knows which repository this workspace maps to. It creates the file when it is missing, appends its own section to an existing file, and updates that section in place when the mapping changes — the rest of the file is preserved byte for byte, and nothing is written when no configured instance matches the workspace.
 - **Proxy**: requests honour the editor's `http.proxy` setting, which wins over the environment's `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` (each name is read in either case), and the setting is forwarded to the MCP server process as `FORGEJO_MCP_PROXY`.
 - **Tool overview**: 30 tools in four groups —
   - **Core**: issues, pull requests, timelines, notifications, repository info, and search (e.g. `list_issues`, `get_pull_request`).

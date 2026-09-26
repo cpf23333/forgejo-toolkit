@@ -44,7 +44,7 @@ pnpm --filter forgejo-toolkit package
 
 ### Open VSX
 
-[Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) 条目（供 VSCodium 等编辑器使用）计划中但尚未发布；在那之前，VSCodium 用户可以安装 Release 页面上的 `.vsix`。
+[Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) 条目目前尚未发布；VSCodium 等编辑器请从 Release 页面安装 `.vsix`。
 
 ## 使用
 
@@ -71,6 +71,7 @@ pnpm --filter forgejo-toolkit package
 | 添加审查评论                | 在当前 diff 行添加评审评论（也可从 diff 编辑器的行号右键菜单调用）。                                                           |
 | 删除审查评论                | 删除光标处的评审评论。                                                                                                         |
 | 为 Agents 窗口复制 MCP 配置 | 写入或复制一份可直接使用的 Agents 窗口 MCP 配置（用户级 `mcp.json`、工作区 `.vscode/mcp.json` 或剪贴板；见 MCP Server 一节）。 |
+| 写入 Copilot 指令           | 在已链接仓库的 `.github/copilot-instructions.md` 中写入（或更新）一小段 Forgejo 说明；文件其余内容不会被改动。                 |
 
 ## 兼容性
 
@@ -86,7 +87,9 @@ pnpm --filter forgejo-toolkit package
 
 - **零配置**：每个已配置且已保存 access token 的 Forgejo 实例都会通过 VS Code 的 `contributes.mcpServerDefinitionProviders` API 各自暴露为一个 MCP server，agent 可以在同一会话中访问多个实例，无需任何额外设置，也不用单独启动服务。
 - **要求**：VS Code ≥ 1.102，且至少配置了一个带 access token 的实例；不满足时静默不注册。
+- **如何关闭**：`forgejoToolkit.mcpEnabled`（默认开启）掌管整个 MCP 面。关闭后不再注册 server 定义，也不再维护工作区仓库映射、实例注册表与稳定路径 shim（若在窗口运行中关闭则立即停止），本地 broker 一并停止，因此静态配置的客户端也无法转发到本宿主进程。设置立即生效——**无需重载窗口**——但**已经连接**的客户端会继续使用 VS Code 为它启动的 server 进程，直到你重载窗口：该进程从来不由扩展持有。
 - **使用方式**：在 Copilot 聊天中切换到 agent mode，直接用自然语言提问，例如「list my issues」或「看一下这个仓库最近一次失败运行的 CI 日志」。
+- **仓库上下文**：**Forgejo Toolkit: 写入 Copilot 指令** 命令会在已链接仓库的 `.github/copilot-instructions.md` 里写入一小段带明确分隔标记的说明，注明 `<instance>/<owner>/<repo>` 和只读的 `forgejo-toolkit` 工具，让 agent 知道当前工作区对应哪个仓库。文件不存在时会创建；已存在时追加自己的小节；映射变化时就地更新该小节——文件其余内容逐字节保留。若工作区没有匹配任何已配置实例，则不会写入任何内容。
 - **代理**：请求会遵循编辑器的 `http.proxy` 设置，其优先级高于环境变量 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（三者的大小写拼写都会读取），该设置会以 `FORGEJO_MCP_PROXY` 转发给 MCP 服务进程。
 - **工具概览**：30 个工具，分为四组——
   - **基础**：Issue、PR、时间线、通知、仓库信息与搜索（如 `list_issues`、`get_pull_request`）。

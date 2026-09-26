@@ -12,7 +12,7 @@ Forgejo 和 Gitea 有共同的 API 历史，因此许多功能在 Gitea 实例�
 
 ### 能在 VSCodium 或其他 VS Code 分支上使用吗？
 
-可以——扩展发布在 [Open VSX](https://open-vsx.org/) 上，正是为 VSCodium 这类不用 Microsoft Marketplace 的编辑器准备的；除 AI 集成外的一切功能都相同：Dashboard、Issue、PR、worktree、Actions、通知。
+可以——从 [Release 页面](https://codeberg.org/cpf23333/forgejo-toolkit/releases) 安装 `.vsix` 即可（目前尚未发布到 [Open VSX](https://open-vsx.org/)）；除 AI 集成外的一切功能都相同：Dashboard、Issue、PR、worktree、Actions、通知。
 
 差异在 MCP server 的消费端。VS Code 内置的消费端是 Copilot agent mode，只在微软官方构建中提供。在分支编辑器上，你需要用**第三方 agent**（Cline、Continue 等）或任意 MCP 客户端来驱动这个 MCP server：把它指向稳定路径 shim（扩展 globalStorage 里的 `mcp-server.js`，确切路径见下文「Agents 窗口里能用这个 MCP server 吗？」）。零配置实例匹配和带认证的 broker 在那里都能用，因为它们由扩展自身实现，不依赖 VS Code 的聊天功能。也不需要禁用任何东西：如果编辑器等价地完全没有 MCP 定义 API，扩展只会跳过那一个注册，其余功能照常运行。
 
@@ -64,8 +64,15 @@ MCP Server 只有在满足以下全部条件时才会注册：
 - VS Code 版本为 1.102 或更高。
 - 扩展中至少配置了一个 Forgejo 实例。
 - 该实例保存了 access token。
+- `forgejoToolkit.mcpEnabled` 处于开启状态（默认即开启）。
 
-任一条件不满足时扩展会静默跳过注册——请先检查这三点。
+任一条件不满足时扩展会静默跳过注册——请先检查这几点。把 `forgejoToolkit.mcpEnabled` 关掉会立即撤销 server 定义（无需重载窗口），同时停止工作区仓库映射与本地 broker；而**已经连接**的客户端会继续使用 VS Code 为它启动的 server 进程，直到你重载窗口，因为该进程从来不由扩展持有。
+
+### 怎么告诉 agent 当前工作区对应哪个仓库？
+
+运行 **Forgejo Toolkit: 写入 Copilot 指令**。它会用与 MCP 工具相同的检测逻辑解析工作区对应的仓库（嵌套检出会各自得到自己的文件），找到匹配的已配置实例，然后在那个检出目录的 `.github/copilot-instructions.md` 中写入一小段带分隔标记的说明：写明工作区对应的 `<instance>/<owner>/<repo>`，并说明可以使用只读的 `forgejo-toolkit` MCP 工具。
+
+文件不存在时会创建。已存在的文件会保留它自己的全部内容：还没有 Forgejo 小节时，会在空行之后追加该小节；小节已存在时就地更新（内容已是最新则原样保留），绝不重复写入。如果文件中的标记不完整或重复，命令会完全不动该文件并给出警告——它宁愿什么都不改，也不去猜。若工作区没有匹配任何已配置实例，命令会如实告知且不写任何文件。写入的文字只承诺只读访问，实例 URL 也会去掉其中可能携带的凭据。
 
 ### AI agent 能通过这个插件修改我的仓库吗？
 

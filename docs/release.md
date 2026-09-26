@@ -58,8 +58,10 @@ listing (publisher credentials needed). The sections after it explain each step.
   the extension is published under the `cpf23333` publisher id set in
   `packages/forgejo-toolkit/package.json` and uses a Personal Access Token for
   updates — and an [Open VSX](https://open-vsx.org/) account if you want to
-  publish for VSCodium users. **Open VSX does not carry the extension yet**, so
-  its listing URL in the READMEs does not resolve until that step has run once.
+  publish for VSCodium users. **The extension is deliberately not published on
+  Open VSX at the moment**, so the listing URL in the READMEs does not resolve;
+  if that changes, update `README.md`, `README.zh.md`, `FAQ.md`, `FAQ.zh.md` and
+  this file in the same change.
 
 ## Release workflow
 
@@ -119,6 +121,11 @@ pnpm --filter forgejo-toolkit exec vsce publish
 
 ### 5. Publish to Open VSX
 
+**Not planned at the moment.** The extension is deliberately not published on
+Open VSX for now, and the READMEs and FAQ say exactly that; the steps below are
+kept for the day that decision changes (and then the wording above has to change
+with them).
+
 Install `ovsx`:
 
 ```bash
@@ -155,7 +162,7 @@ the Codeberg repository settings (Settings → Actions → Runners) first.
    API checklist coverage audit (`node tools/api-audit/check.mjs`) and both test
    suites.
 2. Build and package the extension (`pnpm --filter forgejo-toolkit package`),
-   then check the `.vsix` for eleven entries plus the shared-chunks directory —
+   then check the `.vsix` for thirteen entries plus the shared-chunks directory —
    the paths as they appear inside the archive, matched case-insensitively
    because `vsce` writes the changelog copy as `extension/changelog.md`
    regardless of the repository spelling:
@@ -163,10 +170,16 @@ the Codeberg repository settings (Settings → Actions → Runners) first.
    `extension/out/mcp-server.mjs`, `extension/LICENSE.txt`, `extension/NOTICE`,
    `extension/changelog.md`, `extension/l10n/bundle.l10n.json`,
    `extension/walkthrough/addInstance.md`, `extension/out/webview/index.html`,
+   `extension/out/webview/onboarding.html`,
+   `extension/out/webview/pullReviewComment.html`,
    `extension/out/webview/codicon.css` and
    `extension/out/webview/codicon.ttf`. The list lives in the "Check the
    packaged .vsix" step of `.forgejo/workflows/release.yml`; a missing entry
-   fails the run. The two entry bundles are ESM and share almost all of their
+   fails the run. Each webview surface has its own document, because the panels
+   must not download the dashboard shell (`webview/vite.config.ts` builds one
+   input per surface and asserts the resulting graph), so a build that stopped
+   emitting one of them would ship a panel that opens empty. The two entry
+   bundles are ESM and share almost all of their
    code through `extension/out/chunks/` (one esbuild build with `splitting`),
    so that directory is checked as a whole rather than by its hashed file
    names. The two codicon assets are checked because the webview only

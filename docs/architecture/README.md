@@ -42,3 +42,10 @@ See [api-client.md](./api-client.md) for how the generated API client is used an
 ## MCP server
 
 See [mcp-server.md](./mcp-server.md) for the implemented MCP server (embedded in the extension, `packages/forgejo-toolkit/mcp/`) that exposes configured instances to AI agents.
+
+## Design documents
+
+Documents under [`docs/design/`](../design/) record decisions that are **not implemented yet** — the problem, the chosen approach, the rejected alternatives and the evidence that would change the decision. The architecture pages above describe what is actually shipped; when one of these designs lands, its content belongs in the matching architecture page and the design document should be reduced to a pointer.
+
+- [MCP Phase 2 write tools: the confirmation model](../design/mcp-write-tools-confirmation.md) — per-tool settings defaulting to off, no `readOnlyHint` (VS Code's own tool approval becomes the first gate), refusal instead of anonymous fallback when no extension host is running, idempotency, dry-run, audit trail.
+- [Multi-window "one window leads" polling lease](../design/multi-window-polling-lease.md) — a `globalStorage` lease file claimed with an atomic `fs.open(…, 'wx')` instead of a `globalState` timestamp, heartbeat/expiry versus the poll interval, handover on `deactivate()`, and the rule that every failure degrades towards polling rather than towards silently not notifying.

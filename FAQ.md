@@ -12,7 +12,7 @@ Forgejo and Gitea share API history, so many features may work against Gitea ins
 
 ### Can I use it on VSCodium or another VS Code fork?
 
-Yes — the extension is published on [Open VSX](https://open-vsx.org/) exactly for editors like VSCodium that do not use the Microsoft Marketplace, and everything except the AI integration works the same: dashboard, issues, PRs, worktrees, Actions, notifications.
+Yes — install the `.vsix` from the [release page](https://codeberg.org/cpf23333/forgejo-toolkit/releases) (the extension is not published on [Open VSX](https://open-vsx.org/) at the moment), and everything except the AI integration works the same: dashboard, issues, PRs, worktrees, Actions, notifications.
 
 The MCP server needs a consumer, and that is where the forks differ. VS Code's built-in consumer is Copilot agent mode, which is only available in Microsoft's official build. On a fork you therefore drive the MCP server from a **third-party agent** (Cline, Continue, …) or any MCP client: point it at the stable-path shim (`mcp-server.js` in the extension's globalStorage, see "Can I use the MCP server in the Agents window?" below for the exact path). The zero-configuration instance matching and the authenticated broker both work there, because they are implemented by the extension itself, not by VS Code's chat. Nothing needs to be disabled: on an editor whose MCP definition API is missing entirely, the extension skips that one registration and runs everything else normally.
 
@@ -64,8 +64,15 @@ The MCP server is only registered when all of the following are true:
 - You are running VS Code 1.102 or newer.
 - At least one Forgejo instance is configured in the extension.
 - That instance has an access token stored.
+- `forgejoToolkit.mcpEnabled` is on (the default).
 
-If any condition is missing, the extension silently skips registration — check these three points first.
+If any condition is missing, the extension silently skips registration — check these points first. Turning `forgejoToolkit.mcpEnabled` off withdraws the server definitions immediately (no window reload needed) and also stops the workspace-repository mapping and the local broker; a client that is _already_ connected keeps the server process VS Code spawned for it until you reload the window, because the extension never owned that process.
+
+### How do I tell an agent which repository this workspace maps to?
+
+Run **Forgejo Toolkit: Write Copilot Instructions**. It resolves the workspace's repository through the same detection the MCP tools use (including nested checkouts, which get their own file), finds the matching configured instance, and writes a short, delimited section into `.github/copilot-instructions.md` of that checkout: it names the `<instance>/<owner>/<repo>` the workspace maps to and says that the read-only `forgejo-toolkit` MCP tools are available for it.
+
+The file is created when it does not exist. An existing file keeps all of its own content: with no Forgejo section yet, the section is appended after a blank line; when the section is already there, it is updated in place (or left alone when it is current) and never duplicated. A file whose markers are incomplete or duplicated is left completely alone, with a warning — the command would rather change nothing than guess. When no configured instance matches the workspace, it says so and writes no file. The written text promises read-only access only, and the instance URL is written without any credentials it may carry.
 
 ### Can the AI agent modify my repository through this extension?
 
