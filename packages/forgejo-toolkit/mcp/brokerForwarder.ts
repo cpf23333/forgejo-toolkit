@@ -43,6 +43,12 @@ export interface ForwardToBrokerOptions {
   output?: Writable;
   /** Handshake acknowledgement wait; defaults to 10 s. */
   handshakeTimeoutMs?: number;
+  /**
+   * Socket factory; injectable so tests can drive socket-level errors that a
+   * real local connection never produces on demand (the error-layer split
+   * between BrokerUnavailableError and BrokerSessionError).
+   */
+  connect?: (endpoint: string) => net.Socket;
 }
 
 export interface ForwardResult {
@@ -52,13 +58,21 @@ export interface ForwardResult {
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000;
 
+/**
+ * Bytes the broker's acknowledgement line may occupy before the attempt is
+ * failed. The real line is 11 bytes; a peer that streams without a newline is
+ * not our broker, and an unbounded buffer would let it grow the process's
+ * memory at will.
+ */
+const MAX_HANDSHAKE_BYTES = 64 * 1024;
+
 export function forwardToBroker(options: ForwardToBrokerOptions): Promise<ForwardResult> {
   const input = options.input ?? process.stdin;
   const output = options.output ?? process.stdout;
   const timeoutMs = options.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS;
 
   return new Promise((resolve, reject) => {
-    const socket = net.connect(options.endpoint);
+    const socket = (options.connect ?? ((endpoint: string) => net.connect(endpoint)))(options.endpoint);
     // The session phase starts on the acknowledgement line; before it, every
     // failure is a BrokerUnavailableError, after it a BrokerSessionError.
     let acknowledged = false;
@@ -93,24 +107,29 @@ export function forwardToBroker(options: ForwardToBrokerOptions): Promise<Forwar
     // The broker's first line is the handshake acknowledgement; only after
     // it does the socket carry MCP traffic. Bytes of the first session frame
     // can share a chunk with that line, so the remainder of the chunk is
-    // forwarded manually before the plain pipe takes over.
-    let handshakeBuffer = '';
+    // forwarded manually before the plain pipe takes over. Bytes accumulate
+    // undecoded — Node's read boundaries can split a multi-byte UTF-8
+    // character, and decoding per chunk would corrupt it into U+FFFD pairs.
+    let handshakeBuffer: Buffer = Buffer.alloc(0);
     const onHandshakeData = (chunk: Buffer): void => {
-      handshakeBuffer += chunk.toString('utf8');
-      const newline = handshakeBuffer.indexOf('\n');
+      handshakeBuffer = handshakeBuffer.length === 0 ? chunk : Buffer.concat([handshakeBuffer, chunk]);
+      const newline = handshakeBuffer.indexOf(0x0a);
       if (newline < 0) {
+        if (handshakeBuffer.length > MAX_HANDSHAKE_BYTES) {
+          fail(new BrokerUnavailableError('the extension-host broker sent an oversized handshake response'));
+        }
         return;
       }
       clearTimeout(handshakeTimeout);
       socket.removeListener('data', onHandshakeData);
-      const line = handshakeBuffer.slice(0, newline).replace(/\r$/, '');
+      const line = handshakeBuffer.subarray(0, newline).toString('utf8').replace(/\r$/, '');
       if (line !== BROKER_HANDSHAKE_OK_LINE) {
         fail(new BrokerUnavailableError('the extension-host broker rejected the handshake'));
         return;
       }
       acknowledged = true;
-      const remainder = handshakeBuffer.slice(newline + 1);
-      if (remainder) {
+      const remainder = handshakeBuffer.subarray(newline + 1);
+      if (remainder.length > 0) {
         output.write(remainder);
       }
       // stdin EOF half-closes the socket: the broker ends that session while

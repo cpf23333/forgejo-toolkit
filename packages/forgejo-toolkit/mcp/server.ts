@@ -57,14 +57,23 @@ async function main(): Promise<void> {
             ? 'The MCP client closed its stdin; forwarding session over.'
             : 'The extension-host broker closed the connection (the window was closed or the extension deactivated); MCP session over.',
         );
-        process.exit(0);
+        // No process.exit(): it would truncate stdout writes still buffered
+        // in Node (the broker's last frames can be in flight when the socket
+        // closes). Setting the exit code and releasing stdin lets the event
+        // loop drain — pending pipe writes keep it alive until flushed — and
+        // the process then exits on its own.
+        process.exitCode = 0;
+        process.stdin.destroy();
+        return;
       } catch (error) {
         if (error instanceof BrokerSessionError) {
           // The session was already established when it broke; restarting as
           // a different (anonymous) server mid-session would be worse than a
           // clean stop the MCP client can report.
           console.error(`forgejo-toolkit MCP forwarder: ${error.message}`);
-          process.exit(1);
+          process.exitCode = 1;
+          process.stdin.destroy();
+          return;
         }
         if (!(error instanceof BrokerUnavailableError)) {
           throw error;

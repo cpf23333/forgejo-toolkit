@@ -47,6 +47,24 @@ export const BROKER_HANDSHAKE_OK_LINE = JSON.stringify({ ok: true });
  */
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 
+/**
+ * Upper bound for one NDJSON line the pump buffers before giving up on the
+ * connection. Without it a local process could connect — no handshake token
+ * needed for the buffer to grow — and stream bytes without a newline until
+ * the extension host runs out of memory. Legitimate client→host frames
+ * (tool call arguments) are kilobytes at most, so 4 MB is far above the real
+ * ceiling and far below anything that could hurt the host.
+ */
+const MAX_LINE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Concurrent connection cap for the broker listener. The only legitimate
+ * clients are this user's forwarders — a handful at once, one per MCP client
+ * session — so 64 leaves ample headroom while keeping a flood of
+ * never-handshaking connections from exhausting the host's file descriptors.
+ */
+const MAX_BROKER_CONNECTIONS = 64;
+
 /** The minimal slice of the SDK's McpServer this module drives. */
 export interface BrokerMcpServerLike {
   connect(transport: Transport): Promise<void>;
@@ -65,6 +83,8 @@ export interface StartMcpBrokerOptions {
    * the headless forwarder side has no logger worth wiring here.
    */
   log?: (message: string) => void;
+  /** Handshake wait budget per connection; defaults to 10 s. Injectable for tests. */
+  handshakeTimeoutMs?: number;
 }
 
 export interface McpBrokerHandle {
@@ -73,30 +93,78 @@ export interface McpBrokerHandle {
 }
 
 /**
+ * Rejection used when the socket closes (or errors) while a consumer is still
+ * waiting for a line. Distinct from a parse or handshake failure: it simply
+ * means the peer went away first, which is the normal shape of a stale-socket
+ * probe (connect + immediate destroy) or a client that exits early.
+ */
+export class LinePumpClosedError extends Error {}
+
+/**
+ * The slice of net.Socket the pump drives, kept structural so tests can feed
+ * it a plain EventEmitter with a destroy stub.
+ */
+interface LinePumpSocket {
+  on(event: 'data', listener: (chunk: Buffer) => void): unknown;
+  once(event: 'close', listener: () => void): unknown;
+  once(event: 'error', listener: (error: Error) => void): unknown;
+  destroy(): void;
+}
+
+/**
  * Splits a socket's incoming byte stream into NDJSON lines. One pump per
  * connection; the handshake consumes the first line through `nextLine()`,
  * then `setHandler` streams every following line to the transport. Lines
  * received before a consumer is attached are queued, so no message is lost
  * between the handshake read and the transport's `start()`.
+ *
+ * Bytes are accumulated as a Buffer and only complete lines are decoded:
+ * Node's read boundaries are arbitrary byte offsets, so decoding each chunk
+ * on arrival would turn a multi-byte UTF-8 character split across two chunks
+ * into two replacement characters (U+FFFD) — silent content corruption that
+ * JSON.parse would still accept. Splitting happens on the 0x0A byte, which
+ * in UTF-8 can only ever be a newline, never part of a multi-byte sequence.
  */
-class LinePump {
-  private pending = '';
+export class LinePump {
+  private pending: Buffer = Buffer.alloc(0);
   private queue: string[] = [];
-  private waiter: ((line: string) => void) | undefined;
+  private waiter: { resolve: (line: string) => void; reject: (error: Error) => void } | undefined;
   private handler: ((line: string) => void) | undefined;
+  private failure: Error | undefined;
 
-  constructor(socket: net.Socket) {
-    socket.on('data', (chunk: Buffer) => this.push(chunk.toString('utf8')));
+  constructor(
+    private readonly socket: LinePumpSocket,
+    private readonly options: {
+      /** Bytes one unterminated line may accumulate before the connection is dropped. */
+      maxLineBytes?: number;
+      /** Reports the oversize drop without any of the buffered data (log channel). */
+      log?: (message: string) => void;
+    } = {},
+  ) {
+    socket.on('data', (chunk: Buffer) => this.push(chunk));
+    socket.once('close', () => this.fail(new LinePumpClosedError('the socket closed')));
+    socket.once('error', (error) => this.fail(error));
   }
 
-  private push(text: string): void {
-    this.pending += text;
-    let newline = this.pending.indexOf('\n');
+  private push(chunk: Buffer): void {
+    if (this.failure) {
+      return;
+    }
+    this.pending = this.pending.length === 0 ? chunk : Buffer.concat([this.pending, chunk]);
+    let newline = this.pending.indexOf(0x0a);
     while (newline >= 0) {
-      const line = this.pending.slice(0, newline).replace(/\r$/, '');
-      this.pending = this.pending.slice(newline + 1);
+      const line = this.pending.subarray(0, newline).toString('utf8').replace(/\r$/, '');
+      this.pending = this.pending.subarray(newline + 1);
       this.dispatch(line);
-      newline = this.pending.indexOf('\n');
+      newline = this.pending.indexOf(0x0a);
+    }
+    const maxLineBytes = this.options.maxLineBytes ?? MAX_LINE_BYTES;
+    if (this.pending.length > maxLineBytes) {
+      // No newline after maxLineBytes: either an attack or a broken peer.
+      // Destroying without an error surfaces as an ordinary close downstream.
+      this.options.log?.('MCP broker: closing a connection whose line exceeded the buffer limit');
+      this.socket.destroy();
+      this.fail(new LinePumpClosedError('the line buffer limit was exceeded'));
     }
   }
 
@@ -106,9 +174,22 @@ class LinePump {
     } else if (this.waiter) {
       const waiter = this.waiter;
       this.waiter = undefined;
-      waiter(line);
+      waiter.resolve(line);
     } else {
       this.queue.push(line);
+    }
+  }
+
+  /** Settles every pending and future `nextLine()` with the terminal failure. */
+  private fail(error: Error): void {
+    if (this.failure) {
+      return;
+    }
+    this.failure = error;
+    if (this.waiter) {
+      const waiter = this.waiter;
+      this.waiter = undefined;
+      waiter.reject(error);
     }
   }
 
@@ -118,8 +199,11 @@ class LinePump {
     if (queued !== undefined) {
       return Promise.resolve(queued);
     }
-    return new Promise((resolve) => {
-      this.waiter = resolve;
+    if (this.failure) {
+      return Promise.reject(this.failure);
+    }
+    return new Promise((resolve, reject) => {
+      this.waiter = { resolve, reject };
     });
   }
 
@@ -208,8 +292,14 @@ interface BrokerSession {
 /**
  * The endpoint a broker of this user should listen on. Windows uses a named
  * pipe whose name carries a short hash of the username and profile path, so
- * two users on one machine (named pipes are machine-global) can never collide
- * — or squat on each other's broker.
+ * two users on one machine (named pipes are machine-global) do not collide
+ * with each other by accident. The hash inputs are public information on a
+ * shared machine, so this is a collision avoidance, not a squatting defense:
+ * a malicious local process that wins the race can occupy the name first and
+ * keep the real broker from listening (broker mode then silently degrades to
+ * the anonymous launch). It cannot intercept sessions that way, because a
+ * window that fails to bind never writes a registration file, and the
+ * forwarder only trusts registrations.
  *
  * Other platforms use a unix socket in the temp directory, hashed the same
  * way. It is deliberately NOT inside the extension's globalStorage directory:
@@ -224,8 +314,6 @@ export function defaultBrokerEndpoint(options: {
   platform: NodeJS.Platform;
   username: string;
   homeDir: string;
-  /** The extension's globalStorage directory; only used off-Windows. */
-  socketDir: string;
 }): string {
   const userHash = crypto
     .createHash('sha256')
@@ -254,13 +342,37 @@ export function defaultBrokerEndpoint(options: {
 export async function startMcpBroker(options: StartMcpBrokerOptions): Promise<McpBrokerHandle> {
   const sessions = new Set<BrokerSession>();
   const log = options.log ?? (() => undefined);
+  const isPipe = options.endpoint.startsWith('\\\\.\\pipe\\');
 
   const server = net.createServer((socket) => {
     void handleConnection(socket, options, sessions, log);
   });
+  server.maxConnections = MAX_BROKER_CONNECTIONS;
   // Listen errors surface as an 'error' event, not through the callback;
   // route them into the startup promise so EADDRINUSE reaches the caller.
   await listenOrProbeStaleSocket(server, options.endpoint);
+  // …but the listener must outlive the startup: a server-level error after
+  // listen (accept failing on fd exhaustion, say) has no other handler and
+  // would otherwise crash the extension host as an uncaught exception.
+  server.on('error', (error) => {
+    log(`MCP broker: listener error after startup: ${error.message}`);
+  });
+
+  // Identity of the socket file this broker created, so close() only unlinks
+  // its own file. Without the check a shutdown that overlaps a new broker's
+  // stale-file takeover would delete the *new* broker's live socket from
+  // under it, leaving it listening on an unlinked inode no client can reach.
+  let socketFileId: { dev: number; ino: number } | undefined;
+  if (!isPipe) {
+    socketFileId = await fs.promises
+      .stat(options.endpoint)
+      .then((stats) => ({ dev: stats.dev, ino: stats.ino }))
+      .catch(() => undefined);
+    // The socket file is created with the process umask (often world-accessible
+    // on unix). Tighten it to the owner: connect requires write access, and
+    // the handshake secret alone should not be enough for another local user.
+    await fs.promises.chmod(options.endpoint, 0o600).catch(() => undefined);
+  }
 
   return {
     endpoint: options.endpoint,
@@ -279,14 +391,24 @@ export async function startMcpBroker(options: StartMcpBrokerOptions): Promise<Mc
         server.close(() => resolve());
         resolve();
       });
-      if (!options.endpoint.startsWith('\\\\.\\pipe\\')) {
-        // The socket file is ours alone (created by listen, per-platform in
-        // globalStorage); remove it so the next broker does not take the
-        // stale-file probe path.
-        await fs.promises.rm(options.endpoint, { force: true }).catch(() => undefined);
+      if (!isPipe && socketFileId) {
+        await unlinkIfSameFile(options.endpoint, socketFileId);
       }
     },
   };
+}
+
+/**
+ * Removes a unix socket path only when it is still the file the caller
+ * created (same device + inode). A path that vanished or now belongs to a
+ * newer broker is left alone. Exported for the unit tests.
+ */
+export async function unlinkIfSameFile(filePath: string, expected: { dev: number; ino: number }): Promise<void> {
+  const stats = await fs.promises.stat(filePath).catch(() => undefined);
+  if (!stats || stats.dev !== expected.dev || stats.ino !== expected.ino) {
+    return;
+  }
+  await fs.promises.rm(filePath, { force: true }).catch(() => undefined);
 }
 
 /**
@@ -342,7 +464,7 @@ async function handleConnection(
   log: (message: string) => void,
 ): Promise<void> {
   socket.setNoDelay(true);
-  const pump = new LinePump(socket);
+  const pump = new LinePump(socket, { log });
   const transport = new SocketTransport(socket, pump);
   const session: BrokerSession = { socket, transport };
   sessions.add(session);
@@ -356,10 +478,20 @@ async function handleConnection(
   const handshakeTimeout = setTimeout(() => {
     log('MCP broker: closing a connection that never completed its handshake');
     socket.destroy();
-  }, HANDSHAKE_TIMEOUT_MS);
+  }, options.handshakeTimeoutMs ?? HANDSHAKE_TIMEOUT_MS);
   let handshakeLine: string;
   try {
     handshakeLine = await pump.nextLine();
+  } catch (error) {
+    // The socket closed or errored before the first line — the normal shape
+    // of a stale-socket probe or a client that exited early, not an attack
+    // worth a louder log.
+    if (!(error instanceof LinePumpClosedError)) {
+      log(
+        `MCP broker: connection failed before its handshake: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return;
   } finally {
     clearTimeout(handshakeTimeout);
   }
@@ -397,6 +529,14 @@ async function handleConnection(
     // which is the same surface it would have had without the broker.
     log(`MCP broker: could not create a session server: ${error instanceof Error ? error.message : String(error)}`);
     socket.destroy();
+    return;
+  }
+  if (socket.destroyed) {
+    // The client left while createServer ran (it can spawn a git scan). The
+    // 'close' handler already dropped the session and closed nothing — the
+    // server was not assigned yet — so close it here or it leaks, pinned by
+    // an SDK that will never see a transport close.
+    await mcpServer.close().catch(() => undefined);
     return;
   }
   session.server = mcpServer;

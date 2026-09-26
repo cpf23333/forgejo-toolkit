@@ -30,18 +30,31 @@ import * as fs from 'fs';
  * what matters) and the error is re-thrown, so the caller reports the real
  * reason instead of a successful write.
  */
-export async function writeFileAtomically(targetPath: string, data: string): Promise<void> {
+export async function writeFileAtomically(
+  targetPath: string,
+  data: string,
+  options?: {
+    /**
+     * Mode applied when the target does not exist yet (an existing target's
+     * mode is preserved instead). Use it for files whose first write must
+     * already be restricted — a token-bearing registration created 0644 by
+     * the process umask would be world-readable until something chmods it.
+     */
+    mode?: number;
+  },
+): Promise<void> {
   const tempPath = `${targetPath}.part`;
   try {
     // `stat` on a target that does not exist yet is the ordinary first write:
-    // there is no mode to preserve, so the process default applies.
+    // the requested creation mode (if any) applies instead of a copied one.
     const existingMode = await fs.promises
       .stat(targetPath)
       .then((stats) => stats.mode & 0o777)
       .catch(() => undefined);
     await fs.promises.writeFile(tempPath, data, 'utf8');
-    if (existingMode !== undefined) {
-      await fs.promises.chmod(tempPath, existingMode);
+    const mode = existingMode ?? options?.mode;
+    if (mode !== undefined) {
+      await fs.promises.chmod(tempPath, mode);
     }
     await syncFile(tempPath);
     await fs.promises.rename(tempPath, targetPath);

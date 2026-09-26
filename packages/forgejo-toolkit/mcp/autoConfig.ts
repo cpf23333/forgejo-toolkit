@@ -504,17 +504,35 @@ export interface BrokerRegistration {
 }
 
 /**
- * Finds the broker registration a forwarder should try, if any: the newest
- * readable `mcp-broker.json` across the candidate data directories.
+ * Cheap liveness probe for a registration's owning pid. Signal 0 performs
+ * the error check without delivering a signal; EPERM still means "exists".
+ * A recycled pid can false-positive — the connect attempt stays the real
+ * authority — but a *dead* pid reliably flags a crash-orphaned file.
+ */
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * Finds the broker registration a forwarder should try, if any.
  *
  * Only one broker exists at a time (the first window to bind the endpoint
  * wins; see src/mcpBroker.ts), but several globalStorage directories can each
  * hold a file — one per VS Code flavor/profile — and the live broker is in
- * whichever window started first, so every directory is scanned. Newest
- * mtime wins, matching the state-file discovery's staleness policy. The pid
- * is *not* probed: a stale file only costs one refused connect, and the
- * forwarder treats any connect/handshake failure as "no broker" and falls
- * back to the zero-configuration launch.
+ * whichever window started first, so every directory is scanned. A candidate
+ * whose pid is verifiably dead is crash-orphaned and skipped when any live
+ * candidate exists: newest-mtime-alone would let a stale file with a lucky
+ * timestamp (clock drift, a write moments before a crash) shadow the live
+ * broker and degrade every launch to anonymous for no observable reason.
+ * Among the survivors the newest mtime wins, matching the state-file
+ * discovery's staleness policy. When nothing looks alive the newest file is
+ * still returned — pid reuse can fool the probe, and a stale file only costs
+ * one refused connect before the zero-configuration fallback.
  *
  * The file is a trust boundary like the registry (another extension version
  * may have written it), so every field is checked structurally and an
@@ -524,7 +542,7 @@ export async function discoverBrokerRegistration(
   options: AutoConfigOptions = defaultOptions(),
 ): Promise<BrokerRegistration | undefined> {
   const { dirs } = await discoverDataDirs(options);
-  let newest: { registration: BrokerRegistration; mtimeMs: number } | undefined;
+  const candidates: { registration: BrokerRegistration; mtimeMs: number }[] = [];
   for (const dir of dirs) {
     const filePath = path.join(dir, BROKER_REGISTRY_BASENAME);
     let stats: fs.Stats;
@@ -552,10 +570,7 @@ export async function discoverBrokerRegistration(
     ) {
       continue;
     }
-    if (newest && stats.mtimeMs <= newest.mtimeMs) {
-      continue;
-    }
-    newest = {
+    candidates.push({
       mtimeMs: stats.mtimeMs,
       registration: {
         endpoint: candidate.endpoint,
@@ -563,9 +578,10 @@ export async function discoverBrokerRegistration(
         pid: candidate.pid,
         filePath,
       },
-    };
+    });
   }
-  return newest?.registration;
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return (candidates.find((candidate) => isPidAlive(candidate.registration.pid)) ?? candidates[0])?.registration;
 }
 
 export interface RemoteInstanceMatch {

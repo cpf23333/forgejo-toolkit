@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -606,5 +607,24 @@ describe('discoverBrokerRegistration', () => {
     const result = await discoverBrokerRegistration(options);
 
     expect(result).toMatchObject({ endpoint: 'insiders-endpoint', filePath: insidersFile });
+  });
+
+  it('skips a crash-orphaned file whose pid is dead when a live candidate exists', async () => {
+    // A stale file with a lucky mtime (clock drift, a write moments before a
+    // crash) must not shadow the live broker and degrade launches to
+    // anonymous. A definitely-dead pid: a process that already exited.
+    const deadPid = spawnSync(process.execPath, ['-e', '']).pid ?? 999_999_999;
+    const userDir = (flavor: string): string =>
+      path.join(tempDir, '.config', flavor, 'User', 'globalStorage', 'cpf23333.forgejo-toolkit');
+    const liveFile = writeBrokerFile(userDir('Code'), validBroker({ endpoint: 'live-endpoint', pid: process.pid }));
+    writeBrokerFile(userDir('Code - Insiders'), validBroker({ endpoint: 'orphaned-endpoint', pid: deadPid }));
+    // The orphaned file is newer: mtime alone would pick it.
+    const older = new Date(Date.now() - 60_000);
+    fs.utimesSync(liveFile, older, older);
+
+    const options = makeOptions({ cwd: tempDir, env: {}, platform: 'linux', homeDir: tempDir });
+    const result = await discoverBrokerRegistration(options);
+
+    expect(result).toMatchObject({ endpoint: 'live-endpoint', filePath: liveFile });
   });
 });

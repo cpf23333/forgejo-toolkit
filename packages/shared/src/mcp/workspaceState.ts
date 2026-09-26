@@ -111,13 +111,12 @@ export interface McpInstanceRegistryFile {
  * the same user (or, on a shared machine, another local process that can
  * guess the endpoint name) cannot make the extension host issue authenticated
  * requests on its behalf. The file lands in the same globalStorage directory
- * as the workspace state files — same-user readable — which is accepted on
- * purpose: anyone who can read this file already runs with the user's own
- * privileges and could read the editor's token-bearing state database
- * instead. What the file must *never* carry is the Forgejo token itself, and
- * it does not: only this broker-local handshake secret. A forwarded session
- * proves "same local user who can read globalStorage", nothing more — exactly
- * the trust level the VS Code-spawned path already grants its stdio children.
+ * as the workspace state files and is written owner-only (0600, directory
+ * 0700); the unix socket it points at is chmod 0600 as well. What the file
+ * must *never* carry is the Forgejo token itself, and it does not: only this
+ * broker-local handshake secret. A forwarded session proves "same local user
+ * who can read globalStorage", nothing more — exactly the trust level the VS
+ * Code-spawned path already grants its stdio children.
  *
  * Unlike the instance registry, this file is removed by `deactivate()`: it
  * describes a live listener owned by one window, not account configuration.
@@ -128,9 +127,10 @@ export interface McpBrokerRegistryFile {
   /** Schema version, pinned at 1 so a newer writer is detectable. */
   version: 1;
   /**
-   * Pid of the extension host process that owns the broker, for staleness
-   * debugging. Consumers treat connect failure — not this pid — as the
-   * authority on liveness.
+   * Pid of the extension host process that owns the broker. Consumers use it
+   * as a cheap staleness pre-filter (a verifiably dead pid marks a
+   * crash-orphaned file) but still treat connect failure as the final
+   * authority on liveness — pids get recycled.
    */
   pid: number;
   /**
