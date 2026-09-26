@@ -69,6 +69,7 @@ describe('MCP server over InMemoryTransport', () => {
         'get_file_history',
         'get_issue',
         'get_pr_diff',
+        'get_pr_review_brief',
         'get_pr_timeline',
         'get_pull_request',
         'get_pull_review_comments',

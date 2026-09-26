@@ -11,6 +11,9 @@ import {
   isFailedActionJob,
   listTruncationNote,
   logWasTruncatedByClient,
+  PR_REVIEW_MAX_COMMENT_LENGTH,
+  PR_REVIEW_MAX_COMMENTS,
+  PR_REVIEW_MAX_DIFF_FILES,
   registerTools,
   repoSearchTruncationNote,
   isSafePathSegment,
@@ -72,6 +75,58 @@ interface CiSummaryResult {
     };
   }[];
   passedJobs?: { id?: number; name?: string; status?: string }[];
+}
+
+/** The `get_pr_review_brief` result shape, for typed assertions in tests. */
+interface PrReviewBriefResult {
+  pullRequest: {
+    number?: number;
+    title?: string;
+    state?: string;
+    draft?: boolean;
+    merged?: boolean;
+    author?: string;
+    baseBranch?: string;
+    headBranch?: string;
+    mergeable?: boolean;
+    mergeBlockers?: { type?: string }[];
+    protectionUnknown?: boolean;
+  };
+  diffStats: {
+    fileCount?: number;
+    additions?: number;
+    deletions?: number;
+    files?: { path?: string; status?: string; additions?: number; deletions?: number }[];
+    listedFileCount?: number;
+    truncated?: boolean;
+    truncatedBy?: 'list-cap' | 'row-limit' | 'budget' | 'server-partial';
+  };
+  reviewStatus: {
+    reviewers: { reviewer?: string; state?: string; reviewedAt?: string; reviewId?: number; stale?: boolean }[];
+    summary: string;
+    approvals: number;
+    changesRequested: number;
+    awaiting: number;
+    truncated: boolean;
+  };
+  unresolvedComments: {
+    total: number;
+    returned: number;
+    comments: {
+      id?: number;
+      reviewId?: number;
+      path?: string;
+      line?: number;
+      side?: 'new' | 'old';
+      author?: string;
+      createdAt?: string;
+      body?: string;
+      bodyTruncated?: boolean;
+    }[];
+    truncated: boolean;
+    truncatedBy?: 'count' | 'budget';
+    unreadableReviewCount: number;
+  };
 }
 
 describe('MCP tool handlers with MSW', () => {
@@ -140,6 +195,11 @@ describe('MCP tool handlers with MSW', () => {
     });
     const { call } = registerWith(client);
     return { call, calls };
+  }
+
+  /** The `get_pr_review_brief` result as the registered tool returns it. */
+  function parseBrief(result: { isError?: boolean; content: { text: string }[] } | undefined): PrReviewBriefResult {
+    return JSON.parse(result?.content[0].text ?? 'null') as PrReviewBriefResult;
   }
 
   it('list_issues lists repository issues when owner and repo are given', async () => {
@@ -277,6 +337,314 @@ describe('MCP tool handlers with MSW', () => {
     }[];
     expect(timeline).toHaveLength(1);
     expect(timeline[0].body).toBe(mockTimelineComment.body);
+  });
+
+  it('get_pr_review_brief packs the pull request, its diff stats, reviews and unresolved comments', async () => {
+    // The whole point of the tool: the four reads a review used to make by hand
+    // come back as one pre-sized payload. The mock server answers each with the
+    // shared fixtures, so every section can be checked against them.
+    const handlers = createHandlers();
+    const brief = (await handlers.get_pr_review_brief({
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 2,
+    })) as PrReviewBriefResult;
+
+    expect(brief.pullRequest.title).toBe(mockPullRequestDetail.title);
+    expect(brief.pullRequest.state).toBe('open');
+    expect(brief.pullRequest.author).toBe(mockUser.login);
+    expect(brief.pullRequest.baseBranch).toBe(mockPullRequestDetail.base?.ref);
+    expect(brief.pullRequest.headBranch).toBe(mockPullRequestDetail.head?.ref);
+    // The mocked base branch requires one approval and the only review is a
+    // COMMENT, so the missing approval is the blocker the brief must carry.
+    expect(brief.pullRequest.mergeBlockers?.map((blocker) => blocker.type)).toContain('required_approvals');
+
+    expect(brief.diffStats).toMatchObject({
+      fileCount: mockPullRequestDetail.changed_files,
+      additions: mockPullRequestDetail.additions,
+      deletions: mockPullRequestDetail.deletions,
+      listedFileCount: 1,
+      truncated: false,
+    });
+    expect(brief.diffStats.files?.[0]).toMatchObject({ path: 'src/index.ts', additions: 10, deletions: 2 });
+
+    expect(brief.reviewStatus.summary).toBe('awaiting_review');
+    expect(brief.reviewStatus.reviewers).toEqual([
+      {
+        reviewer: mockUser.login,
+        state: mockPullReview.state,
+        reviewedAt: mockPullReview.submitted_at,
+        reviewId: mockPullReview.id,
+      },
+    ]);
+
+    expect(brief.unresolvedComments.total).toBe(1);
+    expect(brief.unresolvedComments.returned).toBe(1);
+    expect(brief.unresolvedComments.unreadableReviewCount).toBe(0);
+    expect(brief.unresolvedComments.comments[0]).toMatchObject({
+      id: mockPullReviewComment.id,
+      reviewId: mockPullReviewComment.pull_request_review_id,
+      path: mockPullReviewComment.path,
+      line: mockPullReviewComment.position,
+      side: 'new',
+      author: mockUser.login,
+      body: mockPullReviewComment.body,
+    });
+  });
+
+  it('get_pr_review_brief skips the changed-files request when includeDiffStats is false', async () => {
+    const { call, calls } = registerWithStubClient({
+      getPullRequestDetail: async () => ({
+        number: 2,
+        changed_files: 3,
+        additions: 30,
+        deletions: 4,
+        user: { login: 'alice' },
+      }),
+      getPullRequestFiles: async () => [{ filename: 'src/index.ts', additions: 30, deletions: 4 }],
+      listPullReviews: async () => [],
+      getPullReviewComments: async () => [],
+    });
+
+    const brief = parseBrief(
+      await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2, includeDiffStats: false }),
+    );
+
+    expect(calls.map((entry) => entry.name)).not.toContain('getPullRequestFiles');
+    // The totals come from the pull request record, so they survive the skipped
+    // request; only the per-file table is absent.
+    expect(brief.diffStats).toEqual({ fileCount: 3, additions: 30, deletions: 4 });
+    expect(brief.diffStats.files).toBeUndefined();
+  });
+
+  it("get_pr_review_brief keeps only each reviewer's latest conclusion", async () => {
+    const { call } = registerWithStubClient({
+      getPullRequestDetail: async () => ({ number: 2, title: 'Add dark mode', state: 'open' }),
+      getPullRequestFiles: async () => [],
+      listPullReviews: async () => [
+        { id: 1, user: { login: 'alice' }, state: 'REQUEST_CHANGES', submitted_at: '2026-08-01T09:00:00Z' },
+        { id: 2, user: { login: 'bob' }, state: 'COMMENT', submitted_at: '2026-08-02T09:00:00Z' },
+        { id: 3, user: { login: 'alice' }, state: 'APPROVED', submitted_at: '2026-08-03T09:00:00Z' },
+        {
+          id: 4,
+          user: { login: 'carol' },
+          state: 'CHANGES_REQUESTED',
+          submitted_at: '2026-08-04T09:00:00Z',
+          stale: true,
+        },
+      ],
+      getPullReviewComments: async () => [],
+    });
+
+    const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
+
+    // Alice appears once, with the approval that came after her change request,
+    // and the entries follow the order of their latest review.
+    expect(
+      brief.reviewStatus.reviewers.map((reviewer) => [reviewer.reviewer, reviewer.state, reviewer.reviewId]),
+    ).toEqual([
+      ['bob', 'COMMENT', 2],
+      ['alice', 'APPROVED', 3],
+      ['carol', 'CHANGES_REQUESTED', 4],
+    ]);
+    // Carol's review is stale, so it does not decide the summary: with no current
+    // change request and one approval, the aggregate says approved — and her
+    // stale flag stays on her entry so the reader can see why.
+    expect(brief.reviewStatus.summary).toBe('approved');
+    expect(brief.reviewStatus.approvals).toBe(1);
+    expect(brief.reviewStatus.changesRequested).toBe(0);
+    expect(brief.reviewStatus.awaiting).toBe(1);
+    expect(brief.reviewStatus.reviewers[2].stale).toBe(true);
+  });
+
+  it('get_pr_review_brief reports a change request that still stands', async () => {
+    const { call } = registerWithStubClient({
+      getPullRequestDetail: async () => ({ number: 2 }),
+      getPullRequestFiles: async () => [],
+      listPullReviews: async () => [
+        { id: 1, user: { login: 'alice' }, state: 'APPROVED' },
+        // Forgejo's own spelling; `CHANGES_REQUESTED` (GitHub's) is recognised too.
+        { id: 2, user: { login: 'bob' }, state: 'REQUEST_CHANGES' },
+      ],
+      getPullReviewComments: async () => [],
+    });
+
+    const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
+
+    expect(brief.reviewStatus.summary).toBe('changes_requested');
+    expect(brief.reviewStatus.changesRequested).toBe(1);
+  });
+
+  it('get_pr_review_brief marks a diff table it had to cut', async () => {
+    const files = Array.from({ length: PR_REVIEW_MAX_DIFF_FILES + 3 }, (_, index) => ({
+      filename: `src/file-${index}.ts`,
+      status: 'modified',
+      additions: 1,
+      deletions: 1,
+    }));
+    const { call } = registerWithStubClient({
+      getPullRequestDetail: async () => ({
+        number: 2,
+        changed_files: files.length,
+        additions: files.length,
+        deletions: files.length,
+      }),
+      getPullRequestFiles: async () => files,
+      listPullReviews: async () => [],
+      getPullReviewComments: async () => [],
+    });
+
+    const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
+
+    expect(brief.diffStats.files).toHaveLength(PR_REVIEW_MAX_DIFF_FILES);
+    expect(brief.diffStats.listedFileCount).toBe(PR_REVIEW_MAX_DIFF_FILES);
+    expect(brief.diffStats.truncated).toBe(true);
+    expect(brief.diffStats.truncatedBy).toBe('row-limit');
+    // The totals come from the pull request record, so the cut table still
+    // reports the real size of the change.
+    expect(brief.diffStats.fileCount).toBe(files.length);
+    expect(brief.diffStats.additions).toBe(files.length);
+  });
+
+  it('get_pr_review_brief reports the client list cap on the changed-file list', async () => {
+    // The client pages changed files up to the shared cap, so a list that reaches
+    // it may be missing files the tool never saw: that cut has to outrank the
+    // tool's own row budget.
+    const files = Array.from({ length: LIST_ITEM_LIMIT }, (_, index) => ({
+      filename: `f${index}.ts`,
+      status: 'modified',
+      additions: 1,
+      deletions: 0,
+    }));
+    const { call } = registerWithStubClient({
+      getPullRequestDetail: async () => ({ number: 2, changed_files: files.length }),
+      getPullRequestFiles: async () => files,
+      listPullReviews: async () => [],
+      getPullReviewComments: async () => [],
+    });
+
+    const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
+
+    expect(brief.diffStats.truncated).toBe(true);
+    expect(brief.diffStats.truncatedBy).toBe('list-cap');
+  });
+
+  it('get_pr_review_brief flags it when the server returns fewer files than the pull request record claims', async () => {
+    // Forgejo 16 answers the files endpoint of a merged pull request whose
+    // head branch is gone with a partial diff and no indication: 1 row where
+    // changed_files says 16. No cap on this side fired, so without the flag
+    // the table would read as the whole change.
+    const { call } = registerWithStubClient({
+      getPullRequestDetail: async () => ({ number: 2, changed_files: 16, additions: 183, deletions: 456 }),
+      getPullRequestFiles: async () => [{ filename: 'README.md', additions: 142, deletions: 16 }],
+      listPullReviews: async () => [],
+      getPullReviewComments: async () => [],
+    });
+
+    const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
+
+    expect(brief.diffStats.truncated).toBe(true);
+    expect(brief.diffStats.truncatedBy).toBe('server-partial');
+    expect(brief.diffStats.listedFileCount).toBe(1);
+    expect(brief.diffStats.fileCount).toBe(16);
+  });
+
+  it('get_pr_review_brief caps the unresolved comment list by count and keeps the newest', async () => {
+    const comments = Array.from({ length: PR_REVIEW_MAX_COMMENTS + 2 }, (_, index) => ({
+      id: index + 1,
+      path: 'src/index.ts',
+      position: 2,
+      body: `remark ${index + 1}`,
+      user: { login: 'alice' },
+    }));
+    const { call } = registerWithStubClient({
+      getPullRequestDetail: async () => ({ number: 2 }),
+      getPullRequestFiles: async () => [],
+      listPullReviews: async () => [{ id: 1, user: { login: 'alice' }, state: 'COMMENT' }],
+      getPullReviewComments: async () => comments,
+    });
+
+    const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
+
+    expect(brief.unresolvedComments.total).toBe(PR_REVIEW_MAX_COMMENTS + 2);
+    expect(brief.unresolvedComments.returned).toBe(PR_REVIEW_MAX_COMMENTS);
+    expect(brief.unresolvedComments.truncated).toBe(true);
+    expect(brief.unresolvedComments.truncatedBy).toBe('count');
+    // The oldest remarks are the ones most likely to have been answered already.
+    expect(brief.unresolvedComments.comments.map((comment) => comment.body)).not.toContain('remark 1');
+    expect(brief.unresolvedComments.comments.at(-1)?.body).toBe(`remark ${PR_REVIEW_MAX_COMMENTS + 2}`);
+  });
+
+  it('get_pr_review_brief cuts the unresolved comments to the shared character budget', async () => {
+    const comments = Array.from({ length: 40 }, (_, index) => ({
+      id: index + 1,
+      path: 'src/index.ts',
+      position: 2,
+      body: 'x'.repeat(PR_REVIEW_MAX_COMMENT_LENGTH + 100),
+      user: { login: 'alice' },
+    }));
+    const { call } = registerWithStubClient({
+      getPullRequestDetail: async () => ({ number: 2 }),
+      getPullRequestFiles: async () => [],
+      listPullReviews: async () => [{ id: 1, user: { login: 'alice' }, state: 'COMMENT' }],
+      getPullReviewComments: async () => comments,
+    });
+
+    const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
+
+    expect(brief.unresolvedComments.total).toBe(40);
+    expect(brief.unresolvedComments.truncated).toBe(true);
+    expect(brief.unresolvedComments.truncatedBy).toBe('budget');
+    // The count cap was not the binding one, and each kept body is itself cut to
+    // the per-comment cap with the cut announced in the body.
+    expect(brief.unresolvedComments.returned).toBeLessThan(PR_REVIEW_MAX_COMMENTS);
+    expect(brief.unresolvedComments.comments[0].bodyTruncated).toBe(true);
+    expect(brief.unresolvedComments.comments[0].body).toContain('(truncated: 100 more characters)');
+  });
+
+  it('leaves a resolved conversation out, replies included, and bodyless anchors too', async () => {
+    // Forgejo sets `resolver` only on the first comment of a conversation, so a
+    // reply inside a resolved thread carries none: filtering per comment would
+    // report it as unresolved.
+    const { call } = registerWithStubClient({
+      getPullRequestDetail: async () => ({ number: 2 }),
+      getPullRequestFiles: async () => [],
+      listPullReviews: async () => [{ id: 1, user: { login: 'alice' }, state: 'COMMENT' }],
+      getPullReviewComments: async () => [
+        {
+          id: 1,
+          path: 'src/a.ts',
+          position: 3,
+          body: 'please rename this',
+          user: { login: 'alice' },
+          resolver: { login: 'bob' },
+        },
+        { id: 2, path: 'src/a.ts', position: 3, body: 'done in the next push', user: { login: 'alice' } },
+        { id: 3, path: 'src/b.ts', position: 4, body: 'still open', user: { login: 'alice' } },
+        { id: 4, path: 'src/b.ts', position: 5, body: '', user: { login: 'alice' } },
+      ],
+    });
+
+    const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
+
+    expect(brief.unresolvedComments.total).toBe(1);
+    expect(brief.unresolvedComments.comments.map((comment) => comment.body)).toEqual(['still open']);
+  });
+
+  it('get_pr_review_brief fails when the pull request number does not exist', async () => {
+    // A wrong index is a 404 from the pulls endpoint, not an empty brief: the
+    // tool result has to be an error, with the client's own not-found sentence.
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/pulls/:index', () =>
+        HttpResponse.json({ message: 'not found' }, { status: 404 }),
+      ),
+    );
+    const { call } = registerWith(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+    const result = await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 999 });
+
+    expect(result?.isError).toBe(true);
+    expect(result?.content[0].text ?? '').toContain('Not found');
+    expect(result?.content[0].text ?? '').toContain('demo-user/demo-repo');
   });
 
   it('list_notifications defaults to unread and pinned notifications', async () => {
@@ -1680,5 +2048,22 @@ describe('tool descriptions and schemas', () => {
     expect(config?.description).toContain('tail');
     expect(config?.description).toContain('truncatedByClient');
     expect(config?.inputSchema?.includePassedJobs?.description ?? '').toContain('Default: false');
+  });
+
+  it('tells the caller how the review brief divides work with the detail tools', () => {
+    // The brief overlaps get_pull_request, get_pr_diff and get_pr_timeline, so
+    // the description has to say what it leaves out and which tool to reach for
+    // each omission — otherwise an agent can read a brief without a diff as a
+    // complete review input.
+    const config = captureConfigs().get('get_pr_review_brief');
+
+    expect(config?.description).toContain('get_pr_diff');
+    expect(config?.description).toContain('get_pr_timeline');
+    expect(config?.description).toContain('get_pull_request');
+    expect(config?.description).toMatch(/never the diff text/);
+    // Every cut the result can carry is named, so the caller can act on it.
+    expect(config?.description).toContain('truncatedBy');
+    expect(config?.description).toContain('unreadableReviewCount');
+    expect(config?.inputSchema?.includeDiffStats?.description ?? '').toContain('default: true');
   });
 });

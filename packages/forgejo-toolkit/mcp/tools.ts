@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { PullReview, PullReviewComment } from '@cpf23333-forgejo-toolkit/api';
 import {
   LIST_ITEM_LIMIT,
   MAX_JOB_LOG_LENGTH,
@@ -8,6 +9,7 @@ import {
   type ForgejoClient,
 } from '../src/api/client';
 import { toApiError, userFacingErrorMessage } from '../src/api/errors-core';
+import type { ForgejoChangedFile, MergeBlocker } from '../src/api/types';
 import { resolveWorkspaceRepository } from './workspaceState';
 
 /**
@@ -88,6 +90,11 @@ export interface CiFailureSummaryArgs extends RepoRefArgs {
   runId: number;
   /** Also list the jobs that passed (name and status only; their logs are never read). */
   includePassedJobs?: boolean;
+}
+
+export interface PrReviewBriefArgs extends IssueRefArgs {
+  /** Include the per-file diff table (default: true). */
+  includeDiffStats?: boolean;
 }
 
 export interface FileContentArgs extends RepoRefArgs {
@@ -412,6 +419,476 @@ export function summarizeCiJobLog(
 }
 
 /**
+ * One changed file as `get_pr_review_brief` reports it: a row of the per-file
+ * diff table. Only the line counts are carried, never the diff text — the text
+ * is `get_pr_diff`'s job, and a full diff would dwarf everything else the brief
+ * exists to deliver.
+ */
+export interface PrReviewBriefFile {
+  path?: string;
+  previousPath?: string;
+  status?: string;
+  additions?: number;
+  deletions?: number;
+  changes?: number;
+}
+
+/** The pull request header of a `get_pr_review_brief` result. */
+export interface PrReviewBriefPullRequest {
+  number?: number;
+  title?: string;
+  state?: string;
+  draft?: boolean;
+  merged?: boolean;
+  author?: string;
+  baseBranch?: string;
+  headBranch?: string;
+  /**
+   * The pull request record's own flag. False also covers "the server has not
+   * computed it yet" and "the required checks are still unresolved", so
+   * `mergeBlockers` — not this flag on its own — is what says whether merging is
+   * blocked.
+   */
+  mergeable?: boolean;
+  /** Why the pull request cannot merge yet; empty when nothing blocks it. */
+  mergeBlockers?: MergeBlocker[];
+  /** True when the base branch's protection rules could not be read, so `mergeBlockers` may be incomplete. */
+  protectionUnknown?: boolean;
+}
+
+/** One reviewer's latest conclusion inside a `get_pr_review_brief` result. */
+export interface PrReviewBriefReviewer {
+  reviewer?: string;
+  state?: string;
+  /** When the review was submitted; for a still-pending review, when it was last updated. */
+  reviewedAt?: string;
+  reviewId?: number;
+  /** True when a later commit made the review outdated; it no longer counts in `summary`. */
+  stale?: boolean;
+  /** True when the review was dismissed; it no longer counts in `summary`. */
+  dismissed?: boolean;
+}
+
+/**
+ * The aggregate conclusion of the latest (current) review per reviewer.
+ *
+ * `approved` only means "nobody currently objects and at least one reviewer
+ * approved": the required number of approvals is a branch-protection setting,
+ * and `pullRequest.mergeBlockers` is where that requirement is reported.
+ */
+export type PrReviewBriefSummary = 'approved' | 'changes_requested' | 'awaiting_review' | 'no_reviews';
+
+/** The review picture of a `get_pr_review_brief` result. */
+export interface PrReviewBriefReviewStatus {
+  /** One entry per reviewer, their most recent review, ordered by that review's position in the review list. */
+  reviewers: PrReviewBriefReviewer[];
+  summary: PrReviewBriefSummary;
+  approvals: number;
+  changesRequested: number;
+  /** Reviewers whose current review neither approved nor requested changes (COMMENT, PENDING, …). */
+  awaiting: number;
+  /** True when the review list reached the shared list cap, so older reviews may be missing. */
+  truncated: boolean;
+}
+
+/** One unresolved inline review comment inside a `get_pr_review_brief` result. */
+export interface PrReviewBriefComment {
+  id?: number;
+  reviewId?: number;
+  path?: string;
+  /** 1-based line the comment is anchored to; on `side` of the diff. */
+  line?: number;
+  /** `new` when the line is in the head revision, `old` when it is in the base one. */
+  side?: 'new' | 'old';
+  author?: string;
+  createdAt?: string;
+  body?: string;
+  /** True when the body was cut to `PR_REVIEW_MAX_COMMENT_LENGTH`. */
+  bodyTruncated?: boolean;
+}
+
+/** The diff statistics of a `get_pr_review_brief` result. */
+export interface PrReviewBriefDiffStats {
+  /**
+   * Files the pull request changes, from the pull request record. Complete even
+   * when the table below is cut, so it is the number to trust for "how big is
+   * this change".
+   */
+  fileCount?: number;
+  /** Total added lines, from the pull request record. */
+  additions?: number;
+  /** Total deleted lines, from the pull request record. */
+  deletions?: number;
+  /** One row per changed file; absent when `includeDiffStats` was false. */
+  files?: PrReviewBriefFile[];
+  /** Rows present in `files`. */
+  listedFileCount?: number;
+  /** True when `files` is not the whole changed-file list. */
+  truncated?: boolean;
+  /**
+   * Which limit cut the table: this tool's row/character budget, the client's
+   * shared list cap, or 'server-partial' — the server itself returned fewer
+   * files than the pull request record's `fileCount` with no cut on this side
+   * (seen from Forgejo 16 when the head branch is gone after a merge).
+   */
+  truncatedBy?: 'list-cap' | 'row-limit' | 'budget' | 'server-partial';
+}
+
+/** The `get_pr_review_brief` result: everything needed to start a review, pre-sized to a shared budget. */
+export interface PrReviewBrief {
+  pullRequest: PrReviewBriefPullRequest;
+  diffStats: PrReviewBriefDiffStats;
+  reviewStatus: PrReviewBriefReviewStatus;
+  unresolvedComments: {
+    /** Unresolved comments with a body that were found, before any cap. */
+    total: number;
+    /** Comments present in `comments`. */
+    returned: number;
+    comments: PrReviewBriefComment[];
+    /** True when `comments` is not the whole unresolved set. */
+    truncated: boolean;
+    /** Which cap stopped the list: the comment count, or the shared character budget. */
+    truncatedBy?: 'count' | 'budget';
+    /** Reviews whose comment list could not be read; their unresolved comments are missing. */
+    unreadableReviewCount: number;
+  };
+}
+
+/**
+ * Shared character budget for `get_pr_review_brief`'s two pull-request-sized
+ * sections, the per-file diff table and the unresolved comment bodies.
+ *
+ * `callTool` caps each string field at `MAX_TOOL_TEXT_LENGTH` and the whole
+ * serialized result at `MAX_TOOL_RESULT_LENGTH`, and both caps keep the start: a
+ * payload that relied on them would silently lose the comments at the end. The
+ * sections are therefore pre-sized to stay inside both caps by construction,
+ * the same way `get_ci_failure_summary` pre-sizes its log slices.
+ */
+export const PR_REVIEW_BRIEF_BUDGET = 48 * 1024;
+/** Share of `PR_REVIEW_BRIEF_BUDGET` for the per-file diff table. */
+export const PR_REVIEW_DIFF_BUDGET = 16 * 1024;
+/** Share of `PR_REVIEW_BRIEF_BUDGET` for unresolved comment bodies and their metadata. */
+export const PR_REVIEW_COMMENT_BUDGET = 24 * 1024;
+/** Most file rows the diff table carries, so tiny rows cannot fill it with noise. */
+export const PR_REVIEW_MAX_DIFF_FILES = 100;
+/** Most unresolved comments the brief carries. */
+export const PR_REVIEW_MAX_COMMENTS = 50;
+/** Characters kept from one review comment body; the rest is announced in the body itself. */
+export const PR_REVIEW_MAX_COMMENT_LENGTH = 1024;
+/**
+ * In-flight review-comment requests. There is no endpoint that returns a pull
+ * request's inline review comments in one page — they hang off one review each —
+ * so this is one request per review, and the review list can reach the shared
+ * list cap. The pool size matches the client's per-comment attachment fan-out
+ * and the extension's review-comment controller, which read the same endpoint.
+ */
+const PR_REVIEW_COMMENT_FETCH_CONCURRENCY = 4;
+
+/**
+ * The state spellings a change request arrives under. Forgejo's own
+ * `ReviewStateType` says `REQUEST_CHANGES`; the MCP descriptions and the
+ * extension's review editor use GitHub's `CHANGES_REQUESTED` spelling, and the
+ * value is passed through verbatim, so both are recognised here.
+ */
+function isChangesRequestedState(state?: string): boolean {
+  return state === 'REQUEST_CHANGES' || state === 'CHANGES_REQUESTED';
+}
+
+/**
+ * The line and diff side a review comment is anchored to. Forgejo reports
+ * `position` as the line in the new file and `original_position` as the line in
+ * the old one; the unused side is 0. A comment that carries neither (an
+ * outdated comment whose file no longer exists) has no line.
+ */
+function reviewCommentLocation(comment: PullReviewComment): { line?: number; side?: 'new' | 'old' } {
+  if (typeof comment.position === 'number' && comment.position > 0) {
+    return { line: comment.position, side: 'new' };
+  }
+  if (typeof comment.original_position === 'number' && comment.original_position > 0) {
+    return { line: comment.original_position, side: 'old' };
+  }
+  return {};
+}
+
+/**
+ * The key a review comment's conversation is grouped under.
+ *
+ * Forgejo resolves a whole conversation, and upstream sets the `resolver` field
+ * only on the first comment of that conversation — every reply keeps it empty
+ * (see gitea's `ToPullReviewCommentList`). Judging each comment by its own
+ * `resolver` would therefore report every reply inside a resolved conversation
+ * as unresolved, so comments are grouped by the location the server itself keys
+ * its comment buckets on: file path plus line. Two independent conversations on
+ * the same path and line share a group; the server groups them the same way, so
+ * a reply cannot be separated from its conversation here either.
+ */
+function reviewCommentConversationKey(comment: PullReviewComment): string {
+  const location = reviewCommentLocation(comment);
+  return JSON.stringify([comment.path ?? '', location.side ?? '', location.line ?? 0]);
+}
+
+/** Maps a raw review comment to the brief's shape, truncating an oversized body. */
+function toPrReviewBriefComment(comment: PullReviewComment): PrReviewBriefComment {
+  const body = comment.body ?? '';
+  const overflow = body.length - PR_REVIEW_MAX_COMMENT_LENGTH;
+  const location = reviewCommentLocation(comment);
+  return {
+    id: comment.id,
+    reviewId: comment.pull_request_review_id,
+    path: comment.path,
+    line: location.line,
+    side: location.side,
+    author: comment.user?.login,
+    createdAt: comment.created_at,
+    body:
+      overflow > 0
+        ? `${body.slice(0, PR_REVIEW_MAX_COMMENT_LENGTH)}\n... (truncated: ${overflow} more characters)`
+        : body,
+    bodyTruncated: overflow > 0 ? true : undefined,
+  };
+}
+
+/**
+ * The unresolved review comments of a pull request, newest kept first, cut to
+ * `PR_REVIEW_MAX_COMMENTS` and `budget` characters.
+ *
+ * A conversation counts as resolved when any of its comments carries a
+ * `resolver` (see `reviewCommentConversationKey`); only comments with a body are
+ * listed, because a bodyless anchor carries no feedback to act on. When the caps
+ * bite, the newest comments survive: a truncated brief is most useful when it
+ * describes what the pull request is currently about, and the oldest remarks are
+ * the ones most likely to have been answered already.
+ */
+export function summarizeUnresolvedComments(
+  comments: readonly PullReviewComment[],
+  budget: number = PR_REVIEW_COMMENT_BUDGET,
+): Pick<PrReviewBrief['unresolvedComments'], 'total' | 'returned' | 'comments' | 'truncated' | 'truncatedBy'> {
+  const resolvedConversations = new Set<string>();
+  for (const comment of comments) {
+    if (comment.resolver) {
+      resolvedConversations.add(reviewCommentConversationKey(comment));
+    }
+  }
+  const unresolved = comments
+    .filter(
+      (comment) => (comment.body ?? '').length > 0 && !resolvedConversations.has(reviewCommentConversationKey(comment)),
+    )
+    .map(toPrReviewBriefComment);
+
+  const kept: PrReviewBriefComment[] = [];
+  let used = 0;
+  let truncatedBy: 'count' | 'budget' | undefined;
+  for (let index = unresolved.length - 1; index >= 0; index -= 1) {
+    if (kept.length >= PR_REVIEW_MAX_COMMENTS) {
+      truncatedBy = 'count';
+      break;
+    }
+    const comment = unresolved[index];
+    const cost = JSON.stringify(comment).length + 1;
+    if (used + cost > budget) {
+      truncatedBy = 'budget';
+      break;
+    }
+    used += cost;
+    kept.push(comment);
+  }
+  return {
+    total: unresolved.length,
+    returned: kept.length,
+    comments: kept.reverse(),
+    truncated: unresolved.length > kept.length,
+    // The marker only makes sense when something was actually left out; a
+    // complete list must not carry the limit that would have applied.
+    truncatedBy: unresolved.length > kept.length ? truncatedBy : undefined,
+  };
+}
+
+/**
+ * The diff table of a `get_pr_review_brief` result. `files` is `undefined` when
+ * the caller skipped the changed-files request, in which case only the totals
+ * (from the pull request record) are returned.
+ *
+ * The client's own page cap outranks this tool's cuts: a changed-file list that
+ * reached `LIST_ITEM_LIMIT` may be missing files the tool never saw, while the
+ * row and character cuts only drop rows that were seen — and in both cases the
+ * totals stay exact, because they come from the pull request record, not from
+ * the table.
+ */
+export function summarizePrReviewDiffStats(
+  files: readonly ForgejoChangedFile[] | undefined,
+  totals: { fileCount?: number; additions?: number; deletions?: number },
+  budget: number = PR_REVIEW_DIFF_BUDGET,
+): PrReviewBriefDiffStats {
+  if (files === undefined) {
+    return { ...totals };
+  }
+  const rows: PrReviewBriefFile[] = [];
+  let used = 0;
+  let cut: 'row-limit' | 'budget' | undefined;
+  for (const file of files) {
+    if (rows.length >= PR_REVIEW_MAX_DIFF_FILES) {
+      cut = 'row-limit';
+      break;
+    }
+    const row: PrReviewBriefFile = {
+      path: file.filename,
+      previousPath: file.previous_filename,
+      status: file.status,
+      additions: file.additions,
+      deletions: file.deletions,
+      changes: file.changes,
+    };
+    const cost = JSON.stringify(row).length + 1;
+    if (used + cost > budget) {
+      cut = 'budget';
+      break;
+    }
+    used += cost;
+    rows.push(row);
+  }
+  // The client's own page cap outranks every other cut (those rows were never
+  // seen). Next comes this tool's deliberate cut. Last, the mismatch no cut
+  // explains: the server returned fewer files than the pull request record's
+  // changed_files without hitting any cap — observed from Forgejo 16 on a pull
+  // request whose head branch was deleted after the merge, where the files
+  // endpoint silently answers with a partial diff. Without the flag the table
+  // would read as complete while listing less than fileCount.
+  const truncatedBy =
+    files.length >= LIST_ITEM_LIMIT
+      ? 'list-cap'
+      : (cut ??
+        (typeof totals.fileCount === 'number' && totals.fileCount > rows.length ? 'server-partial' : undefined));
+  return {
+    ...totals,
+    files: rows,
+    listedFileCount: rows.length,
+    truncated: truncatedBy !== undefined,
+    truncatedBy,
+  };
+}
+
+/**
+ * The review picture: one entry per reviewer (their latest review) plus the
+ * aggregate conclusion of the reviews that still count.
+ *
+ * A dismissed review was withdrawn and a stale one was invalidated by a later
+ * commit, so neither states a current opinion. Both stay in `reviewers` with
+ * their flags — the reader can see that the reviewer did look — but only current
+ * reviews decide `summary`, the same rule `getPullRequestDetail` applies when it
+ * counts approvals for a branch-protection requirement.
+ */
+export function summarizePrReviewStatus(reviews: readonly PullReview[]): PrReviewBriefReviewStatus {
+  const latestByReviewer = new Map<string, { position: number; review: PullReview }>();
+  reviews.forEach((review, position) => {
+    // A review whose user is gone (deleted account) cannot be attributed to a
+    // reviewer, so it stays its own entry instead of collapsing every
+    // unattributable review into one.
+    const key = review.user?.login ?? `anonymous-review-${review.id ?? position}`;
+    const previous = latestByReviewer.get(key);
+    if (!previous || position > previous.position) {
+      latestByReviewer.set(key, { position, review });
+    }
+  });
+  const ordered = [...latestByReviewer.values()].sort((a, b) => a.position - b.position);
+  const reviewers = ordered.map(
+    ({ review }): PrReviewBriefReviewer => ({
+      reviewer: review.user?.login,
+      state: review.state,
+      reviewedAt: review.submitted_at ?? review.updated_at,
+      reviewId: review.id,
+      stale: review.stale === true ? true : undefined,
+      dismissed: review.dismissed === true ? true : undefined,
+    }),
+  );
+  const current = ordered
+    .map(({ review }) => review)
+    .filter((review) => review.stale !== true && review.dismissed !== true);
+  const approvals = current.filter((review) => review.state === 'APPROVED').length;
+  const changesRequested = current.filter((review) => isChangesRequestedState(review.state)).length;
+  return {
+    reviewers,
+    summary:
+      reviews.length === 0
+        ? 'no_reviews'
+        : changesRequested > 0
+          ? 'changes_requested'
+          : approvals > 0
+            ? 'approved'
+            : 'awaiting_review',
+    approvals,
+    changesRequested,
+    awaiting: current.length - approvals - changesRequested,
+    // The review list is paged to the same shared cap as every other list, and a
+    // reviewer whose only review fell off it would leave `reviewers` without a
+    // word: the flag is what says the picture may be missing someone.
+    truncated: reviews.length >= LIST_ITEM_LIMIT,
+  };
+}
+
+/**
+ * Runs `task` for every item with at most `limit` in flight, preserving nothing
+ * but the caller's own ordering (the index is passed along for that). Kept local
+ * because the MCP layer cannot reach the client's private copy, and mirrored
+ * from the extension's review-comment controller on purpose: both fan out over
+ * the same per-review endpoint.
+ */
+async function forEachInPool<T>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (let index = next++; index < items.length; index = next++) {
+      await task(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+}
+
+/**
+ * Every review's comments, in review order, plus how many reviews' comments
+ * could not be read.
+ *
+ * One request per review is the only way to get them (see
+ * `PR_REVIEW_COMMENT_FETCH_CONCURRENCY`), and a failure is absorbed per review
+ * for the same reason `get_ci_failure_summary` absorbs an unreadable log: a
+ * deleted review or one transient error must not discard the other reviews'
+ * comments. The count is reported in the result instead, so the reader knows the
+ * unresolved set may be incomplete.
+ */
+async function collectReviewComments(
+  client: ForgejoClient,
+  owner: string,
+  repo: string,
+  index: number,
+  reviews: readonly PullReview[],
+): Promise<{ comments: PullReviewComment[]; unreadableReviewCount: number }> {
+  const perReview: PullReviewComment[][] = reviews.map(() => []);
+  let unreadableReviewCount = 0;
+  await forEachInPool(reviews, PR_REVIEW_COMMENT_FETCH_CONCURRENCY, async (review, position) => {
+    if (typeof review.id !== 'number') {
+      // Without an id the comment endpoint cannot be addressed, so this review's
+      // comments are unknown rather than empty.
+      unreadableReviewCount += 1;
+      return;
+    }
+    try {
+      perReview[position] = await client.getPullReviewComments(owner, repo, index, review.id);
+    } catch (error) {
+      // A cancelled call is not a per-review failure: absorbing it would let a
+      // cancelled tool call come back as a successful partial brief. A timeout
+      // stays a per-review problem (the other reviews are still useful).
+      if (toApiError(error).kind === 'cancelled') {
+        throw error;
+      }
+      unreadableReviewCount += 1;
+    }
+  });
+  return { comments: perReview.flat(), unreadableReviewCount };
+}
+
+/**
  * Plain async handlers behind the MCP tools, exported for unit tests: they
  * return the untruncated payload and let errors propagate. The MCP
  * registration (registerTools) adds truncation and error rendering on top.
@@ -622,6 +1099,56 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
 
     list_pull_reviews: (args: IssueRefArgs) => client.listPullReviews(args.owner, args.repo, args.index),
 
+    // One call replaces get_pull_request + get_pr_diff + get_pr_timeline +
+    // list_pull_reviews for the purpose of starting a review. It reads the pull
+    // request, its changed files and its reviews in parallel, then one comment
+    // request per review (the endpoint is per review), and hands back only what
+    // a review needs to begin: the header, the diff's shape, the review
+    // conclusions and the unresolved inline comments. Everything it returns is
+    // pre-sized (see the PR_REVIEW_* constants), so callTool's own truncation
+    // never has to cut the comments the way it would cut a raw diff.
+    get_pr_review_brief: async (args: PrReviewBriefArgs) => {
+      const [pullRequest, files, reviews] = await Promise.all([
+        client.getPullRequestDetail(args.owner, args.repo, args.index),
+        // The per-file table is the one piece a caller can skip: the totals come
+        // from the pull request record either way, so a brief that only needs the
+        // review state saves the changed-files request.
+        args.includeDiffStats === false
+          ? Promise.resolve(undefined)
+          : client.getPullRequestFiles(args.owner, args.repo, args.index),
+        client.listPullReviews(args.owner, args.repo, args.index),
+      ]);
+      const { comments, unreadableReviewCount } = await collectReviewComments(
+        client,
+        args.owner,
+        args.repo,
+        args.index,
+        reviews,
+      );
+      return {
+        pullRequest: {
+          number: pullRequest.number,
+          title: pullRequest.title,
+          state: pullRequest.state,
+          draft: pullRequest.draft === true,
+          merged: pullRequest.merged === true,
+          author: pullRequest.user?.login,
+          baseBranch: pullRequest.base?.ref,
+          headBranch: pullRequest.head?.ref,
+          mergeable: pullRequest.mergeable,
+          mergeBlockers: pullRequest.mergeBlockers ?? [],
+          protectionUnknown: pullRequest.protectionUnknown === true ? true : undefined,
+        } satisfies PrReviewBriefPullRequest,
+        diffStats: summarizePrReviewDiffStats(files, {
+          fileCount: pullRequest.changed_files,
+          additions: pullRequest.additions,
+          deletions: pullRequest.deletions,
+        }),
+        reviewStatus: summarizePrReviewStatus(reviews),
+        unresolvedComments: { ...summarizeUnresolvedComments(comments), unreadableReviewCount },
+      } satisfies PrReviewBrief;
+    },
+
     whoami: () => client.getCurrentUser(),
 
     list_releases: (args: RepoRefArgs) => client.getRepoReleases(args.owner, args.repo),
@@ -772,6 +1299,16 @@ const PAGED_LISTS: Record<ToolName, readonly string[]> = {
   get_pr_diff: NO_PAGED_LISTS,
   get_pull_review_comments: NO_PAGED_LISTS,
   list_pull_reviews: PAGED_RESULT,
+  // get_pr_review_brief does read paged lists (changed files, reviews), but
+  // neither is what listTruncationNote reports on: the note only reaches
+  // top-level fields and both lists sit behind an object, and neither list is
+  // returned as-is. The diff table is pre-sized by this tool's own budget and
+  // says which cut applied in `diffStats.truncatedBy` (including the client's
+  // own list cap), and `reviewStatus.reviewers` holds one entry per reviewer, so
+  // its length says nothing about the review-list cap the result reports in
+  // `reviewStatus.truncated`. A note built from those lengths would tell a
+  // caller to narrow a query this tool does not have.
+  get_pr_review_brief: NO_PAGED_LISTS,
   whoami: NO_PAGED_LISTS,
   list_releases: PAGED_RESULT,
   list_labels: PAGED_RESULT,
@@ -1318,6 +1855,26 @@ export function registerTools(
       annotations: readOnly,
     },
     async (args, extra) => callTool('list_pull_reviews', () => handlersFor(extra).list_pull_reviews(args)),
+  );
+
+  server.registerTool(
+    'get_pr_review_brief',
+    {
+      description: `Start reviewing a pull request in one call instead of get_pull_request + get_pr_diff + get_pr_timeline + list_pull_reviews. It returns: the pull request header (title, state, draft/merged, author, base and head branches, mergeable and the merge blockers); the diff statistics — changed-file count and total added/deleted lines from the pull request record, plus a per-file table of additions and deletions (line counts only, never the diff text); each reviewer's latest conclusion with its time and an aggregate summary; and the unresolved inline review comments with file path, line, author, time and body. Deliberately left out, because they are large and rarely needed to begin: the description and the commit list (use get_pull_request), the diff text (use get_pr_diff — a hunk can only be judged from the changed lines), the discussion timeline (use get_pr_timeline), and the raw review list (use list_pull_reviews when reviewStatus is not enough). Everything here is pre-sized to a shared budget: diffStats.truncated/truncatedBy say whether the per-file table was cut ('row-limit' or 'budget' by this tool, 'list-cap' by the client's shared 500-row list cap, 'server-partial' when the server itself returned fewer files than the pull request record's fileCount — in every case fileCount/additions/deletions stay exact); reviewStatus.truncated says the review list reached the shared 500-item cap; and unresolvedComments.total/returned/truncated/truncatedBy say how many unresolved comments exist and whether the count cap (${PR_REVIEW_MAX_COMMENTS}) or the character budget stopped the list, with bodyTruncated on a comment whose body was cut to ${PR_REVIEW_MAX_COMMENT_LENGTH} characters. The newest comments survive a cut. unresolvedComments.unreadableReviewCount is non-zero when a review's comment list could not be read, so the unresolved set may be missing entries. Set includeDiffStats to false to skip the changed-files request when only the file/line totals and the review state are needed.`,
+      inputSchema: {
+        owner: ownerRequiredSchema,
+        repo: repoRequiredSchema,
+        index: pullIndexSchema,
+        includeDiffStats: z
+          .boolean()
+          .optional()
+          .describe(
+            'Include the per-file diff table (default: true). Set false to skip the changed-files request; the file/line totals still come from the pull request record.',
+          ),
+      },
+      annotations: readOnly,
+    },
+    async (args, extra) => callTool('get_pr_review_brief', () => handlersFor(extra).get_pr_review_brief(args)),
   );
 
   server.registerTool(

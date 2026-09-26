@@ -180,6 +180,7 @@
 - MCP Prompts：三个只读提示模板 `review-pull-request` / `analyze-ci-failure` / `triage-issue`，把工具按固定顺序串成工作流并规定回答结构（评审意见、CI 根因、issue 分诊建议）。参数全部可选：缺省 owner/repo 时指引先调 `get_workspace_repository`，缺省编号时指引先用对应的列表工具解析。提示模板本身无副作用，不改动只读工具面与安全模型。
 - MCP broker 模式：静态 `mcp.json`（Agents 窗口 / 第三方 MCP 客户端）拉起的 server 在扩展宿主运行时变成纯转发器——首行握手（每次启动随机生成的密钥，发布在 globalStorage 的 `mcp-broker.json`，同用户可读）后把 stdio 逐行桥接到宿主的命名管道 / unix socket，真正的工具逻辑带 token 在扩展宿主进程里执行，token 不出边界。每连接一个独立 MCP server 实例；实例解析优先按会话 cwd 命中的已链接检出，找不到时用第一个有 token 的实例。多窗口只留第一个绑定成功的 broker，其余静默让位；broker 不可达时降级到匿名零配置启动。
 - 面向 agent 上下文预算的 CI 失败摘要工具 `get_ci_failure_summary`：一次调用取 run 内每个失败 job 的错误行（各带 2 行上下文）与日志尾部（约 100 行），并标注每处截断——包括客户端 10 MB 上限只保留头部、导致真实尾部不可见的情形；替代连续调用 `get_action_run_jobs` + 每个失败 job 一次 `get_action_job_log`，并避开后者「只保留日志头部 10 KB」而恰好丢掉失败信息的问题。提取文本按共享预算预分片，不依赖 `truncateLargeStrings` 兜底。
+- 面向 agent 上下文预算的 PR 评审摘要工具 `get_pr_review_brief`：一次调用返回 PR 头部（标题/状态/作者/基头分支/合并阻塞）、diff 统计（文件数与总增删行，外加按文件的增删行表——不含 diff 文本）、每个 reviewer 的最新结论与汇总判断、以及未解决的 inline 评审评论（path/line/作者/时间/正文），替代评审起步时的 `get_pull_request` + `get_pr_diff` + `get_pr_timeline` + `list_pull_reviews` 四次调用；描述注明 diff 文本、描述、commit 与时间线仍需按需回退原工具。评论按 review 逐条读取（上游没有一次取全的端点），以 4 并发有界扇出，单个 review 读取失败只计入 `unreadableReviewCount`；被解决的会话按 Forgejo 只写在首条评论上的 `resolver` 整体排除。各段预分片（文件表 100 行/16 KB，评论 50 条/24 KB、单条正文 1 KB），`truncated`/`truncatedBy`/`bodyTruncated` 标注每处裁剪且总数保持精确，不依赖 `truncateLargeStrings` 兜底。
 
 ## 后续迭代
 

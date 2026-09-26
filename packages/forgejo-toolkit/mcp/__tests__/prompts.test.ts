@@ -110,6 +110,11 @@ describe('MCP prompts over InMemoryTransport', () => {
     for (const tool of ['get_pull_request', 'get_pr_diff', 'get_pr_timeline', 'list_pull_reviews']) {
       expect(text, tool).toContain(tool);
     }
+    // The brief is the entry point and the detail tools the fallback: the
+    // template must send the agent to the brief first.
+    expect(text).toContain('`get_pr_review_brief`');
+    expect(text.indexOf('`get_pr_review_brief`')).toBeLessThan(text.indexOf('`get_pr_diff`'));
+    expect(text.indexOf('`get_pr_review_brief`')).toBeLessThan(text.indexOf('`get_pr_timeline`'));
     // A review prompt must not read as an invitation to submit one.
     expect(text).toContain('read-only');
     expect(text).toContain('never submit a review');

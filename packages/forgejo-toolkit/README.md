@@ -16,7 +16,7 @@ A VS Code extension for [Forgejo](https://forgejo.org/) (and Codeberg) with a ri
 - **Notifications**: unread badge, filtering, background polling with VS Code alerts.
 - **CI / Actions**: runs, job logs, artifacts download, cancel and trigger workflows.
 - **Publish & clone**: publish a local repository to your instance, or clone through VS Code's Git: Clone with server-side search.
-- **MCP server for AI agents**: every configured instance is exposed to Copilot agent mode as its own read-only MCP server — 29 tools (issues, PRs, Actions, code browsing, workspace repository detection), prompt templates, and automatic instance matching with zero setup.
+- **MCP server for AI agents**: every configured instance is exposed to Copilot agent mode as its own read-only MCP server — 30 tools (issues, PRs, PR review briefs, Actions, code browsing, workspace repository detection), prompt templates, and automatic instance matching with zero setup.
 - **Localization**: English and 中文.
 
 ## Commands

@@ -19,7 +19,7 @@
 - [ ] P5 低优先级（等上游）：`vscode-tree` 内按钮（IconActionButton）的 Enter/Space 被库自身 `keydown` 的 `preventDefault` 抑制（`@vscode-elements/elements` 2.5.1 既有行为）
 - [ ] 等上游版本：Forgejo v17（约 2026-10 底）的 workflow / job rerun（`forgejo#13924`，用 ≥17.0 版本闸门，并同步移除 `KNOWN_ISSUES` 对应条目）；Actions 日志 ndjson + 服务端过滤（#12820 / #12821，低优先级）
 - [ ] 规划中的功能：`forgejoToolkit.mcpEnabled` 开关；MCP Phase 2 写工具见「AI / MCP 规划」一节
-- [ ] P3 打包优化：`out/mcp-server.js` 里约 **350 KB** 的代码与 `out/extension.js` 重复——`packages/forgejo-toolkit/esbuild.js`（约 7–47 行）为扩展宿主和 MCP 服务器各配一份 esbuild，共享运行时（生成客户端、`shared` 请求层、zod 等）被打进两个包。做法是让两份 bundle 共用一个 chunk（或把 MCP 入口作为第二个 entry 输出），但**必须跑一次构建才能核对体积与 `forbid-vscode` 约束**，因此暂缓（决定：等发版后再做）
+- [ ] P3 打包优化（已量化，方案已定，待实施）：esbuild metafile 实测（2026-09-27，未压缩输入口径）——extension 1202 个模块 / 6.4 MB，mcp-server 918 个模块 / 4.1 MB，其中 **913 个模块两边重复**，占 mcp 输入的 **98.9%**、ext 输入的 63.5%；生产构建产物 extension.js 1.62 MB + mcp-server.js 1.39 MB（vsix 1.28 MB），即约 1.35 MB 未压缩 / 估计约 300–400 KB 压缩体积是纯重复。方案：**转 ESM + esbuild `splitting: true` 双入口**（`src/extension.ts` + `mcp/server.ts` 同 outdir 出共享 chunk），`engines.vscode ^1.102.0` 已高于 ESM 扩展支持的 1.100，不需要抬最低版本。注意点：`__dirname`/`require` 用法要改 `import.meta.url` 派生、输出改 `.mjs` 并同步 `package.json` 的 `main` 与 mcp.json 生成路径、`forbid-vscode` 插件保留、vitest 与 `@vscode/test-electron` 对 ESM 入口的兼容要全量回归。等 `get_pr_review_brief` 的改动落地后单独一批做
 - [ ] P3 打包优化：onboarding / review 评论两个面板各自加载的是整份 dashboard webview 入口（`webview/src/main.ts` 在入口里同步注册 13 个 `@vscode-elements/elements` 模块，入口 335 KB，而面板 chunk 只有 8 KB / 5 KB），所以打开评论编辑器要解析整个 dashboard 外壳。做法是按面板拆分 webview 入口，或把 dashboard 主体改成懒加载路由；同样需要构建核对，因此暂缓
 - [ ] P4 「创建 PR」状态栏仍会拉取整个打开中 PR 列表（上限 500 条 ≈ 10 次请求）才能回答分支查询。正确但浪费：要真正减少请求数需要在 `client.ts` 暴露分页方法（例如 `getRepoPullRequests(owner, repo, state, { page, limit })`），再由状态栏只取第一页。当前实现会在达到 500 条上限时写一条明确的警告日志，因此计数不会悄悄出错。改动涉及共享 API 面，留到发版后
 - [ ] P5 已知代价（仅记录）：`API_REQUEST_TIMEOUT_MS`（30 s）约束的是**每一页请求**，而不是整次分页操作——`client.ts` 的分页辅助 `_fetchAllPages` 每页各发一次请求、超时按页重新计时，所以一次达到 500 条上限的分页读取在慢实例上累计可能持续数分钟（约 10 页 × 30 s）。需要整体上限的调用方必须自己传 `AbortSignal`
@@ -30,7 +30,6 @@
 
 按建议优先级排序；MCP 侧无头进程的输出文案保持英文（既有约定），webview 侧文案走 i18n 双语 JSON。
 
-- [ ] **P1 面向 agent 上下文预算的聚合工具**：`get_pr_review_brief`（一次返回 diff 统计 + 评审状态 + 未解决评论，替代连续 4 次调用）
 - [ ] **P2 PR 描述生成（`vscode.lm` 试点）**：创建 PR 表单加「生成描述」按钮，diff + commit 列表生成草稿填入 body。需验证 Copilot 订阅缺失时的降级路径；代码片段会发给模型供应商，加默认关闭的设置开关
 - [ ] **P2 Issue 分诊建议**：按内容建议 labels/assignees（把现有 label 描述喂给模型选）
 - [ ] **P2 AI 预评审（draft-only）**：PR diff 视图「AI 预评审」，意见只落成 pending review 草稿、逐条人工确认后才提交（与 Codeberg 对 LLM 自主维护的忌讳对齐）

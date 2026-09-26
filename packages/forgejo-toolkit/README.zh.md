@@ -16,7 +16,7 @@
 - **通知**：未读角标、筛选、后台轮询并弹出 VS Code 提醒。
 - **CI / Actions**：运行记录、job 日志、制品下载、取消与触发 workflow。
 - **发布与克隆**：把本地仓库发布到实例；通过 VS Code 的 Git: Clone 按关键字在服务端搜索并克隆仓库。
-- **面向 AI agent 的 MCP server**：每个已配置实例都会暴露为 Copilot agent mode 的独立只读 MCP server——29 个工具（Issue、PR、Actions、代码浏览、工作区仓库识别）、prompt 模板、零配置自动匹配实例。
+- **面向 AI agent 的 MCP server**：每个已配置实例都会暴露为 Copilot agent mode 的独立只读 MCP server——30 个工具（Issue、PR、PR 评审摘要、Actions、代码浏览、工作区仓库识别）、prompt 模板、零配置自动匹配实例。
 - **本地化**：English 与中文。
 
 ## 命令

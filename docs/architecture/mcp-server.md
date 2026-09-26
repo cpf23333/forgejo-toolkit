@@ -258,40 +258,58 @@ Forgejo instance REST API
 
 - **Registration.** The broker publishes `globalStorage/mcp-broker.json`
   (`McpBrokerRegistryFile` in `packages/shared/src/mcp/workspaceState.ts`):
-  `{ version: 1, pid, endpoint, authToken, startedAt }`, written atomically.
-  The forwarder discovers it through the same data-directory scan as the
-  instance registry (`discoverBrokerRegistration` in mcp/autoConfig.ts);
-  newest mtime wins across flavors/profiles.
+  `{ version: 1, pid, endpoint, authToken, startedAt }`, written atomically,
+  owner-only (0600 in a 0700 globalStorage directory; the unix socket itself
+  is chmod 0600 after listen). The forwarder discovers it through the same
+  data-directory scan as the instance registry (`discoverBrokerRegistration`
+  in mcp/autoConfig.ts): a candidate whose pid is verifiably dead is skipped
+  as crash-orphaned, and among the survivors newest mtime wins across
+  flavors/profiles.
 - **Handshake.** The forwarder's first line is `{ authToken, cwd }`. The
   broker compares the token in constant time and disconnects immediately on a
   mismatch (the presented value is never logged); on a match it answers
   `{ "ok": true }` and the socket carries the MCP session verbatim — MCP
   stdio framing is NDJSON, so the pipe uses the same framing and neither side
-  re-encodes. A connection that never completes its handshake is dropped
-  after 10 s. The `cwd` is what the broker uses to resolve the session's
-  instance.
+  re-encodes. Line assembly buffers raw bytes and decodes only complete
+  lines, so a multi-byte UTF-8 character split across read chunks is not
+  corrupted, and one unterminated line may buffer at most 4 MB before the
+  connection is dropped (the listener also caps concurrent connections at
+  64). A connection that never completes its handshake is dropped after 10 s.
+  The `cwd` is what the broker uses to resolve the session's instance.
 - **Sessions.** Every connection gets its own `McpServer` instance — the MCP
   SDK binds a server to a single transport — built from a `ForgejoClient`
   carrying the resolved instance's token. The version gate reuses the
   extension host's existing probe cache (activation already probes every
   instance), so the broker never probes again. The workspace state file
-  passed to `get_workspace_repository` is the owning window's own.
-- **Instance resolution** (per session): if the forwarder's cwd sits inside a
+  passed to `get_workspace_repository` follows the session's cwd: the
+  per-window state file whose checkout contains it (see instance resolution),
+  falling back to the owning window's own.
+- **Instance resolution** (per session): first the per-window workspace state
+  files in globalStorage — if an entry's `localPath` contains the forwarder's
+  cwd, that window's state file and (when token-bearing) its instance serve
+  the session, because one machine-wide broker can receive sessions for a
+  _different_ window's workspace. Otherwise, if the cwd sits inside a
   checkout this window has linked to an instance (via the shared
-  `detectLinkedRepositories` scan cache), that instance wins; otherwise the
-  first token-bearing instance answers — the Agents window launches servers
-  from the user's home directory, which is no checkout at all, and an
-  authenticated instance beats an anonymous one. A detected instance without
-  a token loses to the token-bearing fallback.
+  `detectLinkedRepositories` scan cache), that instance wins; as a last
+  resort the first token-bearing instance answers — the Agents window
+  launches servers from the user's home directory, which is no checkout at
+  all, and an authenticated instance beats an anonymous one. A detected
+  instance without a token loses to the token-bearing fallback.
 - **Lifecycle.** Multi-window: the first window to bind the endpoint wins;
-  other windows' `listen` fails with EADDRINUSE/EACCES and they step aside
-  with a debug log (and no registration write). On unix a leftover socket
-  file from a crashed broker is distinguished from a live owner by a connect
-  probe: refused means stale, so it is unlinked and the listen retried once.
-  `deactivate()` closes the broker and deletes the registration file; a
-  crash-orphaned file is harmless because the forwarder's connect simply
-  fails. When the broker closes mid-session the forwarder exits with a clear
-  stderr message, and the MCP client reports the server as stopped.
+  other windows' `listen` fails with EADDRINUSE and they step aside with a
+  debug log (and no registration write); EACCES is logged as a real local
+  failure instead. On unix a leftover socket file from a crashed broker is
+  distinguished from a live owner by a connect probe: refused means stale, so
+  it is unlinked and the listen retried once. `deactivate()` closes the
+  broker and deletes the registration file; a crash-orphaned file is harmless
+  because the forwarder's connect simply fails. The unix socket file is
+  unlinked on close only when its inode is still the one this broker created,
+  so an overlapping shutdown never deletes a successor broker's live socket.
+  When the broker closes mid-session the forwarder logs an info line and
+  exits 0 (draining buffered output first — no `process.exit` truncation); a
+  socket _error_ mid-session (anything but the ECONNRESET of a closing unix
+  peer) exits 1 with a stderr message, and the MCP client reports the server
+  as stopped.
 - **Degradation order.** Startup with no `FORGEJO_MCP_INSTANCE_URL` tries, in
   order: broker forwarding → the zero-configuration discovery above. Any
   pre-handshake failure (no registration file, connect refused, rejected
@@ -305,15 +323,14 @@ Forgejo instance REST API
 The `authToken` in `mcp-broker.json` is a random per-broker-launch secret
 (32 bytes, hex), **not** a Forgejo token — the file never carries one. It
 gates the pipe so an unrelated local process cannot make the extension host
-issue authenticated requests on its behalf. The file lives in the same
-same-user-readable globalStorage directory as the workspace state files;
-anyone who can read it already runs with the user's privileges and could
-read the editor's token-bearing state database instead, so publishing the
-handshake secret there grants no new capability. What a forwarded session
-proves is "same local user who can read globalStorage" — exactly the trust
-level the VS Code-spawned path already grants its stdio children. The secret
-is sent once per connection and never logged by either side (the broker's
-rejection log deliberately omits the presented value).
+issue authenticated requests on its behalf. The file is written owner-only
+(0600) inside the extension's owner-only globalStorage directory, and the
+unix socket is chmod 0600 after listen; on Windows the named pipe's default
+DACL already restricts it to the owning user. What a forwarded session proves
+is "same local user who can read globalStorage" — exactly the trust level the
+VS Code-spawned path already grants its stdio children. The secret is sent
+once per connection and never logged by either side (the broker's rejection
+log deliberately omits the presented value).
 
 ## Minimum VS Code version
 
@@ -391,15 +408,16 @@ arrive as one large string and are truncated to ~10 KB by the result budget.
 
 ### Reviews and metadata
 
-| Tool                       | Maps to                 |
-| -------------------------- | ----------------------- |
-| `list_pull_reviews`        | `listPullReviews`       |
-| `get_pull_review_comments` | `getPullReviewComments` |
-| `whoami`                   | `getCurrentUser`        |
-| `list_releases`            | `getRepoReleases`       |
-| `list_labels`              | `getRepoLabels`         |
-| `list_milestones`          | `getRepoMilestones`     |
-| `list_my_repos`            | `getUserRepositories`   |
+| Tool                       | Maps to                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `list_pull_reviews`        | `listPullReviews`                                                                                       |
+| `get_pull_review_comments` | `getPullReviewComments`                                                                                 |
+| `get_pr_review_brief`      | `getPullRequestDetail` + `getPullRequestFiles` + `listPullReviews` + `getPullReviewComments` per review |
+| `whoami`                   | `getCurrentUser`                                                                                        |
+| `list_releases`            | `getRepoReleases`                                                                                       |
+| `list_labels`              | `getRepoLabels`                                                                                         |
+| `list_milestones`          | `getRepoMilestones`                                                                                     |
+| `list_my_repos`            | `getUserRepositories`                                                                                   |
 
 Overlap note: `get_pr_timeline` already returns inline review comment
 _bodies_ (timeline entries of type `code`, carrying `review_id`), but not
@@ -407,6 +425,32 @@ their file path or line position — and the code location is the point of an
 inline review comment. `get_pull_review_comments` therefore stays as a
 dedicated tool; the extension's own review-comment controller relies on the
 same endpoint for exactly this reason.
+
+`get_pr_review_brief` is the review entry point: one call returns the pull
+request header (title, state, author, base/head branch, merge blockers), the
+diff statistics (changed-file count and totals from the pull request record,
+plus a per-file additions/deletions table — never the diff text), each
+reviewer's latest conclusion with an aggregate summary, and the unresolved
+inline review comments with path, line, author and time. It is the context
+budget counterpart to reading the four tools one after another: the diff text,
+the description, the commit list and the timeline stay out, and the prompt
+tells the agent to reach for `get_pr_diff` / `get_pull_request` /
+`get_pr_timeline` when a review actually needs them. Inline comments hang off
+one review each upstream (there is no all-comments page), so the tool issues
+one comment request per review with a bounded pool (4 in flight), absorbs a
+failed per-review read into `unreadableReviewCount` instead of discarding the
+other reviews, and treats a conversation as resolved when any of its comments
+carries Forgejo's `resolver` (upstream sets it only on the first comment, so a
+reply would otherwise look unresolved). Every section is pre-sized to stay
+inside `truncateLargeStrings` by construction: the diff table is capped at 100
+rows and 16 KB (`diffStats.truncated` / `truncatedBy` = `row-limit`,
+`budget`, the client's own 500-row list cap, or `server-partial` — the server
+returning fewer files than the pull request record's `fileCount` with no cut
+on this side, seen from Forgejo 16 when the head branch is gone after a
+merge), comment bodies at 1 KB each
+and 50 comments / 24 KB in total (`unresolvedComments.truncatedBy` = `count`
+or `budget`, `bodyTruncated` per comment, newest kept), while the
+`fileCount`/`additions`/`deletions` totals stay exact.
 
 ### Workspace context
 
@@ -441,11 +485,11 @@ no result budget and no `readOnlyHint`. The read-only guarantee still comes from
 the tools a template names, and each template repeats it in prose so an expansion
 cannot be read as permission to write.
 
-| Prompt                | Arguments                   | Purpose                                                                                                                                                                                                 |
-| --------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `review-pull-request` | `owner?`, `repo?`, `index?` | `get_pull_request` → `get_pr_diff` → `get_pr_timeline` → `list_pull_reviews`, then a summary, findings ordered by severity (each with file/line evidence) and suggestions; never submits a review.      |
-| `analyze-ci-failure`  | `owner?`, `repo?`, `runId?` | `list_action_runs` (find the failing run) → `get_ci_failure_summary` (error lines + log tails) → `get_action_job_log` only for raw context, then the root cause, a suggested fix and a flakiness check. |
-| `triage-issue`        | `owner?`, `repo?`, `index?` | `get_issue` → `list_labels` / `get_repo` (plus `search` for duplicates), then suggested labels, a priority and next steps.                                                                              |
+| Prompt                | Arguments                   | Purpose                                                                                                                                                                                                                                                                                                                                     |
+| --------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `review-pull-request` | `owner?`, `repo?`, `index?` | `get_pr_review_brief` first (header, diff statistics, review conclusions, unresolved comments), then `get_pr_diff` / `get_pr_timeline` / `get_pull_request` / `list_pull_reviews` for the detail the brief leaves out, then a summary, findings ordered by severity (each with file/line evidence) and suggestions; never submits a review. |
+| `analyze-ci-failure`  | `owner?`, `repo?`, `runId?` | `list_action_runs` (find the failing run) → `get_ci_failure_summary` (error lines + log tails) → `get_action_job_log` only for raw context, then the root cause, a suggested fix and a flakiness check.                                                                                                                                     |
+| `triage-issue`        | `owner?`, `repo?`, `index?` | `get_issue` → `list_labels` / `get_repo` (plus `search` for duplicates), then suggested labels, a priority and next steps.                                                                                                                                                                                                                  |
 
 All arguments are optional. When `owner`/`repo` are absent, the template tells
 the agent to call `get_workspace_repository` first and to use what it returns; a
