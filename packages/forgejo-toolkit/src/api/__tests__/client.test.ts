@@ -27,6 +27,7 @@ import {
   setDefaultRequestDispatcher,
   treeCacheSizeForTest,
 } from '../client';
+import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
 import type { Logger } from '../../logger';
@@ -135,10 +136,98 @@ describe('ForgejoClient with MSW', () => {
   it('fetches user repositories', async () => {
     const client = createClient();
     const repos = await client.getUserRepositories();
-    expect(repos).toHaveLength(3);
-    expect(repos[0].full_name).toBe(mockRepository.full_name);
-    expect(repos[1].full_name).toBe(mockRepository2.full_name);
-    expect(repos[2].full_name).toBe(mockRepositoryFail.full_name);
+    expect(repos.items).toHaveLength(3);
+    expect(repos.items[0].full_name).toBe(mockRepository.full_name);
+    expect(repos.items[1].full_name).toBe(mockRepository2.full_name);
+    expect(repos.items[2].full_name).toBe(mockRepositoryFail.full_name);
+  });
+
+  it('reports no total for user repositories when the server omits X-Total-Count', async () => {
+    const client = createClient();
+    const repos = await client.getUserRepositories();
+    // The mock handlers send no total header, which is the old-server shape:
+    // the caller must see "unknown" and fall back to the length heuristic.
+    expect(repos.totalCount).toBeUndefined();
+  });
+
+  it('parses the X-Total-Count header of a list page', async () => {
+    const client = createClient();
+    mockServer.use(
+      http.get('https://*/api/v1/user/repos', () =>
+        HttpResponse.json([mockRepository], { headers: { 'X-Total-Count': '42' } }),
+      ),
+    );
+    const repos = await client.getUserRepositories();
+    expect(repos.items).toHaveLength(1);
+    expect(repos.totalCount).toBe(42);
+  });
+
+  it('treats a non-numeric X-Total-Count header as no total', async () => {
+    const client = createClient();
+    mockServer.use(
+      http.get('https://*/api/v1/user/repos', () =>
+        HttpResponse.json([mockRepository], { headers: { 'X-Total-Count': 'many' } }),
+      ),
+    );
+    const repos = await client.getUserRepositories();
+    expect(repos.items).toHaveLength(1);
+    expect(repos.totalCount).toBeUndefined();
+  });
+
+  it('treats a non-array list page body as an empty page', async () => {
+    const client = createClient();
+    // The shared request client answers a 204 (or an empty 200 body) with `{}`
+    // rather than an array; a list page read must not spread that into a throw.
+    mockServer.use(http.get('https://*/api/v1/user/repos', () => new HttpResponse(null, { status: 204 })));
+    const repos = await client.getUserRepositories();
+    expect(repos.items).toEqual([]);
+    expect(repos.totalCount).toBeUndefined();
+  });
+
+  it('reads a 500-item list as complete when the total agrees, truncated when it does not', async () => {
+    const client = createClient();
+    const total = 500;
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+        const start = (page - 1) * 50;
+        return HttpResponse.json(
+          Array.from({ length: Math.max(0, Math.min(50, total - start)) }, (_, i) => ({
+            ...mockIssues[0],
+            id: start + i + 1,
+            number: start + i + 1,
+          })),
+          { headers: { 'X-Total-Count': String(total) } },
+        );
+      }),
+    );
+    const issues = await client.getRepoIssues('demo-user', 'demo-repo', 'open');
+    // The core regression point: exactly LIST_ITEM_LIMIT rows whose total says
+    // the list is whole must not read as truncated anymore.
+    expect(issues.items).toHaveLength(500);
+    expect(issues.totalCount).toBe(500);
+    expect(isListTruncatedWithTotal(issues.items, issues.totalCount)).toBe(false);
+
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+        const start = (page - 1) * 50;
+        // The server holds 600 but the cap cuts the read at 500: the total now
+        // proves the truncation the length alone could only suspect.
+        return HttpResponse.json(
+          Array.from({ length: Math.max(0, Math.min(50, 600 - start)) }, (_, i) => ({
+            ...mockIssues[0],
+            id: start + i + 1,
+            number: start + i + 1,
+          })),
+          { headers: { 'X-Total-Count': '600' } },
+        );
+      }),
+    );
+    const truncated = await client.getRepoIssues('demo-user', 'demo-repo', 'open');
+    expect(truncated.items).toHaveLength(500);
+    expect(truncated.totalCount).toBe(600);
+    expect(isListTruncatedWithTotal(truncated.items, truncated.totalCount)).toBe(true);
   });
 
   it('paginates past a server that silently clamps the page size', async () => {
@@ -160,8 +249,8 @@ describe('ForgejoClient with MSW', () => {
       }),
     );
     const repos = await client.getUserRepositories();
-    expect(repos).toHaveLength(70);
-    expect(repos[69].full_name).toBe('demo-user/repo-70');
+    expect(repos.items).toHaveLength(70);
+    expect(repos.items[69].full_name).toBe('demo-user/repo-70');
   });
 
   it('stops paginating when the server keeps returning the first page', async () => {
@@ -183,7 +272,7 @@ describe('ForgejoClient with MSW', () => {
       }),
     );
     const repos = await client.getUserRepositories();
-    expect(repos).toHaveLength(50);
+    expect(repos.items).toHaveLength(50);
     expect(requests).toBe(2);
   });
 
@@ -337,8 +426,10 @@ describe('ForgejoClient with MSW', () => {
     const client = createClient();
     const notifications = await client.getNotifications();
     const unreadNotifications = mockNotifications.filter((n) => n.unread);
-    expect(notifications).toHaveLength(unreadNotifications.length);
-    expect(notifications[0].subject?.title).toBe(unreadNotifications[0].subject?.title);
+    expect(notifications.items).toHaveLength(unreadNotifications.length);
+    expect(notifications.items[0].subject?.title).toBe(unreadNotifications[0].subject?.title);
+    // The mock notifications endpoint sends no X-Total-Count, the old-server shape.
+    expect(notifications.totalCount).toBeUndefined();
   });
 
   it('marks a notification as read', async () => {
@@ -922,15 +1013,15 @@ describe('ForgejoClient with MSW', () => {
   it('fetches repository issues', async () => {
     const client = createClient();
     const issues = await client.getRepoIssues('demo-user', 'demo-repo', 'open');
-    expect(issues).toHaveLength(mockIssues.length);
-    expect(issues[0].title).toBe(mockIssues[0].title);
+    expect(issues.items).toHaveLength(mockIssues.length);
+    expect(issues.items[0].title).toBe(mockIssues[0].title);
   });
 
   it('fetches repository pull requests', async () => {
     const client = createClient();
     const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'open');
-    expect(pulls).toHaveLength(mockPullRequests.length);
-    expect(pulls[0].title).toBe(mockPullRequests[0].title);
+    expect(pulls.items).toHaveLength(mockPullRequests.length);
+    expect(pulls.items[0].title).toBe(mockPullRequests[0].title);
   });
 
   it('paginates repository issues past the server default page size', async () => {
@@ -952,8 +1043,8 @@ describe('ForgejoClient with MSW', () => {
       }),
     );
     const issues = await client.getRepoIssues('demo-user', 'demo-repo', 'open');
-    expect(issues).toHaveLength(total);
-    expect(issues[total - 1].number).toBe(total);
+    expect(issues.items).toHaveLength(total);
+    expect(issues.items[total - 1].number).toBe(total);
     expect(requestedPages).toEqual([1, 2, 3]);
   });
 
@@ -976,7 +1067,7 @@ describe('ForgejoClient with MSW', () => {
       }),
     );
     const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'open');
-    expect(pulls).toHaveLength(total);
+    expect(pulls.items).toHaveLength(total);
     expect(requestedPages).toEqual([1, 2]);
   });
 
@@ -993,7 +1084,7 @@ describe('ForgejoClient with MSW', () => {
       }),
     );
     const issues = await client.getRepoIssues('demo-user', 'demo-repo', 'open', '  bug  ');
-    expect(issues).toEqual([]);
+    expect(issues.items).toEqual([]);
     expect(receivedQuery).toBe('bug');
     expect(receivedType).toBe('issues');
   });
@@ -1024,7 +1115,7 @@ describe('ForgejoClient with MSW', () => {
       }),
     );
     const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'open', 'dark mode');
-    expect(pulls).toEqual([]);
+    expect(pulls.items).toEqual([]);
     expect(receivedQuery).toBe('dark mode');
     expect(receivedType).toBe('pulls');
   });
@@ -1041,17 +1132,17 @@ describe('ForgejoClient with MSW', () => {
       const client = createClient();
       // 'login' appears in mockIssue's title and body.
       const matches = await client.getRepoIssues('demo-user', 'demo-repo', 'all', 'login');
-      expect(matches).toHaveLength(1);
+      expect(matches.items).toHaveLength(1);
       const misses = await client.getRepoIssues('demo-user', 'demo-repo', 'all', 'no-such-keyword');
-      expect(misses).toEqual([]);
+      expect(misses.items).toEqual([]);
     });
 
     it('returns pull requests from the issues endpoint when type=pulls', async () => {
       const client = createClient();
       // getRepoPullRequests with a query goes through the issues endpoint with type=pulls.
       const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'all', 'dark mode');
-      expect(pulls).toHaveLength(1);
-      expect(pulls[0].title).toBe(mockPullRequests[0].title);
+      expect(pulls.items).toHaveLength(1);
+      expect(pulls.items[0].title).toBe(mockPullRequests[0].title);
     });
 
     it('reflects issue edits in subsequent detail and list fetches', async () => {
@@ -1059,8 +1150,8 @@ describe('ForgejoClient with MSW', () => {
       await client.editIssue('demo-user', 'demo-repo', 1, { state: 'closed' } as unknown as EditIssueOption);
       const detail = await client.getIssueDetail('demo-user', 'demo-repo', 1);
       expect(detail.state).toBe('closed');
-      expect(await client.getRepoIssues('demo-user', 'demo-repo', 'open')).toHaveLength(0);
-      expect(await client.getRepoIssues('demo-user', 'demo-repo', 'closed')).toHaveLength(1);
+      expect((await client.getRepoIssues('demo-user', 'demo-repo', 'open')).items).toHaveLength(0);
+      expect((await client.getRepoIssues('demo-user', 'demo-repo', 'closed')).items).toHaveLength(1);
     });
 
     it('reflects pull request edits in subsequent detail and list fetches', async () => {
@@ -1071,7 +1162,7 @@ describe('ForgejoClient with MSW', () => {
       const detail = await client.getPullRequestDetail('demo-user', 'demo-repo', 2);
       expect(detail.title).toBe('Renamed PR');
       const pulls = await client.getRepoPullRequests('demo-user', 'demo-repo', 'open');
-      expect(pulls[0].title).toBe('Renamed PR');
+      expect(pulls.items[0].title).toBe('Renamed PR');
     });
 
     it('resolves the repository detail for the requested repo', async () => {
@@ -1940,7 +2031,7 @@ describe('ForgejoClient with MSW', () => {
       const issues = await createClient().getRepoIssues('demo-user', 'demo-repo', 'open');
       const elapsed = performance.now() - started;
 
-      expect(issues).toHaveLength(TOTAL);
+      expect(issues.items).toHaveLength(TOTAL);
       expect(requestedPages).toHaveLength(TOTAL / PAGE);
       // Informational: the assertion above is the evidence, this is the cost.
       expect(elapsed).toBeGreaterThanOrEqual(0);
@@ -1981,8 +2072,8 @@ describe('ForgejoClient with MSW', () => {
         ),
       );
       const pulls = await createClient().getRepoPullRequests('demo-user', 'demo-repo');
-      expect(pulls).toHaveLength(1);
-      expect(pulls[0]?.id).toBe(1);
+      expect(pulls.items).toHaveLength(1);
+      expect(pulls.items[0]?.id).toBe(1);
     });
 
     it('keeps paging the timeline when a page is filtered down to nothing', async () => {
@@ -3423,9 +3514,9 @@ describe('ForgejoClient with MSW', () => {
         'mock-token',
       ).getUserRepositories();
 
-      expect(repositories).toHaveLength(500);
-      expect(repositories[0].html_url).toBe('https://configured.example.com/demo-user/repo-0');
-      expect(repositories[499].html_url).toBe('https://configured.example.com/demo-user/repo-499');
+      expect(repositories.items).toHaveLength(500);
+      expect(repositories.items[0].html_url).toBe('https://configured.example.com/demo-user/repo-0');
+      expect(repositories.items[499].html_url).toBe('https://configured.example.com/demo-user/repo-499');
     });
 
     it('still deep-copies and rewrites a payload whose URLs point at the API origin', () => {

@@ -1152,8 +1152,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const repos = await client.getUserRepositories();
-          logger.info(`getRepositories returned ${repos.length} repos for ${instance.name}`);
-          this._reply('repositories', { instanceId: instance.id, repositories: repos });
+          logger.info(`getRepositories returned ${repos.items.length} repos for ${instance.name}`);
+          this._reply('repositories', {
+            instanceId: instance.id,
+            repositories: repos.items,
+            ...(repos.totalCount !== undefined ? { totalCount: repos.totalCount } : {}),
+          });
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`getRepositories failed for ${instance.name}: ${err}`);
@@ -1279,11 +1283,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             cursor,
           );
           logger.info(
-            `getNotifications returned ${notifications.length} items for ${instance.name}${cursor ? ` before ${cursor}` : ''}`,
+            `getNotifications returned ${notifications.items.length} items for ${instance.name}${cursor ? ` before ${cursor}` : ''}`,
           );
           this._reply('notifications', {
             instanceId: instance.id,
-            notifications,
+            notifications: notifications.items,
+            ...(notifications.totalCount !== undefined ? { totalCount: notifications.totalCount } : {}),
             ...(cursor ? { before: cursor } : {}),
           });
         } catch (error) {
@@ -3065,7 +3070,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             repo,
             state: message.state ?? 'open',
             query: message.query,
-            issues,
+            issues: issues.items,
+            ...(issues.totalCount !== undefined ? { totalCount: issues.totalCount } : {}),
           });
         } catch (error) {
           const err = userFacingErrorMessage(error);
@@ -3232,7 +3238,8 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             repo,
             state: message.state ?? 'open',
             query: message.query,
-            pullRequests,
+            pullRequests: pullRequests.items,
+            ...(pullRequests.totalCount !== undefined ? { totalCount: pullRequests.totalCount } : {}),
           });
         } catch (error) {
           const err = userFacingErrorMessage(error);

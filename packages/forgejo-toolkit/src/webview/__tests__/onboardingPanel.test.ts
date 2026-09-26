@@ -383,7 +383,7 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     // none), so the slot stayed busy and the guide reported a successful save
     // for a token that cannot list repositories.
     const repos = [{ id: 1, name: 'repo', full_name: 'owner/repo' }];
-    clientMocks.getUserRepositories.mockResolvedValue(repos);
+    clientMocks.getUserRepositories.mockResolvedValue({ items: repos });
 
     fake.send({ command: 'getRepositories', instanceId: testInstance.id });
     await flushDispatches();
@@ -682,7 +682,7 @@ describe('OnboardingWebviewPanel message dispatch', () => {
 
     fake.dispose();
 
-    resolveRepos([]);
+    resolveRepos({ items: [] });
     await flushDispatches();
     await flushDispatches();
 

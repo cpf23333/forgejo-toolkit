@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { LIST_ITEM_LIMIT, isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
+import { LIST_ITEM_LIMIT, isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { ForgejoClient } from '../api/client';
 import type { ForgejoPullRequest } from '../api/types';
 import type { ConfigManager } from '../config';
@@ -201,15 +201,16 @@ export class CreatePrStatusBarController implements vscode.Disposable {
         }
         // The open-PR list is read to the shared 500-item cap (up to ten
         // requests per refresh) so the branch lookup stays correct for
-        // repositories with many open pull requests; the endpoint offers no
-        // total, so a list that reaches the cap is reported as a possible miss
-        // rather than silently trusted (isListTruncated).
-        if (isListTruncated(pulls)) {
+        // repositories with many open pull requests; where the endpoint reports
+        // a total it decides whether the cap actually cut the list, and only
+        // without one does a capped list count as a possible miss rather than
+        // being silently trusted (isListTruncatedWithTotal).
+        if (isListTruncatedWithTotal(pulls.items, pulls.totalCount)) {
           logger.error(
             `[createPrStatusBar] open pull request list for ${linked.owner}/${linked.repo} reached the ${LIST_ITEM_LIMIT}-item cap; a pull request for "${branch}" beyond it will not be detected`,
           );
         }
-        const match = pulls.find((pr) => isOpenPrForBranch(pr, branch, linked.owner, linked.repo));
+        const match = pulls.items.find((pr) => isOpenPrForBranch(pr, branch, linked.owner, linked.repo));
         this._openPrCache.set(prKey, { value: match?.number, expiresAt: Date.now() + OPEN_PR_CACHE_TTL_MS });
       }
       if (isStale()) {

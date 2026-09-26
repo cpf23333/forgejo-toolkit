@@ -687,7 +687,7 @@ describe('MCP tool handlers with MSW', () => {
   it('forwards the notification cursor to the client instead of dropping it', async () => {
     // The schema now carries the cursor; the handler must hand it to
     // `getNotifications`, whose fourth parameter is `before`.
-    const { call, calls } = registerWithStubClient({ getNotifications: async () => [] });
+    const { call, calls } = registerWithStubClient({ getNotifications: async () => ({ items: [] }) });
     await call('list_notifications', { limit: 5, before: '2026-08-17T10:00:00Z' });
 
     expect(calls).toEqual([
@@ -1687,7 +1687,7 @@ describe('list truncation reporting', () => {
 
   it('appends the note to a tool result that hit the cap', async () => {
     const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ id: i + 1, title: 'issue' }));
-    const client = { getRepoIssues: async () => capped } as never;
+    const client = { getRepoIssues: async () => ({ items: capped }) } as never;
     const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
     const server = {
       registerTool: (name: string, _config: unknown, handler: never) => {
@@ -1743,7 +1743,7 @@ describe('list truncation reporting', () => {
 
   it('keeps the narrowing advice for a listing that does have filters', async () => {
     const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ id: i + 1, title: 'issue' }));
-    const client = { getRepoIssues: async () => capped } as never;
+    const client = { getRepoIssues: async () => ({ items: capped }) } as never;
     const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
     const server = {
       registerTool: (name: string, _config: unknown, handler: never) => {

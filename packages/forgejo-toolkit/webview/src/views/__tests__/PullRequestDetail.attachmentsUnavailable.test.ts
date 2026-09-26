@@ -19,6 +19,7 @@ const { stateMock, keyFor } = vi.hoisted(() => {
       repoMilestones: { value: new Map<string, unknown>() },
       repoDetails: { value: new Map<string, unknown>() },
       repoIssues: { value: new Map<string, unknown[]>() },
+      repoIssuesTotalCount: { value: new Map() },
       repoIssuesFetchedAt: { has: () => false },
       issueSubscriptions: { value: new Map<string, unknown>() },
       issueTrackedTimes: { value: new Map<string, unknown>() },

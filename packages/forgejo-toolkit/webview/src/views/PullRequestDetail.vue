@@ -17,7 +17,7 @@ import { functionalInstanceBase } from '../utils/instanceUrl';
 import { attachmentDeleteNoticeFor } from '../utils/attachmentDeleteNotice';
 import { uploadFilesKeepingFailures } from '../utils/uploadFilesKeepingFailures';
 import { createPendingUploads } from '../utils/pendingUploads';
-import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
+import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import ReactionBar from '../components/ReactionBar.vue';
 import { CollapsibleSection } from '../vscode-controls';
 import DateTimePicker from '../components/DateTimePicker.vue';
@@ -186,8 +186,11 @@ const repoIssuesLoading = computed(() => state.loading.get(repoIssuesKeyValue.va
 // first used, and the empty state waits until then.
 const repoIssuesFetched = computed(() => state.repoIssuesFetchedAt.has(repoIssuesKeyValue.value));
 // The list is capped by the paged endpoint (LIST_ITEM_LIMIT): at the cap some issues
-// are missing, which the panel has to say out loud (same notice other lists use).
-const repoIssuesTruncated = computed(() => isListTruncated(repoIssues.value));
+// may be missing, which the panel has to say out loud (same notice other lists use).
+// Where the instance reported a total it decides; the cap length is the fallback.
+const repoIssuesTruncated = computed(() =>
+  isListTruncatedWithTotal(repoIssues.value, state.repoIssuesTotalCount.value.get(repoIssuesKeyValue.value)),
+);
 // The freshness check (TTL + in-flight dedup) lives in the composable, so the
 // picker's own `.has()` mark must not gate it: a list fetched once was otherwise
 // never refreshed, and a dependency added from the pull request panel never showed up.

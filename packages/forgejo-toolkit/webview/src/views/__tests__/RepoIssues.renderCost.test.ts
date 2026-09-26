@@ -11,6 +11,7 @@ const { routeMock, stateMock, keyFor } = vi.hoisted(() => {
       loading: new Map<string, boolean>(),
       errors: new Map<string, string>(),
       repoIssues: { value: new Map<string, unknown[]>() },
+      repoIssuesTotalCount: { value: new Map<string, number>() },
       repoDetails: { value: new Map<string, unknown>() },
       repoLabels: { value: new Map<string, unknown>() },
       repoAssignees: { value: new Map<string, unknown>() },

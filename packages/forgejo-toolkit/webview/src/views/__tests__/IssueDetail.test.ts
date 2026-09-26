@@ -56,6 +56,7 @@ const { routeMock, stateMock, keyFor } = vi.hoisted(() => {
       renderMarkdown: vi.fn(),
       repoAssignees: { value: new Map() },
       repoIssues: { value: new Map() },
+      repoIssuesTotalCount: { value: new Map() },
       repoIssuesFetchedAt: { has: () => false, set: () => {}, delete: () => {} },
       repoLabels: { value: new Map() },
       repoMilestones: { value: new Map() },

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { CreatePrStatusBarController, DEFAULT_BRANCH_CACHE_TTL_MS } from '../createPrStatusBar';
+import { logger } from '../../logger';
 import type { ConfigManager } from '../../config';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
@@ -75,7 +76,7 @@ describe('CreatePrStatusBarController', () => {
     vi.mocked(getCurrentBranch).mockResolvedValue('feature');
     vi.mocked(getGitHeadPath).mockResolvedValue('/workspace/repo/.git/HEAD');
     getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
-    getRepoPullRequests.mockResolvedValue([]);
+    getRepoPullRequests.mockResolvedValue({ items: [] });
   });
 
   function createController(): StatusBarItemMock {
@@ -121,7 +122,9 @@ describe('CreatePrStatusBarController', () => {
   });
 
   it('shows the open-PR variant when an open PR matches head.ref in the same repository', async () => {
-    getRepoPullRequests.mockResolvedValue([{ number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } }]);
+    getRepoPullRequests.mockResolvedValue({
+      items: [{ number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } }],
+    });
     const item = createController();
     await controller!.refresh();
     expect(item.text).toBe('$(git-pull-request) PR #7');
@@ -134,9 +137,9 @@ describe('CreatePrStatusBarController', () => {
   });
 
   it('does not match an open PR from a fork with the same branch name', async () => {
-    getRepoPullRequests.mockResolvedValue([
-      { number: 11, head: { ref: 'feature', repo: { full_name: 'contributor/repo' } } },
-    ]);
+    getRepoPullRequests.mockResolvedValue({
+      items: [{ number: 11, head: { ref: 'feature', repo: { full_name: 'contributor/repo' } } }],
+    });
     const item = createController();
     await controller!.refresh();
     expect(item.text).toBe('$(git-pull-request-create) Create PR');
@@ -144,25 +147,27 @@ describe('CreatePrStatusBarController', () => {
 
   it('matches an open PR via the head label fallback for the same owner', async () => {
     // head.repo is null when the fork was deleted; the label still identifies it.
-    getRepoPullRequests.mockResolvedValue([
-      { number: 9, head: { ref: 'feature', label: 'owner:feature', repo: null } },
-    ]);
+    getRepoPullRequests.mockResolvedValue({
+      items: [{ number: 9, head: { ref: 'feature', label: 'owner:feature', repo: null } }],
+    });
     const item = createController();
     await controller!.refresh();
     expect(item.text).toBe('$(git-pull-request) PR #9');
   });
 
   it('rejects the head label fallback when the label owner differs', async () => {
-    getRepoPullRequests.mockResolvedValue([
-      { number: 12, head: { ref: 'feature', label: 'contributor:feature', repo: null } },
-    ]);
+    getRepoPullRequests.mockResolvedValue({
+      items: [{ number: 12, head: { ref: 'feature', label: 'contributor:feature', repo: null } }],
+    });
     const item = createController();
     await controller!.refresh();
     expect(item.text).toBe('$(git-pull-request-create) Create PR');
   });
 
   it('matches the bare-branch label form for same-repository PRs', async () => {
-    getRepoPullRequests.mockResolvedValue([{ number: 13, head: { ref: 'feature', label: 'feature', repo: null } }]);
+    getRepoPullRequests.mockResolvedValue({
+      items: [{ number: 13, head: { ref: 'feature', label: 'feature', repo: null } }],
+    });
     const item = createController();
     await controller!.refresh();
     expect(item.text).toBe('$(git-pull-request) PR #13');
@@ -272,16 +277,16 @@ describe('CreatePrStatusBarController', () => {
   it('does not let a superseded refresh overwrite the open-PR cache', async () => {
     vi.useFakeTimers();
     try {
-      let resolveSlow: (pulls: unknown[]) => void = () => undefined;
+      let resolveSlow: (pulls: unknown) => void = () => undefined;
       getRepoPullRequests.mockImplementationOnce(
         () =>
-          new Promise<unknown[]>((resolve) => {
+          new Promise<unknown>((resolve) => {
             resolveSlow = resolve;
           }),
       );
-      getRepoPullRequests.mockResolvedValue([
-        { number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } },
-      ]);
+      getRepoPullRequests.mockResolvedValue({
+        items: [{ number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } }],
+      });
 
       const item = createController();
       const refreshA = controller!.refresh();
@@ -296,7 +301,7 @@ describe('CreatePrStatusBarController', () => {
 
       // A completes late with its older "no PR" answer. It must not repopulate
       // the cache that notifyPullRequestsChanged cleared.
-      resolveSlow([]);
+      resolveSlow({ items: [] });
       await refreshA;
       await refreshB;
 
@@ -320,9 +325,9 @@ describe('CreatePrStatusBarController', () => {
           }),
       );
       getRepoDetail.mockResolvedValue({ repository: { default_branch: 'main' } });
-      getRepoPullRequests.mockResolvedValue([
-        { number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } },
-      ]);
+      getRepoPullRequests.mockResolvedValue({
+        items: [{ number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } }],
+      });
 
       const item = createController();
       const refreshA = controller!.refresh();
@@ -377,10 +382,9 @@ describe('CreatePrStatusBarController', () => {
       number: index + 1,
       head: { ref: `other-${index}`, repo: { full_name: 'owner/repo' } },
     }));
-    getRepoPullRequests.mockResolvedValue([
-      ...manyPulls,
-      { number: 987, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } },
-    ]);
+    getRepoPullRequests.mockResolvedValue({
+      items: [...manyPulls, { number: 987, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } }],
+    });
 
     const item = createController();
     await controller!.refresh();
@@ -394,20 +398,38 @@ describe('CreatePrStatusBarController', () => {
   });
 
   it('still reports the create variant when the open-PR list is truncated at the shared cap', async () => {
-    // isListTruncated(LIST_ITEM_LIMIT = 500): a list at the cap may be missing
-    // the branch's PR, and the controller must not throw or mis-attribute a
-    // number from the rows it did receive.
+    // No total reported, so isListTruncatedWithTotal falls back to the length
+    // heuristic (LIST_ITEM_LIMIT = 500): a list at the cap may be missing the
+    // branch's PR, and the controller must not throw or mis-attribute a number
+    // from the rows it did receive.
     const cappedPulls = Array.from({ length: 500 }, (_unused, index) => ({
       number: index + 1,
       head: { ref: `other-${index}`, repo: { full_name: 'owner/repo' } },
     }));
-    getRepoPullRequests.mockResolvedValue(cappedPulls);
+    getRepoPullRequests.mockResolvedValue({ items: cappedPulls });
 
     const item = createController();
     await controller!.refresh();
 
     expect(item.text).toBe('$(git-pull-request-create) Create PR');
     expect(item.show).toHaveBeenCalled();
+  });
+
+  it('does not warn about a possible miss when the total says the capped list is whole', async () => {
+    // Exactly LIST_ITEM_LIMIT open pull requests and a matching X-Total-Count:
+    // the cap was reached but nothing was cut, so no "possible miss" is logged.
+    const errorSpy = vi.spyOn(logger, 'error');
+    const cappedPulls = Array.from({ length: 500 }, (_unused, index) => ({
+      number: index + 1,
+      head: { ref: `other-${index}`, repo: { full_name: 'owner/repo' } },
+    }));
+    getRepoPullRequests.mockResolvedValue({ items: cappedPulls, totalCount: 500 });
+
+    const item = createController();
+    await controller!.refresh();
+
+    expect(item.text).toBe('$(git-pull-request-create) Create PR');
+    expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining('reached the 500-item cap'));
   });
 
   it('clears the linked repository detection cache when instances change', () => {

@@ -65,7 +65,6 @@ import {
   cancelActionRun,
   downloadActionArtifact,
   deleteActionRun,
-  notifyGetList,
   notifyReadList,
   notifyReadThread,
   repoCompareDiff,
@@ -97,14 +96,12 @@ import {
   repoGetPullRequestFiles,
   repoGetPullReviewComments,
   repoListBranches,
-  repoListPullRequests,
   repoListPullReviews,
   repoListReleases,
   repoListTags,
   repoMergePullRequest,
   repoSearch,
   repoSubmitPullReview,
-  userCurrentListRepos,
   userGet,
   userGetCurrent,
   userGetStopWatches,
@@ -571,6 +568,19 @@ export interface MentionSearchResult {
   issues: MentionIssueItem[];
 }
 
+/**
+ * A list read together with the server's own item total, when the endpoint
+ * reported one. Forgejo's list endpoints send the full count in the
+ * `X-Total-Count` response header; older (or proxied) servers omit it, and
+ * `totalCount` is then `undefined`, which callers must read as "unknown" —
+ * the length-based truncation heuristic (`isListTruncatedWithTotal`) is the
+ * fallback, never "complete".
+ */
+export interface PagedList<T> {
+  items: T[];
+  totalCount?: number;
+}
+
 /** Adds a Node fetch dispatcher (proxy agent) to a request config. */
 export function withDispatcher<TRequestData>(
   config: RequestConfig<TRequestData>,
@@ -696,23 +706,55 @@ export class ForgejoClient {
   }
 
   /**
+   * One page of a list endpoint, read through the shared request client
+   * directly so the response headers survive. The generated wrappers return
+   * only `res.data` and drop `X-Total-Count` — the header Forgejo's list
+   * endpoints use to report the full item count — and they cannot be edited
+   * (generated code, no regeneration environment), so the list endpoints that
+   * need the total call this with a path literal that duplicates the wrapper's
+   * URL construction (its path builder is module-private). Once the wrappers
+   * are regenerated to expose headers, these calls should move back to them.
+   *
+   * A missing or non-numeric header means "total unknown" (`undefined`), which
+   * every consumer must treat exactly like the old length-based heuristic. A
+   * non-array body — the shared client answers a 204/205/304 or an empty 200
+   * with `{}` rather than an array — is an empty page, the same reading
+   * `_fetchAllPagesMeta` gives a bare-array fetcher's non-array answer.
+   */
+  private async _getListPage<T>(path: string, params?: Record<string, unknown>): Promise<PagedList<T>> {
+    const res = await this._client()<T[], unknown, unknown>({ method: 'GET', url: path, params });
+    const rawTotal = res.headers.get('x-total-count');
+    const parsedTotal = rawTotal === null ? NaN : Number(rawTotal);
+    return {
+      items: Array.isArray(res.data) ? res.data : [],
+      totalCount: Number.isFinite(parsedTotal) ? parsedTotal : undefined,
+    };
+  }
+
+  /**
    * Fetches every page of a list endpoint. The server may silently clamp the
    * requested limit (MAX_RESPONSE_ITEMS), so the first page's length — not
    * PAGE_SIZE — defines the effective page size: only a shorter later page
-   * (or an empty one) means the list is exhausted. X-Total-Count is not
-   * available on all endpoints. The safety bound caps the total item count
-   * (not the page count), so a clamped page size does not shrink the overall
-   * result window.
+   * (or an empty one) means the list is exhausted. The safety bound caps the
+   * total item count (not the page count), so a clamped page size does not
+   * shrink the overall result window.
+   *
+   * The page fetcher may answer with a bare array (a generated wrapper, which
+   * dropped the response headers) or with a `_getListPage` result; the total
+   * is taken from the first page that reports one, and later pages are
+   * trusted to agree with it rather than re-read. The total does not stop the
+   * loop early: a stale or filtered count must never cut a list short, so
+   * paging still ends on a short/empty page or the safety bound.
    *
    * `label` names the list in the completion log: `API_REQUEST_TIMEOUT_MS`
    * bounds one request, not the whole paged operation, so the request count is
    * the only visible measure of what a multi-page read cost the caller (and
    * how close it came to the item cap).
    */
-  private async _fetchAllPages<T>(
-    fetchPage: (page: number) => Promise<T[] | null | undefined>,
+  private async _fetchAllPagesMeta<T>(
+    fetchPage: (page: number) => Promise<PagedList<T> | T[] | null | undefined>,
     options: { label: string; shortPageMarksEnd?: boolean },
-  ): Promise<T[]> {
+  ): Promise<PagedList<T>> {
     const shortPageMarksEnd = options.shortPageMarksEnd ?? true;
     // Endpoints that filter rows *after* the page was read from the database can
     // return an empty page while later pages still hold rows (a whole page of
@@ -722,6 +764,7 @@ export class ForgejoClient {
     // bounded (one extra request in the normal case).
     const maxConsecutiveEmptyPages = shortPageMarksEnd ? 1 : 2;
     const all: T[] = [];
+    let totalCount: number | undefined;
     let effectivePageSize: number | undefined;
     let page = 1;
     let emptyPages = 0;
@@ -739,7 +782,10 @@ export class ForgejoClient {
       // with `{}` rather than an array, and `?? []` does not catch that:
       // spreading a non-array below would throw. Treat any non-array answer as
       // an empty page, which the empty-page rule below already handles.
-      const items = Array.isArray(fetched) ? fetched : [];
+      const items = Array.isArray(fetched) ? fetched : Array.isArray(fetched?.items) ? fetched.items : [];
+      if (page === 1 && !Array.isArray(fetched) && typeof fetched?.totalCount === 'number') {
+        totalCount = fetched.totalCount;
+      }
       requests++;
       const firstItemKey = items.length > 0 ? JSON.stringify(items[0]) : undefined;
       if (firstItemKey !== undefined && firstItemKey === previousFirstItemKey) {
@@ -767,7 +813,19 @@ export class ForgejoClient {
       page++;
     }
     this.logger?.debug(`[pages] ${options.label}: ${requests} request(s), ${all.length} item(s)`);
-    return all;
+    return { items: all, totalCount };
+  }
+
+  /**
+   * `_fetchAllPagesMeta` for callers that only want the rows. Keeps the
+   * historical signature so every list endpoint whose total nobody consumes
+   * yet (labels, milestones, timeline, …) behaves exactly as before.
+   */
+  private async _fetchAllPages<T>(
+    fetchPage: (page: number) => Promise<PagedList<T> | T[] | null | undefined>,
+    options: { label: string; shortPageMarksEnd?: boolean },
+  ): Promise<T[]> {
+    return (await this._fetchAllPagesMeta(fetchPage, options)).items;
   }
 
   async getUserStopWatches(): Promise<StopWatch[]> {
@@ -778,12 +836,11 @@ export class ForgejoClient {
     return watches as StopWatch[];
   }
 
-  async getUserRepositories(): Promise<ForgejoRepository[]> {
-    const repos = await this._fetchAllPages(
-      (page) => userCurrentListRepos({ page, limit: PAGE_SIZE }, { client: this._client() }),
+  async getUserRepositories(): Promise<PagedList<ForgejoRepository>> {
+    return this._fetchAllPagesMeta(
+      (page) => this._getListPage<ForgejoRepository>('/user/repos', { page, limit: PAGE_SIZE }),
       { label: 'repositories' },
     );
-    return repos as ForgejoRepository[];
   }
 
   createUserRepo(data: CreateRepoOption): Promise<Repository> {
@@ -1076,24 +1133,23 @@ export class ForgejoClient {
   /**
    * One page of notification threads. `before` is the page cursor (only
    * notifications updated before that instant), which keeps paging stable when
-   * marking notifications read removes them from the filtered list.
+   * marking notifications read removes them from the filtered list. The total
+   * (when the server reports one) lets a caller page exactly to the end
+   * instead of relying on an empty page as the only proof of completeness
+   * (see `NotificationPoller`).
    */
   async getNotifications(
     statusTypes: string[] = ['unread', 'pinned'],
     subjectType?: ('issue' | 'pull' | 'repository')[],
     limit: number = 50,
     before?: string,
-  ): Promise<ForgejoNotification[]> {
-    const notifications = await notifyGetList(
-      {
-        'status-types': statusTypes,
-        ...(subjectType ? { 'subject-type': subjectType } : {}),
-        limit,
-        ...(before ? { before } : {}),
-      },
-      { client: this._client() },
-    );
-    return (notifications ?? []) as ForgejoNotification[];
+  ): Promise<PagedList<ForgejoNotification>> {
+    return this._getListPage<ForgejoNotification>('/notifications', {
+      'status-types': statusTypes,
+      ...(subjectType ? { 'subject-type': subjectType } : {}),
+      limit,
+      ...(before ? { before } : {}),
+    });
   }
 
   async markNotificationRead(id: number): Promise<void> {
@@ -1893,19 +1949,24 @@ export class ForgejoClient {
     return blockers;
   }
 
-  async getRepoIssues(owner: string, repo: string, state: string = 'open', query?: string): Promise<ForgejoIssue[]> {
+  async getRepoIssues(
+    owner: string,
+    repo: string,
+    state: string = 'open',
+    query?: string,
+  ): Promise<PagedList<ForgejoIssue>> {
     const q = query?.trim();
-    const issues = await this._fetchAllPages(
+    return this._fetchAllPagesMeta(
       (page) =>
-        issueListIssues(
-          owner,
-          repo,
-          { state: state as 'open' | 'closed' | 'all', type: 'issues', ...(q ? { q } : {}), page, limit: PAGE_SIZE },
-          { client: this._client() },
-        ),
+        this._getListPage<ForgejoIssue>(`/repos/${encodePathSegment(owner)}/${encodePathSegment(repo)}/issues`, {
+          state,
+          type: 'issues',
+          ...(q ? { q } : {}),
+          page,
+          limit: PAGE_SIZE,
+        }),
       { label: 'issues' },
     );
-    return issues as ForgejoIssue[];
   }
 
   async getRepoLabels(owner: string, repo: string): Promise<Label[]> {
@@ -2007,37 +2068,38 @@ export class ForgejoClient {
     repo: string,
     state: string = 'open',
     query?: string,
-  ): Promise<ForgejoPullRequest[]> {
+  ): Promise<PagedList<ForgejoPullRequest>> {
     const q = query?.trim();
     if (q) {
       // repoListPullRequests has no keyword filter; the issues endpoint supports `q` with `type=pulls`.
-      const pulls = await this._fetchAllPages(
+      const pulls = await this._fetchAllPagesMeta(
         (page) =>
-          issueListIssues(
-            owner,
-            repo,
-            { state: state as 'open' | 'closed' | 'all', type: 'pulls', q, page, limit: PAGE_SIZE },
-            { client: this._client() },
+          this._getListPage<ForgejoPullRequest>(
+            `/repos/${encodePathSegment(owner)}/${encodePathSegment(repo)}/issues`,
+            {
+              state,
+              type: 'pulls',
+              q,
+              page,
+              limit: PAGE_SIZE,
+            },
           ),
         { label: 'pull requests' },
       );
       // The issues endpoint returns issue-shaped rows (the old code cast them the
       // same way); drop any null entry first so consumers can dereference freely.
-      return this._definedPullRequests(pulls) as ForgejoPullRequest[];
+      return { items: this._definedPullRequests(pulls.items), totalCount: pulls.totalCount };
     }
-    const pulls = await this._fetchAllPages(
+    const pulls = await this._fetchAllPagesMeta(
       (page) =>
-        repoListPullRequests(
-          owner,
-          repo,
-          { state: state as 'open' | 'closed' | 'all', page, limit: PAGE_SIZE },
-          {
-            client: this._client(),
-          },
-        ),
+        this._getListPage<ForgejoPullRequest>(`/repos/${encodePathSegment(owner)}/${encodePathSegment(repo)}/pulls`, {
+          state,
+          page,
+          limit: PAGE_SIZE,
+        }),
       { label: 'pull requests' },
     );
-    return this._definedPullRequests(pulls) as ForgejoPullRequest[];
+    return { items: this._definedPullRequests(pulls.items), totalCount: pulls.totalCount };
   }
 
   /**

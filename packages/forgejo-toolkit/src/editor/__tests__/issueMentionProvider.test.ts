@@ -445,9 +445,9 @@ describe('cancellation', () => {
       return {
         getRepoIssues: async () => {
           token.isCancellationRequested = true;
-          return [{ number: 1, title: 'one' }];
+          return { items: [{ number: 1, title: 'one' }] };
         },
-        getRepoPullRequests: async () => [],
+        getRepoPullRequests: async () => ({ items: [] }),
       };
     } as never);
     const provider = new ForgejoIssueMentionProvider(createConfig(['inst-c1']));

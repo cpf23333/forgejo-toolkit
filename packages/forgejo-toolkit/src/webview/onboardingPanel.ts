@@ -300,7 +300,7 @@ export class OnboardingWebviewPanel {
                   instance.syncApiUrlsToInstanceUrl,
                 );
                 const repos = await client.getUserRepositories();
-                this._reply('repositories', { instanceId: instance.id, repositories: repos });
+                this._reply('repositories', { instanceId: instance.id, repositories: repos.items });
               } catch (error) {
                 const err = userFacingErrorMessage(error);
                 logger.error(`onboarding getRepositories failed for ${instance.name}: ${err}`);

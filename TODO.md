@@ -15,7 +15,7 @@
 
 - [ ] P3 `IssueAddTime` 缺 422：**上游规格本身没有这个响应**（`packages/forgejo-api/spec/swagger.v1.json` 里 `POST /repos/{owner}/{repo}/issues/{index}/times` 只声明 `200/400/403/404`），所以重新生成补不上。`client.ts` 已注释服务端实际行为；要类型层面补齐得等上游 swagger 注解，或由我们本地手写类型（决定：暂不做）
 - [ ] P3 重新生成 kubb 客户端需要能跑通的环境：本机 Windows + Node 24.14.0/25.6.1 上 `kubb generate` 稳定崩溃（exit 134，V8/libuv abort，出现过 3 次，崩溃点在它已经清空输出目录之后）。已加防护 `pnpm --filter @cpf23333-forgejo-toolkit/api generate:safe`（脏树拒绝启动 + 失败自动 `git restore`）；CI 容器是 Node 22，优先在那里跑并核对 diff
-- [ ] P2 `X-Total-Count` 仍拿不到：**不是**共享请求层的问题——`packages/shared/src/request/index.ts` 的 `ResponseConfig` 一直返回 `headers`，丢掉它的是生成的 operation 包装层：每个 `packages/forgejo-api/src/generated/client/*.ts` 函数都只 `return res.data`（如 `issueListIssues.ts`）。所以列表总数与「是否还有更多」无法精确展示；要修得改生成流程让包装层透出 `headers`/`status`，或在调用处绕开包装层直接用请求客户端。通知分页已按「只有空页才算结束」处理，列表截断按「长度达到 500 即可能被截断」提示
+- [ ] P2 `X-Total-Count`（主体已交付）：列表端点绕开生成的包装层、直接走共享请求层读取响应头（`client.ts` 的 `_getListPage`；包装层 builder 模块私有且生成代码不可改，重新生成透出 `headers` 后应迁回包装层）。`getUserRepositories`/`getNotifications`/`getRepoIssues`/`getRepoPullRequests` 改返回 `PagedList`（`items` + 可选 `totalCount`），webview 四类列表回包附加 `totalCount`，9 个组件改用 `isListTruncatedWithTotal`（有总数精确判断、无头回退长度启发式，恰好 500 条且总数相符不再误报截断）；通知轮询有总数时按 `ceil(total/50)` 精确停页、不再只靠空页判全。遗留（单独一批）：MCP 工具结果形状与 `listTruncationNote` 的精确化——`mcp/tools.ts` 四个调用点只取 `.items`，截断提示仍按长度启发式，属有意保留
 - [ ] P5 低优先级（等上游）：`vscode-tree` 内按钮（IconActionButton）的 Enter/Space 被库自身 `keydown` 的 `preventDefault` 抑制（`@vscode-elements/elements` 2.5.1 既有行为）
 - [ ] 等上游版本：Forgejo v17（约 2026-10 底）的 workflow / job rerun（`forgejo#13924`，用 ≥17.0 版本闸门，并同步移除 `KNOWN_ISSUES` 对应条目）；Actions 日志 ndjson + 服务端过滤（#12820 / #12821，低优先级）
 - [ ] 规划中的功能：`forgejoToolkit.mcpEnabled` 开关；MCP Phase 2 写工具见「AI / MCP 规划」一节

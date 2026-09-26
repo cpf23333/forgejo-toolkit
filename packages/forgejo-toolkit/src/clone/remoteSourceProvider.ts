@@ -67,7 +67,7 @@ export class ForgejoRemoteSourceProvider implements RemoteSourceProvider {
       // Without a query the clone picker shows the user's own repositories
       // (same behavior as the built-in GitHub flow); a query is searched
       // server-side.
-      const repos = trimmed ? await client.searchRepositories(trimmed) : await client.getUserRepositories();
+      const repos = trimmed ? await client.searchRepositories(trimmed) : (await client.getUserRepositories()).items;
       return repos.map((repo) => toRemoteSource(instance, repo));
     } catch (error) {
       const err = userFacingErrorMessage(error);

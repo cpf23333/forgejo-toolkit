@@ -280,8 +280,16 @@ export class ForgejoIssueMentionProvider implements vscode.DocumentLinkProvider,
 
       if (trigger === '#') {
         const [issues, pullRequests] = await Promise.all([
-          this.getCachedList('issues', context, () => client.getRepoIssues(context.owner, context.repo, 'open')),
-          this.getCachedList('prs', context, () => client.getRepoPullRequests(context.owner, context.repo, 'open')),
+          this.getCachedList(
+            'issues',
+            context,
+            async () => (await client.getRepoIssues(context.owner, context.repo, 'open')).items,
+          ),
+          this.getCachedList(
+            'prs',
+            context,
+            async () => (await client.getRepoPullRequests(context.owner, context.repo, 'open')).items,
+          ),
         ]);
         // The list fetches above are the network round trips: if the request
         // was cancelled while they ran, building items from them is wasted

@@ -907,8 +907,10 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
     // row the server matched is discarded afterwards.
     list_issues: (args: ListIssuesArgs) => {
       assertCompleteRepoScope(args.owner, args.repo);
+      // `.items` only: the tool result shape (and the PAGED_LISTS truncation
+      // note keyed on its length) predates the server's total and stays as-is.
       return args.owner && args.repo
-        ? client.getRepoIssues(args.owner, args.repo, args.state ?? 'open', args.query)
+        ? client.getRepoIssues(args.owner, args.repo, args.state ?? 'open', args.query).then((list) => list.items)
         : client.getUserIssues(args.state ?? 'open', args.query);
     },
 
@@ -925,7 +927,7 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
     list_pull_requests: (args: ListIssuesArgs) => {
       assertCompleteRepoScope(args.owner, args.repo);
       return args.owner && args.repo
-        ? client.getRepoPullRequests(args.owner, args.repo, args.state ?? 'open', args.query)
+        ? client.getRepoPullRequests(args.owner, args.repo, args.state ?? 'open', args.query).then((list) => list.items)
         : client.getUserPullRequests(args.state ?? 'open', args.query);
     },
 
@@ -949,7 +951,9 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
     // tool (as it does for `list_action_runs`, whose page is also caller-sized)
     // and the description, not a note, tells the caller what a full page means.
     list_notifications: (args: ListNotificationsArgs) =>
-      client.getNotifications(args.statusTypes ?? ['unread', 'pinned'], undefined, args.limit ?? 50, args.before),
+      client
+        .getNotifications(args.statusTypes ?? ['unread', 'pinned'], undefined, args.limit ?? 50, args.before)
+        .then((list) => list.items),
 
     get_repo: (args: RepoRefArgs) => client.getRepoDetail(args.owner, args.repo),
 
@@ -1157,7 +1161,7 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
 
     list_milestones: (args: RepoRefArgs) => client.getRepoMilestones(args.owner, args.repo),
 
-    list_my_repos: () => client.getUserRepositories(),
+    list_my_repos: () => client.getUserRepositories().then((list) => list.items),
   };
 }
 

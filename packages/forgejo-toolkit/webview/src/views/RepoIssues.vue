@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onActivated, onUnmounted, ref, watch } from 'vue';
-import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
+import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import ModalDialog from '../components/ModalDialog.vue';
@@ -37,9 +37,12 @@ const key = computed(() =>
 );
 
 const items = computed(() => state.repoIssues.value.get(key.value) ?? []);
-// The host caps a paged list at LIST_ITEM_LIMIT and reports no total, so the list
-// says it may be incomplete instead of looking complete.
-const listTruncated = computed(() => isListTruncated(items.value));
+// The host caps a paged list at LIST_ITEM_LIMIT; where the instance reported a
+// total it decides whether the cap actually cut the list, and the list only
+// falls back to "may be incomplete at the cap" when no total arrived.
+const listTruncated = computed(() =>
+  isListTruncatedWithTotal(items.value, state.repoIssuesTotalCount.value.get(key.value)),
+);
 const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
 

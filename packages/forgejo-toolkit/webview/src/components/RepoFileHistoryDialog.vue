@@ -3,7 +3,7 @@ import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ModalDialog from './ModalDialog.vue';
 import { useAppState, fileHistoryKey } from '../composables/useAppState';
-import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
+import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import type { ForgejoCommit } from '../types/api';
 
 interface Props {
@@ -32,7 +32,7 @@ const loading = computed(() => state.loading.get(key.value) ?? false);
 const error = computed(() => state.errors.get(key.value));
 // The host pages file history up to the shared list cap, so a full list may be
 // missing older commits; say so instead of presenting it as the whole history.
-const truncated = computed(() => isListTruncated(commits.value));
+const truncated = computed(() => isListTruncatedWithTotal(commits.value));
 
 watch(
   () => props.open,

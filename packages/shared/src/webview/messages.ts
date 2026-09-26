@@ -213,7 +213,14 @@ export type HostToWebviewMessage =
     }
   | { command: 'setLocale'; locale: 'en' | 'zh' }
   | { command: 'setDebug'; debug: boolean }
-  | { command: 'repositories'; instanceId: string; repositories?: unknown[]; error?: string }
+  | {
+      command: 'repositories';
+      instanceId: string;
+      repositories?: unknown[];
+      /** The server's `X-Total-Count` for the list, when the instance reported one. */
+      totalCount?: number;
+      error?: string;
+    }
   | { command: 'myIssues'; instanceId: string; state: string; issues?: unknown[]; error?: string }
   | { command: 'myPullRequests'; instanceId: string; state: string; pullRequests?: unknown[]; error?: string }
   | { command: 'repoDetail'; instanceId: string; owner: string; repo: string; detail?: unknown; error?: string }
@@ -450,6 +457,8 @@ export type HostToWebviewMessage =
       state: string;
       query?: string;
       issues?: unknown[];
+      /** The server's `X-Total-Count` for the list, when the instance reported one. */
+      totalCount?: number;
       error?: string;
     }
   | {
@@ -460,6 +469,8 @@ export type HostToWebviewMessage =
       state: string;
       query?: string;
       pullRequests?: unknown[];
+      /** The server's `X-Total-Count` for the list, when the instance reported one. */
+      totalCount?: number;
       error?: string;
     }
   | {
@@ -793,6 +804,8 @@ export type HostToWebviewMessage =
       command: 'notifications';
       instanceId: string;
       notifications?: unknown[];
+      /** The server's `X-Total-Count` for the filtered list, when the instance reported one. */
+      totalCount?: number;
       /**
        * Echoes the `before` cursor of the answered request, which is how the
        * webview attributes a reply to the request it answers (the host may

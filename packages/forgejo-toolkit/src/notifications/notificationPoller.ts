@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ForgejoClient } from '../api/client';
 import { ConfigManager } from '../config';
+import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { ForgejoNotification } from '../api/types';
 import type { Logger } from '../logger';
@@ -14,8 +15,9 @@ const SEEN_NOTIFICATION_IDS_KEY = 'forgejoToolkit.seenNotificationIds';
  * It cannot be used as a completeness proof: `client.ts` documents that Forgejo
  * silently clamps a larger `limit` server-side, so a page that is *shorter* than
  * this is not necessarily the whole unread+pinned set — a server with a lower
- * cap returns exactly its cap. Only an empty page proves there is nothing left,
- * which is what `_coverageFor` acts on. See `_pollInstance`.
+ * cap returns exactly its cap. Without a server-reported total, only an empty
+ * page proves there is nothing left; with one, the poller reads exactly
+ * `ceil(total / POLL_PAGE_LIMIT)` pages instead. See `_fetchUnreadSet`.
  */
 const POLL_PAGE_LIMIT = 50;
 
@@ -273,7 +275,7 @@ export class NotificationPoller implements vscode.Disposable {
     const generation = this._clearedViewGeneration;
     this._logger?.debug(`Polling notifications for ${instance.name}`);
     const client = new ForgejoClient(instance.url, instance.token, this._logger, instance.syncApiUrlsToInstanceUrl);
-    const notifications = await client.getNotifications(['unread', 'pinned'], undefined, POLL_PAGE_LIMIT);
+    const { notifications, wholeSetSeen } = await this._fetchUnreadSet(client);
 
     // The instance may have been removed (or the poller disposed) while the
     // request was in flight; drop the stale result instead of pushing it to
@@ -288,35 +290,98 @@ export class NotificationPoller implements vscode.Disposable {
       return undefined;
     }
 
-    this._sender.pushNotifications(instance.id, notifications, this._coverageFor(instance.id, notifications));
+    this._sender.pushNotifications(
+      instance.id,
+      notifications,
+      this._coverageFor(instance.id, notifications, wholeSetSeen),
+    );
 
     const newNotifications = await this._reconcileSeenIds(instance.id, notifications);
     return { instance, notifications: newNotifications };
   }
 
   /**
+   * The instance's unread+pinned notifications, and whether the read examined
+   * the whole set (which is what decides how far the coverage below reaches).
+   *
+   * When the server reports a total (`X-Total-Count`), the read no longer
+   * relies on the empty-page proof: it pages exactly `ceil(total /
+   * POLL_PAGE_LIMIT)` times — no look-ahead request — and a non-empty page is
+   * then still the whole set when the rows arrived match the total. The
+   * `ceil` is a budget, not a target: a short page ends the read early (the
+   * total may have counted rows a concurrent mark-as-read removed), and the
+   * whole read is bounded by the shared list cap so a pathological total
+   * cannot keep the poller fetching forever. A total past that cap leaves
+   * `wholeSetSeen` false: the rows beyond it were never examined.
+   *
+   * Pages after the first are selected with the `before` cursor (only threads
+   * updated before the oldest row already held), the same cursor the webview's
+   * "load more" uses: marking notifications read removes them from the
+   * filtered server list, and a numbered page would shift under the read.
+   *
+   * Without a total the old rule stands unchanged: one page only, and only an
+   * empty page proves completeness. Forgejo silently clamps a `limit` above
+   * its own cap (`client.ts`), so a short non-empty page proves nothing — a
+   * server whose cap is lower than POLL_PAGE_LIMIT returns exactly its cap
+   * while unread rows sit past it.
+   */
+  private async _fetchUnreadSet(client: ForgejoClient): Promise<{
+    notifications: ForgejoNotification[];
+    wholeSetSeen: boolean;
+  }> {
+    const firstPage = await client.getNotifications(['unread', 'pinned'], undefined, POLL_PAGE_LIMIT);
+    const notifications = [...firstPage.items];
+    if (firstPage.totalCount === undefined) {
+      return { notifications, wholeSetSeen: notifications.length === 0 };
+    }
+    const totalCount = firstPage.totalCount;
+    const totalPages = Math.ceil(totalCount / POLL_PAGE_LIMIT);
+    // Guards a server that ignores the `before` cursor and answers every page
+    // with the first one, the same pattern `_fetchAllPagesMeta` guards: without
+    // it the loop below would append duplicates until the page budget ran out.
+    let previousFirstItemKey = notifications.length > 0 ? JSON.stringify(notifications[0]) : undefined;
+    for (let page = 2; page <= totalPages && notifications.length < LIST_ITEM_LIMIT; page++) {
+      const oldest = notifications[notifications.length - 1]?.updated_at;
+      if (!oldest) {
+        break;
+      }
+      const nextPage = await client.getNotifications(['unread', 'pinned'], undefined, POLL_PAGE_LIMIT, oldest);
+      const firstItemKey = nextPage.items.length > 0 ? JSON.stringify(nextPage.items[0]) : undefined;
+      if (firstItemKey !== undefined && firstItemKey === previousFirstItemKey) {
+        break;
+      }
+      previousFirstItemKey = firstItemKey;
+      notifications.push(...nextPage.items);
+      if (nextPage.items.length < POLL_PAGE_LIMIT) {
+        break;
+      }
+    }
+    return { notifications, wholeSetSeen: notifications.length >= totalCount };
+  }
+
+  /**
    * The ids this poll can speak for, and the record of what it saw unread for
    * the next one.
    *
-   * The request asks for the unread+pinned set, so a page that came back *empty*
-   * is that whole set: every row this poller saw unread last time is read now,
-   * and the view can only clear such a row if it is named here (it is not in
-   * `notifications`).
+   * The request asks for the unread+pinned set, so a poll that examined that
+   * whole set — `wholeSetSeen`, proved either by an empty page or by matching
+   * the server-reported total (see `_fetchUnreadSet`) — can clear every row it
+   * saw unread last time: such a row is read now, and the view may only clear
+   * it if it is named here (it is not in `notifications`).
    *
-   * A non-empty page cannot prove completeness, however short it is. Forgejo
-   * silently clamps a `limit` above its own cap (`client.ts`), so a server whose
-   * cap is lower than POLL_PAGE_LIMIT returns exactly its cap and no more; the
-   * page looks short while unread rows sit past it. Unioning the previously-seen
-   * ids in on that evidence marked those unread rows read in the view. Only the
-   * ids the page carried are covered then — the same rule a full page has always
+   * A partial read cannot prove completeness. Forgejo silently clamps a
+   * `limit` above its own cap (`client.ts`), so a server whose cap is lower
+   * than POLL_PAGE_LIMIT returns exactly its cap and no more; the page looks
+   * short while unread rows sit past it. Unioning the previously-seen ids in
+   * on that evidence marked those unread rows read in the view. Only the ids
+   * the read carried are covered then — the same rule a full page has always
    * had.
    */
-  private _coverageFor(instanceId: string, notifications: ForgejoNotification[]): number[] {
+  private _coverageFor(instanceId: string, notifications: ForgejoNotification[], wholeSetSeen: boolean): number[] {
     const pageIds = idsOf(notifications);
     const previouslyUnread = this._knownUnreadIds.get(instanceId) ?? [];
-    // A full page (or one below the clamp) may have been truncated, so only an
-    // empty page proves the request saw the entire unread set.
-    const wholeSetSeen = notifications.length === 0;
+    // A full page (or one below the clamp) may have been truncated, so only a
+    // read proven complete covers the rows it saw unread before.
     const coveredIds = wholeSetSeen ? [...new Set([...pageIds, ...previouslyUnread])] : pageIds;
     this._knownUnreadIds.set(instanceId, coveredIds);
     return coveredIds;

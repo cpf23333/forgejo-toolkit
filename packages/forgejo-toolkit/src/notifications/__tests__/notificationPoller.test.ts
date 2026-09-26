@@ -1,9 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as vscode from 'vscode';
+import type { PagedList } from '../../api/client';
 import type { ForgejoNotification } from '../../api/types';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 
-const mockGetNotifications = vi.fn<() => Promise<ForgejoNotification[]>>();
+const mockGetNotifications =
+  vi.fn<
+    (
+      statusTypes?: string[],
+      subjectType?: ('issue' | 'pull' | 'repository')[],
+      limit?: number,
+      before?: string,
+    ) => Promise<PagedList<ForgejoNotification>>
+  >();
 const mockMarkAllRead = vi.fn<() => Promise<void>>();
 
 vi.mock('../../api/client', () => ({
@@ -26,6 +35,11 @@ const instanceA: ForgejoInstance = {
 };
 
 const instanceB: ForgejoInstance = { ...instanceA, id: 'b', token: 'token-b', username: 'b' };
+
+/** A `getNotifications` page in the shape the client now returns. */
+function paged(items: ForgejoNotification[], totalCount?: number): PagedList<ForgejoNotification> {
+  return { items, totalCount };
+}
 
 function notification(id: number): ForgejoNotification {
   return { id } as ForgejoNotification;
@@ -87,7 +101,7 @@ describe('NotificationPoller', () => {
   }
 
   it('establishes a baseline on the first poll without toasting past notifications', async () => {
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     const poller = createPoller(config, context);
@@ -105,7 +119,7 @@ describe('NotificationPoller', () => {
     expect(seen.a).toEqual([1, 2]);
 
     // Second poll with an additional notification toasts exactly once.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2), notification(3)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2), notification(3)]));
     await vi.advanceTimersByTimeAsync(300_000);
     expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
 
@@ -113,7 +127,7 @@ describe('NotificationPoller', () => {
   });
 
   it('does not schedule polls after dispose', async () => {
-    mockGetNotifications.mockResolvedValue([]);
+    mockGetNotifications.mockResolvedValue(paged([]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     const poller = createPoller(config, context);
@@ -125,7 +139,7 @@ describe('NotificationPoller', () => {
   });
 
   it('stops scheduling after a restart following dispose', async () => {
-    mockGetNotifications.mockResolvedValue([]);
+    mockGetNotifications.mockResolvedValue(paged([]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     const poller = createPoller(config, context);
@@ -141,10 +155,10 @@ describe('NotificationPoller', () => {
   });
 
   it('drops poll results for instances removed while the request was in flight', async () => {
-    let resolveRequest: (notifications: ForgejoNotification[]) => void = () => undefined;
+    let resolveRequest: (page: PagedList<ForgejoNotification>) => void = () => undefined;
     mockGetNotifications.mockImplementation(
       () =>
-        new Promise<ForgejoNotification[]>((resolve) => {
+        new Promise<PagedList<ForgejoNotification>>((resolve) => {
           resolveRequest = resolve;
         }),
     );
@@ -159,7 +173,7 @@ describe('NotificationPoller', () => {
 
     // The instance is removed before the response arrives.
     instances.length = 0;
-    resolveRequest([notification(1)]);
+    resolveRequest(paged([notification(1)]));
     await vi.advanceTimersByTimeAsync(0);
 
     expect(sender.pushNotifications).not.toHaveBeenCalled();
@@ -168,7 +182,7 @@ describe('NotificationPoller', () => {
   });
 
   it('merges seen-id updates from concurrent polls of different instances', async () => {
-    mockGetNotifications.mockResolvedValue([notification(7)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(7)]));
     const config = createFakeConfig([instanceA, instanceB]);
     const context = createFakeContext();
     const poller = createPoller(config, context);
@@ -183,8 +197,8 @@ describe('NotificationPoller', () => {
   });
 
   it('coalesces overlapping immediate poll rounds into a single round', async () => {
-    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
-    const pending = new Promise<ForgejoNotification[]>((resolve) => {
+    let resolveRequests: (page: PagedList<ForgejoNotification>) => void = () => undefined;
+    const pending = new Promise<PagedList<ForgejoNotification>>((resolve) => {
       resolveRequests = resolve;
     });
     mockGetNotifications.mockReturnValue(pending);
@@ -213,7 +227,7 @@ describe('NotificationPoller', () => {
     expect(mockGetNotifications).toHaveBeenCalledTimes(2);
 
     // The overlapping restarts must not report the same notification again.
-    resolveRequests([notification(1), notification(2)]);
+    resolveRequests(paged([notification(1), notification(2)]));
     await vi.advanceTimersByTimeAsync(0);
     expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
 
@@ -229,9 +243,9 @@ describe('NotificationPoller', () => {
     // A joined round only covers the instances it started with; without a
     // follow-up, an instance imported mid-round waits for the next interval
     // (five minutes by default) before it is polled at all.
-    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
+    let resolveRequests: (page: PagedList<ForgejoNotification>) => void = () => undefined;
     mockGetNotifications.mockReturnValue(
-      new Promise<ForgejoNotification[]>((resolve) => {
+      new Promise<PagedList<ForgejoNotification>>((resolve) => {
         resolveRequests = resolve;
       }),
     );
@@ -252,7 +266,7 @@ describe('NotificationPoller', () => {
     // The in-flight round cannot cover the new instance, so nothing new yet.
     expect(mockGetNotifications).toHaveBeenCalledTimes(1);
 
-    resolveRequests([]);
+    resolveRequests(paged([]));
     await vi.advanceTimersByTimeAsync(0);
     // The follow-up round polls both instances.
     expect(mockGetNotifications).toHaveBeenCalledTimes(3);
@@ -260,14 +274,14 @@ describe('NotificationPoller', () => {
   });
 
   it('does not report the same notification twice when a tick lands mid-round', async () => {
-    let resolveFirst: (notifications: ForgejoNotification[]) => void = () => undefined;
+    let resolveFirst: (page: PagedList<ForgejoNotification>) => void = () => undefined;
     mockGetNotifications.mockImplementationOnce(
       () =>
-        new Promise<ForgejoNotification[]>((resolve) => {
+        new Promise<PagedList<ForgejoNotification>>((resolve) => {
           resolveFirst = resolve;
         }),
     );
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     // A persisted baseline already contains notification 1.
@@ -283,7 +297,7 @@ describe('NotificationPoller', () => {
     await vi.advanceTimersByTimeAsync(300_000);
     expect(mockGetNotifications).toHaveBeenCalledTimes(1);
 
-    resolveFirst([notification(1), notification(2)]);
+    resolveFirst(paged([notification(1), notification(2)]));
     await vi.advanceTimersByTimeAsync(0);
     expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
 
@@ -295,7 +309,7 @@ describe('NotificationPoller', () => {
   });
 
   it('recovers from a legacy non-array seen-id payload without poisoning the write queue', async () => {
-    mockGetNotifications.mockResolvedValue([notification(1)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1)]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     // Legacy dirty data: an older version persisted a Set, which
@@ -312,7 +326,7 @@ describe('NotificationPoller', () => {
     expect(sender.pushNotifications).toHaveBeenCalledWith('a', [notification(1)], [1]);
 
     // The write queue survived: the next poll persists its update too.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     await vi.advanceTimersByTimeAsync(300_000);
     seen = context.store.get('forgejoToolkit.seenNotificationIds') as Record<string, number[]>;
     expect(seen.a).toEqual([1, 2]);
@@ -320,7 +334,7 @@ describe('NotificationPoller', () => {
   });
 
   it('aggregates one toast per poll round across instances with new notifications', async () => {
-    mockGetNotifications.mockResolvedValue([notification(1)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1)]));
     const config = createFakeConfig([instanceA, instanceB]);
     const context = createFakeContext();
     const poller = createPoller(config, context);
@@ -332,7 +346,7 @@ describe('NotificationPoller', () => {
 
     // Both instances gain a new notification in the same round: a single
     // aggregated toast instead of one toast per instance.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     await vi.advanceTimersByTimeAsync(300_000);
 
     expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
@@ -342,7 +356,7 @@ describe('NotificationPoller', () => {
   });
 
   it('keeps per-instance wording when only one instance has new notifications', async () => {
-    mockGetNotifications.mockResolvedValue([notification(1)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1)]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     const poller = createPoller(config, context);
@@ -350,7 +364,7 @@ describe('NotificationPoller', () => {
     poller.start();
     await vi.advanceTimersByTimeAsync(0);
 
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2), notification(3)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2), notification(3)]));
     await vi.advanceTimersByTimeAsync(300_000);
 
     expect(vscode.window.showInformationMessage).toHaveBeenCalledTimes(1);
@@ -362,7 +376,7 @@ describe('NotificationPoller', () => {
   it('logs instead of crashing when the toast action handler throws', async () => {
     // openNotifications runs synchronously inside the toast's .then callback; a
     // throw there used to surface as an unhandled rejection.
-    mockGetNotifications.mockResolvedValue([notification(1)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1)]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     const poller = createPoller(config, context);
@@ -370,7 +384,7 @@ describe('NotificationPoller', () => {
     poller.start();
     await vi.advanceTimersByTimeAsync(0);
 
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockResolvedValue('Open');
     sender.openNotifications.mockImplementation(() => {
       throw new Error('view gone');
@@ -383,7 +397,7 @@ describe('NotificationPoller', () => {
   });
 
   it('reports a mark-all-read failure without touching the unread state or re-polling', async () => {
-    mockGetNotifications.mockResolvedValue([notification(1)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1)]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     const poller = createPoller(config, context);
@@ -393,7 +407,7 @@ describe('NotificationPoller', () => {
 
     // Second round: one new notification, the user picks "Mark all as read"
     // and the mark request itself fails.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockResolvedValue('Mark all as read');
     mockMarkAllRead.mockRejectedValueOnce(new Error('boom'));
     await vi.advanceTimersByTimeAsync(300_000);
@@ -410,7 +424,7 @@ describe('NotificationPoller', () => {
   });
 
   it('does not report a refresh failure after a successful mark as a mark failure', async () => {
-    mockGetNotifications.mockResolvedValue([notification(1)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1)]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     const poller = createPoller(config, context);
@@ -421,9 +435,9 @@ describe('NotificationPoller', () => {
     // Second round: user picks "Mark all as read"; the mark succeeds but the
     // refresh poll fails.
     mockGetNotifications
-      .mockResolvedValueOnce([notification(1), notification(2)])
+      .mockResolvedValueOnce(paged([notification(1), notification(2)]))
       .mockRejectedValueOnce(new Error('refresh failed'))
-      .mockResolvedValue([]);
+      .mockResolvedValue(paged([]));
     (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockResolvedValue('Mark all as read');
     await vi.advanceTimersByTimeAsync(300_000);
 
@@ -439,7 +453,7 @@ describe('NotificationPoller', () => {
     // set, so a row that was unread on the previous poll and is absent now was
     // examined and found read. The view can only clear such a row when the host
     // names it, because the row is not in the page.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     const config = createFakeConfig([instanceA]);
     const poller = createPoller(config, createFakeContext());
 
@@ -447,7 +461,7 @@ describe('NotificationPoller', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1), notification(2)], [1, 2]);
 
-    mockGetNotifications.mockResolvedValue([]);
+    mockGetNotifications.mockResolvedValue(paged([]));
     await vi.advanceTimersByTimeAsync(300_000);
     expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [], [1, 2]);
 
@@ -459,7 +473,7 @@ describe('NotificationPoller', () => {
     // reply. A poll that was already in flight read the unread list *before*
     // that mark, so pushing its reply afterwards rewrites the badge slot and
     // re-flags every cleared row as unread until the next interval.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     const config = createFakeConfig([instanceA]);
     const poller = createPoller(config, createFakeContext());
     const internals = poller as unknown as {
@@ -476,12 +490,12 @@ describe('NotificationPoller', () => {
     mockGetNotifications
       .mockImplementationOnce(
         () =>
-          new Promise<ForgejoNotification[]>((resolve) => {
-            finishStalePoll = () => resolve([notification(1), notification(2), notification(3)]);
+          new Promise<PagedList<ForgejoNotification>>((resolve) => {
+            finishStalePoll = () => resolve(paged([notification(1), notification(2), notification(3)]));
           }),
       )
       // The refresh poll that follows the mark sees what is still unread.
-      .mockResolvedValue([notification(3), notification(4)]);
+      .mockResolvedValue(paged([notification(3), notification(4)]));
     const stalePoll = internals._pollInstance(instanceA);
     expect(typeof finishStalePoll).toBe('function');
     await internals._markAllRead(instanceA);
@@ -500,7 +514,7 @@ describe('NotificationPoller', () => {
     // and the refresh poll that follows comes back with an empty page. An empty
     // page alone says nothing about the rows a view is still showing, so the
     // poller has to name the ids it knows were marked.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     const config = createFakeConfig([instanceA]);
     const poller = createPoller(config, createFakeContext());
 
@@ -508,8 +522,8 @@ describe('NotificationPoller', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     mockGetNotifications
-      .mockResolvedValueOnce([notification(1), notification(2), notification(3)])
-      .mockResolvedValue([]);
+      .mockResolvedValueOnce(paged([notification(1), notification(2), notification(3)]))
+      .mockResolvedValue(paged([]));
     (vscode.window.showInformationMessage as ReturnType<typeof vi.fn>).mockResolvedValue('Mark all as read');
     await vi.advanceTimersByTimeAsync(300_000);
 
@@ -522,14 +536,14 @@ describe('NotificationPoller', () => {
     // An empty page is the one page that provably is the whole unread+pinned
     // set: everything this poller saw unread before is gone from it, so the view
     // may clear all of those rows.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2), notification(3)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2), notification(3)]));
     const config = createFakeConfig([instanceA]);
     const poller = createPoller(config, createFakeContext());
 
     poller.start();
     await vi.advanceTimersByTimeAsync(0);
     expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [1, 2, 3].map(notification), [1, 2, 3]);
-    mockGetNotifications.mockResolvedValue([]);
+    mockGetNotifications.mockResolvedValue(paged([]));
     await vi.advanceTimersByTimeAsync(300_000);
 
     expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [], [1, 2, 3]);
@@ -541,7 +555,7 @@ describe('NotificationPoller', () => {
     // than the poller's 50 can still be a truncated one. Unioning the previously
     // seen ids in on that evidence marked rows read that the poll never examined
     // — they were simply past the server's cap.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     const config = createFakeConfig([instanceA]);
     const poller = createPoller(config, createFakeContext());
 
@@ -551,7 +565,7 @@ describe('NotificationPoller', () => {
 
     // A clamped page: two rows, one of which was already known unread; id 2 is
     // absent but may only be past the cap, so it must stay uncovered.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(3)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(3)]));
     await vi.advanceTimersByTimeAsync(300_000);
 
     expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1), notification(3)], [1, 3]);
@@ -562,7 +576,7 @@ describe('NotificationPoller', () => {
     // A full page may have been truncated (a newly arrived notification pushes
     // older rows off it), so absence proves nothing there either.
     const fullPage = Array.from({ length: 50 }, (_, index) => notification(index + 1));
-    mockGetNotifications.mockResolvedValue(fullPage);
+    mockGetNotifications.mockResolvedValue(paged(fullPage));
     const config = createFakeConfig([instanceA]);
     const poller = createPoller(config, createFakeContext());
 
@@ -576,7 +590,7 @@ describe('NotificationPoller', () => {
 
     // The next page is full again and drops the oldest rows: they stay uncovered.
     const nextPage = Array.from({ length: 50 }, (_, index) => notification(index + 6));
-    mockGetNotifications.mockResolvedValue(nextPage);
+    mockGetNotifications.mockResolvedValue(paged(nextPage));
     await vi.advanceTimersByTimeAsync(300_000);
 
     expect(sender.pushNotifications).toHaveBeenLastCalledWith(
@@ -591,9 +605,9 @@ describe('NotificationPoller', () => {
     // A joined round only covers the instances it started with, so an instance
     // added mid-round schedules one follow-up round. After `stop()` the poller
     // is off: the in-flight round settling must not start polling again.
-    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
+    let resolveRequests: (page: PagedList<ForgejoNotification>) => void = () => undefined;
     mockGetNotifications.mockReturnValue(
-      new Promise<ForgejoNotification[]>((resolve) => {
+      new Promise<PagedList<ForgejoNotification>>((resolve) => {
         resolveRequests = resolve;
       }),
     );
@@ -613,7 +627,7 @@ describe('NotificationPoller', () => {
     await vi.advanceTimersByTimeAsync(0);
     poller.stop();
 
-    resolveRequests([]);
+    resolveRequests(paged([]));
     await vi.advanceTimersByTimeAsync(0);
     // No follow-up round for the added instance: the poller was stopped.
     expect(mockGetNotifications).toHaveBeenCalledTimes(1);
@@ -624,7 +638,7 @@ describe('NotificationPoller', () => {
     // When the baseline cannot be persisted (e.g. a read-only state store), the
     // persisted map stays one round behind. Reading it again on the next poll
     // used to report the same notifications as new on every single round.
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     // A baseline exists, so notification 2 counts as new on the first poll.
@@ -647,7 +661,7 @@ describe('NotificationPoller', () => {
   });
 
   it('persists the in-memory baseline once the seen-id write recovers', async () => {
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)]));
     const config = createFakeConfig([instanceA]);
     const context = createFakeContext();
     context.store.set('forgejoToolkit.seenNotificationIds', { a: [1] });
@@ -668,7 +682,7 @@ describe('NotificationPoller', () => {
     // The write recovers: the next reconcile persists the whole map again,
     // including the rounds that only lived in memory.
     failWrites = false;
-    mockGetNotifications.mockResolvedValue([notification(1), notification(2), notification(3)]);
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2), notification(3)]));
     await vi.advanceTimersByTimeAsync(300_000);
 
     // Notification 3 is reported as new (exactly once; notification 2 was
@@ -685,9 +699,9 @@ describe('NotificationPoller', () => {
     // `_started` also gates the follow-up round that an in-flight round owes a
     // newly added instance, and a disabled poller that still carried the flag
     // would poll once more when the in-flight round settles.
-    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
+    let resolveRequests: (page: PagedList<ForgejoNotification>) => void = () => undefined;
     mockGetNotifications.mockReturnValue(
-      new Promise<ForgejoNotification[]>((resolve) => {
+      new Promise<PagedList<ForgejoNotification>>((resolve) => {
         resolveRequests = resolve;
       }),
     );
@@ -715,7 +729,7 @@ describe('NotificationPoller', () => {
     pollingEnabled = false;
     listener!();
 
-    resolveRequests([]);
+    resolveRequests(paged([]));
     await vi.advanceTimersByTimeAsync(0);
     // The poller is off: settling the in-flight round must not start the
     // follow-up round for the added instance.
@@ -724,9 +738,9 @@ describe('NotificationPoller', () => {
   });
 
   it('does not toast new notifications from a round that was in flight when the poller stopped', async () => {
-    let resolveRequests: (notifications: ForgejoNotification[]) => void = () => undefined;
+    let resolveRequests: (page: PagedList<ForgejoNotification>) => void = () => undefined;
     mockGetNotifications.mockReturnValue(
-      new Promise<ForgejoNotification[]>((resolve) => {
+      new Promise<PagedList<ForgejoNotification>>((resolve) => {
         resolveRequests = resolve;
       }),
     );
@@ -743,10 +757,109 @@ describe('NotificationPoller', () => {
     // The round is still in flight when the poller is stopped (polling disabled
     // or the extension shutting down): its findings must not toast afterwards.
     poller.stop();
-    resolveRequests([notification(1), notification(2)]);
+    resolveRequests(paged([notification(1), notification(2)]));
     await vi.advanceTimersByTimeAsync(0);
 
     expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+    poller.dispose();
+  });
+
+  it('pages exactly ceil(total/pageSize) requests when the server reports a total', async () => {
+    // With X-Total-Count the read no longer needs an empty look-ahead page: it
+    // knows the page count up front and stops after exactly that many requests.
+    const total = 120;
+    const rows = Array.from(
+      { length: total },
+      (_, index) =>
+        ({
+          id: index + 1,
+          // Distinct, strictly descending timestamps: the `before` cursor of one
+          // page selects the rows of the next.
+          updated_at: new Date(Date.UTC(2026, 0, 2) - index * 1000).toISOString(),
+        }) as ForgejoNotification,
+    );
+    mockGetNotifications.mockImplementation(async (...args: unknown[]) => {
+      const before = args[3] as string | undefined;
+      const limit = (args[2] as number) ?? 50;
+      const result = before ? rows.filter((row) => (row.updated_at ?? '') < before) : rows;
+      return paged(result.slice(0, limit), total);
+    });
+    const config = createFakeConfig([instanceA]);
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // ceil(120 / 50) = 3 requests, and not one look-ahead more.
+    expect(mockGetNotifications).toHaveBeenCalledTimes(3);
+    // Pages after the first are selected with the `before` cursor (the oldest
+    // row already held), never a bare page number.
+    expect(mockGetNotifications.mock.calls[1][3]).toBe(rows[49].updated_at);
+    expect(mockGetNotifications.mock.calls[2][3]).toBe(rows[99].updated_at);
+    // The whole set was examined: every row is covered.
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith(
+      'a',
+      rows,
+      rows.map((row) => row.id),
+    );
+    poller.dispose();
+  });
+
+  it('covers the previously seen ids when a non-empty page matches the reported total', async () => {
+    // The no-total rule can only treat an empty page as the whole unread set.
+    // A reported total proves it for a non-empty page too: a row that was unread
+    // last poll and is absent now was examined and found read, so it is covered.
+    mockGetNotifications.mockResolvedValue(paged([notification(1), notification(2)], 2));
+    const config = createFakeConfig([instanceA]);
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1), notification(2)], [1, 2]);
+
+    // One row left, and the total says that is the whole set — a single request,
+    // no look-ahead page.
+    mockGetNotifications.mockResolvedValue(paged([notification(1)], 1));
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(mockGetNotifications).toHaveBeenCalledTimes(2);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith('a', [notification(1)], [1, 2]);
+    poller.dispose();
+  });
+
+  it('stops at the list cap and covers only the read rows when the total exceeds it', async () => {
+    // A reported total beyond LIST_ITEM_LIMIT rows must not keep the poller
+    // fetching forever: the read stops at the cap, and the rows past it were
+    // never examined, so the poll cannot speak for them.
+    const total = 2000;
+    const rows = Array.from(
+      { length: total },
+      (_, index) =>
+        ({
+          id: index + 1,
+          updated_at: new Date(Date.UTC(2026, 0, 2) - index * 1000).toISOString(),
+        }) as ForgejoNotification,
+    );
+    mockGetNotifications.mockImplementation(async (...args: unknown[]) => {
+      const before = args[3] as string | undefined;
+      const limit = (args[2] as number) ?? 50;
+      const result = before ? rows.filter((row) => (row.updated_at ?? '') < before) : rows;
+      return paged(result.slice(0, limit), total);
+    });
+    const config = createFakeConfig([instanceA]);
+    const poller = createPoller(config, createFakeContext());
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // LIST_ITEM_LIMIT / 50 = 10 requests, then the cap ends the read.
+    expect(mockGetNotifications).toHaveBeenCalledTimes(10);
+    const read = rows.slice(0, 500);
+    expect(sender.pushNotifications).toHaveBeenLastCalledWith(
+      'a',
+      read,
+      read.map((row) => row.id),
+    );
     poller.dispose();
   });
 });

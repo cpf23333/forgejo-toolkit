@@ -104,7 +104,7 @@ describe('ForgejoRemoteSourceProvider', () => {
   });
 
   it("lists the user's own repositories when no query is given", async () => {
-    clientMocks.getUserRepositories.mockResolvedValue([createRepo({ description: '' })]);
+    clientMocks.getUserRepositories.mockResolvedValue({ items: [createRepo({ description: '' })] });
     const provider = new ForgejoRemoteSourceProvider(() => testInstance);
 
     const sources = await provider.getRemoteSources();
@@ -202,7 +202,7 @@ describe('syncRemoteSourceProviders', () => {
     const live: ForgejoInstance[] = [{ ...testInstance }];
     const registrations = new Map<string, { dispose(): void }>();
     vi.mocked(ForgejoClient).mockClear();
-    clientMocks.getUserRepositories.mockResolvedValue([]);
+    clientMocks.getUserRepositories.mockResolvedValue({ items: [] });
 
     syncRemoteSourceProviders(api, live, registrations, (id) => live.find((instance) => instance.id === id));
     live[0] = { ...testInstance, token: 'renewed-token' };

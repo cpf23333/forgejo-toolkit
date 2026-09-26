@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
+import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useI18n } from 'vue-i18n';
 import { useAppState, repoRefsKey } from '../composables/useAppState';
 import RepoRefFormDialog, { type RepoRefFormMode } from './RepoRefFormDialog.vue';
@@ -25,7 +25,7 @@ const activeTab = ref<'branches' | 'tags' | 'releases'>('branches');
 // Branches, tags and releases are paged lists with a hard cap and no total, so the
 // active tab says when its list was cut off.
 const activeList = computed<unknown[]>(() => (data.value?.[activeTab.value] ?? []) as unknown[]);
-const listTruncated = computed(() => isListTruncated(activeList.value));
+const listTruncated = computed(() => isListTruncatedWithTotal(activeList.value));
 // Computed, not a constant built once in setup: a constant captured the labels
 // through `t(...)` at setup time, so a runtime locale change left the three tabs
 // in the old language while the rest of the view re-rendered.

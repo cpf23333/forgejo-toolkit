@@ -396,6 +396,12 @@ function createAppState() {
   const pullRequestDetails = ref<Map<string, ForgejoPullRequestDetail>>(new Map());
   const repoIssues = ref<Map<string, ForgejoIssue[]>>(new Map());
   const repoPullRequests = ref<Map<string, ForgejoPullRequest[]>>(new Map());
+  // The server's `X-Total-Count` for each issue/PR list, when the instance
+  // reported one. Keyed like the lists so a missing entry means "unknown" and
+  // the truncation notice falls back to the length heuristic; cleared wherever
+  // the lists themselves are, so a reloaded list never reads a stale total.
+  const repoIssuesTotalCount = ref<Map<string, number>>(new Map());
+  const repoPullRequestsTotalCount = ref<Map<string, number>>(new Map());
   // Runs accumulate per repo (server order) instead of one page replacing the
   // previous one; `actionRunsKey` is the repo's list slot regardless of page.
   const actionRuns = ref<Map<string, ForgejoActionRun[]>>(new Map());
@@ -3127,6 +3133,7 @@ function createAppState() {
     state: string;
     query?: string;
     issues?: ForgejoIssue[];
+    totalCount?: number;
     error?: string;
   }) {
     applyRepoListReply(
@@ -3135,6 +3142,7 @@ function createAppState() {
       data.issues ?? [],
       repoIssues.value,
       repoIssuesFetchedAt,
+      repoIssuesTotalCount.value,
       (request) => loadRepoIssues(request.instanceId, request.owner, request.repo, request.state, request.query, true),
     );
   }
@@ -3150,7 +3158,15 @@ function createAppState() {
    * request's own reply is not counted, so it is applied normally.
    */
   function applyRepoListReply<
-    TReply extends { instanceId: string; owner: string; repo: string; state: string; query?: string; error?: string },
+    TReply extends {
+      instanceId: string;
+      owner: string;
+      repo: string;
+      state: string;
+      query?: string;
+      totalCount?: number;
+      error?: string;
+    },
     TItem,
   >(
     key: string,
@@ -3158,6 +3174,7 @@ function createAppState() {
     items: TItem[],
     payloads: Map<string, TItem[]>,
     marks: Map<string, number>,
+    totalCounts: Map<string, number>,
     reissue: (request: TReply) => void,
   ) {
     loading.set(key, false);
@@ -3172,6 +3189,7 @@ function createAppState() {
       }
       payloads.delete(key);
       marks.delete(key);
+      totalCounts.delete(key);
       reissue(data);
       return;
     }
@@ -3181,6 +3199,13 @@ function createAppState() {
     }
     errors.delete(key);
     setPayloadEntry(payloads, key, items);
+    if (typeof data.totalCount === 'number') {
+      setPayloadEntry(totalCounts, key, data.totalCount);
+    } else {
+      // A reply without the header must not inherit the previous load's total:
+      // paired with the new rows it would misjudge the truncation notice.
+      totalCounts.delete(key);
+    }
     marks.set(key, Date.now());
   }
 
@@ -3191,6 +3216,7 @@ function createAppState() {
     state: string;
     query?: string;
     pullRequests?: ForgejoPullRequest[];
+    totalCount?: number;
     error?: string;
   }) {
     applyRepoListReply(
@@ -3199,6 +3225,7 @@ function createAppState() {
       data.pullRequests ?? [],
       repoPullRequests.value,
       repoPullRequestsFetchedAt,
+      repoPullRequestsTotalCount.value,
       (request) =>
         loadRepoPullRequests(request.instanceId, request.owner, request.repo, request.state, request.query, true),
     );
@@ -5526,6 +5553,8 @@ function createAppState() {
     clearRepoScope(pullRequestDetails.value, prefix);
     clearRepoScope(repoIssues.value, prefix);
     clearRepoScope(repoPullRequests.value, prefix);
+    clearRepoScope(repoIssuesTotalCount.value, prefix);
+    clearRepoScope(repoPullRequestsTotalCount.value, prefix);
     clearRepoScope(repoBranchCommits.value, prefix);
     clearRepoScope(pullRequestFiles.value, prefix);
     clearRepoScope(pullRequestComments.value, prefix);
@@ -5578,6 +5607,7 @@ function createAppState() {
    */
   function invalidateRepoIssueLists(prefix: string): void {
     clearByPrefix(repoIssues.value, `${prefix}:issues:`);
+    clearByPrefix(repoIssuesTotalCount.value, `${prefix}:issues:`);
     clearWhere(repoIssuesFetchedAt, (key) => key.startsWith(`${prefix}:issues:`));
     clearWhere(preRefreshReplies, (key) => key.startsWith(`${prefix}:issues:`));
   }
@@ -5585,6 +5615,7 @@ function createAppState() {
   /** Same as `invalidateRepoIssueLists` for the pull request lists. */
   function invalidateRepoPullRequestLists(prefix: string): void {
     clearByPrefix(repoPullRequests.value, `${prefix}:pulls:`);
+    clearByPrefix(repoPullRequestsTotalCount.value, `${prefix}:pulls:`);
     clearWhere(repoPullRequestsFetchedAt, (key) => key.startsWith(`${prefix}:pulls:`));
     clearWhere(preRefreshReplies, (key) => key.startsWith(`${prefix}:pulls:`));
   }
@@ -5684,6 +5715,8 @@ function createAppState() {
       pullRequestDetails.value,
       repoIssues.value,
       repoPullRequests.value,
+      repoIssuesTotalCount.value,
+      repoPullRequestsTotalCount.value,
       repoBranchCommits.value,
       pullRequestFiles.value,
       pullRequestComments.value,
@@ -5826,6 +5859,8 @@ function createAppState() {
     for (const prefix of prefixes) {
       clearByPrefix(repoIssues.value, `${prefix}:issues:`);
       clearByPrefix(repoPullRequests.value, `${prefix}:pulls:`);
+      clearByPrefix(repoIssuesTotalCount.value, `${prefix}:issues:`);
+      clearByPrefix(repoPullRequestsTotalCount.value, `${prefix}:pulls:`);
     }
     for (const request of heldIssues) {
       loadRepoIssues(request.instanceId, request.owner, request.repo, request.state, request.query, true, true);
@@ -6091,8 +6126,10 @@ function createAppState() {
     pullRequestDetails,
     repoIssues,
     repoIssuesFetchedAt,
+    repoIssuesTotalCount,
     repoPullRequests,
     repoPullRequestsFetchedAt,
+    repoPullRequestsTotalCount,
     actionRuns,
     actionRunsPage,
     actionRunsHasMore,

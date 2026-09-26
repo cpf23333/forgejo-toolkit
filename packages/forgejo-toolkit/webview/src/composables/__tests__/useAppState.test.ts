@@ -1544,6 +1544,64 @@ describe('useAppState', () => {
       expect(state.repoPullRequests.value.size).toBe(0);
     });
 
+    it('stores a list reply total next to the list and drops it with the list', async () => {
+      // The truncation notice reads the total from its own slot, so the slot has
+      // to follow the list's lifecycle exactly: written by the reply that
+      // reported it, deleted by a reply without one, and cleared wherever the
+      // list itself is.
+      const { state, mod } = await createState();
+      dispatchMessage({
+        command: 'instances',
+        data: [
+          { id: 'inst-1', url: 'https://forgejo.example.com', name: 'user@forgejo.example.com', username: 'user' },
+        ],
+      });
+      await nextTick();
+      dispatchMessage({
+        command: 'repoIssues',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        state: 'open',
+        issues: [fakeIssue],
+        totalCount: 42,
+      });
+      dispatchMessage({
+        command: 'repoPullRequests',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        state: 'open',
+        pullRequests: [fakePullRequest],
+        totalCount: 7,
+      });
+      await nextTick();
+
+      const issuesKey = mod.repoIssuesKey('inst-1', 'owner', 'alpha', 'open', undefined);
+      const pullsKey = mod.repoPullRequestsKey('inst-1', 'owner', 'alpha', 'open', undefined);
+      expect(state.repoIssuesTotalCount.value.get(issuesKey)).toBe(42);
+      expect(state.repoPullRequestsTotalCount.value.get(pullsKey)).toBe(7);
+
+      // A reload whose reply carries no header must not inherit the old total:
+      // paired with the new rows it would misjudge the truncation notice.
+      dispatchMessage({
+        command: 'repoPullRequests',
+        instanceId: 'inst-1',
+        owner: 'owner',
+        repo: 'alpha',
+        state: 'open',
+        pullRequests: [fakePullRequest],
+      });
+      await nextTick();
+      expect(state.repoPullRequestsTotalCount.value.has(pullsKey)).toBe(false);
+
+      // The refresh drops the list payloads (see the test above); the totals go
+      // with them, so a reloaded list never reads a stale one.
+      dispatchMessage({ command: 'refreshData' });
+      await nextTick();
+      expect(state.repoIssuesTotalCount.value.size).toBe(0);
+    });
+
     it('loadRepoContents uses cache on repeat calls', async () => {
       const { state, mod } = await createState();
       vscodePostMessage().mockClear();

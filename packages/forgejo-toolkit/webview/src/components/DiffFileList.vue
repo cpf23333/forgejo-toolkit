@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, provide, ref, watch } from 'vue';
-import { isListTruncated } from '@cpf23333-forgejo-toolkit/shared/limits';
+import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { useI18n } from 'vue-i18n';
 import FileTreeNode from './FileTreeNode.vue';
 import type { ForgejoChangedFile } from '../types/api';
@@ -164,7 +164,7 @@ watch(
 const fileCount = computed(() => props.files.length);
 // The host caps a paged list at LIST_ITEM_LIMIT and reports no total, so the list
 // says it may be incomplete instead of looking complete.
-const listTruncated = computed(() => isListTruncated(props.files));
+const listTruncated = computed(() => isListTruncatedWithTotal(props.files));
 
 const selectedFiles = computed(() => {
   const result: { filename: string; status: string; previous_filename?: string }[] = [];
