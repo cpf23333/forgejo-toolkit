@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useAppRouter } from '../composables/useAppRouter';
 import { useAppState } from '../composables/useAppState';
 import type { ImportPreviewInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { ForgejoInstance as CurrentForgejoInstance } from '../types/instance';
 
 const { t } = useI18n();
 const state = useAppState();
-const router = useRouter();
+const router = useAppRouter();
 
 const preview = computed(() => state.importPreview.value);
 const selectedIds = ref<Set<string>>(new Set());

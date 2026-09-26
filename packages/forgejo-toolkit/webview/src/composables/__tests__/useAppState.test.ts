@@ -65,6 +65,9 @@ function vscodePostMessage() {
 async function createState() {
   vi.resetModules();
   const mod = await import('../../composables/useAppState');
+  // Re-imported after `resetModules()`: the key is a symbol, so the instance the
+  // test imports at the top of the file is not the one this module graph uses.
+  const { appRouterKey } = await import('../../composables/useAppRouter');
   const router = createTestRouter();
   const i18n = createTestI18n();
   const wrapper = mount(
@@ -78,6 +81,9 @@ async function createState() {
     {
       global: {
         plugins: [router, i18n],
+        // `useAppState` reads the router from this key (see `useAppRouter`), the
+        // way the dashboard entry provides it.
+        provide: { [appRouterKey]: router },
       },
     },
   );

@@ -661,7 +661,12 @@ defineExpose({
         </vscode-button>
       </div>
 
-      <div v-if="status" :class="['status', statusType]">{{ status }}</div>
+      <!-- The Test/Save outcome is a polite live region that is always in the
+           document, empty until there is something to say. Rendered together
+           with its text (the old `v-if="status"`), a region that appears at the
+           same moment its content does is one assistive technology is allowed
+           to miss, so an async "saved" or "wrong token" was never announced. -->
+      <div :class="['status', statusType]" role="status" aria-live="polite">{{ status }}</div>
     </section>
 
     <section class="setting-section">

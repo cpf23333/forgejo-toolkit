@@ -184,7 +184,13 @@ describe('Notifications paging', () => {
     const first = page(NOTIFICATIONS_LIMIT);
     await dispatchNotifications(first);
 
-    const cursor = first[NOTIFICATIONS_LIMIT - 1].updated_at as string;
+    // The next page is requested the way the view requests it, so the reply can
+    // be attributed to that request rather than to a page nobody asked for.
+    postMessageMock.mockClear();
+    await loadMoreButton(wrapper)!.trigger('click');
+    const cursor = lastGetNotifications()?.before as string;
+    expect(cursor).toBe(first[NOTIFICATIONS_LIMIT - 1].updated_at);
+
     dispatchMessage({ command: 'notifications', instanceId: 'inst-1', notifications: page(2, 51), before: cursor });
     await flushPromises();
 

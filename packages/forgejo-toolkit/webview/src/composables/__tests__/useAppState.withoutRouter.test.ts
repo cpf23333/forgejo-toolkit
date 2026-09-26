@@ -22,7 +22,7 @@ function reactionMessage(repo: string, commentId: number) {
 }
 
 /**
- * `useRouter()` injects rather than throws, so a composable that installs a
+ * `useAppRouter()` injects rather than throws, so a composable that installs a
  * router hook unconditionally breaks every caller mounted without a router.
  * Two standalone panels do exactly that: `OnboardingPanel.vue` and
  * `PullReviewCommentPanel.vue` mount `useAppState()` with only the i18n plugin
@@ -83,16 +83,19 @@ describe('useAppState without a vue-router instance', () => {
 });
 
 /**
- * The hook only exists when a router was injected, and the release it drives is
+ * The hook only exists when a router was provided, and the release it drives is
  * what keeps a long session from holding every repository it ever visited. Mount
- * with a router and prove the real path still releases the repository left
- * behind — the router-less case above only proves the composable survives the
- * absence of one.
+ * with a router — provided the way the dashboard entry provides it — and prove
+ * the real path still releases the repository left behind; the router-less case
+ * above only proves the composable survives the absence of one.
  */
 describe('useAppState with an injected router', () => {
   it('releases the payloads of the repository the user left behind', async () => {
     vi.resetModules();
     const mod = await import('../../composables/useAppState');
+    // Re-imported after `resetModules()`: the key is a symbol, so it has to come
+    // from the same module graph as the composable under test.
+    const { appRouterKey } = await import('../../composables/useAppRouter');
     const router = createTestRouter();
 
     let state: ReturnType<typeof mod.useAppState> | undefined;
@@ -104,7 +107,7 @@ describe('useAppState with an injected router', () => {
           return {};
         },
       },
-      { global: { plugins: [router, createTestI18n('en')] } },
+      { global: { plugins: [router, createTestI18n('en')], provide: { [appRouterKey]: router } } },
     );
 
     const push = (repo: string) =>

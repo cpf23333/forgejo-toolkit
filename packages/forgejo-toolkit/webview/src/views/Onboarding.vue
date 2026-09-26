@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAppState } from '../composables/useAppState';
+import { useAppRouter } from '../composables/useAppRouter';
 import ImportPreview from './ImportPreview.vue';
 import TokenScopeList from '../components/TokenScopeList.vue';
 import type { Locale } from '../i18n';
@@ -11,7 +11,7 @@ import { postMessage } from '../composables/vscode';
 import '../types/config';
 
 const { t } = useI18n();
-const router = useRouter();
+const router = useAppRouter();
 const state = useAppState();
 
 const isPanelMode = window.__FORGEJO_TOOLKIT_CONFIG__?.panelMode === 'onboarding';
@@ -486,7 +486,12 @@ watch(
             </vscode-button>
           </div>
 
-          <div v-if="connectionStatus" :class="['status', connectionStatusType]">{{ connectionStatus }}</div>
+          <!-- Same as the settings form: the connection/save outcome is a
+               polite live region kept in the document from the first render, so
+               the region is already observed when the async result fills it. -->
+          <div :class="['status', connectionStatusType]" role="status" aria-live="polite">
+            {{ connectionStatus }}
+          </div>
         </section>
 
         <section v-else-if="step === 2">

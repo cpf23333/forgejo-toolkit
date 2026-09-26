@@ -9,7 +9,6 @@ const { t } = useI18n();
 
 const canGoBack = computed(() => route.path !== '/');
 const backLabel = computed(() => t('app.back'));
-const cacheKey = ref(0);
 
 const mainRef = ref<HTMLElement | null>(null);
 // What the status region announces: the title the view that just opened renders
@@ -76,16 +75,37 @@ async function focusActiveView() {
   viewAnnouncement.value = viewTitle(main);
 }
 
-watch(
-  () => route.fullPath,
-  () => {
-    void nextTick(async () => {
-      if (viewFocusArmed) {
-        await focusActiveView();
-      }
-    });
-  },
-);
+/**
+ * Schedules one focus-and-announce for the view the route now points at.
+ *
+ * The route watcher below and `handleMessage` both go through here, and both can
+ * fire for the same open: the host's "open dashboard" changes the route while
+ * this shell's own handler asks for the focus. Two scheduled focus runs would
+ * empty and refill the live region twice and announce the same title twice.
+ *
+ * The token is what collapses them. Scheduling bumps it; a run that finds it
+ * bumped waits one more tick instead of acting, so only the last schedule for a
+ * settled route moves the focus and fills the region. A route change made while
+ * that extra tick is pending bumps it again, and the waiting run picks up the
+ * view that actually arrived — the title read is never the one the user has left.
+ */
+let viewFocusToken = 0;
+
+function scheduleViewFocus() {
+  if (!viewFocusArmed) {
+    return;
+  }
+  viewFocusToken += 1;
+  const run = viewFocusToken;
+  void (async () => {
+    do {
+      await nextTick();
+    } while (run !== viewFocusToken);
+    await focusActiveView();
+  })();
+}
+
+watch(() => route.fullPath, scheduleViewFocus);
 
 function back() {
   router.back();
@@ -93,18 +113,20 @@ function back() {
 
 function handleMessage(event: MessageEvent) {
   if (event.data?.command === 'openDashboard') {
-    // The host's "open dashboard" remounts the view in place (the key below)
-    // instead of navigating: the route does not change, so the watcher above
-    // never runs and neither focus nor the announcement moved. Do both here,
-    // one tick after the remount so the heading read is the new view's.
-    void nextTick(async () => {
-      cacheKey.value++;
-      if (!viewFocusArmed) {
-        return;
-      }
-      await nextTick();
-      await focusActiveView();
-    });
+    // The host's "open dashboard" is a re-open of the view the user is already
+    // on: the route does not change, so the watcher above never runs and neither
+    // focus nor the announcement moved. Doing it here is what makes pressing the
+    // command again re-focus the view and re-announce its title.
+    //
+    // The view is deliberately *not* remounted for this. A bumped keep-alive key
+    // did remount it, but the entry it replaced became unreachable while still
+    // occupying one of the ten keep-alive slots — after enough presses live views
+    // were evicted in favour of views nobody could navigate back to.
+    //
+    // When the message does change the route (the user is in Settings and the
+    // host opens the dashboard), the watcher schedules the same focus; the token
+    // in `scheduleViewFocus` collapses the two into one.
+    scheduleViewFocus();
   }
 }
 
@@ -128,9 +150,9 @@ onUnmounted(() => {
       </button>
     </header>
     <main ref="mainRef" tabindex="-1">
-      <router-view v-slot="{ Component, route }">
+      <router-view v-slot="{ Component }">
         <keep-alive :max="10">
-          <component :is="Component" :key="`${route.path}-${cacheKey}`" />
+          <component :is="Component" />
         </keep-alive>
       </router-view>
     </main>

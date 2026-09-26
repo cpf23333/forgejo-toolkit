@@ -1,18 +1,23 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createMemoryHistory, createRouter, type RouteRecordRaw, type Router } from 'vue-router';
-import { defineComponent, h, nextTick } from 'vue';
+import { defineComponent, h, nextTick, onActivated } from 'vue';
 import App from '../App.vue';
 import { createTestI18n } from './helpers/test-utils';
 
 /** How many times each stub view was created, to tell keep-alive reuse apart. */
 const creations = { first: 0, second: 0 };
+/** How many times each stub view was activated, to tell a remount from a re-entry. */
+const activations = { first: 0, dashboard: 0 };
 
 const FirstView = defineComponent({
   name: 'FirstView',
   setup() {
     creations.first += 1;
-    return () => h('div', [h('h1', 'Repositories')]);
+    onActivated(() => {
+      activations.first += 1;
+    });
+    return () => h('div', { 'data-view': 'first' }, [h('h1', 'Repositories')]);
   },
 });
 
@@ -28,7 +33,12 @@ const SecondView = defineComponent({
 // name the view a navigation just opened.
 const HeadinglessView = defineComponent({
   name: 'HeadinglessView',
-  setup: () => () => h('div', [h('p', 'Instances')]),
+  setup() {
+    onActivated(() => {
+      activations.dashboard += 1;
+    });
+    return () => h('div', { 'data-view': 'dashboard' }, [h('p', 'Instances')]);
+  },
 });
 
 // A view whose first heading is a section heading *inside* it — Settings opens
@@ -68,6 +78,8 @@ afterEach(() => {
   }
   creations.first = 0;
   creations.second = 0;
+  activations.first = 0;
+  activations.dashboard = 0;
 });
 
 function announcement(wrapper: VueWrapper): string {
@@ -106,6 +118,10 @@ describe('App navigation focus and announcement', () => {
     await flushPromises();
     await router.push('/');
     await flushPromises();
+    // The view swap and the focus it schedules settle over a tick each; the
+    // assertion is about where the focus and the announcement ended up.
+    await nextTick();
+    await nextTick();
 
     // The view was re-activated, not re-created: keep-alive still has to move
     // focus back into it and announce it.
@@ -192,5 +208,109 @@ describe('App navigation focus and announcement', () => {
     expect(document.activeElement).toBe(wrapper.get('main').element);
     expect(announcement(wrapper)).toBe('Dashboard');
     expect(changes).toContain('');
+  });
+
+  /**
+   * Reopening the dashboard used to remount it by bumping a keep-alive key. The
+   * entry that replaced was unreachable — nothing could navigate back to it — but
+   * it still occupied one of the ten keep-alive slots, so enough presses evicted
+   * live views to make room for views nobody could reach. Pressing the command
+   * again now only moves focus and re-announces, leaving the cached view alone.
+   */
+  it('does not remount (or evict) the cached view when the host reopens the dashboard', async () => {
+    const { wrapper, router } = await mountApp();
+
+    await router.push('/dashboard');
+    await flushPromises();
+    expect(wrapper.findAll('[data-view]')).toHaveLength(1);
+    expect(activations.dashboard).toBe(1);
+
+    for (let press = 0; press < 5; press += 1) {
+      window.dispatchEvent(new MessageEvent('message', { data: { command: 'openDashboard' } }));
+      await flushPromises();
+    }
+
+    // The view the user is on was neither remounted nor multiplied: the cache
+    // holds the one live copy it always did.
+    expect(wrapper.findAll('[data-view]')).toHaveLength(1);
+    expect(wrapper.find('[data-view="dashboard"]').exists()).toBe(true);
+    expect(activations.dashboard).toBe(1);
+    expect(document.activeElement).toBe(wrapper.get('main').element);
+    expect(announcement(wrapper)).toBe('Dashboard');
+  });
+
+  it('leaves no stale copy of the view behind when the command also navigates', async () => {
+    const { wrapper, router } = await mountApp();
+    await router.push('/');
+    await flushPromises();
+    expect(wrapper.findAll('[data-view]')).toHaveLength(1);
+
+    // The host's open-dashboard message reaches the whole page: the composable
+    // behind `useAppState` navigates, and this shell's own handler asks for the
+    // focus. Both land in the same dispatch.
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.command === 'openDashboard') {
+        void router.push('/dashboard');
+      }
+    };
+    window.addEventListener('message', onMessage);
+    try {
+      window.dispatchEvent(new MessageEvent('message', { data: { command: 'openDashboard' } }));
+      await flushPromises();
+    } finally {
+      window.removeEventListener('message', onMessage);
+    }
+
+    expect(router.currentRoute.value.fullPath).toBe('/dashboard');
+    expect(wrapper.findAll('[data-view]')).toHaveLength(1);
+    expect(wrapper.get('[data-view]').text()).toContain('Instances');
+    // Re-activating the cached first view would mean it is still in the tree.
+    expect(activations.first).toBe(1);
+  });
+
+  /**
+   * When the message also changes the route, the route watcher and the message
+   * handler both wanted to move focus and refill the live region: the same title
+   * was announced twice. Exactly one focus per open is what tells them apart —
+   * both halves of the old pair called `main.focus()`.
+   */
+  it('focuses and announces the new view once when the command also navigates', async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    try {
+      const { wrapper, router } = await mountApp();
+      await router.push('/');
+      await flushPromises();
+      await nextTick();
+      await nextTick();
+      focus.mockClear();
+
+      // The host's message reaches the whole page: the composable behind
+      // `useAppState` navigates, and this shell's own handler asks for the same
+      // focus. Changing the route object directly reproduces the one thing that
+      // matters here — both happen before the deferred focus tick runs, so both
+      // would call `main.focus()` and refill the live region.
+      const onMessage = (event: MessageEvent) => {
+        if (event.data?.command === 'openDashboard') {
+          // eslint-disable-next-line vue/no-mutating-props
+          (router.currentRoute.value as { fullPath: string }).fullPath = '/dashboard';
+        }
+      };
+      window.addEventListener('message', onMessage);
+      try {
+        window.dispatchEvent(new MessageEvent('message', { data: { command: 'openDashboard' } }));
+        await flushPromises();
+        await nextTick();
+      } finally {
+        window.removeEventListener('message', onMessage);
+      }
+
+      expect(focus).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(wrapper.get('main').element);
+      // The region was filled, not left empty: exactly one run owns the
+      // announcement, whether it read a heading from `<main>` or the route title.
+      expect(announcement(wrapper)).not.toBe('');
+    } finally {
+      focus.mockRestore();
+    }
   });
 });

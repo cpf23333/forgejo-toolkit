@@ -1,49 +1,36 @@
-import { createApp } from 'vue';
-import App from './App.vue';
-import { createI18nInstance, defaultLocale, localeTag } from './i18n';
-import { createAppRouter } from './router';
-import './types/config';
+// Entry point of the sidebar dashboard (`index.html`).
+//
+// The two standalone panels are separate entries
+// (`src/entries/onboarding.ts`, `src/entries/pullReviewComment.ts`) loaded by
+// their own HTML documents, so this entry never reaches them — and they never
+// reach `App.vue`, the router, or the elements only the dashboard renders.
+// `src/__tests__/entryGraph.test.ts` and the assertion in `webview/vite.config.ts`
+// pin that.
+//
+// One `@vscode-elements/elements` module per component the dashboard actually
+// renders, imported directly (the project rule). `vscode-context-menu-item` is
+// deliberately absent: `vscode-context-menu` imports and registers it itself.
 import '@vscode-elements/elements/dist/vscode-button/index.js';
 import '@vscode-elements/elements/dist/vscode-checkbox/index.js';
 import '@vscode-elements/elements/dist/vscode-context-menu/index.js';
-import '@vscode-elements/elements/dist/vscode-context-menu-item/index.js';
 import '@vscode-elements/elements/dist/vscode-icon/index.js';
 import '@vscode-elements/elements/dist/vscode-option/index.js';
 import '@vscode-elements/elements/dist/vscode-progress-ring/index.js';
-import '@vscode-elements/elements/dist/vscode-radio/index.js';
-import '@vscode-elements/elements/dist/vscode-radio-group/index.js';
 import '@vscode-elements/elements/dist/vscode-single-select/index.js';
 import '@vscode-elements/elements/dist/vscode-textfield/index.js';
 import '@vscode-elements/elements/dist/vscode-tree/index.js';
 import '@vscode-elements/elements/dist/vscode-tree-item/index.js';
-import './styles/global.css';
+import App from './App.vue';
+import { mountSurface } from './boot';
+import { appRouterKey } from './composables/useAppRouter';
+import { createAppRouter } from './router';
 
-const config = window.__FORGEJO_TOOLKIT_CONFIG__;
-const panelMode = config?.panelMode;
-const panelLocale = config?.locale ?? defaultLocale;
-const i18n = createI18nInstance(panelMode ? panelLocale : defaultLocale);
-
-// `index.html` ships `lang="en"`; screen readers and the browser pick their
-// language rules from it, so it has to follow the locale the panel actually
-// renders in. `useAppState` keeps it in sync when the locale changes at runtime.
-document.documentElement.lang = localeTag(panelMode ? panelLocale : defaultLocale);
-
-// The dashboard is the common case and stays static; the two standalone panels are
-// imported on demand, so opening one of them (or the dashboard) does not download
-// the other two.
-async function bootstrap(): Promise<void> {
-  if (panelMode === 'onboarding') {
-    const { default: OnboardingPanel } = await import('./OnboardingPanel.vue');
-    createApp(OnboardingPanel).use(i18n).mount('#app');
-    return;
-  }
-  if (panelMode === 'pullReviewComment') {
-    const { default: PullReviewCommentPanel } = await import('./PullReviewCommentPanel.vue');
-    createApp(PullReviewCommentPanel).use(i18n).mount('#app');
-    return;
-  }
+mountSurface(App, (app) => {
   const router = createAppRouter();
-  createApp(App).use(i18n).use(router).mount('#app');
-}
-
-void bootstrap();
+  app.use(router);
+  // `useAppState` reaches the router through this key rather than through
+  // vue-router's `useRouter()`: the composable is shared with the two
+  // standalone panels, and importing `useRouter` would put the router
+  // implementation into their entry bundles (see `useAppRouter`).
+  app.provide(appRouterKey, router);
+});

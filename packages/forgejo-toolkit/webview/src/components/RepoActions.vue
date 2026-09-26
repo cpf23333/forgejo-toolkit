@@ -75,7 +75,7 @@ watch(
 watch(
   () => dispatchLoading.value,
   (loading, previousLoading) => {
-    if (!previousLoading || loading || dispatchError.value || !isActive.value) {
+    if (!previousLoading || loading) {
       return;
     }
     const afterIndex = pollingAfterIndex.value;
@@ -87,11 +87,22 @@ watch(
       // so there is no new run to wait for and no success to announce. Without
       // this the cleared loading flag looks like a successful dispatch and the
       // list would poll for ~60 s before timing out.
-      pollingAfterIndex.value = undefined;
-      dispatchStatus.value = 'idle';
+      finishDispatchWait('idle');
       return;
     }
-    startListPolling(afterIndex);
+    if (dispatchError.value) {
+      // The host refused the dispatch. The failure is on screen; a "waiting for
+      // the new run to appear" line under it would claim a run was dispatched,
+      // so the baseline goes with the claim.
+      finishDispatchWait('idle');
+      return;
+    }
+    // The reply landed while the user was elsewhere: the wait is armed, and
+    // `onActivated` starts the poll when they come back (see armDispatchWait).
+    // Starting it here would poll a view nobody is looking at.
+    if (isActive.value) {
+      startListPolling(afterIndex);
+    }
   },
 );
 
@@ -205,7 +216,7 @@ function latestRunIndex(): number {
 /**
  * Clears the poll's timer. The attempt budget and the deadline are deliberately
  * left alone: `onDeactivated` pauses the poll rather than abandoning the wait it
- * serves, and `onActivated` resumes it (see resumeListPolling). Resetting them
+ * serves, and `onActivated` resumes it (see resumeArmedWait). Resetting them
  * here made a wait that was interrupted by leaving the view unwinnable — the
  * timer was never restarted and the "waiting" message stayed on screen forever.
  */
@@ -229,6 +240,10 @@ function finishDispatchWait(status: 'idle' | 'timeout') {
   stopListPolling();
   pollingAfterIndex.value = undefined;
   dispatchStatus.value = status;
+  // The deadline belongs to the wait that just ended: leaving it behind would
+  // make the next dispatch inherit a budget that is already spent (see
+  // armDispatchWait).
+  listPollDeadline = 0;
 }
 
 /**
@@ -265,21 +280,48 @@ function startListPolling(afterIndex: number) {
   listPollAttempts = 0;
   pollingAfterIndex.value = afterIndex;
   dispatchStatus.value = 'waiting';
-  listPollDeadline = Date.now() + MAX_LIST_POLL_ATTEMPTS * POLL_INTERVAL_MS;
+  // Set only when the wait was not already armed (see armDispatchWait): the
+  // budget belongs to the dispatch, and re-setting it here would extend a wait
+  // that was paused by leaving the view.
+  if (listPollDeadline === 0) {
+    listPollDeadline = Date.now() + MAX_LIST_POLL_ATTEMPTS * POLL_INTERVAL_MS;
+  }
   listPollTimer = setInterval(listPollTick, POLL_INTERVAL_MS);
 }
 
 /**
- * Restarts the poll for a wait that is still running, without touching its
- * budget. The timer is all that `onDeactivated` stopped; the deadline is shared
- * with the first start, so pausing the view never extends the ~60 s wait and a
- * deadline that passed meanwhile is reported as the timeout it is.
+ * Marks the view as waiting for the dispatched run and starts the ~60 s budget,
+ * so the wait survives leaving the view before its reply arrives. The poll
+ * itself is not started here: it is a view-local timer, and the loading watcher
+ * (when the reply lands while the view is active) or `onActivated` (when it
+ * landed off screen) starts it.
  */
-function resumeListPolling() {
-  if (listPollTimer || dispatchStatus.value !== 'waiting') {
+function armDispatchWait(afterIndex: number) {
+  pollingAfterIndex.value = afterIndex;
+  dispatchStatus.value = 'waiting';
+  // The ~60 s budget runs from the dispatch, not from the moment the view
+  // started watching it: time the user spent on another view is time the new run
+  // had to appear, and a wait that is resumed after its budget is over is the
+  // timeout it already is. `finishDispatchWait` clears the deadline with the
+  // wait, so a later dispatch arms a fresh one.
+  if (listPollDeadline === 0) {
+    listPollDeadline = Date.now() + MAX_LIST_POLL_ATTEMPTS * POLL_INTERVAL_MS;
+  }
+}
+
+/**
+ * Starts the poll for a wait that is armed but has no timer yet. Called from
+ * `onActivated`, which is the only hook that knows the view is on screen again.
+ */
+function resumeArmedWait() {
+  if (dispatchStatus.value !== 'waiting' || listPollTimer) {
     return;
   }
-  listPollTimer = setInterval(listPollTick, POLL_INTERVAL_MS);
+  if (dispatchError.value || state.lastDispatchCancelled.value === dispatchKey.value) {
+    finishDispatchWait('idle');
+    return;
+  }
+  startListPolling(pollingAfterIndex.value ?? latestRunIndex());
 }
 
 function addTriggerInput() {
@@ -311,8 +353,17 @@ function submitTrigger() {
       inputs[key] = value;
     }
   }
-  pollingAfterIndex.value = latestRunIndex();
+  // The baseline is the newest run the list knows before the dispatch; a run
+  // newer than it is the one being waited for.
+  const afterIndex = latestRunIndex();
   state.dispatchWorkflow(props.instanceId, props.owner, props.repo, workflow, ref, inputs);
+  // The wait is armed with the request, not with an observed loading transition.
+  // A dispatch whose reply lands while the user is on another view never shows a
+  // true→false transition here, and arming it from that transition skipped both
+  // the "waiting" line and the ~60 s timeout notice: the promise had been made
+  // the moment `Run` was used. A dispatch the host refuses ends the wait through
+  // the loading watcher below, which is where the error is known.
+  armDispatchWait(afterIndex);
 }
 
 function resetTrigger() {
@@ -332,11 +383,12 @@ onActivated(() => {
   // refreshes the accumulated list when the view is re-entered.
   state.loadActionRuns(props.instanceId, props.owner, props.repo, 1);
   // A dispatch that was still being waited for when the view was left keeps its
-  // wait: resolve it against what is already loaded (the refresh above reports
-  // the rest through the `runs` watcher) and restart the timer `onDeactivated`
-  // stopped. Without this the "waiting" message could never clear.
+  // wait: start the poll whose timer `onDeactivated` stopped — or, when the
+  // reply landed off screen, the one that was never started — and resolve it
+  // against what is already loaded (the refresh above reports the rest through
+  // the `runs` watcher). Without this the "waiting" message could never clear.
+  resumeArmedWait();
   resolveDispatchWait();
-  resumeListPolling();
 });
 
 onDeactivated(() => {
@@ -355,7 +407,8 @@ onUnmounted(() => {
 <template>
   <div class="repo-actions">
     <div v-if="loading && runs.length === 0" class="loading-state">
-      <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+      <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
+      {{ t('dashboard.loading') }}
     </div>
     <div v-else-if="error" class="error-state">
       <span>{{ t('dashboard.error', { message: error }) }}</span>

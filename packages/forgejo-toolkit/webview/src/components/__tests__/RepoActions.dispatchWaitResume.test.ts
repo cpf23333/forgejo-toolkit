@@ -211,4 +211,55 @@ describe('RepoActions dispatch wait across deactivate/activate', () => {
       vi.useRealTimers();
     }
   });
+
+  /**
+   * The wait used to be armed by an observed loading true→false transition while
+   * the view was active. Leaving the view between the dispatch and its reply
+   * therefore skipped both halves of the feedback: the promise made when `Run`
+   * was used showed neither "waiting" nor, when the run never showed up, the
+   * ~60 s timeout — the user came back to a form that said nothing at all.
+   */
+  it('waits and then times out when the reply lands while the view is off screen', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mountHost();
+      const triggerButton = wrapper.findAll('vscode-button').find((b) => b.text().includes('Trigger workflow'));
+      await triggerButton!.trigger('click');
+      const textfields = wrapper.findAll('vscode-textfield');
+      (textfields[0].element as unknown as { value: string }).value = 'ci.yml';
+      await textfields[0].trigger('input');
+      (textfields[1].element as unknown as { value: string }).value = 'main';
+      await textfields[1].trigger('input');
+      const runButton = wrapper.findAll('vscode-button').find((b) => b.text().trim() === 'Run');
+      await runButton!.trigger('click');
+
+      // The user leaves before the host answers the dispatch.
+      await wrapper.setProps({ show: false });
+      await nextTick();
+
+      // The host accepts it now — with the view deactivated, so nothing observes
+      // the loading transition that used to arm the wait.
+      stateMock.loading.set(DISPATCH_KEY, true);
+      await nextTick();
+      stateMock.loading.set(DISPATCH_KEY, false);
+      await nextTick();
+
+      await wrapper.setProps({ show: true });
+      await nextTick();
+
+      // The wait was armed with the request, so coming back shows it waiting...
+      expect(wrapper.text()).toContain('Waiting for the new run to appear');
+
+      // ...and it ends in the timeout the user is told about, because the ~60 s
+      // budget also started with the request.
+      await vi.advanceTimersByTimeAsync(70_000);
+      await nextTick();
+
+      expect(wrapper.text()).toContain('no new run appeared yet');
+      expect(wrapper.text()).not.toContain('Waiting for the new run to appear');
+      wrapper.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -448,7 +448,8 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
     </div>
 
     <div v-if="runLoading && !run" class="loading-state">
-      <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+      <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
+      {{ t('dashboard.loading') }}
     </div>
     <div v-else-if="runError" class="error-state">
       <span>{{ t('dashboard.error', { message: runError }) }}</span>
@@ -495,7 +496,8 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
     <div v-else-if="jobs.length > 0 || jobsLoading" class="jobs-section">
       <h3>{{ t('dashboard.actionRun.jobs') }}</h3>
       <div v-if="jobsLoading && jobs.length === 0" class="loading-state">
-        <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+        <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
+        {{ t('dashboard.loading') }}
       </div>
       <div class="jobs-list">
         <div v-for="job in jobs" :key="job.id" :class="['job-item', { failed: isActionStatusFailed(job.status) }]">
@@ -518,7 +520,8 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
           </div>
           <div v-if="job.id !== undefined && !isJobCollapsed(job.id)" class="job-log-panel">
             <div v-if="jobLogLoading(job.id)" class="loading-state">
-              <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+              <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
+              {{ t('dashboard.loading') }}
             </div>
             <div v-else-if="jobLogError(job.id)" class="error-state">
               <span>{{ t('dashboard.error', { message: jobLogError(job.id) }) }}</span>

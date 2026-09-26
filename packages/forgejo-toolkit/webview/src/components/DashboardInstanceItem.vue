@@ -248,12 +248,34 @@ function loadingKey(): string {
 function isEmptyList(entry: unknown[] | undefined): boolean {
   return entry !== undefined && entry.length === 0;
 }
+
+/**
+ * The loaded rows of the tab the count badge labels, or `undefined` when the tab
+ * has no payload yet (a failed load, or one still on the wire).
+ *
+ * The badge counts what the template renders — the payload slot — so the same
+ * slot decides whether the badge may appear at all. It used to be gated on the
+ * 30 s TTL caches (`repositoriesCache`, `myIssuesCache`, ...) instead: those
+ * expire long before the rows do, so a re-render after the TTL dropped the count
+ * from a row that still listed its repositories.
+ */
+function displayedList(): unknown[] | undefined {
+  if (props.activeTab === 'repositories') {
+    return repositories.value;
+  }
+  if (props.activeTab === 'issues') {
+    return myIssues.value;
+  }
+  return myPullRequests.value;
+}
 </script>
 
 <template>
   <vscode-tree-item ref="treeItemRef" branch>
     {{ instance.url }} · {{ instance.username }}
-    <span v-if="!loading.get(loadingKey()) && dataLoaded()" class="badge" slot="decoration">{{ badgeCount() }}</span>
+    <span v-if="!loading.get(loadingKey()) && displayedList() !== undefined" class="badge" slot="decoration">{{
+      badgeCount()
+    }}</span>
     <span slot="description">
       <span v-if="errors.get(loadingKey())" class="error">
         {{ formatError(loadingKey()) }}
@@ -263,7 +285,8 @@ function isEmptyList(entry: unknown[] | undefined): boolean {
     <template v-if="activeTab === 'repositories'">
       <template v-if="loading.get(loadingKey())">
         <vscode-tree-item>
-          <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
+          <vscode-progress-ring class="tab-loading-ring" :aria-label="t('dashboard.loading')" />
+          {{ t('dashboard.loading') }}
         </vscode-tree-item>
       </template>
       <template v-else-if="isEmptyList(repositories)">
@@ -316,7 +339,8 @@ function isEmptyList(entry: unknown[] | undefined): boolean {
     <template v-else-if="activeTab === 'issues'">
       <template v-if="loading.get(loadingKey())">
         <vscode-tree-item>
-          <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
+          <vscode-progress-ring class="tab-loading-ring" :aria-label="t('dashboard.loading')" />
+          {{ t('dashboard.loading') }}
         </vscode-tree-item>
       </template>
       <template v-else-if="isEmptyList(myIssues)">
@@ -352,7 +376,8 @@ function isEmptyList(entry: unknown[] | undefined): boolean {
     <template v-else-if="activeTab === 'pullRequests'">
       <template v-if="loading.get(loadingKey())">
         <vscode-tree-item>
-          <vscode-progress-ring class="tab-loading-ring" /> {{ t('dashboard.loading') }}
+          <vscode-progress-ring class="tab-loading-ring" :aria-label="t('dashboard.loading')" />
+          {{ t('dashboard.loading') }}
         </vscode-tree-item>
       </template>
       <template v-else-if="isEmptyList(myPullRequests)">

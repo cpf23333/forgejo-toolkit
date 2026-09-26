@@ -411,7 +411,7 @@ watch(stateFilter, () => {
     </div>
 
     <div v-else-if="isLoading() && !hasResults()" class="empty-state">
-      <vscode-progress-ring class="search-loading-ring" />
+      <vscode-progress-ring class="search-loading-ring" :aria-label="t('dashboard.loading')" />
       {{ t('dashboard.loading') }}
     </div>
 

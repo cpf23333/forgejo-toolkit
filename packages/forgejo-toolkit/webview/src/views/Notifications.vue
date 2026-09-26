@@ -398,7 +398,7 @@ onUnmounted(() => {
     </div>
 
     <div v-else-if="isLoading() && !hasLoaded()" class="empty-state">
-      <vscode-progress-ring class="notifications-loading-ring" />
+      <vscode-progress-ring class="notifications-loading-ring" :aria-label="t('dashboard.loading')" />
       {{ t('dashboard.loading') }}
     </div>
 

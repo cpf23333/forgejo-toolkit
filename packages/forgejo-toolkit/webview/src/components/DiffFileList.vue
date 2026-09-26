@@ -414,7 +414,8 @@ watch(
   </div>
   <div class="diff-file-list">
     <div v-if="loading" class="loading">
-      <vscode-progress-ring class="diff-loading-ring" /> {{ t('dashboard.loading') }}
+      <vscode-progress-ring class="diff-loading-ring" :aria-label="t('dashboard.loading')" />
+      {{ t('dashboard.loading') }}
     </div>
     <div v-else-if="error" class="error">{{ t('dashboard.error', { message: error }) }}</div>
     <div v-else-if="props.files.length === 0" class="empty">

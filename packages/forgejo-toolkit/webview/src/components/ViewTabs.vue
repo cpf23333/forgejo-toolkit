@@ -18,7 +18,7 @@ function selectTab(key: string) {
   emit('update:modelValue', key as T);
 }
 
-// ARIA tabs keyboard pattern: Left/Right moves focus and activates the tab
+// Arrow-key navigation: Left/Right moves focus and activates the tab
 // (automatic activation); only the active tab stays in the tab order.
 function onKeydown(event: KeyboardEvent) {
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
@@ -33,17 +33,31 @@ function onKeydown(event: KeyboardEvent) {
   const buttons = (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('.tab-button');
   buttons[next]?.focus();
 }
+// A group of toggle buttons, not an ARIA tab widget.
+//
+// It carried `role="tablist"`/`role="tab"` with `aria-selected` but rendered no
+// `role="tabpanel"` and no `aria-controls` anywhere: the views that use it
+// (Dashboard, GlobalSearch, RepoDetail) own the panel themselves and swap it by
+// `v-if`, so there was no element for a tab to point at. A tab that controls
+// nothing is worse than a button, because assistive technology then announces a
+// widget contract — arrow keys, `aria-controls`-driven panel switching — that
+// the markup does not keep.
+//
+// The buttons stay buttons, and `aria-pressed` carries the chosen state the way
+// any toggle button does. Arrow-key navigation and the roving `tabindex` stay:
+// they are a deliberate part of this control's keyboard behaviour (and are
+// pinned by its tests), not a claim about a tab widget.
 </script>
 
 <template>
-  <div class="view-tabs" role="tablist" @keydown="onKeydown">
+  <div class="view-tabs" @keydown="onKeydown">
     <button
       v-for="tab in props.tabs"
       :key="tab.key"
       class="tab-button"
       :class="{ active: props.modelValue === tab.key }"
-      role="tab"
-      :aria-selected="props.modelValue === tab.key"
+      type="button"
+      :aria-pressed="props.modelValue === tab.key"
       :tabindex="props.modelValue === tab.key ? 0 : -1"
       @click="selectTab(tab.key)"
     >

@@ -1,5 +1,5 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useAppRouter } from './useAppRouter';
 import { useI18n } from 'vue-i18n';
 import type { ForgejoInstance } from '../types/instance';
 
@@ -349,7 +349,7 @@ interface NotificationRequest {
  * reply is dropped and short enough that a stranded entry cannot outlive it by
  * much.
  */
-const NOTIFICATION_REQUEST_MAX_AGE_MS = DEFAULT_REQUEST_TIMEOUT_MS * 2;
+export const NOTIFICATION_REQUEST_MAX_AGE_MS = DEFAULT_REQUEST_TIMEOUT_MS * 2;
 
 // A first-page `getNotifications` request has no server cursor of its own, so it
 // is sent with a minted one to be identifiable by the reply (see
@@ -383,7 +383,7 @@ function isFirstPageCursor(value: unknown): boolean {
 }
 
 function createAppState() {
-  const router = useRouter();
+  const router = useAppRouter();
   const { t, locale } = useI18n();
 
   const instances = ref<ForgejoInstance[]>([]);
@@ -462,6 +462,31 @@ function createAppState() {
   // answering a server the user has since replaced can be dropped and the badge
   // asked again for the one now configured.
   const notificationRequests = new Map<string, NotificationRequest[]>();
+  // One recovery timer per instance whose badge request has expired unanswered
+  // (see scheduleBadgeRecovery): the queue entry that blocks a fresh badge
+  // request is only pruned when something asks again, and while the user stays
+  // on the dashboard nothing does, so without this the bell would stay empty
+  // for the rest of the session.
+  const notificationBadgeRecoveryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  // The cursors of this webview's own `getNotifications` requests that are no
+  // longer outstanding, oldest first, per instance. A reply only carries the
+  // cursor its request was sent with, so once the queue entry is gone (answered
+  // or expired) that cursor is the only evidence left that the page belongs to a
+  // request this webview has already stopped waiting for — see handleNotifications.
+  // Bounded and per instance: a long session must not accumulate one string per
+  // notification page it ever requested.
+  const retiredNotificationCursors = new Map<string, string[]>();
+  const MAX_RETIRED_NOTIFICATION_CURSORS = 64;
+
+  /** Remembers one cursor whose request can no longer be outstanding. */
+  function retireNotificationCursor(instanceId: string, cursor: string) {
+    const retired = retiredNotificationCursors.get(instanceId) ?? [];
+    retired.push(cursor);
+    if (retired.length > MAX_RETIRED_NOTIFICATION_CURSORS) {
+      retired.splice(0, retired.length - MAX_RETIRED_NOTIFICATION_CURSORS);
+    }
+    retiredNotificationCursors.set(instanceId, retired);
+  }
   // How many times an instance's identity changed. A request records the epoch
   // it was sent under, so one sent before an edit is recognizably old even when
   // the identity returns to a value it had earlier (url a -> url b -> url a),
@@ -470,22 +495,34 @@ function createAppState() {
   // instanceListRequests).
   const instanceIdentityEpoch = new Map<string, number>();
   // The dashboard list requests outstanding for each loading slot
-  // (`repos-${id}`, `issues-${id}-${state}`, `pulls-${id}-${state}`), oldest
-  // first, with the server identity and identity epoch each was sent for.
+  // (`repos-${id}`, `issues-${id}-${state}`, `pulls-${id}-${state}`), with the
+  // opaque request id each was sent with, the server identity it was sent for
+  // and the identity epoch at that moment.
   //
-  // The reply carries no identity at all, and an edit keeps the instance id, so
-  // without this the previous server's reply would be written under the id the
-  // new configuration uses. One record per outstanding request — appended before
-  // the post, consumed in send order — is what attributes a reply to the request
-  // it answers. An identity change keeps the records it invalidated (they are the
-  // tombstones the superseded request's own late reply has to consume) and the
-  // reload appends its own, so a reply whose record was sent for a server this
-  // webview no longer is gets refused instead of writing the replaced server's
-  // rows (see consumeInstanceListReply). Only those three loaders write here, which
-  // also makes this map the exact list of slots `clearInstancePayloads` has to
-  // clear on an identity change: the clear has to free the loading flag too, or the
-  // mandated reload below is deduped away by it.
-  const instanceListRequests = new Map<string, { instanceId: string; identity: string; epoch: number }[]>();
+  // The reply of the three list commands carries the request id back, and an
+  // edit keeps the instance id, so without the record the previous server's
+  // reply would be written under the id the new configuration uses. One record
+  // per outstanding request — appended before the post, removed by the reply
+  // that names it — is what attributes a reply to the request it answers. An
+  // identity change keeps the records it invalidated (they are what the
+  // superseded request's own late reply consumes) and the reload appends its
+  // own, so a reply whose record was sent for a server this webview no longer is
+  // gets refused instead of writing the replaced server's rows (see
+  // consumeInstanceListReply). A reply that arrives without an id still falls
+  // back to the oldest record — the pre-id attribution — so an older host build
+  // and a failure reply the host sends before it can echo keep working. Only
+  // those three loaders write here, which also makes this map the exact list of
+  // slots `clearInstancePayloads` has to clear on an identity change: the clear
+  // has to free the loading flag too, or the mandated reload below is deduped
+  // away by it.
+  const instanceListRequests = new Map<
+    string,
+    { instanceId: string; identity: string; epoch: number; requestId: string }[]
+  >();
+  // The counter behind the three lists' opaque request ids. It is in-memory only
+  // and the queue it pairs with is per webview session, so an id only has to be
+  // unique among the requests this session still has outstanding.
+  let instanceListRequestId = 0;
   // Per-instance poll failures (expired token, unreachable instance) so the
   // notifications view can show an error instead of a misleading empty state.
   const notificationPollErrors = ref<Map<string, string>>(new Map());
@@ -978,6 +1015,11 @@ function createAppState() {
         for (const instance of removed) {
           instanceIdentityEpoch.set(instance.id, (instanceIdentityEpoch.get(instance.id) ?? 0) + 1);
           clearInstancePayloads(instance.id);
+          // A recovery armed for the removed instance has nothing left to ask
+          // for: the instance id is gone, so the retry would return immediately
+          // and its timer would outlive the only thing that could re-arm it.
+          cancelBadgeRecovery(instance.id);
+          retiredNotificationCursors.delete(instance.id);
         }
         break;
       }
@@ -987,7 +1029,13 @@ function createAppState() {
       case 'requestError': {
         const { _requestId, error } = message as { _requestId?: unknown; error?: unknown };
         if (typeof _requestId === 'string') {
-          rejectPendingRequest(_requestId, typeof error === 'string' ? error : t('common.requestFailed'));
+          const text = typeof error === 'string' ? error : t('common.requestFailed');
+          // A dashboard list request is not a promise, so the dispatcher's
+          // fallback reply has to release its slot: otherwise the spinner it set
+          // before posting would run forever (see failInstanceListRequest).
+          if (!rejectPendingRequest(_requestId, text)) {
+            failInstanceListRequest(_requestId, text);
+          }
         }
         break;
       }
@@ -1022,14 +1070,30 @@ function createAppState() {
         debug.value = message.debug;
         break;
       case 'repositories':
-        handleRepositories(message as { instanceId: string; repositories?: ForgejoRepository[]; error?: string });
+        handleRepositories(
+          message as { instanceId: string; repositories?: ForgejoRepository[]; _requestId?: string; error?: string },
+        );
         break;
       case 'myIssues':
-        handleMyIssues(message as { instanceId: string; state?: string; issues?: ForgejoIssue[]; error?: string });
+        handleMyIssues(
+          message as {
+            instanceId: string;
+            state?: string;
+            issues?: ForgejoIssue[];
+            _requestId?: string;
+            error?: string;
+          },
+        );
         break;
       case 'myPullRequests':
         handleMyPullRequests(
-          message as { instanceId: string; state?: string; pullRequests?: ForgejoPullRequest[]; error?: string },
+          message as {
+            instanceId: string;
+            state?: string;
+            pullRequests?: ForgejoPullRequest[];
+            _requestId?: string;
+            error?: string;
+          },
         );
         break;
       case 'repoDetail':
@@ -1962,87 +2026,164 @@ function createAppState() {
   }
 
   /**
-   * Whether a dashboard list reply answers a request the server now configured
-   * could have been sent.
+   * How a dashboard list reply is attributed to the request it answers.
    *
-   * `getRepositories`, `getMyIssues` and `getMyPullRequests` echo nothing back,
-   * so a reply is attributed to a record by the server it describes: the oldest
-   * outstanding record whose identity/epoch still matches the configured server,
-   * or — when no record matches — the oldest record, which is a tombstone left
-   * by an identity change (see invalidateInstanceListRequests) and means the
-   * reply came from the replaced server. Matching a record that *was* the
-   * current server is the only way a reply may write its payload; the loading
-   * slot is freed either way, or the key would spin forever waiting for an
-   * answer it will never get.
+   * `getRepositories`, `getMyIssues` and `getMyPullRequests` echo the opaque
+   * `_requestId` they were sent with, so a reply that carries one is attributed
+   * strictly by that id: the record it names is removed from the queue and its
+   * payload is written only when that record was sent for the server the
+   * instance still points at (same `instanceId`, identity and identity epoch).
    *
-   * Recording the *latest* request in a single slot could not see this: an
-   * identity change overwrote that slot with the reload's own identity/epoch
-   * while the replaced server's request was still on the wire, so the stale
-   * reply matched the current identity and wrote the previous server's rows
-   * (and their caches) under the id the new configuration uses — staying on
-   * screen when it landed after the fresh reply.
+   * - `accept`: the reply answers the current server's request; write it.
+   * - `refuse`: the reply answers a request sent for a server an identity change
+   *   replaced, so its rows must not be written under the id the new
+   *   configuration uses. The loading slot is still freed, or the key would spin
+   *   forever waiting for an answer it will never get.
+   * - `ignore`: the reply carries an id this webview has no outstanding request
+   *   for — a duplicate, or a reply for an id already answered. Nothing may be
+   *   touched: the slot may still be waiting for the reply that *is* outstanding.
+   *
+   * A reply with no id at all keeps the pre-id behaviour: it is attributed to the
+   * oldest record, which is the best available guess when the host cannot say
+   * which request it answers. That covers an older host build (no echo) and a
+   * failure reply the host sends before it can echo anything — the webview must
+   * not go blind to those — and the oldest record's identity/epoch still refuses
+   * a reply that a replaced server produced. Recording the *latest* request in a
+   * single slot could not see that: an identity change overwrote that slot with
+   * the reload's own identity/epoch while the replaced server's request was
+   * still on the wire, so the stale reply matched the current identity and wrote
+   * the previous server's rows (and their caches) under the id the new
+   * configuration uses — staying on screen when it landed after the fresh reply.
    */
-  function consumeInstanceListReply(key: string, instanceId: string): boolean {
+  function consumeInstanceListReply(
+    key: string,
+    instanceId: string,
+    requestId?: string,
+  ): 'accept' | 'refuse' | 'ignore' {
     const queue = instanceListRequests.get(key);
+    if (typeof requestId === 'string') {
+      const index = queue ? queue.findIndex((entry) => entry.requestId === requestId) : -1;
+      if (!queue || index < 0) {
+        return 'ignore';
+      }
+      // Strict attribution: the reply names its own request, so its arrival order
+      // says nothing about which record to judge and the reload's record stays
+      // queued for the reload's own reply.
+      const [sent] = queue.splice(index, 1);
+      if (queue.length > 0) {
+        instanceListRequests.set(key, queue);
+      } else {
+        instanceListRequests.delete(key);
+      }
+      return isCurrentListRequest(sent, instanceId) ? 'accept' : 'refuse';
+    }
     if (!queue || queue.length === 0) {
       // A reply that answers no request of ours: hand-built replies (and a host
       // build that answers a request this webview never recorded) flow through.
       instanceListRequests.delete(key);
-      return false;
+      return 'accept';
     }
-    // The reply answers the request the host queued first — the oldest record for
-    // its key. It may write only when that request was sent for the server now
-    // configured; a record sent for a server an identity change dropped is
-    // refused, and it consumes that record so the reload's record stays queued
-    // for the reload's own reply. This is what the previous guard could not do:
-    // it compared the *latest* recorded request against the configured identity,
-    // and the reload had overwritten that record with the very identity/epoch the
-    // superseded reply was sent under (url a -> b -> a, or a reload issued for the
-    // identity the webview last saw), so the stale reply matched and its rows
-    // stayed on screen when they landed after the fresh ones.
+    // No id to attribute with: the reply answers the request the host queued
+    // first — the oldest record for its key. A record sent for a server an
+    // identity change dropped is refused, and it consumes that record so the
+    // reload's record stays queued for the reload's own reply. This is what the
+    // previous guard could not do: it compared the *latest* recorded request
+    // against the configured identity, and the reload had overwritten that record
+    // with the very identity/epoch the superseded reply was sent under (url a ->
+    // b -> a, or a reload issued for the identity the webview last saw), so the
+    // stale reply matched and its rows stayed on screen when they landed after
+    // the fresh ones.
     const [sent] = queue.splice(0, 1);
     if (queue.length > 0) {
       instanceListRequests.set(key, queue);
     } else {
       instanceListRequests.delete(key);
     }
-    if (sent.instanceId !== instanceId) {
-      return true;
-    }
+    return isCurrentListRequest(sent, instanceId) ? 'accept' : 'refuse';
+  }
+
+  /**
+   * Whether one recorded request was sent for the server the instance still
+   * points at. An identity change (or an instance removal) bumps the epoch and
+   * the record keeps the identity/epoch it was sent under, so a record of the
+   * replaced server is recognizably old even when the identity returns to a value
+   * it had earlier (url a -> b -> a).
+   */
+  function isCurrentListRequest(
+    sent: { instanceId: string; identity: string; epoch: number },
+    instanceId: string,
+  ): boolean {
     return (
-      sent.identity !== instanceIdentityOf(instanceId) || sent.epoch !== (instanceIdentityEpoch.get(instanceId) ?? 0)
+      sent.instanceId === instanceId &&
+      sent.identity === instanceIdentityOf(instanceId) &&
+      sent.epoch === (instanceIdentityEpoch.get(instanceId) ?? 0)
     );
   }
+
   /**
    * Records one dashboard list request as outstanding for its key (see the map).
    * Called before the post: the reply may land before the caller's next
-   * statement.
+   * statement. The `requestId` is the opaque id the host echoes back, which is
+   * what attributes the reply (see consumeInstanceListReply).
    */
-  function recordInstanceListRequest(key: string, instanceId: string) {
+  function recordInstanceListRequest(key: string, instanceId: string, requestId: string) {
     const queue = instanceListRequests.get(key) ?? [];
     queue.push({
       instanceId,
       identity: instanceIdentityOf(instanceId),
       epoch: instanceIdentityEpoch.get(instanceId) ?? 0,
+      requestId,
     });
     instanceListRequests.set(key, queue);
   }
 
   /**
+   * Releases the dashboard list slot one request id names, for a failure reply
+   * the host had to send from its dispatcher instead of the handler (the
+   * `requestError` fallback: a handler that threw, or returned without
+   * answering). The three list loaders register no promise, so that reply would
+   * otherwise leave the slot's spinner running forever; the id it carries is the
+   * one the queue recorded before the post.
+   *
+   * A record whose identity/epoch is stale is dropped without writing: its
+   * failure describes a server the instance no longer points at, and the slot it
+   * would write belongs to the server now configured.
+   */
+  function failInstanceListRequest(requestId: string, error: string): void {
+    for (const [key, queue] of Array.from(instanceListRequests)) {
+      const index = queue.findIndex((entry) => entry.requestId === requestId);
+      if (index < 0) {
+        continue;
+      }
+      const [sent] = queue.splice(index, 1);
+      if (queue.length > 0) {
+        instanceListRequests.set(key, queue);
+      } else {
+        instanceListRequests.delete(key);
+      }
+      if (isCurrentListRequest(sent, sent.instanceId)) {
+        loading.set(key, false);
+        setError(key, error);
+      }
+      return;
+    }
+  }
+
+  /**
    * Frees the loading/error slots one instance's identity change invalidated, and
-   * keeps every queued record as a tombstone.
+   * keeps every queued record.
    *
    * A request sent for the replaced server can never answer for the server now
-   * configured, but its record is deliberately kept: its own late reply consumes
-   * records in send order, and dropping the tombstone would let that reply consume
-   * the reload's record instead. A reload is issued with the identity/epoch the
-   * webview now has (url a -> b -> a, or a reload issued for the identity the
-   * webview last saw), so the superseded reply could match the reload's record and
-   * write the replaced server's rows under the id the new configuration uses. With
-   * the tombstone kept, that reply finds a record of a server this webview no
-   * longer is, is refused, and leaves the reload's record queued for the reload's
-   * own reply; when the identity change had no reload to issue (the instance was
-   * removed) nothing is appended at all.
+   * configured, but its record is deliberately kept: the reply that names it is
+   * then refused (a request of a server this webview no longer is) and frees the
+   * slot, instead of being ignored as an id this webview never recorded. Dropping
+   * the record would be safe for the payload — an unknown id is ignored anyway —
+   * but it would leave the slot waiting on a reply that was already delivered.
+   * The reload is issued with the identity/epoch the webview now has (url a -> b
+   * -> a, or a reload issued for the identity the webview last saw), so the
+   * superseded record is the only one that can be refused: the reload's own record
+   * matches and stays queued for the reload's own reply. When the identity change
+   * had no reload to issue (the instance was removed) nothing is appended at all.
    */
   function invalidateInstanceListRequests(instanceId: string) {
     for (const [key, queue] of Array.from(instanceListRequests)) {
@@ -2057,15 +2198,24 @@ function createAppState() {
     }
   }
 
-  function handleRepositories(data: { instanceId: string; repositories?: ForgejoRepository[]; error?: string }) {
+  function handleRepositories(data: {
+    instanceId: string;
+    repositories?: ForgejoRepository[];
+    _requestId?: string;
+    error?: string;
+  }) {
     const key = `repos-${data.instanceId}`;
-    // Answers a request sent for the server this instance no longer is: its rows
-    // must not be written under the id the new configuration uses. The loading
-    // slot is still freed, or the key would spin forever waiting for an answer
-    // it will never get.
-    const stale = consumeInstanceListReply(key, data.instanceId);
+    // Answers a request sent for the server this instance no longer is
+    // ('refuse'), or a request this webview never had outstanding ('ignore'): its
+    // rows must not be written under the id the new configuration uses. The
+    // loading slot is still freed for a refused reply, or the key would spin
+    // forever waiting for an answer it will never get.
+    const attribution = consumeInstanceListReply(key, data.instanceId, data._requestId);
+    if (attribution === 'ignore') {
+      return;
+    }
     loading.set(key, false);
-    if (stale) {
+    if (attribution === 'refuse') {
       return;
     }
     if (data.error) {
@@ -2078,14 +2228,23 @@ function createAppState() {
     }
   }
 
-  function handleMyIssues(data: { instanceId: string; state?: string; issues?: ForgejoIssue[]; error?: string }) {
+  function handleMyIssues(data: {
+    instanceId: string;
+    state?: string;
+    issues?: ForgejoIssue[];
+    _requestId?: string;
+    error?: string;
+  }) {
     // The host echoes the requested state; fall back to the default only for
     // replies from a host build that predates the echo.
     const state = data.state ?? 'open';
     const key = `issues-${data.instanceId}-${state}`;
-    const stale = consumeInstanceListReply(key, data.instanceId);
+    const attribution = consumeInstanceListReply(key, data.instanceId, data._requestId);
+    if (attribution === 'ignore') {
+      return;
+    }
     loading.set(key, false);
-    if (stale) {
+    if (attribution === 'refuse') {
       return;
     }
     if (data.error) {
@@ -2102,13 +2261,17 @@ function createAppState() {
     instanceId: string;
     state?: string;
     pullRequests?: ForgejoPullRequest[];
+    _requestId?: string;
     error?: string;
   }) {
     const state = data.state ?? 'open';
     const key = `pulls-${data.instanceId}-${state}`;
-    const stale = consumeInstanceListReply(key, data.instanceId);
+    const attribution = consumeInstanceListReply(key, data.instanceId, data._requestId);
+    if (attribution === 'ignore') {
+      return;
+    }
     loading.set(key, false);
-    if (stale) {
+    if (attribution === 'refuse') {
       return;
     }
     if (data.error) {
@@ -3614,13 +3777,21 @@ function createAppState() {
     // A request that waited past the queue's bound is dropped first: its reply
     // can no longer be told apart from the next request's, and leaving the entry
     // queued would strand the badge (see pruneNotificationRequests).
-    const queue = pruneNotificationRequests(data.instanceId);
+    const { live: queue, retired } = pruneNotificationRequests(data.instanceId);
     // Attribution has to be by the request the reply can actually belong to. The
     // host echoes the cursor a request was sent with, so a cursor-carrying reply
-    // names its own request; a cursor no outstanding request knows belongs to a
-    // request that was already answered or has expired, and no entry may claim
-    // its page — writing it would present a page nobody asked for, possibly the
-    // replaced server's, as the current one's.
+    // names its own request; a cursor this webview minted for a request that is
+    // no longer outstanding belongs to a request that was already answered or has
+    // expired, and no entry may claim its page — writing it would present a page
+    // nobody asked for, possibly the replaced server's, as the current one's.
+    //
+    // "No longer outstanding" includes the request the prune just dropped, which
+    // is why the retired cursors are remembered (see retiredNotificationCursors):
+    // the queue is empty by then, and falling through to the permissive reading
+    // below landed exactly that unattributable page in the view slot. A cursor
+    // this webview never minted — a host that echoes none, or a caller that
+    // builds its own message — keeps that reading, because there is no request of
+    // this webview's it could have been mistaken for.
     //
     // The failure reply echoes no cursor at all (viewProvider's `getNotifications`
     // catch), so there the entry has to be one the server the reply came from
@@ -3635,14 +3806,14 @@ function createAppState() {
     let answeredIndex = -1;
     if (typeof data.before === 'string') {
       answeredIndex = queue.findIndex((entry) => entry.cursor === data.before);
-      if (answeredIndex < 0 && queue.length > 0) {
-        // An outstanding request is recorded and the cursor names none of them:
-        // this reply belongs to a request that was already answered or has
-        // expired, and writing its page would present a page nobody asked for —
-        // possibly the replaced server's — as the current one's. With nothing
-        // outstanding there is no request to mis-attribute instead, so the reply
-        // is read the way a host that echoes cursors this webview never minted
-        // has always been read.
+      if (answeredIndex < 0 && (queue.length > 0 || retired.length > 0)) {
+        // A request is outstanding — or was until it was answered or expired —
+        // and the cursor names none of them: this reply belongs to a request that
+        // is already gone, and writing its page would present a page nobody
+        // asked for, possibly the replaced server's, as the current one's. With
+        // nothing outstanding there is no request to mis-attribute instead, so
+        // the reply is read the way a host that echoes cursors this webview never
+        // minted has always been read.
         return;
       }
     } else if (data.error) {
@@ -3653,6 +3824,15 @@ function createAppState() {
     const answered = answeredIndex >= 0 ? queue[answeredIndex] : undefined;
     if (answered) {
       queue.splice(answeredIndex, 1);
+      // The request is answered, so its cursor is no longer outstanding: a second
+      // reply that still echoes it belongs to no request of this webview's (see
+      // the cursor check above).
+      retireNotificationCursor(data.instanceId, answered.cursor);
+    }
+    // The request this reply answers is no longer outstanding: whatever the
+    // reply was, no recovery has anything left to retry for it.
+    if (answered?.badge === true) {
+      cancelBadgeRecovery(data.instanceId);
     }
     if (queue.length > 0) {
       notificationRequests.set(data.instanceId, queue);
@@ -5523,8 +5703,12 @@ function createAppState() {
       return;
     }
     beginLoading(key);
-    recordInstanceListRequest(key, instanceId);
-    postMessage({ command: 'getRepositories', instanceId });
+    // The id is opaque to the host, which echoes it back verbatim on both the
+    // success and the failure reply. Attribution reads it instead of assuming the
+    // replies arrive in send order (see consumeInstanceListReply).
+    const _requestId = `list-repos-${++instanceListRequestId}`;
+    recordInstanceListRequest(key, instanceId, _requestId);
+    postMessage({ command: 'getRepositories', instanceId, _requestId });
   }
 
   /** `${instanceId}:${owner}/${repo}` — the prefix of every repo-scoped payload key. */
@@ -5627,7 +5811,7 @@ function createAppState() {
   // component happened to call `useAppState()` first and would stop working once
   // the keep-alive cache evicts that component.
   let activeRepoScope: string | undefined;
-  // `useRouter()` injects, it does not throw: the two standalone panels
+  // `useAppRouter()` injects, it does not throw: the two standalone panels
   // (onboarding, pull request review comment) mount the composable without a
   // vue-router instance, so the hook may only be installed when one exists.
   router?.afterEach((to) => {
@@ -5892,8 +6076,9 @@ function createAppState() {
       return;
     }
     beginLoading(key);
-    recordInstanceListRequest(key, instanceId);
-    postMessage({ command: 'getMyIssues', instanceId, state });
+    const _requestId = `list-issues-${++instanceListRequestId}`;
+    recordInstanceListRequest(key, instanceId, _requestId);
+    postMessage({ command: 'getMyIssues', instanceId, state, _requestId });
   }
 
   function loadMyPullRequests(instanceId: string, state = 'open', force = false) {
@@ -5905,8 +6090,9 @@ function createAppState() {
       return;
     }
     beginLoading(key);
-    recordInstanceListRequest(key, instanceId);
-    postMessage({ command: 'getMyPullRequests', instanceId, state });
+    const _requestId = `list-pulls-${++instanceListRequestId}`;
+    recordInstanceListRequest(key, instanceId, _requestId);
+    postMessage({ command: 'getMyPullRequests', instanceId, state, _requestId });
   }
 
   function loadGlobalSearch(
@@ -6026,23 +6212,29 @@ function createAppState() {
 
   /**
    * Drops the entries of one instance's queue whose request can no longer be
-   * answered (see NOTIFICATION_REQUEST_MAX_AGE_MS) and returns what is left.
+   * answered (see NOTIFICATION_REQUEST_MAX_AGE_MS) and returns what is left,
+   * together with the cursors this webview has stopped waiting for.
    *
    * A stranded entry is not just dead weight: the badge's own entry is what
    * keeps the next badge request waiting, so an entry that can never be
    * attributed has to expire or the badge is stuck for the rest of the session.
+   * The caller still needs its cursor: a reply that names it is exactly the
+   * unattributable page that must not be written into the view slot now that the
+   * queue it belonged to is empty (see handleNotifications).
    */
-  function pruneNotificationRequests(instanceId: string): NotificationRequest[] {
+  function pruneNotificationRequests(instanceId: string): { live: NotificationRequest[]; retired: string[] } {
     const queue = notificationRequests.get(instanceId);
+    const retired = retiredNotificationCursors.get(instanceId) ?? [];
     if (!queue || queue.length === 0) {
       notificationRequests.delete(instanceId);
-      return [];
+      return { live: [], retired };
     }
     const cutoff = Date.now() - NOTIFICATION_REQUEST_MAX_AGE_MS;
-    const live = queue.filter((entry) => entry.sentAt > cutoff);
-    if (live.length === queue.length) {
-      return queue;
+    const expired = queue.filter((entry) => entry.sentAt <= cutoff);
+    if (expired.length === 0) {
+      return { live: queue, retired };
     }
+    const live = queue.filter((entry) => entry.sentAt > cutoff);
     if (live.length > 0) {
       notificationRequests.set(instanceId, live);
     } else {
@@ -6052,12 +6244,53 @@ function createAppState() {
       // the next ask dedupe against a request that no longer exists.
       loading.set(notificationsKey(instanceId), false);
     }
-    return live;
+    // The dropped cursors stay known, so a late reply that names one of them is
+    // recognised as unattributable instead of landing in the view slot.
+    for (const entry of expired) {
+      retireNotificationCursor(instanceId, entry.cursor);
+    }
+    return { live, retired: retiredNotificationCursors.get(instanceId) ?? retired };
   }
 
   /** Whether one instance's badge request is still waiting for its reply. */
   function hasBadgeRequestInFlight(instanceId: string): boolean {
-    return pruneNotificationRequests(instanceId).some((entry) => entry.badge);
+    return pruneNotificationRequests(instanceId).live.some((entry) => entry.badge);
+  }
+
+  /**
+   * Arms one recovery attempt for an instance's badge request, which expires
+   * unanswered after the queue's own bound.
+   *
+   * The queue is only pruned when something asks again — the dashboard asks on
+   * mount, on activation and when the instance list changes, and none of those
+   * happen while the user sits on the dashboard — so a request the host never
+   * answered left the bell empty for the rest of the session. Asking once more
+   * after the same bound that retires the stranded entry is the same one-shot
+   * request, not a poll: the retry is only armed together with the request it
+   * retries, and a retry that is answered (or that finds the badge already
+   * filled) leaves nothing further armed. One timer per instance: while one is
+   * pending the ask it belongs to is the only outstanding badge request there
+   * can be.
+   */
+  function scheduleBadgeRecovery(instanceId: string) {
+    if (notificationBadgeRecoveryTimers.has(instanceId)) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      notificationBadgeRecoveryTimers.delete(instanceId);
+      loadNotificationBadge(instanceId);
+    }, NOTIFICATION_REQUEST_MAX_AGE_MS);
+    notificationBadgeRecoveryTimers.set(instanceId, timer);
+  }
+
+  /** Drops one instance's pending badge recovery (its request was answered, or
+   * its server is gone). */
+  function cancelBadgeRecovery(instanceId: string) {
+    const timer = notificationBadgeRecoveryTimers.get(instanceId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      notificationBadgeRecoveryTimers.delete(instanceId);
+    }
   }
 
   /**
@@ -6077,6 +6310,10 @@ function createAppState() {
     beginLoading(notificationsKey(instanceId));
     const cursor = notificationRequestCursor();
     queueNotificationRequest(instanceId, { badge: true, isMore: false, cursor });
+    // The request only counts as outstanding while something can retire it: the
+    // recovery retries it when the queue's bound passes with no reply, which is
+    // the one thing the dashboard's own asks cannot do while the user stays put.
+    scheduleBadgeRecovery(instanceId);
     postMessage({
       command: 'getNotifications',
       instanceId,

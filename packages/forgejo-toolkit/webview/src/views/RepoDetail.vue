@@ -190,7 +190,8 @@ function reloadBranchCommits() {
 <template>
   <div class="repo-detail">
     <div v-if="loading" class="loading-state">
-      <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+      <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
+      {{ t('dashboard.loading') }}
     </div>
     <div v-else-if="error" class="error-state">
       <span>{{ t('dashboard.error', { message: error }) }}</span>

@@ -1384,7 +1384,8 @@ function reloadPullRequest() {
 <template>
   <div class="pr-detail">
     <div v-if="loading" class="loading-state">
-      <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+      <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
+      {{ t('dashboard.loading') }}
     </div>
     <div v-else-if="error" class="error-state">
       <span>{{ t('dashboard.error', { message: error }) }}</span>
@@ -1499,7 +1500,8 @@ function reloadPullRequest() {
         <div class="detail-section">
           <h3>{{ t('dashboard.detail.commits') }}</h3>
           <div v-if="commitsLoading" class="loading">
-            <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+            <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
+            {{ t('dashboard.loading') }}
           </div>
           <div v-else-if="commitsError" class="error">{{ t('dashboard.error', { message: commitsError }) }}</div>
           <CommitDiffList
@@ -1553,7 +1555,8 @@ function reloadPullRequest() {
         <div class="detail-section">
           <h3>{{ t('dashboard.detail.commentsAndTimeline') }}</h3>
           <div v-if="commentsLoading" class="loading">
-            <vscode-progress-ring class="detail-loading-ring" /> {{ t('dashboard.loading') }}
+            <vscode-progress-ring class="detail-loading-ring" :aria-label="t('dashboard.loading')" />
+            {{ t('dashboard.loading') }}
           </div>
           <div v-else-if="commentsError" class="error">{{ t('dashboard.error', { message: commentsError }) }}</div>
           <CommentTimeline
