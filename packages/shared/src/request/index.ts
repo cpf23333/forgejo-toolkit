@@ -35,17 +35,52 @@ export type ResponseConfig<TData = unknown> = {
 };
 
 /**
+ * A failed Forgejo API request: the response the server returned, as structured
+ * data instead of only as text.
+ *
+ * `message` keeps the exact `` `Forgejo API error ${status}: ${detail}` `` format
+ * this client used before the type existed, so log lines and every caller that
+ * matches on the text see no change. Classify on the fields instead:
+ *
+ * - `status`/`statusText`/`headers` are the response's own.
+ * - `body` is the parsed JSON when the response declared `application/json` and
+ *   its text parsed (any JSON value, not only an object), and the raw text
+ *   otherwise — a non-JSON content type, an empty body (the empty string, the
+ *   one case where `''` cannot also be valid JSON), or a declared-JSON body that
+ *   did not parse. It is **not** validated against the generated error type, so
+ *   check the shape before reading a field.
+ *
+ * A `RequestError` thrown by one copy of this module is not recognised by
+ * `instanceof` in another (structurally identical) copy, so the extension host
+ * keeps a message-based fallback for errors it did not create itself.
+ */
+export class RequestError<TBody = unknown> extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly statusText: string,
+    readonly headers: Headers,
+    readonly body: TBody,
+  ) {
+    super(message);
+    this.name = 'RequestError';
+  }
+}
+
+/**
  * The error type a generated operation *declares* for one status code, used only
  * as the second type argument of `Client` (e.g. `ResponseErrorConfig<RepoGet404>`).
  *
- * It is documentation, not a runtime contract: this client never throws it. Every
- * failure surfaces as a plain `Error` whose message is
- * `Forgejo API error <status>: <detail>` (see below), so a `catch` narrowed to a
- * generated error type reads fields like `errors` or `url` as `undefined`. Catch
- * `Error` and read `message`; the extension host re-classifies it (status, kind,
- * localized text) in `packages/forgejo-toolkit/src/api/errors-core.ts`.
+ * It names the runtime error now: this client throws a `RequestError`, and
+ * `TError` is the body type the endpoint documents for that status. That is a
+ * name, not a contract — the client parses JSON without validating it, so
+ * `body` may be anything the server sent; check the shape before reading a
+ * field. A `catch` narrowed to a bare generated error type still sees
+ * `undefined` for its fields, because the thrown object is a `RequestError`
+ * rather than `TError`; the extension host re-classifies that error (status,
+ * kind, localized text) in `packages/forgejo-toolkit/src/api/errors-core.ts`.
  */
-export type ResponseErrorConfig<TError = unknown> = TError;
+export type ResponseErrorConfig<TError = unknown> = RequestError<TError>;
 
 /**
  * Encodes a single URL path segment so values containing `/`, `#`, `?` or
@@ -93,8 +128,45 @@ function describedBody(response: Response, text: string): string {
   return `${response.statusText} (${truncated})`;
 }
 
-function nonJsonSuccessBodyError(response: Response, text: string): Error {
-  return new Error(`Forgejo API error ${response.status}: ${describedBody(response, text)}`);
+/**
+ * The body a `RequestError` carries: parsed JSON when the response declared it,
+ * the raw text otherwise.
+ *
+ * The media-type check mirrors `describedBody`, so `body` and the message agree:
+ * a declared-JSON body that does not parse (a truncated or malformed document)
+ * stays the raw text, which is what the message quotes. An empty body is the
+ * empty string.
+ */
+function errorBody(response: Response, text: string): unknown {
+  if (!text || mediaType(response) !== 'application/json') {
+    return text;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+/**
+ * One `RequestError` built from a response. The message is assembled here so
+ * every failure path keeps the same `` `Forgejo API error ${status}: ${detail}` ``
+ * text.
+ */
+function requestErrorFor(response: Response, text: string, body: unknown): RequestError {
+  return new RequestError(
+    `Forgejo API error ${response.status}: ${describedBody(response, text)}`,
+    response.status,
+    response.statusText,
+    response.headers,
+    body,
+  );
+}
+
+function nonJsonSuccessBodyError(response: Response, text: string): RequestError {
+  // The text is non-JSON by construction (JSON.parse failed), so the raw text is
+  // the body; `errorBody` would only repeat the check.
+  return requestErrorFor(response, text, text);
 }
 
 export type Client = <TResponseData, _TError = unknown, TRequestData = unknown>(
@@ -185,6 +257,10 @@ export function mergeHeaders(...headers: Array<RequestConfig['headers'] | undefi
  *   backs Node's global fetch — strips the `Authorization` header when a
  *   redirect crosses origins. A non-compliant `fetchImpl` would break that
  *   guarantee, so a custom implementation must follow the same rule.
+ * - **Failures are `RequestError`s.** Every non-ok response — and a 200 whose
+ *   body is not JSON — throws `RequestError` carrying `status`, `statusText`,
+ *   `headers` and the (parsed, when the response declared JSON) `body`; its
+ *   `message` keeps the `` `Forgejo API error ${status}: ${detail}` `` shape.
  */
 export const client: Client = async <TResponseData, _TError = unknown, TRequestData = unknown>(
   paramsConfig: RequestConfig<TRequestData>,
@@ -239,8 +315,9 @@ export const client: Client = async <TResponseData, _TError = unknown, TRequestD
     const text = await response.text().catch(() => '');
     // Error responses can be huge (e.g. an HTML page from a reverse proxy),
     // so the body embedded in the error message is capped — and a body that is
-    // not JSON is described rather than quoted.
-    throw new Error(`Forgejo API error ${response.status}: ${describedBody(response, text)}`);
+    // not JSON is described rather than quoted. The caller still gets the whole
+    // body on the error itself.
+    throw requestErrorFor(response, text, errorBody(response, text));
   }
 
   let data: TResponseData;

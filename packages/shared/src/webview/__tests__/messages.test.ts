@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { toPublicInstance } from '../messages';
-import type { ForgejoInstance, HostToWebviewMessage } from '../messages';
+import type { ForgejoInstance, HostToWebviewMessage, WebviewToHostMessage } from '../messages';
 
 function makeInstance(overrides: Partial<ForgejoInstance> = {}): ForgejoInstance {
   return {
@@ -214,6 +214,58 @@ describe('importInstancesPreview token exclusion', () => {
     const reply = makeImportPreviewReply({ instances: [makeInstance()] });
 
     expect(reply.instances[0]?.id).toBe('instance-1');
+  });
+});
+
+/**
+ * The three dashboard lists are the only loaders whose reply cannot be told apart
+ * by its own fields: an instance edit keeps the instance id, so the replaced
+ * server's reply and the reload's reply carry the same `instanceId` (and the same
+ * echoed `state`). The opaque `_requestId` is what the webview attributes a reply
+ * by, so the request must carry one and the reply must be able to echo it back.
+ */
+type RepositoriesRequest = Extract<WebviewToHostMessage, { command: 'getRepositories' }>;
+type RepositoriesReply = Extract<HostToWebviewMessage, { command: 'repositories' }>;
+
+describe('dashboard list request ids', () => {
+  it('requires an id on each of the three list requests', () => {
+    const requests: Array<
+      Extract<WebviewToHostMessage, { command: 'getRepositories' | 'getMyIssues' | 'getMyPullRequests' }>
+    > = [
+      { command: 'getRepositories', instanceId: 'instance-1', _requestId: 'list-repos-1' },
+      { command: 'getMyIssues', instanceId: 'instance-1', state: 'open', _requestId: 'list-issues-1' },
+      { command: 'getMyPullRequests', instanceId: 'instance-1', state: 'open', _requestId: 'list-pulls-1' },
+    ];
+
+    // The host treats the id as opaque: it only has to be unique among the
+    // requests of one webview session, because that is the scope of the queue it
+    // is attributed against.
+    expect(requests.map((request) => request._requestId)).toEqual(['list-repos-1', 'list-issues-1', 'list-pulls-1']);
+  });
+
+  it('rejects a list request without an id at compile time', () => {
+    // A request that cannot be named cannot be attributed: two outstanding
+    // requests for one slot would be indistinguishable to the webview.
+    // @ts-expect-error -- the request must carry the id the reply echoes
+    const request: RepositoriesRequest = { command: 'getRepositories', instanceId: 'instance-1' };
+
+    expect(request.command).toBe('getRepositories');
+  });
+
+  it('keeps the echoed id optional so a reply that cannot carry one stays valid', () => {
+    // An older host build sends no echo, and a failure reply may be sent before
+    // the host can echo anything; both must stay type-valid, because the webview
+    // falls back to its per-instance queue for those instead of dropping them.
+    const echoed: RepositoriesReply = {
+      command: 'repositories',
+      instanceId: 'instance-1',
+      repositories: [],
+      _requestId: 'list-repos-1',
+    };
+    const notEchoed: RepositoriesReply = { command: 'repositories', instanceId: 'instance-1', repositories: [] };
+
+    expect(echoed._requestId).toBe('list-repos-1');
+    expect(notEchoed._requestId).toBeUndefined();
   });
 });
 

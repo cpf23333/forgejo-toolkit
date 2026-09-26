@@ -219,10 +219,35 @@ export type HostToWebviewMessage =
       repositories?: unknown[];
       /** The server's `X-Total-Count` for the list, when the instance reported one. */
       totalCount?: number;
+      /**
+       * The `_requestId` of the `getRepositories` request this answers, echoed
+       * verbatim. Optional because a reply that cannot carry it is still valid:
+       * a host build that predates the echo sends none, and the webview falls
+       * back to its per-instance queue for those (see `useAppState`'s
+       * consumeInstanceListReply). A reply that carries an id the webview has no
+       * outstanding request for is dropped.
+       */
+      _requestId?: string;
       error?: string;
     }
-  | { command: 'myIssues'; instanceId: string; state: string; issues?: unknown[]; error?: string }
-  | { command: 'myPullRequests'; instanceId: string; state: string; pullRequests?: unknown[]; error?: string }
+  | {
+      command: 'myIssues';
+      instanceId: string;
+      state: string;
+      issues?: unknown[];
+      /** The `_requestId` echoed from the request; see `repositories`. */
+      _requestId?: string;
+      error?: string;
+    }
+  | {
+      command: 'myPullRequests';
+      instanceId: string;
+      state: string;
+      pullRequests?: unknown[];
+      /** The `_requestId` echoed from the request; see `repositories`. */
+      _requestId?: string;
+      error?: string;
+    }
   | { command: 'repoDetail'; instanceId: string; owner: string; repo: string; detail?: unknown; error?: string }
   | {
       command: 'repoBranchCommits';
@@ -1126,9 +1151,17 @@ export type WebviewToHostMessage =
     }
   | { command: 'setLocale'; locale: string }
   | { command: 'setDebug'; debug: boolean }
-  | { command: 'getRepositories'; instanceId: string }
-  | { command: 'getMyIssues'; instanceId: string; state?: string }
-  | { command: 'getMyPullRequests'; instanceId: string; state?: string }
+  // The three dashboard lists are the only loaders whose reply cannot be told
+  // apart by its own fields: an instance edit keeps the id, so the replaced
+  // server's reply and the reload's reply carry the same `instanceId` (and the
+  // same echoed `state`). Without a request id the webview had to judge a reply
+  // by the oldest record it still had queued, which cannot separate the two when
+  // they arrive out of send order. The opaque `_requestId` travels with the
+  // request and comes back on the reply so attribution needs no ordering
+  // assumption (see `useAppState`'s consumeInstanceListReply).
+  | { command: 'getRepositories'; instanceId: string; _requestId: string }
+  | { command: 'getMyIssues'; instanceId: string; state?: string; _requestId: string }
+  | { command: 'getMyPullRequests'; instanceId: string; state?: string; _requestId: string }
   | { command: 'getRepoDetail'; instanceId: string; owner: string; repo: string }
   | {
       command: 'getRepoBranchCommits';
