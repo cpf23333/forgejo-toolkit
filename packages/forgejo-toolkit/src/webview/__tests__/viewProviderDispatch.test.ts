@@ -1610,6 +1610,12 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     // file exactly as it was — not truncated.
     const target = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'export-atomic-')), 'export.json');
     fs.writeFileSync(target, 'previous export');
+    // Pick "Plain text" explicitly: the shared mock otherwise answers the
+    // first button ("Encrypt with password") and the flow cancels at the
+    // password prompt, never reaching the write this test is about. Relying
+    // on a password mock leaked by an earlier test made this pass only in
+    // full-file order.
+    vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Plain text' as never);
     vi.mocked(vscode.window.showSaveDialog).mockResolvedValueOnce({ fsPath: target } as never);
     vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('EPERM: operation not permitted'));
 
