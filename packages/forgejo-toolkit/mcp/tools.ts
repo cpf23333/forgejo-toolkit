@@ -815,16 +815,14 @@ export function summarizePrReviewStatus(
     }
   });
   const ordered = [...latestByReviewer.values()].sort((a, b) => a.position - b.position);
-  const reviewers = ordered.map(
-    ({ review }): PrReviewBriefReviewer => ({
-      reviewer: review.user?.login,
-      state: review.state,
-      reviewedAt: review.submitted_at ?? review.updated_at,
-      reviewId: review.id,
-      stale: review.stale === true ? true : undefined,
-      dismissed: review.dismissed === true ? true : undefined,
-    }),
-  );
+  const reviewers = ordered.map(({ review }): PrReviewBriefReviewer => ({
+    reviewer: review.user?.login,
+    state: review.state,
+    reviewedAt: review.submitted_at ?? review.updated_at,
+    reviewId: review.id,
+    stale: review.stale === true ? true : undefined,
+    dismissed: review.dismissed === true ? true : undefined,
+  }));
   const current = ordered
     .map(({ review }) => review)
     .filter((review) => review.stale !== true && review.dismissed !== true);

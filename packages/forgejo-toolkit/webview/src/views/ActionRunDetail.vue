@@ -534,8 +534,7 @@ function downloadArtifact(artifact: { id?: number; name?: string }) {
               :ref="(el) => setJobLogElement(el as HTMLPreElement, job.id)"
               class="job-log"
               @scroll="onJobLogScroll(job.id, $event)"
-              >{{ jobLog(job.id) }}</pre
-            >
+              >{{ jobLog(job.id) }}</pre>
             <div v-else class="empty-state">{{ t('dashboard.actionRun.noLogs') }}</div>
           </div>
         </div>
