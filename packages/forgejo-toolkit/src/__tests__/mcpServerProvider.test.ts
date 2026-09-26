@@ -139,7 +139,7 @@ describe('registerMcpServerProvider', () => {
     expect(definitions).toHaveLength(2);
     const [first, second] = definitions;
     expect(first.command).toBe(process.execPath);
-    expect(first.args[0]).toContain('mcp-server.js');
+    expect(first.args[0]).toContain('mcp-server.mjs');
     expect(first.env[MCP_ENV_INSTANCE_URL]).toBe('https://forgejo.example.com');
     expect(first.env[MCP_ENV_TOKEN]).toBe('secret-token');
     expect(first.env[MCP_ENV_INSTANCE_ID]).toBe('instance-1');

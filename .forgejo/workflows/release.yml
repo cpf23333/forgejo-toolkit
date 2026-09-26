@@ -220,8 +220,8 @@ jobs:
           # could report anything.
           for entry in \
             extension/package.json \
-            extension/out/extension.js \
-            extension/out/mcp-server.js \
+            extension/out/extension.mjs \
+            extension/out/mcp-server.mjs \
             extension/LICENSE.txt \
             extension/NOTICE \
             extension/changelog.md \
@@ -233,6 +233,10 @@ jobs:
             grep -qi "$entry" /tmp/vsix-contents.txt || { echo "MISSING: $entry"; cat /tmp/vsix-contents.txt; exit 1; }
             echo "OK: $entry"
           done
+          # The shared ESM chunks carry almost all of the code both entries
+          # load; their hashed names cannot be listed individually.
+          grep -q "extension/out/chunks/" /tmp/vsix-contents.txt || { echo "MISSING: extension/out/chunks/"; cat /tmp/vsix-contents.txt; exit 1; }
+          echo "OK: extension/out/chunks/"
           echo "vsix=${VSIX}" >> $GITHUB_OUTPUT
 
       - name: Generate release notes

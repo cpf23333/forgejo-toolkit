@@ -7,8 +7,9 @@ LICENSE file, which is included in the packaged extension).
 Third-party components
 ----------------------
 
-The extension is shipped as bundles: `out/extension.js` and `out/mcp-server.js`
-(extension host and MCP server, esbuild) and `out/webview/**` (webview UI, Vite).
+The extension is shipped as bundles: `out/extension.mjs` and `out/mcp-server.mjs`
+(extension host and MCP server, one esbuild ESM build with the shared code in
+`out/chunks/`) and `out/webview/**` (webview UI, Vite).
 Third-party code is compiled into those bundles, so the packaged `.vsix` does not
 contain `node_modules` and carries no dependency license file of its own. The only
 license files in the `.vsix` are this `NOTICE` and the repository's `LICENSE`, so

@@ -19,7 +19,6 @@
 - [ ] P5 低优先级（等上游）：`vscode-tree` 内按钮（IconActionButton）的 Enter/Space 被库自身 `keydown` 的 `preventDefault` 抑制（`@vscode-elements/elements` 2.5.1 既有行为）
 - [ ] 等上游版本：Forgejo v17（约 2026-10 底）的 workflow / job rerun（`forgejo#13924`，用 ≥17.0 版本闸门，并同步移除 `KNOWN_ISSUES` 对应条目）；Actions 日志 ndjson + 服务端过滤（#12820 / #12821，低优先级）
 - [ ] 规划中的功能：`forgejoToolkit.mcpEnabled` 开关；MCP Phase 2 写工具见「AI / MCP 规划」一节
-- [ ] P3 打包优化（已量化，方案已定，待实施）：esbuild metafile 实测（2026-09-27，未压缩输入口径）——extension 1202 个模块 / 6.4 MB，mcp-server 918 个模块 / 4.1 MB，其中 **913 个模块两边重复**，占 mcp 输入的 **98.9%**、ext 输入的 63.5%；生产构建产物 extension.js 1.62 MB + mcp-server.js 1.39 MB（vsix 1.28 MB），即约 1.35 MB 未压缩 / 估计约 300–400 KB 压缩体积是纯重复。方案：**转 ESM + esbuild `splitting: true` 双入口**（`src/extension.ts` + `mcp/server.ts` 同 outdir 出共享 chunk），`engines.vscode ^1.102.0` 已高于 ESM 扩展支持的 1.100，不需要抬最低版本。注意点：`__dirname`/`require` 用法要改 `import.meta.url` 派生、输出改 `.mjs` 并同步 `package.json` 的 `main` 与 mcp.json 生成路径、`forbid-vscode` 插件保留、vitest 与 `@vscode/test-electron` 对 ESM 入口的兼容要全量回归。等 `get_pr_review_brief` 的改动落地后单独一批做
 - [ ] P3 打包优化：onboarding / review 评论两个面板各自加载的是整份 dashboard webview 入口（`webview/src/main.ts` 在入口里同步注册 13 个 `@vscode-elements/elements` 模块，入口 335 KB，而面板 chunk 只有 8 KB / 5 KB），所以打开评论编辑器要解析整个 dashboard 外壳。做法是按面板拆分 webview 入口，或把 dashboard 主体改成懒加载路由；同样需要构建核对，因此暂缓
 - [ ] P4 「创建 PR」状态栏仍会拉取整个打开中 PR 列表（上限 500 条 ≈ 10 次请求）才能回答分支查询。正确但浪费：要真正减少请求数需要在 `client.ts` 暴露分页方法（例如 `getRepoPullRequests(owner, repo, state, { page, limit })`），再由状态栏只取第一页。当前实现会在达到 500 条上限时写一条明确的警告日志，因此计数不会悄悄出错。改动涉及共享 API 面，留到发版后
 - [ ] P5 已知代价（仅记录）：`API_REQUEST_TIMEOUT_MS`（30 s）约束的是**每一页请求**，而不是整次分页操作——`client.ts` 的分页辅助 `_fetchAllPages` 每页各发一次请求、超时按页重新计时，所以一次达到 500 条上限的分页读取在慢实例上累计可能持续数分钟（约 10 页 × 30 s）。需要整体上限的调用方必须自己传 `AbortSignal`
@@ -45,6 +44,7 @@
   - 客户端：500 条 issue 列表 = **10 次请求**（`client.test.ts` 分页 mock 断言）；仓库内搜索上限 **200 条** + truncation 标记。
   - 渲染：500 行 issue 页 = 500 个 `.item-card`、**5,536 个元素、约 200 ms**（jsdom；`RepoIssues.renderCost.test.ts`）。这三个数字现在由该测试**锁死断言**（行数 / 元素总数 / 首末条目文本），DOM 或卡片数一变测试就失败：改动渲染结构时必须同步改测试与本节。
   - 打包（生产构建）：入口 JS 432 → **335 KB**、入口 CSS 204 → **1 KB**（codicon 不再内联 base64）、`OnboardingPanel`/`PullReviewCommentPanel` 拆成 **8 / 5 KB** 独立块、`easymde` 327 KB 懒加载 ⇒ 仪表盘首屏 636 → 约 **336 KB**。
+  - 打包（ESM 去重，2026-09-27）：extension 与 mcp-server 改单份 esbuild ESM `splitting` 构建后，宿主侧产物 extension.mjs 230 KB + mcp-server.mjs 11 KB + 共享 chunk 1.33 MB ≈ **1.56 MB**（改前 extension.js 1.58 MB + mcp-server.js 1.36 MB ≈ 2.94 MB，去重 **47%**）；mcp 入口的 forbid-vscode 约束改由 metafile 遍历断言（onEnd 插件，watch 与生产构建都生效）。
   - 激活：dev host「Show Running Extensions」实测 **`cpf23333.forgejo-toolkit` = 91 ms**（同列表最低；VS Code 1.139.0 + 生产构建）。
   - 结论：**暂不虚拟化** 500 条列表——上限已封顶在 500 且界面会提示截断（见 `shared/src/limits.ts` 的 `LIST_ITEM_LIMIT`/`isListTruncated`），虚拟化的复杂度不划算，等真实 profile 出现卡顿再议。
   - MCP 可发现性：VS Code 不会仅因扩展贡献 `mcpServerDefinitionProviders` 就为取定义而激活它（dev host 实测，见 git 日志），因此 `activationEvents` 补了 `onStartupFinished`（不开 Dashboard 也会在启动时激活，实测 **90 ms**，见 `packages/forgejo-toolkit/package.json` 的 `activationEvents`）；真实环境 Chat 的「配置工具」已确认列出 `forgejo-toolkit → Forgejo: <实例名>` 与其工具 ✔。该事件已交付，仅剩「每次开窗都激活」这一平台代价，记录在「0.0.1 之后」一节。

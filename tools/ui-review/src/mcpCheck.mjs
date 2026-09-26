@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Headless check of the extension's MCP server (out/mcp-server.js).
+ * Headless check of the extension's MCP server (out/mcp-server.mjs).
  *
  * The MCP server is a stdio child of VS Code, but nothing about it needs the
  * editor: it reads its instance from the launch environment. This script spawns
@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..', '..');
-const serverPath = resolve(repoRoot, 'packages', 'forgejo-toolkit', 'out', 'mcp-server.js');
+const serverPath = resolve(repoRoot, 'packages', 'forgejo-toolkit', 'out', 'mcp-server.mjs');
 
 function argValue(name, fallback) {
   const index = process.argv.indexOf(name);

@@ -50,7 +50,7 @@ process via environment variables (never via tool results or logs).
 VS Code (agent mode)
   │  spawns via McpStdioServerDefinition (one per token-bearing instance)
   ▼
-mcp-server process (Node, bundled: out/mcp-server.js)
+mcp-server process (Node, bundled: out/mcp-server.mjs)
   │  reads FORGEJO_MCP_INSTANCE_URL / FORGEJO_MCP_TOKEN / FORGEJO_MCP_INSTANCE_ID /
   │  FORGEJO_MCP_SYNC_API_URLS / FORGEJO_MCP_PROXY / FORGEJO_MCP_STATE_FILE from env
   ▼
@@ -63,10 +63,14 @@ Forgejo instance REST API
 The same binary can also start with **no environment at all** — see
 [Zero-configuration launch](#zero-configuration-launch) below.
 
-- **Entry point:** `packages/forgejo-toolkit/mcp/server.ts`, bundled by
-  esbuild to `out/mcp-server.js` as a third build artifact (next to
-  `extension.js` and the webview bundle). An esbuild plugin rejects any
-  `vscode` import in this bundle, keeping the MCP process headless.
+- **Entry point:** `packages/forgejo-toolkit/mcp/server.ts`. One esbuild ESM
+  build (`splitting: true`) emits both `out/extension.mjs` and
+  `out/mcp-server.mjs` plus the shared dependency graph under `out/chunks/` —
+  the two entries share almost their whole graph (the broker runs the MCP tool
+  logic in the extension host), so separate bundles carried a full copy each.
+  A build-time check walks the metafile and rejects the build if any chunk
+  reachable from the mcp-server entry imports `vscode`, keeping the MCP
+  process headless.
 - **SDK:** `@modelcontextprotocol/sdk` (MIT license).
 - **Client reuse:** the server constructs the same `ForgejoClient` as the
   extension. Environment-specific behavior (toasts, localization) goes
@@ -131,19 +135,20 @@ contributions. Sessions that read a **static** MCP configuration instead —
 the user-level `<profile>/User/mcp.json`, a workspace `.vscode/mcp.json`,
 a root `.mcp.json` read natively by the Agents window's Agent Host — can
 carry only `command` + `args`, with no per-instance environment. For those,
-the same `out/mcp-server.js` starts with no `FORGEJO_MCP_*` variables at
+the same `out/mcp-server.mjs` starts with no `FORGEJO_MCP_*` variables at
 all and discovers the instance itself (`mcp/autoConfig.ts`, wired into
 `server.ts`; all of it is skipped the moment `FORGEJO_MCP_INSTANCE_URL` is
 set, so the VS Code-spawned path is unchanged).
 
-A static configuration cannot point at `out/mcp-server.js` directly: the
+A static configuration cannot point at `out/mcp-server.mjs` directly: the
 install directory is versioned (`cpf23333.forgejo-toolkit-<version>`), so
 the path breaks on every upgrade. The extension therefore additionally
 publishes a **stable-path shim** in the same globalStorage directory:
-`globalStorage/mcp-server.js`, a one-line CommonJS `require` of the current
-installation's bundle (`out/mcp-server.js` runs `main()` at module scope,
-so the `require` starts the server; the path inside is written with forward
-slashes so a Windows install path needs no backslash escaping). It is
+`globalStorage/mcp-server.js`, a tiny CommonJS stub that `import()`s the
+current installation's ESM bundle (`out/mcp-server.mjs` runs `main()` at
+module scope, so the import starts the server; the path inside is written
+with forward slashes so a Windows install path needs no backslash
+escaping). It is
 rewritten on every activation — only when the content changed, so a plain
 window load does not bump the file's mtime — which is what makes the fixed
 path self-healing across upgrades. `deactivate()` does not remove it, and

@@ -181,7 +181,7 @@ describe('copyAgentsWindowMcpConfig', () => {
     const shimFilePath = mcpServerShimFilePath(context);
     expect(fs.existsSync(shimFilePath)).toBe(true);
     expect(fs.readFileSync(shimFilePath, 'utf8')).toContain(
-      "require('D:/extensions/cpf23333.forgejo-toolkit-0.0.1/out/mcp-server.js');",
+      "import('D:/extensions/cpf23333.forgejo-toolkit-0.0.1/out/mcp-server.mjs')",
     );
   });
 

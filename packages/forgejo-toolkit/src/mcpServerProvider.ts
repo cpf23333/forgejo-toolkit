@@ -28,7 +28,7 @@ export const MCP_ENV_STATE_FILE = 'FORGEJO_MCP_STATE_FILE';
 
 /**
  * Exposes every configured Forgejo instance that has a stored access token to
- * VS Code agent mode as a stdio MCP server (out/mcp-server.js) — one
+ * VS Code agent mode as a stdio MCP server (out/mcp-server.mjs) — one
  * definition per instance, so an agent can reach several instances in the
  * same session. Each instance's URL and token reach its child process
  * exclusively through environment variables — never through tool schemas,
@@ -70,7 +70,7 @@ export function registerMcpServerProvider(
     onDidChangeMcpServerDefinitions: onDidChange.event,
     provideMcpServerDefinitions: () => {
       const instances = config.getInstances();
-      const serverPath = vscode.Uri.joinPath(context.extensionUri, 'out', 'mcp-server.js').fsPath;
+      const serverPath = vscode.Uri.joinPath(context.extensionUri, 'out', 'mcp-server.mjs').fsPath;
       const stateFilePath = mcpWorkspaceStateFilePath(context);
       // The editor's proxy setting is not in the child's environment either;
       // without it, MCP requests would connect directly while the extension's

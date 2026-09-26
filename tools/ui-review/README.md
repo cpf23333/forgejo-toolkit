@@ -217,7 +217,7 @@ Two harness limits worth knowing before planning a flow:
   checklist's flows are all in the view container, so this only bites when an
   extension command opens a panel.
 - **`src/mcpCheck.mjs` runs the MCP server headless.** It spawns
-  `out/mcp-server.js` with an instance URL/token read from an instances export and
+  `out/mcp-server.mjs` with an instance URL/token read from an instances export and
   drives it over stdio JSON-RPC, which is how the checklist's MCP items are
   covered without agent mode: tool surface, hostile-input validation and the
   truncation marker on large results. The token is never printed.

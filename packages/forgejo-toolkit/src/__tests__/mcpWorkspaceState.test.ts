@@ -277,13 +277,13 @@ describe('writeMcpServerShim', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('writes a shim that requires the current installation’s server bundle, with forward slashes', async () => {
+  it('writes a shim that imports the current installation’s server bundle, with forward slashes', async () => {
     await writeMcpServerShim(context, logger);
 
     const shimFilePath = mcpServerShimFilePath(context);
     expect(path.basename(shimFilePath)).toBe('mcp-server.js');
     const content = fs.readFileSync(shimFilePath, 'utf8');
-    expect(content).toContain("require('D:/extensions/cpf23333.forgejo-toolkit-0.0.1/out/mcp-server.js');");
+    expect(content).toContain("import('D:/extensions/cpf23333.forgejo-toolkit-0.0.1/out/mcp-server.mjs')");
     expect(content).not.toContain('\\');
   });
 
@@ -310,7 +310,7 @@ describe('writeMcpServerShim', () => {
     await writeMcpServerShim(context, logger);
 
     const content = fs.readFileSync(shimFilePath, 'utf8');
-    expect(content).toContain("require('D:/extensions/cpf23333.forgejo-toolkit-0.0.2/out/mcp-server.js');");
+    expect(content).toContain("import('D:/extensions/cpf23333.forgejo-toolkit-0.0.2/out/mcp-server.mjs')");
   });
 
   it('escapes a single quote in the install path so the shim stays valid JS', () => {
@@ -318,7 +318,7 @@ describe('writeMcpServerShim', () => {
 
     const content = buildMcpServerShimContent(context);
 
-    expect(content).toContain("require('/home/it\\'s me/.vscode/extensions/out/mcp-server.js');");
+    expect(content).toContain("import('/home/it\\'s me/.vscode/extensions/out/mcp-server.mjs')");
   });
 
   it('logs and swallows a write failure instead of propagating it', async () => {
@@ -468,7 +468,7 @@ describe('registerMcpWorkspaceStateSync', () => {
     const shimFilePath = mcpServerShimFilePath(context);
     await until(() => fs.existsSync(shimFilePath));
 
-    expect(fs.readFileSync(shimFilePath, 'utf8')).toContain('extension-install/out/mcp-server.js');
+    expect(fs.readFileSync(shimFilePath, 'utf8')).toContain('extension-install/out/mcp-server.mjs');
   });
 
   it('rewrites the registry from the same instances-changed listener as the state file', async () => {
