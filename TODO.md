@@ -4,9 +4,8 @@
 
 ## 发布 0.0.1（代码侧已完成，等待人工步骤）
 
-- [ ] 推送 `main`：领先 `codeberg` / `origin`，条数以 `git rev-list --count <remote>/main..main` 为准（不写死，避免过期）
-- [ ] 新 MCP 功能的真实环境走查（2026-09-25 新增，协议级 E2E 已过）：生产构建后在真实 VS Code 里确认——Chat 工具列表出现每个有 token 实例各自的 `Forgejo: <实例名>` server（共 29 个工具）、prompt 选择器出现 `review-pull-request` / `analyze-ci-failure` / `triage-issue` 三个模板、让 agent 回答「这个仓库的 open issues」验证它会自动调 `get_workspace_repository`；另覆盖 Agents 窗口路径（2026-09-26 补）：在 Agents 窗口的工作区跑一次「为 Agents 窗口复制 MCP 配置」命令生成 `.mcp.json`，确认 Agent Host 会话能列出并调用工具、零配置自动匹配实例正确（git remote / 状态文件捷径各验一次）、匿名只读提示出现在 server 日志。**Linux 侧 headless 验证已于 2026-09-26 在 WSL（Ubuntu 26.04 + Node 22）完成**：全量 typecheck + 1730 测试通过（1 个 Windows 专属用例按条件跳过），期间抓到并修复 unix socket 关闭时的 ECONNRESET 误分类与 macOS sun_path 长度风险；macOS 仅剩 socket 路径修复后的实测，无独立验证环境；broker 模式（2026-09-27 起）需追加验证：扩展窗口开着时 Agents 窗口里 `whoami` 应认证成功（server 日志出现 "forwarding to the extension-host broker"），关掉所有扩展窗口后同一路径降级为匿名只读
-- [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **11 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断；`extension/NOTICE` 那条用于确认 DOMPurify 的 Apache-2.0 许可文本随包发出；`extension/out/webview/codicon.css` 与 `codicon.ttf` 两条是本次新增，用于确认 webview 的图标字体确实随包发出——只跑 webview 构建不会发现该 hook 失效），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`
+- [ ] 推送 `main`：领先 `codeberg` / `origin`，条数以 `git rev-list --count <remote>/main..main` 为准（不写死，避免过期）；broker 模式（2026-09-27 起）需追加验证：扩展窗口开着时 Agents 窗口里 `whoami` 应认证成功（server 日志出现 "forwarding to the extension-host broker"），关掉所有扩展窗口后同一路径降级为匿名只读
+- [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **11 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断；`extension/NOTICE` 那条用于确认 DOMPurify 的 Apache-2.0 许可文本随包发出；`extension/out/webview/codicon.css` 与 `codicon.ttf` 两条是本次新增，用于确认 webview 的图标字体确实随包发出——只跑 webview 构建不会发现该 hook 失效），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`。**注意派发位置（2026-09-26 核实）**：Codeberg 上两个工作流都显示「没有匹配标签且在线的运行器：docker」，排队永不开始——在私服（origin）上派发，它的 runner 已跑通 ci.yml；想在 Codeberg 派发需先注册 docker 标签 runner（详见 `docs/release.md` 的 Where to dispatch it）
 - [ ] 商店发布（需凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，步骤见 `docs/release.md` 的 Checklist
 - [ ] 发布后回填：① 把根 `CHANGELOG.md` 的 `## [Unreleased]` 改成 `## [0.0.1] - <发布日期>`，并原样复制到 `packages/forgejo-toolkit/CHANGELOG.md`（`packagingFiles.test.ts` 要求两份逐字节一致）；② 删掉 `README.md` / `README.zh.md` 安装段的「Not published yet / 尚未发布」提示，把 Marketplace 与 Open VSX 链接恢复成正常入口，并与 `docs/release.md` 的实际发布渠道对齐；③ 复核 `KNOWN_ISSUES` 中与版本相关的条目
 
@@ -48,6 +47,7 @@
   - 激活：dev host「Show Running Extensions」实测 **`cpf23333.forgejo-toolkit` = 91 ms**（同列表最低；VS Code 1.139.0 + 生产构建）。
   - 结论：**暂不虚拟化** 500 条列表——上限已封顶在 500 且界面会提示截断（见 `shared/src/limits.ts` 的 `LIST_ITEM_LIMIT`/`isListTruncated`），虚拟化的复杂度不划算，等真实 profile 出现卡顿再议。
   - MCP 可发现性：VS Code 不会仅因扩展贡献 `mcpServerDefinitionProviders` 就为取定义而激活它（dev host 实测，见 git 日志），因此 `activationEvents` 补了 `onStartupFinished`（不开 Dashboard 也会在启动时激活，实测 **90 ms**，见 `packages/forgejo-toolkit/package.json` 的 `activationEvents`）；真实环境 Chat 的「配置工具」已确认列出 `forgejo-toolkit → Forgejo: <实例名>` 与其工具 ✔。该事件已交付，仅剩「每次开窗都激活」这一平台代价，记录在「0.0.1 之后」一节。
+- 新 MCP 功能走查（2026-09-25/26，全部通过）：主窗口 Copilot 会话实测——每实例各一个 server、29 个工具、3 个 prompt 模板、`get_workspace_repository` 归因正确、`get_ci_failure_summary` 对真实失败 run 返回错误上下文与日志尾部；Agents 窗口路径实测——「为 Agents 窗口复制 MCP 配置」命令的选项/警示/合并写入全过，Agent Host 新会话经 broker 认证调通 `whoami`（token 不落盘）；匿名只读提示在 server 日志中可见。**Linux headless（WSL Ubuntu 26.04 + Node 22）**：全量 typecheck + 1730 测试通过（1 个 Windows 专属用例按条件跳过），期间修复 unix socket ECONNRESET 误分类与 macOS sun_path 长度风险；macOS 无独立验证环境（Codeberg 无 macOS runner）。**私服 CI（ci.yml #11+）**：验证导出测试的 mock 泄漏依赖与 `flushUntil`  tick 预算不足两处测试自身问题后全绿
 
 ## 进行中
 

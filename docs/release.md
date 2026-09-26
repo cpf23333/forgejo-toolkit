@@ -141,6 +141,15 @@ Create a new release on Codeberg and attach the `.vsix` file. Do not commit `.vs
 `.forgejo/workflows/release.yml` performs steps 3 and 6 above from a manual
 run — it never triggers on a push, tag or schedule:
 
+**Where to dispatch it.** Both workflows ask for a runner with the `docker`
+label. Codeberg currently has none online for this repository — its Actions
+page shows "no runner with matching labels online" next to each workflow and
+queued dispatches never start (checked 2026-09-26). Dispatch both workflows on
+the self-hosted Forgejo (`origin`) instead: its runner already completes
+`ci.yml` (verify) there, and `release.yml` uses the same runner setup. If a
+Codeberg-side dispatch is wanted later, register a `docker`-label runner in
+the Codeberg repository settings (Settings → Actions → Runners) first.
+
 1. Validate the commit: `pnpm run lint`, the narrowed format check
    (`pnpm exec oxfmt --check "**/*.{js,mjs,cjs,ts,vue}"`), `pnpm run check`, the
    API checklist coverage audit (`node tools/api-audit/check.mjs`) and both test
