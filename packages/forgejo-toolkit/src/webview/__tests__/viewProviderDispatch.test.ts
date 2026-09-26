@@ -14,6 +14,7 @@ const clientMocks = vi.hoisted(() => ({
   getPullRequestDetail: vi.fn(),
   getUserIssues: vi.fn(),
   getUserPullRequests: vi.fn(),
+  getUserRepositories: vi.fn(),
   mergePullRequest: vi.fn(),
   getCurrentUser: vi.fn(),
   resetIssueTime: vi.fn(),
@@ -53,6 +54,7 @@ vi.mock('../../api/client', () => ({
       getPullRequestDetail: clientMocks.getPullRequestDetail,
       getUserIssues: clientMocks.getUserIssues,
       getUserPullRequests: clientMocks.getUserPullRequests,
+      getUserRepositories: clientMocks.getUserRepositories,
       mergePullRequest: clientMocks.mergePullRequest,
       resetIssueTime: clientMocks.resetIssueTime,
       deleteIssueTime: clientMocks.deleteIssueTime,
@@ -310,6 +312,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clientMocks.getPullRequestDetail.mockReset();
     clientMocks.getUserIssues.mockReset();
     clientMocks.getUserPullRequests.mockReset();
+    clientMocks.getUserRepositories.mockReset();
     clientMocks.mergePullRequest.mockReset();
     clientMocks.getCurrentUser.mockReset().mockResolvedValue({ login: 'user' });
     clientMocks.resetIssueTime.mockReset().mockResolvedValue(undefined);
@@ -1572,6 +1575,92 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       // Size 0 is an empty README, not a withheld payload.
       expect(repoDetailReply()?.readme).toBeUndefined();
       expect(clientMocks.getReadmeEntry).not.toHaveBeenCalled();
+    });
+
+    it('words the symlinked README notice through the host l10n bundle', async () => {
+      // `client.getRepoDetail` answers a symlinked README with its own English
+      // sentence (that is what the headless MCP tools show) plus the structured
+      // `readmeNotice`. The dashboard is localized, so it must word the sentence
+      // itself instead of rendering the English one inside a Chinese UI.
+      const englishNotice =
+        'README.md is a symlink to docs/real-readme.md, so Forgejo returned no text for it. Open docs/real-readme.md in the Forgejo web UI to read it.';
+      clientMocks.getRepoDetail.mockResolvedValue({
+        repository: { name: 'repo' },
+        readme: englishNotice,
+        readmeNotice: { kind: 'symlink', target: 'docs/real-readme.md' },
+        branches: [],
+        recentCommits: [],
+      });
+
+      sendRepoDetail();
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      expect(repoDetailReply()?.readme).toBe(
+        'README.md is a symlink to docs/real-readme.md, so Forgejo has no README text to show. Open docs/real-readme.md in the Forgejo web UI to read it.',
+      );
+      expect(vscode.l10n.t).toHaveBeenCalledWith(
+        'README.md is a symlink to {0}, so Forgejo has no README text to show. Open {0} in the Forgejo web UI to read it.',
+        'docs/real-readme.md',
+      );
+      // The client's English sentence is not what the dashboard shows.
+      expect(repoDetailReply()?.readme).not.toBe(englishNotice);
+      expect(clientMocks.getReadmeEntry).not.toHaveBeenCalled();
+    });
+
+    it('words the submodule README notice through the host l10n bundle', async () => {
+      const gitUrl = 'https://forgejo.example.com/demo-user/upstream-lib.git';
+      clientMocks.getRepoDetail.mockResolvedValue({
+        repository: { name: 'repo' },
+        readme: `README.md is a submodule whose own repository is at ${gitUrl}, so this repository holds no README text for it. Open the submodule in the Forgejo web UI to read it there.`,
+        readmeNotice: { kind: 'submodule', target: gitUrl },
+        branches: [],
+        recentCommits: [],
+      });
+
+      sendRepoDetail();
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      expect(vscode.l10n.t).toHaveBeenCalledWith(
+        'README.md is a submodule whose own repository is at {0}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.',
+        gitUrl,
+      );
+      expect(repoDetailReply()?.readme).toBe(
+        `README.md is a submodule whose own repository is at ${gitUrl}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.`,
+      );
+    });
+
+    it('names the entry kind without inventing a destination the API did not send', async () => {
+      clientMocks.getRepoDetail.mockResolvedValue({
+        repository: { name: 'repo' },
+        readme: 'README.md is a symlink that points elsewhere in the repository, so Forgejo returned no text for it.',
+        readmeNotice: { kind: 'symlink' },
+        branches: [],
+        recentCommits: [],
+      });
+
+      sendRepoDetail();
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      expect(repoDetailReply()?.readme).toBe(
+        'README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.',
+      );
+    });
+
+    it('still shows the client sentence for a payload that carries no structured notice', async () => {
+      // A hand-built detail (or an older payload shape) has no `readmeNotice`, so
+      // the client's own sentence stays visible rather than disappearing.
+      const englishNotice = 'README.md is a symlink, and this payload predates readmeNotice.';
+      clientMocks.getRepoDetail.mockResolvedValue({
+        repository: { name: 'repo' },
+        readme: englishNotice,
+        branches: [],
+        recentCommits: [],
+      });
+
+      sendRepoDetail();
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'repoDetail'));
+
+      expect(repoDetailReply()?.readme).toBe(englishNotice);
     });
   });
 
@@ -2963,6 +3052,84 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       expect(clientMocks.getUserPullRequests).toHaveBeenCalledWith('closed');
       const reply = postedMessages(fake.posted).find((m) => m.command === 'myPullRequests');
       expect(reply).toMatchObject({ instanceId: testInstance.id, state: 'closed' });
+    });
+  });
+
+  describe('dashboard list request id echo', () => {
+    // The `_requestId` the webview generates: the host must not read it, only echo
+    // it. An instance edit keeps the instance id, so the replaced server's reply
+    // and the reload's reply for one slot are otherwise identical — the echoed id
+    // is what lets the webview attribute each one (see
+    // useAppState.instanceListReplyAttribution.test.ts).
+    const requestId = 'list-repos-7';
+
+    it('echoes the request id the getRepositories request sent', async () => {
+      clientMocks.getUserRepositories.mockResolvedValue({ items: [] });
+      fake.send({ command: 'getRepositories', instanceId: testInstance.id, _requestId: requestId });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'repositories');
+      expect(reply).toMatchObject({ instanceId: testInstance.id, _requestId: requestId });
+      // The dispatcher's fallback must not also answer a request the handler
+      // already answered with the echoed id.
+      expect(postedMessages(fake.posted).some((m) => m.command === 'requestError')).toBe(false);
+    });
+
+    it('echoes the request id on the getRepositories failure reply', async () => {
+      // The failure reply is the one that must not lose the id: without it the
+      // webview falls back to the oldest queued record, which is not necessarily
+      // the request this failure belongs to.
+      clientMocks.getUserRepositories.mockRejectedValue(new Error('API down'));
+      fake.send({ command: 'getRepositories', instanceId: testInstance.id, _requestId: requestId });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'repositories');
+      expect(reply).toMatchObject({ _requestId: requestId, error: 'API down' });
+    });
+
+    it('echoes the request id each myIssues/myPullRequests request sent', async () => {
+      clientMocks.getUserIssues.mockResolvedValue([]);
+      clientMocks.getUserPullRequests.mockResolvedValue([]);
+      fake.send({ command: 'getMyIssues', instanceId: testInstance.id, state: 'open', _requestId: 'list-issues-3' });
+      fake.send({
+        command: 'getMyPullRequests',
+        instanceId: testInstance.id,
+        state: 'open',
+        _requestId: 'list-pulls-4',
+      });
+      await flushDispatches();
+
+      expect(postedMessages(fake.posted).find((m) => m.command === 'myIssues')).toMatchObject({
+        _requestId: 'list-issues-3',
+      });
+      expect(postedMessages(fake.posted).find((m) => m.command === 'myPullRequests')).toMatchObject({
+        _requestId: 'list-pulls-4',
+      });
+    });
+
+    it('echoes the id on the deleted-instance reply so the slot still clears', async () => {
+      // The pre-handler guard answers a request whose instance is gone by copying
+      // the request fields back (minus `command`), and that has to include the id:
+      // otherwise the reply would be attributed by arrival order in the webview.
+      fake.send({ command: 'getMyIssues', instanceId: 'gone-instance', _requestId: 'list-issues-gone' });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'myIssues');
+      expect(reply).toMatchObject({ instanceId: 'gone-instance', _requestId: 'list-issues-gone' });
+      expect(typeof reply?.error).toBe('string');
+    });
+
+    it('omits the id when the request carried none', async () => {
+      // A webview payload without a `_requestId` still gets its answer, and the
+      // reply must not carry a fabricated id: the webview has no request of that
+      // id outstanding and would drop the reply.
+      clientMocks.getUserIssues.mockResolvedValue([]);
+      fake.send({ command: 'getMyIssues', instanceId: testInstance.id });
+      await flushDispatches();
+
+      const reply = postedMessages(fake.posted).find((m) => m.command === 'myIssues');
+      expect(reply).toMatchObject({ instanceId: testInstance.id });
+      expect(reply?._requestId).toBeUndefined();
     });
   });
 

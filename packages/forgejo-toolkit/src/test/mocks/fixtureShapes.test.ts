@@ -39,9 +39,14 @@ describe('Mock fixture shapes', () => {
     const nextPage = (await getJson(`${api}/notifications?limit=10&before=${firstPage[0].updated_at}`)) as {
       id?: number;
     }[];
+    // The server compares `updated_unix <= before` (`UpdatedBeforeUnix` builds a
+    // `Lte`), so the boundary row is *not* filtered out: it comes back first and
+    // the caller has to skip the row it already holds. A mock that excluded it
+    // described a strict `<` the API never applies.
     expect(nextPage.map((notification) => notification.id)).toEqual(
-      mockNotifications.slice(1).map((notification) => notification.id),
+      mockNotifications.map((notification) => notification.id),
     );
+    expect(nextPage[0].id).toBe(firstPage[0].id);
   });
 
   it('filters notifications by the API subject type', async () => {

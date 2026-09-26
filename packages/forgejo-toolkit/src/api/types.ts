@@ -177,16 +177,51 @@ export interface ForgejoChangedFile {
   status?: string;
 }
 
+/**
+ * What a README entry is when the contents API answered with something that has
+ * no text: a symlink (`type: 'symlink'`) or a submodule (`type: 'submodule'`).
+ *
+ * This is the structured form of the sentence `readme` carries for those kinds:
+ * a localized caller (the extension host's dashboard) builds its own sentence
+ * from `kind` and `target` instead of showing the client's English one, which
+ * stays in `readme` for the headless MCP consumers.
+ */
+export interface ForgejoReadmeNotice {
+  kind: 'symlink' | 'submodule';
+  /**
+   * What the entry names: the symlink's link target path, or the submodule's
+   * own git URL. Absent when the server omitted it — a sentence must then say
+   * what the entry is without inventing a destination.
+   */
+  target?: string;
+}
+
 export interface ForgejoRepoDetail {
   repository: ForgejoRepository;
   empty: boolean;
+  /**
+   * The README's text for a regular file, the client's English notice for a
+   * symlink or submodule README (whose structured form is `readmeNotice`), and
+   * undefined when there is no README or when the instance withheld its
+   * payload (`readmeSize`).
+   */
   readme?: string;
+  /**
+   * What the README entry actually is, for the kinds that never carry text.
+   * Undefined for a regular file (with or without its payload) and for an
+   * absent README.
+   */
+  readmeNotice?: ForgejoReadmeNotice;
   /**
    * The real size of the README whose payload the contents API withheld.
    *
-   * Undefined for a README that arrived, a genuinely empty one (size 0) and an
-   * absent one — exactly the cases with nothing to explain. Carrying it here is
-   * what lets a caller render the withheld-payload notice without re-probing
+   * Undefined for a README that arrived, a genuinely empty one (size 0), an
+   * absent one, and a README that is not a regular file at all (a symlink or a
+   * submodule, see `readmeNotice`) — exactly the cases with nothing to explain.
+   * The contents endpoint reports a `size` for a symlink equal to the *link
+   * target's* length and 0 for a submodule, so neither is a payload size and
+   * neither may reach the withheld-payload notice. Carrying the real one here
+   * is what lets a caller render that notice without re-probing
    * `/contents/README.md`.
    */
   readmeSize?: number;

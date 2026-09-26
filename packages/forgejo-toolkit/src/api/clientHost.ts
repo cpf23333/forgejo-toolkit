@@ -17,10 +17,25 @@ export interface InsufficientScopeDetails {
 export interface ForgejoClientHost {
   /** Localize a user-facing message with {0} placeholders. */
   t: TranslateFn;
-  /** The token was rejected outright (401): deleted, expired, or reinstalled instance. */
-  notifyInvalidCredentials(instanceUrl: string): void;
-  /** 403 where Forgejo says the token lacks a required scope. */
-  notifyInsufficientScope(instanceUrl: string, details: InsufficientScopeDetails): void;
+  /**
+   * The token was rejected outright (401): deleted, expired, or reinstalled instance.
+   *
+   * `credentialFingerprint` identifies the credential that actually failed
+   * without being one: a non-reversible digest of it (never the credential, and
+   * never logged or shown). It is optional because only the client holds the
+   * credential — a host that dedupes the toast folds the fingerprint into its
+   * dedupe key so that a rotated token re-arms the toast while a poller
+   * repeating the same bad token stays quiet. `undefined` means the caller does
+   * not know which credential failed, and the host falls back to what it can
+   * derive on its own.
+   */
+  notifyInvalidCredentials(instanceUrl: string, credentialFingerprint?: string): void;
+  /**
+   * 403 where Forgejo says the token lacks a required scope. The
+   * `credentialFingerprint` has the same meaning and the same optionality as on
+   * `notifyInvalidCredentials`.
+   */
+  notifyInsufficientScope(instanceUrl: string, details: InsufficientScopeDetails, credentialFingerprint?: string): void;
   /** The probed server version is below the supported floor (soft warning, never blocks). */
   notifyUnsupportedInstance(url: string, requiredVersion: string): void;
 }

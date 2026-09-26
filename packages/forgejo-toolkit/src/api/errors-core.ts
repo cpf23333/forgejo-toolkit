@@ -1,3 +1,4 @@
+import { RequestError } from '@cpf23333-forgejo-toolkit/shared/request';
 import { passthroughTranslate, type TranslateFn } from './translate';
 
 export type ApiErrorKind = 'network' | 'timeout' | 'cancelled' | 'tls' | 'http' | 'unknown' | 'proxy';
@@ -47,9 +48,15 @@ export interface RequestResource {
  * matching and logs keep working; `userMessage` is the localized, displayable
  * rendering produced from `kind`/`status`.
  *
+ * `body` is the response body the shared client already parsed, present when the
+ * failure arrived as a structured `RequestError` (see `toApiError`). It is the
+ * authoritative source for the server-authored text a 409/422 renders, so that
+ * text no longer has to be re-parsed out of `rawMessage`; an error with no body
+ * (a foreign error, or a hand-built fixture) still renders from the message.
+ *
  * `context` is the request the failure belongs to (resource kind, repository
  * scope, whether a proxy was in use); a 404 and a proxied connection failure use
- * it to say what actually went wrong. It never carries headers or a body.
+ * it to say what actually went wrong. It never carries request headers.
  */
 export class ApiError extends Error {
   constructor(
@@ -57,6 +64,7 @@ export class ApiError extends Error {
     readonly rawMessage: string,
     readonly status?: number,
     readonly context?: RequestResource,
+    readonly body?: unknown,
   ) {
     super(rawMessage);
     this.name = 'ApiError';
@@ -103,6 +111,13 @@ export function toApiError(error: unknown, context?: RequestResource): ApiError 
   if (error instanceof ApiError) {
     return error;
   }
+  // A structured failure from the shared client: take the status and the parsed
+  // body straight off the error. This is the only path that can know the real
+  // status when the message has been rewritten or truncated, and it is what
+  // removes the need to re-parse the message for the body.
+  if (error instanceof RequestError) {
+    return new ApiError('http', error.message, error.status, context, error.body);
+  }
   const raw = error instanceof Error ? error.message : String(error);
   const name = error instanceof Error ? error.name : '';
   if (name === 'TimeoutError') {
@@ -111,6 +126,11 @@ export function toApiError(error: unknown, context?: RequestResource): ApiError 
   if (name === 'AbortError') {
     return new ApiError('cancelled', raw);
   }
+  // Foreign errors keep the message-based classification: an error another
+  // module (or a test fixture, or an MCP tool stub) built by hand carries no
+  // fields, and neither does a `RequestError` whose class identity was lost
+  // across a serialization or worker boundary. The message is then the only
+  // signal, and it is still written in the `Forgejo API error <status>:` shape.
   const httpMatch = raw.match(/Forgejo API error (\d+):/);
   if (httpMatch) {
     return new ApiError('http', raw, Number(httpMatch[1]), context);
@@ -133,9 +153,34 @@ export function toApiError(error: unknown, context?: RequestResource): ApiError 
   return new ApiError('unknown', raw);
 }
 
+/** The usable `message` string of an already-parsed JSON object, if it has one. */
+function messageFieldOf(value: object): string | undefined {
+  const message = (value as { message?: unknown }).message;
+  return typeof message === 'string' && message.trim() ? message : undefined;
+}
+
 /**
- * The `message` field of the JSON object carried by an error body, if the body
- * carries one.
+ * The `message` field of an already-parsed JSON error body, if the body carries
+ * one.
+ *
+ * Only a parsed JSON *object* can carry it: the shared client stores the raw text
+ * as `RequestError.body` for a non-JSON content type, an empty body, or a
+ * document it could not parse, and a JSON document that parses to a string or a
+ * number is not an object either. All of those return `undefined` so the caller
+ * falls back to the message-based extraction, whose hunt is exactly as
+ * permissive as it was before the body became a field (see
+ * `messageFromErrorBody`).
+ */
+function messageFromStructuredBody(body: unknown): string | undefined {
+  if (body === null || typeof body !== 'object') {
+    return undefined;
+  }
+  return messageFieldOf(body);
+}
+
+/**
+ * The `message` field of the JSON object carried by an error *message*, if the
+ * message carries one.
  *
  * The shared request client renders a JSON body as `<statusText> ({...})` (see
  * `describedBody` in `packages/shared/src/request/index.ts`), so the object is
@@ -160,13 +205,9 @@ function messageFromErrorBody(body: string): string | undefined {
       continue;
     }
     if (parsed && typeof parsed === 'object') {
-      const message = (parsed as { message?: unknown }).message;
-      if (typeof message === 'string' && message.trim()) {
-        return message;
-      }
       // Valid JSON, but nothing to extract: stop instead of re-parsing the
       // same object with its wrapper stripped.
-      return undefined;
+      return messageFieldOf(parsed);
     }
   }
   return undefined;
@@ -186,6 +227,20 @@ export function extractApiErrorMessage(raw: string): string {
     }
   }
   return raw;
+}
+
+/**
+ * The server-authored detail an HTTP failure renders: the parsed body's
+ * `message` when the error carries a structured body, otherwise whatever
+ * `extractApiErrorMessage` finds in the message.
+ *
+ * The structured read is primary because it is lossless: the body a
+ * `RequestError` carries is not truncated, while the copy embedded in the
+ * message is capped (see `MAX_ERROR_BODY_LENGTH`). The message-based fallback
+ * keeps foreign errors and every hand-built fixture rendering exactly as before.
+ */
+function apiErrorDetail(error: ApiError): string {
+  return messageFromStructuredBody(error.body) ?? extractApiErrorMessage(error.rawMessage);
 }
 
 /** Localized, displayable rendering of an ApiError. */
@@ -214,11 +269,11 @@ export function apiErrorUserMessage(error: ApiError): string {
         case 404:
           return notFoundMessage(error.context);
         case 409:
-          return translate('Conflict: {0}', extractApiErrorMessage(error.rawMessage));
+          return translate('Conflict: {0}', apiErrorDetail(error));
         case 422:
-          return translate('Validation failed: {0}', extractApiErrorMessage(error.rawMessage));
+          return translate('Validation failed: {0}', apiErrorDetail(error));
         default:
-          return translate('Request failed: {0}', extractApiErrorMessage(error.rawMessage));
+          return translate('Request failed: {0}', apiErrorDetail(error));
       }
     case 'unknown':
       return error.rawMessage;

@@ -273,5 +273,14 @@
   "MCP configuration written to {0}": "MCP 配置已写入 {0}",
   "Failed to generate the MCP configuration: {0}": "生成 MCP 配置失败：{0}",
   "Forgejo Toolkit was updated to version {0}. Reload the window to finish updating.": "Forgejo Toolkit 已更新到版本 {0}。重载窗口以完成更新。",
-  "Reload": "重载"
+  "Reload": "重载",
+  "Created {0} with the Forgejo Toolkit MCP section for {1}/{2}": "已创建 {0}，写入了 {1}/{2} 的 Forgejo Toolkit MCP 小节",
+  "Appended the Forgejo Toolkit MCP section for {0}/{1} to the existing {2}": "已把 {0}/{1} 的 Forgejo Toolkit MCP 小节追加到已存在的 {2}",
+  "Updated the Forgejo Toolkit MCP section in {0} for {1}/{2}": "已更新 {0} 中 {1}/{2} 的 Forgejo Toolkit MCP 小节",
+  "{0} already contains the Forgejo Toolkit MCP section for {1}/{2}; nothing changed": "{0} 已包含 {1}/{2} 的 Forgejo Toolkit MCP 小节，未做改动",
+  "{0} contains an incomplete or duplicated forgejo-toolkit section marker; nothing was written": "{0} 中的 forgejo-toolkit 小节标记不完整或重复，未写入任何内容",
+  "Failed to write the Copilot instructions: {0}": "写入 Copilot 指令失败：{0}",
+  "README.md is a symlink to {0}, so Forgejo has no README text to show. Open {0} in the Forgejo web UI to read it.": "README.md 是指向 {0} 的符号链接，因此 Forgejo 没有可显示的 README 文本。请在 Forgejo 网页界面中打开 {0} 阅读。",
+  "README.md is a submodule whose own repository is at {0}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.": "README.md 是一个 git submodule，它自身的仓库位于 {0}，因此本仓库没有可显示的 README 文本。请在 Forgejo 网页界面中打开该 submodule 阅读。",
+  "README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.": "README.md 在本仓库中不是常规文件，因此 Forgejo 没有可显示的 README 文本。请在 Forgejo 网页界面中打开阅读。"
 }

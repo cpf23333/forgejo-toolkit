@@ -61,13 +61,34 @@ export function buildContentSecurityPolicy(
     ].join('; ') + ';'
   );
 }
+
+/**
+ * The document each webview surface loads.
+ *
+ * The three surfaces are separate Vite entries (see `webview/vite.config.ts`),
+ * so the sidebar dashboard's shell (`App.vue`, the router, the elements only it
+ * renders) is not in a panel's entry graph and a panel is not in the sidebar's.
+ * Before the split every surface loaded `index.html`, which is how opening the
+ * setup wizard or the review comment editor downloaded the whole dashboard.
+ */
+export const WEBVIEW_HTML_FILES = {
+  dashboard: 'index.html',
+  onboarding: 'onboarding.html',
+  pullReviewComment: 'pullReviewComment.html',
+} as const;
+
+/** The HTML document `getWebviewContent` renders for a surface. */
+export function webviewHtmlFile(panelMode: WebviewContentOptions['panelMode']): string {
+  return WEBVIEW_HTML_FILES[panelMode ?? 'dashboard'];
+}
+
 export function getWebviewContent(
   webview: vscode.Webview,
   extensionPath: string,
   options?: WebviewContentOptions,
 ): string {
   const webviewDistPath = path.join(extensionPath, 'out', 'webview');
-  const htmlPath = path.join(webviewDistPath, 'index.html');
+  const htmlPath = path.join(webviewDistPath, webviewHtmlFile(options?.panelMode));
 
   if (!fs.existsSync(htmlPath)) {
     return `

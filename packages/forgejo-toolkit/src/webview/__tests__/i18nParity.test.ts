@@ -135,4 +135,23 @@ describe('host l10n bundles', () => {
     const unknown = [...used].filter(([key]) => !en.has(key));
     expect(unknown).toEqual([]);
   });
+
+  it('carries the dashboard README notice keys in both bundles', () => {
+    // The README sentence for a symlink or submodule is built by the extension
+    // host's dashboard (viewProvider) rather than by the API client, because that
+    // is the localized surface; its keys therefore have to exist in both bundles
+    // with the same placeholder, or a Chinese UI shows either the English
+    // sentence or a raw `{0}`.
+    const keys = [
+      'README.md is a symlink to {0}, so Forgejo has no README text to show. Open {0} in the Forgejo web UI to read it.',
+      'README.md is a submodule whose own repository is at {0}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.',
+      'README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.',
+    ];
+    for (const key of keys) {
+      expect(en.has(key), `en: ${key}`).toBe(true);
+      expect(zh.has(key), `zh: ${key}`).toBe(true);
+      expect(placeholders(zh.get(key) ?? ''), key).toEqual(placeholders(key));
+      expect((zh.get(key) ?? '').trim(), key).not.toBe('');
+    }
+  });
 });

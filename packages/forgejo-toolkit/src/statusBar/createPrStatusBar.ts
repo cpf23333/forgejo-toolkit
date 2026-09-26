@@ -191,7 +191,20 @@ export class CreatePrStatusBarController implements vscode.Disposable {
       const prKey = `${repoKey}:${branch}`;
       const cachedPr = this._openPrCache.get(prKey);
       if (!cachedPr || cachedPr.expiresAt <= Date.now()) {
-        const pulls = await client.getRepoPullRequests(linked.owner, linked.repo, 'open');
+        const matchesBranch = (pr: ForgejoPullRequest) => isOpenPrForBranch(pr, branch, linked.owner, linked.repo);
+        // The answer only depends on one branch, so the read is narrowed to it:
+        // the endpoint's own `head` filter cuts the list to this branch name and
+        // paging stops at the page that carries the row. A repository with many
+        // open pull requests therefore costs one request in the common case
+        // instead of up to ten for a list the caller never looks at. Neither
+        // part decides the match on its own: the filter has no owner part (a
+        // fork's pull request carries the same branch name), and an instance
+        // older than the filter ignores it and answers the unfiltered list,
+        // which the paging then walks to the branch. See `RepoPullRequestOptions`.
+        const pulls = await client.getRepoPullRequests(linked.owner, linked.repo, 'open', undefined, {
+          head: branch,
+          stopWhen: matchesBranch,
+        });
         // A superseded refresh must not repopulate the cache with its older
         // "no PR for this branch" answer: notifyPullRequestsChanged clears the
         // cache so a just-created PR is picked up, and this stale write would
@@ -199,18 +212,17 @@ export class CreatePrStatusBarController implements vscode.Disposable {
         if (isStale()) {
           return;
         }
-        // The open-PR list is read to the shared 500-item cap (up to ten
-        // requests per refresh) so the branch lookup stays correct for
-        // repositories with many open pull requests; where the endpoint reports
-        // a total it decides whether the cap actually cut the list, and only
-        // without one does a capped list count as a possible miss rather than
-        // being silently trusted (isListTruncatedWithTotal).
-        if (isListTruncatedWithTotal(pulls.items, pulls.totalCount)) {
+        const match = pulls.items.find(matchesBranch);
+        // Only an absent PR can be a miss. Where the endpoint reports a total it
+        // decides whether the cap actually cut the list; only without one does a
+        // capped list count as a possible miss rather than being silently
+        // trusted (isListTruncatedWithTotal). A read that stopped at the matching
+        // row is "truncated" by construction and says nothing was missed.
+        if (!match && isListTruncatedWithTotal(pulls.items, pulls.totalCount)) {
           logger.error(
             `[createPrStatusBar] open pull request list for ${linked.owner}/${linked.repo} reached the ${LIST_ITEM_LIMIT}-item cap; a pull request for "${branch}" beyond it will not be detected`,
           );
         }
-        const match = pulls.items.find((pr) => isOpenPrForBranch(pr, branch, linked.owner, linked.repo));
         this._openPrCache.set(prKey, { value: match?.number, expiresAt: Date.now() + OPEN_PR_CACHE_TTL_MS });
       }
       if (isStale()) {

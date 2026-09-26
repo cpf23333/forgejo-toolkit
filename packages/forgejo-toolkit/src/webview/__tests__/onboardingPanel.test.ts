@@ -410,6 +410,36 @@ describe('OnboardingWebviewPanel message dispatch', () => {
     expect(postedMessages(fake.posted).some((m) => m.command === 'requestError')).toBe(false);
   });
 
+  it('echoes the request id on every repositories reply so the guide can attribute it', async () => {
+    // The guide names its probe with a `_requestId` (the shared webview sends
+    // one for all three list commands). Without the echo the reply can only be
+    // matched by arrival order, which is exactly what the id exists to avoid —
+    // and the failure branch matters as much as the success one, since a
+    // refused probe is the case the guide is built to report.
+    fake.send({ command: 'getRepositories', instanceId: testInstance.id, _requestId: 'list-repos-7' });
+    await flushDispatches();
+
+    let reply = postedMessages(fake.posted).find((m) => m.command === 'repositories');
+    expect(reply?._requestId).toBe('list-repos-7');
+
+    clientMocks.getUserRepositories.mockRejectedValue(new Error('Permission denied [403]'));
+    fake.posted.length = 0;
+    fake.send({ command: 'getRepositories', instanceId: testInstance.id, _requestId: 'list-repos-8' });
+    await flushDispatches();
+
+    reply = postedMessages(fake.posted).find((m) => m.command === 'repositories');
+    expect(reply?.error).toBe('Permission denied [403]');
+    expect(reply?._requestId).toBe('list-repos-8');
+
+    fake.posted.length = 0;
+    fake.send({ command: 'getRepositories', instanceId: 'gone-instance', _requestId: 'list-repos-9' });
+    await flushDispatches();
+
+    reply = postedMessages(fake.posted).find((m) => m.command === 'repositories');
+    expect(reply?.error).toBe('Instance not found');
+    expect(reply?._requestId).toBe('list-repos-9');
+  });
+
   it('answers the probe for an unknown instance so its busy slot cannot stick', async () => {
     // The instance is looked up in the config, so a removed instance (or a
     // stale id) would otherwise return silently and leave the guide spinning.

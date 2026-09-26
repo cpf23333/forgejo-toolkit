@@ -33,4 +33,21 @@ export const mockPullRequestDetail: ForgejoPullRequestDetail = {
   // make a client that stopped computing them still look correct.
 };
 
-export const mockPullRequests: ForgejoPullRequest[] = [mockPullRequest];
+/**
+ * A second pull request that no keyword fixture matches, for the same reason as
+ * `mockUnmatchedIssue`: a one-row listing cannot tell a filtered answer from an
+ * unfiltered one.
+ */
+export const mockUnmatchedPullRequest: ForgejoPullRequest = {
+  id: 4,
+  number: 4,
+  title: 'Refine the settings page',
+  state: 'open',
+  html_url: 'https://forgejo.example.com/demo-user/demo-repo/pulls/4',
+  user: mockUser,
+  body: 'Splits the settings page into sections.',
+  created_at: '2026-08-13T09:00:00Z',
+  updated_at: '2026-08-16T09:00:00Z',
+};
+
+export const mockPullRequests: ForgejoPullRequest[] = [mockPullRequest, mockUnmatchedPullRequest];

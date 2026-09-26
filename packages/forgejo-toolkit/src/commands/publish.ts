@@ -5,7 +5,7 @@ import type { ConfigManager } from '../config';
 import { ForgejoClient } from '../api/client';
 // Single implementation lives in the shared API error helpers; re-exported
 // here for existing importers.
-import { extractApiErrorMessage, userFacingErrorMessage } from '../api/errors';
+import { ApiError, extractApiErrorMessage, userFacingErrorMessage } from '../api/errors';
 import { logger, showErrorWithLog } from '../logger';
 import { redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 
@@ -86,15 +86,42 @@ export function validateRemoteName(value: string, existing: GitRemoteEntry[]): s
 }
 
 /**
+ * The HTTP status of a failed API request.
+ *
+ * Read from the structured `ApiError` the client throws (`ApiError.status`, which
+ * now comes from the shared client's `RequestError` fields) instead of matching
+ * the message text. The message stays the fallback for a foreign error that
+ * carries no status field — another module's error, or a fixture that builds a
+ * plain `Error` — for which the message is the only signal. The fallback regex
+ * keeps the old `\b` semantics so classification is unchanged for those.
+ */
+function apiStatusOf(error: unknown): number | undefined {
+  if (error instanceof ApiError && error.status !== undefined) {
+    return error.status;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/Forgejo API error (\d+)\b/);
+  return match ? Number(match[1]) : undefined;
+}
+
+/**
  * True for the two shapes the server uses when a repository name is taken: a plain
  * 409, and a 422 whose body reports an existing name (the 422 branch also covers
  * reserved names and rule violations, so the body check is what makes this safe).
  */
-function isNameConflictError(message: string): boolean {
-  if (/Forgejo API error 409\b/.test(message)) {
+function isNameConflictError(error: unknown): boolean {
+  const status = apiStatusOf(error);
+  if (status === 409) {
     return true;
   }
-  return /Forgejo API error 422\b/.test(message) && /already exists/i.test(message);
+  if (status !== 422) {
+    return false;
+  }
+  // The 422 branch is a conflict only when the body says the name is taken. The
+  // words may sit anywhere in the body (a `message` field, or an `errors` array),
+  // so the whole raw text stays the thing that is searched.
+  const message = error instanceof Error ? error.message : String(error);
+  return /already exists/i.test(message);
 }
 
 async function pickTargetFolder(): Promise<string | undefined> {
@@ -223,7 +250,7 @@ async function publishNewRepository(
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : String(error);
     logger.error(`[publishToForgejo] failed to create repository: ${rawMessage}`);
-    if (isNameConflictError(rawMessage)) {
+    if (isNameConflictError(error)) {
       vscode.window.showErrorMessage(
         vscode.l10n.t('A repository named "{0}" already exists on {1}. Choose a different name.', name, instance.name),
       );

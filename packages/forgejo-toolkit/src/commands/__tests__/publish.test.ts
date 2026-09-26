@@ -161,6 +161,56 @@ describe('publishToForgejo', () => {
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('already exists'));
   });
 
+  it('classifies a conflict from the ApiError status field when the message names no status', async () => {
+    // The 409 is the field the client read from the response; the message is its
+    // free-text rendering. A classifier that parses the message cannot see this
+    // 409 at all, which is the re-parsing the structured error removed.
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockRejectedValue(
+      new ApiError('http', 'Conflict ({"message":"The repository with the same name already exists."})', 409),
+    );
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('already exists'));
+  });
+
+  it('does not classify from the message when the status field disagrees', async () => {
+    // The status field is the contract; a message naming another status is a
+    // stale copy of it, and a 422 that does not report an existing name stays a
+    // generic validation failure.
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockRejectedValue(new ApiError('http', 'Forgejo API error 409: Conflict', 422));
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining('Validation failed'),
+      'View Log',
+    );
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalledWith(expect.stringContaining('already exists'));
+  });
+
+  it('still classifies a foreign plain Error from its legacy message text', async () => {
+    // A plain Error built elsewhere carries no status field, so its message
+    // remains the only signal and the pre-refactor classification still applies.
+    setupWorkspace(undefined);
+    vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');
+    showInputBox.mockResolvedValue('my-repo');
+    vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ label: 'Private', value: true } as never);
+    createUserRepo.mockRejectedValue(new Error('Forgejo API error 409: Conflict'));
+
+    await publishToForgejo(createConfig([instance('a', 'alice', 'tok')]));
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('already exists'));
+  });
+
   it('passes through the server validation message for other 422s', async () => {
     setupWorkspace(undefined);
     vi.mocked(getCurrentCommitSha).mockResolvedValue('sha1');

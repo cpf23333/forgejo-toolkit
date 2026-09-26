@@ -20,6 +20,7 @@ import {
   clearDetectedServerOrigins,
   clearRepoContentsCache,
   clearTreeCache,
+  LIST_ITEM_LIMIT,
   MAX_SEARCH_RESULTS,
   REPO_CONTENTS_CACHE_MAX_BYTES,
   REPO_DETAIL_LIST_LIMIT,
@@ -32,7 +33,7 @@ import { ApiError } from '../errors';
 import { clearServerVersions, setServerVersion } from '../serverVersion';
 import type { Logger } from '../../logger';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../test/mocks/server';
-import { MOCK_SERVER_VERSION } from '../../test/mocks/handlers';
+import { MOCK_EMPTY_REPO, MOCK_SERVER_VERSION } from '../../test/mocks/handlers';
 import {
   mockUser,
   mockRepository,
@@ -230,6 +231,249 @@ describe('ForgejoClient with MSW', () => {
     expect(isListTruncatedWithTotal(truncated.items, truncated.totalCount)).toBe(true);
   });
 
+  it('reports the rows an overshooting read returned alongside the server total', async () => {
+    const client = createClient();
+    // A server that clamps the page size (MAX_RESPONSE_ITEMS) makes the cap check
+    // exit in the middle of a page: the read ends at 510 rows, not 500, so a cap
+    // number alone would misdescribe what came back. The total is what still lets
+    // a caller say exactly how much of the list it holds.
+    const total = 800;
+    mockServer.use(
+      http.get('https://*/api/v1/repos/:owner/:repo/issues', ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+        const start = (page - 1) * 30;
+        return HttpResponse.json(
+          Array.from({ length: Math.max(0, Math.min(30, total - start)) }, (_, i) => ({
+            ...mockIssues[0],
+            id: start + i + 1,
+            number: start + i + 1,
+          })),
+          { headers: { 'X-Total-Count': String(total) } },
+        );
+      }),
+    );
+
+    const issues = await client.getRepoIssues('demo-user', 'demo-repo', 'open');
+
+    expect(issues.items).toHaveLength(510);
+    expect(issues.totalCount).toBe(800);
+    expect(isListTruncatedWithTotal(issues.items, issues.totalCount)).toBe(true);
+  });
+
+  describe('total-aware list reads', () => {
+    /**
+     * Answers one list endpoint with `rows` and the given `X-Total-Count`,
+     * paging the same way the server does (a full page of 50 followed by the
+     * rest), and counts the requests so a test can tell that reading the total
+     * did not add one.
+     */
+    function mockListPage(
+      path: string,
+      rows: () => unknown[],
+      total: string | undefined,
+      wrap?: (rows: unknown[]) => unknown,
+    ): { requests: () => number } {
+      let requests = 0;
+      mockServer.use(
+        http.get(`https://*/api/v1${path}`, ({ request }) => {
+          requests += 1;
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          const all = rows();
+          const start = (page - 1) * 50;
+          const slice = all.slice(start, start + 50);
+          return HttpResponse.json((wrap ? wrap(slice) : slice) as never, {
+            headers: total === undefined ? {} : { 'X-Total-Count': total },
+          });
+        }),
+      );
+      return { requests: () => requests };
+    }
+
+    /**
+     * The pairs to pin: each total-aware method with the array method it wraps.
+     * The wrappers are what every existing caller (the webview's dispatch and
+     * the review-comment controller) still uses, so they must keep answering the
+     * rows themselves — the contract this table checks on every list.
+     */
+    const listReads: {
+      label: string;
+      path: string;
+      row: unknown;
+      wrap?: (rows: unknown[]) => unknown;
+      withTotal: (client: ForgejoClient) => Promise<{ items: unknown[]; totalCount?: number }>;
+      rowsOnly: (client: ForgejoClient) => Promise<unknown[]>;
+    }[] = [
+      {
+        label: 'branches',
+        path: '/repos/:owner/:repo/branches',
+        row: { name: 'main' },
+        withTotal: (client) => client.getRepoBranchesWithTotal('demo-user', 'demo-repo'),
+        rowsOnly: (client) => client.getRepoBranches('demo-user', 'demo-repo'),
+      },
+      {
+        label: 'tags',
+        path: '/repos/:owner/:repo/tags',
+        row: { name: 'v1.0.0' },
+        withTotal: (client) => client.getRepoTagsWithTotal('demo-user', 'demo-repo'),
+        rowsOnly: (client) => client.getRepoTags('demo-user', 'demo-repo'),
+      },
+      {
+        label: 'releases',
+        path: '/repos/:owner/:repo/releases',
+        row: { name: 'v1.0.0' },
+        withTotal: (client) => client.getRepoReleasesWithTotal('demo-user', 'demo-repo'),
+        rowsOnly: (client) => client.getRepoReleases('demo-user', 'demo-repo'),
+      },
+      {
+        label: 'labels',
+        path: '/repos/:owner/:repo/labels',
+        row: { name: 'bug' },
+        withTotal: (client) => client.getRepoLabelsWithTotal('demo-user', 'demo-repo'),
+        rowsOnly: (client) => client.getRepoLabels('demo-user', 'demo-repo'),
+      },
+      {
+        label: 'milestones',
+        path: '/repos/:owner/:repo/milestones',
+        row: { title: 'v1.0' },
+        withTotal: (client) => client.getRepoMilestonesWithTotal('demo-user', 'demo-repo'),
+        rowsOnly: (client) => client.getRepoMilestones('demo-user', 'demo-repo'),
+      },
+      {
+        label: 'pull request files',
+        path: '/repos/:owner/:repo/pulls/:index/files',
+        row: { filename: 'src/index.ts', status: 'modified' },
+        withTotal: (client) => client.getPullRequestFilesWithTotal('demo-user', 'demo-repo', 2),
+        rowsOnly: (client) => client.getPullRequestFiles('demo-user', 'demo-repo', 2),
+      },
+      {
+        label: 'pull request commits',
+        path: '/repos/:owner/:repo/pulls/:index/commits',
+        row: { sha: 'abc123' },
+        withTotal: (client) => client.getPullRequestCommitsWithTotal('demo-user', 'demo-repo', 2),
+        rowsOnly: (client) => client.getPullRequestCommits('demo-user', 'demo-repo', 2),
+      },
+      {
+        label: 'timeline',
+        path: '/repos/:owner/:repo/issues/:index/timeline',
+        row: { id: 1, body: 'looks good' },
+        withTotal: (client) => client.getPullRequestCommentsAndTimelineWithTotal('demo-user', 'demo-repo', 2),
+        rowsOnly: (client) => client.getPullRequestCommentsAndTimeline('demo-user', 'demo-repo', 2),
+      },
+      {
+        label: 'pull request reviews',
+        path: '/repos/:owner/:repo/pulls/:index/reviews',
+        row: { id: 1, state: 'APPROVED' },
+        withTotal: (client) => client.listPullReviewsWithTotal('demo-user', 'demo-repo', 2),
+        rowsOnly: (client) => client.listPullReviews('demo-user', 'demo-repo', 2),
+      },
+      {
+        label: 'file history',
+        path: '/repos/:owner/:repo/commits',
+        row: { sha: 'abc123', commit: { message: 'fix', author: { name: 'a', date: '2024-01-01' } } },
+        withTotal: (client) => client.getFileHistoryWithTotal('demo-user', 'demo-repo', 'README.md', 'main'),
+        rowsOnly: (client) => client.getFileHistory('demo-user', 'demo-repo', 'README.md', 'main'),
+      },
+      {
+        label: 'action run artifacts',
+        path: '/repos/:owner/:repo/actions/runs/:runId/artifacts',
+        row: { id: 1, name: 'logs' },
+        // The artifacts endpoint wraps its rows in `{ artifacts }` instead of
+        // answering a bare array; the client's extractor handles that, so the
+        // mock answers the same wrapped shape the server does.
+        wrap: (rows) => ({ artifacts: rows }),
+        withTotal: (client) => client.getActionRunArtifactsWithTotal('demo-user', 'demo-repo', 42),
+        rowsOnly: (client) => client.getActionRunArtifacts('demo-user', 'demo-repo', 42),
+      },
+    ];
+
+    it('surfaces the server total for every paged list method', async () => {
+      for (const read of listReads) {
+        resetMockServer();
+        mockListPage(read.path, () => [read.row, { ...(read.row as Record<string, unknown>), id: 2 }], '7', read.wrap);
+        const client = createClient();
+
+        const page = await read.withTotal(client);
+
+        expect(page.items, read.label).toHaveLength(2);
+        // The total is what was dropped before: without it a list at the cap is
+        // only "possibly" cut off, and a complete one is misreported.
+        expect(page.totalCount, read.label).toBe(7);
+      }
+    });
+
+    it('keeps every array-returning wrapper answering the same rows', async () => {
+      for (const read of listReads) {
+        resetMockServer();
+        mockListPage(read.path, () => [read.row, { ...(read.row as Record<string, unknown>), id: 2 }], '2', read.wrap);
+        const client = createClient();
+
+        const rows = await read.rowsOnly(client);
+        const page = await read.withTotal(client);
+
+        expect(rows, read.label).toEqual(page.items);
+        expect(rows, read.label).toHaveLength(2);
+      }
+    });
+
+    it('reads an exactly-at-cap list as complete when the server total agrees', async () => {
+      // The regression this closes at the client boundary: the method used to
+      // hand out only the rows, so a caller could not tell 500 of 500 from 500
+      // of 600. `totalCount` now carries that answer for every capped list.
+      const client = createClient();
+      const { requests } = mockListPage(
+        '/repos/:owner/:repo/branches',
+        () => Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ name: `branch-${i}` })),
+        String(LIST_ITEM_LIMIT),
+      );
+
+      const branches = await client.getRepoBranchesWithTotal('demo-user', 'demo-repo');
+
+      expect(branches.items).toHaveLength(LIST_ITEM_LIMIT);
+      expect(branches.totalCount).toBe(LIST_ITEM_LIMIT);
+      expect(isListTruncatedWithTotal(branches.items, branches.totalCount)).toBe(false);
+      // Ten full pages reach the item cap, which ends the read; reading the
+      // header costs no extra request.
+      expect(requests()).toBe(10);
+    });
+
+    it('reports the total of a genuinely cut list', async () => {
+      const client = createClient();
+      mockListPage('/repos/:owner/:repo/tags', () => Array.from({ length: 600 }, (_, i) => ({ name: `v${i}` })), '600');
+
+      const tags = await client.getRepoTagsWithTotal('demo-user', 'demo-repo');
+
+      expect(tags.items).toHaveLength(LIST_ITEM_LIMIT);
+      expect(tags.totalCount).toBe(600);
+      expect(isListTruncatedWithTotal(tags.items, tags.totalCount)).toBe(true);
+    });
+
+    it('reports the rows of an overshooting read alongside the total', async () => {
+      // A server that clamps the page size makes the read stop mid-page (510
+      // rows for a 500-row cap), so the length alone misdescribes what came back;
+      // the total still says exactly how much of the list is missing.
+      const client = createClient();
+      let requests = 0;
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/labels', ({ request }) => {
+          requests += 1;
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          const start = (page - 1) * 30;
+          return HttpResponse.json(
+            Array.from({ length: Math.max(0, Math.min(30, 800 - start)) }, (_, i) => ({ name: `label-${start + i}` })),
+            { headers: { 'X-Total-Count': '800' } },
+          );
+        }),
+      );
+
+      const labels = await client.getRepoLabelsWithTotal('demo-user', 'demo-repo');
+
+      expect(labels.items).toHaveLength(510);
+      expect(labels.totalCount).toBe(800);
+      expect(requests).toBeGreaterThan(0);
+      expect(isListTruncatedWithTotal(labels.items, labels.totalCount)).toBe(true);
+    });
+  });
+
   it('paginates past a server that silently clamps the page size', async () => {
     const client = createClient();
     // Simulate MAX_RESPONSE_ITEMS=30: every page returns at most 30 items no
@@ -410,7 +654,9 @@ describe('ForgejoClient with MSW', () => {
     const client = createClient();
     const issues = await client.searchIssues('bug', 'open');
     expect(Array.isArray(issues)).toBe(true);
-    expect(issues).toHaveLength(mockIssues.length);
+    // The search endpoint applies `q` server-side, so only the matching fixture
+    // row comes back (the fixture list holds a non-matching one on purpose).
+    expect(issues.map((issue) => issue.number)).toEqual([mockIssues[0].number]);
     expect(issues[0].title).toBe(mockIssues[0].title);
   });
 
@@ -418,7 +664,7 @@ describe('ForgejoClient with MSW', () => {
     const client = createClient();
     const pulls = await client.searchPullRequests('dark', 'open');
     expect(Array.isArray(pulls)).toBe(true);
-    expect(pulls).toHaveLength(mockPullRequests.length);
+    expect(pulls.map((pull) => pull.number)).toEqual([mockPullRequests[0].number]);
     expect(pulls[0].title).toBe(mockPullRequests[0].title);
   });
 
@@ -587,6 +833,9 @@ describe('ForgejoClient with MSW', () => {
       expect(detail.readme).toContain('Demo Repository');
       // Size is the notice's input, so a README that arrived must not set it.
       expect(detail.readmeSize).toBeUndefined();
+      // A regular file is not one of the non-file kinds, so the structured
+      // notice stays unset and a localized caller keeps its own sentence.
+      expect(detail.readmeNotice).toBeUndefined();
       expect(requests()).toBe(1);
     });
 
@@ -604,6 +853,8 @@ describe('ForgejoClient with MSW', () => {
       expect(detail.readme).toBeUndefined();
       // The size is the only signal that tells this apart from "no README".
       expect(detail.readmeSize).toBe(withheldSize);
+      // A withheld payload is still a regular file: no non-file kind to report.
+      expect(detail.readmeNotice).toBeUndefined();
       expect(requests()).toBe(1);
     });
 
@@ -617,6 +868,7 @@ describe('ForgejoClient with MSW', () => {
       // No README at all has nothing to explain, and the detail load must not
       // ask for it a second time to find that out.
       expect(detail.readmeSize).toBeUndefined();
+      expect(detail.readmeNotice).toBeUndefined();
       expect(requests()).toBe(1);
     });
 
@@ -660,6 +912,9 @@ describe('ForgejoClient with MSW', () => {
       // The link target's length must never be presented as a payload size.
       expect(detail.readmeSize).toBeUndefined();
       expect(detail.readme).not.toContain('MiB');
+      // The sentence stays (the headless MCP tools have no translator), and the
+      // structured form beside it is what the localized dashboard words itself.
+      expect(detail.readmeNotice).toEqual({ kind: 'symlink', target });
       expect(requests()).toBe(1);
     });
 
@@ -683,7 +938,51 @@ describe('ForgejoClient with MSW', () => {
       expect(detail.readme).toContain(gitUrl);
       // A submodule entry carries no payload at all: nothing was withheld.
       expect(detail.readmeSize).toBeUndefined();
+      // Same split as the symlink: the English sentence plus its structured form.
+      expect(detail.readmeNotice).toEqual({ kind: 'submodule', target: gitUrl });
       expect(requests()).toBe(1);
+    });
+
+    it('reports the kind of a non-file README whose destination the API did not name', async () => {
+      // Forgejo normally sends `target` for a symlink and `submodule_git_url`
+      // for a submodule, but a sentence must not invent a destination it was not
+      // given: the kind is still reported, with no target.
+      const client = createClient();
+      const requests = countReadmeRequests(() =>
+        HttpResponse.json({ name: 'README.md', path: 'README.md', type: 'symlink', sha: 'link-sha', size: 0 }),
+      );
+
+      const detail = await client.getRepoDetail('demo-user', 'demo-repo');
+
+      expect(detail.readmeNotice).toEqual({ kind: 'symlink', target: undefined });
+      // The English fallback sentence still names what the entry is.
+      expect(detail.readme).toContain('symlink');
+      expect(detail.readmeSize).toBeUndefined();
+      expect(requests()).toBe(1);
+    });
+
+    it('exposes the same structured notice from getReadmeEntry', async () => {
+      // `getRepoDetail` is one reader of the entry; a caller that probes the
+      // README itself gets the same kind/target pair, which is what keeps the two
+      // paths from drifting.
+      const client = createClient();
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/contents/README.md', () =>
+          HttpResponse.json({
+            name: 'README.md',
+            path: 'README.md',
+            type: 'submodule',
+            size: 0,
+            submodule_git_url: 'https://forgejo.example.com/lib.git',
+          }),
+        ),
+      );
+
+      const entry = await client.getReadmeEntry('demo-user', 'demo-repo');
+
+      expect(entry?.noticeKind).toBe('submodule');
+      expect(entry?.noticeTarget).toBe('https://forgejo.example.com/lib.git');
+      expect(entry?.notice).toContain('submodule');
     });
 
     it('claims nothing for a README entry of a kind that has no payload', async () => {
@@ -1150,8 +1449,12 @@ describe('ForgejoClient with MSW', () => {
       await client.editIssue('demo-user', 'demo-repo', 1, { state: 'closed' } as unknown as EditIssueOption);
       const detail = await client.getIssueDetail('demo-user', 'demo-repo', 1);
       expect(detail.state).toBe('closed');
-      expect((await client.getRepoIssues('demo-user', 'demo-repo', 'open')).items).toHaveLength(0);
-      expect((await client.getRepoIssues('demo-user', 'demo-repo', 'closed')).items).toHaveLength(1);
+      // The edited row moved state; the fixture's other row stayed open, so the
+      // open list holds it and no longer the edited one.
+      const open = await client.getRepoIssues('demo-user', 'demo-repo', 'open');
+      expect(open.items.map((issue) => issue.number)).not.toContain(1);
+      const closed = await client.getRepoIssues('demo-user', 'demo-repo', 'closed');
+      expect(closed.items.map((issue) => issue.number)).toEqual([1]);
     });
 
     it('reflects pull request edits in subsequent detail and list fetches', async () => {
@@ -2036,6 +2339,153 @@ describe('ForgejoClient with MSW', () => {
       // Informational: the assertion above is the evidence, this is the cost.
       expect(elapsed).toBeGreaterThanOrEqual(0);
     });
+
+    it('answers a branch lookup from the first page instead of paging the whole list', async () => {
+      // The create-PR status bar only asks "is there a PR for this branch?", and
+      // the row is on page 1: the pre-fix read cost ten requests for the 500-row
+      // list (PAGE_SIZE 50). This mock ignores the `head` filter — an instance
+      // older than the filter answers exactly this way — so the saving measured
+      // here is the early stop alone.
+      const PAGE = 50;
+      const TOTAL = 500;
+      const requestedPages: string[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          requestedPages.push(String(page));
+          const start = (page - 1) * PAGE;
+          return HttpResponse.json(
+            Array.from({ length: Math.min(PAGE, TOTAL - start) }, (_, i) => ({
+              id: start + i + 1,
+              number: start + i + 1,
+              head: { ref: start + i + 1 === 3 ? 'feature' : `other-${start + i + 1}` },
+            })),
+          );
+        }),
+      );
+
+      const pulls = await createClient().getRepoPullRequests('demo-user', 'demo-repo', 'open', undefined, {
+        head: 'feature',
+        stopWhen: (pr) => pr.head?.ref === 'feature',
+      });
+
+      expect(pulls.items.some((pr) => pr.head?.ref === 'feature')).toBe(true);
+      expect(requestedPages).toEqual(['1']);
+    });
+
+    it('still finds the branch on a later page and stops at the page that holds it', async () => {
+      const PAGE = 50;
+      const TOTAL = 500;
+      const BRANCH_PR = 101; // page 3
+      const requestedPages: string[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          requestedPages.push(String(page));
+          const start = (page - 1) * PAGE;
+          return HttpResponse.json(
+            Array.from({ length: Math.min(PAGE, TOTAL - start) }, (_, i) => ({
+              id: start + i + 1,
+              number: start + i + 1,
+              head: { ref: start + i + 1 === BRANCH_PR ? 'feature' : `other-${start + i + 1}` },
+            })),
+          );
+        }),
+      );
+
+      const pulls = await createClient().getRepoPullRequests('demo-user', 'demo-repo', 'open', undefined, {
+        head: 'feature',
+        stopWhen: (pr) => pr.head?.ref === 'feature',
+      });
+
+      // The branch's row arrives with page 3 (rows 101-150), so the read stops
+      // there rather than walking the remaining seven pages.
+      expect(pulls.items.find((pr) => pr.head?.ref === 'feature')?.number).toBe(BRANCH_PR);
+      expect(pulls.items).toHaveLength(150);
+      expect(requestedPages).toEqual(['1', '2', '3']);
+    });
+
+    it('still reads to the cap when no row matches, so an absent PR is not silently trusted', async () => {
+      // No match means the read cannot stop early: it ends at the shared cap
+      // exactly as it did before, and the caller sees the full 500 rows (ten
+      // requests) it needs to report a possible miss rather than "no PR".
+      const PAGE = 50;
+      const TOTAL = 500;
+      const requestedPages: string[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls', ({ request }) => {
+          const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+          requestedPages.push(String(page));
+          const start = (page - 1) * PAGE;
+          return HttpResponse.json(
+            Array.from({ length: Math.min(PAGE, TOTAL - start) }, (_, i) => ({
+              id: start + i + 1,
+              number: start + i + 1,
+              head: { ref: `other-${start + i + 1}` },
+            })),
+          );
+        }),
+      );
+
+      const pulls = await createClient().getRepoPullRequests('demo-user', 'demo-repo', 'open', undefined, {
+        head: 'feature',
+        stopWhen: (pr) => pr.head?.ref === 'feature',
+      });
+
+      expect(pulls.items).toHaveLength(TOTAL);
+      expect(requestedPages).toHaveLength(TOTAL / PAGE);
+    });
+
+    it('does not hand a null pull request row to the stop predicate', async () => {
+      // Forgejo appends null when it cannot load a row's related tables, and every
+      // consumer dereferences the row: the predicate must see the same defined
+      // rows the returned list carries, or a broken row aborts the lookup.
+      const seen: unknown[] = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls', () =>
+          HttpResponse.json([null, { id: 2, number: 2, head: { ref: 'feature' } }]),
+        ),
+      );
+
+      const pulls = await createClient().getRepoPullRequests('demo-user', 'demo-repo', 'open', undefined, {
+        head: 'feature',
+        stopWhen: (pr) => {
+          seen.push(pr);
+          return pr.head?.ref === 'feature';
+        },
+      });
+
+      expect(seen).toHaveLength(1);
+      expect(pulls.items).toHaveLength(1);
+      expect(pulls.items[0]?.number).toBe(2);
+    });
+
+    it('narrows the read with the endpoint own head filter', async () => {
+      // The pinned swagger gives repoListPullRequests a `head` parameter, which
+      // Forgejo compares to pull_request.head_branch exactly; a server that
+      // implements it answers the branch's rows on one page. A server that does
+      // not ignores the parameter, which is why the paging above stays.
+      const requestedHeads: Array<string | null> = [];
+      mockServer.use(
+        http.get('https://*/api/v1/repos/:owner/:repo/pulls', ({ request }) => {
+          const head = new URL(request.url).searchParams.get('head');
+          requestedHeads.push(head);
+          return HttpResponse.json(
+            head === 'feature'
+              ? [{ id: 7, number: 7, head: { ref: 'feature', repo: { full_name: 'demo-user/demo-repo' } } }]
+              : [],
+          );
+        }),
+      );
+
+      const pulls = await createClient().getRepoPullRequests('demo-user', 'demo-repo', 'open', undefined, {
+        head: 'feature',
+        stopWhen: (pr) => pr.head?.ref === 'feature',
+      });
+
+      expect(requestedHeads).toEqual(['feature']);
+      expect(pulls.items).toHaveLength(1);
+    });
     it('lists issue dependencies', async () => {
       const client = createClient();
       const dependencies = await client.listIssueDependencies('demo-user', 'demo-repo', 1);
@@ -2865,6 +3315,32 @@ describe('ForgejoClient with MSW', () => {
       await expect(client.getFileContent('demo-user', 'demo-repo', 'dir')).resolves.toContain('is a directory');
     });
 
+    it('does not call an empty listing a directory, and says what is unknown instead', async () => {
+      // Forgejo's `GetContentsOrList` answers an empty list for *every* path once
+      // `repo.IsEmpty` is set, and an empty directory answers exactly the same
+      // way: the response does not say which one the caller hit, so neither may
+      // the notice. Claiming "a directory" named a cause the server never gave.
+      const client = createClient();
+
+      const result = await client.getFileContentResult('demo-user', MOCK_EMPTY_REPO, 'README.md');
+
+      expect(result.kind).toBe('empty-listing');
+      expect(result.text).not.toContain('is a directory');
+      expect(result.text).toContain('list_repo_contents');
+      expect(result.text).toMatch(/empty directory or an empty repository/);
+    });
+
+    it('still calls a populated listing a directory', async () => {
+      // The other half of the inference: an answer that really did list entries
+      // is a directory, and the honest sentence must not have replaced it.
+      const client = createClient();
+
+      const result = await client.getFileContentResult('demo-user', 'demo-repo', 'src');
+
+      expect(result.kind).toBe('directory');
+      expect(result.text).toContain('is a directory');
+    });
+
     it('refuses a path that would escape the contents route', async () => {
       const client = createClient();
 
@@ -3381,6 +3857,25 @@ describe('ForgejoClient with MSW', () => {
       await expect(client.getCurrentUser()).rejects.toThrow();
 
       expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-arms the 401 toast when the token is rotated on the same instance URL', async () => {
+      mockAuthFailure(401, { message: 'unauthorized' });
+
+      // The URL carries no credential — the token lives in SecretStorage — so
+      // the URL alone cannot tell the first rejected token from the next one.
+      // The client passes a fingerprint of the token it actually sent, or the
+      // user who just pasted a new (still bad) token reads the 401 as silence
+      // for the rest of the session.
+      const withToken = (token: string) =>
+        expect(new ForgejoClient('https://auth-rotate.example.com', token).getCurrentUser()).rejects.toThrow();
+
+      await withToken('first-bad-token');
+      await withToken('first-bad-token');
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+
+      await withToken('second-bad-token');
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(2);
     });
 
     it('opens the instance token settings page from the toast button', async () => {

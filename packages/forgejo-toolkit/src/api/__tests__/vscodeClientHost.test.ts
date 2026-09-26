@@ -83,6 +83,60 @@ describe('createVscodeClientHost permission toast dedupe', () => {
     expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
   });
 
+  it('re-arms the toast when the client fingerprint of a SecretStorage token rotates', () => {
+    const host = createVscodeClientHost();
+
+    // A normal instance keeps its token in SecretStorage and its URL therefore
+    // carries no credential: the URL cannot tell two tokens apart, so the client
+    // passes a fingerprint of the credential it actually sent. Rotating the
+    // token must re-arm the toast, or the user who just pasted a new (still
+    // rejected) token gets silence for the rest of the session.
+    host.notifyInvalidCredentials('https://forgejo.example.com', 'a1b2c3d4e5f60718-12');
+    host.notifyInvalidCredentials('https://forgejo.example.com', 'a1b2c3d4e5f60718-12');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+
+    host.notifyInvalidCredentials('https://forgejo.example.com', 'ffeeddccbbaa9988-13');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps an unchanged client fingerprint quiet, so a poller cannot re-toast', () => {
+    const host = createVscodeClientHost();
+
+    for (let index = 0; index < 5; index += 1) {
+      host.notifyInvalidCredentials('https://forgejo.example.com', 'a1b2c3d4e5f60718-12');
+    }
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the URL-credential behaviour for a caller that passes no fingerprint', () => {
+    // An older caller (or one that has no credential to fingerprint) still gets
+    // the dedupe the URL alone could provide: same URL, one toast; a different
+    // URL credential, a new toast.
+    const host = createVscodeClientHost();
+
+    host.notifyInvalidCredentials('https://legacy-caller.example.com');
+    host.notifyInvalidCredentials('https://legacy-caller.example.com');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+
+    host.notifyInvalidCredentials('https://alice:second-bad-token@legacy-caller.example.com');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-arms the scope toast when the client fingerprint of the token rotates', () => {
+    const host = createVscodeClientHost();
+
+    // The 403 branch has the same defect as the 401 one: its key folds in the
+    // reason (the error body) and the credential, and with a SecretStorage token
+    // a rotated token is only visible through the client's fingerprint.
+    host.notifyInsufficientScope('https://forgejo.example.com', { body: 'missing write:issue' }, 'a1b2c3d4e5f60718-12');
+    host.notifyInsufficientScope('https://forgejo.example.com', { body: 'missing write:issue' }, 'a1b2c3d4e5f60718-12');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(1);
+
+    host.notifyInsufficientScope('https://forgejo.example.com', { body: 'missing write:issue' }, 'ffeeddccbbaa9988-13');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledTimes(2);
+  });
+
   it('re-arms a scope toast when the reported reason or the credential changes', () => {
     const host = createVscodeClientHost();
 
@@ -128,6 +182,16 @@ describe('permissionErrorKey', () => {
     // The key is process-local, but a key that carried the token would be one
     // `logger.debug` away from the output channel.
     expect(permissionErrorKey('https://forgejo.example.com/', '401', 'secret-token')).not.toContain('secret-token');
+  });
+
+  it('folds the client fingerprint in, so a rotation changes the key', () => {
+    const key = (fingerprint: string) => permissionErrorKey('https://forgejo.example.com/', '401', '', fingerprint);
+
+    expect(key('a1b2c3d4e5f60718-12')).toBe(key('a1b2c3d4e5f60718-12'));
+    expect(key('a1b2c3d4e5f60718-12')).not.toBe(key('ffeeddccbbaa9988-13'));
+    // No fingerprint (an older caller) is its own state, not the same as any
+    // fingerprint the client could send.
+    expect(permissionErrorKey('https://forgejo.example.com/', '401', '')).not.toBe(key('a1b2c3d4e5f60718-12'));
   });
 });
 

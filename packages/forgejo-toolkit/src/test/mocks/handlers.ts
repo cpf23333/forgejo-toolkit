@@ -109,6 +109,13 @@ function paginate<T>(request: Request, items: T[]): T[] {
 export const MOCK_SERVER_VERSION = '16.0.5';
 
 /**
+ * A repository with no commits. Every contents path answers an empty list for it
+ * (see the handlers below), which is what makes "empty directory" and "empty
+ * repository" indistinguishable from the response alone.
+ */
+export const MOCK_EMPTY_REPO = 'empty-repo';
+
+/**
  * Comment bodies the mocked issue indexer matches, keyed by issue/PR number,
  * plus a keyword that appears *only* in one of them. Forgejo's issue indexer
  * searches `title`, `content` and `comments` (see the bleve mapping in
@@ -190,8 +197,12 @@ export const handlers = [
     }
     const before = url.searchParams.get('before');
     if (before) {
-      // `before` is the page cursor: only threads updated before that instant.
-      result = result.filter((notification) => (notification.updated_at ?? '') < before);
+      // `before` is the page cursor and the server's comparison is inclusive:
+      // `UpdatedBeforeUnix` builds a `Lte` condition, so a thread updated at
+      // exactly that instant comes back in the next page too. A strict `<` here
+      // described a server that does not exist and left the documented repeat
+      // (and the skip it forces on the caller) untested.
+      result = result.filter((notification) => (notification.updated_at ?? '') <= before);
     }
     // Newest first, then one page: the webview pages with `before` set to the
     // oldest entry it holds and stops when a page comes back short.
@@ -553,6 +564,16 @@ export const handlers = [
     'https://*/api/v1/repos/:owner/:repo/pulls/:index/reviews/:id/comments/:comment',
     () => new HttpResponse(null, { status: 204 }),
   ),
+
+  // An empty repository. Forgejo's `GetContentsOrList` answers an empty list for
+  // *every* contents path once `repo.IsEmpty` is set — for the root, for a
+  // directory that does not exist, and for a path that names a file — so the
+  // response alone cannot say whether the caller asked for an empty directory or
+  // hit a repository with no commits. The handlers below therefore precede the
+  // fixture tree's: a specific path must not answer a listing in this repository.
+  http.get(`https://*/api/v1/repos/:owner/${MOCK_EMPTY_REPO}/contents`, () => json([])),
+
+  http.get(`https://*/api/v1/repos/:owner/${MOCK_EMPTY_REPO}/contents/*`, () => json([])),
 
   http.get('https://*/api/v1/repos/:owner/:repo/contents', () => json(mockRootContents)),
 

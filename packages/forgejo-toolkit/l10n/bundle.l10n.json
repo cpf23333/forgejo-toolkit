@@ -273,5 +273,14 @@
   "MCP configuration written to {0}": "MCP configuration written to {0}",
   "Failed to generate the MCP configuration: {0}": "Failed to generate the MCP configuration: {0}",
   "Forgejo Toolkit was updated to version {0}. Reload the window to finish updating.": "Forgejo Toolkit was updated to version {0}. Reload the window to finish updating.",
-  "Reload": "Reload"
+  "Reload": "Reload",
+  "Created {0} with the Forgejo Toolkit MCP section for {1}/{2}": "Created {0} with the Forgejo Toolkit MCP section for {1}/{2}",
+  "Appended the Forgejo Toolkit MCP section for {0}/{1} to the existing {2}": "Appended the Forgejo Toolkit MCP section for {0}/{1} to the existing {2}",
+  "Updated the Forgejo Toolkit MCP section in {0} for {1}/{2}": "Updated the Forgejo Toolkit MCP section in {0} for {1}/{2}",
+  "{0} already contains the Forgejo Toolkit MCP section for {1}/{2}; nothing changed": "{0} already contains the Forgejo Toolkit MCP section for {1}/{2}; nothing changed",
+  "{0} contains an incomplete or duplicated forgejo-toolkit section marker; nothing was written": "{0} contains an incomplete or duplicated forgejo-toolkit section marker; nothing was written",
+  "Failed to write the Copilot instructions: {0}": "Failed to write the Copilot instructions: {0}",
+  "README.md is a symlink to {0}, so Forgejo has no README text to show. Open {0} in the Forgejo web UI to read it.": "README.md is a symlink to {0}, so Forgejo has no README text to show. Open {0} in the Forgejo web UI to read it.",
+  "README.md is a submodule whose own repository is at {0}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.": "README.md is a submodule whose own repository is at {0}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.",
+  "README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.": "README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it."
 }

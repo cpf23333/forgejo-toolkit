@@ -20,8 +20,9 @@ import { createVscodeClientHost } from './api/vscodeClientHost';
 import { probeServerVersion } from './api/versionProbe';
 import { registerForgejoRemoteSourceProviders } from './clone/remoteSourceProvider';
 import { registerMcpServerProvider } from './mcpServerProvider';
-import { cleanupMcpBroker, startMcpBrokerIfFirst } from './mcpBroker';
+import { cleanupMcpBroker } from './mcpBroker';
 import { cleanupMcpWorkspaceState } from './mcpWorkspaceState';
+import { registerWriteCopilotInstructionsCommand } from './commands/copilotInstructions';
 import { watchForExtensionUpdate } from './updateNotifier';
 import { maybeShowWelcomeOnboarding } from './welcome';
 import { logger } from './logger';
@@ -135,6 +136,10 @@ export async function activate(context: vscode.ExtensionContext) {
   viewProvider.onPullRequestsChanged = () => createPrStatusBar.notifyPullRequestsChanged();
 
   registerCommands(context, config, readmeProvider, viewProvider, pullReviewCommentController);
+  // Registered here rather than in registerCommands: the handler needs only the
+  // instance configuration and the shared linked-repository detection, and it
+  // documents the MCP surface the block at the end of activate() starts.
+  registerWriteCopilotInstructionsCommand(context, config);
 
   const mentionProvider = new ForgejoIssueMentionProvider(config);
   context.subscriptions.push(
@@ -152,13 +157,12 @@ export async function activate(context: vscode.ExtensionContext) {
   // Degrades to a log line when the built-in git extension is unavailable.
   void registerForgejoRemoteSourceProviders(context, config);
 
-  // Expose the configured instances to agent mode as MCP tools.
+  // Expose the configured instances to agent mode as MCP tools. The provider,
+  // the workspace-state publishing behind the tools and the local broker all
+  // follow `forgejoToolkit.mcpEnabled` and are started and stopped together,
+  // so turning the setting off in a running window leaves no stale
+  // registration behind (see mcpServerProvider).
   registerMcpServerProvider(context, config, logger);
-  // The local broker that lets a statically launched (tokenless) MCP server
-  // forward into this host; never throws — a broker failure only means the
-  // anonymous zero-configuration fallback stays in effect.
-  context.subscriptions.push({ dispose: () => void cleanupMcpBroker(logger) });
-  void startMcpBrokerIfFirst(context, config, logger);
 
   logger.info('Forgejo Toolkit extension activated');
 }

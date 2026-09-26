@@ -7,9 +7,18 @@ import {
   MAX_SEARCH_RESULTS,
   REPO_DETAIL_LIST_LIMIT,
   type ForgejoClient,
+  type PagedList,
 } from '../src/api/client';
+import { isListTruncatedWithTotal } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { toApiError, userFacingErrorMessage } from '../src/api/errors-core';
-import type { ForgejoChangedFile, MergeBlocker } from '../src/api/types';
+import type {
+  ForgejoChangedFile,
+  ForgejoIssue,
+  ForgejoNotification,
+  ForgejoPullRequest,
+  ForgejoRepository,
+  MergeBlocker,
+} from '../src/api/types';
 import { resolveWorkspaceRepository } from './workspaceState';
 
 /**
@@ -487,7 +496,12 @@ export interface PrReviewBriefReviewStatus {
   changesRequested: number;
   /** Reviewers whose current review neither approved nor requested changes (COMMENT, PENDING, …). */
   awaiting: number;
-  /** True when the review list reached the shared list cap, so older reviews may be missing. */
+  /**
+   * True when the review list is not the whole list: fewer rows arrived than the
+   * server's own count (`totalCount`, absent when the server reported none), or
+   * — with no count — the read reached the shared list cap, so older reviews may
+   * be missing.
+   */
   truncated: boolean;
 }
 
@@ -708,11 +722,13 @@ export function summarizeUnresolvedComments(
  * the caller skipped the changed-files request, in which case only the totals
  * (from the pull request record) are returned.
  *
- * The client's own page cap outranks this tool's cuts: a changed-file list that
- * reached `LIST_ITEM_LIMIT` may be missing files the tool never saw, while the
- * row and character cuts only drop rows that were seen — and in both cases the
- * totals stay exact, because they come from the pull request record, not from
- * the table.
+ * The client's own page cap outranks this tool's cuts when it really cut rows: a
+ * changed-file list shorter than the pull request record's `fileCount` may be
+ * missing files the tool never saw, while the row and character cuts only drop
+ * rows that were seen — and in both cases the totals stay exact, because they
+ * come from the pull request record, not from the table. A list that reached
+ * `LIST_ITEM_LIMIT` while the record says that is all there is was not cut at
+ * all.
  */
 export function summarizePrReviewDiffStats(
   files: readonly ForgejoChangedFile[] | undefined,
@@ -747,17 +763,23 @@ export function summarizePrReviewDiffStats(
     rows.push(row);
   }
   // The client's own page cap outranks every other cut (those rows were never
-  // seen). Next comes this tool's deliberate cut. Last, the mismatch no cut
-  // explains: the server returned fewer files than the pull request record's
-  // changed_files without hitting any cap — observed from Forgejo 16 on a pull
-  // request whose head branch was deleted after the merge, where the files
-  // endpoint silently answers with a partial diff. Without the flag the table
-  // would read as complete while listing less than fileCount.
-  const truncatedBy =
-    files.length >= LIST_ITEM_LIMIT
-      ? 'list-cap'
-      : (cut ??
-        (typeof totals.fileCount === 'number' && totals.fileCount > rows.length ? 'server-partial' : undefined));
+  // seen) — but only when it really cut something. The pull request record
+  // carries the exact `changed_files`, so a table holding at least that many rows
+  // passed the cap without losing a row, and the cap only explains a shorter one.
+  // Comparing the length alone called a complete pull request with exactly
+  // LIST_ITEM_LIMIT changed files truncated, the same mistake `getRepo`'s branch
+  // cap avoids by reporting the cut it observed (see `repoDetailCapNote`).
+  // Next comes this tool's deliberate cut. Last, the mismatch no cut explains:
+  // the server returned fewer files than the pull request record's changed_files
+  // without hitting any cap — observed from Forgejo 16 on a pull request whose
+  // head branch was deleted after the merge, where the files endpoint silently
+  // answers with a partial diff. Without the flag the table would read as
+  // complete while listing less than fileCount.
+  const fileCount = totals.fileCount;
+  const capCut = files.length >= LIST_ITEM_LIMIT && (typeof fileCount !== 'number' || files.length < fileCount);
+  const truncatedBy = capCut
+    ? 'list-cap'
+    : (cut ?? (typeof fileCount === 'number' && fileCount > rows.length ? 'server-partial' : undefined));
   return {
     ...totals,
     files: rows,
@@ -777,7 +799,10 @@ export function summarizePrReviewDiffStats(
  * reviews decide `summary`, the same rule `getPullRequestDetail` applies when it
  * counts approvals for a branch-protection requirement.
  */
-export function summarizePrReviewStatus(reviews: readonly PullReview[]): PrReviewBriefReviewStatus {
+export function summarizePrReviewStatus(
+  reviews: readonly PullReview[],
+  totalCount?: number,
+): PrReviewBriefReviewStatus {
   const latestByReviewer = new Map<string, { position: number; review: PullReview }>();
   reviews.forEach((review, position) => {
     // A review whose user is gone (deleted account) cannot be attributed to a
@@ -820,8 +845,12 @@ export function summarizePrReviewStatus(reviews: readonly PullReview[]): PrRevie
     awaiting: current.length - approvals - changesRequested,
     // The review list is paged to the same shared cap as every other list, and a
     // reviewer whose only review fell off it would leave `reviewers` without a
-    // word: the flag is what says the picture may be missing someone.
-    truncated: reviews.length >= LIST_ITEM_LIMIT,
+    // word: the flag is what says the picture may be missing someone. With the
+    // server's own count (`totalCount`) the flag is exact — a list holding
+    // exactly LIST_ITEM_LIMIT reviews that the server also counts as all of them
+    // is complete — and the length heuristic only stays for a server that
+    // reported no total.
+    truncated: isListTruncatedWithTotal(reviews, totalCount),
   };
 }
 
@@ -905,55 +934,78 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
     // scope throws (rather than rejecting) before any request is issued. The
     // keyword goes to the server on both branches (see the note above), so no
     // row the server matched is discarded afterwards.
-    list_issues: (args: ListIssuesArgs) => {
+    //
+    // Both branches answer the client's paged shape (`items` plus the server's
+    // optional `totalCount`) instead of only `.items`: the total is what lets the
+    // truncation note compare the rows against the server's own count instead of
+    // guessing from the length. `getUserIssues` answers rows only (the generated
+    // wrapper drops `X-Total-Count`), so that branch reports the same shape with
+    // the total honestly absent.
+    list_issues: (args: ListIssuesArgs): Promise<PagedList<ForgejoIssue>> => {
       assertCompleteRepoScope(args.owner, args.repo);
-      // `.items` only: the tool result shape (and the PAGED_LISTS truncation
-      // note keyed on its length) predates the server's total and stays as-is.
       return args.owner && args.repo
-        ? client.getRepoIssues(args.owner, args.repo, args.state ?? 'open', args.query).then((list) => list.items)
-        : client.getUserIssues(args.state ?? 'open', args.query);
+        ? client.getRepoIssues(args.owner, args.repo, args.state ?? 'open', args.query)
+        : client.getUserIssues(args.state ?? 'open', args.query).then((items) => ({ items }));
     },
 
     get_issue: async (args: IssueRefArgs) => {
       // The timeline endpoint is shared between issues and PRs; the client
-      // method is named after its PR usage but serves issue comments too.
+      // method is named after its PR usage but serves issue comments too. Its
+      // total-aware form is read so the truncation note can compare the rows
+      // against the server's own comment count instead of guessing from the
+      // length; the rows keep the shape callers already read (`comments`), with
+      // the count beside them.
       const [issue, comments] = await Promise.all([
         client.getIssueDetail(args.owner, args.repo, args.index),
-        client.getPullRequestCommentsAndTimeline(args.owner, args.repo, args.index),
+        client.getPullRequestCommentsAndTimelineWithTotal(args.owner, args.repo, args.index),
       ]);
-      return { issue, comments };
+      return { issue, comments: comments.items, commentsTotalCount: comments.totalCount };
     },
 
-    list_pull_requests: (args: ListIssuesArgs) => {
+    // Same paged shape as `list_issues`, for the same reason; the instance-wide
+    // branch has no total to report (see there).
+    list_pull_requests: (args: ListIssuesArgs): Promise<PagedList<ForgejoPullRequest>> => {
       assertCompleteRepoScope(args.owner, args.repo);
       return args.owner && args.repo
-        ? client.getRepoPullRequests(args.owner, args.repo, args.state ?? 'open', args.query).then((list) => list.items)
-        : client.getUserPullRequests(args.state ?? 'open', args.query);
+        ? client.getRepoPullRequests(args.owner, args.repo, args.state ?? 'open', args.query)
+        : client.getUserPullRequests(args.state ?? 'open', args.query).then((items) => ({ items }));
     },
 
     get_pull_request: async (args: IssueRefArgs) => {
+      // Both lists are read in their total-aware form for the same reason as
+      // `get_issue` above: the rows keep their shape and the server's own count
+      // sits beside them, so a changed-file or commit list that reached the
+      // shared cap is only announced as cut when the server says rows are
+      // missing.
       const [pullRequest, files, commits] = await Promise.all([
         client.getPullRequestDetail(args.owner, args.repo, args.index),
-        client.getPullRequestFiles(args.owner, args.repo, args.index),
-        client.getPullRequestCommits(args.owner, args.repo, args.index),
+        client.getPullRequestFilesWithTotal(args.owner, args.repo, args.index),
+        client.getPullRequestCommitsWithTotal(args.owner, args.repo, args.index),
       ]);
-      return { pullRequest, files, commits };
+      return {
+        pullRequest,
+        files: files.items,
+        filesTotalCount: files.totalCount,
+        commits: commits.items,
+        commitsTotalCount: commits.totalCount,
+      };
     },
 
     get_pr_timeline: (args: IssueRefArgs) =>
-      client.getPullRequestCommentsAndTimeline(args.owner, args.repo, args.index),
+      client.getPullRequestCommentsAndTimelineWithTotal(args.owner, args.repo, args.index),
 
     // One page of up to `limit` rows. `before` is the API's own page cursor
-    // (only threads updated before that instant; see `getNotifications`), so a
-    // caller can fetch the next page with the `updated_at` of the oldest row it
-    // received. The client does not page to `LIST_ITEM_LIMIT` here — the page
-    // size is the caller's own choice — so `PAGED_LISTS` stays silent for this
-    // tool (as it does for `list_action_runs`, whose page is also caller-sized)
-    // and the description, not a note, tells the caller what a full page means.
-    list_notifications: (args: ListNotificationsArgs) =>
-      client
-        .getNotifications(args.statusTypes ?? ['unread', 'pinned'], undefined, args.limit ?? 50, args.before)
-        .then((list) => list.items),
+    // (the server keeps rows updated at exactly that instant; see
+    // `getNotifications`), so a caller can fetch the next page with the
+    // `updated_at` of the oldest row it received and skip that repeated row. The
+    // client does not page to `LIST_ITEM_LIMIT` here — the page size is the
+    // caller's own choice — so `PAGED_LISTS` stays silent for this tool (as it
+    // does for `list_action_runs`, whose page is also caller-sized) and the
+    // description, not a note, tells the caller what a full page means. The
+    // client's `PagedList` is passed through rather than only its rows: the
+    // optional total is the server's count of matching threads.
+    list_notifications: (args: ListNotificationsArgs): Promise<PagedList<ForgejoNotification>> =>
+      client.getNotifications(args.statusTypes ?? ['unread', 'pinned'], undefined, args.limit ?? 50, args.before),
 
     get_repo: (args: RepoRefArgs) => client.getRepoDetail(args.owner, args.repo),
 
@@ -1051,7 +1103,7 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
     },
 
     get_action_run_artifacts: (args: ActionRunRefArgs) =>
-      client.getActionRunArtifacts(args.owner, args.repo, args.runId),
+      client.getActionRunArtifactsWithTotal(args.owner, args.repo, args.runId),
 
     // Code reading.
     get_file_content: async (args: FileContentArgs) => {
@@ -1073,13 +1125,14 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
     list_repo_contents: (args: ListRepoContentsArgs) =>
       client.getRepoContents(args.owner, args.repo, args.path ?? '', args.ref),
 
-    list_branches: (args: RepoRefArgs) => client.getRepoBranches(args.owner, args.repo),
+    list_branches: (args: RepoRefArgs) => client.getRepoBranchesWithTotal(args.owner, args.repo),
 
-    list_tags: (args: RepoRefArgs) => client.getRepoTags(args.owner, args.repo),
+    list_tags: (args: RepoRefArgs) => client.getRepoTagsWithTotal(args.owner, args.repo),
 
     list_commits: (args: ListCommitsArgs) => client.getRepoBranchCommits(args.owner, args.repo, args.branch),
 
-    get_file_history: (args: FileContentArgs) => client.getFileHistory(args.owner, args.repo, args.path, args.ref),
+    get_file_history: (args: FileContentArgs) =>
+      client.getFileHistoryWithTotal(args.owner, args.repo, args.path, args.ref),
 
     search_repo_files: async (args: SearchRepoFilesArgs) => {
       // The git-tree endpoint needs an explicit ref; resolve the default
@@ -1101,7 +1154,7 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
     get_pull_review_comments: (args: ReviewRefArgs) =>
       client.getPullReviewComments(args.owner, args.repo, args.index, args.reviewId),
 
-    list_pull_reviews: (args: IssueRefArgs) => client.listPullReviews(args.owner, args.repo, args.index),
+    list_pull_reviews: (args: IssueRefArgs) => client.listPullReviewsWithTotal(args.owner, args.repo, args.index),
 
     // One call replaces get_pull_request + get_pr_diff + get_pr_timeline +
     // list_pull_reviews for the purpose of starting a review. It reads the pull
@@ -1120,14 +1173,16 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
         args.includeDiffStats === false
           ? Promise.resolve(undefined)
           : client.getPullRequestFiles(args.owner, args.repo, args.index),
-        client.listPullReviews(args.owner, args.repo, args.index),
+        // Read with the server's own review count so `reviewStatus.truncated` is
+        // exact: a pull request with exactly `LIST_ITEM_LIMIT` reviews is not cut.
+        client.listPullReviewsWithTotal(args.owner, args.repo, args.index),
       ]);
       const { comments, unreadableReviewCount } = await collectReviewComments(
         client,
         args.owner,
         args.repo,
         args.index,
-        reviews,
+        reviews.items,
       );
       return {
         pullRequest: {
@@ -1148,20 +1203,23 @@ export function buildToolHandlers(client: ForgejoClient, workspaceContext: Works
           additions: pullRequest.additions,
           deletions: pullRequest.deletions,
         }),
-        reviewStatus: summarizePrReviewStatus(reviews),
+        reviewStatus: summarizePrReviewStatus(reviews.items, reviews.totalCount),
         unresolvedComments: { ...summarizeUnresolvedComments(comments), unreadableReviewCount },
       } satisfies PrReviewBrief;
     },
 
     whoami: () => client.getCurrentUser(),
 
-    list_releases: (args: RepoRefArgs) => client.getRepoReleases(args.owner, args.repo),
+    list_releases: (args: RepoRefArgs) => client.getRepoReleasesWithTotal(args.owner, args.repo),
 
-    list_labels: (args: RepoRefArgs) => client.getRepoLabels(args.owner, args.repo),
+    list_labels: (args: RepoRefArgs) => client.getRepoLabelsWithTotal(args.owner, args.repo),
 
-    list_milestones: (args: RepoRefArgs) => client.getRepoMilestones(args.owner, args.repo),
+    list_milestones: (args: RepoRefArgs) => client.getRepoMilestonesWithTotal(args.owner, args.repo),
 
-    list_my_repos: () => client.getUserRepositories().then((list) => list.items),
+    // The client's `PagedList` is passed through (not only its rows) so the
+    // truncation note can read the server's own count; the total is optional
+    // because an older or proxied server omits `X-Total-Count`.
+    list_my_repos: (): Promise<PagedList<ForgejoRepository>> => client.getUserRepositories(),
   };
 }
 
@@ -1260,10 +1318,27 @@ export const MAX_TOOL_RESULT_LENGTH = 64 * 1024;
 
 /** Name used by `PAGED_LISTS` for a tool whose whole result is a paged list. */
 const RESULT_FIELD = 'the result';
-/** The whole tool result is a list the client fills by paging. */
-const PAGED_RESULT = [RESULT_FIELD] as const;
+
+/**
+ * One paged list inside a tool result.
+ *
+ * `field` names the row array (`RESULT_FIELD` when the result *is* the array);
+ * `totalField`, when set, names the server's own row count beside it — the
+ * client's `PagedList.totalCount`, present only when the server sent
+ * `X-Total-Count` — which turns the truncation judgement from a length guess
+ * into an exact comparison; `label` is how the note names the list (defaults to
+ * `field`).
+ */
+export interface PagedListSpec {
+  field: string;
+  totalField?: string;
+  label?: string;
+}
+
+/** The whole tool result is the `PagedList` the client filled by paging. */
+const PAGED_RESULT: readonly PagedListSpec[] = [{ field: 'items', totalField: 'totalCount', label: RESULT_FIELD }];
 /** No list in the tool result is paged, so nothing in it can have been cut off. */
-const NO_PAGED_LISTS: readonly string[] = [];
+const NO_PAGED_LISTS: readonly PagedListSpec[] = [];
 
 /**
  * Per tool, the payload lists that come from a client method that pages until
@@ -1277,13 +1352,23 @@ const NO_PAGED_LISTS: readonly string[] = [];
  * happens to hold `LIST_ITEM_LIMIT` rows must not be announced as truncated.
  * Every tool is listed explicitly so a new one is a compile error until its
  * lists have been classified.
+ *
+ * Every paged list carries the server's own count beside its rows, either in
+ * `totalCount` (the whole result is the client's `PagedList`) or in the
+ * `totalField` named here (a list wrapped inside a larger result, e.g.
+ * `get_issue`'s `comments`), so `listTruncationNote` compares rows against that
+ * count (exact) and falls back to the length heuristic only when a server
+ * reported no total.
  */
-const PAGED_LISTS: Record<ToolName, readonly string[]> = {
+const PAGED_LISTS: Record<ToolName, readonly PagedListSpec[]> = {
   get_workspace_repository: NO_PAGED_LISTS,
   list_issues: PAGED_RESULT,
-  get_issue: ['comments'],
+  get_issue: [{ field: 'comments', totalField: 'commentsTotalCount' }],
   list_pull_requests: PAGED_RESULT,
-  get_pull_request: ['files', 'commits'],
+  get_pull_request: [
+    { field: 'files', totalField: 'filesTotalCount' },
+    { field: 'commits', totalField: 'commitsTotalCount' },
+  ],
   get_pr_timeline: PAGED_RESULT,
   list_notifications: NO_PAGED_LISTS,
   get_repo: NO_PAGED_LISTS,
@@ -1303,13 +1388,12 @@ const PAGED_LISTS: Record<ToolName, readonly string[]> = {
   get_pr_diff: NO_PAGED_LISTS,
   get_pull_review_comments: NO_PAGED_LISTS,
   list_pull_reviews: PAGED_RESULT,
-  // get_pr_review_brief does read paged lists (changed files, reviews), but
-  // neither is what listTruncationNote reports on: the note only reaches
-  // top-level fields and both lists sit behind an object, and neither list is
-  // returned as-is. The diff table is pre-sized by this tool's own budget and
-  // says which cut applied in `diffStats.truncatedBy` (including the client's
-  // own list cap), and `reviewStatus.reviewers` holds one entry per reviewer, so
-  // its length says nothing about the review-list cap the result reports in
+  // get_pr_review_brief does read paged lists (changed files, reviews) and both
+  // now carry their server total, but neither is returned as-is: the diff table
+  // is pre-sized by this tool's own budget and says which cut applied in
+  // `diffStats.truncatedBy` (including the client's own list cap), and
+  // `reviewStatus.reviewers` holds one entry per reviewer, so its length says
+  // nothing about the review-list cap the result reports exactly in
   // `reviewStatus.truncated`. A note built from those lengths would tell a
   // caller to narrow a query this tool does not have.
   get_pr_review_brief: NO_PAGED_LISTS,
@@ -1348,8 +1432,8 @@ const NARROWABLE_TOOLS: ReadonlySet<ToolName> = new Set<ToolName>([
 ]);
 
 /**
- * A note for the paged lists of `pagedLists` that reached the client cap, or an
- * empty string.
+ * A note for the paged lists of `pagedLists` that are incomplete, or an empty
+ * string.
  *
  * Every paged client method stops at `LIST_ITEM_LIMIT`; without this the result
  * looks complete and a caller cannot tell that more rows exist. Lists are
@@ -1358,23 +1442,35 @@ const NARROWABLE_TOOLS: ReadonlySet<ToolName> = new Set<ToolName>([
  * `files` and `commits`), and a capped list inside it would otherwise go
  * unannounced.
  *
+ * Whether a list is incomplete is exact whenever the result carries the server's
+ * own count (the client's `PagedList.totalCount`, read from `X-Total-Count`):
+ * the list is short exactly when fewer rows arrived than the server holds. Only a
+ * result without a total falls back to the length heuristic, and the note says
+ * "possibly" for it instead of claiming a cut it cannot prove — a complete list
+ * that happened to hold exactly `LIST_ITEM_LIMIT` rows was called truncated by
+ * its length alone, and an overshooting read (a server that clamps the page size,
+ * so the client stops mid-page) was reported as "truncated at 500 items" while
+ * holding more rows than that.
+ *
  * `canNarrow` decides what the caller is told to do about it: a tool with no
  * filter and no paging has no way to fetch the rest, and pointing such a caller
  * at a query it cannot pass is worse than saying the answer is incomplete.
  */
 export function listTruncationNote(
   value: unknown,
-  pagedLists: readonly string[],
+  pagedLists: readonly PagedListSpec[],
   options: { canNarrow: boolean },
 ): string {
-  const capped = cappedListFields(value, pagedLists);
-  if (capped.length === 0) {
+  const truncated = truncatedListFields(value, pagedLists);
+  if (truncated.length === 0) {
     return '';
   }
-  const names = capped.join(', ');
+  const counts = truncated.map(describeTruncatedList).join(', ');
+  const exact = truncated.every((list) => list.total !== undefined);
+  const heading = exact ? 'list truncated' : 'list possibly truncated';
   return options.canNarrow
-    ? `\n(list truncated at ${LIST_ITEM_LIMIT} items: ${names}; narrow the query to see the rest)`
-    : `\n(list truncated at ${LIST_ITEM_LIMIT} items: ${names}; the result is incomplete and this tool has no filter or paging, so the remaining items cannot be fetched through the MCP tools — read them in the Forgejo web UI, or use a narrower tool for the same data)`;
+    ? `\n(${heading}: ${counts}; narrow the query to see the rest)`
+    : `\n(${heading}: ${counts}; the result ${exact ? 'is' : 'may be'} incomplete and this tool has no filter or paging, so the remaining items cannot be fetched through the MCP tools — read them in the Forgejo web UI, or use a narrower tool for the same data)`;
 }
 
 /**
@@ -1435,15 +1531,47 @@ export function repoSearchTruncationNote(value: unknown): string {
     : '\n(the repository tree could not be read completely, so the matches may be incomplete)';
 }
 
+/** One incomplete paged list: how the note names it and the two counts it reports. */
+interface TruncatedList {
+  name: string;
+  returned: number;
+  total?: number;
+}
+
 /**
- * The names in `pagedLists` whose value is a list that reached the cap. Only
- * the lists a client method pages are considered (see `PAGED_LISTS`), so a
- * complete single-page list of the same length is not reported as cut off.
+ * The lists in `pagedLists` that are incomplete, with the counts the note reports.
+ *
+ * Only the lists a client method pages are considered (see `PAGED_LISTS`), so a
+ * complete single-page list of the same length is not reported as cut off. A
+ * list whose result carries the server's total is judged by that total; one
+ * without it falls back to the length heuristic and keeps its total unknown.
  */
-function cappedListFields(value: unknown, pagedLists: readonly string[]): string[] {
-  const isCapped = (candidate: unknown): boolean => Array.isArray(candidate) && candidate.length >= LIST_ITEM_LIMIT;
+function truncatedListFields(value: unknown, pagedLists: readonly PagedListSpec[]): TruncatedList[] {
   const fields = value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
-  return pagedLists.filter((field) => isCapped(field === RESULT_FIELD ? value : fields?.[field]));
+  const truncated: TruncatedList[] = [];
+  for (const { field, totalField, label } of pagedLists) {
+    const rows = field === RESULT_FIELD ? value : fields?.[field];
+    if (!Array.isArray(rows)) {
+      continue;
+    }
+    const rawTotal = totalField === undefined ? undefined : fields?.[totalField];
+    const total = typeof rawTotal === 'number' ? rawTotal : undefined;
+    if (!isListTruncatedWithTotal(rows, total)) {
+      continue;
+    }
+    truncated.push({ name: label ?? field, returned: rows.length, total });
+  }
+  return truncated;
+}
+
+/**
+ * How the note says how much of one list came back: the two real counts when the
+ * server reported its own, and the row count with the cap it passed otherwise.
+ */
+function describeTruncatedList({ name, returned, total }: TruncatedList): string {
+  return total === undefined
+    ? `${name} (${returned} rows returned, at or above the ${LIST_ITEM_LIMIT}-row list cap)`
+    : `${name} (${returned} of ${total} rows)`;
 }
 /** Wraps a handler run into an MCP tool result: truncation + error rendering. */
 async function callTool(tool: ToolName, run: () => Promise<unknown>) {
@@ -1502,7 +1630,7 @@ export function registerTools(
     'list_issues',
     {
       description:
-        'List issues. With owner and repo, lists the issues of that repository, optionally keyword-filtered; without them, lists issues across the instance that involve the authenticated user, with the same keyword filter. The filter is applied by the server, which matches the keyword against the issue title, its body and its comments (and an issue reference such as #123); it does not match the author.',
+        "List issues. With owner and repo, lists the issues of that repository, optionally keyword-filtered; without them, lists issues across the instance that involve the authenticated user, with the same keyword filter. The filter is applied by the server, which matches the keyword against the issue title, its body and its comments (and an issue reference such as #123); it does not match the author. The result is `{ items, totalCount }`: `items` holds the rows and `totalCount` is the server's own row count when it reports one, which is what tells a list cut off at the shared cap from a complete one. The instance-wide listing reports no total.",
       inputSchema: {
         owner: ownerSchema,
         repo: repoSchema,
@@ -1522,7 +1650,8 @@ export function registerTools(
   server.registerTool(
     'get_issue',
     {
-      description: 'Get a single issue by number, including its comments.',
+      description:
+        "Get a single issue by number, including its comments. The result is `{ issue, comments, commentsTotalCount }`, and every comment entry carries `assets` (the attachments the issues API returned for it, an empty array when it links none) and `attachmentsUnavailable: true` when that extra read failed — in which case `assets` is unknown rather than empty. `commentsTotalCount` is the server's own comment count when it reports one, which is what tells a comment list cut off at the shared cap from a complete one.",
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -1537,7 +1666,7 @@ export function registerTools(
     'list_pull_requests',
     {
       description:
-        'List pull requests. With owner and repo, lists the pull requests of that repository, optionally keyword-filtered; without them, lists pull requests across the instance that involve the authenticated user, with the same keyword filter. The filter is applied by the server, which matches the keyword against the pull request title, its body and its comments (and an issue reference such as #123); it does not match the author.',
+        "List pull requests. With owner and repo, lists the pull requests of that repository, optionally keyword-filtered; without them, lists pull requests across the instance that involve the authenticated user, with the same keyword filter. The filter is applied by the server, which matches the keyword against the pull request title, its body and its comments (and an issue reference such as #123); it does not match the author. The result is `{ items, totalCount }`: `items` holds the rows and `totalCount` is the server's own row count when it reports one, which is what tells a list cut off at the shared cap from a complete one. The instance-wide listing reports no total.",
       inputSchema: {
         owner: ownerSchema,
         repo: repoSchema,
@@ -1558,7 +1687,7 @@ export function registerTools(
     'get_pull_request',
     {
       description:
-        'Get a single pull request by number, including changed files, commits, merge blockers, and status checks. Attachments are read from the issues API, which is the only endpoint that exposes them, so the result also carries `assets` (the attachment metadata the issues API returned, possibly undefined) and `attachmentsUnavailable: true` when that extra read failed — in which case `assets` is unknown rather than empty.',
+        "Get a single pull request by number, including changed files, commits, merge blockers, and status checks. The result is `{ pullRequest, files, filesTotalCount, commits, commitsTotalCount }`: the attachment fields live under `pullRequest`, not at the top of the result. Attachments are read from the issues API, which is the only endpoint that exposes them, so `pullRequest` carries `assets` (the attachment metadata the issues API returned, possibly undefined) and `attachmentsUnavailable: true` when that extra read failed — in which case `assets` is unknown rather than empty. `filesTotalCount`/`commitsTotalCount` are the server's own counts when it reports them, which is what tells a list cut off at the shared cap from a complete one.",
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -1572,7 +1701,8 @@ export function registerTools(
   server.registerTool(
     'get_pr_timeline',
     {
-      description: 'Get the comment and event timeline of a pull request (review comments, status changes, etc.).',
+      description:
+        "Get the comment and event timeline of a pull request (review comments, status changes, etc.). The result is `{ items, totalCount }`: `items` holds the timeline rows and `totalCount` is the server's own row count when it reports one, which is what tells a timeline cut off at the shared cap from a complete one. Every comment entry carries `assets` (the attachments the issues API returned for it, an empty array when it links none) and `attachmentsUnavailable: true` when that extra read failed — in which case `assets` is unknown rather than empty.",
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -1586,7 +1716,7 @@ export function registerTools(
   server.registerTool(
     'list_notifications',
     {
-      description: `List one page of Forgejo notifications for the authenticated user. A page holds at most \`limit\` notifications (default 50, max 100); a page that fills the limit is not necessarily the whole list. To fetch the next page, call the tool again with \`before\` set to the \`updated_at\` of the oldest notification in the previous page; the server keeps rows updated at exactly that instant (\`updated_unix <= before\`), so that boundary notification comes back in the next page as well and the caller must skip the row it already has.`,
+      description: `List one page of Forgejo notifications for the authenticated user. A page holds at most \`limit\` notifications (default 50, max 100); a page that fills the limit is not necessarily the whole list. To fetch the next page, call the tool again with \`before\` set to the \`updated_at\` of the oldest notification in the previous page; the server keeps rows updated at exactly that instant (\`updated_unix <= before\`), so that boundary notification comes back in the next page as well and the caller must skip the row it already has. The result is \`{ items, totalCount }\`: \`items\` holds the page, and \`totalCount\` is the server's count of matching notifications when it reports one, which says how much is left beyond this page.`,
       inputSchema: {
         statusTypes: z
           .array(z.enum(['unread', 'read', 'pinned']))
@@ -1707,7 +1837,8 @@ export function registerTools(
   server.registerTool(
     'get_action_run_artifacts',
     {
-      description: 'List the artifacts of an Actions workflow run (metadata and download URLs, not contents).',
+      description:
+        "List the artifacts of an Actions workflow run (metadata and download URLs, not contents). The result is `{ items, totalCount }`: `items` holds the artifacts and `totalCount` is the server's own artifact count when it reports one, which is what tells a list cut off at the shared cap from a complete one.",
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -1723,7 +1854,7 @@ export function registerTools(
     'get_file_content',
     {
       description:
-        'Get the decoded text content of a file in a repository. Large files are truncated to ~10 KB by the tool result budget. A path that names a directory (use list_repo_contents to list its entries), a symlink, or a submodule is not a file and is reported as an error naming what the entry actually is (a symlink with its link target, a submodule with its git URL, either way pointing at the web UI) instead of returning content; a file whose payload the instance withholds (above its contents API payload limit) is answered with a successful notice naming its size instead of its content.',
+        'Get the decoded text content of a file in a repository. Large files are truncated to ~10 KB by the tool result budget. A path that names a directory (use list_repo_contents to list its entries), a symlink, or a submodule is not a file and is reported as an error naming what the entry actually is (a symlink with its link target, a submodule with its git URL, either way pointing at the web UI) instead of returning content; a path whose contents listing comes back empty is reported as an error naming both causes it can have — an empty directory, or an empty repository, which answers an empty listing for every path — because the response cannot tell them apart; a file whose payload the instance withholds (above its contents API payload limit) is answered with a successful notice naming its size instead of its content.',
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -1739,7 +1870,7 @@ export function registerTools(
     'list_repo_contents',
     {
       description:
-        'List the entries at a path in a repository (default: repository root): files, directories, symlinks and submodules. A directory path answers with its children; a file path answers that one entry (whose `content`, when the API sends it, is base64 — use get_file_content for decoded text).',
+        'List the entries at a path in a repository (default: repository root): files, directories, symlinks and submodules. A directory path answers with its children; a file path answers that one entry (whose `content`, when the API sends it, is base64 — use get_file_content for decoded text). An empty result is an empty directory or an empty repository: Forgejo answers an empty list for every path once the repository has no content, so treat an empty listing as "nothing here", not as proof that the path is a directory.',
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -1754,7 +1885,8 @@ export function registerTools(
   server.registerTool(
     'list_branches',
     {
-      description: 'List the branches of a repository.',
+      description:
+        "List the branches of a repository. The result is `{ items, totalCount }`: `items` holds the branches and `totalCount` is the server's own branch count when it reports one, which is what tells a list cut off at the shared cap from a complete one.",
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
@@ -1764,7 +1896,8 @@ export function registerTools(
   server.registerTool(
     'list_tags',
     {
-      description: 'List the tags of a repository.',
+      description:
+        "List the tags of a repository. The result is `{ items, totalCount }`: `items` holds the tags and `totalCount` is the server's own tag count when it reports one, which is what tells a list cut off at the shared cap from a complete one.",
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
@@ -1788,7 +1921,7 @@ export function registerTools(
   server.registerTool(
     'get_file_history',
     {
-      description: `List the commits that touched a file, paged up to the shared list cap of ${LIST_ITEM_LIMIT} commits. A result that reaches ${LIST_ITEM_LIMIT} commits is reported as incomplete: \`ref\` selects the revision to walk from, not a narrower slice of the history, so this tool has no filter or page to fetch the rest.`,
+      description: `List the commits that touched a file, paged up to the shared list cap of ${LIST_ITEM_LIMIT} commits. The result is \`{ items, totalCount }\`: \`items\` holds the commits and \`totalCount\` is the server's own commit count for that file when it reports one — so a history holding exactly ${LIST_ITEM_LIMIT} commits is complete, while fewer rows than the total is reported as incomplete. \`ref\` selects the revision to walk from, not a narrower slice of the history, so this tool has no filter or page to fetch the rest.`,
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -1850,7 +1983,8 @@ export function registerTools(
   server.registerTool(
     'list_pull_reviews',
     {
-      description: 'List the reviews of a pull request with their conclusions (APPROVED, CHANGES_REQUESTED, etc.).',
+      description:
+        "List the reviews of a pull request with their conclusions (APPROVED, CHANGES_REQUESTED, etc.). The result is `{ items, totalCount }`: `items` holds the reviews and `totalCount` is the server's own review count when it reports one, which is what tells a list cut off at the shared cap from a complete one.",
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -1864,7 +1998,7 @@ export function registerTools(
   server.registerTool(
     'get_pr_review_brief',
     {
-      description: `Start reviewing a pull request in one call instead of get_pull_request + get_pr_diff + get_pr_timeline + list_pull_reviews. It returns: the pull request header (title, state, draft/merged, author, base and head branches, mergeable and the merge blockers); the diff statistics — changed-file count and total added/deleted lines from the pull request record, plus a per-file table of additions and deletions (line counts only, never the diff text); each reviewer's latest conclusion with its time and an aggregate summary; and the unresolved inline review comments with file path, line, author, time and body. Deliberately left out, because they are large and rarely needed to begin: the description and the commit list (use get_pull_request), the diff text (use get_pr_diff — a hunk can only be judged from the changed lines), the discussion timeline (use get_pr_timeline), and the raw review list (use list_pull_reviews when reviewStatus is not enough). Everything here is pre-sized to a shared budget: diffStats.truncated/truncatedBy say whether the per-file table was cut ('row-limit' or 'budget' by this tool, 'list-cap' by the client's shared 500-row list cap, 'server-partial' when the server itself returned fewer files than the pull request record's fileCount — in every case fileCount/additions/deletions stay exact); reviewStatus.truncated says the review list reached the shared 500-item cap; and unresolvedComments.total/returned/truncated/truncatedBy say how many unresolved comments exist and whether the count cap (${PR_REVIEW_MAX_COMMENTS}) or the character budget stopped the list, with bodyTruncated on a comment whose body was cut to ${PR_REVIEW_MAX_COMMENT_LENGTH} characters. The newest comments survive a cut. unresolvedComments.unreadableReviewCount is non-zero when a review's comment list could not be read, so the unresolved set may be missing entries. Set includeDiffStats to false to skip the changed-files request when only the file/line totals and the review state are needed.`,
+      description: `Start reviewing a pull request in one call instead of get_pull_request + get_pr_diff + get_pr_timeline + list_pull_reviews. It returns: the pull request header (title, state, draft/merged, author, base and head branches, mergeable and the merge blockers); the diff statistics — changed-file count and total added/deleted lines from the pull request record, plus a per-file table of additions and deletions (line counts only, never the diff text); each reviewer's latest conclusion with its time and an aggregate summary; and the unresolved inline review comments with file path, line, author, time and body. Deliberately left out, because they are large and rarely needed to begin: the description and the commit list (use get_pull_request), the diff text (use get_pr_diff — a hunk can only be judged from the changed lines), the discussion timeline (use get_pr_timeline), and the raw review list (use list_pull_reviews when reviewStatus is not enough). Everything here is pre-sized to a shared budget: diffStats.truncated/truncatedBy say whether the per-file table was cut ('row-limit' or 'budget' by this tool, 'list-cap' when the client's shared 500-row list cap was reached while the pull request record's fileCount says more files exist, 'server-partial' when the server itself returned fewer files than the record and no cap explains it — in every case fileCount/additions/deletions stay exact); reviewStatus.truncated says the review list is incomplete — the server's own review count decides it when the server reports one, so a pull request with exactly the shared cap of reviews is not announced as cut, and the cap is the fallback otherwise; and unresolvedComments.total/returned/truncated/truncatedBy say how many unresolved comments exist and whether the count cap (${PR_REVIEW_MAX_COMMENTS}) or the character budget stopped the list, with bodyTruncated on a comment whose body was cut to ${PR_REVIEW_MAX_COMMENT_LENGTH} characters. The newest comments survive a cut. unresolvedComments.unreadableReviewCount is non-zero when a review's comment list could not be read, so the unresolved set may be missing entries. Set includeDiffStats to false to skip the changed-files request when only the file/line totals and the review state are needed.`,
       inputSchema: {
         owner: ownerRequiredSchema,
         repo: repoRequiredSchema,
@@ -1894,7 +2028,8 @@ export function registerTools(
   server.registerTool(
     'list_releases',
     {
-      description: 'List the releases of a repository.',
+      description:
+        "List the releases of a repository. The result is `{ items, totalCount }`: `items` holds the releases and `totalCount` is the server's own release count when it reports one, which is what tells a list cut off at the shared cap from a complete one.",
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
@@ -1904,7 +2039,8 @@ export function registerTools(
   server.registerTool(
     'list_labels',
     {
-      description: 'List the labels of a repository.',
+      description:
+        "List the labels of a repository. The result is `{ items, totalCount }`: `items` holds the labels and `totalCount` is the server's own label count when it reports one, which is what tells a list cut off at the shared cap from a complete one.",
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
@@ -1914,7 +2050,8 @@ export function registerTools(
   server.registerTool(
     'list_milestones',
     {
-      description: 'List the open milestones of a repository.',
+      description:
+        "List the open milestones of a repository. The result is `{ items, totalCount }`: `items` holds the milestones and `totalCount` is the server's own milestone count when it reports one, which is what tells a list cut off at the shared cap from a complete one.",
       inputSchema: { owner: ownerRequiredSchema, repo: repoRequiredSchema },
       annotations: readOnly,
     },
@@ -1924,7 +2061,8 @@ export function registerTools(
   server.registerTool(
     'list_my_repos',
     {
-      description: 'List the repositories of the authenticated user (owned and collaborated).',
+      description:
+        "List the repositories of the authenticated user (owned and collaborated). The result is `{ items, totalCount }`: `items` holds the repositories and `totalCount` is the server's own count when it reports one, which is what tells a list cut off at the shared cap from a complete one.",
       inputSchema: {},
       annotations: readOnly,
     },

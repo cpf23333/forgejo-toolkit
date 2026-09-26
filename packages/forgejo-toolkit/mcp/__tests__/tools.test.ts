@@ -19,11 +19,12 @@ import {
   isSafePathSegment,
   isSafeRepoPath,
   summarizeCiJobLog,
+  summarizePrReviewStatus,
   truncateLargeStrings,
   MAX_TOOL_TEXT_LENGTH,
 } from '../tools';
 import { startMockServer, stopMockServer, resetMockServer, mockServer } from '../../src/test/mocks/server';
-import { MOCK_COMMENT_ONLY_KEYWORD } from '../../src/test/mocks/handlers';
+import { MOCK_COMMENT_ONLY_KEYWORD, MOCK_EMPTY_REPO } from '../../src/test/mocks/handlers';
 import {
   mockIssues,
   mockIssueDetail,
@@ -204,32 +205,42 @@ describe('MCP tool handlers with MSW', () => {
 
   it('list_issues lists repository issues when owner and repo are given', async () => {
     const handlers = createHandlers();
-    const issues = (await handlers.list_issues({ owner: 'demo-user', repo: 'demo-repo' })) as typeof mockIssues;
-    expect(issues).toHaveLength(mockIssues.length);
-    expect(issues[0].title).toBe(mockIssues[0].title);
+    const issues = await handlers.list_issues({ owner: 'demo-user', repo: 'demo-repo' });
+    expect(issues.items).toHaveLength(mockIssues.length);
+    expect(issues.items[0].title).toBe(mockIssues[0].title);
   });
 
   it('list_issues falls back to the user issue list without owner/repo', async () => {
     const handlers = createHandlers();
-    const issues = (await handlers.list_issues({})) as typeof mockIssues;
-    expect(issues).toHaveLength(mockIssues.length);
-    expect(issues[0].title).toBe(mockIssues[0].title);
+    const issues = await handlers.list_issues({});
+    expect(issues.items).toHaveLength(mockIssues.length);
+    expect(issues.items[0].title).toBe(mockIssues[0].title);
+  });
+
+  it('list_issues reports no total for the instance-wide listing', async () => {
+    // `getUserIssues` answers rows only (the wrapper drops X-Total-Count), so the
+    // tool result says the total is unknown instead of inventing one: the note
+    // has to fall back to the length heuristic there.
+    const handlers = createHandlers();
+    const issues = await handlers.list_issues({});
+
+    expect(issues.totalCount).toBeUndefined();
   });
 
   it('list_issues passes the keyword filter through for repository listings', async () => {
     const handlers = createHandlers();
-    const matches = (await handlers.list_issues({
+    const matches = await handlers.list_issues({
       owner: 'demo-user',
       repo: 'demo-repo',
       query: 'login',
-    })) as typeof mockIssues;
-    expect(matches).toHaveLength(1);
-    const misses = (await handlers.list_issues({
+    });
+    expect(matches.items).toHaveLength(1);
+    const misses = await handlers.list_issues({
       owner: 'demo-user',
       repo: 'demo-repo',
       query: 'no-such-keyword',
-    })) as typeof mockIssues;
-    expect(misses).toHaveLength(0);
+    });
+    expect(misses.items).toHaveLength(0);
   });
 
   it('list_issues keeps a match the server found only in a comment', async () => {
@@ -239,30 +250,71 @@ describe('MCP tool handlers with MSW', () => {
     // an issue whose match lived in a comment was dropped — and the only note
     // about a cut answer fires at the LIST_ITEM_LIMIT cap, so nothing said a
     // match had gone missing.
+    //
+    // The listing holds a second, non-matching issue on purpose: with a one-row
+    // fixture the same row comes back whether or not the keyword ever reached the
+    // server, so a "the match is present" assertion could not tell a filtered
+    // answer from an unfiltered one (see mockUnmatchedIssue).
     const handlers = createHandlers();
     const keyword = MOCK_COMMENT_ONLY_KEYWORD;
     // The fixture is only a comment-only match if the keyword is nowhere else.
     expect(`${mockIssues[0].title} ${mockIssues[0].body}`.toLowerCase()).not.toContain(keyword);
+    const unmatched = mockIssues.filter((issue) => issue.number !== mockIssues[0].number);
+    expect(unmatched.length).toBeGreaterThan(0);
+    for (const issue of unmatched) {
+      expect(`${issue.title} ${issue.body}`.toLowerCase()).not.toContain(keyword);
+    }
 
-    const matches = (await handlers.list_issues({
+    const matches = await handlers.list_issues({
       owner: 'demo-user',
       repo: 'demo-repo',
       query: keyword,
-    })) as typeof mockIssues;
+    });
 
-    expect(matches.map((issue) => issue.number)).toContain(mockIssues[0].number);
+    // Only the comment match, and so the non-matching row is absent: dropping
+    // the keyword (an unfiltered server answer) or re-filtering the rows on the
+    // client would each show up here.
+    expect(matches.items.map((issue) => issue.number)).toEqual([mockIssues[0].number]);
+  });
+
+  it('list_issues sends the keyword to the repository listing instead of filtering locally', async () => {
+    // The same guarantee from the other side: the argument has to arrive at the
+    // client method that puts it in the request, or no server-side matching
+    // happens at all.
+    const keyword = MOCK_COMMENT_ONLY_KEYWORD;
+    const { call, calls } = registerWithStubClient({ getRepoIssues: async () => ({ items: [] }) });
+
+    await call('list_issues', { owner: 'demo-user', repo: 'demo-repo', state: 'all', query: keyword });
+
+    expect(calls).toEqual([{ name: 'getRepoIssues', args: ['demo-user', 'demo-repo', 'all', keyword] }]);
   });
 
   it('list_pull_requests keeps a comment-only match on the instance-wide listing', async () => {
     // The instance-wide branch has no client-side filter left either: the
-    // keyword goes to the server, so the same comment match survives there.
+    // keyword goes to the server, so the same comment match survives there. The
+    // second fixture row is what makes the assertion discriminating (see
+    // list_issues above).
     const handlers = createHandlers();
     const keyword = MOCK_COMMENT_ONLY_KEYWORD;
     expect(`${mockPullRequests[0].title} ${mockPullRequests[0].body}`.toLowerCase()).not.toContain(keyword);
+    const unmatched = mockPullRequests.filter((pull) => pull.number !== mockPullRequests[0].number);
+    expect(unmatched.length).toBeGreaterThan(0);
+    for (const pull of unmatched) {
+      expect(`${pull.title} ${pull.body}`.toLowerCase()).not.toContain(keyword);
+    }
 
-    const matches = (await handlers.list_pull_requests({ query: keyword })) as typeof mockPullRequests;
+    const matches = await handlers.list_pull_requests({ query: keyword });
 
-    expect(matches.map((pull) => pull.number)).toContain(mockPullRequests[0].number);
+    expect(matches.items.map((pull) => pull.number)).toEqual([mockPullRequests[0].number]);
+  });
+
+  it('list_pull_requests sends the keyword to the instance-wide listing', async () => {
+    const keyword = MOCK_COMMENT_ONLY_KEYWORD;
+    const { call, calls } = registerWithStubClient({ getUserPullRequests: async () => [] });
+
+    await call('list_pull_requests', { query: keyword });
+
+    expect(calls).toEqual([{ name: 'getUserPullRequests', args: ['open', keyword] }]);
   });
 
   it('get_issue returns the issue detail with its comments', async () => {
@@ -270,27 +322,31 @@ describe('MCP tool handlers with MSW', () => {
     const result = (await handlers.get_issue({ owner: 'demo-user', repo: 'demo-repo', index: 1 })) as {
       issue: typeof mockIssueDetail;
       comments: unknown[];
+      commentsTotalCount?: number;
     };
     expect(result.issue.number).toBe(mockIssueDetail.number);
     expect(result.issue.title).toBe(mockIssueDetail.title);
     expect(result.comments).toHaveLength(1);
+    // The rows keep their shape and the server's own count sits beside them; the
+    // mock sends no X-Total-Count, so it is honestly absent.
+    expect(result.commentsTotalCount).toBeUndefined();
   });
 
   it('list_pull_requests lists repository pull requests', async () => {
     const handlers = createHandlers();
-    const pulls = (await handlers.list_pull_requests({
+    const pulls = await handlers.list_pull_requests({
       owner: 'demo-user',
       repo: 'demo-repo',
-    })) as typeof mockPullRequests;
-    expect(pulls).toHaveLength(mockPullRequests.length);
-    expect(pulls[0].title).toBe(mockPullRequests[0].title);
+    });
+    expect(pulls.items).toHaveLength(mockPullRequests.length);
+    expect(pulls.items[0].title).toBe(mockPullRequests[0].title);
   });
 
   it('list_pull_requests falls back to the user pull request list without owner/repo', async () => {
     const handlers = createHandlers();
-    const pulls = (await handlers.list_pull_requests({})) as typeof mockPullRequests;
-    expect(pulls).toHaveLength(mockPullRequests.length);
-    expect(pulls[0].title).toBe(mockPullRequests[0].title);
+    const pulls = await handlers.list_pull_requests({});
+    expect(pulls.items).toHaveLength(mockPullRequests.length);
+    expect(pulls.items[0].title).toBe(mockPullRequests[0].title);
   });
 
   it('list_issues applies the keyword filter to the instance-wide listing too', async () => {
@@ -298,22 +354,22 @@ describe('MCP tool handlers with MSW', () => {
     // caller that passes `query` is asking for a filtered answer: dropping the
     // argument returned every issue as if the filter had been applied.
     const handlers = createHandlers();
-    const matches = (await handlers.list_issues({ query: 'login' })) as typeof mockIssues;
-    expect(matches).toHaveLength(1);
-    expect(matches[0].title).toBe(mockIssues[0].title);
+    const matches = await handlers.list_issues({ query: 'login' });
+    expect(matches.items).toHaveLength(1);
+    expect(matches.items[0].title).toBe(mockIssues[0].title);
 
-    const misses = (await handlers.list_issues({ query: 'no-such-keyword' })) as typeof mockIssues;
-    expect(misses).toHaveLength(0);
+    const misses = await handlers.list_issues({ query: 'no-such-keyword' });
+    expect(misses.items).toHaveLength(0);
   });
 
   it('list_pull_requests applies the keyword filter to the instance-wide listing too', async () => {
     const handlers = createHandlers();
-    const matches = (await handlers.list_pull_requests({ query: 'dark' })) as typeof mockPullRequests;
-    expect(matches).toHaveLength(1);
-    expect(matches[0].title).toBe(mockPullRequests[0].title);
+    const matches = await handlers.list_pull_requests({ query: 'dark' });
+    expect(matches.items).toHaveLength(1);
+    expect(matches.items[0].title).toBe(mockPullRequests[0].title);
 
-    const misses = (await handlers.list_pull_requests({ query: 'no-such-keyword' })) as typeof mockPullRequests;
-    expect(misses).toHaveLength(0);
+    const misses = await handlers.list_pull_requests({ query: 'no-such-keyword' });
+    expect(misses.items).toHaveLength(0);
   });
 
   it('get_pull_request returns the detail with files and commits', async () => {
@@ -321,22 +377,31 @@ describe('MCP tool handlers with MSW', () => {
     const result = (await handlers.get_pull_request({ owner: 'demo-user', repo: 'demo-repo', index: 2 })) as {
       pullRequest: typeof mockPullRequestDetail;
       files: { filename?: string }[];
+      filesTotalCount?: number;
       commits: { sha?: string }[];
+      commitsTotalCount?: number;
     };
     expect(result.pullRequest.number).toBe(mockPullRequestDetail.number);
     expect(result.pullRequest.title).toBe(mockPullRequestDetail.title);
     expect(result.files).toHaveLength(1);
     expect(result.files[0].filename).toBe('src/index.ts');
     expect(result.commits[0].sha).toBe(mockPullRequestCommit.sha);
+    // The mock sends no X-Total-Count: both totals are honestly absent.
+    expect(result.filesTotalCount).toBeUndefined();
+    expect(result.commitsTotalCount).toBeUndefined();
   });
 
   it('get_pr_timeline returns the comment timeline', async () => {
     const handlers = createHandlers();
     const timeline = (await handlers.get_pr_timeline({ owner: 'demo-user', repo: 'demo-repo', index: 2 })) as {
-      body?: string;
-    }[];
-    expect(timeline).toHaveLength(1);
-    expect(timeline[0].body).toBe(mockTimelineComment.body);
+      items: { body?: string }[];
+      totalCount?: number;
+    };
+    expect(timeline.items).toHaveLength(1);
+    expect(timeline.items[0].body).toBe(mockTimelineComment.body);
+    // The mock server sends no X-Total-Count, which is the old-server shape: the
+    // total is honestly absent rather than invented.
+    expect(timeline.totalCount).toBeUndefined();
   });
 
   it('get_pr_review_brief packs the pull request, its diff stats, reviews and unresolved comments', async () => {
@@ -402,7 +467,7 @@ describe('MCP tool handlers with MSW', () => {
         user: { login: 'alice' },
       }),
       getPullRequestFiles: async () => [{ filename: 'src/index.ts', additions: 30, deletions: 4 }],
-      listPullReviews: async () => [],
+      listPullReviewsWithTotal: async () => ({ items: [] }),
       getPullReviewComments: async () => [],
     });
 
@@ -421,18 +486,20 @@ describe('MCP tool handlers with MSW', () => {
     const { call } = registerWithStubClient({
       getPullRequestDetail: async () => ({ number: 2, title: 'Add dark mode', state: 'open' }),
       getPullRequestFiles: async () => [],
-      listPullReviews: async () => [
-        { id: 1, user: { login: 'alice' }, state: 'REQUEST_CHANGES', submitted_at: '2026-08-01T09:00:00Z' },
-        { id: 2, user: { login: 'bob' }, state: 'COMMENT', submitted_at: '2026-08-02T09:00:00Z' },
-        { id: 3, user: { login: 'alice' }, state: 'APPROVED', submitted_at: '2026-08-03T09:00:00Z' },
-        {
-          id: 4,
-          user: { login: 'carol' },
-          state: 'CHANGES_REQUESTED',
-          submitted_at: '2026-08-04T09:00:00Z',
-          stale: true,
-        },
-      ],
+      listPullReviewsWithTotal: async () => ({
+        items: [
+          { id: 1, user: { login: 'alice' }, state: 'REQUEST_CHANGES', submitted_at: '2026-08-01T09:00:00Z' },
+          { id: 2, user: { login: 'bob' }, state: 'COMMENT', submitted_at: '2026-08-02T09:00:00Z' },
+          { id: 3, user: { login: 'alice' }, state: 'APPROVED', submitted_at: '2026-08-03T09:00:00Z' },
+          {
+            id: 4,
+            user: { login: 'carol' },
+            state: 'CHANGES_REQUESTED',
+            submitted_at: '2026-08-04T09:00:00Z',
+            stale: true,
+          },
+        ],
+      }),
       getPullReviewComments: async () => [],
     });
 
@@ -461,11 +528,13 @@ describe('MCP tool handlers with MSW', () => {
     const { call } = registerWithStubClient({
       getPullRequestDetail: async () => ({ number: 2 }),
       getPullRequestFiles: async () => [],
-      listPullReviews: async () => [
-        { id: 1, user: { login: 'alice' }, state: 'APPROVED' },
-        // Forgejo's own spelling; `CHANGES_REQUESTED` (GitHub's) is recognised too.
-        { id: 2, user: { login: 'bob' }, state: 'REQUEST_CHANGES' },
-      ],
+      listPullReviewsWithTotal: async () => ({
+        items: [
+          { id: 1, user: { login: 'alice' }, state: 'APPROVED' },
+          // Forgejo's own spelling; `CHANGES_REQUESTED` (GitHub's) is recognised too.
+          { id: 2, user: { login: 'bob' }, state: 'REQUEST_CHANGES' },
+        ],
+      }),
       getPullReviewComments: async () => [],
     });
 
@@ -490,7 +559,7 @@ describe('MCP tool handlers with MSW', () => {
         deletions: files.length,
       }),
       getPullRequestFiles: async () => files,
-      listPullReviews: async () => [],
+      listPullReviewsWithTotal: async () => ({ items: [] }),
       getPullReviewComments: async () => [],
     });
 
@@ -506,10 +575,36 @@ describe('MCP tool handlers with MSW', () => {
     expect(brief.diffStats.additions).toBe(files.length);
   });
 
-  it('get_pr_review_brief reports the client list cap on the changed-file list', async () => {
-    // The client pages changed files up to the shared cap, so a list that reaches
-    // it may be missing files the tool never saw: that cut has to outrank the
-    // tool's own row budget.
+  it('get_pr_review_brief blames the client list cap only when the record says files are missing', async () => {
+    // The client pages changed files up to the shared cap, and the pull request
+    // record carries the exact `changed_files`: a table that reached the cap while
+    // the record holds more is missing rows the tool never saw, so that cut has to
+    // outrank the tool's own row budget.
+    const files = Array.from({ length: LIST_ITEM_LIMIT }, (_, index) => ({
+      filename: `f${index}.ts`,
+      status: 'modified',
+      additions: 1,
+      deletions: 0,
+    }));
+    const { call } = registerWithStubClient({
+      getPullRequestDetail: async () => ({ number: 2, changed_files: files.length + 100 }),
+      getPullRequestFiles: async () => files,
+      listPullReviewsWithTotal: async () => ({ items: [] }),
+      getPullReviewComments: async () => [],
+    });
+
+    const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
+
+    expect(brief.diffStats.truncated).toBe(true);
+    expect(brief.diffStats.truncatedBy).toBe('list-cap');
+  });
+
+  it('get_pr_review_brief does not blame the client cap for a complete list at the cap', async () => {
+    // A pull request with exactly LIST_ITEM_LIMIT changed files fills the client
+    // cap without losing a row, and the record's `changed_files` says so: the
+    // length alone called this complete list truncated and pointed the caller at a
+    // cut that never happened. The table is still cut, but by this tool's own row
+    // limit, which is what `truncatedBy` now names.
     const files = Array.from({ length: LIST_ITEM_LIMIT }, (_, index) => ({
       filename: `f${index}.ts`,
       status: 'modified',
@@ -519,14 +614,15 @@ describe('MCP tool handlers with MSW', () => {
     const { call } = registerWithStubClient({
       getPullRequestDetail: async () => ({ number: 2, changed_files: files.length }),
       getPullRequestFiles: async () => files,
-      listPullReviews: async () => [],
+      listPullReviewsWithTotal: async () => ({ items: [] }),
       getPullReviewComments: async () => [],
     });
 
     const brief = parseBrief(await call('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }));
 
-    expect(brief.diffStats.truncated).toBe(true);
-    expect(brief.diffStats.truncatedBy).toBe('list-cap');
+    expect(brief.diffStats.truncatedBy).toBe('row-limit');
+    expect(brief.diffStats.listedFileCount).toBe(PR_REVIEW_MAX_DIFF_FILES);
+    expect(brief.diffStats.fileCount).toBe(LIST_ITEM_LIMIT);
   });
 
   it('get_pr_review_brief flags it when the server returns fewer files than the pull request record claims', async () => {
@@ -537,7 +633,7 @@ describe('MCP tool handlers with MSW', () => {
     const { call } = registerWithStubClient({
       getPullRequestDetail: async () => ({ number: 2, changed_files: 16, additions: 183, deletions: 456 }),
       getPullRequestFiles: async () => [{ filename: 'README.md', additions: 142, deletions: 16 }],
-      listPullReviews: async () => [],
+      listPullReviewsWithTotal: async () => ({ items: [] }),
       getPullReviewComments: async () => [],
     });
 
@@ -560,7 +656,7 @@ describe('MCP tool handlers with MSW', () => {
     const { call } = registerWithStubClient({
       getPullRequestDetail: async () => ({ number: 2 }),
       getPullRequestFiles: async () => [],
-      listPullReviews: async () => [{ id: 1, user: { login: 'alice' }, state: 'COMMENT' }],
+      listPullReviewsWithTotal: async () => ({ items: [{ id: 1, user: { login: 'alice' }, state: 'COMMENT' }] }),
       getPullReviewComments: async () => comments,
     });
 
@@ -586,7 +682,7 @@ describe('MCP tool handlers with MSW', () => {
     const { call } = registerWithStubClient({
       getPullRequestDetail: async () => ({ number: 2 }),
       getPullRequestFiles: async () => [],
-      listPullReviews: async () => [{ id: 1, user: { login: 'alice' }, state: 'COMMENT' }],
+      listPullReviewsWithTotal: async () => ({ items: [{ id: 1, user: { login: 'alice' }, state: 'COMMENT' }] }),
       getPullReviewComments: async () => comments,
     });
 
@@ -609,7 +705,7 @@ describe('MCP tool handlers with MSW', () => {
     const { call } = registerWithStubClient({
       getPullRequestDetail: async () => ({ number: 2 }),
       getPullRequestFiles: async () => [],
-      listPullReviews: async () => [{ id: 1, user: { login: 'alice' }, state: 'COMMENT' }],
+      listPullReviewsWithTotal: async () => ({ items: [{ id: 1, user: { login: 'alice' }, state: 'COMMENT' }] }),
       getPullReviewComments: async () => [
         {
           id: 1,
@@ -649,39 +745,44 @@ describe('MCP tool handlers with MSW', () => {
 
   it('list_notifications defaults to unread and pinned notifications', async () => {
     const handlers = createHandlers();
-    const notifications = (await handlers.list_notifications({})) as typeof mockNotifications;
+    const page = await handlers.list_notifications({});
     const expected = mockNotifications.filter((n) => n.unread || n.pinned);
-    expect(notifications).toHaveLength(expected.length);
-    expect(notifications.map((n) => n.id)).toEqual(expected.map((n) => n.id));
+    expect(page.items).toHaveLength(expected.length);
+    expect(page.items.map((n) => n.id)).toEqual(expected.map((n) => n.id));
   });
 
   it('list_notifications honors the status filter', async () => {
     const handlers = createHandlers();
-    const notifications = (await handlers.list_notifications({ statusTypes: ['read'] })) as typeof mockNotifications;
-    expect(notifications).toHaveLength(1);
-    expect(notifications[0].unread).toBe(false);
+    const page = await handlers.list_notifications({ statusTypes: ['read'] });
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].unread).toBe(false);
   });
 
   it('list_notifications pages with the before cursor, as the webview does', async () => {
-    // The client passes `before` through as the API's page cursor (only threads
-    // updated before that instant), and the cursor a caller has to send is the
-    // `updated_at` of the oldest row of the previous page — the same value the
-    // webview pages with.
+    // The client passes `before` through as the API's page cursor, and the cursor
+    // a caller has to send is the `updated_at` of the oldest row of the previous
+    // page — the same value the webview pages with.
     const handlers = createHandlers();
-    const firstPage = (await handlers.list_notifications({
+    const firstPage = await handlers.list_notifications({
       statusTypes: ['unread', 'pinned', 'read'],
       limit: 1,
-    })) as typeof mockNotifications;
-    expect(firstPage.map((notification) => notification.id)).toEqual([101]);
+    });
+    expect(firstPage.items.map((notification) => notification.id)).toEqual([101]);
 
-    const secondPage = (await handlers.list_notifications({
+    const secondPage = await handlers.list_notifications({
       statusTypes: ['unread', 'pinned', 'read'],
       limit: 10,
-      before: firstPage[0].updated_at,
-    })) as typeof mockNotifications;
+      before: firstPage.items[0].updated_at,
+    });
 
-    // 101 is outside the cursor's window now: the page after it holds 102 and 103.
-    expect(secondPage.map((notification) => notification.id)).toEqual([102, 103]);
+    // Forgejo filters with `updated_unix <= before` (`UpdatedBeforeUnix` builds a
+    // `Lte`), so the boundary row 101 is *not* behind the cursor: it comes back,
+    // and a caller that concatenated the pages would duplicate it.
+    expect(secondPage.items.map((notification) => notification.id)).toEqual([101, 102, 103]);
+    expect(secondPage.items[0].id).toBe(firstPage.items[0].id);
+    // Following the documented recipe therefore means skipping the row already
+    // held; what is left is the rest of the page.
+    expect(secondPage.items.slice(1).map((notification) => notification.id)).toEqual([102, 103]);
   });
 
   it('forwards the notification cursor to the client instead of dropping it', async () => {
@@ -890,13 +991,14 @@ describe('MCP tool handlers with MSW', () => {
 
   it('get_action_run_artifacts returns the artifacts of a run', async () => {
     const handlers = createHandlers();
-    const artifacts = (await handlers.get_action_run_artifacts({
+    const page = (await handlers.get_action_run_artifacts({
       owner: 'demo-user',
       repo: 'demo-repo',
       runId: 42,
-    })) as (typeof mockActionArtifact)[];
-    expect(artifacts).toHaveLength(1);
-    expect(artifacts[0].name).toBe(mockActionArtifact.name);
+    })) as { items: (typeof mockActionArtifact)[]; totalCount?: number };
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].name).toBe(mockActionArtifact.name);
+    expect(page.totalCount).toBeUndefined();
   });
 
   it('get_file_content decodes the file content', async () => {
@@ -931,16 +1033,20 @@ describe('MCP tool handlers with MSW', () => {
 
   it('list_branches returns the repository branches', async () => {
     const handlers = createHandlers();
-    const branches = (await handlers.list_branches({ owner: 'demo-user', repo: 'demo-repo' })) as {
-      name?: string;
-    }[];
-    expect(branches.map((branch) => branch.name)).toEqual(['main', 'dev']);
+    const page = (await handlers.list_branches({ owner: 'demo-user', repo: 'demo-repo' })) as {
+      items: { name?: string }[];
+      totalCount?: number;
+    };
+    expect(page.items.map((branch) => branch.name)).toEqual(['main', 'dev']);
   });
 
   it('list_tags returns the repository tags', async () => {
     const handlers = createHandlers();
-    const tags = (await handlers.list_tags({ owner: 'demo-user', repo: 'demo-repo' })) as { name?: string }[];
-    expect(tags.map((tag) => tag.name)).toEqual(['v1.0.0']);
+    const page = (await handlers.list_tags({ owner: 'demo-user', repo: 'demo-repo' })) as {
+      items: { name?: string }[];
+      totalCount?: number;
+    };
+    expect(page.items.map((tag) => tag.name)).toEqual(['v1.0.0']);
   });
 
   it('list_commits returns the latest branch commits', async () => {
@@ -954,14 +1060,14 @@ describe('MCP tool handlers with MSW', () => {
 
   it('get_file_history returns the commits that touched a file', async () => {
     const handlers = createHandlers();
-    const commits = (await handlers.get_file_history({
+    const page = (await handlers.get_file_history({
       owner: 'demo-user',
       repo: 'demo-repo',
       path: 'README.md',
       ref: 'main',
-    })) as { sha?: string }[];
-    expect(commits).toHaveLength(1);
-    expect(commits[0].sha).toBe(mockHistoryCommit.sha);
+    })) as { items: { sha?: string }[]; totalCount?: number };
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].sha).toBe(mockHistoryCommit.sha);
   });
 
   it('search_repo_files matches paths by keyword', async () => {
@@ -1044,6 +1150,22 @@ describe('MCP tool handlers with MSW', () => {
 
     expect(result?.isError).toBeFalsy();
     expect(result?.content[0].text ?? '').toContain('demo-repo');
+  });
+
+  it('does not answer an empty repository path with "is a directory"', async () => {
+    // Forgejo's `GetContentsOrList` answers an empty list for every contents path
+    // once the repository is empty, and an empty directory answers the same way.
+    // Nothing in the response says which one the caller hit, and the client used
+    // to map the empty array to `kind: 'directory'`, so this tool reported a
+    // cause the server never gave.
+    const { call } = registerWith(new ForgejoClient('https://forgejo.example.com', 'mock-token'));
+    const result = await call('get_file_content', { owner: 'demo-user', repo: MOCK_EMPTY_REPO, path: 'README.md' });
+    const text = result?.content[0].text ?? '';
+
+    expect(result?.isError).toBe(true);
+    expect(text).not.toContain('is a directory');
+    expect(text).toContain('list_repo_contents');
+    expect(text).toMatch(/empty directory or an empty repository/);
   });
 
   it('answers a directory path with isError instead of a successful notice', async () => {
@@ -1146,14 +1268,14 @@ describe('MCP tool handlers with MSW', () => {
 
   it('list_pull_reviews returns the review conclusions', async () => {
     const handlers = createHandlers();
-    const reviews = (await handlers.list_pull_reviews({
+    const page = (await handlers.list_pull_reviews({
       owner: 'demo-user',
       repo: 'demo-repo',
       index: 2,
-    })) as (typeof mockPullReview)[];
-    expect(reviews).toHaveLength(1);
-    expect(reviews[0].id).toBe(mockPullReview.id);
-    expect(reviews[0].state).toBe(mockPullReview.state);
+    })) as { items: (typeof mockPullReview)[]; totalCount?: number };
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].id).toBe(mockPullReview.id);
+    expect(page.items[0].state).toBe(mockPullReview.state);
   });
 
   it('whoami returns the authenticated user', async () => {
@@ -1164,35 +1286,39 @@ describe('MCP tool handlers with MSW', () => {
 
   it('list_releases returns the repository releases', async () => {
     const handlers = createHandlers();
-    const releases = (await handlers.list_releases({ owner: 'demo-user', repo: 'demo-repo' })) as {
-      tag_name?: string;
-    }[];
-    expect(releases).toHaveLength(1);
-    expect(releases[0].tag_name).toBe('v2.0.0');
+    const page = (await handlers.list_releases({ owner: 'demo-user', repo: 'demo-repo' })) as {
+      items: { tag_name?: string }[];
+      totalCount?: number;
+    };
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].tag_name).toBe('v2.0.0');
   });
 
   it('list_labels returns the repository labels', async () => {
     const handlers = createHandlers();
-    const labels = (await handlers.list_labels({ owner: 'demo-user', repo: 'demo-repo' })) as (typeof mockLabel)[];
-    expect(labels).toHaveLength(1);
-    expect(labels[0].name).toBe(mockLabel.name);
+    const page = (await handlers.list_labels({ owner: 'demo-user', repo: 'demo-repo' })) as {
+      items: (typeof mockLabel)[];
+      totalCount?: number;
+    };
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].name).toBe(mockLabel.name);
   });
 
   it('list_milestones returns the repository milestones', async () => {
     const handlers = createHandlers();
-    const milestones = (await handlers.list_milestones({
+    const page = (await handlers.list_milestones({
       owner: 'demo-user',
       repo: 'demo-repo',
-    })) as (typeof mockMilestone)[];
-    expect(milestones).toHaveLength(1);
-    expect(milestones[0].title).toBe(mockMilestone.title);
+    })) as { items: (typeof mockMilestone)[]; totalCount?: number };
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].title).toBe(mockMilestone.title);
   });
 
   it('list_my_repos returns the authenticated user repositories', async () => {
     const handlers = createHandlers();
-    const repos = (await handlers.list_my_repos()) as (typeof mockRepository)[];
-    expect(repos).toHaveLength(3);
-    expect(repos[0].full_name).toBe(mockRepository.full_name);
+    const repos = await handlers.list_my_repos();
+    expect(repos.items).toHaveLength(3);
+    expect(repos.items[0].full_name).toBe(mockRepository.full_name);
   });
 
   it('get_repo says a branch and commit list the client cut is capped', async () => {
@@ -1617,24 +1743,68 @@ describe('registerTools cancellation', () => {
 });
 
 describe('list truncation reporting', () => {
+  /** A `PagedList`-shaped tool result: the rows plus the server's optional total. */
+  const PAGED_RESULT_SPEC = [{ field: 'items', totalField: 'totalCount', label: 'the result' }];
+  /** A tool result that *is* the row array, with no total beside it. */
+  const BARE_RESULT_SPEC = [{ field: 'the result' }];
+
   it('names a list that hit the item cap and stays silent otherwise', () => {
-    // Every paged client method stops at LIST_ITEM_LIMIT; the note is what tells a
-    // caller that more rows exist.
+    // Every paged client method stops at LIST_ITEM_LIMIT; without a total the
+    // note can only say the read reached the cap, not that rows are missing.
     expect(
-      listTruncationNote(
-        Array.from({ length: LIST_ITEM_LIMIT }, () => ({})),
-        ['the result'],
-        { canNarrow: true },
-      ),
-    ).toContain('truncated at ' + LIST_ITEM_LIMIT);
+      listTruncationNote({ items: Array.from({ length: LIST_ITEM_LIMIT }, () => ({})) }, PAGED_RESULT_SPEC, {
+        canNarrow: true,
+      }),
+    ).toContain('possibly truncated');
     expect(
-      listTruncationNote(
-        Array.from({ length: LIST_ITEM_LIMIT - 1 }, () => ({})),
-        ['the result'],
-        { canNarrow: true },
-      ),
+      listTruncationNote({ items: Array.from({ length: LIST_ITEM_LIMIT - 1 }, () => ({})) }, PAGED_RESULT_SPEC, {
+        canNarrow: true,
+      }),
     ).toBe('');
-    expect(listTruncationNote({ items: [] }, ['the result'], { canNarrow: true })).toBe('');
+    expect(listTruncationNote({ items: [] }, PAGED_RESULT_SPEC, { canNarrow: true })).toBe('');
+  });
+
+  it('does not call a complete list at the cap truncated when the total agrees', () => {
+    // The regression the server's `X-Total-Count` fixes: a list that holds
+    // exactly LIST_ITEM_LIMIT rows while the server holds exactly that many is
+    // whole, and the length-only heuristic called it incomplete.
+    const rows = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ id: i + 1 }));
+
+    expect(
+      listTruncationNote({ items: rows, totalCount: LIST_ITEM_LIMIT }, PAGED_RESULT_SPEC, { canNarrow: true }),
+    ).toBe('');
+    // A read that overshot the cap is complete too when the total agrees with it.
+    expect(listTruncationNote({ items: rows, totalCount: rows.length }, PAGED_RESULT_SPEC, { canNarrow: true })).toBe(
+      '',
+    );
+  });
+
+  it('reports the real row counts of a truncated list, not the cap it passed', () => {
+    // A server that clamps the page size makes the client stop mid-page: 510 rows
+    // came back, and saying "truncated at 500 items" both misreported the count
+    // and hid how much of the list is missing.
+    const note = listTruncationNote(
+      { items: Array.from({ length: 510 }, (_, i) => ({ id: i + 1 })), totalCount: 800 },
+      PAGED_RESULT_SPEC,
+      { canNarrow: true },
+    );
+
+    expect(note).toContain('truncated');
+    expect(note).toContain('510 of 800 rows');
+    expect(note).toContain('narrow the query');
+    expect(note).not.toContain(`truncated at ${LIST_ITEM_LIMIT}`);
+  });
+
+  it('still calls a genuinely cut list truncated, with both counts', () => {
+    const note = listTruncationNote(
+      { items: Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ id: i + 1 })), totalCount: 600 },
+      PAGED_RESULT_SPEC,
+      { canNarrow: true },
+    );
+
+    expect(note).toContain('truncated');
+    expect(note).toContain(`${LIST_ITEM_LIMIT} of 600 rows`);
+    expect(note).not.toContain('possibly');
   });
 
   it('tells a caller without any narrowing option that the rest is unreachable', () => {
@@ -1644,7 +1814,7 @@ describe('list truncation reporting', () => {
     // incomplete and point at the surfaces that can show the rest.
     const note = listTruncationNote(
       Array.from({ length: LIST_ITEM_LIMIT }, () => ({})),
-      ['the result'],
+      BARE_RESULT_SPEC,
       { canNarrow: false },
     );
 
@@ -1664,12 +1834,13 @@ describe('list truncation reporting', () => {
         comments: Array.from({ length: LIST_ITEM_LIMIT }, () => ({})),
         files: [{ path: 'a' }],
       },
-      ['comments'],
+      [{ field: 'comments' }],
       { canNarrow: true },
     );
 
-    expect(note).toContain('truncated at ' + LIST_ITEM_LIMIT);
+    expect(note).toContain('possibly truncated');
     expect(note).toContain('comments');
+    expect(note).toContain(`${LIST_ITEM_LIMIT}-row list cap`);
     expect(note).not.toContain('files');
   });
 
@@ -1680,8 +1851,8 @@ describe('list truncation reporting', () => {
     const complete = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ name: `file-${i}` }));
     expect(listTruncationNote(complete, [], { canNarrow: false })).toBe('');
     expect(listTruncationNote({ files: complete }, [], { canNarrow: false })).toBe('');
-    expect(listTruncationNote({ files: complete }, ['files'], { canNarrow: false })).toContain(
-      'truncated at ' + LIST_ITEM_LIMIT,
+    expect(listTruncationNote({ files: complete }, [{ field: 'files' }], { canNarrow: false })).toContain(
+      'possibly truncated',
     );
   });
 
@@ -1698,7 +1869,249 @@ describe('list truncation reporting', () => {
     registerTools(server, client);
     const result = await registered.get('list_issues')?.({ owner: 'demo-user', repo: 'demo-repo' });
 
-    expect(result?.content[0].text).toContain('truncated at ' + LIST_ITEM_LIMIT);
+    // The client reported no total for this read (the stub answers `{ items }`),
+    // so the note stays with the honest "possibly" wording.
+    expect(result?.content[0].text).toContain('possibly truncated');
+  });
+
+  it('does not call a tool result at the cap truncated when the reported total agrees', async () => {
+    // The tool-level shape of the same regression: the handler used to keep only
+    // `.items`, so the exact total never reached the note.
+    const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ id: i + 1, title: 'issue' }));
+    const client = { getRepoIssues: async () => ({ items: capped, totalCount: LIST_ITEM_LIMIT }) } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('list_issues')?.({ owner: 'demo-user', repo: 'demo-repo' });
+    const text = result?.content[0].text ?? '';
+
+    expect(text).not.toContain('truncated');
+    expect(text).not.toContain('incomplete');
+  });
+
+  it('reports the real numbers of an overshooting tool result', async () => {
+    const rows = Array.from({ length: 510 }, (_, i) => ({ id: i + 1, title: 'issue' }));
+    const client = { getRepoIssues: async () => ({ items: rows, totalCount: 800 }) } as never;
+    const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+
+    registerTools(server, client);
+    const result = await registered.get('list_issues')?.({ owner: 'demo-user', repo: 'demo-repo' });
+    const text = result?.content[0].text ?? '';
+    const note = text.slice(text.indexOf('\n(list'));
+
+    expect(note).toContain('510 of 800 rows');
+    expect(note).toContain('narrow the query');
+    expect(note).not.toContain(`truncated at ${LIST_ITEM_LIMIT}`);
+  });
+
+  /**
+   * Registers the tools against a stub client and returns the text of one tool
+   * result. Used by the tests that check which totals reach the note for the
+   * lists whose client method hands out a `PagedList`.
+   */
+  function callStubTool(methods: Record<string, (...args: never[]) => Promise<unknown>>): {
+    text: (name: string, args: unknown) => Promise<string>;
+    calls: () => string[];
+  } {
+    const names: string[] = [];
+    const client = new Proxy(methods, {
+      get: (target, property: string) => {
+        if (property in target) {
+          return (...args: unknown[]) => {
+            names.push(property);
+            return (target[property] as (...args: unknown[]) => Promise<unknown>)(...args);
+          };
+        }
+        if (property === 'withSignal') {
+          return () => client;
+        }
+        throw new Error(`stub client has no method ${property}`);
+      },
+    });
+    const registered = new Map<
+      string,
+      (args: unknown, extra?: unknown) => Promise<{ isError?: boolean; content: { text: string }[] }>
+    >();
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: never) => {
+        registered.set(name, handler);
+      },
+    } as never;
+    registerTools(server, client as never);
+    return {
+      text: async (name, args) => (await registered.get(name)?.(args))?.content[0].text ?? '',
+      calls: () => names,
+    };
+  }
+
+  it('does not call an exactly-at-cap branch list truncated when the total agrees', async () => {
+    // The end of the bare-array story: `list_branches` now carries the server's
+    // own count, so a repository whose 500 branches are all of them is complete
+    // instead of "possibly truncated".
+    const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ name: `branch-${i}` }));
+    const { text } = callStubTool({
+      getRepoBranchesWithTotal: async () => ({ items: capped, totalCount: LIST_ITEM_LIMIT }),
+    });
+
+    const result = await text('list_branches', { owner: 'demo-user', repo: 'demo-repo' });
+
+    expect(result).not.toContain('truncated');
+    expect(result).not.toContain('incomplete');
+    expect(JSON.parse(result)).toMatchObject({ items: capped, totalCount: LIST_ITEM_LIMIT });
+  });
+
+  it('reports both real counts of a cut branch list the total proves incomplete', async () => {
+    const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ name: `branch-${i}` }));
+    const { text } = callStubTool({
+      getRepoBranchesWithTotal: async () => ({ items: capped, totalCount: 600 }),
+    });
+
+    const result = await text('list_branches', { owner: 'demo-user', repo: 'demo-repo' });
+
+    expect(result).toContain('list truncated');
+    expect(result).toContain(`${LIST_ITEM_LIMIT} of 600 rows`);
+    // A known total is exact, so the honest "possibly" wording is gone.
+    expect(result).not.toContain('possibly');
+    expect(result).toContain('incomplete');
+  });
+
+  it('reports the rows an overshooting branch read returned alongside the total', async () => {
+    const rows = Array.from({ length: 510 }, (_, i) => ({ name: `branch-${i}` }));
+    const { text } = callStubTool({
+      getRepoBranchesWithTotal: async () => ({ items: rows, totalCount: 800 }),
+    });
+
+    const result = await text('list_branches', { owner: 'demo-user', repo: 'demo-repo' });
+
+    expect(result).toContain('510 of 800 rows');
+    expect(result).not.toContain(`truncated at ${LIST_ITEM_LIMIT}`);
+  });
+
+  it('reads the totals of the lists wrapped inside get_issue and get_pull_request', async () => {
+    // These two tools return the wrapped list's rows at the top level with a
+    // sibling `…TotalCount`, which is what the `totalField` of `PAGED_LISTS`
+    // points at; without it the note fell back to the length heuristic.
+    const complete = callStubTool({
+      getIssueDetail: async () => ({ number: 1 }),
+      getPullRequestCommentsAndTimelineWithTotal: async () => ({
+        items: Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ id: i + 1 })),
+        totalCount: LIST_ITEM_LIMIT,
+      }),
+    });
+
+    const atCap = await complete.text('get_issue', { owner: 'demo-user', repo: 'demo-repo', index: 1 });
+
+    expect(atCap).not.toContain('truncated');
+    expect(JSON.parse(atCap)).toMatchObject({ commentsTotalCount: LIST_ITEM_LIMIT });
+
+    const cutIssue = callStubTool({
+      getIssueDetail: async () => ({ number: 1 }),
+      getPullRequestCommentsAndTimelineWithTotal: async () => ({
+        items: Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ id: i + 1 })),
+        totalCount: 600,
+      }),
+    });
+
+    const cut = await cutIssue.text('get_issue', { owner: 'demo-user', repo: 'demo-repo', index: 1 });
+
+    expect(cut).toContain(`comments (${LIST_ITEM_LIMIT} of 600 rows)`);
+    expect(cut).not.toContain('possibly');
+
+    const pullRequest = callStubTool({
+      getPullRequestDetail: async () => ({ number: 2 }),
+      getPullRequestFilesWithTotal: async () => ({
+        items: Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ filename: `file-${i}` })),
+        totalCount: 502,
+      }),
+      getPullRequestCommitsWithTotal: async () => ({ items: [], totalCount: 0 }),
+    });
+
+    const cutFiles = await pullRequest.text('get_pull_request', {
+      owner: 'demo-user',
+      repo: 'demo-repo',
+      index: 2,
+    });
+
+    // Both lists carry their own total: the complete (empty) commit list stays
+    // silent while the cut file list reports its real counts.
+    expect(cutFiles).toContain(`files (${LIST_ITEM_LIMIT} of 502 rows)`);
+    expect(cutFiles).not.toContain('commits (');
+    expect(pullRequest.calls()).toEqual([
+      'getPullRequestDetail',
+      'getPullRequestFilesWithTotal',
+      'getPullRequestCommitsWithTotal',
+    ]);
+  });
+
+  it('decides reviewStatus.truncated from the server total, not the row count', async () => {
+    // An exactly-at-cap review list the server counts as all of it is complete;
+    // the old length heuristic announced it as truncated, and a list the server
+    // says is longer than what arrived is truncated even below the cap.
+    const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({
+      id: i + 1,
+      user: { login: `reviewer-${i}` },
+      state: 'COMMENT',
+    }));
+    const complete = callStubTool({
+      getPullRequestDetail: async () => ({ number: 2 }),
+      getPullRequestFiles: async () => [],
+      listPullReviewsWithTotal: async () => ({ items: capped, totalCount: LIST_ITEM_LIMIT }),
+      getPullReviewComments: async () => [],
+    });
+
+    const atCap = JSON.parse(
+      await complete.text('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }),
+    ) as PrReviewBriefResult;
+
+    expect(atCap.reviewStatus.reviewers).toHaveLength(LIST_ITEM_LIMIT);
+    expect(atCap.reviewStatus.truncated).toBe(false);
+
+    const cut = callStubTool({
+      getPullRequestDetail: async () => ({ number: 2 }),
+      getPullRequestFiles: async () => [],
+      listPullReviewsWithTotal: async () => ({
+        items: [
+          { id: 1, user: { login: 'alice' }, state: 'APPROVED' },
+          { id: 2, user: { login: 'bob' }, state: 'COMMENT' },
+          { id: 3, user: { login: 'carol' }, state: 'COMMENT' },
+        ],
+        totalCount: 5,
+      }),
+      getPullReviewComments: async () => [],
+    });
+
+    const short = JSON.parse(
+      await cut.text('get_pr_review_brief', { owner: 'demo-user', repo: 'demo-repo', index: 2 }),
+    ) as PrReviewBriefResult;
+
+    // Three rows are below the cap, so only the total can prove the cut.
+    expect(short.reviewStatus.reviewers).toHaveLength(3);
+    expect(short.reviewStatus.truncated).toBe(true);
+  });
+
+  it('keeps the length heuristic for summarizePrReviewStatus when no total is reported', () => {
+    // The fallback has to stay: an old (or proxied) server sends no
+    // X-Total-Count, and a list at the cap may then still be cut off.
+    const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({
+      id: i + 1,
+      user: { login: `reviewer-${i}` },
+      state: 'COMMENT',
+    }));
+
+    expect(summarizePrReviewStatus(capped).truncated).toBe(true);
+    expect(summarizePrReviewStatus(capped, LIST_ITEM_LIMIT).truncated).toBe(false);
+    expect(summarizePrReviewStatus(capped.slice(0, 3)).truncated).toBe(false);
+    expect(summarizePrReviewStatus(capped.slice(0, 3), 5).truncated).toBe(true);
   });
 
   it('keeps a complete unpaginated directory listing out of the truncation note', async () => {
@@ -1718,14 +2131,14 @@ describe('list truncation reporting', () => {
     const result = await registered.get('list_repo_contents')?.({ owner: 'demo-user', repo: 'demo-repo' });
 
     expect(result?.content[0].text).toContain('file-0.txt');
-    expect(result?.content[0].text).not.toContain('truncated at');
+    expect(result?.content[0].text).not.toContain('truncated');
   });
 
   it('does not tell a filterless listing to narrow a query it does not have', async () => {
     // list_branches takes owner/repo only: the capped list is genuinely
     // incomplete, and advice about narrowing would be unusable.
     const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ name: `branch-${i}` }));
-    const client = { getRepoBranches: async () => capped } as never;
+    const client = { getRepoBranchesWithTotal: async () => ({ items: capped }) } as never;
     const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
     const server = {
       registerTool: (name: string, _config: unknown, handler: never) => {
@@ -1764,8 +2177,8 @@ describe('list truncation reporting', () => {
     const cappedFiles = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ filename: `file-${i}` }));
     const client = {
       getPullRequestDetail: async () => ({ number: 1 }),
-      getPullRequestFiles: async () => cappedFiles,
-      getPullRequestCommits: async () => [],
+      getPullRequestFilesWithTotal: async () => ({ items: cappedFiles }),
+      getPullRequestCommitsWithTotal: async () => ({ items: [] }),
     } as never;
     const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
     const server = {
@@ -1796,7 +2209,7 @@ describe('list truncation reporting', () => {
     // narrowable tools that really can refetch keep the query advice (the test
     // above).
     const capped = Array.from({ length: LIST_ITEM_LIMIT }, (_, i) => ({ sha: `sha-${i}` }));
-    const client = { getFileHistory: async () => capped } as never;
+    const client = { getFileHistoryWithTotal: async () => ({ items: capped }) } as never;
     const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
     const server = {
       registerTool: (name: string, _config: unknown, handler: never) => {
@@ -1824,7 +2237,7 @@ describe('list truncation reporting', () => {
     // The note must follow the list length, not the tool: a short history is
     // complete and must not be announced as cut off.
     const short = Array.from({ length: LIST_ITEM_LIMIT - 1 }, (_, i) => ({ sha: `sha-${i}` }));
-    const client = { getFileHistory: async () => short } as never;
+    const client = { getFileHistoryWithTotal: async () => ({ items: short }) } as never;
     const registered = new Map<string, (args: unknown, extra?: unknown) => Promise<{ content: { text: string }[] }>>();
     const server = {
       registerTool: (name: string, _config: unknown, handler: never) => {
@@ -1839,7 +2252,7 @@ describe('list truncation reporting', () => {
       path: 'README.md',
     });
 
-    expect(result?.content[0].text).not.toContain('truncated at');
+    expect(result?.content[0].text).not.toContain('truncated');
   });
 
   it('blames the match cap only when the match list reached it', async () => {
@@ -1962,6 +2375,10 @@ describe('tool descriptions and schemas', () => {
     // The withheld notice is not an error, and the description must not imply it
     // is: that answer is a successful result.
     expect(description).toMatch(/successful notice/);
+    // An empty listing is neither a directory nor a file: the answer has to name
+    // both causes it can have, since the response cannot tell them apart.
+    expect(description).toMatch(/empty directory/);
+    expect(description).toMatch(/empty repository/);
   });
 
   it('describes the keyword filter the server actually applies', () => {
@@ -1995,14 +2412,70 @@ describe('tool descriptions and schemas', () => {
     expect(config?.inputSchema?.before?.description ?? '').toContain('skip');
   });
 
-  it('tells the caller that get_pull_request carries the issue API assets', () => {
+  it('tells the caller that get_pull_request carries the issue API assets under pullRequest', () => {
     // The handler merges the issues API's `assets` array in, and reports a
     // failed attachments read with `attachmentsUnavailable`; a description that
-    // promised only the pull request left both undocumented.
+    // promised only the pull request left both undocumented. Both live under
+    // `pullRequest`, not at the top of the result, and a caller told otherwise
+    // reads `result.assets` as missing.
     const description = captureConfigs().get('get_pull_request')?.description ?? '';
 
     expect(description).toContain('assets');
     expect(description).toContain('attachmentsUnavailable');
+    expect(description).toContain('`pullRequest`');
+    expect(description).toMatch(/unknown rather than empty/);
+  });
+
+  it('documents the per-comment attachment fields of get_issue and get_pr_timeline', () => {
+    // Both tools return comments whose `assets` is empty when the extra
+    // attachment read failed, with `attachmentsUnavailable` marking that case;
+    // without the flag (and the reason for it) an empty list reads as "this
+    // comment has no attachments", a cause the server never gave.
+    for (const tool of ['get_issue', 'get_pr_timeline']) {
+      const description = captureConfigs().get(tool)?.description ?? '';
+      expect(description, tool).toContain('assets');
+      expect(description, tool).toContain('attachmentsUnavailable');
+      expect(description, tool).toMatch(/unknown rather than empty/);
+    }
+  });
+
+  it('says the paged listing tools carry the server total when one is reported', () => {
+    // The handlers pass the client's `PagedList` through instead of only its
+    // rows, so the note can be exact; the caller has to be told the shape. Every
+    // tool whose whole result is a paged list is listed here, so a new one that
+    // forgets the shape in its description is caught.
+    const pagedTools = [
+      'list_issues',
+      'list_pull_requests',
+      'list_my_repos',
+      'list_notifications',
+      'get_pr_timeline',
+      'get_action_run_artifacts',
+      'list_branches',
+      'list_tags',
+      'list_releases',
+      'list_labels',
+      'list_milestones',
+      'get_file_history',
+      'list_pull_reviews',
+    ];
+    for (const tool of pagedTools) {
+      const description = captureConfigs().get(tool)?.description ?? '';
+      expect(description, tool).toContain('items');
+      expect(description, tool).toContain('totalCount');
+    }
+  });
+
+  it('says where the wrapped list totals of get_issue and get_pull_request sit', () => {
+    // Those two keep the rows where callers already read them and put the
+    // server's count beside them, so the description has to name the sibling
+    // field or the caller never sees the total.
+    const issue = captureConfigs().get('get_issue')?.description ?? '';
+    expect(issue).toContain('commentsTotalCount');
+
+    const pullRequest = captureConfigs().get('get_pull_request')?.description ?? '';
+    expect(pullRequest).toContain('filesTotalCount');
+    expect(pullRequest).toContain('commitsTotalCount');
   });
 
   it('names the truncation flags carried by the get_repo result', () => {

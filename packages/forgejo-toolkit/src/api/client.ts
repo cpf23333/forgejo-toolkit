@@ -7,6 +7,7 @@ import {
   client as baseClient,
   encodePathSegment,
   mergeHeaders,
+  RequestError,
 } from '@cpf23333-forgejo-toolkit/shared/request';
 import { LIST_ITEM_LIMIT, MAX_REPO_FILE_SEARCH_RESULTS } from '@cpf23333-forgejo-toolkit/shared/limits';
 import { toApiError, requestContextFor } from './errors-core';
@@ -39,14 +40,11 @@ import {
   issueEditComment,
   issueEditIssue,
   issueGetCommentReactions,
-  issueGetCommentsAndTimeline,
   issueGetIssue,
   issueGetIssueReactions,
-  issueGetMilestonesList,
   issueListIssueCommentAttachments,
   issueListIssueDependencies,
   issueListIssues,
-  issueListLabels,
   issuePostCommentReaction,
   issuePostIssueReaction,
   issueRemoveIssueDependencies,
@@ -59,7 +57,6 @@ import {
   listActionRuns,
   actionRun,
   listActionRunJobs,
-  listActionRunArtifacts,
   repoGetActionJobLogs,
   dispatchWorkflow,
   cancelActionRun,
@@ -92,13 +89,8 @@ import {
   repoGetContents,
   repoGetContentsList,
   repoGetPullRequest,
-  repoGetPullRequestCommits,
-  repoGetPullRequestFiles,
   repoGetPullReviewComments,
   repoListBranches,
-  repoListPullReviews,
-  repoListReleases,
-  repoListTags,
   repoMergePullRequest,
   repoSearch,
   repoSubmitPullReview,
@@ -157,6 +149,7 @@ import type {
   ForgejoPullRequest,
   ForgejoPullRequestDetail,
   ForgejoRelease,
+  ForgejoReadmeNotice,
   ForgejoRepoDetail,
   ForgejoRepository,
   ForgejoTag,
@@ -643,6 +636,58 @@ export function withAbortSignal<TRequestData>(
   return signal ? { ...config, signal } : config;
 }
 
+/**
+ * What `getReadmeEntry` found at `README.md`: the decoded text (`content`), the
+ * honest sentence to show instead when the entry is not a regular file
+ * (`notice`), the size of a regular file whose payload the instance withheld
+ * (`size`), or `undefined` when the repository has no README (a 404, or any
+ * other read failure — `_probe` treats them alike).
+ *
+ * `noticeKind`/`noticeTarget` are the structured form of `notice`: what the
+ * entry is, and the link target or git URL the API named for it. They let a
+ * localized caller (the extension host's dashboard) build its own sentence
+ * instead of showing the English one, while `notice` itself stays for the
+ * headless MCP consumers that have no translator.
+ */
+export interface ReadmeEntry {
+  content?: string;
+  size?: number;
+  notice?: string;
+  noticeKind?: ForgejoReadmeNotice['kind'];
+  noticeTarget?: string;
+}
+
+/**
+ * Narrowing options for `ForgejoClient.getRepoPullRequests`, for a caller that
+ * only needs to know whether one branch has a pull request (the create-PR
+ * status bar) instead of the whole list.
+ */
+export interface RepoPullRequestOptions {
+  /**
+   * Sent as the endpoint's `head` filter, which Forgejo compares to
+   * `pull_request.head_branch` exactly (`repoListPullRequests` in the pinned
+   * swagger; the parameter arrived in Forgejo v16 and its backports). It is what
+   * turns the common case into one request instead of one per page of the whole
+   * list — but it is a narrowing, not the answer: the filter has no owner part
+   * (`owner:branch` is not a form it accepts) and a fork's pull request shares
+   * the branch name, so the caller's own head-repository check still decides the
+   * match. Instances older than the filter ignore the parameter and answer the
+   * unfiltered list, which the paging reads exactly as it did before.
+   *
+   * Ignored on the keyword-search path: that request goes to the issues
+   * endpoint, which has no branch filter.
+   */
+  head?: string;
+  /**
+   * Stop reading pages once a row satisfies this. The pages read up to that
+   * point are returned like any other read, so a caller can still inspect what
+   * arrived; a caller that only asked a lookup question pays for the page that
+   * answers it instead of for the whole list up to the shared item cap.
+   * `totalCount` keeps describing the whole list, not the pages read.
+   */
+  stopWhen?: (pull: ForgejoPullRequest) => boolean;
+}
+
 export class ForgejoClient {
   private readonly configuredOrigin: string;
   /**
@@ -720,15 +765,36 @@ export class ForgejoClient {
    * non-array body — the shared client answers a 204/205/304 or an empty 200
    * with `{}` rather than an array — is an empty page, the same reading
    * `_fetchAllPagesMeta` gives a bare-array fetcher's non-array answer.
+   *
+   * `extract` is for the endpoints whose page is not the body itself: the
+   * Actions artifacts listing answers `{ artifacts: [...] }`. It maps the body
+   * to the rows and must return `undefined` (or an empty array) for a body that
+   * carries none, which is then the same empty page as above.
    */
-  private async _getListPage<T>(path: string, params?: Record<string, unknown>): Promise<PagedList<T>> {
+  private async _getListPage<T>(
+    path: string,
+    params?: Record<string, unknown>,
+    extract?: (data: unknown) => T[] | undefined,
+  ): Promise<PagedList<T>> {
     const res = await this._client()<T[], unknown, unknown>({ method: 'GET', url: path, params });
     const rawTotal = res.headers.get('x-total-count');
     const parsedTotal = rawTotal === null ? NaN : Number(rawTotal);
+    const items = extract ? extract(res.data) : Array.isArray(res.data) ? res.data : [];
     return {
-      items: Array.isArray(res.data) ? res.data : [],
+      items: items ?? [],
       totalCount: Number.isFinite(parsedTotal) ? parsedTotal : undefined,
     };
+  }
+
+  /**
+   * `/repos/{owner}/{repo}` plus `suffix`, with both path segments encoded: the
+   * generated wrappers interpolate path params into the URL without encoding
+   * (see the note on `encodePathSegment`), so a raw-path call has to do it
+   * itself. Used by the list endpoints read through `_getListPage` to keep their
+   * `X-Total-Count`.
+   */
+  private _repoPath(owner: string, repo: string, suffix = ''): string {
+    return `/repos/${encodePathSegment(owner)}/${encodePathSegment(repo)}${suffix}`;
   }
 
   /**
@@ -746,6 +812,13 @@ export class ForgejoClient {
    * loop early: a stale or filtered count must never cut a list short, so
    * paging still ends on a short/empty page or the safety bound.
    *
+   * `stopWhen` is the one thing that does stop the loop early, and only when
+   * the caller asks for it: a caller with a lookup question ("is the branch in
+   * here?") gets its answer from the page that carries the row and does not pay
+   * for the rest. The rows read so far are returned as usual, and the total
+   * still describes the whole list, so such a caller has to read a truncated
+   * result as "I stopped", not as "the server cut it".
+   *
    * `label` names the list in the completion log: `API_REQUEST_TIMEOUT_MS`
    * bounds one request, not the whole paged operation, so the request count is
    * the only visible measure of what a multi-page read cost the caller (and
@@ -753,9 +826,10 @@ export class ForgejoClient {
    */
   private async _fetchAllPagesMeta<T>(
     fetchPage: (page: number) => Promise<PagedList<T> | T[] | null | undefined>,
-    options: { label: string; shortPageMarksEnd?: boolean },
+    options: { label: string; shortPageMarksEnd?: boolean; stopWhen?: (item: T) => boolean },
   ): Promise<PagedList<T>> {
     const shortPageMarksEnd = options.shortPageMarksEnd ?? true;
+    const stopWhen = options.stopWhen;
     // Endpoints that filter rows *after* the page was read from the database can
     // return an empty page while later pages still hold rows (a whole page of
     // code comments is dropped, for instance). Those callers pass
@@ -795,6 +869,15 @@ export class ForgejoClient {
       all.push(...items);
       if (page === 1) {
         effectivePageSize = items.length;
+      }
+      // The caller's own answer arrived with this page; later pages would only
+      // cost requests. Checked after the duplicate guard above, so a server that
+      // repeats a page cannot make a stop predicate fire on stale rows, and only
+      // defined rows reach the predicate: the pull request list can carry a null
+      // row (`_definedPullRequests`), and every caller's matcher dereferences the
+      // row exactly like the consumers of the returned list do.
+      if (stopWhen && items.some((item) => item != null && stopWhen(item))) {
+        break;
       }
       if (items.length === 0) {
         emptyPages++;
@@ -940,22 +1023,40 @@ export class ForgejoClient {
     ) as ForgejoActionRunJob[];
   }
 
-  async getActionRunArtifacts(owner: string, repo: string, runId: number): Promise<ForgejoActionArtifact[]> {
+  /**
+   * The artifacts of a run together with the server's own artifact count (see
+   * `PagedList`). The listing endpoint answers `{ artifacts: [...] }` rather
+   * than a bare array, hence the extractor: the total arrives in
+   * `X-Total-Count` either way, and without it a run holding exactly
+   * `LIST_ITEM_LIMIT` artifacts read as "possibly truncated".
+   */
+  async getActionRunArtifactsWithTotal(
+    owner: string,
+    repo: string,
+    runId: number,
+  ): Promise<PagedList<ForgejoActionArtifact>> {
     this._assertActions();
-    const artifacts = await this._fetchAllPages(
-      async (page) => {
-        const result = await listActionRunArtifacts(
-          owner,
-          repo,
-          runId,
+    const result = await this._fetchAllPagesMeta<ActionArtifact>(
+      (page) =>
+        this._getListPage<ActionArtifact>(
+          this._repoPath(owner, repo, `/actions/runs/${runId}/artifacts`),
           { page, limit: PAGE_SIZE },
-          { client: this._client() },
-        );
-        return Array.isArray(result) ? result : ((result as { artifacts?: ActionArtifact[] }).artifacts ?? []);
-      },
+          (data) =>
+            Array.isArray(data)
+              ? (data as ActionArtifact[])
+              : ((data as { artifacts?: ActionArtifact[] })?.artifacts ?? []),
+        ),
       { label: 'action artifacts' },
     );
-    return artifacts as ForgejoActionArtifact[];
+    return { items: result.items as ForgejoActionArtifact[], totalCount: result.totalCount };
+  }
+
+  /**
+   * The rows of `getActionRunArtifactsWithTotal`, for the callers that only want
+   * the artifacts (the extension's run view).
+   */
+  async getActionRunArtifacts(owner: string, repo: string, runId: number): Promise<ForgejoActionArtifact[]> {
+    return (await this.getActionRunArtifactsWithTotal(owner, repo, runId)).items;
   }
 
   async getActionJobLog(owner: string, repo: string, jobId: number): Promise<string> {
@@ -1182,16 +1283,18 @@ export class ForgejoClient {
    * the instance's limit" named a cause the server never gave, next to a
    * nonsense size (0.0 MiB for a one-character target). A submodule README
    * (`type: 'submodule'`, size 0) has no payload at all. Both carry `notice`
-   * instead, exactly like `getFileContentResult` answers those kinds.
+   * instead, exactly like `getFileContentResult` answers those kinds — and
+   * `noticeKind`/`noticeTarget` beside it, the structured form of that sentence
+   * (which kind, and the target path or git URL the API named, when it named
+   * one). The extension host's dashboard is a Chinese-or-English UI and builds
+   * its own localized sentence from those two fields; the English `notice`
+   * stays for the headless MCP tools, which have no translator.
    *
    * `getRepoDetail` calls this once and exposes the result as
-   * `readme`/`readmeSize`, so a detail load needs no second probe.
+   * `readme`/`readmeNotice`/`readmeSize`, so a detail load needs no second
+   * probe.
    */
-  async getReadmeEntry(
-    owner: string,
-    repo: string,
-    ref?: string,
-  ): Promise<{ content?: string; size?: number; notice?: string } | undefined> {
+  async getReadmeEntry(owner: string, repo: string, ref?: string): Promise<ReadmeEntry | undefined> {
     const readmeFile = await this._probe(
       repoGetContents(owner, repo, README_PATH, ref ? { ref } : undefined, { client: this._client() }),
       `getReadmeEntry ${owner}/${repo}`,
@@ -1199,26 +1302,37 @@ export class ForgejoClient {
     if (!readmeFile || Array.isArray(readmeFile)) {
       return undefined;
     }
-    const entry: { content?: string; size?: number; notice?: string } = {};
+    const entry: ReadmeEntry = {};
     // Content the server did send is always file content, whatever the entry
     // says, and the `size` alongside it is then the file's own size.
     if (readmeFile.content) {
       entry.content = decodeBase64(readmeFile.content);
     } else {
       switch ((readmeFile as { type?: string }).type) {
-        case 'symlink':
+        case 'symlink': {
           // `size` here is the *link target's* length, not a payload size. The
           // notice reaches the webview's README preview, so it is localized
           // through the host seam (English passthrough for the headless MCP
-          // host), like the CI-log and artifact messages.
-          entry.notice = readmeSymlinkNotice(getForgejoClientHost().t, (readmeFile as { target?: string }).target);
+          // host), like the CI-log and artifact messages. The kind and the
+          // target are carried beside it so a caller with its own translator
+          // builds the sentence itself instead of showing this English one.
+          const target = (readmeFile as { target?: string }).target;
+          entry.notice = readmeSymlinkNotice(getForgejoClientHost().t, target);
+          entry.noticeKind = 'symlink';
+          if (target) {
+            entry.noticeTarget = target;
+          }
           return entry;
-        case 'submodule':
-          entry.notice = readmeSubmoduleNotice(
-            getForgejoClientHost().t,
-            (readmeFile as { submodule_git_url?: string }).submodule_git_url,
-          );
+        }
+        case 'submodule': {
+          const gitUrl = (readmeFile as { submodule_git_url?: string }).submodule_git_url;
+          entry.notice = readmeSubmoduleNotice(getForgejoClientHost().t, gitUrl);
+          entry.noticeKind = 'submodule';
+          if (gitUrl) {
+            entry.noticeTarget = gitUrl;
+          }
           return entry;
+        }
         case 'dir':
           // Defensive: a directory answers with its listing (an array, handled
           // above), but a single `dir` entry must not fall through to the
@@ -1282,6 +1396,12 @@ export class ForgejoClient {
    * A caller comparing the returned length against the cap cannot tell a
    * repository with exactly `REPO_DETAIL_LIST_LIMIT` branches from one with
    * more, and reported the former as an incomplete list.
+   *
+   * The README is answered by `readme` (its text, or the client's English
+   * sentence for an entry that is not a regular file), `readmeNotice` (that
+   * sentence's structured form: which kind it is and the link target or git URL
+   * the API named) and `readmeSize` (the size of a payload the instance
+   * withheld). A localized caller builds its own sentence from `readmeNotice`.
    */
   async getRepoDetail(owner: string, repo: string): Promise<ForgejoRepoDetailWithCaps> {
     const repository = await repoGet(owner, repo, { client: this._client() });
@@ -1320,6 +1440,13 @@ export class ForgejoClient {
       // sentence for a README that is not a regular file (a symlink or a
       // submodule). Neither is a size, so `readmeSize` stays unset for them.
       readme: readmeEntry?.content ?? readmeEntry?.notice,
+      // The same non-file answer in structured form, so the extension host can
+      // word it in the UI's own language (the English `readme` above stays for
+      // the MCP tools). `noticeKind` is only set by the symlink/submodule
+      // branches, where there is no content to prefer.
+      readmeNotice: readmeEntry?.noticeKind
+        ? { kind: readmeEntry.noticeKind, target: readmeEntry.noticeTarget }
+        : undefined,
       // A positive size with no content and no notice is the only combination
       // that means "withheld": size 0 is a genuinely empty README, no entry at
       // all is an absent one, and a symlink/submodule has no payload to withhold
@@ -1386,27 +1513,32 @@ export class ForgejoClient {
   }
 
   /**
-   * The commit history of one file, paged up to the shared list cap.
+   * The commit history of one file, paged up to the shared list cap, together
+   * with the server's own commit count for that file (see `PagedList`).
    *
    * A single `limit: 50` request presented the newest 50 commits as the whole
    * history: a busier file silently lost everything older, with no truncation
    * signal to notice it by. The endpoint takes `page`/`limit`, so the history is
-   * read the same way every other capped list is; a result that still fills the
-   * cap is detectable with `isListTruncated` (as the caller already does for the
-   * other lists).
+   * read the same way every other capped list is; the server's `X-Total-Count`
+   * turns "this reached the cap" into the exact answer (a file with exactly
+   * `LIST_ITEM_LIMIT` commits is complete) for the callers that read it, and
+   * the length heuristic stays the fallback when the server reports none.
    */
-  async getFileHistory(owner: string, repo: string, filepath: string, ref?: string): Promise<ForgejoCommit[]> {
-    const commits = await this._fetchAllPages<Commit>(
+  async getFileHistoryWithTotal(
+    owner: string,
+    repo: string,
+    filepath: string,
+    ref?: string,
+  ): Promise<PagedList<ForgejoCommit>> {
+    const commits = await this._fetchAllPagesMeta<Commit>(
       (page) =>
-        repoGetAllCommits(
-          owner,
-          repo,
+        this._getListPage<Commit>(
+          this._repoPath(owner, repo, '/commits'),
           ref ? { sha: ref, path: filepath, page, limit: PAGE_SIZE } : { path: filepath, page, limit: PAGE_SIZE },
-          { client: this._client() },
-        ) as Promise<Commit[] | null | undefined>,
+        ),
       { label: 'file history' },
     );
-    return commits.map(
+    const items = commits.items.map(
       (commit) =>
         ({
           sha: commit.sha ?? '',
@@ -1424,6 +1556,12 @@ export class ForgejoClient {
           files: commit.files?.map((file) => ({ filename: file.filename, status: file.status })),
         }) as ForgejoCommit,
     );
+    return { items, totalCount: commits.totalCount };
+  }
+
+  /** The rows of `getFileHistoryWithTotal`. */
+  async getFileHistory(owner: string, repo: string, filepath: string, ref?: string): Promise<ForgejoCommit[]> {
+    return (await this.getFileHistoryWithTotal(owner, repo, filepath, ref)).items;
   }
 
   /**
@@ -1624,28 +1762,48 @@ export class ForgejoClient {
     return { entries: allFiles, truncated };
   }
 
-  async getRepoBranches(owner: string, repo: string): Promise<ForgejoBranch[]> {
-    const branches = await this._fetchAllPages(
-      (page) => repoListBranches(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+  /**
+   * The repository's branches with the server's own branch count (see
+   * `PagedList`). The count is what tells a repository with exactly
+   * `LIST_ITEM_LIMIT` branches that the list is complete, instead of announcing
+   * a truncation the read did not suffer.
+   */
+  async getRepoBranchesWithTotal(owner: string, repo: string): Promise<PagedList<ForgejoBranch>> {
+    return this._fetchAllPagesMeta<ForgejoBranch>(
+      (page) => this._getListPage<ForgejoBranch>(this._repoPath(owner, repo, '/branches'), { page, limit: PAGE_SIZE }),
       { label: 'branches' },
     );
-    return branches as ForgejoBranch[];
   }
 
-  async getRepoTags(owner: string, repo: string): Promise<ForgejoTag[]> {
-    const tags = await this._fetchAllPages(
-      (page) => repoListTags(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+  /** The rows of `getRepoBranchesWithTotal`. */
+  async getRepoBranches(owner: string, repo: string): Promise<ForgejoBranch[]> {
+    return (await this.getRepoBranchesWithTotal(owner, repo)).items;
+  }
+
+  /** The repository's tags with the server's own tag count (see `getRepoBranchesWithTotal`). */
+  async getRepoTagsWithTotal(owner: string, repo: string): Promise<PagedList<ForgejoTag>> {
+    return this._fetchAllPagesMeta<ForgejoTag>(
+      (page) => this._getListPage<ForgejoTag>(this._repoPath(owner, repo, '/tags'), { page, limit: PAGE_SIZE }),
       { label: 'tags' },
     );
-    return tags as ForgejoTag[];
   }
 
-  async getRepoReleases(owner: string, repo: string): Promise<ForgejoRelease[]> {
-    const releases = await this._fetchAllPages(
-      (page) => repoListReleases(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+  /** The rows of `getRepoTagsWithTotal`. */
+  async getRepoTags(owner: string, repo: string): Promise<ForgejoTag[]> {
+    return (await this.getRepoTagsWithTotal(owner, repo)).items;
+  }
+
+  /** The repository's releases with the server's own release count (see `getRepoBranchesWithTotal`). */
+  async getRepoReleasesWithTotal(owner: string, repo: string): Promise<PagedList<ForgejoRelease>> {
+    return this._fetchAllPagesMeta<ForgejoRelease>(
+      (page) => this._getListPage<ForgejoRelease>(this._repoPath(owner, repo, '/releases'), { page, limit: PAGE_SIZE }),
       { label: 'releases' },
     );
-    return releases as ForgejoRelease[];
+  }
+
+  /** The rows of `getRepoReleasesWithTotal`. */
+  async getRepoReleases(owner: string, repo: string): Promise<ForgejoRelease[]> {
+    return (await this.getRepoReleasesWithTotal(owner, repo)).items;
   }
 
   createBranch(owner: string, repo: string, data: CreateBranchRepoOption): Promise<ForgejoBranch> {
@@ -1969,12 +2127,17 @@ export class ForgejoClient {
     );
   }
 
-  async getRepoLabels(owner: string, repo: string): Promise<Label[]> {
-    const labels = await this._fetchAllPages(
-      (page) => issueListLabels(owner, repo, { page, limit: PAGE_SIZE }, { client: this._client() }),
+  /** The repository's labels with the server's own label count (see `getRepoBranchesWithTotal`). */
+  async getRepoLabelsWithTotal(owner: string, repo: string): Promise<PagedList<Label>> {
+    return this._fetchAllPagesMeta<Label>(
+      (page) => this._getListPage<Label>(this._repoPath(owner, repo, '/labels'), { page, limit: PAGE_SIZE }),
       { label: 'labels' },
     );
-    return labels as Label[];
+  }
+
+  /** The rows of `getRepoLabelsWithTotal`. */
+  async getRepoLabels(owner: string, repo: string): Promise<Label[]> {
+    return (await this.getRepoLabelsWithTotal(owner, repo)).items;
   }
 
   async getRepoAssignees(owner: string, repo: string): Promise<string[]> {
@@ -1982,13 +2145,22 @@ export class ForgejoClient {
     return ((users ?? []) as User[]).map((user) => user.login ?? '').filter(Boolean);
   }
 
-  async getRepoMilestones(owner: string, repo: string): Promise<Milestone[]> {
-    const milestones = await this._fetchAllPages(
+  /** The repository's open milestones with the server's own count (see `getRepoBranchesWithTotal`). */
+  async getRepoMilestonesWithTotal(owner: string, repo: string): Promise<PagedList<Milestone>> {
+    return this._fetchAllPagesMeta<Milestone>(
       (page) =>
-        issueGetMilestonesList(owner, repo, { state: 'open', page, limit: PAGE_SIZE }, { client: this._client() }),
+        this._getListPage<Milestone>(this._repoPath(owner, repo, '/milestones'), {
+          state: 'open',
+          page,
+          limit: PAGE_SIZE,
+        }),
       { label: 'milestones' },
     );
-    return milestones as Milestone[];
+  }
+
+  /** The rows of `getRepoMilestonesWithTotal`. */
+  async getRepoMilestones(owner: string, repo: string): Promise<Milestone[]> {
+    return (await this.getRepoMilestonesWithTotal(owner, repo)).items;
   }
 
   async searchMentions(
@@ -2068,8 +2240,10 @@ export class ForgejoClient {
     repo: string,
     state: string = 'open',
     query?: string,
+    options?: RepoPullRequestOptions,
   ): Promise<PagedList<ForgejoPullRequest>> {
     const q = query?.trim();
+    const stopWhen = options?.stopWhen;
     if (q) {
       // repoListPullRequests has no keyword filter; the issues endpoint supports `q` with `type=pulls`.
       const pulls = await this._fetchAllPagesMeta(
@@ -2084,7 +2258,7 @@ export class ForgejoClient {
               limit: PAGE_SIZE,
             },
           ),
-        { label: 'pull requests' },
+        { label: 'pull requests', stopWhen },
       );
       // The issues endpoint returns issue-shaped rows (the old code cast them the
       // same way); drop any null entry first so consumers can dereference freely.
@@ -2094,10 +2268,14 @@ export class ForgejoClient {
       (page) =>
         this._getListPage<ForgejoPullRequest>(`/repos/${encodePathSegment(owner)}/${encodePathSegment(repo)}/pulls`, {
           state,
+          // The endpoint's own head-branch filter (see RepoPullRequestOptions).
+          // `buildUrl` drops an undefined value, so a caller that does not ask
+          // for it sends exactly the request it sent before.
+          head: options?.head,
           page,
           limit: PAGE_SIZE,
         }),
-      { label: 'pull requests' },
+      { label: 'pull requests', stopWhen },
     );
     return { items: this._definedPullRequests(pulls.items), totalCount: pulls.totalCount };
   }
@@ -2295,6 +2473,10 @@ export class ForgejoClient {
    * answer than "here is the file":
    *
    * - `dir` answers with the directory's listing (an array), not an entry;
+   * - an *empty* array is an empty directory or an empty repository —
+   *   `GetContentsOrList` answers an empty list for every path once
+   *   `repo.IsEmpty` is set — so it is reported as `empty-listing`, never as a
+   *   directory, and the sentence names both possible causes;
    * - `symlink` answers with `target`, the path the link points at, and a `size`
    *   equal to the *link target's* length — a size-only reading reported that as
    *   "the payload was withheld above the instance's limit", a cause the server
@@ -2311,7 +2493,18 @@ export class ForgejoClient {
     const params = ref ? { ref } : undefined;
     const response = await repoGetContents(owner, repo, encodeFilePath(filepath), params, { client: this._client() });
     if (Array.isArray(response)) {
-      return { kind: 'directory', text: directoryNotice(filepath) };
+      // An empty listing is not proof of a directory. `GetContentsOrList` answers
+      // an empty list for *every* path once `repo.IsEmpty` is set — the root, a
+      // path that does not exist, a path that names a file — so an empty
+      // directory and a repository with no content are the same response, and
+      // claiming "a directory" named a cause the server never gave (the same
+      // mistake the symlink and submodule branches below exist to avoid). The two
+      // cases are indistinguishable from this response, and asking the repository
+      // endpoint for `empty` would spend a second request on every miss, so the
+      // answer names both instead of picking one.
+      return response.length === 0
+        ? { kind: 'empty-listing', text: emptyListingNotice(filepath) }
+        : { kind: 'directory', text: directoryNotice(filepath) };
     }
     const entry = response as {
       type?: string;
@@ -2358,16 +2551,35 @@ export class ForgejoClient {
     return (await this.getFileContentResult(owner, repo, filepath, ref)).text;
   }
 
-  async getPullRequestFiles(owner: string, repo: string, index: number): Promise<ForgejoChangedFile[]> {
-    const files = await this._fetchAllPages(
-      (page) => repoGetPullRequestFiles(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+  /**
+   * The pull request's changed files with the server's own file count (see
+   * `PagedList`). The count is what separates a changed-file list that reached
+   * the shared cap from one the server says is complete.
+   */
+  async getPullRequestFilesWithTotal(
+    owner: string,
+    repo: string,
+    index: number,
+  ): Promise<PagedList<ForgejoChangedFile>> {
+    const files = await this._fetchAllPagesMeta<ForgejoChangedFile>(
+      (page) =>
+        this._getListPage<ForgejoChangedFile>(this._repoPath(owner, repo, `/pulls/${index}/files`), {
+          page,
+          limit: PAGE_SIZE,
+        }),
       { label: 'pull request files' },
     );
     // The API spells a deleted file's status 'deleted' (the compare endpoint
     // uses 'removed'); consumers only recognize 'removed', so normalize here.
-    return (files as ForgejoChangedFile[]).map((file) =>
-      file.status === 'deleted' ? { ...file, status: 'removed' } : file,
-    );
+    return {
+      items: files.items.map((file) => (file.status === 'deleted' ? { ...file, status: 'removed' } : file)),
+      totalCount: files.totalCount,
+    };
+  }
+
+  /** The rows of `getPullRequestFilesWithTotal`. */
+  async getPullRequestFiles(owner: string, repo: string, index: number): Promise<ForgejoChangedFile[]> {
+    return (await this.getPullRequestFilesWithTotal(owner, repo, index)).items;
   }
 
   /**
@@ -2423,26 +2635,51 @@ export class ForgejoClient {
     }));
   }
 
-  async getPullRequestCommentsAndTimeline(owner: string, repo: string, index: number): Promise<TimelineComment[]> {
-    const comments = await this._fetchAllPages<TimelineComment>(
-      (page) =>
-        issueGetCommentsAndTimeline(
-          owner,
-          repo,
-          index,
-          { page, limit: PAGE_SIZE },
-          { client: this._client() },
-        ) as Promise<TimelineComment[] | null | undefined>,
+  /**
+   * The comment and event timeline of an issue or pull request, paged up to the
+   * shared list cap, with the server's own timeline row count (see
+   * `PagedList`). Without the total, a timeline that reached the cap was
+   * reported as possibly cut off even when the server holds exactly that many
+   * rows.
+   */
+  async getPullRequestCommentsAndTimelineWithTotal(
+    owner: string,
+    repo: string,
+    index: number,
+  ): Promise<PagedList<TimelineComment>> {
+    const page = await this._fetchAllPagesMeta<TimelineComment>(
+      (p) =>
+        this._getListPage<TimelineComment>(this._repoPath(owner, repo, `/issues/${index}/timeline`), {
+          page: p,
+          limit: PAGE_SIZE,
+        }),
       // The timeline drops some rows (code comments, unreadable cross-repository
       // references) *after* the page has been read from the database, so a page
       // that comes back shorter than the page size does not mean the timeline
       // ended — keep paging until an empty page arrives.
       { label: 'timeline', shortPageMarksEnd: false },
     );
-    // Body-reference heuristic: only comments whose body links an attachment
-    // (see ATTACHMENT_REFERENCE_REGEX) get an attachment-list request, instead
-    // of one API call per comment. Note the behavior change: attachments that
-    // were uploaded but later unlinked from the body are no longer listed.
+    return { items: await this._withCommentAttachments(owner, repo, page.items), totalCount: page.totalCount };
+  }
+
+  /** The rows of `getPullRequestCommentsAndTimelineWithTotal`. */
+  async getPullRequestCommentsAndTimeline(owner: string, repo: string, index: number): Promise<TimelineComment[]> {
+    return (await this.getPullRequestCommentsAndTimelineWithTotal(owner, repo, index)).items;
+  }
+
+  /**
+   * Adds each comment's attachment list to the timeline rows.
+   *
+   * Body-reference heuristic: only comments whose body links an attachment
+   * (see ATTACHMENT_REFERENCE_REGEX) get an attachment-list request, instead
+   * of one API call per comment. Note the behavior change: attachments that
+   * were uploaded but later unlinked from the body are no longer listed.
+   */
+  private async _withCommentAttachments(
+    owner: string,
+    repo: string,
+    comments: TimelineComment[],
+  ): Promise<TimelineComment[]> {
     const commentIds = comments
       .filter((c) => c.id !== undefined && ATTACHMENT_REFERENCE_REGEX.test(c.body ?? ''))
       .map((c) => c.id as number);
@@ -2552,19 +2789,22 @@ export class ForgejoClient {
     });
   }
 
-  async getPullRequestCommits(owner: string, repo: string, index: number): Promise<Commit[]> {
-    const commits = await this._fetchAllPages(
+  /** The pull request's commits with the server's own commit count (see `getRepoBranchesWithTotal`). */
+  async getPullRequestCommitsWithTotal(owner: string, repo: string, index: number): Promise<PagedList<Commit>> {
+    return this._fetchAllPagesMeta<Commit>(
       (page) =>
-        repoGetPullRequestCommits(
-          owner,
-          repo,
-          index,
-          { files: true, page, limit: PAGE_SIZE },
-          { client: this._client() },
-        ),
+        this._getListPage<Commit>(this._repoPath(owner, repo, `/pulls/${index}/commits`), {
+          files: true,
+          page,
+          limit: PAGE_SIZE,
+        }),
       { label: 'pull request commits' },
     );
-    return commits as Commit[];
+  }
+
+  /** The rows of `getPullRequestCommitsWithTotal`. */
+  async getPullRequestCommits(owner: string, repo: string, index: number): Promise<Commit[]> {
+    return (await this.getPullRequestCommitsWithTotal(owner, repo, index)).items;
   }
 
   async mergePullRequest(
@@ -2591,12 +2831,21 @@ export class ForgejoClient {
     return (response as unknown as string) ?? '';
   }
 
-  async listPullReviews(owner: string, repo: string, index: number): Promise<PullReview[]> {
-    const result = await this._fetchAllPages(
-      (page) => repoListPullReviews(owner, repo, index, { page, limit: PAGE_SIZE }, { client: this._client() }),
+  /** The pull request's reviews with the server's own review count (see `getRepoBranchesWithTotal`). */
+  async listPullReviewsWithTotal(owner: string, repo: string, index: number): Promise<PagedList<PullReview>> {
+    return this._fetchAllPagesMeta<PullReview>(
+      (page) =>
+        this._getListPage<PullReview>(this._repoPath(owner, repo, `/pulls/${index}/reviews`), {
+          page,
+          limit: PAGE_SIZE,
+        }),
       { label: 'pull request reviews' },
     );
-    return result as PullReview[];
+  }
+
+  /** The rows of `listPullReviewsWithTotal`. */
+  async listPullReviews(owner: string, repo: string, index: number): Promise<PullReview[]> {
+    return (await this.listPullReviewsWithTotal(owner, repo, index)).items;
   }
 
   async getPullReviewComments(
@@ -2983,7 +3232,7 @@ export class ForgejoClient {
           this.logger?.debug(`Request failed after ${duration}ms: ${method} ${logUrl}`);
         }
         if (error instanceof Error) {
-          this._notifyIfPermissionError(error.message);
+          this._notifyIfPermissionError(error);
         }
         // Normalize into a structured ApiError: message stays raw for logs and
         // pattern matching, userMessage carries the localized rendering. The
@@ -3008,18 +3257,33 @@ export class ForgejoClient {
   /**
    * Routes auth failures (401, scope-related 403) to the registered host:
    * the extension shows fix-guidance toasts, headless consumers ignore them.
+   *
+   * The host also receives a fingerprint of the credential the request carried,
+   * because this is the only layer that has it: the extension keeps the token in
+   * SecretStorage and hands the client a URL that says nothing about it, so a
+   * host deduping the toast on the URL alone could never re-arm it after the
+   * user rotated the token — the next 401 would stay silent for the rest of the
+   * session. `undefined` when the request was anonymous (no credential was sent).
+   *
+   * The shared client states the status on a structured `RequestError`, so read
+   * it there; a foreign error (another module's, a test fixture) has only the
+   * message, which stays the fallback. The prose the 403 branch searches still
+   * comes from the message: that text is the body's rendering, and a non-JSON
+   * body is described rather than quoted, so searching the field would widen
+   * the match.
    */
-  private _notifyIfPermissionError(errorMessage: string) {
-    const match = errorMessage.match(/Forgejo API error (\d+):\s*([\s\S]+)/);
-    if (!match) {
+  private _notifyIfPermissionError(error: Error) {
+    const messageMatch = error.message.match(/Forgejo API error (\d+):\s*([\s\S]+)/);
+    const status = error instanceof RequestError ? String(error.status) : messageMatch?.[1];
+    if (status === undefined) {
       return;
     }
-    const [, status, body] = match;
-    const text = body.trim();
+    const text = (messageMatch?.[2] ?? '').trim();
     const host = getForgejoClientHost();
+    const credentialFingerprint = failedCredentialFingerprint(this.token);
 
     if (status === '401') {
-      host.notifyInvalidCredentials(this.url);
+      host.notifyInvalidCredentials(this.url, credentialFingerprint);
       return;
     }
 
@@ -3029,8 +3293,27 @@ export class ForgejoClient {
     // Forgejo names the missing scope in the error body ("token does not have
     // at least one of required scope(s): [write:issue]").
     const scopeMatch = text.match(/required scope\(s\): \[([^\]]+)\]/i);
-    host.notifyInsufficientScope(this.url, { scope: scopeMatch?.[1], body: text });
+    host.notifyInsufficientScope(this.url, { scope: scopeMatch?.[1], body: text }, credentialFingerprint);
   }
+}
+
+/**
+ * A digest of the credential a failed request carried, for the host's toast
+ * dedupe: it must change when the credential does (so rotating a dead token
+ * re-arms the toast) and stay stable otherwise (so a poller repeating the same
+ * bad token does not re-toast). Truncated SHA-256 plus the length, in the same
+ * shape as the webview's `tokenFingerprint`.
+ *
+ * The credential itself never leaves this function and never reaches a log,
+ * a toast or a key that could be logged: the digest is all the caller gets.
+ * `undefined` for a blank credential — such a request goes out anonymously (see
+ * `_client`), so there is no credential whose rotation could matter.
+ */
+function failedCredentialFingerprint(token: string): string | undefined {
+  if (!token.trim()) {
+    return undefined;
+  }
+  return `${createHash('sha256').update(token).digest('hex').slice(0, 16)}-${token.length}`;
 }
 
 /**
@@ -3079,10 +3362,12 @@ function decodeBase64(content: string): string {
 /**
  * The entry kinds the contents endpoint can answer with. `file` is the only one
  * that carries content; `withheld` is a regular file whose payload the instance
- * did not send, and `directory`/`symlink`/`submodule` are entries that never
- * have a payload at all (see `ForgejoClient.getFileContentResult`).
+ * did not send; `directory`/`symlink`/`submodule` are entries that never have a
+ * payload at all; and `empty-listing` is a listing that came back with no
+ * entries, which is an empty directory *or* an empty repository (see
+ * `ForgejoClient.getFileContentResult`).
  */
-export type FileContentKind = 'file' | 'withheld' | 'directory' | 'symlink' | 'submodule';
+export type FileContentKind = 'file' | 'withheld' | 'directory' | 'empty-listing' | 'symlink' | 'submodule';
 
 /**
  * What `getFileContentResult` found at a path. `text` is the decoded content for
@@ -3103,6 +3388,21 @@ const README_PATH = 'README.md';
 /** The answer for a path that names a directory, whose response is its listing. */
 function directoryNotice(path: string): string {
   return `${path} is a directory, not a file: use list_repo_contents to list its entries.`;
+}
+
+/**
+ * The answer for a path whose listing came back with no entries.
+ *
+ * Forgejo's `GetContentsOrList` returns an empty list whenever `repo.IsEmpty` is
+ * set, so every path of a repository with no content — a file that does not
+ * exist yet included — answers this way, and an empty directory inside a
+ * repository that does have commits answers exactly the same. The response
+ * cannot tell the two apart, and this client does not spend a second request on
+ * the repository endpoint to find out, so the sentence names both possibilities
+ * rather than inventing one.
+ */
+function emptyListingNotice(path: string): string {
+  return `${path} answered with an empty listing. Forgejo sends the same empty list for an empty directory or an empty repository — every path of a repository with no content answers this way — so this response does not say which one it is: use list_repo_contents to list the entries at this path, and check the repository's own state when the difference matters.`;
 }
 
 /**

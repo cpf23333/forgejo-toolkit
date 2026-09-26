@@ -5,9 +5,9 @@ import { redactUrlUserinfo, stripUrlUserinfo } from '../utils/redactUrlUserinfo'
 import { isHttpUrl } from '../webview/connectionTest';
 import type { Logger } from '../logger';
 
-// 401/403 scope toasts are deduped per instance+reason for the whole session:
-// pollers and manual refreshes would otherwise re-toast the same failure on
-// every request.
+// 401/403 scope toasts are deduped per instance+reason+credential for the whole
+// session: pollers and manual refreshes would otherwise re-toast the same failure
+// on every request, while a rotated credential must be able to re-toast.
 const shownPermissionErrorKeys = new Set<string>();
 
 // Unsupported-version warnings fire at most once per instance per session:
@@ -20,27 +20,37 @@ const shownUnsupportedVersionUrls = new Set<string>();
  * The URL alone is not enough. The actionable half of the toast is "Update the
  * access token", and after the user replaces a dead credential with another bad
  * one every request still 401s — but the key had not changed, so the toast that
- * says what to do could never come back for the rest of the window. The
- * credential carried by the URL is fingerprinted into the key, so a rotation
- * re-arms it while a poller re-requesting with the same bad credential stays
- * quiet.
+ * says what to do could never come back for the rest of the window. Two
+ * credential sources are folded into the key, so a rotation re-arms it while a
+ * poller re-requesting with the same bad credential stays quiet:
  *
- * A URL without userinfo fingerprints as the empty credential: the token then
- * lives in SecretStorage, which this module cannot read, and the host calls it
- * with a fresh URL on every request, so there is nothing here that can change
- * without a URL change anyway.
+ * - `credential` is the userinfo the instance URL carries, fingerprinted here
+ *   because that is the form the host can read itself. A URL without userinfo
+ *   contributes the empty credential.
+ * - `credentialFingerprint` is what the client sends for the credential it
+ *   actually put on the request — with a SecretStorage token that is the only
+ *   place the credential exists, and the host can neither read it nor tell two
+ *   tokens apart without this.
+ *
+ * Both are digests: the key is process-local, but a key carrying a token would
+ * be one `logger.debug` away from the output channel.
  *
  * The fingerprint is the cheap DJB2-and-length form the webview instance payload
  * uses (`tokenFingerprint` in shared/webview/messages), kept local so this key
  * does not depend on that module's build; the two never have to agree, they only
  * have to notice a change.
  */
-export function permissionErrorKey(url: string, reason: string, credential: string): string {
+export function permissionErrorKey(
+  url: string,
+  reason: string,
+  credential: string,
+  credentialFingerprint = '',
+): string {
   let hash = 5381;
   for (let index = 0; index < credential.length; index += 1) {
     hash = ((hash << 5) + hash + credential.charCodeAt(index)) | 0;
   }
-  return `${url}|${reason}|${(hash >>> 0).toString(16)}-${credential.length}`;
+  return `${url}|${reason}|${(hash >>> 0).toString(16)}-${credential.length}|${credentialFingerprint}`;
 }
 
 /**
@@ -75,9 +85,17 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
    * the token as userinfo, and a toast is a user-visible surface like any other.
    * `instanceUrl` keeps the real value, which only the "Open Token Settings"
    * action needs. `reason` is the failure detail the toast is about.
+   * `credentialFingerprint` is the client's digest of the credential that
+   * failed, when the client knew it; it only ever reaches the dedupe key.
    */
-  const notify = (reason: string, displayUrl: string, instanceUrl: string, message: string) => {
-    const key = permissionErrorKey(displayUrl, reason, urlCredential(instanceUrl));
+  const notify = (
+    reason: string,
+    displayUrl: string,
+    instanceUrl: string,
+    message: string,
+    credentialFingerprint?: string,
+  ) => {
+    const key = permissionErrorKey(displayUrl, reason, urlCredential(instanceUrl), credentialFingerprint);
     if (shownPermissionErrorKeys.has(key)) {
       return;
     }
@@ -129,16 +147,21 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
 
   return {
     t: vscode.l10n.t,
-    notifyInvalidCredentials(instanceUrl: string): void {
+    notifyInvalidCredentials(instanceUrl: string, credentialFingerprint?: string): void {
       const displayUrl = redactUrlUserinfo(instanceUrl);
       notify(
         '401',
         displayUrl,
         instanceUrl,
         vscode.l10n.t('Invalid or expired credentials for {0}. Update the access token.', displayUrl),
+        credentialFingerprint,
       );
     },
-    notifyInsufficientScope(instanceUrl: string, details: InsufficientScopeDetails): void {
+    notifyInsufficientScope(
+      instanceUrl: string,
+      details: InsufficientScopeDetails,
+      credentialFingerprint?: string,
+    ): void {
       // Forgejo names the missing scope in the error body ("token does not
       // have at least one of required scope(s): [write:issue]"); surface it
       // so the user knows exactly which scope to grant.
@@ -154,7 +177,7 @@ export function createVscodeClientHost(logger?: Logger): ForgejoClientHost {
             displayUrl,
             details.body,
           );
-      notify(details.body, displayUrl, instanceUrl, message);
+      notify(details.body, displayUrl, instanceUrl, message, credentialFingerprint);
     },
     notifyUnsupportedInstance(url: string, requiredVersion: string): void {
       if (shownUnsupportedVersionUrls.has(url)) {

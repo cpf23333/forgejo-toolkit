@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import type * as vscode from 'vscode';
 
 vi.mock('fs', () => ({
@@ -113,6 +115,31 @@ describe('getWebviewContent', () => {
       const tag = html.slice(match.index, html.indexOf('>', match.index));
       expect(tag).toContain(`nonce="${nonce}"`);
     }
+  });
+
+  it('loads each surface its own entry document', () => {
+    // The three surfaces are separate Vite entries (see webview/vite.config.ts),
+    // so a panel document must never be the dashboard's: loading index.html from
+    // a panel is exactly the regression that made a panel download the whole
+    // dashboard shell.
+    const expected: [WebviewContentOptions | undefined, string][] = [
+      [undefined, 'index.html'],
+      [{ instanceUrls: ['https://forgejo.example.com'] }, 'index.html'],
+      [{ panelMode: 'onboarding' }, 'onboarding.html'],
+      [{ panelMode: 'pullReviewComment' }, 'pullReviewComment.html'],
+    ];
+    for (const [options, file] of expected) {
+      vi.mocked(fs.readFileSync).mockClear();
+      render(options);
+      const read = vi.mocked(fs.readFileSync).mock.calls.at(-1)?.[0];
+      expect(read).toBe(path.join('/ext', 'out', 'webview', file));
+    }
+  });
+
+  it('reports the flat document it needs when the webview was not built', () => {
+    vi.mocked(fs.existsSync).mockReturnValueOnce(false);
+    const html = render({ panelMode: 'pullReviewComment' });
+    expect(html).toContain('build:webview');
   });
 });
 

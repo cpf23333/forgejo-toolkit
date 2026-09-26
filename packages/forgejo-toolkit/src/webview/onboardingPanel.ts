@@ -18,6 +18,7 @@ import {
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity } from './repoIdentity';
 import { connectionFailureMessage, isHttpUrl } from './connectionTest';
+import { echoedListRequestId } from './listRequestId';
 import { hasUrlUserinfo, redactUrlUserinfo } from '../utils/redactUrlUserinfo';
 import { resolveAttachmentImages } from '../utils/resolveAttachmentImages';
 import { userFacingErrorMessage } from '../api/errors';
@@ -273,14 +274,14 @@ export class OnboardingWebviewPanel {
               // token can pass the `/user` check the save performs and still
               // miss `read:repository`, which the dashboard then shows as
               // "Permission denied" with no repositories. The guide reads the
-              // answer out of its `repos-<id>` slot, which only a
-              // `repositories` reply fills (and only that reply clears the
-              // busy flag the load sets), and `loadRepositories` sends no
-              // `_requestId` — so the dispatcher fallback below cannot cover
-              // this command and *every* branch must answer. Served here
-              // rather than refused: the panel has the saved instance and the
-              // client, and the reply shape is viewProvider's handler for the
-              // same command, which is what the shared webview code already
+              // answer out of its `repos-<id>` slot, and `loadRepositories`
+              // names the request with a `_requestId`, so every branch echoes
+              // it back (the same rule the sidebar's own handler follows, see
+              // `echoedListRequestId`): the reply is then attributed to the
+              // request that asked, not to arrival order. Served here rather
+              // than refused: the panel has the saved instance and the client,
+              // and the reply shape is viewProvider's handler for the same
+              // command, which is what the shared webview code already
               // understands (success carries the list, failure carries `error`
               // that the guide turns into its missing-scope message).
               const requestedId = typeof message.instanceId === 'string' ? message.instanceId : '';
@@ -289,6 +290,7 @@ export class OnboardingWebviewPanel {
                 this._reply('repositories', {
                   instanceId: requestedId,
                   error: vscode.l10n.t('Instance not found'),
+                  ...echoedListRequestId(message),
                 });
                 return;
               }
@@ -300,11 +302,19 @@ export class OnboardingWebviewPanel {
                   instance.syncApiUrlsToInstanceUrl,
                 );
                 const repos = await client.getUserRepositories();
-                this._reply('repositories', { instanceId: instance.id, repositories: repos.items });
+                this._reply('repositories', {
+                  instanceId: instance.id,
+                  repositories: repos.items,
+                  ...echoedListRequestId(message),
+                });
               } catch (error) {
                 const err = userFacingErrorMessage(error);
                 logger.error(`onboarding getRepositories failed for ${instance.name}: ${err}`);
-                this._reply('repositories', { instanceId: requestedId, error: err });
+                this._reply('repositories', {
+                  instanceId: requestedId,
+                  error: err,
+                  ...echoedListRequestId(message),
+                });
               }
               return;
             }

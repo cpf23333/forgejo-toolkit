@@ -38,4 +38,25 @@ export const mockIssueDetail: ForgejoIssueDetail = {
   // computes them from the repository endpoint.
 };
 
-export const mockIssues: ForgejoIssue[] = [mockIssue];
+/**
+ * A second issue that no keyword fixture matches. It exists so a listing test
+ * can tell "the server applied the keyword" from "the keyword never went out":
+ * with a single-row fixture both answers look the same (the one row comes back
+ * either way), and a test asserting only that the match is present would pass
+ * even if the filter had been dropped entirely.
+ */
+export const mockUnmatchedIssue: ForgejoIssue = {
+  id: 3,
+  number: 3,
+  title: 'Tidy the settings page',
+  state: 'open',
+  html_url: 'https://forgejo.example.com/demo-user/demo-repo/issues/3',
+  user: mockUser,
+  body: 'The settings page could use clearer grouping.',
+  created_at: '2026-08-16T10:00:00Z',
+  updated_at: '2026-08-16T11:00:00Z',
+  repository: mockRepository,
+  pull_request: undefined,
+};
+
+export const mockIssues: ForgejoIssue[] = [mockIssue, mockUnmatchedIssue];

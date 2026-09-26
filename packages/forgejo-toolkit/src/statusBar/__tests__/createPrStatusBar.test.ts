@@ -363,15 +363,35 @@ describe('CreatePrStatusBarController', () => {
     });
   });
 
-  it('uses a single open-PR request to answer the branch lookup', async () => {
+  it('asks for this branch only, and stops the read at the row that answers it', async () => {
     const item = createController();
     await controller!.refresh();
 
-    // One request answers "is there a PR for this branch?"; paging through the
-    // whole list (up to the 500-item cap) would issue up to 10 requests per
-    // refresh for a status bar that only needs the first page.
+    // The branch lookup must not pay for the whole open-PR list (up to the
+    // 500-item cap ≈ 10 requests): the endpoint's head filter narrows the list to
+    // this branch name and the predicate lets the client stop at the page that
+    // holds the row.
     expect(getRepoPullRequests).toHaveBeenCalledTimes(1);
-    expect(getRepoPullRequests).toHaveBeenCalledWith('owner', 'repo', 'open');
+    expect(getRepoPullRequests).toHaveBeenCalledWith('owner', 'repo', 'open', undefined, {
+      head: 'feature',
+      stopWhen: expect.any(Function),
+    });
+    const [, , , , options] = getRepoPullRequests.mock.calls[0] as [
+      string,
+      string,
+      string,
+      string | undefined,
+      { head?: string; stopWhen: (pr: unknown) => boolean },
+    ];
+    expect(options.head).toBe('feature');
+    // The predicate is the head-repository rule the button itself uses, so a fork
+    // PR of the same branch name (which the server-side filter cannot exclude)
+    // does not end the read.
+    expect(options.stopWhen({ number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } })).toBe(true);
+    expect(options.stopWhen({ number: 8, head: { ref: 'feature', repo: { full_name: 'contributor/repo' } } })).toBe(
+      false,
+    );
+    expect(options.stopWhen({ number: 9, head: { ref: 'other', repo: { full_name: 'owner/repo' } } })).toBe(false);
     expect(item.text).toBe('$(git-pull-request-create) Create PR');
   });
 
@@ -424,6 +444,54 @@ describe('CreatePrStatusBarController', () => {
       head: { ref: `other-${index}`, repo: { full_name: 'owner/repo' } },
     }));
     getRepoPullRequests.mockResolvedValue({ items: cappedPulls, totalCount: 500 });
+
+    const item = createController();
+    await controller!.refresh();
+
+    expect(item.text).toBe('$(git-pull-request-create) Create PR');
+    expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining('reached the 500-item cap'));
+  });
+
+  it('warns that the branch may be past the cap when the list reached it without the PR', async () => {
+    // A genuinely absent PR must not read as "no PR exists" when the list was
+    // cut at the shared cap: the log says which branch will not be detected.
+    const errorSpy = vi.spyOn(logger, 'error');
+    const cappedPulls = Array.from({ length: 500 }, (_unused, index) => ({
+      number: index + 1,
+      head: { ref: `other-${index}`, repo: { full_name: 'owner/repo' } },
+    }));
+    getRepoPullRequests.mockResolvedValue({ items: cappedPulls });
+
+    const item = createController();
+    await controller!.refresh();
+
+    expect(item.text).toBe('$(git-pull-request-create) Create PR');
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('reached the 500-item cap'));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"feature"'));
+  });
+
+  it('does not warn about a possible miss when the read stopped at the matching PR', async () => {
+    // The client stops at the page that answers the lookup, so fewer rows than
+    // the total is the caller's own early stop — not evidence of a hidden PR.
+    const errorSpy = vi.spyOn(logger, 'error');
+    getRepoPullRequests.mockResolvedValue({
+      items: [{ number: 7, head: { ref: 'feature', repo: { full_name: 'owner/repo' } } }],
+      totalCount: 500,
+    });
+
+    const item = createController();
+    await controller!.refresh();
+
+    expect(item.text).toBe('$(git-pull-request) PR #7');
+    expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining('reached the 500-item cap'));
+  });
+
+  it('does not warn when the absent branch is below the cap', async () => {
+    const errorSpy = vi.spyOn(logger, 'error');
+    getRepoPullRequests.mockResolvedValue({
+      items: [{ number: 1, head: { ref: 'other', repo: { full_name: 'owner/repo' } } }],
+      totalCount: 1,
+    });
 
     const item = createController();
     await controller!.refresh();

@@ -102,11 +102,15 @@ describe('MCP server over InMemoryTransport', () => {
     }
   });
 
-  it('round-trips list_issues', async () => {
+  it('round-trips list_issues as a paged result with the rows and no total', async () => {
     const result = await callTool('list_issues', { owner: 'demo-user', repo: 'demo-repo' });
-    const issues = resultJson(result) as { title?: string }[];
-    expect(issues).toHaveLength(1);
-    expect(issues[0].title).toBe('Fix login bug');
+    // The handler passes the client's `PagedList` through so the truncation note
+    // can read the server's total; the mock sends no X-Total-Count, which is the
+    // old-server shape, so the total is honestly absent.
+    const page = resultJson(result) as { items: { title?: string }[]; totalCount?: number };
+    expect(page.items).toHaveLength(2);
+    expect(page.items[0].title).toBe('Fix login bug');
+    expect(page.totalCount).toBeUndefined();
   });
 
   it('round-trips get_issue with comments', async () => {
@@ -116,11 +120,12 @@ describe('MCP server over InMemoryTransport', () => {
     expect(data.comments[0].body).toBe(mockTimelineComment.body);
   });
 
-  it('round-trips list_pull_requests', async () => {
+  it('round-trips list_pull_requests as a paged result', async () => {
     const result = await callTool('list_pull_requests', { owner: 'demo-user', repo: 'demo-repo' });
-    const pulls = resultJson(result) as { title?: string }[];
-    expect(pulls).toHaveLength(1);
-    expect(pulls[0].title).toBe('Add dark mode');
+    const page = resultJson(result) as { items: { title?: string }[]; totalCount?: number };
+    expect(page.items).toHaveLength(2);
+    expect(page.items[0].title).toBe('Add dark mode');
+    expect(page.totalCount).toBeUndefined();
   });
 
   it('round-trips get_pull_request with files and commits', async () => {
@@ -137,14 +142,17 @@ describe('MCP server over InMemoryTransport', () => {
 
   it('round-trips get_pr_timeline', async () => {
     const result = await callTool('get_pr_timeline', { owner: 'demo-user', repo: 'demo-repo', index: 2 });
-    const timeline = resultJson(result) as { body?: string }[];
-    expect(timeline[0].body).toBe(mockTimelineComment.body);
+    // The timeline is a paged list, so the rows come back under `items` with the
+    // server's own count beside them (absent here: the mock sends no header).
+    const page = resultJson(result) as { items: { body?: string }[]; totalCount?: number };
+    expect(page.items[0].body).toBe(mockTimelineComment.body);
+    expect(page.totalCount).toBeUndefined();
   });
 
-  it('round-trips list_notifications', async () => {
+  it('round-trips list_notifications as a paged result', async () => {
     const result = await callTool('list_notifications', {});
-    const notifications = resultJson(result) as { id?: number }[];
-    expect(notifications.map((n) => n.id)).toEqual([101, 102]);
+    const page = resultJson(result) as { items: { id?: number }[] };
+    expect(page.items.map((n) => n.id)).toEqual([101, 102]);
   });
 
   it('round-trips get_repo', async () => {
@@ -193,9 +201,9 @@ describe('MCP server over InMemoryTransport', () => {
 
   it('round-trips list_pull_reviews', async () => {
     const result = await callTool('list_pull_reviews', { owner: 'demo-user', repo: 'demo-repo', index: 2 });
-    const reviews = resultJson(result) as { id?: number; state?: string }[];
-    expect(reviews).toHaveLength(1);
-    expect(reviews[0].state).toBe('COMMENT');
+    const page = resultJson(result) as { items: { id?: number; state?: string }[] };
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].state).toBe('COMMENT');
   });
 
   it('round-trips whoami', async () => {

@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { logger } from '../logger';
 import { ForgejoClient, API_REQUEST_TIMEOUT_MS, invalidateRepoContentCaches } from '../api/client';
-import type { ForgejoChangedFile } from '../api/types';
+import type { ForgejoChangedFile, ForgejoReadmeNotice } from '../api/types';
 import { ConfigManager } from '../config';
 import type { ExportSettings, ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import { toPublicInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
@@ -62,6 +62,7 @@ import { writeFileAtomically } from '../utils/atomicWrite';
 import { resolveLocale } from '../utils/resolveLocale';
 import { isSafeRepoIdentity, isSafeRepoNameSegment, isSafeRepoPath } from './repoIdentity';
 import { connectionFailureMessage, isHttpUrl } from './connectionTest';
+import { echoedListRequestId } from './listRequestId';
 import { OnboardingWebviewPanel } from './onboardingPanel';
 import { PullReviewCommentPanel } from '../comments/pullReviewCommentPanel';
 
@@ -187,6 +188,42 @@ function mergeStrategyLabel(strategy: 'merge' | 'rebase' | 'squash'): string {
     default:
       return vscode.l10n.t('Create a merge commit');
   }
+}
+
+/**
+ * The dashboard's sentence for a README that is not a regular file.
+ *
+ * `getRepoDetail` answers such an entry with its client-side English sentence in
+ * `readme` (that is what the headless MCP tools show) and with the structured
+ * `readmeNotice` beside it: which kind the entry is, plus the link target or git
+ * URL when the API named one. The dashboard is the localized surface, so it
+ * words the notice itself instead of showing the English sentence inside a
+ * Chinese UI. `undefined` means the entry is not one of those kinds — a regular
+ * file, a withheld payload or an absent README — which leaves the caller's own
+ * precedence untouched.
+ */
+function readmeNoticeText(notice: ForgejoReadmeNotice | undefined): string | undefined {
+  if (!notice) {
+    return undefined;
+  }
+  if (notice.kind === 'symlink') {
+    return notice.target
+      ? vscode.l10n.t(
+          'README.md is a symlink to {0}, so Forgejo has no README text to show. Open {0} in the Forgejo web UI to read it.',
+          notice.target,
+        )
+      : vscode.l10n.t(
+          'README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.',
+        );
+  }
+  return notice.target
+    ? vscode.l10n.t(
+        'README.md is a submodule whose own repository is at {0}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.',
+        notice.target,
+      )
+    : vscode.l10n.t(
+        'README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.',
+      );
 }
 
 /**
@@ -1157,11 +1194,12 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
             instanceId: instance.id,
             repositories: repos.items,
             ...(repos.totalCount !== undefined ? { totalCount: repos.totalCount } : {}),
+            ...echoedListRequestId(message),
           });
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`getRepositories failed for ${instance.name}: ${err}`);
-          this._reply('repositories', { instanceId: message.instanceId, error: err });
+          this._reply('repositories', { instanceId: message.instanceId, error: err, ...echoedListRequestId(message) });
         }
         return;
       }
@@ -1176,11 +1214,16 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const issues = await client.getUserIssues(state);
-          this._reply('myIssues', { instanceId: instance.id, state, issues });
+          this._reply('myIssues', { instanceId: instance.id, state, issues, ...echoedListRequestId(message) });
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`getMyIssues failed for ${instance.name}: ${err}`);
-          this._reply('myIssues', { instanceId: message.instanceId, state, error: err });
+          this._reply('myIssues', {
+            instanceId: message.instanceId,
+            state,
+            error: err,
+            ...echoedListRequestId(message),
+          });
         }
         return;
       }
@@ -1193,11 +1236,21 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const pulls = await client.getUserPullRequests(state);
-          this._reply('myPullRequests', { instanceId: instance.id, state, pullRequests: pulls });
+          this._reply('myPullRequests', {
+            instanceId: instance.id,
+            state,
+            pullRequests: pulls,
+            ...echoedListRequestId(message),
+          });
         } catch (error) {
           const err = userFacingErrorMessage(error);
           logger.error(`getMyPullRequests failed for ${instance.name}: ${err}`);
-          this._reply('myPullRequests', { instanceId: message.instanceId, state, error: err });
+          this._reply('myPullRequests', {
+            instanceId: message.instanceId,
+            state,
+            error: err,
+            ...echoedListRequestId(message),
+          });
         }
         return;
       }
@@ -1346,13 +1399,20 @@ export class ForgejoToolkitViewProvider implements vscode.WebviewViewProvider {
         try {
           const client = new ForgejoClient(instance.url, instance.token, logger, instance.syncApiUrlsToInstanceUrl);
           const detail = await client.getRepoDetail(owner, repo);
-          // `readme` is undefined both for a repository without a README and for
-          // one whose README the contents API withheld; `detail.readmeSize` is
-          // set only in the second case (and only for a non-empty payload), so
-          // the notice needs no second `/contents/README.md` probe. The dashboard
-          // would otherwise show neither a README nor an explanation.
+          // Three README shapes reach the dashboard, and the order below is what
+          // keeps them apart. `readmeNotice` is the localized sentence for a
+          // README that is not a regular file (a symlink or a submodule): it
+          // replaces the client's English sentence in `readme`, which is written
+          // for the headless MCP tools and must not be what a Chinese UI shows.
+          // Then `readme` itself — the file's text, or that English sentence when
+          // a hand-built payload carries no `readmeNotice`. Last
+          // `detail.readmeSize`, set only for a payload the contents API withheld
+          // (and only for a non-empty one), so an absent README and a genuinely
+          // empty one need no second `/contents/README.md` probe either way.
           const readme =
-            detail.readme ?? (detail.readmeSize !== undefined ? missingPayloadNotice(detail.readmeSize) : undefined);
+            readmeNoticeText(detail.readmeNotice) ??
+            detail.readme ??
+            (detail.readmeSize !== undefined ? missingPayloadNotice(detail.readmeSize) : undefined);
           const detailWithResolvedAvatars = await this._resolveCommitAvatars({ ...detail, readme }, instance);
           this._reply('repoDetail', {
             instanceId: instance.id,
