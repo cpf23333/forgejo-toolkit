@@ -4,10 +4,11 @@ This document describes how to publish Forgejo Toolkit.
 
 ## Checklist
 
-The order below is what the 0.0.1 release uses; nothing has been published yet
-(the Codeberg release, the Marketplace listing and the Open VSX listing all still
-have to be created), so a first-time releaser can follow it top to bottom. The
-sections after it explain each step.
+The order below is what a release uses. 0.0.1 is already out: the Marketplace
+listing is live, and the `v0.0.1` release exists on the self-hosted Forgejo
+(`origin`). Still open: the Codeberg release (no runner on Codeberg, and a tag
+can be pushed and the release created by hand without one) and the Open VSX
+listing (publisher credentials needed). The sections after it explain each step.
 
 1. **Write the changelog section.** The root `CHANGELOG.md` is the authoritative
    release-notes source: the release workflow extracts the section whose heading
@@ -52,14 +53,13 @@ sections after it explain each step.
 ## Prerequisites
 
 - A [Codeberg](https://codeberg.org) account with push access to `https://codeberg.org/cpf23333/forgejo-toolkit`.
-- For store publishing only (checklist step 6, sections 4 and 5): a
+- For store publishing (checklist step 6, sections 4 and 5): a
   [VS Code Marketplace](https://marketplace.visualstudio.com/) publisher account —
-  the extension will be published under the `cpf23333` publisher id already set in
-  `packages/forgejo-toolkit/package.json`, and you need a Personal Access Token for
-  it — and an [Open VSX](https://open-vsx.org/) account if you want to publish for
-  VSCodium users. **Neither store carries the extension yet**, so the Marketplace
-  and Open VSX listing URLs in the READMEs do not resolve until that step has run
-  once; the READMEs state that instead of linking readers to a 404.
+  the extension is published under the `cpf23333` publisher id set in
+  `packages/forgejo-toolkit/package.json` and uses a Personal Access Token for
+  updates — and an [Open VSX](https://open-vsx.org/) account if you want to
+  publish for VSCodium users. **Open VSX does not carry the extension yet**, so
+  its listing URL in the READMEs does not resolve until that step has run once.
 
 ## Release workflow
 

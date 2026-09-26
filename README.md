@@ -41,31 +41,27 @@ A VS Code extension for [Forgejo](https://forgejo.org/) that provides a Webview-
 
 ## Installation
 
-> **Not published yet.** Forgejo Toolkit has not been released: there is no
-> Marketplace or Open VSX listing, and no Codeberg release with a `.vsix`
-> attached. The store links below only start working once the first release is
-> published, so build the `.vsix` yourself for now.
+The extension is published on the
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=cpf23333.forgejo-toolkit)
+— search for "Forgejo Toolkit" in the Extensions view and install it directly.
 
 ### From a VSIX
 
-Once released, every version attaches the packaged `.vsix` to its
-[Codeberg release](https://codeberg.org/cpf23333/forgejo-toolkit/releases) page;
-until then, build it yourself:
+Every version also attaches the packaged `.vsix` to its
+[Codeberg release](https://codeberg.org/cpf23333/forgejo-toolkit/releases) page.
+Install it with **Extensions → ... → Install from VSIX**. To build it yourself:
 
 ```bash
 pnpm --filter forgejo-toolkit package
 ```
 
 The file is written to `packages/forgejo-toolkit/forgejo-toolkit-<version>.vsix`.
-Install it with **Extensions → ... → Install from VSIX**.
 
-### From a store (after the first release)
+### Open VSX
 
-After 0.0.1 is published, the extension can be installed from the
-[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=cpf23333.forgejo-toolkit)
-(search for "Forgejo Toolkit"), or from
-[Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) for editors
-that use it, such as VSCodium.
+An [Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) listing
+(for editors such as VSCodium) is planned but not published yet; until then
+VSCodium users can install the `.vsix` from the release page.
 
 ## Usage
 

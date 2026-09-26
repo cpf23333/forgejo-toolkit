@@ -2,12 +2,14 @@
 
 短期任务清单。已交付功能的完整记录见 `ROADMAP.md` 的「已完成」一节；已完成条目的细节由本文件的 git 日志保存（2026-09-23 清理并同步过两次，只保留未完成项与仍然需要的上下文）。
 
-## 发布 0.0.1（代码侧已完成，等待人工步骤）
+## 0.0.1 已发布（2026-09-26，剩余渠道补齐）
 
-- [ ] 推送 `main`：领先 `codeberg` / `origin`，条数以 `git rev-list --count <remote>/main..main` 为准（不写死，避免过期）；broker 模式（2026-09-27 起）需追加验证：扩展窗口开着时 Agents 窗口里 `whoami` 应认证成功（server 日志出现 "forwarding to the extension-host broker"），关掉所有扩展窗口后同一路径降级为匿名只读
-- [ ] 派发 `.forgejo/workflows/release.yml`：先勾 `dry_run` 确认输入回显与产物 **11 项**检查（其中 `.vsix` 的 `extension/changelog.md` 大小写那条是本次修好的发版阻断；`extension/NOTICE` 那条用于确认 DOMPurify 的 Apache-2.0 许可文本随包发出；`extension/out/webview/codicon.css` 与 `codicon.ttf` 两条是本次新增，用于确认 webview 的图标字体确实随包发出——只跑 webview 构建不会发现该 hook 失效），再取消勾选正式创建 `v0.0.1` Release 并附上 `.vsix`。**注意派发位置（2026-09-26 核实）**：Codeberg 上两个工作流都显示「没有匹配标签且在线的运行器：docker」，排队永不开始——在私服（origin）上派发，它的 runner 已跑通 ci.yml；想在 Codeberg 派发需先注册 docker 标签 runner（详见 `docs/release.md` 的 Where to dispatch it）
-- [ ] 商店发布（需凭据）：VS Code Marketplace（publisher `cpf23333`）+ Open VSX，步骤见 `docs/release.md` 的 Checklist
-- [ ] 发布后回填：① 把根 `CHANGELOG.md` 的 `## [Unreleased]` 改成 `## [0.0.1] - <发布日期>`，并原样复制到 `packages/forgejo-toolkit/CHANGELOG.md`（`packagingFiles.test.ts` 要求两份逐字节一致）；② 删掉 `README.md` / `README.zh.md` 安装段的「Not published yet / 尚未发布」提示，把 Marketplace 与 Open VSX 链接恢复成正常入口，并与 `docs/release.md` 的实际发布渠道对齐；③ 复核 `KNOWN_ISSUES` 中与版本相关的条目
+0.0.1 已上线：VS Code Marketplace 条目生效；私服（两个镜像）已创建 `v0.0.1` Release 并附 `.vsix`；CHANGELOG 已回填 `## [0.0.1] - 2026-09-26`；README 安装段已改为 Marketplace 主入口。剩余：
+
+- [ ] 推送 `main`（当前领先 `codeberg` / `origin` 1 个提交）与 `v0.0.1` tag 到 codeberg（tag 目前在私服）
+- [ ] 在 Codeberg 手动创建 `v0.0.1` Release 并上传 `.vsix`（不需要 runner；UI 或 API 均可）——README 的 Release 链接届时才真正落地
+- [ ] Open VSX 发布（需凭据）：步骤见 `docs/release.md` 第 5 节；发布前在 README ×2 与 `docs/release.md` 移除「尚未发布」的 Open VSX 注记
+- [ ] broker 模式的补充验证（2026-09-27 起适用）：扩展窗口开着时 Agents 窗口里 `whoami` 应认证成功（server 日志出现 "forwarding to the extension-host broker"），关掉所有扩展窗口后同一路径降级为匿名只读
 
 ## 0.0.1 之后
 

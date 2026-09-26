@@ -27,29 +27,24 @@
 
 ## 安装
 
-> **尚未发布。** Forgejo Toolkit 还没有正式发版：Marketplace / Open VSX 上没有条目，
-> Codeberg 上也还没有附带 `.vsix` 的 Release。下面的商店链接要等首个版本发布后才会生效，
-> 目前请自行构建 `.vsix` 安装。
+扩展已发布到
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=cpf23333.forgejo-toolkit)——在扩展视图中搜索「Forgejo Toolkit」直接安装即可。
 
 ### 从 VSIX 安装
 
-发布后，每个版本都会把打包好的 `.vsix` 附在
-[Codeberg Release](https://codeberg.org/cpf23333/forgejo-toolkit/releases) 上；
-在首个版本发布前，请自行构建：
+每个版本也会把打包好的 `.vsix` 附在
+[Codeberg Release](https://codeberg.org/cpf23333/forgejo-toolkit/releases) 上，在 VS Code 中点击
+**扩展 → ... → 从 VSIX 安装** 选择该文件即可。自行构建：
 
 ```bash
 pnpm --filter forgejo-toolkit package
 ```
 
-产物位于 `packages/forgejo-toolkit/forgejo-toolkit-<版本>.vsix`，在 VS Code 中点击
-**扩展 → ... → 从 VSIX 安装** 选择该文件即可。
+产物位于 `packages/forgejo-toolkit/forgejo-toolkit-<版本>.vsix`。
 
-### 从扩展商店安装（首个版本发布后）
+### Open VSX
 
-0.0.1 发布之后，可以在
-[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=cpf23333.forgejo-toolkit)
-搜索「Forgejo Toolkit」安装；使用 VSCodium 等编辑器时，可从
-[Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) 安装。
+[Open VSX](https://open-vsx.org/extension/cpf23333/forgejo-toolkit) 条目（供 VSCodium 等编辑器使用）计划中但尚未发布；在那之前，VSCodium 用户可以安装 Release 页面上的 `.vsix`。
 
 ## 使用
 
