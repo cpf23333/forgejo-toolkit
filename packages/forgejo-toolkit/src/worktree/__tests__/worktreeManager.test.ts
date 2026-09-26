@@ -255,6 +255,12 @@ describe('WorktreeManager globalState write serialization', () => {
     // The removal is now blocked inside its git step; an addWorktree issued
     // meanwhile used to be lost when the removal wrote back its stale snapshot.
     const addition = manager.addWorktree(makeWorktree({ id: 'inst:owner/repo#pr-2', prIndex: 2 }));
+    // Wait until the removal actually reaches its (mocked) git step so
+    // `finishGit` is assigned before it is called below. The mock is a plain
+    // in-memory promise — no real I/O — so the call arrives within a tick; an
+    // exhausted budget still fails the test loudly (`finishGit` would be
+    // undefined) rather than passing on a wrong state, so a longer wall-clock
+    // budget would buy nothing here.
     for (let i = 0; i < 50 && mocks.removeWorktreeAndPrune.mock.calls.length === 0; i++) {
       await new Promise((resolve) => setTimeout(resolve, 0));
     }

@@ -127,10 +127,16 @@ async function flushDispatches() {
 
 /**
  * Flush macrotasks until the predicate holds. Flows that cross real `fs`
- * promises (threadpool) need more than a fixed number of ticks.
+ * promises (threadpool) need more than a fixed number of ticks, and a tick
+ * count that suffices locally still starves on a heavily loaded CI runner:
+ * 50 ticks ≈ 90 ms wall-clock, which already caused CI failures in the
+ * sibling viewProviderDispatch suite (the atomic-export and startWorkOnIssue
+ * tests got no reply within the tick budget there), so the budget is
+ * wall-clock, not ticks — identical to that suite's `flushUntil`.
  */
-async function flushUntil(predicate: () => boolean, attempts = 50) {
-  for (let i = 0; i < attempts && !predicate(); i++) {
+async function flushUntil(predicate: () => boolean, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 }

@@ -841,27 +841,36 @@ describe('PullReviewCommentController multi-line comments', () => {
     // extension host learns about user-initiated collapse silently (no
     // event), so the controller re-applies debounced off the
     // visible-ranges event that the zone widget's height change triggers.
-    state.comments = [
-      { id: 108, path: 'src/index.ts', position: 2, original_position: 0, extra_lines_count: 3, body: 'multi' },
-    ];
-    const editor = { document: makeDocument(false), setDecorations: vi.fn() };
-    state.visibleEditors.push(editor);
-    const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
-    const openDocument = state.openHandlers[0];
+    //
+    // Fake timers (same pattern as the sweep tests above): the re-apply is
+    // debounced by a real 50 ms timer, and a fixed real-time wait only
+    // leaves ~30 ms of slack — too little on a loaded CI runner.
+    vi.useFakeTimers();
+    try {
+      state.comments = [
+        { id: 108, path: 'src/index.ts', position: 2, original_position: 0, extra_lines_count: 3, body: 'multi' },
+      ];
+      const editor = { document: makeDocument(false), setDecorations: vi.fn() };
+      state.visibleEditors.push(editor);
+      const controller = new PullReviewCommentController(createConfig(), { fsPath: '/ext' } as never);
+      const openDocument = state.openHandlers[0];
 
-    await openDocument(makeDocument(false));
-    state.createdThreads[0].collapsibleState = 0;
-    editor.setDecorations.mockClear();
+      await openDocument(makeDocument(false));
+      state.createdThreads[0].collapsibleState = 0;
+      editor.setDecorations.mockClear();
 
-    for (const handler of state.visibleRangesHandlers) {
-      handler();
+      for (const handler of state.visibleRangesHandlers) {
+        handler();
+      }
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(editor.setDecorations).toHaveBeenCalled();
+      const ranges = editor.setDecorations.mock.calls.at(-1)![1] as unknown[];
+      expect(ranges).toEqual([]);
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
     }
-    await new Promise((resolve) => setTimeout(resolve, 80));
-
-    expect(editor.setDecorations).toHaveBeenCalled();
-    const ranges = editor.setDecorations.mock.calls.at(-1)![1] as unknown[];
-    expect(ranges).toEqual([]);
-    controller.dispose();
   });
 
   it('re-applies range decorations when the active editor changes', async () => {

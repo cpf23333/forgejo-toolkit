@@ -57,7 +57,7 @@ describe('DiffFileList truncation notice', () => {
 
     const below = mountList({ files: Array.from({ length: 499 }, (_, i) => file(i)) });
     expect(below.find('.list-truncated').exists()).toBe(false);
-  });
+  }, 15_000); // (same 15 s precedent as useAppState.test.ts). // Mounting ~1000 tree rows can exceed the 5 s default on a loaded runner
 });
 
 /**

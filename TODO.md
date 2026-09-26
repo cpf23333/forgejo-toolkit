@@ -47,7 +47,7 @@
   - 激活：dev host「Show Running Extensions」实测 **`cpf23333.forgejo-toolkit` = 91 ms**（同列表最低；VS Code 1.139.0 + 生产构建）。
   - 结论：**暂不虚拟化** 500 条列表——上限已封顶在 500 且界面会提示截断（见 `shared/src/limits.ts` 的 `LIST_ITEM_LIMIT`/`isListTruncated`），虚拟化的复杂度不划算，等真实 profile 出现卡顿再议。
   - MCP 可发现性：VS Code 不会仅因扩展贡献 `mcpServerDefinitionProviders` 就为取定义而激活它（dev host 实测，见 git 日志），因此 `activationEvents` 补了 `onStartupFinished`（不开 Dashboard 也会在启动时激活，实测 **90 ms**，见 `packages/forgejo-toolkit/package.json` 的 `activationEvents`）；真实环境 Chat 的「配置工具」已确认列出 `forgejo-toolkit → Forgejo: <实例名>` 与其工具 ✔。该事件已交付，仅剩「每次开窗都激活」这一平台代价，记录在「0.0.1 之后」一节。
-- 新 MCP 功能走查（2026-09-25/26，全部通过）：主窗口 Copilot 会话实测——每实例各一个 server、29 个工具、3 个 prompt 模板、`get_workspace_repository` 归因正确、`get_ci_failure_summary` 对真实失败 run 返回错误上下文与日志尾部；Agents 窗口路径实测——「为 Agents 窗口复制 MCP 配置」命令的选项/警示/合并写入全过，Agent Host 新会话经 broker 认证调通 `whoami`（token 不落盘）；匿名只读提示在 server 日志中可见。**Linux headless（WSL Ubuntu 26.04 + Node 22）**：全量 typecheck + 1730 测试通过（1 个 Windows 专属用例按条件跳过），期间修复 unix socket ECONNRESET 误分类与 macOS sun_path 长度风险；macOS 无独立验证环境（Codeberg 无 macOS runner）。**私服 CI（ci.yml #11+）**：验证导出测试的 mock 泄漏依赖与 `flushUntil`  tick 预算不足两处测试自身问题后全绿
+- 新 MCP 功能走查（2026-09-25/26，全部通过）：主窗口 Copilot 会话实测——每实例各一个 server、29 个工具、3 个 prompt 模板、`get_workspace_repository` 归因正确、`get_ci_failure_summary` 对真实失败 run 返回错误上下文与日志尾部；Agents 窗口路径实测——「为 Agents 窗口复制 MCP 配置」命令的选项/警示/合并写入全过，Agent Host 新会话经 broker 认证调通 `whoami`（token 不落盘）；匿名只读提示在 server 日志中可见。**Linux headless（WSL Ubuntu 26.04 + Node 22）**：全量 typecheck + 1730 测试通过（1 个 Windows 专属用例按条件跳过），期间修复 unix socket ECONNRESET 误分类与 macOS sun_path 长度风险；macOS 无独立验证环境（Codeberg 无 macOS runner）。**私服 CI（ci.yml #11+）**：验证导出测试的 mock 泄漏依赖与 `flushUntil` tick 预算不足两处测试自身问题后全绿
 
 ## 进行中
 

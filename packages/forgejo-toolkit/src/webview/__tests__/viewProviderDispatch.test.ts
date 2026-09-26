@@ -347,6 +347,19 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     clearServerVersions();
     vi.mocked(vscode.window.showQuickPick).mockReset();
     vi.mocked(vscode.window.showSaveDialog).mockReset();
+    // Bare `vi.fn()`s in extension-setup (no default implementation), so
+    // mockReset is safe and drops per-test mockResolvedValue leftovers; a
+    // leaked showInputBox answer once made the atomic-export test pass only in
+    // full-file order.
+    vi.mocked(vscode.window.showInputBox).mockReset();
+    vi.mocked(vscode.window.showOpenDialog).mockReset();
+    // getConfiguration has a default implementation in extension-setup and
+    // tests override it with mockReturnValue/mockImplementation, so neither
+    // mockReset (wipes the default) nor mockClear (keeps the override) works
+    // alone: reset, then restore an equivalent default.
+    vi.mocked(vscode.workspace.getConfiguration)
+      .mockReset()
+      .mockReturnValue({ get: vi.fn(), update: vi.fn() } as never);
     vi.mocked(vscode.window.showErrorMessage).mockClear();
     proxyMocks.getProxyFetch.mockReset();
     context = createFakeContext();
@@ -1589,7 +1602,7 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     // stores the reply and Settings reports "Failed to export instances".
     vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce(undefined as never);
     fake.send({ command: 'exportInstances', ids: [testInstance.id] });
-    await flushDispatches();
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesExported'));
 
     const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesExported');
     expect(reply).toMatchObject({ success: false, cancelled: true });
@@ -1598,11 +1611,16 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
   it('marks a dismissed export save dialog as cancelled as well', async () => {
     // The encrypt choice is confirmed, the password typed, and only then is the
     // save dialog dismissed — the last decline path.
-    // The prompt asks twice (password + confirmation) before the save dialog.
-    vi.mocked(vscode.window.showInputBox).mockResolvedValue('something' as never);
+    // The prompt asks twice (password + confirmation) before the save dialog;
+    // each answer is scoped to its own prompt so no resolved value leaks into
+    // later tests through the shared mock (a leaked password answer once made
+    // the atomic-rename test below pass only in full-file order).
+    vi.mocked(vscode.window.showInputBox)
+      .mockResolvedValueOnce('something' as never)
+      .mockResolvedValueOnce('something' as never);
     vi.mocked(vscode.window.showSaveDialog).mockResolvedValueOnce(undefined as never);
     fake.send({ command: 'exportInstances', ids: [testInstance.id] });
-    await flushDispatches();
+    await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'instancesExported'));
 
     const reply = postedMessages(fake.posted).find((m) => m.command === 'instancesExported');
     expect(reply).toMatchObject({ success: false, cancelled: true });
@@ -1818,8 +1836,14 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
       await context.globalState.update('forgejoToolkit.worktrees', [worktree]);
       declineNextConfirm();
 
+      // The handler answers a decline with silence on purpose (the webview
+      // tracks no pending state for removeWorktree), so there is no reply to
+      // wait for; the only observable event is the confirmation prompt itself.
+      // Compare against the pre-send call count: the shared mock's call
+      // history is not reset between tests.
+      const confirmCallsBefore = vi.mocked(vscode.window.showWarningMessage).mock.calls.length;
       fake.send({ command: 'removeWorktree', id: 'w1' });
-      await flushDispatches();
+      await flushUntil(() => vi.mocked(vscode.window.showWarningMessage).mock.calls.length > confirmCallsBefore);
 
       expect(vi.mocked(removeWorktreeAndPrune)).not.toHaveBeenCalled();
       const messages = postedMessages(fake.posted);
@@ -1903,8 +1927,13 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         ]);
         declineNextConfirm();
 
+        // A decline gets no reply (see the decline-path test above), so wait
+        // for the confirmation prompt itself; comparing against the pre-send
+        // count keeps a prompt leaked from an earlier test from satisfying the
+        // wait before this flow has even asked.
+        const confirmCallsBefore = vi.mocked(vscode.window.showWarningMessage).mock.calls.length;
         fake.send({ command: 'removeWorktree', id: 'w-named' });
-        await flushDispatches();
+        await flushUntil(() => vi.mocked(vscode.window.showWarningMessage).mock.calls.length > confirmCallsBefore);
 
         const message = lastConfirmMessage();
         expect(message).toContain('acme/widgets');
@@ -2330,7 +2359,11 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
     vi.mocked(removeWorktreeAndPrune).mockRejectedValue(new Error('fatal: removal failed'));
 
     fake.send({ command: 'removeWorktree', id: 'w1' });
-    await flushDispatches();
+    // The failure reply crosses the worktree manager's real fs promise chain,
+    // so a fixed two-tick flush can finish before the reply is posted.
+    await flushUntil(() =>
+      postedMessages(fake.posted).some((m) => m.command === 'worktreeError' && m.operation === 'remove'),
+    );
 
     const messages = postedMessages(fake.posted);
     const error = messages.find((m) => m.command === 'worktreeError');
@@ -2947,7 +2980,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
 
     it.each(hostileTargets)('ignores openPrWorktree with %j and replies so the spinner clears', async (target) => {
       fake.send({ command: 'openPrWorktree', instanceId: testInstance.id, ...target });
-      await flushDispatches();
+      // The invalid-target reply goes through the same in-flight queue as the
+      // real handler, so it is not necessarily posted within two macrotasks.
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'worktreeError'));
 
       expect(clientMocks.getPullRequestDetail).not.toHaveBeenCalled();
       expect(vi.mocked(cloneRepository)).not.toHaveBeenCalled();
@@ -3760,7 +3795,11 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         index: 5,
         title: 'fix-bug',
       });
-      await flushDispatches();
+      // This handler chain crosses more awaited boundaries than a fixed pair
+      // of ticks covers on a loaded Actions runner (the CI run got no reply
+      // within two ticks and the assertion then saw nothing); wait for the
+      // actual result message instead.
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
 
       const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
       expect(reply).toMatchObject({ instanceId: testInstance.id, owner: 'owner', repo: 'repo', index: 5 });
@@ -3816,7 +3855,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         index: 5,
         title: 'fix-bug',
       });
-      await flushDispatches();
+      // Same fs.promises.access chain as the startWorkOnIssue success path:
+      // a fixed two-tick flush can finish before the reply is posted.
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
 
       const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
       expect(reply?.error).toBe('fatal: could not fetch');
@@ -3838,7 +3879,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         index: 5,
         title: 'fix-bug',
       });
-      await flushDispatches();
+      // Same fs.promises.access chain as the startWorkOnIssue success path:
+      // a fixed two-tick flush can finish before the reply is posted.
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
 
       const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
       expect(reply?.error).toBeUndefined();
@@ -3860,7 +3903,9 @@ describe('ForgejoToolkitViewProvider message dispatch', () => {
         index: 5,
         title: 'fix-bug',
       });
-      await flushDispatches();
+      // Same fs.promises.access chain as the startWorkOnIssue success path:
+      // a fixed two-tick flush can finish before the reply is posted.
+      await flushUntil(() => postedMessages(fake.posted).some((m) => m.command === 'startWorkResult'));
 
       const reply = postedMessages(fake.posted).find((m) => m.command === 'startWorkResult');
       expect(typeof reply?.error).toBe('string');
