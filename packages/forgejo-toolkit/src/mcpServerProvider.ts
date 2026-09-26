@@ -63,8 +63,23 @@ export function registerMcpServerProvider(
   );
 
   // The state file's own listeners and its cold-start write; registered here
-  // because the MCP feature is its only consumer.
+  // because the MCP feature is its only consumer. Deliberately before the
+  // capability check below: the static-config path (a third-party agent's
+  // .mcp.json pointed at the shim) consumes the state files too and works on
+  // editors that have no MCP definition API at all.
   registerMcpWorkspaceStateSync(context, config, logger);
+
+  // VS Code forks are not required to implement every API: an editor without
+  // `vscode.lm.registerMcpServerDefinitionProvider` must not lose the whole
+  // extension to a failed activation over this one optional surface. Only the
+  // registration is skipped; everything above still runs.
+  const register = vscode.lm?.registerMcpServerDefinitionProvider;
+  if (typeof register !== 'function') {
+    logger.info(
+      'This editor provides no MCP server definition API; skipping MCP server registration (the static-config MCP path still works).',
+    );
+    return;
+  }
 
   const provider: vscode.McpServerDefinitionProvider = {
     onDidChangeMcpServerDefinitions: onDidChange.event,
@@ -133,7 +148,5 @@ export function registerMcpServerProvider(
     },
   };
 
-  context.subscriptions.push(
-    vscode.lm.registerMcpServerDefinitionProvider(MCP_SERVER_DEFINITION_PROVIDER_ID, provider),
-  );
+  context.subscriptions.push(register.call(vscode.lm, MCP_SERVER_DEFINITION_PROVIDER_ID, provider));
 }

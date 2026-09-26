@@ -10,6 +10,12 @@ Forgejo Toolkit is a VS Code extension for [Forgejo](https://forgejo.org/) and C
 
 Forgejo and Gitea share API history, so many features may work against Gitea instances. However, this extension is tested against Forgejo only; Gitea compatibility is best-effort.
 
+### Can I use it on VSCodium or another VS Code fork?
+
+Yes — the extension is published on [Open VSX](https://open-vsx.org/) exactly for editors like VSCodium that do not use the Microsoft Marketplace, and everything except the AI integration works the same: dashboard, issues, PRs, worktrees, Actions, notifications.
+
+The MCP server needs a consumer, and that is where the forks differ. VS Code's built-in consumer is Copilot agent mode, which is only available in Microsoft's official build. On a fork you therefore drive the MCP server from a **third-party agent** (Cline, Continue, …) or any MCP client: point it at the stable-path shim (`mcp-server.js` in the extension's globalStorage, see "Can I use the MCP server in the Agents window?" below for the exact path). The zero-configuration instance matching and the authenticated broker both work there, because they are implemented by the extension itself, not by VS Code's chat. Nothing needs to be disabled: on an editor whose MCP definition API is missing entirely, the extension skips that one registration and runs everything else normally.
+
 ## Setup
 
 ### What access token permissions do I need?

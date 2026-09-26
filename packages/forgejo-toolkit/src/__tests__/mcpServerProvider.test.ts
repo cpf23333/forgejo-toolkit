@@ -119,6 +119,27 @@ describe('registerMcpServerProvider', () => {
     expect(registerSpy.mock.calls[0][0]).toBe(MCP_SERVER_DEFINITION_PROVIDER_ID);
   });
 
+  it('skips registration on an editor without the MCP definition API instead of failing activation', () => {
+    // VS Code forks are not required to implement vscode.lm: a missing API
+    // must skip only the registration — the workspace-state sync the
+    // static-config path consumes still starts, and activation survives.
+    (vscode as unknown as { lm: unknown }).lm = undefined;
+    const context = {
+      subscriptions: [] as { dispose(): unknown }[],
+      extensionUri: { fsPath: '/ext' },
+      globalStorageUri: { fsPath: SHARED_GLOBAL_STORAGE },
+    } as unknown as import('vscode').ExtensionContext;
+    createdContexts.push(context);
+    const config = {
+      getInstances: () => [],
+      onInstancesChanged: () => ({ dispose: vi.fn() }),
+    } as unknown as ConfigManager;
+    const logger = { debug: vi.fn(), info: vi.fn() } as unknown as Logger;
+
+    expect(() => registerMcpServerProvider(context, config, logger)).not.toThrow();
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('no MCP server definition API'));
+  });
+
   it('returns no definitions when no instance is configured', async () => {
     const { provider } = setup();
     const definitions = await provider.provideMcpServerDefinitions(new AbortController().signal as never);
