@@ -37,8 +37,8 @@
     "@kubb/plugin-msw": "4.39.2",
     "@kubb/plugin-oas": "4.39.2",
     "@kubb/plugin-ts": "4.39.2",
-    "msw": "^2.14.6",
-    "prettier": "^3.9.3",
+    "msw": "^2.15.0",
+    "prettier": "^3.9.9",
     "typescript": "^6.0.3"
   }
 }
