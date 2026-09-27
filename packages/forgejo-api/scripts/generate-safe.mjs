@@ -14,6 +14,11 @@
 // points at its installation — and it succeeds. Also remember that the generated
 // sources are formatted: a fresh run looks like a thousands-of-files diff until
 // `pnpm format:fix` has run, and then it should be a no-op on an up-to-date tree.
+//
+// This runner chains the three steps a generation needs to be trustworthy:
+// `generate` (which now formats its own output, so the diff is reviewable),
+// then a workspace-wide type check, which is what catches a renamed or reshaped
+// generated type in the hand-written client that consumes it.
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,5 +45,22 @@ try {
       'generate:safe: restore failed; run `git restore --source=HEAD --worktree -- packages/forgejo-api/src/generated` yourself.',
     );
   }
+  process.exit(typeof error?.status === 'number' ? error.status : 1);
+}
+
+// The generator ran, so the tree holds the new output — which is only useful if
+// it type-checks. The check covers the whole workspace, not just this package:
+// the generated names are consumed by `forgejo-toolkit`'s hand-written client,
+// so a rename or a changed shape breaks there first. A failure here does NOT
+// restore: the diff is the evidence of what changed, and it is what has to be
+// reviewed or fixed.
+console.error('\ngenerate:safe: type-checking the workspace against the new output…');
+try {
+  execFileSync('pnpm -w run check', { cwd: packageDir, stdio: 'inherit', shell: true });
+  console.error('generate:safe: done — generation, formatting and type-checking all passed.');
+} catch (error) {
+  console.error(
+    '\ngenerate:safe: the generated output does not type-check. The files are left in place so the diff can be reviewed; fix the consuming code (or the spec/pins) and re-run.\n',
+  );
   process.exit(typeof error?.status === 'number' ? error.status : 1);
 }
