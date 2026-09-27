@@ -255,6 +255,9 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
   出现**短暂双主导 → 一次重复提示**，方向安全（**宁可重复，绝不少通知**），却把最坏交接延迟从
   35 s 压到 K 个 tick（2 s tick × 3 ≈ 6 s；有 `fs.watch` 时通常 < 1 s）。即使让位与加速降级都
   失败，最终兜底仍是过期接管（≤35 s），因此不存在"永远卡住"。
+  **K 的计数器由调用方持有（内存，不落盘）**——窗口重启即归零，这是安全的方向（最坏退回等过期）；
+  若日后发现"重启后接管太慢"，再考虑写进请求文件，当前不落盘以免给租约文件加一个会腐烂的字段
+  （阶段 0 的实现结论）。
   说明：这里的 **2 s tick** 是请求者的请求节奏，与"心跳 10 s / 过期 35 s"（§2 决策 2）不是同一层，
   实现时不要合并成一个常量。
 - **与已读基线的耦合（已核对代码，结论安全）**：`notificationPoller.ts:462` 的
@@ -336,7 +339,7 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
   "windowId": "…", // 可选：VS Code 没有稳定的窗口标识，展示用工作区名即可
   "claimedAt": 1767225600000, // Date.now()，epoch ms
   "heartbeatAt": 1767225610000, // 每次心跳刷新
-  "releaseReason": null, // "deactivate" / "takeover-requested" / "stepped-down"
+  "releaseReason": null, // **恒为 null**（阶段 0 结论）：让位**不写墓碑**，原因记日志（§7.1）
   "appVersion": "0.0.1",
   "instancesFingerprint": "…", // 实例集合的指纹，见 §3.3
 }
@@ -348,6 +351,11 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 外泄地址）。`pid + ownerNonce` 的组合与 `mcpWorkspaceState.ts:41-48` 的
 "pid + per-window nonce" 是同一个理由：pid 会被回收。
 
+**`releaseReason` 为什么不写（阶段 0 的实现结论）**：让位若先把自己的记录写成"墓碑"再 unlink，
+就可能**删除继任者的租约**——在我们写入与 unlink 之间，另一个窗口完全可能已经接管；而让位协议
+本来就只有"重读 + 比对 holder token + unlink"（§2.3），加墓碑只会引入这个回归。所以该字段在盘上
+**恒为 `null`**，让位/降级/交接的**原因走日志**（§7.1）与诊断命令（§11.1 阶段 2）。
+
 ### 3.3 实例集合变化的处理
 
 - 租约里记一个实例集合指纹。**指纹变化不触发重新选主**：主导者在下一次心跳时把指纹更新到
@@ -356,6 +364,8 @@ follower 窗口手动打开通知视图仍走宿主与 webview 的正常消息�
 - follower 发现指纹不同**不** takeover。理由：两个窗口共享同一份
   `forgejoToolkit.instances`（`src/config.ts:13` 的 `INSTANCES_KEY`），指纹不同的窗口期通常只是
   "另一个窗口刚写完而我还没重读"。为它触发选主只会制造抖动。
+  **阶段 0 把这条做成了结构性保证**：指纹根本不在决策函数的输入里（不是"进了决策再跳过"），
+  因此它**在类型层面**就无法影响选主；并有测试钉住这一点。
 - 如果实现时发现"多窗口实例列表长时间不一致"是真实问题（例如导入后另一个窗口一直没刷新），
   那属于 `globalState` 没有变更事件这一既有缺陷，应当按 §12.2（"选主禁止 globalState"那条决定的
   边界：它只约束**选主**，不承诺顺手修 `globalState` 的其它一致性问题）单独立项（它超出了本文
@@ -684,6 +694,14 @@ follower 的状态机：
    并发 `claim()`，断言恰好一个成功。再重复 50 次以抓偶发。
 3. **跨进程互斥**：用 `child_process`/`worker_threads` 起 N 个真实进程同时 `claim()`，
    断言恰好一个赢。这是唯一能证明"`wx` 在真实文件系统上原子"的测试。
+   **阶段 0 的实现结论**：`child_process` 带管道 stdio 在 harness 沙箱下会被拒（EPERM），
+   因此改为 **`worker_threads`**（不走管道）：主线程 + N−1 个 `new Worker(..., { eval: true })`
+   对同一临时目录做同样的 `fs.openSync(path,'wx')` 创建+写入，跑多轮断言**恰好一个赢**。
+   线程与进程在这个断言上等价——被验证的是**同一个系统调用**；真正的"两个扩展宿主进程"竞争
+   留给 §10.2 的双窗口 soak（那才是端到端形态）。**必须防"假通过"**：朴素写法（先 spawn worker、
+   主线程立刻 `open`）会让主线程 25/25 全赢——worker 启动要几毫秒，压根没形成竞争，测试却全绿；
+   实现用 `SharedArrayBuffer` 的会合屏障（ready 计数 + 共同截止时间），断言所有竞争者都已就位，
+   并**逐轮打印赢家**（六次插桩运行里 worker 赢 5–20/25，证明竞争真实存在）。
 4. **接管状态机**：用可注入的时钟与 fs 门面，模拟"主导者停止心跳"→"follower 在 35 秒后接管"；
    模拟"旧主导者心跳时发现 owner 变了 → 降级"。既有测试的写法可复用：
    `vi.useFakeTimers()` + 内存 store（`src/notifications/__tests__/notificationPoller.test.ts:63-96`，
@@ -727,22 +745,28 @@ follower 的状态机：
     `mcp/__tests__/broker.test.ts:486-496`）。租约本身不走 socket，但同一台机器上
     "窗口怎么死"的差异是同一批平台差异，值得在两次实测里分别记录。
   - `tools/ui-review/` 的隔离 dev host 用独立的 `--user-data-dir`
-    （`tools/ui-review/README.md:88-90`），因此**需要共享 profile 的双窗口模式**才能制造
+    （`tools/ui-review/README.md:270-272`），因此**需要共享 profile 的双窗口模式**才能制造
     "两个窗口共享 globalStorage"的真实场景；而 broker 的端点由 `sha256(username + homedir)`
-    派生，**不随 `--user-data-dir` 变化**（`tools/ui-review/README.md:239-248`），
+    派生，**不随 `--user-data-dir` 变化**（`tools/ui-review/README.md:421-435`），
     所以同一用户的**两个 profile** 也会争同一个端点——与"一个 profile 的两个窗口"同类。
     租约没有这一层：它的路径来自 `globalStorageUri`，**逐 profile 独立**。
-    **交付项（2026-09-27 决定）：给 `tools/ui-review/` 加一个"共享 profile 双窗口"模式。**
+    **交付项（2026-09-27 决定，同日已实现）：给 `tools/ui-review/` 加一个"共享 profile 双窗口"模式。**
     否则本节与 §11.2 的人工验证只能靠手工复现上面那套手法，很别扭。要落的形态：
   - 现有 dev host 仍然是"每次 launch 一个独立 `--user-data-dir`"的模型
-    （`tools/ui-review/README.md:88-90` 记的就是这个模型），**新模式不动它**，而是提供一条
+    （`tools/ui-review/README.md:270-272` 记的就是这个模型），**新模式不动它**，而是提供一条
     "同一个 profile 再开第二个窗口"的路径，好让两个窗口真的共享 `globalStorage`；
   - 开第二个窗口用**运行中实例内的 Ctrl+Shift+N**——不要用
     `code --new-window <folder>`（对同一 profile 只是把已有窗口带到前台，实测无效）；
   - "让一个窗口掉线"用**对该窗口的 extension host 进程 `Stop-Process -Force`**，应用与其余窗口
     保留——这正是租约崩溃场景的形状；
   - 该模式必须能同时观测两个窗口的日志/诊断输出（否则 §11.2 的"谁接管了、多久接管"无法取证）。
-    本节只记决定与形态；**harness 本身的实现不在本文范围内**（§12.7）。
+    本节只记决定与形态。**实现已于同日落地**：`tools/ui-review/src/dual.ts`（连同
+    `windows.ts`/`winProc.ts`/`logs.ts`/`state.ts`/`config.ts`），入口
+    `pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual launch|verify|targets|windows|logs|kill|close`，
+    冒烟场景与"未验证项"清单见 `tools/ui-review/README.md` 第 60 行起的
+    "Shared-profile dual-window mode" 一节。**已实现、31 个单测通过，但尚未真机跑过**——跑它需要
+    构建扩展，属维护者授权范围；README 如实列出未验证项：`Ctrl+Shift+N` 在真实 VS Code 上是否产出
+    第二个 workbench page、两窗口是否真共享同一 `--user-data-dir`、exthost↔窗口配对、窗口进程类型判定。
 - **真实睡眠/唤醒**下的计时器节流。
 - **用户可感知的"少一次提示"**：这一条只能靠人工观察日志 + 长时间运行积累，见 §11。
 
@@ -1030,12 +1054,13 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
    （理由见 §9 末尾）。
 7. ~~**harness 支持**：`tools/ui-review/` 目前每次 launch 用独立 `--user-data-dir`。要不要加一个
    "共享 profile 的双窗口"模式，让多窗口场景可以走查？~~ **已决定（2026-09-27）：加**，
-   作为可走查的交付项（§10.2），否则 §10.2 / §11.2 的人工验证太别扭。形态：现有的
-   "每次 launch 一个独立 `--user-data-dir`"模型（`tools/ui-review/README.md:88-90`）保持不变，
+   作为可走查的交付项（§10.2），**同日已实现**（`tools/ui-review/src/dual.ts` 等，31 个单测通过，尚未真机跑），否则 §10.2 / §11.2 的人工验证太别扭。形态：现有的
+   "每次 launch 一个独立 `--user-data-dir`"模型（`tools/ui-review/README.md:270-272`）保持不变，
    新模式在其上提供"同一个 profile 再开一个窗口"；开第二窗口用**运行中实例内的 Ctrl+Shift+N**
    （`code --new-window` 对同一 profile 只会把已有窗口带到前台，实测无效）；"让一个窗口掉线"用
    **对该窗口的 extension host 进程 `Stop-Process -Force`**；并要能同时观测两个窗口的日志/诊断。
-   **harness 自身的实现不在本文范围**（本文只记录决定与形态）。
+   **harness 的实现已于同日落地**（`tools/ui-review/src/dual.ts` 等，见 §10.2），但仍**未真机跑过**；
+   本文只负责记录决定与形态，harness 自身的用法与未验证项在 `tools/ui-review/README.md` 里。
 8. ~~**强制接管的语义**：用户点"强制接管"时，是否应当**立即**轮询一次再走正常流程？~~
    **已决定（2026-09-27）：立即轮询一次，然后回到正常流程**（§7.2）。用户点这条命令就是在等结果，
    "接管了但要等下一个间隔"会让命令看起来没生效；代价明确——**租约未定时会多出一次请求**，
@@ -1100,7 +1125,7 @@ broker 的交接提供了**同形状证据的样板**（每条都注明"对应 b
 | 陈旧状态文件的 pid 存活探测先例（`isPidAlive`）                       | `packages/forgejo-toolkit/src/mcpWorkspaceState.ts:287-297` ⚠                                        |
 | 单测里可共享的内存 `globalState` + fake timers                        | `packages/forgejo-toolkit/src/notifications/__tests__/notificationPoller.test.ts:63-96` ⚠            |
 | `deactivate()` 的位置                                                 | `packages/forgejo-toolkit/src/extension.ts:170-178`                                                  |
-| dev host 用独立 `--user-data-dir`（broker 端点不吃它）                | `tools/ui-review/README.md:88-90`、`:239-248` ⚠                                                      |
+| dev host 用独立 `--user-data-dir`（broker 端点不吃它）                | `tools/ui-review/README.md:270-272`、`:421-435` ⚠                                                    |
 | 平台代价与规避方法的既有记录                                          | `KNOWN_ISSUES.md:210-214`、`KNOWN_ISSUES.zh.md:210-214`                                              |
 | P4 条目                                                               | `TODO.md:18` ⚠                                                                                       |
 | broker 交接的交付记录与实测数字                                       | `TODO.md:9`、`ROADMAP.md:191`、`KNOWN_ISSUES.zh.md:228-234`                                          |
