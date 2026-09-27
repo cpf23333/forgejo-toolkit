@@ -37,14 +37,14 @@ importers:
         specifier: 4.39.2
         version: 4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
       '@kubb/plugin-client':
-        specifier: 4.39.2
-        version: 4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
+        specifier: 4.39.3
+        version: 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
       '@kubb/plugin-msw':
         specifier: 4.39.2
         version: 4.39.2(@kubb/fabric-core@0.14.0)
       '@kubb/plugin-oas':
-        specifier: 4.39.2
-        version: 4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
+        specifier: 4.39.3
+        version: 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
       '@kubb/plugin-ts':
         specifier: 4.39.2
         version: 4.39.2(@kubb/react-fabric@0.14.0)
@@ -641,6 +641,10 @@ packages:
     resolution: {integrity: sha512-Pe/GXOIVGUYMWL1rLJApv63aH7xeSnlweAD1mSytzuSZ7yYfspNb7XP6ruzKTTGnIWO6Hrcy+gomnuFoHHZlgg==}
     engines: {node: '>=20'}
 
+  '@kubb/ast@4.39.3':
+    resolution: {integrity: sha512-orBqMCiABnHzqXpqvZm3LrgkFaUCR+Rym8tf2QviOdHnulFSFd//rhiSXMKy4yhJm6kSX+dLxdyrXRWezGCHfA==}
+    engines: {node: '>=20'}
+
   '@kubb/cli@4.39.2':
     resolution: {integrity: sha512-8nRG9AgCNuDqg3hGo3b3Lc1WcEsCbCSz8Lv3QF4D8+N0An4FEK48OJsWURctlfud8I8UugNG5/3Okf9Hs3w1rQ==}
     engines: {node: '>=20'}
@@ -653,8 +657,19 @@ packages:
       '@kubb/fabric-core': 0.14.0
       '@kubb/react-fabric': 0.14.0
 
+  '@kubb/core@4.39.3':
+    resolution: {integrity: sha512-5ALNWqRYLWSxLPWZBMuln2QGm1CMnQs2pEnImS1AKdE0reYC2Vd6XXsyLsGcGc+DDLK6zJwC76WGt/hpzF/iUA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@kubb/fabric-core': 0.16.1
+      '@kubb/react-fabric': 0.16.1
+
   '@kubb/fabric-core@0.14.0':
     resolution: {integrity: sha512-j4bG8RlOIkKLENHsTuD1oKuyjzAgBBOprXsBkpQ2l2XVzc84hQzMShP6CE6D4VSM+5jF2g3FhCz7YjAc6DQnqg==}
+    engines: {node: '>=20'}
+
+  '@kubb/fabric-core@0.16.1':
+    resolution: {integrity: sha512-VgkNriS9slaYv8HpGEtsc6VaCGwGlQb9xMCnSHegLSNZ9mY0LYBRI89UZnqOyVgQExYVYJO5Q6i8NZHNf2kBbg==}
     engines: {node: '>=20'}
 
   '@kubb/oas@4.39.2':
@@ -663,12 +678,18 @@ packages:
     peerDependencies:
       '@kubb/fabric-core': 0.14.0
 
-  '@kubb/plugin-client@4.39.2':
-    resolution: {integrity: sha512-kxoYGzDO5xlCHm2u9BRsE1twhf9y8XDKmU+TlFYi96UlJmgwdkUmTPJ6yZ0OHMNZJX7ZuyCm1nIdJE+yP+zlBw==}
+  '@kubb/oas@4.39.3':
+    resolution: {integrity: sha512-iNZGReQadP5gYrsFDyrNclp5JZDg6JbbCyvuH3t1BBeI4D7HZCTxXwQ+R8CxVjr6NLSUjWgwTqTB/3Jiv7UzcQ==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@kubb/fabric-core': 0.14.0
-      '@kubb/react-fabric': 0.14.0
+      '@kubb/fabric-core': 0.16.1
+
+  '@kubb/plugin-client@4.39.3':
+    resolution: {integrity: sha512-9s4X/pEJX1u4k2TaEiVRTYL0eNeDK3g1BkNxGGRCIfUcPF81MlQ7dBtva3482ruYLdQZQSZsClv17xatloezEw==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@kubb/fabric-core': 0.16.1
+      '@kubb/react-fabric': 0.16.1
       axios: ^1.7.2
     peerDependenciesMeta:
       axios:
@@ -689,18 +710,35 @@ packages:
       '@kubb/fabric-core': 0.14.0
       '@kubb/react-fabric': 0.14.0
 
+  '@kubb/plugin-oas@4.39.3':
+    resolution: {integrity: sha512-nFiCXWTNIuw0vRM5c6GG6KaP4xFPD4VDeRf3lwUXqnX0RqH+chQq4hEEQCY5UHOIxJ86nj/cKqO/urF/QE3VUg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@kubb/fabric-core': 0.16.1
+      '@kubb/react-fabric': 0.16.1
+
   '@kubb/plugin-ts@4.39.2':
     resolution: {integrity: sha512-lgFWClMNAPv1zg7jnG5TLtnCAEE5sUNioq3KyylgwsmfhhgZYMFPcFM1tPJlfivT+w74hSqHPZBUqF86rrrnaw==}
     engines: {node: '>=20'}
     peerDependencies:
       '@kubb/react-fabric': 0.14.0
 
-  '@kubb/plugin-zod@4.39.2':
-    resolution: {integrity: sha512-mGx1opM//FO7DlMHSMKnFcnVCbWreNB7bS2DE79C0DVm4hJ6VEEttYLb7iwKaj6AWOKoIFjFeeZFcvXcBrUE6g==}
+  '@kubb/plugin-ts@4.39.3':
+    resolution: {integrity: sha512-zNfgXOeEGJ9TFEyQ2Ens3/u9W2ehMNfVEU/z2FCQAWDJzCiFBb7cXQcBCl1wC+2zT0ygakZ/R9zG79lW4VaokQ==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@kubb/react-fabric': 0.16.1
+
+  '@kubb/plugin-zod@4.39.3':
+    resolution: {integrity: sha512-+3Fz0AUE9FQUOJod8azGvW5xLIGiHio+HZQoyZvJ+zXTQEvS1ZMkFucwhDZwrFTXi5vRGlQHKbDsHAyq/rrMNw==}
     engines: {node: '>=20'}
 
   '@kubb/react-fabric@0.14.0':
     resolution: {integrity: sha512-rYBSpjG/1jrv/H5zMLK+JciuaFRXFue99nZkjNaWWGN5YAK/OwpButeJtMMCluE0EnhOxXqD3gfjyAUxO765XA==}
+    engines: {node: '>=20'}
+
+  '@kubb/react-fabric@0.16.1':
+    resolution: {integrity: sha512-UXSNOS2Bjr1B6uZPUW1nJeaXBecYf28WJMB26XQrwmDBm4ueFeKcZRJz2+CstTbSONyfXoxZMD7knKr6jo0fBQ==}
     engines: {node: '>=20'}
 
   '@lit-labs/ssr-dom-shim@1.6.0':
@@ -3283,6 +3321,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.21.2:
+    resolution: {integrity: sha512-54dMVAo4WIe6SKy3vBgN+9bJZqqQ8IMRevAkOLQALhi49qkkQDQfWdAZ8KQlXiEabw88ARXXdUrlvtbKQX+aKw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   wsl-utils@0.1.0:
     resolution: {integrity: sha512-h3Fbisa2nKGPxCpm89Hk33lBLsnaGBvctQopaBSOW/uIs6FTe1ATyAnKFJrzVs9vpGdsTe73WF3V4lIsk4Gacw==}
     engines: {node: '>=18'}
@@ -3796,6 +3846,8 @@ snapshots:
 
   '@kubb/ast@4.39.2': {}
 
+  '@kubb/ast@4.39.3': {}
+
   '@kubb/cli@4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)(typescript@6.0.3)':
     dependencies:
       '@clack/prompts': 1.8.1
@@ -3820,7 +3872,58 @@ snapshots:
       semver: 7.8.5
       tinyexec: 1.3.1
 
+  '@kubb/core@4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)':
+    dependencies:
+      '@kubb/ast': 4.39.3
+      '@kubb/fabric-core': 0.14.0
+      '@kubb/react-fabric': 0.14.0
+      empathic: 2.1.0
+      fflate: 0.8.3
+      remeda: 2.50.0
+      semver: 7.8.5
+      tinyexec: 1.3.1
+
+  '@kubb/core@4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.16.1)':
+    dependencies:
+      '@kubb/ast': 4.39.3
+      '@kubb/fabric-core': 0.14.0
+      '@kubb/react-fabric': 0.16.1
+      empathic: 2.1.0
+      fflate: 0.8.3
+      remeda: 2.50.0
+      semver: 7.8.5
+      tinyexec: 1.3.1
+
+  '@kubb/core@4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.14.0)':
+    dependencies:
+      '@kubb/ast': 4.39.3
+      '@kubb/fabric-core': 0.16.1
+      '@kubb/react-fabric': 0.14.0
+      empathic: 2.1.0
+      fflate: 0.8.3
+      remeda: 2.50.0
+      semver: 7.8.5
+      tinyexec: 1.3.1
+
+  '@kubb/core@4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.16.1)':
+    dependencies:
+      '@kubb/ast': 4.39.3
+      '@kubb/fabric-core': 0.16.1
+      '@kubb/react-fabric': 0.16.1
+      empathic: 2.1.0
+      fflate: 0.8.3
+      remeda: 2.50.0
+      semver: 7.8.5
+      tinyexec: 1.3.1
+
   '@kubb/fabric-core@0.14.0':
+    dependencies:
+      '@clack/prompts': 1.8.1
+      p-limit: 7.3.3
+      remeda: 2.50.0
+      typescript: 5.9.3
+
+  '@kubb/fabric-core@0.16.1':
     dependencies:
       '@clack/prompts': 1.8.1
       p-limit: 7.3.3
@@ -3844,14 +3947,82 @@ snapshots:
       - '@kubb/react-fabric'
       - encoding
 
-  '@kubb/plugin-client@4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)':
+  '@kubb/oas@4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)':
     dependencies:
-      '@kubb/core': 4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
+      '@kubb/ast': 4.39.3
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
       '@kubb/fabric-core': 0.14.0
-      '@kubb/oas': 4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
-      '@kubb/plugin-oas': 4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
-      '@kubb/plugin-ts': 4.39.2(@kubb/react-fabric@0.14.0)
-      '@kubb/plugin-zod': 4.39.2(@kubb/fabric-core@0.14.0)
+      '@redocly/openapi-core': 2.54.3
+      '@stoplight/yaml': 4.3.0
+      jsonpointer: 5.0.1
+      oas: 31.1.2
+      oas-normalize: 16.1.2
+      openapi-types: 12.1.3
+      remeda: 2.50.0
+      swagger2openapi: 7.0.8
+    transitivePeerDependencies:
+      - '@kubb/react-fabric'
+      - encoding
+
+  '@kubb/oas@4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.16.1)':
+    dependencies:
+      '@kubb/ast': 4.39.3
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.16.1)
+      '@kubb/fabric-core': 0.14.0
+      '@redocly/openapi-core': 2.54.3
+      '@stoplight/yaml': 4.3.0
+      jsonpointer: 5.0.1
+      oas: 31.1.2
+      oas-normalize: 16.1.2
+      openapi-types: 12.1.3
+      remeda: 2.50.0
+      swagger2openapi: 7.0.8
+    transitivePeerDependencies:
+      - '@kubb/react-fabric'
+      - encoding
+
+  '@kubb/oas@4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.14.0)':
+    dependencies:
+      '@kubb/ast': 4.39.3
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.14.0)
+      '@kubb/fabric-core': 0.16.1
+      '@redocly/openapi-core': 2.54.3
+      '@stoplight/yaml': 4.3.0
+      jsonpointer: 5.0.1
+      oas: 31.1.2
+      oas-normalize: 16.1.2
+      openapi-types: 12.1.3
+      remeda: 2.50.0
+      swagger2openapi: 7.0.8
+    transitivePeerDependencies:
+      - '@kubb/react-fabric'
+      - encoding
+
+  '@kubb/oas@4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.16.1)':
+    dependencies:
+      '@kubb/ast': 4.39.3
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.16.1)
+      '@kubb/fabric-core': 0.16.1
+      '@redocly/openapi-core': 2.54.3
+      '@stoplight/yaml': 4.3.0
+      jsonpointer: 5.0.1
+      oas: 31.1.2
+      oas-normalize: 16.1.2
+      openapi-types: 12.1.3
+      remeda: 2.50.0
+      swagger2openapi: 7.0.8
+    transitivePeerDependencies:
+      - '@kubb/react-fabric'
+      - encoding
+
+  '@kubb/plugin-client@4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)':
+    dependencies:
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
+      '@kubb/fabric-core': 0.14.0
+      '@kubb/oas': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
+      '@kubb/plugin-oas': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
+      '@kubb/plugin-ts': 4.39.3(@kubb/react-fabric@0.14.0)
+      '@kubb/plugin-zod': 4.39.3(@kubb/fabric-core@0.14.0)
       '@kubb/react-fabric': 0.14.0
     transitivePeerDependencies:
       - bufferutil
@@ -3895,6 +4066,46 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  '@kubb/plugin-oas@4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)':
+    dependencies:
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
+      '@kubb/fabric-core': 0.14.0
+      '@kubb/oas': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
+      '@kubb/react-fabric': 0.14.0
+      remeda: 2.50.0
+    transitivePeerDependencies:
+      - encoding
+
+  '@kubb/plugin-oas@4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.16.1)':
+    dependencies:
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.16.1)
+      '@kubb/fabric-core': 0.14.0
+      '@kubb/oas': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.16.1)
+      '@kubb/react-fabric': 0.16.1
+      remeda: 2.50.0
+    transitivePeerDependencies:
+      - encoding
+
+  '@kubb/plugin-oas@4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.14.0)':
+    dependencies:
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.14.0)
+      '@kubb/fabric-core': 0.16.1
+      '@kubb/oas': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.14.0)
+      '@kubb/react-fabric': 0.14.0
+      remeda: 2.50.0
+    transitivePeerDependencies:
+      - encoding
+
+  '@kubb/plugin-oas@4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.16.1)':
+    dependencies:
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.16.1)
+      '@kubb/fabric-core': 0.16.1
+      '@kubb/oas': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.16.1)
+      '@kubb/react-fabric': 0.16.1
+      remeda: 2.50.0
+    transitivePeerDependencies:
+      - encoding
+
   '@kubb/plugin-ts@4.39.2(@kubb/react-fabric@0.14.0)':
     dependencies:
       '@kubb/ast': 4.39.2
@@ -3908,13 +4119,39 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@kubb/plugin-zod@4.39.2(@kubb/fabric-core@0.14.0)':
+  '@kubb/plugin-ts@4.39.3(@kubb/react-fabric@0.14.0)':
     dependencies:
-      '@kubb/core': 4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
-      '@kubb/oas': 4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
-      '@kubb/plugin-oas': 4.39.2(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.14.0)
-      '@kubb/plugin-ts': 4.39.2(@kubb/react-fabric@0.14.0)
+      '@kubb/ast': 4.39.3
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.14.0)
+      '@kubb/fabric-core': 0.16.1
+      '@kubb/oas': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.14.0)
+      '@kubb/plugin-oas': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.14.0)
       '@kubb/react-fabric': 0.14.0
+      remeda: 2.50.0
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - encoding
+
+  '@kubb/plugin-ts@4.39.3(@kubb/react-fabric@0.16.1)':
+    dependencies:
+      '@kubb/ast': 4.39.3
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.16.1)
+      '@kubb/fabric-core': 0.16.1
+      '@kubb/oas': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.16.1)
+      '@kubb/plugin-oas': 4.39.3(@kubb/fabric-core@0.16.1)(@kubb/react-fabric@0.16.1)
+      '@kubb/react-fabric': 0.16.1
+      remeda: 2.50.0
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - encoding
+
+  '@kubb/plugin-zod@4.39.3(@kubb/fabric-core@0.14.0)':
+    dependencies:
+      '@kubb/core': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.16.1)
+      '@kubb/oas': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.16.1)
+      '@kubb/plugin-oas': 4.39.3(@kubb/fabric-core@0.14.0)(@kubb/react-fabric@0.16.1)
+      '@kubb/plugin-ts': 4.39.3(@kubb/react-fabric@0.16.1)
+      '@kubb/react-fabric': 0.16.1
       remeda: 2.50.0
     transitivePeerDependencies:
       - '@kubb/fabric-core'
@@ -3928,6 +4165,16 @@ snapshots:
       react-devtools-core: 6.1.5
       remeda: 2.50.0
       ws: 8.18.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@kubb/react-fabric@0.16.1':
+    dependencies:
+      '@kubb/fabric-core': 0.16.1
+      react-devtools-core: 6.1.5
+      remeda: 2.50.0
+      ws: 8.21.2
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -6344,6 +6591,8 @@ snapshots:
   ws@7.5.13: {}
 
   ws@8.18.0: {}
+
+  ws@8.21.2: {}
 
   wsl-utils@0.1.0:
     dependencies:
