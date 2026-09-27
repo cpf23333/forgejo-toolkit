@@ -22,7 +22,14 @@ const htmlDocuments = import.meta.glob('../../*.html', {
   eager: true,
 }) as Record<string, string>;
 
-const moduleSources = import.meta.glob(['../../**/*.{vue,ts}', '!../../**/__tests__/**', '!../../*.config.ts'], {
+/**
+ * Every webview module, plus the JSON message catalogs.
+ *
+ * The catalogs are part of the graph a surface's bundle is built from, which is
+ * what the locale assertions at the bottom of this file are about, so this glob
+ * has to see them and not only the `.vue`/`.ts` modules.
+ */
+const moduleSources = import.meta.glob(['../../src/**/*.{vue,ts,json}', '!../../src/**/__tests__/**'], {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -117,6 +124,24 @@ const FORBIDDEN_PACKAGES = ['vue-router'];
 
 const ELEMENT_MODULE = /@vscode-elements\/elements\/dist\/(vscode-[a-z0-9-]+)\//;
 
+/**
+ * The message catalogs, by locale.
+ *
+ * Only the base catalog (`en.json`) may be in a surface's *static* import
+ * graph. The other one is reached through a dynamic `import()` in
+ * `src/i18n/locales.ts` and becomes a chunk the surface fetches when that
+ * language is selected (see the locale assertions at the bottom of this file
+ * and `webview/vite.config.ts`, which fails the build if a surface ships both).
+ */
+const CATALOG_LOCALES = ['en', 'zh'] as const;
+const BASE_LOCALE = 'en';
+
+/** The locale a webview-relative module path is a catalog for. */
+function catalogLocale(file: string): (typeof CATALOG_LOCALES)[number] | undefined {
+  const match = /(?:^|\/)i18n\/([a-z]{2})\.json$/.exec(file);
+  return CATALOG_LOCALES.find((locale) => locale === match?.[1]);
+}
+
 function normalize(path: string): string {
   const parts: string[] = [];
   for (const segment of path.split('/')) {
@@ -154,20 +179,38 @@ function withoutTypeOnlyImports(source: string): string {
     );
 }
 
-/** Every module specifier a source loads at runtime, static or dynamic. */
-function specifiersOf(source: string): string[] {
+/**
+ * Every module specifier a source loads at runtime, split by how it loads it.
+ *
+ * The split is the point of the locale assertions: a catalog a module imports
+ * statically is in the bundle a surface downloads, one it imports dynamically is
+ * a chunk fetched on demand.
+ */
+function specifiersByKind(source: string): { static: string[]; dynamic: string[] } {
   const runtime = withoutTypeOnlyImports(source);
-  const found = new Set<string>();
+  const dynamic = new Set<string>();
+  // Recorded first and removed below, so a `from 'x'` inside an `import('x')`
+  // cannot count as static.
+  for (const match of runtime.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    dynamic.add(match[1]);
+  }
+  const staticSpecifiers = new Set<string>();
   for (const match of runtime.matchAll(/\bfrom\s*['"]([^'"]+)['"]/g)) {
-    found.add(match[1]);
+    staticSpecifiers.add(match[1]);
   }
   for (const match of runtime.matchAll(/\bimport\s*['"]([^'"]+)['"]/g)) {
-    found.add(match[1]);
+    staticSpecifiers.add(match[1]);
   }
-  for (const match of runtime.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)) {
-    found.add(match[1]);
+  for (const specifier of dynamic) {
+    staticSpecifiers.delete(specifier);
   }
-  return [...found];
+  return { static: [...staticSpecifiers], dynamic: [...dynamic] };
+}
+
+/** Every module specifier a source loads at runtime, static or dynamic. */
+function specifiersOf(source: string): string[] {
+  const { static: staticSpecifiers, dynamic } = specifiersByKind(source);
+  return [...new Set([...staticSpecifiers, ...dynamic])];
 }
 
 /** Resolves a specifier to a module in the glob, the way Vite would. */
@@ -198,6 +241,13 @@ function resolveSpecifier(specifier: string, fromFile: string): string | undefin
 interface Graph {
   /** Webview-relative paths of every module in the entry's graph. */
   modules: Set<string>;
+  /**
+   * The subset a surface downloads up front: modules reachable through static
+   * imports only. A dynamically imported module is a chunk fetched when it is
+   * first used, which is how the non-base message catalogs stay out of the
+   * initial payload.
+   */
+  staticModules: Set<string>;
   /** Bare specifiers (npm packages) the graph reaches. */
   packages: Set<string>;
 }
@@ -221,7 +271,31 @@ function graphOf(entry: string): Graph {
       }
     }
   }
-  return { modules, packages };
+  return { modules, staticModules: staticGraphOf(entry), packages };
+}
+
+/**
+ * The modules reachable from `entry` through static imports alone: the ones a
+ * surface has downloaded by the time its entry module has run. A module only a
+ * dynamic `import()` reaches is a chunk fetched later.
+ */
+function staticGraphOf(entry: string): Set<string> {
+  const reached = new Set<string>();
+  const queue = [entry];
+  while (queue.length > 0) {
+    const file = queue.shift()!;
+    if (reached.has(file) || !sources.has(file)) {
+      continue;
+    }
+    reached.add(file);
+    for (const specifier of specifiersByKind(sources.get(file)!).static) {
+      const resolved = resolveSpecifier(specifier, file);
+      if (resolved) {
+        queue.push(resolved);
+      }
+    }
+  }
+  return reached;
 }
 
 /** The `@vscode-elements/elements` components an entry registers. */
@@ -320,5 +394,76 @@ describe('webview entry per surface', () => {
   it('registers every custom element the webview renders somewhere', () => {
     const union = new Set(SURFACES.flatMap((surface) => registeredElements(surface.entry)));
     expect([...union].sort()).toEqual([...VSCODE_ELEMENT_TAGS].sort());
+  });
+});
+
+/**
+ * The message catalogs are the largest single item in the chunk every surface
+ * downloads (see `webview/vite.config.ts` for the same assertion over the built
+ * bundle). These pin the split: the base catalog is bundled everywhere, the
+ * other is a dynamic import in `src/i18n/locales.ts` — and nothing else.
+ */
+describe('locale catalogs across the surface entries', () => {
+  it('ships the base catalog and only the base catalog statically', () => {
+    for (const surface of SURFACES) {
+      const graph = graphs.get(surface.name)!;
+      const staticCatalogs = [...graph.staticModules].map(catalogLocale).filter(Boolean);
+      expect(staticCatalogs, `${surface.name} bundles more than the base catalog`).toEqual([BASE_LOCALE]);
+      // It is in the graph through a static import, not merely through the lazy
+      // loader in `i18n/locales.ts` (which is a dynamic edge).
+      expect([...graph.modules]).toContain(`src/i18n/${BASE_LOCALE}.json`);
+    }
+  });
+
+  it('reaches every other catalog only through the dynamic loader', () => {
+    const loader = 'src/i18n/locales.ts';
+    expect(sources.has(loader), `${loader} is missing`).toBe(true);
+    const source = sources.get(loader)!;
+    const kinds = specifiersByKind(source);
+    const lazy = kinds.dynamic
+      .map((specifier) => resolveSpecifier(specifier, loader))
+      .filter((file): file is string => file !== undefined)
+      .filter((file) => catalogLocale(file) !== BASE_LOCALE)
+      .sort();
+    // Every non-base catalog has a lazy entry, so adding a language to the
+    // `Locale` union without a loader fails here rather than at runtime. The
+    // base catalog is registered lazily too (the registry lists every locale),
+    // but it is also imported statically by `src/i18n/index.ts` — which is what
+    // puts it in the bundle, and which the per-surface assertion below and the
+    // build assertion in `vite.config.ts` both hold.
+    expect(lazy).toEqual(
+      CATALOG_LOCALES.filter((locale) => locale !== BASE_LOCALE)
+        .map((locale) => `src/i18n/${locale}.json`)
+        .sort(),
+    );
+    // Dynamic, and *only* dynamic: a static import here would put the catalog
+    // in the shared chunk all three surfaces download.
+    expect(
+      kinds.static
+        .map((specifier) => resolveSpecifier(specifier, loader))
+        .filter((file): file is string => file !== undefined)
+        .map(catalogLocale)
+        .filter(Boolean),
+    ).toEqual([]);
+    for (const surface of SURFACES) {
+      const graph = graphs.get(surface.name)!;
+      for (const file of lazy) {
+        expect([...graph.staticModules], `${surface.name} statically bundles ${file}`).not.toContain(file);
+      }
+    }
+  });
+
+  it('imports the catalogs from one place', () => {
+    // A second static import of a catalog anywhere else is how the split would
+    // silently come back: it would re-enter that module's surface bundle.
+    for (const [file, source] of sources) {
+      if (file === 'src/i18n/index.ts' || file === 'src/i18n/locales.ts') {
+        continue;
+      }
+      for (const specifier of specifiersByKind(source).static) {
+        const resolved = resolveSpecifier(specifier, file);
+        expect(resolved && catalogLocale(resolved), `${file} imports ${specifier} statically`).toBeUndefined();
+      }
+    }
   });
 });

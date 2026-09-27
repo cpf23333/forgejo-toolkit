@@ -16,4 +16,4 @@ import '@vscode-elements/elements/dist/vscode-textfield/index.js';
 import { mountSurface } from '../boot';
 import OnboardingPanel from '../OnboardingPanel.vue';
 
-mountSurface(OnboardingPanel);
+void mountSurface(OnboardingPanel);

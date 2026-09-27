@@ -25,7 +25,7 @@ import { mountSurface } from './boot';
 import { appRouterKey } from './composables/useAppRouter';
 import { createAppRouter } from './router';
 
-mountSurface(App, (app) => {
+void mountSurface(App, (app) => {
   const router = createAppRouter();
   app.use(router);
   // `useAppState` reaches the router through this key rather than through

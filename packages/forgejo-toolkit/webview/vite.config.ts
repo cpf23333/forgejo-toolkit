@@ -123,21 +123,50 @@ const DASHBOARD_SHELL = [
 ];
 
 /**
+ * The message catalogs, by locale.
+ *
+ * `en.json` is the base catalog: the i18n module imports it statically and uses
+ * it as `fallbackLocale`, so it belongs in every surface's bundle. Every other
+ * catalog is reached through the dynamic `import()`s in `src/i18n/locales.ts`
+ * and becomes a chunk fetched when that language is selected — the whole point
+ * of the split, since the two catalogs are the largest item in the chunk every
+ * surface used to download. `LOCALE_MODULE` recognises the *built* module id
+ * (an absolute path to the JSON file).
+ */
+const LOCALES = ['en', 'zh'] as const;
+const BASE_LOCALE = 'en';
+const LOCALE_MODULE = /[/\\]i18n[/\\]([a-z]{2})\.json$/;
+
+/** The locale a built module id is a catalog for. */
+function localeOf(moduleId: string): string | undefined {
+  const locale = LOCALE_MODULE.exec(moduleId)?.[1];
+  return locale && (LOCALES as readonly string[]).includes(locale) ? locale : undefined;
+}
+
+/**
  * Fails the build when a surface's bundle graph reaches something it must not:
  * a standalone panel must not include the dashboard shell (or the other panel)
  * and may only register the `@vscode-elements/elements` modules its own entry
  * declares; the dashboard must still be the surface that carries `App.vue` and
  * the router. This is the webview counterpart of the metafile assertion esbuild
  * runs over the host bundle (see `esbuild.js`).
+ *
+ * It also holds the locale split: a chunk that every surface preloads must not
+ * carry a non-base catalog, which is what would happen again the moment one of
+ * them imported a catalog statically.
  */
 function assertSurfaceGraph(): Plugin {
   return {
     name: 'assert-webview-surface-graph',
     enforce: 'post',
     writeBundle(_options, bundle) {
-      const chunkModules = (file: string): string[] => {
+      const chunkOf = (file: string) => {
         const chunk = bundle[file];
-        if (!chunk || chunk.type !== 'chunk') {
+        return chunk && chunk.type === 'chunk' ? chunk : undefined;
+      };
+      const chunkModules = (file: string): string[] => {
+        const chunk = chunkOf(file);
+        if (!chunk) {
           return [];
         }
         const modules = chunk.moduleIds ?? Object.keys(chunk.modules ?? {});
@@ -147,8 +176,18 @@ function assertSurfaceGraph(): Plugin {
         return modules;
       };
       const normalize = (file: string) => file.replace(/^\.\//, '');
-      /** Every module reachable from `entry`, following static and dynamic imports. */
-      const reachable = (entry: string): Set<string> => {
+      /**
+       * Every module reachable from `entry` over `edges`, or over static
+       * imports plus dynamic ones when `edges` is omitted.
+       *
+       * The distinction is what the locale assertion needs: a module only a
+       * dynamic `import()` reaches is a chunk fetched later, not something the
+       * surface already downloaded.
+       */
+      const reachableVia = (
+        entry: string,
+        edges?: (chunk: { imports: string[]; dynamicImports: string[] }) => string[],
+      ): Set<string> => {
         const seenFiles = new Set<string>();
         const modules = new Set<string>();
         const queue = [normalize(entry)];
@@ -161,16 +200,20 @@ function assertSurfaceGraph(): Plugin {
           for (const id of chunkModules(file)) {
             modules.add(id);
           }
-          const chunk = bundle[file];
-          if (!chunk || chunk.type !== 'chunk') {
+          const chunk = chunkOf(file);
+          if (!chunk) {
             continue;
           }
-          for (const imported of [...chunk.imports, ...chunk.dynamicImports]) {
+          const next = edges ? edges(chunk) : [...chunk.imports, ...chunk.dynamicImports];
+          for (const imported of next) {
             queue.push(normalize(imported));
           }
         }
         return new Set([...modules].map((id) => id.replace(/\\/g, '/')));
       };
+      const reachable = (entry: string) => reachableVia(entry);
+      /** The modules a surface has by the time its entry module has run. */
+      const reachableStatic = (entry: string) => reachableVia(entry, (chunk) => chunk.imports);
 
       for (const surface of SURFACES) {
         const html = bundle[surface.html];
@@ -216,6 +259,28 @@ function assertSurfaceGraph(): Plugin {
               throw new Error(`${surface.html} reaches the standalone panel ${reached}.`);
             }
           }
+        }
+
+        // The locale split. `modules` spans the surface's whole graph, dynamic
+        // chunks included, so the catalogs found here are the ones it can load
+        // — the base catalog has to be there (it is the fallback) and every
+        // other catalog has to be *only* a dynamic import, because a static one
+        // would put it back in the chunk preloaded by all three surfaces.
+        const staticModules = reachableStatic(script[1]);
+        const baseCatalog = [...staticModules].find((id) => localeOf(id) === BASE_LOCALE);
+        if (!baseCatalog) {
+          throw new Error(
+            `${surface.html} does not bundle the base message catalog (${BASE_LOCALE}.json); its fallbackLocale has nothing to fall back to.`,
+          );
+        }
+        const staticallyBundled = [...staticModules]
+          .map(localeOf)
+          .filter((locale): locale is string => locale !== undefined && locale !== BASE_LOCALE);
+        if (staticallyBundled.length > 0) {
+          throw new Error(
+            `${surface.html} bundles message catalogs statically that must stay lazy: ${staticallyBundled.join(', ')}. ` +
+              'Only the base catalog may be imported statically (see src/i18n/locales.ts).',
+          );
         }
 
         const registered = new Set<string>();

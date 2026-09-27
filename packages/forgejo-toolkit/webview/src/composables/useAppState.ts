@@ -245,7 +245,7 @@ import '../types/config';
 import { postMessage } from './vscode';
 
 const vscodeVersion = window.__FORGEJO_TOOLKIT_CONFIG__?.vscodeVersion ?? '';
-import { localeTag, type Locale } from '../i18n';
+import { applyLocale, localeTag, type Locale } from '../i18n';
 import type {
   ForgejoActionRun,
   ForgejoActionRunJob,
@@ -384,7 +384,7 @@ function isFirstPageCursor(value: unknown): boolean {
 
 function createAppState() {
   const router = useAppRouter();
-  const { t, locale } = useI18n();
+  const { t, locale, setLocaleMessage } = useI18n();
 
   const instances = ref<ForgejoInstance[]>([]);
 
@@ -963,7 +963,7 @@ function createAppState() {
     switch (message.command) {
       case 'initialState':
         instances.value = message.instances ?? [];
-        locale.value = message.locale;
+        void setLocale(message.locale);
         debug.value = message.debug;
         worktrees.value = (message.worktrees ?? []) as ForgejoPullRequestWorktreeInfo[];
         worktreeOpenMode.value = message.worktreeOpenMode;
@@ -1064,7 +1064,7 @@ function createAppState() {
         openPullRequestDetail(message.instanceId, message.owner, message.repo, message.index);
         break;
       case 'setLocale':
-        locale.value = message.locale;
+        void setLocale(message.locale);
         break;
       case 'setDebug':
         debug.value = message.debug;
@@ -4248,17 +4248,64 @@ function createAppState() {
   }
 
   function changeLocale(newLocale: Locale) {
+    // Optimistic: the state names the requested language immediately (the
+    // settings UI must not look unresponsive), and the host's `setLocale` echo
+    // runs `setLocale` above, which is what actually loads the catalog and
+    // switches the rendered language.
     locale.value = newLocale;
     postMessage({ command: 'setLocale', locale: newLocale });
   }
 
   // `<html lang>` follows the locale the UI renders in (screen readers pick
-  // their language rules from it): the host can push a locale (initial state, a
-  // settings change from another panel), so watch the state rather than only
-  // the local changeLocale call.
-  watch(locale, (value) => {
-    document.documentElement.lang = localeTag(value as Locale);
-  });
+  // their language rules from it). Because `locale` is the composer's own ref,
+  // it only ever names a language whose catalog is in place — see `setLocale`
+  // below, which is the only thing that publishes a language.
+  watch(
+    locale,
+    (value) => {
+      document.documentElement.lang = localeTag(value as Locale);
+    },
+    { immediate: true },
+  );
+
+  /**
+   * The last locale a request asked for, so an older request that finishes
+   * after a newer one cannot pull the UI back to a language the user left.
+   */
+  let requestedLocale: Locale | undefined;
+
+  /**
+   * Makes `locale` the language the UI renders in.
+   *
+   * Only the base catalog ships with the bundle (see `../i18n/locales.ts`), so
+   * the other language arrives as a chunk: load it, hand it to the i18n
+   * instance, and only then publish it as the locale. That order makes the
+   * switch atomic — the UI keeps rendering the previous language until the new
+   * catalog is in place, so no frame ever falls back to a raw key name, and a
+   * failed chunk leaves the previous language on screen instead of
+   * half-switching.
+   */
+  async function setLocale(next: Locale) {
+    // The host may push no locale at all (`initialState` from a view provider
+    // that has not resolved one). That is not a language change, so nothing is
+    // loaded and nothing is published.
+    if (next !== 'en' && next !== 'zh') {
+      return;
+    }
+    requestedLocale = next;
+    // `useI18n()` returns the composer's members rather than the composer, so
+    // the two halves `applyLocale` switches are handed over directly. The guard
+    // is what makes a superseded request harmless: while `zh.json` was loading,
+    // the user (or another panel) may have asked for the base language, and
+    // applying this one afterwards would drag the UI back.
+    await applyLocale({ locale, setLocaleMessage }, next, () => requestedLocale === next);
+    if (requestedLocale === next) {
+      // `applyLocale` publishes the language once the catalog is in place, and
+      // the base catalog is applied without fetching; this is what makes the
+      // composable's `locale` state name the language that is rendered.
+      locale.value = next;
+    }
+  }
 
   function changeDebug(newDebug: boolean) {
     debug.value = newDebug;

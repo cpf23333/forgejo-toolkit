@@ -16,4 +16,4 @@ import '@vscode-elements/elements/dist/vscode-radio-group/index.js';
 import { mountSurface } from '../boot';
 import PullReviewCommentPanel from '../PullReviewCommentPanel.vue';
 
-mountSurface(PullReviewCommentPanel);
+void mountSurface(PullReviewCommentPanel);
