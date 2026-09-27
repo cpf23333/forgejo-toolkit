@@ -224,6 +224,18 @@ Two harness limits worth knowing before planning a flow:
   `FORGEJO_MCP_INSTANCE_URL`/`FORGEJO_MCP_TOKEN`, it exercises the **direct-launch**
   mode, not broker mode: to check the broker, launch the server with **no**
   instance variables and let it forward.
+- **Verifying what VS Code's own MCP client does needs a signed-in profile.** An
+  Agents window reads and _lists_ a user-level `mcp.json` server even when signed
+  out (the MCP Servers page shows it installed and enabled, and the gateway
+  creates a `mcpServer.mcp.config.usrlocal.<name>.log` sink beside the window's
+  other logs), but no MCP server is started until the profile is signed in and a
+  session exists — `New Session` and the card's `Start Server` are no-ops behind
+  the "Sign in to use Agents" modal and every sink stays empty. Watch that sink
+  for the shim's own lines — `forwarding to the extension-host broker at
+\\.\pipe\forgejo-toolkit-mcp-<hash>` (authenticated through a running window) or
+  `auto-matched instance …` / `FORGEJO_MCP_TOKEN is not set; reading anonymously`
+  (degraded) — and the extension's log for the matching `MCP broker: session …`
+  line.
 - **Broker verification needs its own home directory.** The broker endpoint is
   derived from the _user_ profile (`sha256(username + homedir)`), not from
   `--user-data-dir`, so an isolated dev host started next to a running real VS Code
