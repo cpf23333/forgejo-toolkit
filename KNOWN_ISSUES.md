@@ -213,7 +213,7 @@ The extension activates in every VS Code window (the `onStartupFinished` activat
 
 Two things are **not** coordinated yet: each window still probes each instance's server version over HTTP (the result is cached per window), and the first-run setup guide's "already shown" flag lives in global state and is read-then-written, so windows restored together on a fresh install can each open the panel once.
 
-Workaround: none needed. To let every window poll and alert on its own again, turn `forgejoToolkit.multiWindowLease` off — the setting applies immediately, with no window reload. To reduce requests further, raise `forgejoToolkit.notificationPollingInterval` or disable polling with `forgejoToolkit.notificationPollingEnabled`. If the lease is unavailable on a machine (an unwritable profile directory, a read-only disk), the window polls on its own and says so once, and that notice can copy a diagnostics report or turn the setting off for you.
+Workaround: none needed. To let every window poll and alert on its own again, turn `forgejoToolkit.multiWindowLease` off — the setting applies immediately, with no window reload. To reduce requests further, raise `forgejoToolkit.notificationPollingInterval` or disable polling with `forgejoToolkit.notificationPollingEnabled`. If the coordination is unavailable in a window (an unwritable profile directory, a read-only disk), that window polls and alerts on its own and says so once, and the notice can copy a diagnostics report or turn the setting off for that window — otherwise no notifications are lost, there are just more requests.
 
 ## Deleting another user's tracked time is not offered
 

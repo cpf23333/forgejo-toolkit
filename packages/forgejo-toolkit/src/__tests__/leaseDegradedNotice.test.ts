@@ -39,9 +39,9 @@ describe('the polling lease degradation notice (§7.1)', () => {
 
     expect(showInformationMessage()).toHaveBeenCalledTimes(1);
     const [message, ...actions] = showInformationMessage().mock.calls[0] as [string, ...string[]];
-    expect(message).toContain('The multi-window polling lease is unavailable on this machine');
-    expect(message).toContain('Nothing is missing');
-    expect(actions).toEqual(['Copy Diagnostics', 'Disable This Setting']);
+    expect(message).toContain('Multi-window polling coordination is unavailable in this window');
+    expect(message).toContain('No notifications are lost');
+    expect(actions).toEqual(['Copy Diagnostics', 'Turn Off in This Window']);
     expect(notifier.shown).toBe(true);
     expect(logger.info).toHaveBeenCalledTimes(1);
   });
@@ -58,20 +58,50 @@ describe('the polling lease degradation notice (§7.1)', () => {
     expect(COPY_POLLING_DIAGNOSTICS_COMMAND).toBe('forgejoToolkit.copyPollingDiagnostics');
   });
 
-  it('turns the setting off at user scope from the second button', async () => {
-    showMessageWith('Disable This Setting');
+  it('turns the setting off at workspace scope from the second button when a folder is open', async () => {
+    showMessageWith('Turn Off in This Window');
     const update = vi.fn(async () => undefined);
     (vscode.workspace.getConfiguration as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       get: vi.fn(),
       update,
     });
-    const notifier = createLeaseDegradedNotifier({ logger });
+    const workspace = vscode.workspace as unknown as { workspaceFolders?: unknown[] };
+    const previous = workspace.workspaceFolders;
+    workspace.workspaceFolders = [{ uri: { fsPath: 'D:\\code\\forgejo-toolkit' } }];
+    try {
+      const notifier = createLeaseDegradedNotifier({ logger });
 
-    notifier.notify('read-unusable');
+      notifier.notify('read-unusable');
 
-    await vi.waitFor(() => {
-      expect(update).toHaveBeenCalledWith('multiWindowLease', false, vscode.ConfigurationTarget.Global);
+      await vi.waitFor(() => {
+        expect(update).toHaveBeenCalledWith('multiWindowLease', false, vscode.ConfigurationTarget.Workspace);
+      });
+    } finally {
+      workspace.workspaceFolders = previous;
+    }
+  });
+
+  it('falls back to user scope when the window has no folder', async () => {
+    showMessageWith('Turn Off in This Window');
+    const update = vi.fn(async () => undefined);
+    (vscode.workspace.getConfiguration as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      get: vi.fn(),
+      update,
     });
+    const workspace = vscode.workspace as unknown as { workspaceFolders?: unknown[] };
+    const previous = workspace.workspaceFolders;
+    workspace.workspaceFolders = undefined;
+    try {
+      const notifier = createLeaseDegradedNotifier({ logger });
+
+      notifier.notify('read-unusable');
+
+      await vi.waitFor(() => {
+        expect(update).toHaveBeenCalledWith('multiWindowLease', false, vscode.ConfigurationTarget.Global);
+      });
+    } finally {
+      workspace.workspaceFolders = previous;
+    }
   });
 
   it('does nothing when the notice is dismissed', async () => {

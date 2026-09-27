@@ -213,7 +213,7 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 
 有两件事**尚未**纳入协调：每个窗口仍会各自通过 HTTP 探测各实例的服务端版本（探测结果按窗口缓存）；「首次运行的设置向导」记录「已展示过」的标记存放在全局状态中，读取与写入不是原子的，因此在全新安装时同时恢复的多个窗口可能各自打开一次该面板。
 
-规避方法：不需要。想让每个窗口重新各自轮询并弹出提示，把 `forgejoToolkit.multiWindowLease` 关掉即可——设置立即生效，无需重载窗口。想进一步减少请求量，可调大 `forgejoToolkit.notificationPollingInterval`，或用 `forgejoToolkit.notificationPollingEnabled` 关闭轮询。若某台机器上租约不可用（profile 目录不可写、磁盘只读），窗口会改为自行轮询并提示一次，该提示可以直接复制诊断信息，或替你关闭此设置。
+规避方法：不需要。想让每个窗口重新各自轮询并弹出提示，把 `forgejoToolkit.multiWindowLease` 关掉即可——设置立即生效，无需重载窗口。想进一步减少请求量，可调大 `forgejoToolkit.notificationPollingInterval`，或用 `forgejoToolkit.notificationPollingEnabled` 关闭轮询。若某个窗口上该协调机制不可用（profile 目录不可写、磁盘只读），该窗口会自行轮询并提示一次，该提示可以直接复制诊断信息，或为**本窗口**关闭该设置——否则通知不会丢失，只是请求更多。
 
 ## 不提供删除他人计时记录的入口
 

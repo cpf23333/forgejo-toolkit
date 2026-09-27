@@ -67,8 +67,9 @@ vi.mock('vscode', () => ({
   StatusBarAlignment: { Left: 1, Right: 2 },
   ProgressLocation: { SourceControl: 1, Window: 10, Notification: 15 },
   ViewColumn: { Active: -1, Beside: 2, One: 1, Two: 2 },
-  // Used by the lease's one-time notice, which turns the setting off at user
-  // scope (`ConfigurationTarget.Global`) when the user asks it to.
+  // Used by the lease's one-time notice, which turns the setting off where it
+  // can actually take effect: workspace scope in a window with a folder (a
+  // workspace value beats a user value), user scope otherwise.
   ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
   version: '1.99.0',
   RelativePattern: vi.fn().mockImplementation(function (base: unknown, pattern: unknown) {

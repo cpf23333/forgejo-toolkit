@@ -70,14 +70,14 @@ export function createLeaseDegradedNotifier(options: LeaseDegradedNoticeOptions)
         `Polling lease unavailable (cause=${cause}); this window polls on its own and the one-time notice is shown.`,
       );
       const copyLabel = vscode.l10n.t('Copy Diagnostics');
-      const disableLabel = vscode.l10n.t('Disable This Setting');
+      const disableLabel = vscode.l10n.t('Turn Off in This Window');
       // Promise.resolve flattens the Thenable so the catch below also covers a
       // synchronous throw inside the callback, which must not surface as an
       // unhandled rejection (the same shape the poller's toast uses).
       void Promise.resolve(
         vscode.window.showInformationMessage(
           vscode.l10n.t(
-            'The multi-window polling lease is unavailable on this machine, so this window polls and alerts on its own. Nothing is missing — requests may just be more numerous.',
+            'Multi-window polling coordination is unavailable in this window, so this window polls and alerts on its own again. No notifications are lost — there may just be more requests.',
           ),
           copyLabel,
           disableLabel,
@@ -89,12 +89,16 @@ export function createLeaseDegradedNotifier(options: LeaseDegradedNoticeOptions)
             return;
           }
           if (choice === disableLabel) {
-            // User scope on purpose: the lease is a property of the machine, and
-            // a window that cannot use it is the reason to stop asking every
-            // window for it.
-            await vscode.workspace
-              .getConfiguration('forgejoToolkit')
-              .update('multiWindowLease', false, vscode.ConfigurationTarget.Global);
+            // The setting is window scoped, and a workspace value beats a user
+            // value, so a workspace that pins it has to be written at the
+            // workspace level — a user-level write would look like a button
+            // that does nothing. A window without a folder has no workspace
+            // settings file, so there the user level is the only one that can
+            // hold the answer (and that covers every window of this profile).
+            const target = vscode.workspace.workspaceFolders?.length
+              ? vscode.ConfigurationTarget.Workspace
+              : vscode.ConfigurationTarget.Global;
+            await vscode.workspace.getConfiguration('forgejoToolkit').update('multiWindowLease', false, target);
           }
         })
         .catch((error: unknown) => {

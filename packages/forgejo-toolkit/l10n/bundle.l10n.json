@@ -283,9 +283,9 @@
   "README.md is a symlink to {0}, so Forgejo has no README text to show. Open {0} in the Forgejo web UI to read it.": "README.md is a symlink to {0}, so Forgejo has no README text to show. Open {0} in the Forgejo web UI to read it.",
   "README.md is a submodule whose own repository is at {0}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.": "README.md is a submodule whose own repository is at {0}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.",
   "README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.": "README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.",
-  "The multi-window polling lease is unavailable on this machine, so this window polls and alerts on its own. Nothing is missing — requests may just be more numerous.": "The multi-window polling lease is unavailable on this machine, so this window polls and alerts on its own. Nothing is missing — requests may just be more numerous.",
+  "Multi-window polling coordination is unavailable in this window, so this window polls and alerts on its own again. No notifications are lost — there may just be more requests.": "Multi-window polling coordination is unavailable in this window, so this window polls and alerts on its own again. No notifications are lost — there may just be more requests.",
   "Copy Diagnostics": "Copy Diagnostics",
-  "Disable This Setting": "Disable This Setting",
+  "Turn Off in This Window": "Turn Off in This Window",
   "Polling diagnostics copied to the clipboard": "Polling diagnostics copied to the clipboard",
   "Failed to copy polling diagnostics: {0}": "Failed to copy polling diagnostics: {0}"
 }
