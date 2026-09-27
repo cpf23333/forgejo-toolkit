@@ -131,3 +131,47 @@ export type ReleaseOutcome =
   | 'not-owner'
   /** The unlink failed for a reason worth reporting. */
   | 'failed';
+
+/**
+ * The last handover this window took part in (§7.1's "who is polling, and when
+ * did it last change hands", §11.1 stage 2's `handover` group).
+ *
+ * It is recorded on both sides of a handover — the window that took the lease
+ * and the window that gave it up — because the interesting number differs: for
+ * a takeover it is how long the trigger (a focus request, or an observed-gone
+ * holder) took to become ownership, and for a yield it is how long the
+ * requester's request sat before this window let go.
+ *
+ * **`reason` and `latencyMs` are both "as this window saw it", and both are
+ * always accurate about what they claim.** The two sides of one handover can
+ * legitimately record different reasons — the window that lost the lease sees
+ * "another window took it", the window that took it sees why it decided to —
+ * which is why the takeover reason is derived from the decision rather than
+ * guessed from the file that happens to be left on disk.
+ */
+export interface LeaseHandoverRecord {
+  direction: 'takeover' | 'step-down';
+  /** The closed vocabulary §11.1 stage 2 names; `force` is §7.2's command. */
+  reason: 'focus' | 'expiry' | 'close' | 'force';
+  /** `Date.now()` when this window became / stopped being the owner. */
+  at: number;
+  /**
+   * Measured from the trigger condition holding to the ownership change — see
+   * the per-path definition in `leaseSupervisor.ts`.
+   *
+   * `null` when this window genuinely cannot see the trigger (§11.1 stage 2
+   * follow-up): a handover observed only as "the lease file is gone" says
+   * nothing about *when* the predecessor let go, and a window releasing a lease
+   * it never held has nothing to measure from. A `0` in that position used to
+   * be reported instead, which a reader cannot tell apart from "instantaneous"
+   * — the worst possible answer for the crash path this field exists to
+   * diagnose. When it is `null`, `latencyUnknown` says why.
+   */
+  latencyMs: number | null;
+  /** Why `latencyMs` is `null`; `null` when there is a measurement. */
+  latencyUnknown: 'predecessor-release-time-unobservable' | 'no-trigger-recorded' | null;
+  /** The other window's pid, when it is knowable. */
+  counterpartPid: number | null;
+  /** Claim requests this window sent for this handover (the K counter, §2.3). */
+  requestCount: number;
+}

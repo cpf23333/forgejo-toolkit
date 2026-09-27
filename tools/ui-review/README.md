@@ -57,6 +57,16 @@ card clean, mock-backed data for screenshots.
 
 Coordinates are read off the previous CDP screenshot (viewport, e.g. 1440x900).
 
+Each `ui` invocation is its own CDP connection, so a `click` does not always take
+focus before the `type` of the **next** invocation runs. Measured in one acceptance
+run: the first click on a newly added form field silently swallowed all 27 typed
+characters (the `shot` showed an empty field), while the same click+type on a fresh
+form had worked. The pattern that held up is one step per invocation —
+`click` → `key Control+a` → `key Delete` → `type` — checking each step's screenshot
+(every command already writes one under `shots/`). A screenshot is the only
+trustworthy check here: the command exits 0 whether or not the value landed, so
+never read a bare success as "the field is filled".
+
 ## Shared-profile dual-window mode
 
 Everything above is one isolated profile per launch, which can never produce "two
@@ -151,12 +161,16 @@ handover happened and how long it took**, and **whether the survivor kept workin
    `--preset exthost` reads `exthost.log` (activation and termination lines),
    `--preset mcp` the `mcpServer.*.log` sinks the broker section above describes.
 5. **Read the evidence.** Where to look, per question:
-   - _who is leader_ — the role line (`pid` + `ownerNonce` first 8 chars + the
-     trigger: `claimed` / `takeover-expired` / `stepped-down-owner-changed` /
-     `lease-unavailable`) in the window's own channel, per `§7.1` of the design doc.
-     That log format is the contract the lease implementation must satisfy; it does
-     not exist in the extension yet, so today this step is a review of the
-     implementation against §7.1 rather than a grep for a shipped string.
+   - _who is leader_ — the lease line in the window's own channel, per `§7.1` of the
+     design doc, with a fixed field order: `role=<leader|follower|degraded>`, then
+     `action=`, `reason=`, `pid=`, `nonce=` (the owner nonce's first 8 chars),
+     `focused=`, `focusedForMs=`, `at=`, and `polling=<unchanged|suppressed>` last.
+     Stage 2 ships these lines, so this is a grep rather than a review of the
+     implementation against §7.1: a survivor's takeover is
+     `action=claim reason=follower-takeover-expired` (or `…-absent` /
+     `…-accelerated`), the holder giving the lease up is `action=step-down`, and a
+     window that gives the mechanism up is
+     `action=degraded-to-full-speed reason=lease-unavailable`.
    - _how long the handover took_ — compare the stepping-down line in the old
      window with the claiming line in the new one, both timestamped and in different
      directories, which is exactly why the mode reports two log directories instead
@@ -164,9 +178,8 @@ handover happened and how long it took**, and **whether the survivor kept workin
    - _the survivor kept working_ — the surviving window keeps writing to its own
      channel and keeps answering `pnpm ui --window <n>`; the killed window's channel
      simply stops.
-     A handover-shaped check that works **today**, before the lease lands, is the MCP
-     broker (already delivered): the exact broker line lives in exactly one window's
-     channel —
+     An adjacent handover-shaped check is the MCP broker (already delivered): the
+     exact broker line lives in exactly one window's channel —
      `[INFO] … MCP broker listening at \\.\pipe\forgejo-toolkit-mcp-<hash>`.
      `dual logs all --preset extension --grep "MCP broker"` should show it in one
      window and nothing in the other. **Caveat measured in the first real run:** that
@@ -179,13 +192,29 @@ handover happened and how long it took**, and **whether the survivor kept workin
      independently — `ExtensionService#_doActivateExtension cpf23333.forgejo-toolkit`
      plus its own `Extension host with pid <n> started` in **each** window's
      `exthost.log`, with two different pids.
+   - _the gate itself_ — stage 2 makes the coordination visible in the two channels:
+     the follower logs `action=polling-gate reason=suppressed` (with
+     `polling=suppressed`, as every line of a gated window does) and its poller sends
+     **no** `/notifications` request while it stays a confirmed follower, so an idle
+     follower channel and a request log carrying only the owner's polls are the
+     mechanism working, not a failure. The owner's lines all say
+     `polling=unchanged`. `forgejoToolkit.multiWindowLease` (default `true`) is read
+     live: turning it off or back on takes effect **without a window reload**, and the
+     supervisor logs `action=stop reason=setting-off` as it gives the lease up.
 6. **Crash one window.** `dual kill 2` → run it once with `--print-command` first
    if you want to see the exact command (`Stop-Process -Id <pid> -Force`). Expect:
    only window2's extension host dies (measured: window1's pid kept running, the
    choice is re-checked against the process table before `Stop-Process` runs), the
    app stays up, and a killed extension host never runs `deactivate()` — precisely
-   the shape the lease must survive, since the surviving window has to take over by
-   expiry (≥ 35 s per the design doc). After the kill, `dual verify` fails with
+   the shape the lease must survive, since the surviving window has to take over.
+   That takeover does **not** wait out the 35 s expiry: the implementation treats a
+   dead holder pid as immediately stale, so the survivor claims on its next 2 s tick,
+   with the 35 s expiry left as the fallback for a holder whose pid cannot be probed.
+   Measured, and recorded in `§11.2`'s hard-kill bullet: **14.1 s after the holder's
+   last heartbeat, ~11–13 s after the kill**, the pid probe short-circuiting the
+   expiry wait; the acceptance run behind stage 2 measured **4.754 s** from the kill
+   to the first post-takeover poll (0.894 s of that after the harness command
+   returned; 11 ms from claim to gate). After the kill, `dual verify` fails with
    `window2: extension host pid <n> (from its log) is not running any more` — that is
    the expected failure of the two-window invariant, not a harness bug.
 7. **Reload the victim.** Reload window2 from the palette (which leaves the app
@@ -239,7 +268,9 @@ handover happened and how long it took**, and **whether the survivor kept workin
   Measured: `Stop-Process -Force` on window2's exthost left window1 and the app
   running, and window2 closed (its CDP page target disappeared). That is still the
   crash shape the lease must survive — the point is that one window goes away without
-  running `deactivate()`, so its lease file stays behind until it expires — but do
+  running `deactivate()`, so its lease file stays behind with a dead pid in it, which
+  the survivor reads as immediately stale on its next tick (`§11.2`) rather than
+  waiting out the 35 s expiry — but do
   not expect the victim window to keep showing an inert UI, and use a palette reload
   (step 7) when you want the window to come back. `pnpm kill` (everything) and
   `dual close` are the orderly paths.
@@ -294,9 +325,13 @@ the session as soon as window1 exists, so a failure never leaves orphans.
   user profile rather than `--user-data-dir`, so with the user's own VS Code running
   the dev host would step aside by design. Verifying it needs `USERPROFILE`/`HOME`
   redirected before the launch (the broker section above describes this).
-- **The lease itself.** `mcp-leader-lease.json` and its `§7.1` log lines do not
-  exist in the extension yet, so "which window is leader", "how long the handover
-  took" and the soak numbers remain the lease implementation's own verification.
+- **The lease's own soak numbers.** Stage 2 ships the lease and its `§7.1` lines
+  (`forgejoToolkit.multiWindowLease`, default on), so "which window is leader" and
+  "how long the handover took" are readable today, not reviewed against the design.
+  What is still unproven is the calibration: the one-week shadow log for H/N/K, and
+  per-window focus fidelity — the stage-1 soak saw both windows of one instance
+  report `focused=true` with no `focus-lost` at all, so "the prompts follow your
+  focus" is intent, not a measured property, on this platform.
 - **Window identity beyond the launch.** A window is named by the CDP target id
   recorded at launch; after that window reloads (or is closed and reopened by hand)
   the id changes, so it is no longer recognisable as "window2" — the mode still
@@ -465,19 +500,28 @@ Two harness limits worth knowing before planning a flow:
   also holds a real instance (e.g. because a walkthrough needed one), that action
   changes real data. Prefer mock-only instances while walking bulk or destructive
   flows and remove a real instance again once the flow needing it is done.
-- **Only the sidebar webview receives input.** Editor-area panels ignore the
-  driver's clicks and keystrokes, so a flow that exists only in one cannot be
-  walked — instance removal, for instance, lives only in the setup wizard. The
-  checklist's flows are all in the view container, so this only bites when an
-  extension command opens a panel.
+- **Editor-area panels can take the driver's input.** The setup wizard is an
+  editor-area `WebviewPanel`, and on the tested build the CDP driver drove it end to
+  end: it clicked through the language step, typed the server address and token into
+  its fields, pressed Test Connection and Add Instance, and added two instances. So a
+  flow that lives only in a panel — instance removal, for instance, is only in the
+  setup wizard — is worth attempting instead of assumed impossible. That is what the
+  driver managed on that panel, not a guarantee for every panel: a panel you have not
+  driven before still needs a `shot` after the first click before you plan a flow
+  around it.
 - **`src/mcpCheck.mjs` runs the MCP server headless.** It spawns
   `out/mcp-server.mjs` with an instance URL/token read from an instances export and
   drives it over stdio JSON-RPC, which is how the checklist's MCP items are
   covered without agent mode: tool surface, hostile-input validation and the
-  truncation marker on large results. The token is never printed. Because it sets
-  `FORGEJO_MCP_INSTANCE_URL`/`FORGEJO_MCP_TOKEN`, it exercises the **direct-launch**
-  mode, not broker mode: to check the broker, launch the server with **no**
-  instance variables and let it forward.
+  truncation marker on large results. The token is never printed. It sets
+  `FORGEJO_MCP_INSTANCE_URL`/`FORGEJO_MCP_TOKEN` but leaves
+  `FORGEJO_MCP_BROKER_ONLY` unset, so it only exercises the **direct-launch**
+  mode when **no broker registration is discoverable**: the server now tries the
+  extension-host broker first for every launch, and with a broker running (the
+  extension active for this user profile) it forwards into the host instead and
+  the harness's own token is unused. To force the direct-launch path — and to
+  check the broker deliberately — point `FORGEJO_MCP_DATA_DIR` at a directory
+  with no `mcp-broker.json`, or drop the instance variables and let it forward.
 - **Verifying what VS Code's own MCP client does needs a signed-in profile.** An
   Agents window reads and _lists_ a user-level `mcp.json` server even when signed
   out (the MCP Servers page shows it installed and enabled, and the gateway

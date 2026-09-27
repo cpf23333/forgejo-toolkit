@@ -282,5 +282,10 @@
   "Failed to write the Copilot instructions: {0}": "写入 Copilot 指令失败：{0}",
   "README.md is a symlink to {0}, so Forgejo has no README text to show. Open {0} in the Forgejo web UI to read it.": "README.md 是指向 {0} 的符号链接，因此 Forgejo 没有可显示的 README 文本。请在 Forgejo 网页界面中打开 {0} 阅读。",
   "README.md is a submodule whose own repository is at {0}, so this repository has no README text to show. Open the submodule in the Forgejo web UI to read it there.": "README.md 是一个 git submodule，它自身的仓库位于 {0}，因此本仓库没有可显示的 README 文本。请在 Forgejo 网页界面中打开该 submodule 阅读。",
-  "README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.": "README.md 在本仓库中不是常规文件，因此 Forgejo 没有可显示的 README 文本。请在 Forgejo 网页界面中打开阅读。"
+  "README.md is not a regular file in this repository, so Forgejo has no README text to show. Open it in the Forgejo web UI to read it.": "README.md 在本仓库中不是常规文件，因此 Forgejo 没有可显示的 README 文本。请在 Forgejo 网页界面中打开阅读。",
+  "The multi-window polling lease is unavailable on this machine, so this window polls and alerts on its own. Nothing is missing — requests may just be more numerous.": "多窗口轮询租约在此机器上不可用，因此本窗口会自行轮询并弹出提示。功能没有缺失，只是请求可能更多。",
+  "Copy Diagnostics": "复制诊断信息",
+  "Disable This Setting": "关闭此设置",
+  "Polling diagnostics copied to the clipboard": "轮询诊断信息已复制到剪贴板",
+  "Failed to copy polling diagnostics: {0}": "复制轮询诊断信息失败：{0}"
 }

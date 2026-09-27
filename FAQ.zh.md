@@ -114,11 +114,11 @@ MCP Server 只有在满足以下全部条件时才会注册：
 
 因为那个 server 当前不带 token 运行——现在这只会在**没有任何运行着扩展的 VS Code 窗口**时发生。只要有任一扩展窗口打开，静态启动的 server 就会转发到扩展宿主进程内的本地 broker，由 broker 带着 token 在宿主进程里执行工具，所以 Agents 窗口里的 `whoami` 无需在配置文件里写 token 也能工作。如果你确实在那里看到凭据错误，先确认有激活了 Forgejo Toolkit 的 VS Code 窗口在运行（broker 在扩展激活时启动）。
 
-背景：从静态 `mcp.json` 启动的 MCP server 由 VS Code 的 Agent Host 拉起，不经过扩展——而只有扩展被允许从 VS Code SecretStorage 读 token 并在 spawn 时注入。不存在「让 server 自己去扩展配置里取」的路径：这个边界是刻意的（它保证 token 不落盘、不进日志），外部进程读取 SecretStorage 等同于凭证窃取，我们不实现。broker 的意义正是在不破坏这个边界的前提下桥接它：token 不出扩展宿主进程；转发器只是通过扩展 globalStorage 里发布的、每次启动随机生成的握手密钥，证明自己是同用户的本地进程。
+背景：从静态 `mcp.json` 启动的 MCP server 由 VS Code 的 Agent Host 拉起，不经过扩展——而只有扩展宿主被允许从 VS Code SecretStorage 读取 token。它**不会**把 token 交给任何子进程：VS Code 会把每个已注册的 server 定义（含 `env`）持久化到 profile 的 workspace storage，所以扩展提供的定义只携带实例身份——URL、实例 id、工作区映射——绝不带凭据，扩展也不会把凭据放进任何启动环境。不存在「让 server 自己去扩展配置里取」的路径：这个边界是刻意的（它保证 token 不落盘、不进日志），外部进程读取 SecretStorage 等同于凭证窃取，我们不实现。broker 的意义正是在不破坏这个边界的前提下桥接它：token 不出扩展宿主进程；转发器只是通过扩展 globalStorage 里发布的、每次启动随机生成的握手密钥，证明自己是同用户的本地进程，并声明自己这个定义是为哪个实例创建的，由宿主（而不是子进程）决定哪个账号来服务这个会话。你自己写进 `mcp.json` `env` 块里的 token 是你自己的文件、你自己的选择，不是本扩展生成或读取的东西。
 
 在没有扩展窗口运行时，可以改用：
 
-- 在**主窗口**的 Copilot Chat 里做账户级操作——扩展贡献的 server 会自动携带 token。
+- 在**主窗口**的 Copilot Chat 里做账户级操作——扩展贡献的 server 会通过扩展宿主内的 broker 访问实例，token 由宿主持有，因此 `whoami` 等需要认证的调用无需在配置文件里写 token。
 - 或者自己在用户级 `mcp.json` 的 server 条目里加 `"env": { "FORGEJO_MCP_TOKEN": "<你的 token>" }`。这等于把明文 token 落盘在你的私有用户目录——可接受但要清楚这一点，并建议用只读权限的 token。
 
 ## 故障排除

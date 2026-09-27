@@ -19,7 +19,13 @@ import { makeClaimRequestObservation, makeLease, makeStore, makeTempDir, removeT
  */
 
 const LEASE_SOURCE_DIR = path.join(__dirname, '..', 'lease');
-const LEASE_SOURCES = ['leaseConstants.ts', 'leaseDecision.ts', 'leaseStore.ts', 'leaseTypes.ts'];
+const LEASE_SOURCES = [
+  'leaseConstants.ts',
+  'leaseDecision.ts',
+  'leasePollingGate.ts',
+  'leaseStore.ts',
+  'leaseTypes.ts',
+];
 
 async function readLeaseSources(): Promise<{ file: string; text: string }[]> {
   return Promise.all(

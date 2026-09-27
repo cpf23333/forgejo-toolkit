@@ -22,7 +22,9 @@ import { registerForgejoRemoteSourceProviders } from './clone/remoteSourceProvid
 import { registerMcpServerProvider } from './mcpServerProvider';
 import { cleanupMcpBroker } from './mcpBroker';
 import { cleanupMcpWorkspaceState } from './mcpWorkspaceState';
-import { disposeLeaseShadowMode, startLeaseShadowMode } from './lease/leaseSupervisor';
+import { disposePollingLease, startPollingLease, type LeaseSupervisor } from './lease/leaseSupervisor';
+import { createLeaseDegradedNotifier } from './lease/leaseDegradedNotice';
+import { registerCopyPollingDiagnosticsCommand } from './commands/copyPollingDiagnostics';
 import { registerWriteCopilotInstructionsCommand } from './commands/copilotInstructions';
 import { watchForExtensionUpdate } from './updateNotifier';
 import { maybeShowWelcomeOnboarding } from './welcome';
@@ -122,29 +124,50 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  const notificationPoller = new NotificationPoller(config, viewProvider, context, logger);
+  // Multi-window polling lease, stage 2: with `forgejoToolkit.multiWindowLease`
+  // on (the default) this window takes part in the election in its
+  // globalStorage directory, and the notification poller below consults its
+  // gate — only the owner polls and alerts, a follower that becomes the owner
+  // starts immediately, and every uncertainty degrades toward polling (§8). The
+  // record carries the running version and a fingerprint of the configured
+  // instance set, both read here because this is where the context and the
+  // config live. Started before the poller on purpose: the gate has to exist
+  // before there is anything to ask it.
+  const globalStoragePath = context.globalStorageUri?.fsPath;
+  const leaseNotifier = createLeaseDegradedNotifier({ logger });
+  let leaseSupervisor: LeaseSupervisor | undefined;
+  if (globalStoragePath) {
+    leaseSupervisor = startPollingLease(
+      {
+        directory: globalStoragePath,
+        appVersion: context.extension.packageJSON.version as string,
+        instanceIds: () => config.getInstances().map((instance) => instance.id),
+        // The one-time §7.1 notice: it says the feature is not missing, only
+        // that this window now polls on its own.
+        onDegraded: (cause) => leaseNotifier.notify(cause),
+      },
+      logger,
+    );
+    context.subscriptions.push(leaseSupervisor);
+  }
+
+  const notificationPoller = new NotificationPoller(config, viewProvider, context, logger, leaseSupervisor);
   context.subscriptions.push(notificationPoller);
   notificationPoller.start();
 
-  // Multi-window polling lease, stage 1 (shadow mode): this window takes part
-  // in the real election in its globalStorage directory and logs what it would
-  // do, but nothing consumes the decision yet — every window still polls
-  // exactly as before (see src/lease/leaseSupervisor.ts). The record carries the
-  // running version and a fingerprint of the configured instance set, both read
-  // here because this is where the context and the config live.
-  const globalStoragePath = context.globalStorageUri?.fsPath;
-  if (globalStoragePath) {
-    context.subscriptions.push(
-      startLeaseShadowMode(
-        {
-          directory: globalStoragePath,
-          appVersion: context.extension.packageJSON.version as string,
-          instanceIds: () => config.getInstances().map((instance) => instance.id),
-        },
-        logger,
-      ),
-    );
-  }
+  // Registered here rather than in registerCommands: the handler needs the live
+  // lease, the poller's timing and the settings the config manager exposes, all
+  // of which exist only at this point in activation. This is also §7.1's
+  // diagnostics entry point — "which window is polling, and when did it last
+  // change hands" — together with the existing View Log command.
+  registerCopyPollingDiagnosticsCommand(context, {
+    lease: () => leaseSupervisor,
+    config,
+    pollingTiming: () => notificationPoller.pollingTiming(),
+    extensionVersion: context.extension.packageJSON.version as string,
+    ...(globalStoragePath === undefined ? {} : { globalStoragePath }),
+    extensionHostStartedAt: Date.now(),
+  });
 
   const pullReviewCommentController = new PullReviewCommentController(config, context.extensionUri, logger);
   context.subscriptions.push(pullReviewCommentController);
@@ -191,8 +214,8 @@ export async function activate(context: vscode.ExtensionContext) {
 export async function deactivate(): Promise<void> {
   // Gives up this window's polling lease — only while the record is still
   // ours, so a window that has taken over is never fought — and stops the
-  // shadow election's timers and focus subscription.
-  await disposeLeaseShadowMode();
+  // election's timers, focus subscription and setting watcher.
+  await disposePollingLease();
   // Deletes this window's MCP workspace-state file (best-effort; see the
   // function for why a crash-orphaned file is harmless).
   await cleanupMcpWorkspaceState(logger);

@@ -40,7 +40,7 @@ Every command lives in the Command Palette (`Ctrl+Shift+P`, prefix `Forgejo Tool
 ## Notes
 
 - The extension communicates with Forgejo via the REST API (`/api/v1`).
-- Access tokens are stored in VS Code SecretStorage (never in plain settings).
+- Access tokens are stored in VS Code SecretStorage (never in plain settings) and are read only by the extension host. The MCP server definitions the extension registers carry the instance's identity — URL, instance id, workspace mapping — and never a token: the spawned process forwards to a broker inside the extension host, so the token is not written into a definition or into any child process's environment.
 - The webview uses `acquireVsCodeApi()` to communicate with the extension host.
 - The MCP server needs VS Code ≥ 1.102 and appears automatically in agent mode (no setup). In the Agents window, extension-contributed servers do not reach Agent Host sessions (a current VS Code limitation) — run **"Copy MCP Config for Agents Window"** from the Command Palette to write the user-level `mcp.json` (or a workspace `.vscode/mcp.json`) pointing at a stable, upgrade-proof path instead. **"Write Copilot Instructions"** writes the workspace → `<instance>/<owner>/<repo>` mapping into the linked checkout's `.github/copilot-instructions.md`, appending to an existing file rather than replacing it. `forgejoToolkit.mcpEnabled` (on by default) turns the whole MCP surface off — no server definitions, no workspace mapping, no local broker — without a window reload.
 

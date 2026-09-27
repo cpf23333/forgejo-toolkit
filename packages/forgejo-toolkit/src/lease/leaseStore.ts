@@ -218,6 +218,12 @@ export interface LeaseInspection {
   /** `process.kill(pid, 0)`, `EPERM` counted as alive (§3.5). */
   holderAlive?: boolean;
   claimRequests: ClaimRequestObservation[];
+  /**
+   * Every request file by name and mtime, parsed or not (§11.1 stage 2): a
+   * file no window can parse is exactly what a bug report has to show, and
+   * `claimRequests` above deliberately drops those.
+   */
+  claimRequestFiles: { name: string; mtimeMs: number }[];
 }
 
 /**
@@ -685,6 +691,32 @@ export class LeaseStore {
     }
   }
 
+  /**
+   * Every `<lease>.claim.*` entry with its mtime — including ones that do not
+   * parse. `readClaimRequests` above deliberately drops an unusable request
+   * (a broken file must never hold an owner in place, §8); the diagnostics of
+   * §11.1 stage 2 need the opposite view, because a leftover file that no
+   * window can parse is exactly the kind of thing a bug report has to show.
+   */
+  async listClaimRequestFiles(): Promise<{ name: string; mtimeMs: number }[]> {
+    let entries: { name: string; isFile: boolean }[];
+    try {
+      entries = await this.fs.readdir(this.directory);
+    } catch {
+      return [];
+    }
+    const prefix = `${path.basename(this.leasePath)}.claim.`;
+    const files: { name: string; mtimeMs: number }[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile || !entry.name.startsWith(prefix)) {
+        continue;
+      }
+      const stats = await this.fs.stat(path.join(this.directory, entry.name)).catch(() => undefined);
+      files.push({ name: entry.name, mtimeMs: stats?.mtimeMs ?? 0 });
+    }
+    return files.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  }
+
   /** All `<lease>.claim.*` files in the directory, parsed. */
   async readClaimRequests(): Promise<ClaimRequestObservation[]> {
     let entries: { name: string; isFile: boolean }[];
@@ -887,6 +919,7 @@ export class LeaseStore {
   async inspect(): Promise<LeaseInspection> {
     const observation = await this.read();
     const claimRequests = await this.readClaimRequests();
+    const claimRequestFiles = await this.listClaimRequestFiles();
     const probe = await this.probeWritable(Date.now());
     const holderAlive = observation.read.kind === 'ok' ? isPidAlive(observation.read.record.pid) : undefined;
     return {
@@ -898,6 +931,7 @@ export class LeaseStore {
       ownerIsSelf: observation.read.kind === 'ok' && observation.read.record.ownerNonce === this.ownerNonce,
       ...(holderAlive === undefined ? {} : { holderAlive }),
       claimRequests,
+      claimRequestFiles,
     };
   }
 

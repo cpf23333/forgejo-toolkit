@@ -47,9 +47,11 @@ Phase 2 要加写工具，第 1、3 条同时失效：只要有一个工具不�
 1. **人类确认是默认行为，不是可选项。** 不标 `readOnlyHint`、不标 `destructiveHint: false`，
    让 VS Code 的逐次工具审批成为第一道闸门；写工具**另外**要求逐项显式开启的设置开关（默认
    全部关闭），这是第二道闸门。两道闸门都通过才可能发出写请求。
-2. **不发明的 token 一律拒绝。** 只有在"扩展宿主亲自注入"的会话里，写工具才可用；无法证明
+2. **不发明的 token 一律拒绝。** 只有在"由扩展宿主自己发起"的会话里（扩展提供的 definition，或
+   静态 `mcp.json` 转发进来的 broker 会话），写工具才可用；无法证明
    这一点时（无 broker 的匿名子进程、只带用户手写明文 token 的静态配置）写工具**返回拒绝并
-   说明原因**，绝不降级为匿名、也绝不去读磁盘上的 token。
+   说明原因**，绝不降级为匿名、也绝不去读磁盘上的 token。注意 token 本身**不再随 `env` 下发**
+   （见 §5）：宿主判据是"这个会话是不是本宿主建立的"，不是"子的环境里有没有凭据"。
 3. **首批只做两个工具**：`create_issue_comment`、`submit_pull_review`。
    "重跑 workflow"**在本仓库当前依赖下无法实现**（§4.1，`swagger.v1.json` 里没有该端点，
    `KNOWN_ISSUES.md:73-79` 已把它记为平台限制），推迟到依赖 Forgejo ≥ 17 的版本闸门。
@@ -111,10 +113,11 @@ MCP 的 `ToolAnnotations` 是提示位，不是保证。VS Code 用 `readOnlyHin
   与 `...submitPullReview`，默认 `false`。理由是 Codeberg 那条约束（§3.6）要求"人明确同意某个
   具体副作用"，一个总开关做不到这一点。
 - `src/mcpServerProvider.ts` 在 `provideMcpServerDefinitions` 里读开关（同处已有读 `http.proxy`
-  的先例，`:265-266`），把关照的开关写进 `env`（如 `FORGEJO_MCP_WRITE_TOOLS=createIssueComment`；
-  宿主注入 token 的 `env` 构造点是 `:277-287`）。
+  的先例），把关照的开关写进 `env`（如 `FORGEJO_MCP_WRITE_TOOLS=createIssueComment`；
+  宿主构造 definition `env` 的构造点在那里 —— 注意它现在**只放身份**，token 不出宿主，所以
+  "宿主提供"这件事在 broker 路由上还得由握手里的实例 id/会话来源来证明，不能只靠 `env`）。
   MCP 子进程的 `mcp/tools.ts` 用同一套"环境变量即设置"的既有模式（`FORGEJO_MCP_SYNC_API_URLS`
-  在 `mcp/server.ts:120` 的读法）解析它。
+  在 `mcp/server.ts` 里的读法）解析它。
 - **开关改动必须触发重解析**：provider 已经因为 `http.proxy`（以及新落地的 `mcpEnabled`）
   在 `onDidChangeMcpServerDefinitions` 上重解析（`src/mcpServerProvider.ts:138-156`：`mcpEnabled`
   走 `:142-147` 的重新应用分支，`http.proxy` 走 `:153-155` 的重解析触发），把新键加进
@@ -242,10 +245,14 @@ broker 路径（`docs/architecture/mcp-server.md:236-337`）值得单独说，�
 
 **要求：写工具拒绝，绝不降级。**
 
-现状（`mcp/server.ts:37-110`）的降级链是：broker 转发 → 失败则零配置自动发现 → 匿名只读。
-第 2、3 步里 `token` 可能是空串（`mcp/server.ts:115-118` 明确记录了匿名分支），也可能是用户
-手写在 `mcp.json` 的 `env.FORGEJO_MCP_TOKEN` 里（`docs/architecture/mcp-server.md:557-560`
-把这条路作为"扩展没跑但想认证"的官方建议）。**这两种情况对读工具无害，对写工具不可接受**：
+现状（`mcp/server.ts` 的 `main()`）的降级链是：broker 转发 → 失败则零配置自动发现 → 匿名只读，
+**但只对不带实例身份的启动成立**：扩展提供的 definition 带 `FORGEJO_MCP_INSTANCE_ID` 与
+`FORGEJO_MCP_BROKER_ONLY`，此时不降级（记 stderr 日志并以退出码 1 结束），因为它的 `env` 里
+根本没有 token——token 只留在 SecretStorage、由 broker 在宿主内使用。
+第 2、3 步里 `token` 可能是空串（`mcp/server.ts` 的匿名分支日志明确记录了这一点），也可能是用户
+手写在 `mcp.json` 的 `env.FORGEJO_MCP_TOKEN` 里（`docs/architecture/mcp-server.md` 的
+"Security model" 一节把这条路作为"扩展没跑但想认证"的官方建议）。**这两种情况对读工具无害，
+对写工具不可接受**：
 
 - 匿名 → 写请求必定 401，但这已经是一次"尝试"，而且错误文本会让 agent 以为是权限问题而不是
   "本会话不允许写"。
@@ -481,45 +488,45 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 本文所有关于现状的断言都来自以下已读代码行（写作时 HEAD `b14d764`，2026-09-27 在 HEAD `c5118a6`
 上逐条重新打开核对，"读"= 本次会话实际打开核对）：
 
-| 断言                                                          | 位置                                                                                                                                       |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 只读注解对象与 `readOnlyHint: true`                           | `packages/forgejo-toolkit/mcp/tools.ts:1614`                                                                                               |
-| 每个工具挂同一个 `readOnly` 注解                              | `packages/forgejo-toolkit/mcp/tools.ts` 全文（30 处 `annotations: readOnly`）                                                              |
-| 工具面恰好 30 个工具、测试锁死"所有工具只读"与工具名集合      | `packages/forgejo-toolkit/mcp/__tests__/server.test.ts:55-103`（名单 `:63-94`、只读断言 `:95-98`）                                         |
-| 工具名是 `ToolName`，新工具必须进 `PAGED_LISTS`               | `packages/forgejo-toolkit/mcp/tools.ts:1224`、`:1361-1403`                                                                                 |
-| `callTool` 的错误渲染路径                                     | `packages/forgejo-toolkit/mcp/tools.ts:1575-1595`                                                                                          |
-| 路径段校验 schema                                             | `packages/forgejo-toolkit/mcp/tools.ts:1274-1281`                                                                                          |
-| `REQUEST_CHANGES` / `CHANGES_REQUESTED` 二义性（读侧已处理）  | `packages/forgejo-toolkit/mcp/tools.ts:607`                                                                                                |
-| `get_pr_review_brief` 的长描述（"只给形状不给正文"）          | `packages/forgejo-toolkit/mcp/tools.ts:1999`（handler 注释 `:1157-1164`）                                                                  |
-| `createIssueComment`                                          | `packages/forgejo-toolkit/src/api/client.ts:2739-2741`                                                                                     |
-| `submitPullReview`（`event: string = 'COMMENT'`）             | `packages/forgejo-toolkit/src/api/client.ts:2914-2927`（默认值 `:2919`）                                                                   |
-| `cancelActionRun` / `deleteActionRun`（Actions 侧现有写操作） | `packages/forgejo-toolkit/src/api/client.ts:1107`、`:1229`                                                                                 |
-| 宿主注入 token 的 env 构造点                                  | `packages/forgejo-toolkit/src/mcpServerProvider.ts:277-287`、`:311`                                                                        |
-| provider 因配置变化重解析                                     | `packages/forgejo-toolkit/src/mcpServerProvider.ts:138-156`                                                                                |
-| `forgejoToolkit.mcpEnabled` 已交付（读取 + 运行时撤销）       | `packages/forgejo-toolkit/package.json:131-134`、`src/mcpServerProvider.ts:55-58`、`:103-164`                                              |
-| 设置项先例（轮询开关 + 双语文案）                             | `packages/forgejo-toolkit/package.json:114-125`、`package.nls.json:21-22`、`package.nls.zh-cn.json:21-22`                                  |
-| 无头进程读不到设置，只能靠环境变量                            | `docs/architecture/mcp-server.md:94-96`                                                                                                    |
-| 降级链：broker → 零配置 → 匿名（含匿名分支的显式日志）        | `packages/forgejo-toolkit/mcp/server.ts:37-110`、`:115-118`                                                                                |
-| 静态 `mcp.json` 的 broker 转发启动行                          | `packages/forgejo-toolkit/mcp/server.ts:47-49`（"No instance credentials in the launch environment …"）                                    |
-| broker 会话由宿主创建 MCP server                              | `packages/forgejo-toolkit/src/mcpBroker.ts:553-580`（`:575` 调 `createMcpServer`）                                                         |
-| broker 每个用户一个端点、先绑定者赢                           | `packages/forgejo-toolkit/src/mcpBroker.ts:143-174`、`:236-247`                                                                            |
-| broker 会话可能属于别的窗口                                   | `packages/forgejo-toolkit/src/mcpBroker.ts:488-536`                                                                                        |
-| broker 归属可变：5 s 看门狗 + pid 探活后自行接管              | `packages/forgejo-toolkit/src/mcpBroker.ts:88`、`:216-284`、`:328-349`、`:413-448`、`:589-604`                                             |
-| broker 每连接一个 server 实例                                 | `packages/forgejo-toolkit/mcp/brokerServer.ts:27-29`                                                                                       |
-| 宿主侧破坏性确认的既有范式                                    | `packages/forgejo-toolkit/src/webview/viewProvider.ts:4656-4666`                                                                           |
-| 无头 client host 的 401/403 hook 是 no-op                     | `packages/forgejo-toolkit/src/api/clientHost.ts:10-16`、`:43-47`                                                                           |
-| 403 + scope 的识别与文案                                      | `packages/forgejo-toolkit/src/api/client.ts:3289-3296`、`src/api/vscodeClientHost.ts:160-181`                                              |
-| `write:issue` 的 403 语义已被记录                             | `KNOWN_ISSUES.md:25`（及 `KNOWN_ISSUES.zh.md` 对应条目）                                                                                   |
-| spec 里没有 rerun 端点                                        | `packages/forgejo-api/spec/swagger.v1.json`（`:6258/:6357/:6425/:6473/:6523` 是全部 runs 子路径；`rerun` 零命中）                          |
-| rerun 是平台限制、等 v17                                      | `KNOWN_ISSUES.md:73-79`、`TODO.md:17`（`ROADMAP.md` 没有这条闸门，`:165` 只有"取消运行"，`:217` 只在长期可能里）                           |
-| MCP 侧文案保持英文                                            | `TODO.md:25`                                                                                                                               |
-| Codeberg 对 LLM 自主维护的态度                                | `AGENTS.md:96-106`                                                                                                                         |
-| 构建期禁止 mcp 入口引入 `vscode`                              | `docs/architecture/mcp-server.md:71-73`                                                                                                    |
-| 只读工具不弹确认框 / Phase 2 预告                             | `docs/architecture/mcp-server.md:575-583`、`:626-630`                                                                                      |
-| 不从外部进程读凭据存储的设计决定                              | `docs/architecture/mcp-server.md:553-556`                                                                                                  |
-| broker 自动交接的仓库内记录                                   | `KNOWN_ISSUES.md:228-234`、`ROADMAP.md:191`、`TODO.md:9`                                                                                   |
-| VS Code 对确认行为的官方说明（外部来源）                      | `code.visualstudio.com/api/extension-guides/ai/mcp` 的 "Tools" / "Tool annotations"、`.../ai/tools` 的 `prepareInvocation`（引文见 §11.1） |
-| 走查 harness 的位置与用法                                     | `tools/ui-review/README.md`（"Release walkthrough checklist" `:99`；`TODO.md:34` 是引用点）                                                |
+| 断言                                                                                                                                                               | 位置                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 只读注解对象与 `readOnlyHint: true`                                                                                                                                | `packages/forgejo-toolkit/mcp/tools.ts:1614`                                                                                               |
+| 每个工具挂同一个 `readOnly` 注解                                                                                                                                   | `packages/forgejo-toolkit/mcp/tools.ts` 全文（30 处 `annotations: readOnly`）                                                              |
+| 工具面恰好 30 个工具、测试锁死"所有工具只读"与工具名集合                                                                                                           | `packages/forgejo-toolkit/mcp/__tests__/server.test.ts:55-103`（名单 `:63-94`、只读断言 `:95-98`）                                         |
+| 工具名是 `ToolName`，新工具必须进 `PAGED_LISTS`                                                                                                                    | `packages/forgejo-toolkit/mcp/tools.ts:1224`、`:1361-1403`                                                                                 |
+| `callTool` 的错误渲染路径                                                                                                                                          | `packages/forgejo-toolkit/mcp/tools.ts:1575-1595`                                                                                          |
+| 路径段校验 schema                                                                                                                                                  | `packages/forgejo-toolkit/mcp/tools.ts:1274-1281`                                                                                          |
+| `REQUEST_CHANGES` / `CHANGES_REQUESTED` 二义性（读侧已处理）                                                                                                       | `packages/forgejo-toolkit/mcp/tools.ts:607`                                                                                                |
+| `get_pr_review_brief` 的长描述（"只给形状不给正文"）                                                                                                               | `packages/forgejo-toolkit/mcp/tools.ts:1999`（handler 注释 `:1157-1164`）                                                                  |
+| `createIssueComment`                                                                                                                                               | `packages/forgejo-toolkit/src/api/client.ts:2739-2741`                                                                                     |
+| `submitPullReview`（`event: string = 'COMMENT'`）                                                                                                                  | `packages/forgejo-toolkit/src/api/client.ts:2914-2927`（默认值 `:2919`）                                                                   |
+| `cancelActionRun` / `deleteActionRun`（Actions 侧现有写操作）                                                                                                      | `packages/forgejo-toolkit/src/api/client.ts:1107`、`:1229`                                                                                 |
+| 宿主构造 definition `env` 的构造点（只放身份，**不含 token**）                                                                                                     | `packages/forgejo-toolkit/src/mcpServerProvider.ts` 的 `provideMcpServerDefinitions`                                                       |
+| provider 因配置变化重解析                                                                                                                                          | `packages/forgejo-toolkit/src/mcpServerProvider.ts:138-156`                                                                                |
+| `forgejoToolkit.mcpEnabled` 已交付（读取 + 运行时撤销）                                                                                                            | `packages/forgejo-toolkit/package.json:131-134`、`src/mcpServerProvider.ts:55-58`、`:103-164`                                              |
+| 设置项先例（轮询开关 + 双语文案）                                                                                                                                  | `packages/forgejo-toolkit/package.json:114-125`、`package.nls.json:21-22`、`package.nls.zh-cn.json:21-22`                                  |
+| 无头进程读不到设置，只能靠环境变量                                                                                                                                 | `docs/architecture/mcp-server.md:94-96`                                                                                                    |
+| 降级链：broker → 零配置 → 匿名（含匿名分支的显式日志）；**带实例身份的 definition 不降级**（`FORGEJO_MCP_BROKER_ONLY` / 显式实例 id 解析失败 → stderr + 退出码 1） | `packages/forgejo-toolkit/mcp/server.ts` 的 `main()`                                                                                       |
+| 静态 `mcp.json` 的 broker 转发启动行                                                                                                                               | `packages/forgejo-toolkit/mcp/server.ts:47-49`（"No instance credentials in the launch environment …"）                                    |
+| broker 会话由宿主创建 MCP server                                                                                                                                   | `packages/forgejo-toolkit/src/mcpBroker.ts:553-580`（`:575` 调 `createMcpServer`）                                                         |
+| broker 每个用户一个端点、先绑定者赢                                                                                                                                | `packages/forgejo-toolkit/src/mcpBroker.ts:143-174`、`:236-247`                                                                            |
+| broker 会话可能属于别的窗口                                                                                                                                        | `packages/forgejo-toolkit/src/mcpBroker.ts:488-536`                                                                                        |
+| broker 归属可变：5 s 看门狗 + pid 探活后自行接管                                                                                                                   | `packages/forgejo-toolkit/src/mcpBroker.ts:88`、`:216-284`、`:328-349`、`:413-448`、`:589-604`                                             |
+| broker 每连接一个 server 实例                                                                                                                                      | `packages/forgejo-toolkit/mcp/brokerServer.ts:27-29`                                                                                       |
+| 宿主侧破坏性确认的既有范式                                                                                                                                         | `packages/forgejo-toolkit/src/webview/viewProvider.ts:4656-4666`                                                                           |
+| 无头 client host 的 401/403 hook 是 no-op                                                                                                                          | `packages/forgejo-toolkit/src/api/clientHost.ts:10-16`、`:43-47`                                                                           |
+| 403 + scope 的识别与文案                                                                                                                                           | `packages/forgejo-toolkit/src/api/client.ts:3289-3296`、`src/api/vscodeClientHost.ts:160-181`                                              |
+| `write:issue` 的 403 语义已被记录                                                                                                                                  | `KNOWN_ISSUES.md:25`（及 `KNOWN_ISSUES.zh.md` 对应条目）                                                                                   |
+| spec 里没有 rerun 端点                                                                                                                                             | `packages/forgejo-api/spec/swagger.v1.json`（`:6258/:6357/:6425/:6473/:6523` 是全部 runs 子路径；`rerun` 零命中）                          |
+| rerun 是平台限制、等 v17                                                                                                                                           | `KNOWN_ISSUES.md:73-79`、`TODO.md:17`（`ROADMAP.md` 没有这条闸门，`:165` 只有"取消运行"，`:217` 只在长期可能里）                           |
+| MCP 侧文案保持英文                                                                                                                                                 | `TODO.md:25`                                                                                                                               |
+| Codeberg 对 LLM 自主维护的态度                                                                                                                                     | `AGENTS.md:96-106`                                                                                                                         |
+| 构建期禁止 mcp 入口引入 `vscode`                                                                                                                                   | `docs/architecture/mcp-server.md:71-73`                                                                                                    |
+| 只读工具不弹确认框 / Phase 2 预告                                                                                                                                  | `docs/architecture/mcp-server.md:575-583`、`:626-630`                                                                                      |
+| 不从外部进程读凭据存储的设计决定                                                                                                                                   | `docs/architecture/mcp-server.md:553-556`                                                                                                  |
+| broker 自动交接的仓库内记录                                                                                                                                        | `KNOWN_ISSUES.md:228-234`、`ROADMAP.md:191`、`TODO.md:9`                                                                                   |
+| VS Code 对确认行为的官方说明（外部来源）                                                                                                                           | `code.visualstudio.com/api/extension-guides/ai/mcp` 的 "Tools" / "Tool annotations"、`.../ai/tools` 的 `prepareInvocation`（引文见 §11.1） |
+| 走查 harness 的位置与用法                                                                                                                                          | `tools/ui-review/README.md`（"Release walkthrough checklist" `:99`；`TODO.md:34` 是引用点）                                                |
 
 ---
 

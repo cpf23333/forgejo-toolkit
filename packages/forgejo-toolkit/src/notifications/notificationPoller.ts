@@ -5,6 +5,7 @@ import { LIST_ITEM_LIMIT } from '@cpf23333-forgejo-toolkit/shared/limits';
 import type { ForgejoInstance } from '@cpf23333-forgejo-toolkit/shared/webview/messages';
 import type { ForgejoNotification } from '../api/types';
 import type { Logger } from '../logger';
+import type { LeasePollingGate } from '../lease/leasePollingGate';
 import { userFacingErrorMessage } from '../api/errors';
 
 const SEEN_NOTIFICATION_IDS_KEY = 'forgejoToolkit.seenNotificationIds';
@@ -47,6 +48,10 @@ export class NotificationPoller implements vscode.Disposable {
   // All instances share one interval, so a single timer drives one poll round
   // per tick; a round's "new notification" toasts are aggregated into one.
   private _timer: NodeJS.Timeout | undefined;
+  /** `Date.now()` the last poll round finished at, for the diagnostics (§11.1). */
+  private _lastPollFinishedAt: number | undefined;
+  /** `Date.now()` the armed interval is next due at; cleared by `stop()`. */
+  private _nextPollAt: number | undefined;
   private readonly _disposables: vscode.Disposable[] = [];
   private _started = false;
   private _disposed = false;
@@ -133,6 +138,15 @@ export class NotificationPoller implements vscode.Disposable {
     private readonly _sender: NotificationMessageSender,
     private readonly _context: vscode.ExtensionContext,
     private readonly _logger?: Logger,
+    /**
+     * The multi-window polling lease's gate (§11.1 stage 2), or nothing.
+     *
+     * Absent means "this window polls": every check below treats a missing gate
+     * as permission, which is what keeps the poller usable on its own (tests,
+     * the headless host) and keeps §8's direction — uncertainty polls — the
+     * default rather than something the lease has to grant.
+     */
+    private readonly _lease?: LeasePollingGate,
   ) {
     this._disposables.push(
       this._config.onInstancesChanged(() => this.restart()),
@@ -145,6 +159,46 @@ export class NotificationPoller implements vscode.Disposable {
         }
       }),
     );
+    if (this._lease) {
+      this._disposables.push(
+        this._lease.onDidChange(() => {
+          // `false → true` is a window that has just become the owner (the
+          // previous one closed, crashed or yielded to this window's focus).
+          // It polls now: the user is looking at this window, and waiting out
+          // the interval (five minutes by default) would read as "the alerts
+          // stopped working".
+          if (this._disposed || !this._started || !this._mayPoll()) {
+            return;
+          }
+          void this._pollOnce();
+        }),
+      );
+    }
+  }
+
+  /**
+   * Whether this window may poll and alert right now (§8).
+   *
+   * The lease answers `false` for exactly one state — a confirmed, healthy
+   * follower — and `true` for the setting being off, a degraded mechanism, and
+   * every uncertainty. This method only adds the "no gate at all" case, which
+   * is also `true`.
+   */
+  private _mayPoll(): boolean {
+    return this._lease === undefined || this._lease.mayPoll();
+  }
+
+  /**
+   * The poll timing the diagnostics command reports (§11.1 stage 2):
+   * `lastSuccessfulPollAt` is when the last round finished, and
+   * `nextScheduledPollAt` is when the armed interval is due. Both are absent
+   * while polling is stopped, which is the honest answer for a follower.
+   */
+  pollingTiming(): { lastSuccessfulPollAt?: number; nextScheduledPollAt?: number } {
+    return {
+      ...(this._lastPollFinishedAt === undefined ? {} : { lastSuccessfulPollAt: this._lastPollFinishedAt }),
+      ...(this._nextPollAt === undefined ? {} : { nextScheduledPollAt: this._nextPollAt }),
+    };
   }
 
   start(): void {
@@ -165,6 +219,7 @@ export class NotificationPoller implements vscode.Disposable {
 
   stop(): void {
     this._started = false;
+    this._nextPollAt = undefined;
     if (this._timer !== undefined) {
       clearInterval(this._timer);
       this._timer = undefined;
@@ -191,7 +246,9 @@ export class NotificationPoller implements vscode.Disposable {
     if (immediate) {
       void this._pollOnce();
     }
+    this._nextPollAt = Date.now() + intervalMs;
     this._timer = setInterval(() => {
+      this._nextPollAt = Date.now() + intervalMs;
       void this._pollOnce();
     }, intervalMs);
   }
@@ -204,8 +261,19 @@ export class NotificationPoller implements vscode.Disposable {
    * one follow-up round runs as soon as it settles: a joined round covers only
    * the instances it started with, so newly added ones would otherwise wait for
    * the next interval.
+   *
+   * A round is gated once, here, at the moment it starts (§8). Deliberately not
+   * again when the toast is shown: a handover is "the round belongs to whoever
+   * started it", and the window that takes over re-polls immediately and reads
+   * the baseline this round already wrote (`_reconcileSeenIds`), so the same
+   * notification cannot be alerted twice.
    */
   private _pollOnce(): Promise<void> {
+    if (!this._mayPoll()) {
+      // A confirmed healthy follower: no requests, no alerts, nothing written.
+      // The gate's change notification is what resumes polling.
+      return Promise.resolve();
+    }
     if (this._pollInFlight) {
       if (this._instanceKey() !== this._polledInstanceKey) {
         this._pollAgainRequested = true;
@@ -277,6 +345,7 @@ export class NotificationPoller implements vscode.Disposable {
     if (batches.length > 0 && !this._disposed && this._started) {
       this._showAggregatedNotification(batches);
     }
+    this._lastPollFinishedAt = Date.now();
   }
 
   /**

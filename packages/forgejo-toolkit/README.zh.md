@@ -40,7 +40,7 @@
 ## 说明
 
 - 扩展通过 REST API（`/api/v1`）与 Forgejo 通信。
-- 访问令牌存储在 VS Code SecretStorage 中（绝不写入明文设置）。
+- 访问令牌存储在 VS Code SecretStorage 中（绝不写入明文设置），且只有扩展宿主会读取它。扩展注册的 MCP server 定义只携带实例身份——URL、实例 id、工作区映射——绝不带 token：被启动的进程转而转发到扩展宿主内的 broker，因此 token 既不会写进定义，也不会进入任何子进程的环境变量。
 - webview 使用 `acquireVsCodeApi()` 与扩展宿主通信。
 - MCP server 需要 VS Code ≥ 1.102，在 agent mode 中自动出现（零配置）。在 Agents 窗口中，扩展贡献的 server 不会进入 Agent Host 会话（VS Code 当前的平台限制）——可在命令面板运行「为 Agents 窗口复制 MCP 配置」，写入指向稳定路径（升级不失效）的用户级 `mcp.json`（或工作区 `.vscode/mcp.json`）。「写入 Copilot 指令」会把工作区对应的 `<instance>/<owner>/<repo>` 写入已链接检出的 `.github/copilot-instructions.md`，已存在文件时是追加而不是替换。`forgejoToolkit.mcpEnabled`（默认开启）可关闭整个 MCP 面——不注册 server 定义、不维护工作区映射、停止本地 broker——无需重载窗口。
 

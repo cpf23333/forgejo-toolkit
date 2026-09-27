@@ -207,11 +207,13 @@ Checkouts under `<cacheDir>/worktrees` are swept in the same pass, but only wher
 
 Workaround: use a dedicated folder for the setting (the default is extension storage), or keep bare repositories you maintain yourself outside `<cacheDir>/repos`.
 
-## Every window polls and probes each instance on its own
+## Notification polling is coordinated between windows, but version probes and the first-run guide are still per window
 
-The extension activates in every VS Code window (the `onStartupFinished` activation event, needed to make the MCP server discoverable, is per window). Each window therefore runs its own notification poller for all configured instances and probes their server versions over HTTP; with several windows open, each instance is polled once per window, and a new notification can raise one alert per window. The first-run setup guide has the same shape: its "already shown" flag lives in global state and is read-then-written, so windows restored together on a fresh install can each open the panel once.
+The extension activates in every VS Code window (the `onStartupFinished` activation event, needed to make the MCP server discoverable, is per window). Notification polling is coordinated through a lease file in the profile's globalStorage: with `forgejoToolkit.multiWindowLease` on (the default), the window that holds the lease polls every configured instance and raises the alerts, and the window you are working in asks for the lease and takes it over, so alerts follow your focus. Other windows do not poll and do not raise alerts, but they still load notifications the moment you open the view, and any failure of the coordination falls back to polling in every window, so notifications cannot silently stop.
 
-Workaround: keep the number of windows with the extension enabled low, raise `forgejoToolkit.notificationPollingInterval`, or disable polling with `forgejoToolkit.notificationPollingEnabled`.
+Two things are **not** coordinated yet: each window still probes each instance's server version over HTTP (the result is cached per window), and the first-run setup guide's "already shown" flag lives in global state and is read-then-written, so windows restored together on a fresh install can each open the panel once.
+
+Workaround: none needed. To let every window poll and alert on its own again, turn `forgejoToolkit.multiWindowLease` off — the setting applies immediately, with no window reload. To reduce requests further, raise `forgejoToolkit.notificationPollingInterval` or disable polling with `forgejoToolkit.notificationPollingEnabled`. If the lease is unavailable on a machine (an unwritable profile directory, a read-only disk), the window polls on its own and says so once, and that notice can copy a diagnostics report or turn the setting off for you.
 
 ## Deleting another user's tracked time is not offered
 
@@ -232,6 +234,14 @@ That broker binds one endpoint per user profile, so exactly one window can serve
 What the handover cannot rescue is the session that was already running when the owner died: its forwarder loses its connection, logs an info line and exits, so that one MCP session ends. Starting it again forwards through the new owner — within a few seconds of the takeover — and from then on the static-shim route is authenticated again.
 
 Workaround: none needed; restart the ended session if you were using it. To skip the few seconds the takeover waits, reload a window or toggle `forgejoToolkit.mcpEnabled` off and on.
+
+## The MCP servers the extension contributes in a regular window now depend on the broker
+
+Extension-provided MCP server definitions carry no access token. That is deliberate: VS Code persists every registered definition — environment included — in the profile's workspace storage, so a token placed there is a token written to disk in cleartext next to SecretStorage. The definition therefore names the instance and nothing else, and the process VS Code spawns forwards to the same local broker the static-`mcp.json` route uses, where the token is read from SecretStorage and stays inside the extension host.
+
+The consequence: when no broker is reachable, the extension publishes **no** MCP server for that resolution and logs it (`MCP server definitions withheld: the extension-host broker is not running…`) instead of registering one that would answer anonymously while the client believed it was authenticated. In practice this is a narrow window — the provider is registered by the same activation that starts the broker, and a client resolves servers afterwards — but a window whose profile cannot host the broker (an unwritable globalStorage directory, a blocked endpoint) will not offer the in-editor Forgejo MCP server at all.
+
+Workaround: none needed in the normal case. If the log shows the definitions being withheld, check that the extension's globalStorage directory is writable and reload the window; the static `mcp.json` route (the shim) still works and still degrades to anonymous public-data reads when no extension window is running. Launches you configure yourself may also carry their own `FORGEJO_MCP_TOKEN`, and that path is unchanged — but then the token is at rest in your own file, which is your choice to make.
 
 ---
 

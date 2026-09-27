@@ -4,29 +4,29 @@ import * as path from 'path';
 import { vi } from 'vitest';
 import { LEASE_CLAIM_TICK_MS, LEASE_FILE_NAME, LEASE_RECORD_VERSION } from '../lease/leaseConstants';
 import { LeaseStore, toFileSystem, type FileSystem } from '../lease/leaseStore';
-import { LeaseShadowSupervisor } from '../lease/leaseSupervisor';
+import { LeaseSupervisor } from '../lease/leaseSupervisor';
 import type { ClaimRequest, LeaseRecord } from '../lease/leaseTypes';
 
 /**
- * The stage-1 shadow tests' harness: a real temp directory, a real
- * `LeaseStore`, an injectable clock and a fake window.
+ * The lease tests' harness: a real temp directory, a real `LeaseStore`, an
+ * injectable clock, a fake window and a fake settings source.
  *
- * Two things are deliberately real, because they are what the stage is wiring
- * up: the store (so a test proves the election's files, not a stub's calls) and
- * the fs, which is only ever wrapped to *inject a fault* — the `EPERM`/`EACCES`
+ * Two things are deliberately real, because they are what the stage wires up:
+ * the store (so a test proves the election's files, not a stub's calls) and the
+ * fs, which is only ever wrapped to *inject a fault* — the `EPERM`/`EACCES`
  * paths §4.1 and §8 describe. Fake timers drive the tick; the harness never
  * sleeps, because `whenSettled()` is the tick's own completion signal.
  */
 
 /** The logger spies, typed from the factory so no `Mock` generic is spelled out. */
-export function makeShadowLogger() {
+export function makeLeaseLogger() {
   return {
     info: vi.fn((_message: string) => undefined),
     debug: vi.fn((_message: string) => undefined),
   };
 }
 
-export type ShadowLoggerSpy = ReturnType<typeof makeShadowLogger>;
+export type LeaseLoggerSpy = ReturnType<typeof makeLeaseLogger>;
 
 /** The fake window: `isFocused` plus the event `onDidChangeWindowState` stands for. */
 export interface FocusHarness {
@@ -39,14 +39,27 @@ export interface FocusHarness {
   listenerCount(): number;
 }
 
-export interface ShadowHarness {
+/** The fake setting: a value plus the change event `onDidChangeConfiguration` stands for. */
+export interface SettingsHarness {
+  enabled: boolean;
+  /** Flips the value and fires the change, as the editor would. */
+  set(enabled: boolean): void;
+  listenerCount(): number;
+}
+
+export interface LeaseHarness {
   dir: string;
   leasePath: string;
   clock: { ms: number };
   focus: FocusHarness;
-  logger: ShadowLoggerSpy;
+  settings: SettingsHarness;
+  logger: LeaseLoggerSpy;
   store: LeaseStore;
-  supervisor: LeaseShadowSupervisor;
+  supervisor: LeaseSupervisor;
+  /** Every `mayPoll` transition the gate published, in order (§8, stage 2). */
+  gateChanges: boolean[];
+  /** Every cause the supervisor reported to the §7.1 notice callback. */
+  degradedNotices: string[];
   infoLines(): string[];
   debugLines(): string[];
   allLines(): string[];
@@ -57,7 +70,7 @@ export interface ShadowHarness {
   dispose(): Promise<void>;
 }
 
-export interface MakeShadowOptions {
+export interface MakeLeaseOptions {
   /** The initial focus state; `false` keeps the H debounce out of the way. */
   focused?: boolean;
   clockStart?: number;
@@ -69,6 +82,8 @@ export interface MakeShadowOptions {
   appVersion?: string;
   /** The configured instance identifiers the fingerprint is built from (§3.3). */
   instanceIds?: () => readonly string[];
+  /** `forgejoToolkit.multiWindowLease`; defaults to on. */
+  leaseEnabled?: boolean;
 }
 
 /** The real fs with named operations replaced, for the failure paths. */
@@ -79,12 +94,25 @@ export function withFaults(overrides: Partial<FileSystem>): FileSystem {
 // Re-exported so a test can wrap it without importing the store module twice.
 export { toFileSystem };
 
-export async function makeShadow(options: MakeShadowOptions = {}): Promise<ShadowHarness> {
-  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'lease-shadow-'));
+export async function makeLeaseHarness(options: MakeLeaseOptions = {}): Promise<LeaseHarness> {
+  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'lease-supervisor-'));
   const leasePath = path.join(dir, LEASE_FILE_NAME);
   const clock = { ms: options.clockStart ?? 1_000_000 };
-  const logger = makeShadowLogger();
+  const logger = makeLeaseLogger();
   const focus = makeFocusHarness(options.focused ?? false);
+  const settingsListeners = new Set<() => void>();
+  const settings: SettingsHarness = {
+    enabled: options.leaseEnabled ?? true,
+    set(enabled: boolean) {
+      settings.enabled = enabled;
+      for (const listener of [...settingsListeners]) {
+        listener();
+      }
+    },
+    listenerCount: () => settingsListeners.size,
+  };
+  const gateChanges: boolean[] = [];
+  const degradedNotices: string[] = [];
   const store = new LeaseStore({
     directory: dir,
     // A hex nonce, like the real `LEASE_WINDOW_NONCE`, so the §7.1
@@ -93,15 +121,27 @@ export async function makeShadow(options: MakeShadowOptions = {}): Promise<Shado
     pid: options.pid ?? 111,
     appVersion: options.appVersion ?? '0.0.1',
     instancesFingerprint: 'fp',
-    windowId: 'shadow-window',
+    windowId: 'lease-window',
     delay: async () => undefined,
     fs: options.fs ?? toFileSystem(),
   });
-  const supervisor = new LeaseShadowSupervisor({
+  const supervisor = new LeaseSupervisor({
     directory: dir,
     logger,
     ...(options.appVersion === undefined ? {} : { appVersion: options.appVersion }),
     ...(options.instanceIds === undefined ? {} : { instanceIds: options.instanceIds }),
+    isLeaseEnabled: () => settings.enabled,
+    onDidChangeSettings: (listener) => {
+      settingsListeners.add(listener);
+      return {
+        dispose: () => {
+          settingsListeners.delete(listener);
+        },
+      };
+    },
+    onDegraded: (cause) => {
+      degradedNotices.push(cause);
+    },
     host: {
       isFocused: () => focus.focused,
       onDidChangeFocus: (listener) => {
@@ -116,15 +156,21 @@ export async function makeShadow(options: MakeShadowOptions = {}): Promise<Shado
     store,
     now: () => clock.ms,
   });
+  supervisor.onDidChange((mayPoll) => {
+    gateChanges.push(mayPoll);
+  });
 
-  const harness: ShadowHarness = {
+  const harness: LeaseHarness = {
     dir,
     leasePath,
     clock,
     focus,
+    settings,
     logger,
     store,
     supervisor,
+    gateChanges,
+    degradedNotices,
     infoLines: () => logger.info.mock.calls.map(([message]) => message),
     debugLines: () => logger.debug.mock.calls.map(([message]) => message),
     allLines: () => [...harness.infoLines(), ...harness.debugLines()],
@@ -171,14 +217,14 @@ function makeFocusHarness(initial: boolean): FocusHarness {
   return harness;
 }
 
-export async function removeShadow(harness: ShadowHarness): Promise<void> {
+export async function removeLeaseHarness(harness: LeaseHarness): Promise<void> {
   await harness.supervisor.dispose();
   await fs.promises.rm(harness.dir, { recursive: true, force: true });
 }
 
 /** A lease record another window would have written, in this window's directory. */
 export async function writeForeignLease(
-  harness: ShadowHarness,
+  harness: LeaseHarness,
   overrides: Partial<LeaseRecord> = {},
 ): Promise<LeaseRecord> {
   const record: LeaseRecord = {
@@ -198,15 +244,15 @@ export async function writeForeignLease(
 
 /** Another window's claim request on disk, without going through this window's store. */
 export async function writeForeignClaimRequest(
-  harness: ShadowHarness,
+  harness: LeaseHarness,
   request: Partial<ClaimRequest> = {},
-  options: { pid?: number; token?: string } = {},
+  options: { pid?: number; token?: string; at?: number } = {},
 ): Promise<void> {
   const payload: ClaimRequest = {
     version: LEASE_RECORD_VERSION,
     pid: options.pid ?? 4242,
     focused: true,
-    at: harness.clock.ms,
+    at: options.at ?? harness.clock.ms,
     ...request,
   };
   const file = `${harness.leasePath}.claim.${payload.pid}.${options.token ?? 'feedc0de'}`;
@@ -214,16 +260,16 @@ export async function writeForeignClaimRequest(
 }
 
 /** Every claim-request file for the lease, by name. */
-export async function claimRequestFiles(harness: ShadowHarness): Promise<string[]> {
+export async function claimRequestFiles(harness: LeaseHarness): Promise<string[]> {
   const names = await fs.promises.readdir(harness.dir);
   return names.filter((name) => name.startsWith(`${LEASE_FILE_NAME}.claim.`)).sort();
 }
 
-export function leaseFileExists(harness: ShadowHarness): boolean {
+export function leaseFileExists(harness: LeaseHarness): boolean {
   return fs.existsSync(harness.leasePath);
 }
 
-/** Lines whose `action=` is `action` (a `lease-shadow` field, not a substring). */
+/** Lines whose `action=` is `action` (a `lease` field, not a substring). */
 export function linesWithAction(lines: readonly string[], action: string): string[] {
   return lines.filter((line) => line.includes(`action=${action} `));
 }

@@ -132,6 +132,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.mcpEnabled.description%"
+        },
+        "forgejoToolkit.multiWindowLease": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.multiWindowLease.description%"
         }
       }
     },
@@ -213,6 +218,12 @@
         "title": "%command.writeCopilotInstructions.title%",
         "category": "Forgejo Toolkit",
         "icon": "$(copilot)"
+      },
+      {
+        "command": "forgejoToolkit.copyPollingDiagnostics",
+        "title": "%command.copyPollingDiagnostics.title%",
+        "category": "Forgejo Toolkit",
+        "icon": "$(copy)"
       }
     ],
     "viewsContainers": {

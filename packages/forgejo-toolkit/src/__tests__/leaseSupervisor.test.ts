@@ -15,30 +15,30 @@ import {
   LEASE_OWNER_STEP_DOWN_MS,
   LEASE_UNANSWERED_REQUEST_LIMIT_K,
 } from '../lease/leaseConstants';
-import { formatLeaseShadowLine, LeaseShadowSupervisor } from '../lease/leaseSupervisor';
-import { claimRequestBackoffMs } from '../lease/leaseDecision';
+import { formatLeaseLogLine, LeaseSupervisor } from '../lease/leaseSupervisor';
+import { claimRequestBackoffMs, decisionPollsLocally } from '../lease/leaseDecision';
 import { instanceSetFingerprint } from '../lease/leaseStore';
 import {
   claimRequestFiles,
   leaseFileExists,
   linesWithAction,
-  makeShadow,
-  makeShadowLogger,
-  removeShadow,
+  makeLeaseHarness,
+  makeLeaseLogger,
+  removeLeaseHarness,
   toFileSystem,
   withFaults,
   writeForeignClaimRequest,
   writeForeignLease,
-  type MakeShadowOptions,
-  type ShadowHarness,
-} from './leaseShadowHarness';
+  type MakeLeaseOptions,
+  type LeaseHarness,
+} from './leaseSupervisorHarness';
 
 /**
- * Stage 1's supervisor, tested without a real window (§10.1.8): the decision
- * input is assembled from real state, the tick and the heartbeat are separate
- * layers, the focus event and the mandatory tick fallback both work, dispose
- * leaves nothing behind, and — the shadow invariant — no decision can suppress
- * anything.
+ * The supervisor, tested without a real window (§10.1.8): the decision input is
+ * assembled from real state, the tick and the heartbeat are separate layers,
+ * the focus event and the mandatory tick fallback both work, dispose leaves
+ * nothing behind, and the polling gate follows the decision — plus §8's rule
+ * that every uncertainty polls.
  *
  * Only `setInterval`/`clearInterval` are faked: the tick's reads and writes are
  * real file I/O, and `whenSettled()` is the tick's own completion signal, so no
@@ -47,10 +47,10 @@ import {
 
 const NOW = 1_000_000;
 
-let harnesses: ShadowHarness[] = [];
+let harnesses: LeaseHarness[] = [];
 
-async function shadow(options: MakeShadowOptions = {}): Promise<ShadowHarness> {
-  const harness = await makeShadow({ clockStart: NOW, ...options });
+async function lease(options: MakeLeaseOptions = {}): Promise<LeaseHarness> {
+  const harness = await makeLeaseHarness({ clockStart: NOW, ...options });
   harnesses.push(harness);
   return harness;
 }
@@ -62,14 +62,14 @@ beforeEach(() => {
 
 afterEach(async () => {
   for (const harness of harnesses) {
-    await removeShadow(harness).catch(() => undefined);
+    await removeLeaseHarness(harness).catch(() => undefined);
   }
   vi.useRealTimers();
 });
 
 describe('the decision input is assembled from real state', () => {
   it('claims a free lease for real and becomes the leader', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start();
 
     const record = await h.readRecord();
@@ -89,9 +89,9 @@ describe('the decision input is assembled from real state', () => {
     // No injected store here on purpose: this is the path `extension.ts` takes —
     // the version the activation site passes has to reach the record that a
     // diagnostics dump reads (§3.2).
-    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'lease-shadow-version-'));
-    const logger = makeShadowLogger();
-    const supervisor = new LeaseShadowSupervisor({
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'lease-version-'));
+    const logger = makeLeaseLogger();
+    const supervisor = new LeaseSupervisor({
       directory: dir,
       logger,
       appVersion: '9.9.9',
@@ -111,7 +111,7 @@ describe('the decision input is assembled from real state', () => {
 
   it('stamps a fingerprint of the configured instance set and refreshes it on the next heartbeat', async () => {
     let ids: string[] = ['instance-b', 'instance-a'];
-    const h = await shadow({ instanceIds: () => ids });
+    const h = await lease({ instanceIds: () => ids });
     await h.start();
 
     const claimed = await h.readRecord();
@@ -130,7 +130,7 @@ describe('the decision input is assembled from real state', () => {
     // liveness probe really reaches the decision input.
     const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']);
     expect(dead.pid).toBeGreaterThan(0);
-    const h = await shadow();
+    const h = await lease();
     await writeForeignLease(h, { pid: dead.pid as number, heartbeatAt: h.clock.ms });
 
     await h.start();
@@ -141,19 +141,23 @@ describe('the decision input is assembled from real state', () => {
   });
 
   it('takes over a lease whose heartbeat is older than the expiry', async () => {
-    const h = await shadow();
+    const h = await lease();
     await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms - LEASE_EXPIRY_MS - 1 });
 
     await h.start();
 
-    const line = linesWithAction(h.infoLines(), 'claim')[0] ?? '';
-    expect(line).toContain('reason=follower-takeover-expired');
-    expect(line).toContain('mustReleaseStale=1');
+    // Two lines carry `action=claim`: the *decision* line (logged after the
+    // decision is applied, so its `polling=` field matches the outcome) and the
+    // outcome line. The decision is what `mustReleaseStale` belongs to.
+    const claimLines = linesWithAction(h.infoLines(), 'claim');
+    const decisionLine = claimLines.find((line) => !line.includes('outcome=')) ?? '';
+    expect(decisionLine).toContain('reason=follower-takeover-expired');
+    expect(decisionLine).toContain('mustReleaseStale=1');
     expect((await h.readRecord())?.ownerNonce).toBe(h.store.nonce);
   });
 
   it('leaves a live foreign lease alone and follows it', async () => {
-    const h = await shadow();
+    const h = await lease();
     await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms });
     const before = await fs.promises.readFile(h.leasePath, 'utf8');
 
@@ -170,7 +174,7 @@ describe('the decision input is assembled from real state', () => {
 
 describe('the focus debounce H (§2.3)', () => {
   it('does not request the lease before H of continuous focus, and does after', async () => {
-    const h = await shadow({ focused: true });
+    const h = await lease({ focused: true });
     await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms });
     await h.start();
 
@@ -197,7 +201,7 @@ describe('the focus debounce H (§2.3)', () => {
     // requests go out one per tick, but K does not act on a healthy record —
     // only on one that has missed about three heartbeats (§4.1), and only once
     // the owner is past N. N is what keeps a just-claimed lease in place.
-    const h = await shadow({ focused: true });
+    const h = await lease({ focused: true });
     await writeForeignLease(h, {
       pid: process.pid,
       claimedAt: h.clock.ms - LEASE_HANDOVER_HYSTERESIS_N_MS - 1_000,
@@ -242,7 +246,7 @@ describe('the focus debounce H (§2.3)', () => {
   });
 
   it('starts the H clock at the event, not at the next tick', async () => {
-    const h = await shadow({ focused: false });
+    const h = await lease({ focused: false });
     await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms });
     await h.start();
 
@@ -260,7 +264,7 @@ describe('the focus debounce H (§2.3)', () => {
   });
 
   it('catches a focus change the event never delivered, on the tick', async () => {
-    const h = await shadow({ focused: false });
+    const h = await lease({ focused: false });
     await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms });
     await h.start();
 
@@ -276,7 +280,7 @@ describe('the focus debounce H (§2.3)', () => {
   });
 
   it('logs a focus loss with how long the window had been focused', async () => {
-    const h = await shadow({ focused: true });
+    const h = await lease({ focused: true });
     await h.start();
     h.clock.ms += 3_000;
     h.focus.fire(false);
@@ -292,7 +296,7 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
   const DEAD_PID = 0x7fff_fffe;
 
   /** A live owner that keeps heartbeating, so the follower keeps being refused. */
-  async function keepForeignOwnerFresh(h: ShadowHarness): Promise<void> {
+  async function keepForeignOwnerFresh(h: LeaseHarness): Promise<void> {
     await writeForeignLease(h, {
       pid: process.pid,
       claimedAt: h.clock.ms - LEASE_HANDOVER_HYSTERESIS_N_MS - 1_000,
@@ -304,7 +308,7 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
     // The sticky state the focus fix creates: a focused window that is refused
     // over and over. Each publish carries a fresh token, so without retiring the
     // previous file this would be one file per attempt.
-    const h = await shadow({ focused: true });
+    const h = await lease({ focused: true });
     await h.start();
 
     for (let round = 0; round < 20; round += 1) {
@@ -322,7 +326,7 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
   });
 
   it('clears an old request a dead window left behind, on the owner path', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start(); // this window owns the lease
     await writeForeignClaimRequest(
       h,
@@ -340,7 +344,7 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
   });
 
   it('leaves another window’s files alone while it is only a follower', async () => {
-    const h = await shadow({ focused: false });
+    const h = await lease({ focused: false });
     await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms }); // a live owner
     await h.start();
     await writeForeignClaimRequest(
@@ -362,7 +366,7 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
   });
 
   it('does not remove a fresh or a live requester’s file, even when the owner is pruning', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start();
     const freshDead = await writeForeignClaimRequestHelper(h, DEAD_PID, h.clock.ms, 'ffff');
     const oldLive = await writeForeignClaimRequestHelper(
@@ -389,7 +393,7 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
         return real.unlink(filePath);
       },
     });
-    const h = await shadow({ focused: true, fs });
+    const h = await lease({ focused: true, fs });
     await h.start();
 
     for (let round = 0; round < 20; round += 1) {
@@ -408,7 +412,7 @@ describe('request-file housekeeping: one file per requester (§3.2, §12.10)', (
 
 /** Write a request file and return its base name, for the prune assertions. */
 async function writeForeignClaimRequestHelper(
-  h: ShadowHarness,
+  h: LeaseHarness,
   pid: number,
   at: number,
   token: string,
@@ -422,7 +426,7 @@ describe('focus-following decisions, logged as what they would do (§7.1, §11.1
   it('logs the yield N suppressed, then performs the yield once N has passed', async () => {
     // This window is not focused (the user moved away) and a focused window is
     // asking: the intended handover, held back by N and then performed.
-    const h = await shadow({ focused: false });
+    const h = await lease({ focused: false });
     await h.start();
     // A focused requester whose request is newer than our claim.
     await writeForeignClaimRequest(h, { pid: 4242, focused: true, at: h.clock.ms + 10_000 });
@@ -445,7 +449,7 @@ describe('focus-following decisions, logged as what they would do (§7.1, §11.1
   });
 
   it('never yields to a requester that is not focused', async () => {
-    const h = await shadow({ focused: true });
+    const h = await lease({ focused: true });
     await h.start();
     await writeForeignClaimRequest(h, { pid: 4242, focused: false, at: h.clock.ms + 10_000 });
 
@@ -460,7 +464,7 @@ describe('focus-following decisions, logged as what they would do (§7.1, §11.1
   it('keeps the lease while this window itself is focused: no handover between two focused windows', async () => {
     // The 2026-09-27 soak shape: both windows report focused, each asks the
     // other, and every N + a tick the lease moves. The owner must decline.
-    const h = await shadow({ focused: true });
+    const h = await lease({ focused: true });
     await h.start();
     await writeForeignClaimRequest(h, { pid: 4242, focused: true, at: h.clock.ms + 10_000 });
 
@@ -478,7 +482,7 @@ describe('focus-following decisions, logged as what they would do (§7.1, §11.1
   it('keeps the lease when nobody is looking (§2.3: absence is not a reason to stop)', async () => {
     // Unfocused owner, and the only request on disk is from an unfocused window:
     // there is nobody to hand the job to, so polling continues.
-    const h = await shadow({ focused: false });
+    const h = await lease({ focused: false });
     await h.start();
     await writeForeignClaimRequest(h, { pid: 4242, focused: false, at: h.clock.ms + 10_000 });
 
@@ -489,7 +493,7 @@ describe('focus-following decisions, logged as what they would do (§7.1, §11.1
   });
 
   it('keeps the lease when it is unfocused and no request asks for it', async () => {
-    const h = await shadow({ focused: false });
+    const h = await lease({ focused: false });
     await h.start();
 
     await h.tick(5);
@@ -499,7 +503,7 @@ describe('focus-following decisions, logged as what they would do (§7.1, §11.1
   });
 
   it('returns to the follower role when the record stops being ours', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start();
     expect(h.supervisor.role).toBe('leader');
 
@@ -516,7 +520,7 @@ describe('focus-following decisions, logged as what they would do (§7.1, §11.1
 
 describe('the tick and the heartbeat are different layers (§2.3)', () => {
   it('ticks every 2 s but writes a heartbeat only every 10 s', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start();
     const claimedAt = (await h.readRecord())?.heartbeatAt;
     expect(claimedAt).toBe(NOW);
@@ -555,7 +559,7 @@ describe('heartbeat write failures (§4.1, §8)', () => {
         throw Object.assign(new Error('EPERM: simulated'), { code: 'EPERM' });
       },
     });
-    const h = await shadow({ fs });
+    const h = await lease({ fs });
     await h.start();
     expect((await h.readRecord())?.ownerNonce).toBe(h.store.nonce);
 
@@ -602,7 +606,7 @@ describe('heartbeat write failures (§4.1, §8)', () => {
     // The generic reason is for a record that aged out with no write failure in
     // progress: a throttled timer, a laptop that slept, a clock jump. Here the
     // process starts owning an ancient record and never attempts a write.
-    const h = await shadow();
+    const h = await lease();
     await writeForeignLease(h, {
       ownerNonce: h.store.nonce,
       pid: process.pid,
@@ -626,7 +630,7 @@ describe('heartbeat write failures (§4.1, §8)', () => {
         throw Object.assign(new Error('EACCES: simulated'), { code: 'EACCES' });
       },
     });
-    const h = await shadow({ fs });
+    const h = await lease({ fs });
     await h.start();
 
     expect(exclusiveAttempts).toBe(1);
@@ -683,7 +687,7 @@ describe('a claim whose record never landed (§3.2, §4.2, §8)', () => {
         return real.openExclusive(filePath, mode);
       },
     });
-    const h = await shadow({ fs });
+    const h = await lease({ fs });
     await h.start();
 
     // The file exists, but no reader can see a record in it.
@@ -725,7 +729,7 @@ describe('a claim whose record never landed (§3.2, §4.2, §8)', () => {
 
   it('republishes the record and returns to the normal owner cadence when the write path recovers', async () => {
     const writes = faultingRecordWrites();
-    const h = await shadow({ fs: writes.fs });
+    const h = await lease({ fs: writes.fs });
     await h.start();
     expect(await h.readRecord()).toBeUndefined();
 
@@ -754,7 +758,7 @@ describe('an unusable lease path degrades to full-speed polling (§8)', () => {
         throw Object.assign(new Error('EACCES: simulated'), { code: 'EACCES' });
       },
     });
-    const h = await shadow({ fs });
+    const h = await lease({ fs });
     await h.start();
 
     const degraded = h.infoLines().filter((line) => line.includes('action=degraded-to-full-speed'));
@@ -772,7 +776,7 @@ describe('an unusable lease path degrades to full-speed polling (§8)', () => {
 
 describe('dispose (§5, §11.1 stage 1)', () => {
   it('clears the timer and the focus subscription', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start();
     expect(vi.getTimerCount()).toBe(1);
     expect(h.focus.listenerCount()).toBe(1);
@@ -784,7 +788,7 @@ describe('dispose (§5, §11.1 stage 1)', () => {
   });
 
   it('releases its own lease, logs it, and never touches it again', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start();
     await h.dispose();
 
@@ -801,7 +805,7 @@ describe('dispose (§5, §11.1 stage 1)', () => {
   });
 
   it('leaves a lease another window took over completely alone', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start(); // this window is the leader
     const successor = await writeForeignLease(h, { ownerNonce: 'successor', pid: process.pid });
 
@@ -813,7 +817,7 @@ describe('dispose (§5, §11.1 stage 1)', () => {
   });
 
   it('stopping as a follower leaves the owner file byte-identical', async () => {
-    const h = await shadow();
+    const h = await lease();
     await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms });
     await h.start();
     const before = await fs.promises.readFile(h.leasePath, 'utf8');
@@ -840,7 +844,7 @@ describe('dispose (§5, §11.1 stage 1)', () => {
         return real.readFile(filePath);
       },
     });
-    const h = await shadow({ fs });
+    const h = await lease({ fs });
     h.supervisor.start();
     await new Promise((resolve) => setTimeout(resolve, 10)); // let the read reach the gate
 
@@ -854,20 +858,22 @@ describe('dispose (§5, §11.1 stage 1)', () => {
   });
 });
 
-describe('the shadow invariant: no decision in stage 1 can change polling', () => {
+describe('the polling gate follows the decision, and every uncertainty polls (§8, §11.1 stage 2)', () => {
   /**
-   * One run per decision outcome the supervisor can reach. Every line every run
-   * produces must carry `polling=unchanged`: whatever the election decided, this
-   * window polls, because nothing here is wired to the poller. The structural
-   * half of the same invariant (no import in either direction) is pinned in
-   * `leaseShadowGuards.test.ts`.
+   * One run per decision outcome the supervisor can reach. The gate must equal
+   * the pure layer's own `decisionPollsLocally` for every settled decision —
+   * `inactive` is the only action that answers `false` — and the line the
+   * decision produced must say the same thing, so a pasted log and the JSON the
+   * diagnostics command emits cannot disagree. The structural half (which lease
+   * module the poller may import) is pinned in `leasePollingGuards.test.ts`.
    */
-  const scenarios: { name: string; run: () => Promise<ShadowHarness>; action: string }[] = [
+  const scenarios: { name: string; run: () => Promise<LeaseHarness>; action: string; mayPoll: boolean }[] = [
     {
       name: 'claim (free lease)',
       action: 'claim',
+      mayPoll: true,
       run: async () => {
-        const h = await shadow();
+        const h = await lease();
         await h.start();
         return h;
       },
@@ -875,8 +881,9 @@ describe('the shadow invariant: no decision in stage 1 can change polling', () =
     {
       name: 'inactive (live foreign owner)',
       action: 'inactive',
+      mayPoll: false,
       run: async () => {
-        const h = await shadow();
+        const h = await lease();
         await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms });
         await h.start();
         return h;
@@ -885,8 +892,9 @@ describe('the shadow invariant: no decision in stage 1 can change polling', () =
     {
       name: 'keep-and-heartbeat (this window owns it)',
       action: 'keep-and-heartbeat',
+      mayPoll: true,
       run: async () => {
-        const h = await shadow();
+        const h = await lease();
         await h.start();
         await h.tick(5);
         return h;
@@ -895,8 +903,9 @@ describe('the shadow invariant: no decision in stage 1 can change polling', () =
     {
       name: 'step-down (our own record went stale)',
       action: 'step-down',
+      mayPoll: true,
       run: async () => {
-        const h = await shadow();
+        const h = await lease();
         await writeForeignLease(h, {
           ownerNonce: h.store.nonce,
           pid: process.pid,
@@ -909,9 +918,10 @@ describe('the shadow invariant: no decision in stage 1 can change polling', () =
     {
       name: 'yield (a focused requester outside N)',
       action: 'yield',
+      mayPoll: true,
       run: async () => {
         // Unfocused owner, focused requester past N: the intended handover.
-        const h = await shadow({ focused: false });
+        const h = await lease({ focused: false });
         await h.start();
         await writeForeignClaimRequest(h, { pid: 4242, focused: true, at: h.clock.ms + 10_000 });
         await h.tick(8);
@@ -921,8 +931,9 @@ describe('the shadow invariant: no decision in stage 1 can change polling', () =
     {
       name: 'degraded-to-full-speed (unusable path)',
       action: 'degraded-to-full-speed',
+      mayPoll: true,
       run: async () => {
-        const h = await shadow({
+        const h = await lease({
           fs: withFaults({
             readFile: async () => {
               throw Object.assign(new Error('EACCES: simulated'), { code: 'EACCES' });
@@ -935,23 +946,42 @@ describe('the shadow invariant: no decision in stage 1 can change polling', () =
     },
   ];
 
-  it.each(scenarios)('$name still polls in this window', async (scenario) => {
+  it.each(scenarios)('$name ⇒ mayPoll=$mayPoll', async (scenario) => {
     const h = await scenario.run();
-    const lines = h.allLines();
+    const decision = h.supervisor.decision;
+    expect(decision?.action).toBe(scenario.action);
+    // The rule, taken from the pure layer instead of restated here: only a
+    // decision that does not poll locally may close the gate.
+    expect(h.supervisor.mayPoll()).toBe(decisionPollsLocally(decision!));
+    expect(h.supervisor.mayPoll()).toBe(scenario.mayPoll);
 
-    expect(lines.length).toBeGreaterThan(0);
-    for (const line of lines) {
-      expect(line, `${scenario.name}: ${line}`).toContain('polling=unchanged');
+    const decisionLines = h.allLines().filter((line) => line.includes(`action=${scenario.action} `));
+    expect(decisionLines.length).toBeGreaterThan(0);
+    for (const line of decisionLines) {
+      expect(line, `${scenario.name}: ${line}`).toContain(`polling=${scenario.mayPoll ? 'unchanged' : 'suppressed'}`);
     }
-    // The scenario really reached the decision it claims to cover.
-    expect(lines.some((line) => line.includes(`action=${scenario.action} `))).toBe(true);
+  });
+
+  it('publishes the one gate transition a follower window needs to know about', async () => {
+    const h = await lease();
+    await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms });
+
+    await h.start();
+
+    // The follower decision closed the gate, and the transition was published
+    // exactly once — this is what a window that later becomes the owner reacts
+    // to, and it must not repeat while the state does not change.
+    expect(h.supervisor.mayPoll()).toBe(false);
+    expect(h.gateChanges).toEqual([false]);
+    await h.tick(3);
+    expect(h.gateChanges).toEqual([false]);
   });
 });
 
 describe('the log lines (§7.1)', () => {
-  it('renders fixed-key lines with the §7.1 fields and polling last', () => {
+  it('renders fixed-key lines with the §7.1 fields and the gate last', () => {
     expect(
-      formatLeaseShadowLine({
+      formatLeaseLogLine({
         role: 'follower',
         action: 'request',
         reason: 'focus-debounce-elapsed',
@@ -960,21 +990,35 @@ describe('the log lines (§7.1)', () => {
         focused: true,
         focusedForMs: 12_600.4,
         at: NOW,
+        polling: 'unchanged',
         extra: { hMs: 12_500, wouldAction: 'claim' },
       }),
     ).toBe(
-      `lease-shadow role=follower action=request reason=focus-debounce-elapsed pid=111 nonce=a1b2c3d4 ` +
+      `lease role=follower action=request reason=focus-debounce-elapsed pid=111 nonce=a1b2c3d4 ` +
         `focused=1 focusedForMs=12600 at=${NOW} hMs=12500 wouldAction=claim polling=unchanged`,
     );
+    expect(
+      formatLeaseLogLine({
+        role: 'follower',
+        action: 'inactive',
+        reason: 'follower-follow',
+        pid: 111,
+        noncePrefix: 'a1b2c3d4',
+        focused: false,
+        focusedForMs: 0,
+        at: NOW,
+        polling: 'suppressed',
+      }),
+    ).toContain('polling=suppressed');
   });
 
   it('carries role, reason, pid and the nonce prefix on every start-up line', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start();
 
     const start = h.infoLines().find((line) => line.includes('action=start')) ?? '';
     expect(start).toContain('role=follower');
-    expect(start).toContain('reason=shadow-mode');
+    expect(start).toContain('reason=lease-mode');
     expect(start).toContain('pid=111');
     expect(start).toContain('nonce=a1b2c3d4');
     // The parameter set in force, so a soak can state what it measured.
@@ -987,22 +1031,24 @@ describe('the log lines (§7.1)', () => {
   });
 
   it('gives every line the same §7.1 field set', async () => {
-    const h = await shadow({ focused: true });
+    const h = await lease({ focused: true });
     await writeForeignLease(h, { pid: process.pid, heartbeatAt: h.clock.ms });
     await h.start();
     await h.tick(9);
     h.focus.fire(false);
     await h.tick(2);
 
+    expect(h.infoLines().some((line) => line.includes('action=polling-gate'))).toBe(true);
     for (const line of h.allLines()) {
       expect(line).toMatch(
-        /^lease-shadow role=(leader|follower|degraded) action=\S+ reason=\S+ pid=\d+ nonce=\S{8} focused=[01] focusedForMs=\d+ at=\d+ /,
+        /^lease role=(leader|follower|degraded) action=\S+ reason=\S+ pid=\d+ nonce=\S{8} focused=[01] focusedForMs=\d+ at=\d+ /,
       );
+      expect(line).toMatch(/polling=(unchanged|suppressed)$/);
     }
   });
 
   it('keeps the steady state quiet: one transition line, then nothing until it changes', async () => {
-    const h = await shadow();
+    const h = await lease();
     await h.start();
     await h.tick(1); // the tick that moves the decision from `claim` to `keep-and-heartbeat`
     expect(h.debugLines().join('\n')).toContain('action=keep-and-heartbeat');

@@ -39,6 +39,11 @@ vi.mock('vscode', () => ({
       show: vi.fn(),
       dispose: vi.fn(),
     })),
+    // The polling lease reads the window's own focus state and subscribes to
+    // its changes (`vscode.window.state.focused` /
+    // `onDidChangeWindowState`); the real extension host always has both.
+    state: { focused: true },
+    onDidChangeWindowState: vi.fn(() => ({ dispose: vi.fn() })),
   },
   workspace: {
     getConfiguration: vi.fn(() => ({
@@ -62,6 +67,9 @@ vi.mock('vscode', () => ({
   StatusBarAlignment: { Left: 1, Right: 2 },
   ProgressLocation: { SourceControl: 1, Window: 10, Notification: 15 },
   ViewColumn: { Active: -1, Beside: 2, One: 1, Two: 2 },
+  // Used by the lease's one-time notice, which turns the setting off at user
+  // scope (`ConfigurationTarget.Global`) when the user asks it to.
+  ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
   version: '1.99.0',
   RelativePattern: vi.fn().mockImplementation(function (base: unknown, pattern: unknown) {
     return { base, pattern };
@@ -83,6 +91,9 @@ vi.mock('vscode', () => ({
   },
   env: {
     language: 'en',
+    // Both are read by the polling diagnostics payload (§11.1 stage 2).
+    sessionId: 'test-session',
+    remoteName: undefined,
     openExternal: vi.fn(async () => true),
     clipboard: { writeText: vi.fn(async () => undefined) },
   },

@@ -207,11 +207,13 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 
 规避方法：为该设置单独准备一个目录（默认位于扩展存储目录），或把自己维护的裸仓库放在 `<cacheDir>/repos` 之外。
 
-## 每个窗口都会各自轮询和探测各个实例
+## 通知轮询在窗口之间协调，但版本探测与首次运行向导仍是每个窗口各做一次
 
-扩展会在每个 VS Code 窗口中激活（为了让 MCP 服务器可被发现而必需的 `onStartupFinished` 激活事件是按窗口生效的）。因此每个窗口都会为所有已配置实例各自运行通知轮询，并通过 HTTP 探测其服务端版本；打开多个窗口时，每个实例会被轮询多次，同一条新通知也可能在每个窗口各弹一次提示。「首次运行的设置向导」同理：它记录「已展示过」的标记存放在全局状态中，读取与写入不是原子的，因此在全新安装时同时恢复的多个窗口可能各自打开一次该面板。
+扩展会在每个 VS Code 窗口中激活（为了让 MCP 服务器可被发现而必需的 `onStartupFinished` 激活事件是按窗口生效的）。通知轮询通过 profile 的 globalStorage 里的一个租约文件协调：`forgejoToolkit.multiWindowLease` 开启时（默认即开启），持有租约的那个窗口轮询所有已配置实例并弹出提示，而你正在使用的窗口会申请并接管租约，因此提示跟着你的焦点走。其余窗口不轮询、也不自动弹提示，但你手动打开通知视图时会即时读取；而协调机制的任何失败都会退化为「每个窗口各自轮询」，所以通知不会静默停止。
 
-规避方法：减少启用该扩展的窗口数量、调大 `forgejoToolkit.notificationPollingInterval`，或用 `forgejoToolkit.notificationPollingEnabled` 关闭轮询。
+有两件事**尚未**纳入协调：每个窗口仍会各自通过 HTTP 探测各实例的服务端版本（探测结果按窗口缓存）；「首次运行的设置向导」记录「已展示过」的标记存放在全局状态中，读取与写入不是原子的，因此在全新安装时同时恢复的多个窗口可能各自打开一次该面板。
+
+规避方法：不需要。想让每个窗口重新各自轮询并弹出提示，把 `forgejoToolkit.multiWindowLease` 关掉即可——设置立即生效，无需重载窗口。想进一步减少请求量，可调大 `forgejoToolkit.notificationPollingInterval`，或用 `forgejoToolkit.notificationPollingEnabled` 关闭轮询。若某台机器上租约不可用（profile 目录不可写、磁盘只读），窗口会改为自行轮询并提示一次，该提示可以直接复制诊断信息，或替你关闭此设置。
 
 ## 不提供删除他人计时记录的入口
 
@@ -232,6 +234,14 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 接管无法挽救的是持有者死亡时**已经在运行**的那个会话：它的 forwarder 会丢失连接、写一条 info 日志后退出，因此那一个 MCP 会话就此结束。重新启动该会话即可经新的持有者转发——通常在接管完成后几秒内恢复——此后静态 shim 路径重新回到已认证状态。
 
 规避方法：不需要。若刚才的会话因此结束，重新启动它即可；不想等这几秒的话，重载窗口或把 `forgejoToolkit.mcpEnabled` 关掉再打开可立即完成绑定。
+
+## 普通窗口里由扩展贡献的 MCP server 现在依赖 broker
+
+扩展提供的 MCP server 定义**不携带任何 access token**，这是刻意的：VS Code 会把每个已注册定义的完整内容（含 `env`）持久化到 profile 的 workspace storage，把 token 放进去就等于把一个明文秘密落在 SecretStorage 旁边的磁盘上。因此定义里只写"是哪个实例"，VS Code 启动的进程则转发到静态 `mcp.json` 路由所用的同一个本地 broker，token 从 SecretStorage 读出、始终留在扩展宿主进程内。
+
+代价是：当 broker 不可达时，扩展在那次解析中**不发布**任何 MCP server，并写一条日志（`MCP server definitions withheld: the extension-host broker is not running…`），而不是注册一个"客户端以为已认证、实际匿名"的 server。实际上这是一个很窄的窗口——注册 provider 的正是启动 broker 的那次激活，而客户端在其后才解析 server——但如果某个窗口的 profile 无法承载 broker（globalStorage 目录不可写、端点被占用），编辑器内的 Forgejo MCP server 就不会出现。
+
+规避方法：正常情况下不需要。若日志显示定义被扣下，检查扩展的 globalStorage 目录是否可写并重载窗口；静态 `mcp.json` 路由（shim）仍然可用，且在没有扩展窗口运行时照旧降级为匿名只读。你自己写的启动配置也仍可自带 `FORGEJO_MCP_TOKEN`，那条路径没有变化——但那样 token 就以明文落在你自己的文件里，这是你自己的选择。
 
 ---
 

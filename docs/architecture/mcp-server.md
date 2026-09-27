@@ -29,8 +29,13 @@ VS Code lets an extension contribute MCP servers declaratively
    Node script. VS Code spawns and supervises the process; agent mode
    discovers its tools.
 
-The extension injects the selected instance's URL and token into the child
-process via environment variables (never via tool results or logs).
+The extension passes the selected instance's **identity** into the child process
+via environment variables — instance URL, instance id, the per-instance sync
+flag, this window's workspace-state file, and the editor's `http.proxy` (never
+via tool results or logs). The access token is deliberately **not** among them:
+it stays in SecretStorage, is read by the extension host only, and is used there
+by a local broker the child forwards its session into (see
+[Token flow](#architecture) and [Broker mode](#broker-mode)).
 
 ### Alternatives considered
 
@@ -51,8 +56,13 @@ VS Code (agent mode)
   │  spawns via McpStdioServerDefinition (one per token-bearing instance)
   ▼
 mcp-server process (Node, bundled: out/mcp-server.mjs)
-  │  reads FORGEJO_MCP_INSTANCE_URL / FORGEJO_MCP_TOKEN / FORGEJO_MCP_INSTANCE_ID /
-  │  FORGEJO_MCP_SYNC_API_URLS / FORGEJO_MCP_PROXY / FORGEJO_MCP_STATE_FILE from env
+  │  reads FORGEJO_MCP_INSTANCE_URL / FORGEJO_MCP_INSTANCE_ID /
+  │  FORGEJO_MCP_SYNC_API_URLS / FORGEJO_MCP_PROXY / FORGEJO_MCP_STATE_FILE
+  │  from env — identity only, never a token — plus FORGEJO_MCP_BROKER_ONLY=true,
+  │  and forwards its stdio session to the host broker (mcp/brokerForwarder.ts)
+  ▼
+broker in the extension host (mcp/brokerServer.ts + src/mcpBroker.ts)
+  │  runs the tool logic with the instance's token read from SecretStorage
   ▼
 @cpf23333-forgejo-toolkit/api + shared request layer
   │
@@ -81,6 +91,11 @@ The same binary can also start with **no environment at all** — see
   same session. Instances without a token are skipped (and logged at debug
   level) so one that is still waiting for its token cannot hide the usable
   ones; when no instance has a token, no server definition is returned. The
+  whole resolution is additionally gated on a **live extension-host broker**:
+  with no reachable broker it returns no definitions at all and logs the reason
+  — an extension-provided definition carries no token of its own, so publishing
+  one would hand the MCP client a server that looks authenticated and answers
+  anonymously (see [Token flow](#architecture)). The
   definition provider re-resolves on `onDidChangeMcpServerDefinitions` when
   instances change. Each label is `Forgejo: <instance name>` (falling back to
   the credential-redacted URL), which is how the agent tells the per-instance
@@ -88,18 +103,28 @@ The same binary can also start with **no environment at all** — see
   (two accounts on one host often share a name), the colliding labels — only
   those — get a stable discriminator appended (`Forgejo: <name> (<username or
 instance id>)`).
-- **Token flow:** `activate()` reads the token from SecretStorage and passes
-  it as `env` in `McpStdioServerDefinition`. Tokens never appear in tool
-  schemas, results, or log output.
+- **Token flow:** the token never leaves the extension host. The definition's
+  `env` carries the instance's identity only — URL, id, the per-instance sync
+  flag, this window's state file, the editor proxy — plus
+  `FORGEJO_MCP_BROKER_ONLY=true`; the child forwards the session into the host's
+  local broker, which builds its `ForgejoClient` with the token read from
+  SecretStorage. A token in a definition would be a token on disk in cleartext,
+  because VS Code persists every registered definition — environment included —
+  in the profile's workspace storage. The broker resolves the forwarded session
+  against the explicit `FORGEJO_MCP_INSTANCE_ID` and refuses one that does not
+  name a configured, token-bearing instance, so two definitions still reach two
+  accounts even though one broker serves them both. Tokens never appear in a
+  definition, a tool schema or result, or log output.
 - **Settings flow:** the headless process cannot read the extension's
   settings, so the per-instance `syncApiUrlsToInstanceUrl` flag travels as
   `FORGEJO_MCP_SYNC_API_URLS` in the same launch environment, and the editor's
   `http.proxy` setting travels as `FORGEJO_MCP_PROXY` (the child inherits this
   process's environment, so environment proxies reach it either way; without the
   forwarded setting, MCP requests would connect directly while the extension's
-  own requests go through the proxy). There is no
-  way to launch this stdio server from an external MCP client: the URL and
-  token are injected by VS Code at spawn time.
+  own requests go through the proxy). An external MCP client cannot reproduce
+  the extension-provided route: the definition — and the broker session it
+  forwards into — is created by the extension, and the token is only ever read
+  inside this host.
 - **Workspace state flow:** every window also publishes which workspace
   repositories are linked to which configured instance, so the
   `get_workspace_repository` tool can resolve "this repository" without the
@@ -137,8 +162,9 @@ a root `.mcp.json` read natively by the Agents window's Agent Host — can
 carry only `command` + `args`, with no per-instance environment. For those,
 the same `out/mcp-server.mjs` starts with no `FORGEJO_MCP_*` variables at
 all and discovers the instance itself (`mcp/autoConfig.ts`, wired into
-`server.ts`; all of it is skipped the moment `FORGEJO_MCP_INSTANCE_URL` is
-set, so the VS Code-spawned path is unchanged).
+`server.ts`; that discovery is skipped the moment `FORGEJO_MCP_INSTANCE_URL` is
+set, which every extension-provided launch does — that launch forwards into the
+broker instead, see [Broker mode](#broker-mode)).
 
 A static configuration cannot point at `out/mcp-server.mjs` directly: the
 install directory is versioned (`cpf23333.forgejo-toolkit-<version>`), so
@@ -225,10 +251,13 @@ this order:
 5. **No match** is a startup error listing the registry's (credential-free)
    instance URLs and pointing at `FORGEJO_MCP_INSTANCE_URL`.
 
-The token still comes only from `FORGEJO_MCP_TOKEN`; a zero-configuration
-launch without it reads anonymously (public data only) **unless the extension
-host's broker is reachable** — see [Broker mode](#broker-mode) below, which is
-tried before everything in this section. When the discovery saw a workspace
+A direct server's token still comes only from `FORGEJO_MCP_TOKEN` — the
+extension never sets it in a launch it provides, and never writes it into a
+definition. A zero-configuration launch without it reads anonymously (public
+data only) **unless the extension host's broker is reachable** — see
+[Broker mode](#broker-mode) below, which is tried before everything in this
+section for every kind of launch, because the broker's token is the better
+credential in both routes. When the discovery saw a workspace
 state file, its path also feeds `get_workspace_repository`
 as if `FORGEJO_MCP_STATE_FILE` had been set; an explicit variable always
 wins.
@@ -236,12 +265,15 @@ wins.
 ## Broker mode
 
 Zero-configuration launch still leaves a statically launched server
-_anonymous_: a static `mcp.json` carries no environment, so no token reaches
-the child. Broker mode closes that gap without moving the token. When the
-extension host is running, one window (the first to bind the endpoint, or a
-survivor that took the endpoint over when the owner went away) starts
-a local **broker** — `net.createServer` on a named pipe (Windows) or unix
-socket — and the statically launched `mcp-server.js` becomes a pure
+_anonymous_: a `mcp.json` that carries no environment passes no token to
+the child, so the process it starts has no credential of its own. Broker mode
+closes that gap without moving the token, and it serves **both** routes: the
+definition the extension provides carries no token for the same reason (the
+editor would persist it). When the extension host is running, one window (the
+first to bind the endpoint, or a survivor that took the endpoint over when the
+owner went away) starts a local **broker** — `net.createServer` on a named pipe
+(Windows) or unix socket — and the statically launched `mcp-server.js`, or the
+process VS Code spawned for an extension-provided definition, becomes a pure
 forwarder that bridges its stdio onto the broker connection. The real tool
 logic, token included, executes inside the extension host process; the token
 never crosses into the forwarder.
@@ -252,7 +284,8 @@ static mcp.json host (Agents window / third-party client)
   ▼
 forwarder (this process)               mcp/brokerForwarder.ts
   │  reads globalStorage/mcp-broker.json → { endpoint, authToken }
-  │  connects, sends { authToken, cwd } as the first NDJSON line
+  │  connects, sends { authToken, cwd, instanceId?, stateFile?, syncApiUrls? }
+  │  as the first NDJSON line
   │  then pipes stdin ↔ socket ↔ stdout verbatim
   ▼  named pipe \\.\pipe\forgejo-toolkit-mcp-<user hash> / unix socket in tmpdir
 broker in the extension host           mcp/brokerServer.ts + src/mcpBroker.ts
@@ -271,7 +304,11 @@ Forgejo instance REST API
   in mcp/autoConfig.ts): a candidate whose pid is verifiably dead is skipped
   as crash-orphaned, and among the survivors newest mtime wins across
   flavors/profiles.
-- **Handshake.** The forwarder's first line is `{ authToken, cwd }`. The
+- **Handshake.** The forwarder's first line is
+  `{ authToken, cwd, instanceId?, stateFile?, syncApiUrls? }`; the optional
+  fields are omitted when the launch does not know them, which is the case for
+  a static `mcp.json` and never the case for an extension-provided definition.
+  The
   broker compares the token in constant time and disconnects immediately on a
   mismatch (the presented value is never logged); on a match it answers
   `{ "ok": true }` and the socket carries the MCP session verbatim — MCP
@@ -281,16 +318,30 @@ Forgejo instance REST API
   corrupted, and one unterminated line may buffer at most 4 MB before the
   connection is dropped (the listener also caps concurrent connections at
   64). A connection that never completes its handshake is dropped after 10 s.
-  The `cwd` is what the broker uses to resolve the session's instance.
+  An explicit `instanceId` is what the broker resolves the session against; the
+  `cwd` is the fallback, and it is also what identifies the session's workspace
+  (see instance resolution).
 - **Sessions.** Every connection gets its own `McpServer` instance — the MCP
   SDK binds a server to a single transport — built from a `ForgejoClient`
-  carrying the resolved instance's token. The version gate reuses the
+  carrying the resolved instance's token; a session's explicit `syncApiUrls`
+  flag overrides that instance's configured value, since the broker cannot read
+  the editor settings the definition came from. The version gate reuses the
   extension host's existing probe cache (activation already probes every
-  instance), so the broker never probes again. The workspace state file
-  passed to `get_workspace_repository` follows the session's cwd: the
+  instance), so the broker never probes again. The state file
+  passed to `get_workspace_repository` is the session's explicit `stateFile`
+  when the launch named one (an extension-provided definition always does — it
+  is the providing window's own file), and otherwise follows the session's cwd:
+  the
   per-window state file whose checkout contains it (see instance resolution),
   falling back to the owning window's own.
-- **Instance resolution** (per session): first the per-window workspace state
+- **Instance resolution** (per session): an explicit `instanceId` from the
+  launch wins outright, and it must resolve to a configured, token-bearing
+  instance — a session naming one that is gone (or has lost its token) is
+  **refused** (the broker destroys the socket; the forwarder reports it and
+  exits 1) rather than served by a substitute, because with two Forgejo servers
+  in one client, cwd matching could otherwise hand a session the other account's
+  credentials. A session with no explicit instance — a static `mcp.json`
+  launch — resolves by workspace instead: first the per-window workspace state
   files in globalStorage — if an entry's `localPath` contains the forwarder's
   cwd, that window's state file and (when token-bearing) its instance serve
   the session, because one machine-wide broker can receive sessions for a
@@ -328,13 +379,21 @@ Forgejo instance REST API
   socket _error_ mid-session (anything but the ECONNRESET of a closing unix
   peer) exits 1 with a stderr message, and the MCP client reports the server
   as stopped.
-- **Degradation order.** Startup with no `FORGEJO_MCP_INSTANCE_URL` tries, in
-  order: broker forwarding → the zero-configuration discovery above. Any
-  pre-handshake failure (no registration file, connect refused, rejected
-  handshake, timeout) falls through to the anonymous zero-configuration
-  launch. A failure _after_ the handshake does not: silently restarting an
-  in-flight session as a different, anonymous server would be worse than a
-  clean stop.
+- **Degradation order.** Every launch tries broker forwarding first, whatever
+  its environment says: the reason to prefer the broker is the same for both
+  routes, because the extension host holds the token and the broker runs the
+  real tool logic with it. A failure _after_ the handshake is always fatal:
+  silently restarting an in-flight session as a different, anonymous server
+  would be worse than a clean stop. A pre-handshake failure (no registration
+  file, connect refused, rejected handshake, timeout) falls through to the
+  zero-configuration discovery above **only** for a launch with no instance
+  identity: a session whose explicit `FORGEJO_MCP_INSTANCE_ID` the broker
+  refused — the instance is gone or has lost its token — exits 1 with a stderr
+  message instead, because being served a different account is not an option.
+  `FORGEJO_MCP_BROKER_ONLY=true`, which the extension sets alongside the id,
+  additionally forbids the direct-server fallback when no registration exists at
+  all; it is what keeps a definition that reaches a window with no broker from
+  answering anonymously under the label of an authenticated server.
 
 ### Security model (broker)
 
@@ -527,37 +586,48 @@ implying a capability the tools do not have. Registration lives in
 
 ## Environment variables
 
-| Variable                    | Content                                                                                                                                                                                                                                                |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `FORGEJO_MCP_INSTANCE_URL`  | The instance URL, verbatim (credential userinfo is refused at configuration time; only a value stored by an older extension version can still carry it). Optional: when absent, the server auto-discovers the instance (see Zero-configuration launch) |
-| `FORGEJO_MCP_INSTANCE_ID`   | The configured instance's id; matched against state-file entries before the URL                                                                                                                                                                        |
-| `FORGEJO_MCP_TOKEN`         | The instance's access token. Optional: without it the tools read anonymously (public data only), which is what an `mcp.json` the Agent Host reads natively should use rather than storing a token at rest                                              |
-| `FORGEJO_MCP_SYNC_API_URLS` | `'false'` disables rewriting API URLs to the instance URL                                                                                                                                                                                              |
-| `FORGEJO_MCP_PROXY`         | The editor's `http.proxy`, when configured                                                                                                                                                                                                             |
-| `FORGEJO_MCP_STATE_FILE`    | This window's workspace → repository state file                                                                                                                                                                                                        |
-| `FORGEJO_MCP_DATA_DIR`      | Explicit override for the directory auto-discovery reads `mcp-instances.json` from (tests, unconventional installs); absent: the platform defaults                                                                                                     |
-| `FORGEJO_MCP_DEBUG`         | `'true'` enables debug logging on the child's stderr                                                                                                                                                                                                   |
+| Variable                    | Content                                                                                                                                                                                                                                                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FORGEJO_MCP_INSTANCE_URL`  | The instance URL, verbatim (credential userinfo is refused at configuration time; only a value stored by an older extension version can still carry it). Optional: when absent, the server auto-discovers the instance (see Zero-configuration launch)                                                   |
+| `FORGEJO_MCP_INSTANCE_ID`   | The configured instance's id; matched against state-file entries before the URL, and the key the broker resolves a forwarded session against. Also what makes a launch "identity-bearing": a session that names an instance the host cannot authenticate is refused, never substituted                   |
+| `FORGEJO_MCP_BROKER_ONLY`   | `'true'` on every extension-provided definition: the child may only serve by forwarding to the extension-host broker and must **never** fall back to a direct server of its own (logged, exit code 1). Absent on a static `mcp.json` launch, whose anonymous auto-discovery fallback stays as documented |
+| `FORGEJO_MCP_TOKEN`         | The instance's access token — **never set by the extension**, in a definition or anywhere else. A direct-server launch (a static `mcp.json` when no broker is reachable) may carry its own; without one the tools read anonymously (public data only)                                                    |
+| `FORGEJO_MCP_SYNC_API_URLS` | `'false'` disables rewriting API URLs to the instance URL                                                                                                                                                                                                                                                |
+| `FORGEJO_MCP_PROXY`         | The editor's `http.proxy`, when configured                                                                                                                                                                                                                                                               |
+| `FORGEJO_MCP_STATE_FILE`    | This window's workspace → repository state file                                                                                                                                                                                                                                                          |
+| `FORGEJO_MCP_DATA_DIR`      | Explicit override for the directory auto-discovery reads `mcp-instances.json` from (tests, unconventional installs); absent: the platform defaults                                                                                                                                                       |
+| `FORGEJO_MCP_DEBUG`         | `'true'` enables debug logging on the child's stderr                                                                                                                                                                                                                                                     |
 
 ## Security model
 
 - The tool surface is read-only by design; write tools (below) will ship
   disabled by default.
-- Tokens are injected via process env only; the server scrubs them from any
-  error it returns (`userFacingErrorMessage` never includes headers).
-- That injection happens exclusively at spawn time, by the extension host. A
+- The token is not handed to a child at all. It stays in SecretStorage, is read
+  only by the extension host, and is used there by the broker; the server
+  scrubs anything credential-shaped from any error it returns
+  (`userFacingErrorMessage` never includes headers). A definition's `env` and a
+  static `mcp.json`'s `env` are therefore credential-free as far as this
+  extension is concerned — a client's own hand-written token in its own file is
+  the user's choice and outside this boundary's guarantees.
+- No token is passed at spawn time, by design: VS Code persists a registered
+  definition, environment included, in the profile's workspace storage, so a
+  token in one would be a plaintext secret at rest. A
   server started from a static `mcp.json` (the Agents window / Agent Host
   route) is launched by VS Code without the extension — but while the
-  extension host runs, its **broker** serves such launches with full
+  extension host runs, its **broker** serves such launches, and
+  extension-provided definitions, with full
   authenticated tools inside the host process (see [Broker mode](#broker-mode));
   the token still never leaves the host. Only when no broker is reachable
-  does the static route degrade to anonymous reads. There is deliberately no
+  does the static route degrade to anonymous reads (an extension-provided
+  definition reports the failure instead). There is deliberately no
   fallback that would let the child read SecretStorage itself — reaching into
   the OS credential store from an external process is what credential theft
   looks like, and the boundary is what keeps tokens off disk and out of logs.
   A user who needs authenticated calls with the extension _not_ running puts
   `FORGEJO_MCP_TOKEN` into the `env` of their own `mcp.json` entry by hand (a
-  plaintext secret at rest; a read-only-scoped token is recommended), or uses
-  the main window where the injection exists.
+  plaintext secret at rest in their own file, a read-only-scoped token is
+  recommended) — the extension neither writes nor reads that value — or runs a
+  window with the extension enabled, where the broker serves the session.
 - Tool results truncate large bodies (comments, diffs, logs) to a fixed
   budget (~10 KB per field) and cap the whole serialized result (64 KB), with
   an explicit marker when either cap fires, to protect the agent's context

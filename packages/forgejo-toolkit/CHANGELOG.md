@@ -27,11 +27,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Write Copilot Instructions** command: writes (or updates) a short section in
   the workspace repository's `.github/copilot-instructions.md` naming the
   Forgejo instance and repository the workspace maps to.
+- `forgejoToolkit.multiWindowLease` (default on): with several VS Code windows
+  open, only the window you are working in polls Forgejo for notifications and
+  raises the alerts, so an instance is no longer polled once per window and a new
+  notification no longer raises one alert per window. The other windows stay
+  quiet and still load notifications when you open the view.
+- **Copy Polling Diagnostics** command: puts a redacted JSON report of this
+  window's polling and lease state (which window is polling, the last handover,
+  the poll interval, the instances' probed versions) on the clipboard, for bug
+  reports. It never contains an access token or any other secret.
 - Two design documents for future work: the confirmation model for MCP write
   tools, and a multi-window polling lease.
 
 ### Changed
 
+- **Default behaviour change**: notification polling is now coordinated between
+  VS Code windows. With `forgejoToolkit.multiWindowLease` on (the new default) a
+  window that is not the polling owner no longer polls and no longer raises
+  notification alerts, and the window you are working in takes the job over.
+  Turn the setting off to get the previous behaviour back — every window polls
+  and alerts for itself — and note that any failure of the coordination already
+  falls back to exactly that, so notifications are never silently dropped.
 - Each webview surface downloads only what it renders: the onboarding wizard and
   the review-comment editor have their own entry instead of booting the whole
   dashboard shell (about 16% and 29% less to load), and a build-time check fails
@@ -45,6 +61,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API failures carry a structured error (status, headers, body), so a
   server-authored message is rendered directly instead of being re-parsed out of
   the message text.
+
+### Security
+
+- MCP server definitions no longer carry the access token. VS Code persists every
+  registered definition — environment included — in the profile's workspace
+  storage, so the token the extension handed to its stdio server was a copy of a
+  credential sitting on disk in cleartext right next to SecretStorage. The
+  definition now names only the instance, and the process VS Code spawns forwards
+  to the same local broker the static `mcp.json` route already used, where the
+  token is read from SecretStorage and never leaves the extension host. Nothing
+  changes for a launch you configured yourself: your own `mcp.json` may still
+  carry `FORGEJO_MCP_TOKEN` if you want it to, and the static route still
+  degrades to anonymous public-data reads when no extension window is running.
+  When no broker is reachable the extension now publishes no definition at all
+  and logs why, instead of registering a server that would answer anonymously
+  while the client believed it was authenticated.
 
 ### Fixed
 
@@ -70,6 +102,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comment bodies no longer disappear after flipping the comment sort order, and
   a failed image upload no longer leaves its message in another comment's
   editor.
+- The polling diagnostics report no longer states a handover reason that depends
+  on which window you ask: a window that lost the lease now records what actually
+  happened (another window displaced it, or the file disappeared) instead of a
+  blanket "expiry", and the takeover side and the demotion side of the same
+  handover agree. Its `handover.latencyMs` is now a real measurement on every
+  path where one exists, and `null` plus a `handover.latencyUnknown` reason where
+  it genuinely does not — a `0` that meant "not measurable" used to be
+  indistinguishable from a real zero, on exactly the crash path a bug report is
+  about.
+- The polling diagnostics report's window list is now called `visibleWindows`,
+  which is what it is: the holder plus every window competing for the lease. A
+  quiet window that is neither leaves no trace on disk and is not listed; the old
+  name read as a complete registry of the profile's windows.
 
 ## [0.0.1] - 2026-09-26
 
