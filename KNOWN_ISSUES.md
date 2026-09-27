@@ -227,9 +227,11 @@ Workaround: use a static `mcp.json` pointing at the shim the extension maintains
 
 ## Only one window can own the MCP broker
 
-That broker binds one endpoint per user profile, so exactly one window can serve it: the first window to start owns it, and every window started afterwards steps aside silently and writes no registration of its own (the step-aside is logged at debug level, so enable `forgejoToolkit.debug` to see it). While any window is running, a shim launched from `mcp.json` still authenticates through the owner, so this only becomes visible when the **owning window closes**: the registration file and the pipe go with it, the surviving windows do not take over, and the static-shim route reads anonymously — public data only — until one of them restarts its MCP surface. Two profiles of the same user share the endpoint as well, since it is derived from the user name and home directory rather than from the profile.
+That broker binds one endpoint per user profile, so exactly one window can serve it: the first window to start owns it, and every window started afterwards steps aside silently and writes no registration of its own (the step-aside is logged at debug level, so enable `forgejoToolkit.debug` to see it). A stepped-aside window does not give up: it reads the registration file every few seconds and checks whether the pid recorded in it is still alive, so it binds the endpoint itself as soon as the owner is gone — whether the owner closed cleanly (its `deactivate()` removed the file) or was killed (the file is left behind with a dead process id). The handover is automatic and needs no window reload; the window that takes over re-registers with its own live pid, logs `MCP broker listening at …`, and a shim launched from `mcp.json` reaches it with no client-side change. There is deliberately no lock and no election protocol — the watching windows just try to bind, and the one whose `listen` succeeds owns the broker. Two profiles of the same user share the endpoint as well, since it is derived from the user name and home directory rather than from the profile.
 
-Workaround: reload a window, or toggle `forgejoToolkit.mcpEnabled` off and on, to make it bind the broker again.
+What the handover cannot rescue is the session that was already running when the owner died: its forwarder loses its connection, logs an info line and exits, so that one MCP session ends. Starting it again forwards through the new owner — within a few seconds of the takeover — and from then on the static-shim route is authenticated again.
+
+Workaround: none needed; restart the ended session if you were using it. To skip the few seconds the takeover waits, reload a window or toggle `forgejoToolkit.mcpEnabled` off and on.
 
 ---
 

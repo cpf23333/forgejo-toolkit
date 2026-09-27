@@ -31,6 +31,11 @@ import { mcpWorkspaceStateFilePath } from './mcpWorkspaceState';
  * registration in globalStorage (see McpBrokerRegistryFile in
  * packages/shared/src/mcp/workspaceState.ts for the shape and the security
  * argument for the handshake secret it carries).
+ *
+ * The endpoint belongs to the user, not to a window, so exactly one window
+ * owns the broker at a time; the others step aside and watch for the owner to
+ * disappear, then take the endpoint over themselves (see
+ * startMcpBrokerIfFirst and startMcpBrokerTakeoverWatcher).
  */
 
 /**
@@ -64,6 +69,33 @@ let brokerStartup: Promise<void> | undefined;
  * (and tests can start/cleanup repeatedly against the same module).
  */
 let brokerGeneration = 0;
+
+/**
+ * How long a stepped-aside window waits between takeover checks.
+ *
+ * One tick reads the registration file (a few hundred bytes) and checks the
+ * recorded pid with `process.kill(pid, 0)`, which delivers no signal; only a
+ * verdict of "the owner is gone" goes on to a listen attempt. 5 s is chosen
+ * against both ends of the range. Faster would buy nothing user-visible: a
+ * forwarder that finds no live broker reads anonymously for that one session,
+ * and the *next* launch re-reads the registration, so the recovery
+ * granularity that matters is "the next MCP session", not sub-second. Much
+ * slower (30 s, say) would leave a user who closes the owning window and
+ * immediately starts an Agents-window session on anonymous reads for no good
+ * reason. Exported so the unit tests advance the interval the extension
+ * actually uses instead of a second copy of the value.
+ */
+export const BROKER_TAKEOVER_POLL_MS = 5_000;
+
+/**
+ * The stepped-aside window's takeover timer, and the attempt it may have in
+ * flight. Module scope next to `activeBroker` for the same reason: the window
+ * that stepped aside is exactly the one `deactivate()` must not leave a timer
+ * behind in. One timer per window (the start function below early-returns
+ * while it exists), unref'd — see startMcpBrokerTakeoverWatcher.
+ */
+let brokerTakeoverWatcher: NodeJS.Timeout | undefined;
+let brokerTakeoverAttempt: Promise<void> | undefined;
 
 /**
  * Resolves which configured instance a forwarded session should serve.
@@ -109,22 +141,26 @@ export async function resolveBrokerInstance(
 }
 
 /**
- * Starts the broker unless another window already owns it.
+ * Starts the broker unless another window already owns it; a window that finds
+ * the endpoint taken steps aside *and keeps watching it*, so the broker is
+ * handed over automatically when the owner goes away.
  *
- * Multi-window: exactly one broker per user/endpoint. The first window to
- * bind wins; a window whose listen fails with EADDRINUSE steps aside with a
- * debug log and no registration write — the forwarder only needs *a*
- * broker, and the owning window's file already points at it. EACCES is *not*
- * that case: it means this machine refuses the endpoint for a real reason, so
- * it is logged at info level like any other failure. Any other failure is
- * logged once and swallowed: the broker upgrades an anonymous fallback into an
- * authenticated one, but the fallback still works, so a broker failure must
+ * Multi-window: exactly one broker per user/endpoint. Binding is the arbiter —
+ * the first window to bind wins, and a window whose listen fails with
+ * EADDRINUSE logs the step-aside at debug level and writes no registration of
+ * its own (the owner's file already points at the owner), then starts the
+ * takeover watcher below. EACCES is *not* that case: it means this machine
+ * refuses the endpoint for a real reason, so it is logged at info level like
+ * any other failure — and no watcher is started for it, because retrying a
+ * local permission problem every few seconds cannot fix it. Any other failure
+ * is logged once and swallowed: the broker upgrades an anonymous fallback into
+ * an authenticated one, but the fallback still works, so a broker failure must
  * never break activation.
  *
- * Closing the owning window does not hand the broker over: the survivors keep
- * the debug line above and their static-shim route reads anonymously until the
- * surface restarts (a window reload, or toggling `forgejoToolkit.mcpEnabled`),
- * which is the behaviour KNOWN_ISSUES documents.
+ * The watcher is only ever created here, which is what keeps it out of a
+ * disabled surface: `forgejoToolkit.mcpEnabled` being off means this function
+ * is never called at all, and turning the setting off calls
+ * `cleanupMcpBroker()`, which clears the watcher (see that function).
  */
 export function startMcpBrokerIfFirst(
   context: vscode.ExtensionContext,
@@ -147,6 +183,8 @@ async function startMcpBrokerIfFirstInner(
   // Tests override the endpoint: the default is a hash of the user profile,
   // which is the same value the production extension computes — a test running
   // on a machine whose VS Code already hosts a broker would collide with it.
+  // Resolved once and reused by every takeover attempt: the endpoint belongs
+  // to this user, not to this window, so it must not move.
   const endpoint =
     options?.endpoint ??
     defaultBrokerEndpoint({
@@ -154,6 +192,34 @@ async function startMcpBrokerIfFirstInner(
       username: os.userInfo().username,
       homeDir: os.homedir(),
     });
+  const outcome = await attemptMcpBrokerStart(context, config, logger, endpoint, generation);
+  if (outcome === 'contended') {
+    startMcpBrokerTakeoverWatcher(context, config, logger, endpoint, generation);
+  }
+}
+
+/** How one broker start attempt ended; see attemptMcpBrokerStart. */
+type BrokerStartOutcome =
+  /** This window bound the endpoint and wrote the registration: it is the owner. */
+  | 'owned'
+  /** Another window owns the endpoint (EADDRINUSE), so waiting it out is worthwhile. */
+  | 'contended'
+  /** A local failure (EACCES, an unwritable registration, …): not worth retrying. */
+  | 'failed';
+
+/**
+ * One attempt at becoming the broker: listen, then publish the registration.
+ * The post-bind path below is the same one a takeover runs — a window that
+ * takes the endpoint over is an owner like any other, so it writes its own
+ * live pid and logs the same info line.
+ */
+async function attemptMcpBrokerStart(
+  context: vscode.ExtensionContext,
+  config: ConfigManager,
+  logger: Logger,
+  endpoint: string,
+  generation: number,
+): Promise<BrokerStartOutcome> {
   // Random per broker launch, not per session: the registration file is what
   // authorizes a forwarder, and it is rewritten every time the broker starts
   // (see McpBrokerRegistryFile for why this secret — and never a Forgejo
@@ -174,16 +240,16 @@ async function startMcpBrokerIfFirstInner(
     // dir, another user's leftover socket file) and must stay visible.
     if (code === 'EADDRINUSE') {
       logger.debug(`MCP broker not started: another window already owns ${endpoint}.`);
-      return;
+      return 'contended';
     }
     logger.info(`MCP broker failed to start (static mcp.json launches stay anonymous): ${error}`);
-    return;
+    return 'failed';
   }
   if (generation !== brokerGeneration) {
     // A cleanup ran while the listen was in flight; it saw no activeBroker,
     // so this handle is ours to close.
     await handle.close().catch(() => undefined);
-    return;
+    return 'failed';
   }
   const filePath = mcpBrokerFilePath(context);
   activeBroker = { handle, filePath };
@@ -211,9 +277,174 @@ async function startMcpBrokerIfFirstInner(
     logger.info(`MCP broker registration write failed, stopping the broker: ${error}`);
     activeBroker = undefined;
     await handle.close().catch(() => undefined);
-    return;
+    return 'failed';
   }
   logger.info(`MCP broker listening at ${endpoint}`);
+  return 'owned';
+}
+
+/**
+ * Keeps a stepped-aside window watching for the endpoint to become free, and
+ * binds it itself when it does.
+ *
+ * Why a poll rather than an event: an owner can die in ways that notify nobody
+ * — a crash, a `kill`, an extension host that exits without `deactivate()` —
+ * and the only cross-process trace that survives is the registration file.
+ * Reading it and checking the recorded pid is the cheap, honest liveness test:
+ * the file is gone (a clean `deactivate()` removes it) or its pid is
+ * verifiably dead (a crash left the file behind) both mean the owner is gone,
+ * while a live pid means it is still there and this window stays stepped
+ * aside. An unreadable or unparseable file also counts as "no owner
+ * recorded", matching the forwarder's own reader
+ * (`discoverBrokerRegistration` in mcp/autoConfig.ts skips such a file too).
+ *
+ * Binding stays the arbiter; there is deliberately **no file lock and no
+ * election protocol**. Two stepped-aside windows whose tick lands together
+ * both call listen, exactly one wins, and the loser's EADDRINUSE only means
+ * "someone else got there first" — it keeps watching instead of treating the
+ * loss as a failure. That is also why a false "the owner is gone" verdict can
+ * never produce two brokers: the worst case is one failed listen.
+ *
+ * Corner cases, all covered by the unit tests:
+ *  - the owner closed cleanly → its registration file is gone → bind;
+ *  - the owner was killed → the file is left with a dead pid → bind;
+ *  - the owner is alive → stay stepped aside, tick after tick, silently;
+ *  - two stepped-aside windows race → exactly one binds, the other gets
+ *    EADDRINUSE and keeps its watcher;
+ *  - this window wins → the ordinary post-bind path runs unchanged (the
+ *    registration carries this window's live pid, the info line is logged)
+ *    and the watcher stops because this window is the owner now;
+ *  - `forgejoToolkit.mcpEnabled` turned off, or `deactivate()` → both call
+ *    `cleanupMcpBroker()`, which clears the watcher;
+ *  - a takeover that cannot publish its registration (a failing write) → the
+ *    endpoint is free again but retrying would repeat a failing write and its
+ *    log line every tick, so that non-EADDRINUSE outcome stops the watcher.
+ *
+ * Residual: a pid the OS recycled onto an unrelated process reads as alive,
+ * so this window waits until that process exits. The forwarder's own probe has
+ * the same blind spot, and the dangerous direction (a false "gone") is still
+ * arbitrated by the listen.
+ */
+function startMcpBrokerTakeoverWatcher(
+  context: vscode.ExtensionContext,
+  config: ConfigManager,
+  logger: Logger,
+  endpoint: string,
+  generation: number,
+): void {
+  if (brokerTakeoverWatcher) {
+    return;
+  }
+  const timer = setInterval(() => {
+    void checkBrokerTakeover(context, config, logger, endpoint, generation).catch((error: unknown) => {
+      // A tick must never surface as an unhandled rejection in the host; the
+      // next tick tries again anyway.
+      logger.debug(`MCP broker takeover check failed: ${error instanceof Error ? error.message : String(error)}`);
+    });
+  }, BROKER_TAKEOVER_POLL_MS);
+  // Never keep a window — or any other process that loads this module — alive
+  // for a recovery that only matters while a window is there to recover.
+  timer.unref();
+  brokerTakeoverWatcher = timer;
+}
+
+/** One watcher tick: become the owner if the current one is gone. */
+async function checkBrokerTakeover(
+  context: vscode.ExtensionContext,
+  config: ConfigManager,
+  logger: Logger,
+  endpoint: string,
+  generation: number,
+): Promise<void> {
+  if (generation !== brokerGeneration) {
+    // cleanupMcpBroker ran (the setting was turned off, or the window is
+    // deactivating); it already cleared the timer. This half of the guard
+    // covers the tick that was already in flight when it did.
+    stopMcpBrokerTakeoverWatcher();
+    return;
+  }
+  if (brokerTakeoverAttempt) {
+    // The previous tick's listen plus registration write is still running; a
+    // concurrent second attempt would only duplicate it. Dropping this tick
+    // costs nothing — the next one is BROKER_TAKEOVER_POLL_MS away.
+    return;
+  }
+  const attempt = (async (): Promise<void> => {
+    if (await brokerRegistrationOwnerIsAlive(mcpBrokerFilePath(context))) {
+      return; // Owner alive: stay stepped aside, silently, and keep watching.
+    }
+    const outcome = await attemptMcpBrokerStart(context, config, logger, endpoint, generation);
+    if (outcome === 'contended') {
+      return; // Another window won the race; keep watching.
+    }
+    // 'owned': this window is the owner now and the registration points at
+    // it. 'failed': the endpoint is free but this window cannot take it, and
+    // repeating a failing attempt every tick would only repeat its log line.
+    stopMcpBrokerTakeoverWatcher();
+  })();
+  brokerTakeoverAttempt = attempt;
+  try {
+    await attempt;
+  } finally {
+    if (brokerTakeoverAttempt === attempt) {
+      brokerTakeoverAttempt = undefined;
+    }
+  }
+}
+
+/** Stops the watcher, if any. Idempotent, so cleanup can call it freely. */
+function stopMcpBrokerTakeoverWatcher(): void {
+  if (!brokerTakeoverWatcher) {
+    return;
+  }
+  clearInterval(brokerTakeoverWatcher);
+  brokerTakeoverWatcher = undefined;
+}
+
+/**
+ * Cheap liveness probe for a pid: signal 0 performs the existence and
+ * permission checks without delivering anything, and EPERM still means "the
+ * process exists". The same rule mcp/autoConfig.ts's `isPidAlive` applies to
+ * the same file on the forwarder side; the two must agree. It is duplicated
+ * here on purpose: this side is the extension host, and the host has no
+ * business pulling the headless bundle's multi-directory discovery into its
+ * module graph for three lines.
+ */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * True when this window's registration file names a pid that is still alive.
+ *
+ * This window's own file is the whole answer, and it is the cheap one: a clean
+ * `deactivate()` removes it ("gone"), while a crash leaves it behind with a
+ * pid the OS reports as dead. Both mean the endpoint can be taken over, and
+ * the listen that follows is what actually decides it.
+ */
+async function brokerRegistrationOwnerIsAlive(filePath: string): Promise<boolean> {
+  let raw: string;
+  try {
+    raw = await fs.promises.readFile(filePath, 'utf8');
+  } catch {
+    return false;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return false;
+  }
+  const pid = (parsed as { pid?: unknown } | null)?.pid;
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+  return isProcessAlive(pid);
 }
 
 /**
@@ -349,17 +580,28 @@ async function createBrokerMcpServer(
 }
 
 /**
- * Stops this window's broker and removes its registration file (called from
- * `deactivate()`). Only the file this window wrote is removed: a window that
- * stepped aside must not delete the owning window's registration.
+ * Stops this window's broker, removes its registration file, and stops the
+ * takeover watcher (called from `deactivate()`, and from the MCP surface's
+ * dispose when `forgejoToolkit.mcpEnabled` is turned off). Only the file this
+ * window wrote is removed: a window that stepped aside must not delete the
+ * owning window's registration.
  */
 export async function cleanupMcpBroker(logger: Logger): Promise<void> {
   brokerGeneration += 1;
+  // Stop watching first: a tick after the generation bump would be refused
+  // anyway (see checkBrokerTakeover), but clearing up front means no takeover
+  // listen can even begin behind this cleanup — and an unref'd timer that is
+  // never cleared would outlive the surface that owns it.
+  stopMcpBrokerTakeoverWatcher();
   // A startup still in flight would otherwise register a broker after this
   // cleanup ran; it notices the generation bump and closes its own handle,
   // but only once it gets that far — wait for it so deactivate really leaves
   // nothing behind.
   await brokerStartup?.catch(() => undefined);
+  // A takeover attempt is not `brokerStartup`: it is awaited through its own
+  // promise, so a late winner cannot write a registration file after this
+  // cleanup removed one.
+  await brokerTakeoverAttempt?.catch(() => undefined);
   const broker = activeBroker;
   activeBroker = undefined;
   if (!broker) {

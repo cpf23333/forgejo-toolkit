@@ -238,7 +238,8 @@ wins.
 Zero-configuration launch still leaves a statically launched server
 _anonymous_: a static `mcp.json` carries no environment, so no token reaches
 the child. Broker mode closes that gap without moving the token. When the
-extension host is running, one window (the first to bind the endpoint) starts
+extension host is running, one window (the first to bind the endpoint, or a
+survivor that took the endpoint over when the owner went away) starts
 a local **broker** — `net.createServer` on a named pipe (Windows) or unix
 socket — and the statically launched `mcp-server.js` becomes a pure
 forwarder that bridges its stdio onto the broker connection. The real tool
@@ -303,7 +304,19 @@ Forgejo instance REST API
 - **Lifecycle.** Multi-window: the first window to bind the endpoint wins;
   other windows' `listen` fails with EADDRINUSE and they step aside with a
   debug log (and no registration write); EACCES is logged as a real local
-  failure instead. On unix a leftover socket file from a crashed broker is
+  failure instead, and starts no watcher. A stepped-aside window keeps a 5 s
+  (unref'd) watcher on the registration: it re-reads
+  `globalStorage/mcp-broker.json` and probes the recorded pid with
+  `process.kill(pid, 0)` — the same rule as the forwarder's `isPidAlive` —
+  and when the file is gone (clean `deactivate()`) or names a dead pid (a
+  crash), it tries to bind itself. That attempt runs the ordinary post-bind
+  path — its own live pid in the registration, the info line — so a takeover
+  is indistinguishable from a first bind for every client. Binding stays the
+  arbiter: there is no file lock and no election, and two watching windows
+  that tick together simply race, with the loser's EADDRINUSE meaning "keep
+  watching". `cleanupMcpBroker()` (deactivation, or
+  `forgejoToolkit.mcpEnabled` turned off) clears the watcher along with the
+  broker. On unix a leftover socket file from a crashed broker is
   distinguished from a live owner by a connect probe: refused means stale, so
   it is unlinked and the listen retried once. `deactivate()` closes the
   broker and deletes the registration file; a crash-orphaned file is harmless
