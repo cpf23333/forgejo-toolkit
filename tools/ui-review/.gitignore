@@ -5,3 +5,5 @@ workspace/
 node_modules/
 workspace2/
 pushmock/
+# session state of the shared-profile dual-window mode (src/dual.ts)
+dual-window.json

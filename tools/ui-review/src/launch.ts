@@ -4,52 +4,30 @@
 // swallow --remote-debugging-port).
 //
 // Usage: node --import tsx src/launch.ts [workspacePath]   (default: D:\code\test)
+//
+// This stays the one-profile-per-launch model. A second window *of that same
+// profile* is a different thing — see src/dual.ts (design doc §10.2/§12.7).
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { defaultLaunchConfig, launchArgs, seedProfileSettings } from './config';
+import { cdpVersionUrl } from './windows';
 
-const HERE = path.resolve(import.meta.dirname, '..');
-const ROOT = path.resolve(HERE, '..', '..');
-const PROFILE = path.join(HERE, 'profile');
-const EXTS = path.join(HERE, 'extensions');
-const EXTENSION_DEV = path.join(ROOT, 'packages', 'forgejo-toolkit');
-const WORKSPACE = process.argv[2] || 'D:\\code\\test';
-const PORT = Number(process.env.CDP_PORT || 9222);
-// Optional UI locale for screenshot runs (e.g. UI_LOCALE=zh-cn). Requires the
-// matching language pack in the isolated extensions dir.
-const LOCALE = process.env.UI_LOCALE;
+const HARNESS_DIR = path.resolve(import.meta.dirname, '..');
+const config = defaultLaunchConfig(HARNESS_DIR, process.argv[2]);
 
-fs.mkdirSync(path.join(PROFILE, 'User'), { recursive: true });
-fs.mkdirSync(EXTS, { recursive: true });
+fs.mkdirSync(config.profileDir, { recursive: true });
+fs.mkdirSync(config.extensionsDir, { recursive: true });
+seedProfileSettings(config.profileDir);
 
-// Pre-seed settings: enable the MSW mock API so the UI works offline.
-const settingsPath = path.join(PROFILE, 'User', 'settings.json');
-const settings: Record<string, unknown> = fs.existsSync(settingsPath)
-  ? (JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as Record<string, unknown>)
-  : {};
-settings['forgejoToolkit.useMockApi'] ??= true;
-fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-
-const args = [
-  `--user-data-dir=${PROFILE}`,
-  `--extensions-dir=${EXTS}`,
-  `--extensionDevelopmentPath=${EXTENSION_DEV}`,
-  `--remote-debugging-port=${PORT}`,
-  '--new-window',
-  '--skip-welcome',
-  '--skip-release-notes',
-  ...(LOCALE ? [`--locale=${LOCALE}`] : []),
-  WORKSPACE,
-];
-
-const child = spawn('code', args, { detached: true, stdio: 'ignore', shell: true });
+const child = spawn('code', launchArgs(config), { detached: true, stdio: 'ignore', shell: true });
 child.unref();
 
 // Wait for the CDP endpoint.
 const deadline = Date.now() + 30_000;
 for (;;) {
   try {
-    const res = await fetch(`http://127.0.0.1:${PORT}/json/version`);
+    const res = await fetch(cdpVersionUrl(config.cdpPort));
     if (res.ok) {
       console.log('CDP ready:', await res.text());
       break;

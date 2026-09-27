@@ -57,6 +57,260 @@ card clean, mock-backed data for screenshots.
 
 Coordinates are read off the previous CDP screenshot (viewport, e.g. 1440x900).
 
+## Shared-profile dual-window mode
+
+Everything above is one isolated profile per launch, which can never produce "two
+windows that share `globalStorage`". That scenario is what the multi-window
+polling lease and the MCP broker handover are about (`docs/design/multi-window-polling-lease.md`
+§10.2, §11.2), so `src/dual.ts` adds it as a mode on top of the existing launcher:
+
+- the **first** window is launched exactly as `pnpm launch` does (same
+  `--user-data-dir`, same mock-API seeding, same CDP port);
+- the **second** window is a second window _of that same profile_, opened with
+  **Ctrl+Shift+N inside the running instance** — not with
+  `code --new-window <folder>`, which for an already-running profile only raises
+  the existing window (measured, §10.2);
+- both windows stay addressable: the driver talks to one by CDP target id, and the
+  mode labels them `window1` (launched) and `window2` (opened second);
+- each window's extension host is reported by pid and can be killed on its own.
+
+The mode has been run end to end (2026-09-27, after the build); see "What the first
+real run established" below for what that settled and "Still unproven" for what it
+did not.
+
+```bash
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual launch [workspace]  # first window, then window2
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual verify              # one profile, two windows, one exthost each
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual targets             # CDP target ids to address each window
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual windows             # each window's log directory
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual logs <1|2|all> [--preset extension|exthost|mcp|any] [--grep X] [--tail N] [--follow]
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual kill <1|2> [--print-command]  # Stop-Process -Force that window's exthost
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review dual close               # stop the dev host, drop the session state
+```
+
+`dual launch` records the session in `dual-window.json` (gitignored), which is what
+makes `dual logs` read _the session this mode launched_ instead of "the newest logs
+on disk". A second window that never appears is a hard failure on purpose: two
+windows of two different profiles would look identical in the logs while proving
+nothing about the lease. `CDP_PORT`, `UI_WORKSPACE` and `UI_LOCALE` are read the same
+way `pnpm launch` reads them, and because the second window is opened from the
+already-running instance, `UI_LOCALE` applies to **both** windows.
+
+Useful options: `--timeout <ms>` (how long to wait for window2, default 60000),
+`--no-wait-window` (skip waiting for the log directories),
+`--system-keystroke` (see the traps below). The driver addresses a window either
+positionally or by target id (`src/ui.ts` takes these, and they must come before
+the command):
+
+```bash
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui --target <id from "dual targets"> shot w2-home
+pnpm --filter @cpf23333-forgejo-toolkit/ui-review ui --window 2 shot w2-home
+```
+
+Prefer `--target`: the ids `dual launch` recorded are the only thing that names a
+window stably. `--window 2` is resolved through that recorded id, so it does mean
+the same window on every call — but only while the session file exists; the
+positional fallback (no session) is just "the page Playwright listed second", and
+that order was measured to vary between connections. `dual targets` prints each
+window's recorded id next to its title, so copy the id from there.
+
+### Smoke scenario: two windows, one profile
+
+What this is for (§10.2, §11.2): **which window is polling/leader**, **whether a
+handover happened and how long it took**, and **whether the survivor kept working**
+— the three questions the lease work has to answer with evidence.
+
+1. **Clean start.** Rebuild, then make sure no dev host is left over:
+   `pnpm kill` (it stops only Code.exe processes whose command line mentions this
+   directory), and remove a stale `dual-window.json` with `dual close`.
+2. **Launch.** `dual launch D:\code\forgejo-toolkit`. Expect both windows to open
+   (the second one comes to the front), a line per window naming its CDP target id
+   and title, and a summary naming each window's extension-host pid and log
+   directory. The chord is sent up to three times with a focused window first,
+   because the first `Ctrl+Shift+N` over CDP can be swallowed: in the run of
+   2026-09-27 attempt 1 produced nothing and attempt 2 opened the window.
+3. **Verify.** `dual verify` must end with
+   `dual verify OK: two windows, one profile, one extension host each`. It re-reads
+   the process table and fails on more than one `--user-data-dir`, on a profile that
+   is not the recorded one, and on a window whose extension host is not running. The
+   number of processes it _classifies_ as window roots is printed as a note rather
+   than enforced: measured, a dev host is **one** root process (plus one renderer per
+   window), so that count being one is expected and not a problem (see "Still
+   unproven"). `dual targets` should list exactly two workbench pages, each
+   marked `recorded` — an id mismatch there means the mode is talking about different
+   windows than it launched.
+4. **Watch the two windows separately.** Each window's logs are under
+   `profile/logs/<session>/window<N>/`; `window<N>` is VS Code's own numbering
+   (the second window can be `window4`, which is why the mode maps label → directory
+   through the extension-host pid recorded in `exthost/exthost.log`). The extension's
+   output channel is picked from the newest `exthost/output_logging_*/`
+   `N-Forgejo Toolkit.log` in that directory, so a window that reloaded (new
+   channel) is not confused with the previous session:
+   `dual logs 1 --preset extension --grep "poll" --follow` in one terminal and
+   `dual logs 2 ...` in another is the intended way to watch a handover live.
+   `--preset exthost` reads `exthost.log` (activation and termination lines),
+   `--preset mcp` the `mcpServer.*.log` sinks the broker section above describes.
+5. **Read the evidence.** Where to look, per question:
+   - _who is leader_ — the role line (`pid` + `ownerNonce` first 8 chars + the
+     trigger: `claimed` / `takeover-expired` / `stepped-down-owner-changed` /
+     `lease-unavailable`) in the window's own channel, per `§7.1` of the design doc.
+     That log format is the contract the lease implementation must satisfy; it does
+     not exist in the extension yet, so today this step is a review of the
+     implementation against §7.1 rather than a grep for a shipped string.
+   - _how long the handover took_ — compare the stepping-down line in the old
+     window with the claiming line in the new one, both timestamped and in different
+     directories, which is exactly why the mode reports two log directories instead
+     of one log stream.
+   - _the survivor kept working_ — the surviving window keeps writing to its own
+     channel and keeps answering `pnpm ui --window <n>`; the killed window's channel
+     simply stops.
+     A handover-shaped check that works **today**, before the lease lands, is the MCP
+     broker (already delivered): the exact broker line lives in exactly one window's
+     channel —
+     `[INFO] … MCP broker listening at \\.\pipe\forgejo-toolkit-mcp-<hash>`.
+     `dual logs all --preset extension --grep "MCP broker"` should show it in one
+     window and nothing in the other. **Caveat measured in the first real run:** that
+     line only appears once an MCP client connects, and the endpoint is derived from
+     the _user_ profile (`sha256(username + homedir)`), not from `--user-data-dir` —
+     so next to a running real VS Code the dev host steps aside and the line never
+     appears in either window. Redirect `USERPROFILE`/`HOME` before launching (as the
+     broker section above says) if this is the check you want. What the dual-window
+     run _does_ show without any broker is that both windows activate the extension
+     independently — `ExtensionService#_doActivateExtension cpf23333.forgejo-toolkit`
+     plus its own `Extension host with pid <n> started` in **each** window's
+     `exthost.log`, with two different pids.
+6. **Crash one window.** `dual kill 2` → run it once with `--print-command` first
+   if you want to see the exact command (`Stop-Process -Id <pid> -Force`). Expect:
+   only window2's extension host dies (measured: window1's pid kept running, the
+   choice is re-checked against the process table before `Stop-Process` runs), the
+   app stays up, and a killed extension host never runs `deactivate()` — precisely
+   the shape the lease must survive, since the surviving window has to take over by
+   expiry (≥ 35 s per the design doc). After the kill, `dual verify` fails with
+   `window2: extension host pid <n> (from its log) is not running any more` — that is
+   the expected failure of the two-window invariant, not a harness bug.
+7. **Reload the victim.** Reload window2 from the palette (which leaves the app
+   running): its extension host restarts, a _new_ `output_logging_*` directory
+   appears in the same window directory, and `dual logs 2 --preset any` picks it up
+   so you can read what the returning window did. Note `dual kill` is not this path:
+   see the trap below for what force-killing the extension host does to the window.
+8. **Clean up what you created.** `pnpm kill` (or `dual close`) stops the dev host,
+   `dual close` also clears `dual-window.json`. The dev host leaves its
+   `profile/` (settings, the shared `globalStorage`, `logs/`) and `extensions/`
+   behind by design — both are gitignored, and nothing outside
+   `tools/ui-review/` was touched. If you started this mode next to your own VS
+   Code, check with `Get-Process Code` / `pnpm kill` that nothing of the harness is
+   left; only the profile and the processes are the mode's to clean up.
+   **A failed launch no longer leaves orphans**: `dual launch` writes
+   `dual-window.json` as soon as window1 is identified (before the keystroke, which
+   is where it is most likely to fail), so `dual close` works from that point on.
+   Both failure paths print the state-file path and the cleanup command.
+
+### Traps this mode has to work around
+
+- **`code --new-window <folder>` is not the way to open window2.** Against the same
+  profile it just raises the existing window (measured, §10.2), so the mode never
+  uses it and refuses to continue when the number of workbench pages on the CDP port
+  did not grow. That refusal is the point: silently ending up with two profiles
+  would make every later observation meaningless.
+- **`/json/list` does not list windows in creation order, and neither does
+  Playwright reliably across connections.** Measured in the first real runs:
+  `/json/list` returned window2 before window1, and Playwright's own page order
+  differed between two `connectAll` calls on the same live host. Everything that
+  needs to name a window therefore goes through `Target.getTargetInfo` on the page's
+  own session plus the ids recorded in `dual-window.json`; positions are a fallback
+  only. Do not reintroduce positional matching against either list.
+- **CDP keystroke vs SendKeys.** The keystroke is sent through CDP to window1's
+  page, which is the honest "inside the running instance" path. The first press can
+  be swallowed (measured: attempt 1 produced no window, attempt 2 did), so it is
+  retried up to three times, each after `bringToFront()`. `--system-keystroke` adds
+  `activate.ps1 -Keys '^+n'` as a final attempt, but with two dev-host windows open
+  that helper resolves the dev host by `MainWindowHandle` (one window per process,
+  `src/win/devhost.ps1`) and can therefore raise the _wrong_ window — focus window1
+  by hand before relying on it.
+- **Which extension host belongs to which window comes from the log, not the process
+  table.** Measured on this build: the extension host is
+  `--type=utility --utility-sub-type=node.mojom.NodeService`, one of **six** such
+  processes with no `--logsPath`, no `--user-data-dir` and no other per-window
+  marker — so nothing in the command line can pair them. The pairing is each
+  window's `exthost/exthost.log` pid; the older `--type=extensionHost` shape is still
+  recognised, and only when no log pids exist does the mode fall back to creation
+  order. Read `dual kill <n> --print-command` before a destructive run.
+- **Force-killing the extension host kills that window, not just its host.**
+  Measured: `Stop-Process -Force` on window2's exthost left window1 and the app
+  running, and window2 closed (its CDP page target disappeared). That is still the
+  crash shape the lease must survive — the point is that one window goes away without
+  running `deactivate()`, so its lease file stays behind until it expires — but do
+  not expect the victim window to keep showing an inert UI, and use a palette reload
+  (step 7) when you want the window to come back. `pnpm kill` (everything) and
+  `dual close` are the orderly paths.
+- **Two dev hosts at once break the process filters.** `kill.ts`, the window
+  helpers and this mode all match Code.exe by _this directory_ in the command line,
+  not by pid, so a second dev host started from the same harness makes the pairing
+  ambiguous. Kill extras first.
+- **The state file pins the session.** `dual logs`/`windows`/`verify` read
+  `dual-window.json` and never fall back to another session — if it is missing they
+  use the newest session, which may belong to a different host; that is why they
+  print the session they resolved. Trust the printed session name, not the fact that
+  output appeared.
+- **Window2 starts from the first launch's arguments.** `--locale` (from
+  `UI_LOCALE`), `--extensionDevelopmentPath` and the profile come from the launch,
+  so the second window does localize and does load the extension — the mode checks
+  the latter through its extension host. Anything per-window that the _first_ window
+  had already stored (an opened folder's UI state, for instance) is fresh in
+  window2, which is what a new window means. Measured: the window opened by
+  `Ctrl+Shift+N` came up with the profile and the extension but **without** the
+  workspace folder that `dual launch <workspace>` passed to window1 (its title was
+  the plain `Forgejo Toolkit Setup`, window1's carried `- forgejo-toolkit`). That is
+  fine for the lease and the logs — `globalStorage` is per profile, and both windows
+  activate and log — but do not expect window1's opened folder to be there.
+
+### What the first real run established (2026-09-27)
+
+The mode was run end to end on this machine after the build. These are the four
+questions that had to be answered by a real run, with the evidence that settled each
+one (two separate sessions; the `globalStorage` files below are from the first):
+
+| Question                                                                        | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Does the in-instance keystroke really open a second window of the same profile? | **Yes.** Attempt 1 over CDP produced nothing, attempt 2 opened it (the same 1-then-2 sequence repeated in a later session); the second window loaded the extension — its own `Extension host with pid <n> started` and `ExtensionService#_doActivateExtension cpf23333.forgejo-toolkit` line in `window2/exthost/exthost.log`.                                                                                                                                                                                       |
+| Do both windows share one `--user-data-dir`?                                    | **Yes.** `dual verify`'s profile check passed, and the shared directory shows it: `profile/User/globalStorage/cpf23333.forgejo-toolkit/` holds `mcp-workspace-23284-….json` (window1's extension host) and `mcp-workspace-11988-….json` (window2's) written 24 s apart, while the workspace-folder `workspaceStorage` entry for `d:\code\forgejo-toolkit` stayed single (`72e030fad9fd…`) — per-window data differs, the profile's `globalStorage` is one directory. That is exactly the shape the lease file needs. |
+| Can a window be paired to its extension host?                                   | **Yes, through the log.** Both windows' `exthost.log` pids resolved to live NodeService processes, and `dual verify` printed one live extension host per window; `dual targets` lists each window's recorded id next to its title. Killing window2's host hit nothing else (window1's pid stayed alive, and `Stop-Process` only ran after the pid was re-checked against the process table).                                                                                                                         |
+| Does per-window log capture see both windows?                                   | **Yes.** `dual logs all` printed each window's own channel: `output_logging_20260927T192636/1-Forgejo Toolkit.log` for window1 and `output_logging_20260927T192700/1-Forgejo Toolkit.log` for window2, each with its own `Mock API server started` + `Forgejo Toolkit extension activated` pair — distinct directories, distinct timestamps, distinct pids.                                                                                                                                                          |
+
+What the run also changed, beyond the three defects it found (a `/json/list` field
+named `id` that made every target id `undefined`, an extension host that is a
+`node.mojom.NodeService` utility process rather than `--type=extensionHost`, and a
+failed launch that left two orphan windows with no session file): `/json/list` and
+Playwright's own page order are both unreliable for labelling windows, so targeting
+now goes through each page's CDP session plus the recorded ids; the first
+`Ctrl+Shift+N` can be swallowed, so the chord is retried; and `dual launch` records
+the session as soon as window1 exists, so a failure never leaves orphans.
+
+### Still unproven
+
+- **The MCP broker handover inside the two windows.** The broker line
+  (`MCP broker listening at \\.\pipe\forgejo-toolkit-mcp-<hash>`) was in neither
+  channel of this run: no MCP client connected, and the endpoint is derived from the
+  user profile rather than `--user-data-dir`, so with the user's own VS Code running
+  the dev host would step aside by design. Verifying it needs `USERPROFILE`/`HOME`
+  redirected before the launch (the broker section above describes this).
+- **The lease itself.** `mcp-leader-lease.json` and its `§7.1` log lines do not
+  exist in the extension yet, so "which window is leader", "how long the handover
+  took" and the soak numbers remain the lease implementation's own verification.
+- **Window identity beyond the launch.** A window is named by the CDP target id
+  recorded at launch; after that window reloads (or is closed and reopened by hand)
+  the id changes, so it is no longer recognisable as "window2" — the mode still
+  refuses when the page count changes around its own launch, which is the case that
+  matters for the two-window invariant.
+- **The `window<N>` directory names.** The mapping is by log pid, but on a session
+  whose window numbers do not start at 1 the _fallback_ (VS Code numbering) is what
+  attributes the directories before the pids are read; that fallback is unexercised
+  on a fresh profile, where the two lowest numbers happened to be `window1`/`window2`.
+  Everything pure is covered by
+  `pnpm --filter @cpf23333-forgejo-toolkit/ui-review test` (window addressing,
+  log-directory resolution, keystroke and command construction, kill-target
+  selection).
+
 ## Known blind spots
 
 - **Webviews are OOPIFs**: their DOM is unreachable via CDP frames. Use
