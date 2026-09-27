@@ -187,6 +187,8 @@
 - **MCP 开关**：`forgejoToolkit.mcpEnabled`（默认开）。关闭时不注册 MCP server 定义、不维护 shim / 实例注册表 / 工作区映射，并停掉本地 broker；共享的 shim 与注册表文件保留（其他窗口可能仍开着），已连接的客户端继续使用它已启动的进程直到重载窗口。运行时切换即刻生效，不留陈旧监听。
 - **Copilot 指令生成命令**：`forgejoToolkit.writeCopilotInstructions` 走既有归因路径解析工作区仓库，在 `<仓库根>/.github/copilot-instructions.md` 创建 / 追加 / 原地更新一段声明（只声称只读能力），标记不完整或重复时**完全不写入**并警告，URL 去凭据、原子写入。
 - **Webview 入口按面拆分**：dashboard / onboarding / 评论编辑器各自一份 HTML 与入口模块，面板不再下载 dashboard 外壳（onboarding −15.9%、评论面板 −28.8%），并加构建期图断言：面板一旦触达 `App.vue`/router/vue-router 或未使用的 `@vscode-elements` 模块即构建失败。
+- **消息目录按语言拆分**：三面共用的 vendor chunk 里，两份目录实测占 31.3%（49,574 B）；改为 `en` 静态作基语言与回退、`zh` 动态导入成独立 chunk（20,815 B，任何面都不预加载）后，vendor chunk 158,289 → 118,495 B，dashboard −5.4%、评论面板 −5.8%。语言切换仍是原子的：先加载目录再发布、被取代的请求丢弃、加载期间显示旧语言、失败保留旧语言。
+- **MCP broker 窗口间自动交接**：让位窗口每 5 s 检查注册文件里的 pid，持有者正常关闭或被强杀后自行重新绑定（`listen` 即仲裁，无文件锁/无选举），失败一律不重试；定时器 `unref` 且随停用/关闭开关清理。之前「关掉持有窗口后其余窗口永不接管、必须重载或切换设置」的行为由此消除，令牌始终不出 SecretStorage/扩展宿主。
 - **精确截断**：`X-Total-Count` 贯通到全部列表方法（含 11 个此前只返回裸数组的方法新增 `<name>WithTotal` 形式）与 MCP 工具结果，恰好 500 条的完整列表不再被说成截断，真实被截断时报出真实数字；`get_pr_review_brief` 的 `reviewStatus.truncated` 同样按服务端总数判断。
 - **结构化错误契约**：`shared/request` 抛 `RequestError{status,statusText,headers,body}`（消息格式不变），宿主从字段分类与渲染服务端消息，正则只作为外来错误回退。
 - **列表回包按请求归属**：三个列表命令（`getRepositories`/`getMyIssues`/`getMyPullRequests`）请求带 `_requestId`、宿主原样回显、webview 严格按 id 归属——被替换服务器的迟到回包在**任意到达顺序**下都不会再写进列表或缓存；向导面板同样回显。
