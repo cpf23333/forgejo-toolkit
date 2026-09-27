@@ -112,12 +112,19 @@ export async function resolveBrokerInstance(
  * Starts the broker unless another window already owns it.
  *
  * Multi-window: exactly one broker per user/endpoint. The first window to
- * bind wins; a window whose listen fails with EADDRINUSE/EACCES steps aside
- * with a debug log and no registration write — the forwarder only needs *a*
- * broker, and the owning window's file already points at it. Any other
- * failure is logged once at info level and swallowed: the broker upgrades an
- * anonymous fallback into an authenticated one, but the fallback still works,
- * so a broker failure must never break activation.
+ * bind wins; a window whose listen fails with EADDRINUSE steps aside with a
+ * debug log and no registration write — the forwarder only needs *a*
+ * broker, and the owning window's file already points at it. EACCES is *not*
+ * that case: it means this machine refuses the endpoint for a real reason, so
+ * it is logged at info level like any other failure. Any other failure is
+ * logged once and swallowed: the broker upgrades an anonymous fallback into an
+ * authenticated one, but the fallback still works, so a broker failure must
+ * never break activation.
+ *
+ * Closing the owning window does not hand the broker over: the survivors keep
+ * the debug line above and their static-shim route reads anonymously until the
+ * surface restarts (a window reload, or toggling `forgejoToolkit.mcpEnabled`),
+ * which is the behaviour KNOWN_ISSUES documents.
  */
 export function startMcpBrokerIfFirst(
   context: vscode.ExtensionContext,

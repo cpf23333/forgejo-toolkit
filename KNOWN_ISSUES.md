@@ -225,6 +225,12 @@ The MCP server the extension contributes through `mcpServerDefinitionProviders` 
 
 Workaround: use a static `mcp.json` pointing at the shim the extension maintains in its globalStorage (see the FAQ entry "Can I use the MCP server in the Agents window?"). While the extension host is running, the broker forwards that server to the extension over a local pipe, so authenticated tools work there with no token on disk; with no extension host running the server degrades to anonymous, public-data-only reads.
 
+## Only one window can own the MCP broker
+
+That broker binds one endpoint per user profile, so exactly one window can serve it: the first window to start owns it, and every window started afterwards steps aside silently and writes no registration of its own (the step-aside is logged at debug level, so enable `forgejoToolkit.debug` to see it). While any window is running, a shim launched from `mcp.json` still authenticates through the owner, so this only becomes visible when the **owning window closes**: the registration file and the pipe go with it, the surviving windows do not take over, and the static-shim route reads anonymously — public data only — until one of them restarts its MCP surface. Two profiles of the same user share the endpoint as well, since it is derived from the user name and home directory rather than from the profile.
+
+Workaround: reload a window, or toggle `forgejoToolkit.mcpEnabled` off and on, to make it bind the broker again.
+
 ---
 
 _For per-endpoint verification details against the Forgejo server source, see [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)._

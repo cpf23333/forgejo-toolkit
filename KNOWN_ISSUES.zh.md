@@ -225,6 +225,12 @@ Forgejo 的 contents 接口不会返回超过 `[api] DEFAULT_MAX_BLOB_SIZE`（�
 
 规避方法：用一份静态 `mcp.json` 指向扩展在 globalStorage 里维护的 shim（见 FAQ「Agents 窗口里能用这个 MCP server 吗？」）。扩展宿主运行期间，broker 会把该 server 经本地管道转发给扩展，认证工具在那里也可用、token 不落盘；扩展宿主不在时降级为匿名只读（仅公开数据）。
 
+## 同一时间只有一个窗口能持有 MCP broker
+
+该 broker 在一个用户 profile 上只绑定一个端点，因此同时只有一个窗口能提供服务：最先启动的窗口持有它，之后启动的窗口静默让位、不写自己的注册文件（让位只记在 debug 日志里，打开 `forgejoToolkit.debug` 才能看到）。只要还有窗口开着，从 `mcp.json` 启动的 shim 仍会经持有者完成认证，所以这只在**持有窗口被关闭**时显现：注册文件与管道随之消失，其余窗口不会接管，静态 shim 路径退化为匿名只读（仅公开数据），直到某个窗口重启它的 MCP 面。同一用户的两个 profile 也共享该端点，因为它由用户名与主目录派生，而不是按 profile 区分。
+
+规避方法：重载窗口，或把 `forgejoToolkit.mcpEnabled` 关掉再打开，让该窗口重新绑定 broker。
+
 ---
 
 _各 API 端点与 Forgejo 服务端源码的核对细节，参见 [`docs/api-verification-checklist.md`](docs/api-verification-checklist.md)。_
