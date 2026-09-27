@@ -16,6 +16,15 @@ Yes — install the `.vsix` from the [release page](https://codeberg.org/cpf2333
 
 The MCP server needs a consumer, and that is where the forks differ. VS Code's built-in consumer is Copilot agent mode, which is only available in Microsoft's official build. On a fork you therefore drive the MCP server from a **third-party agent** (Cline, Continue, …) or any MCP client: point it at the stable-path shim (`mcp-server.js` in the extension's globalStorage, see "Can I use the MCP server in the Agents window?" below for the exact path). The zero-configuration instance matching and the authenticated broker both work there, because they are implemented by the extension itself, not by VS Code's chat. Nothing needs to be disabled: on an editor whose MCP definition API is missing entirely, the extension skips that one registration and runs everything else normally.
 
+### Does the extension send anything anywhere?
+
+No. There is no telemetry, no crash reporting and no analytics: this extension contains no reporting code and depends on no reporting library. The only requests it makes go to the Forgejo instances you configure, with the token you stored — plus whatever the editor itself does when it checks for extension updates. Its logs stay on your machine: enable `forgejoToolkit.debug` and run **Forgejo Toolkit: View Log** to read them, and nothing uploads them.
+
+Two boundaries are worth knowing, because they sit outside the extension's control:
+
+- The MCP server answers whichever MCP client connects to it (Copilot agent mode, Cline, …). What that client does with the answer — including whether it leaves your machine — follows from that client's own settings, not from this extension; here the extension only serves the tool calls it receives.
+- VS Code's own `telemetry.telemetryLevel` is a platform setting. Nothing in this extension calls a telemetry API, so it adds nothing to that stream either way.
+
 ## Setup
 
 ### What access token permissions do I need?

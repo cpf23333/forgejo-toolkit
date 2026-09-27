@@ -16,6 +16,15 @@ Forgejo 和 Gitea 有共同的 API 历史，因此许多功能在 Gitea 实例�
 
 差异在 MCP server 的消费端。VS Code 内置的消费端是 Copilot agent mode，只在微软官方构建中提供。在分支编辑器上，你需要用**第三方 agent**（Cline、Continue 等）或任意 MCP 客户端来驱动这个 MCP server：把它指向稳定路径 shim（扩展 globalStorage 里的 `mcp-server.js`，确切路径见下文「Agents 窗口里能用这个 MCP server 吗？」）。零配置实例匹配和带认证的 broker 在那里都能用，因为它们由扩展自身实现，不依赖 VS Code 的聊天功能。也不需要禁用任何东西：如果编辑器等价地完全没有 MCP 定义 API，扩展只会跳过那一个注册，其余功能照常运行。
 
+### 这个扩展会把数据发到哪里去吗？
+
+不会。没有遥测、没有崩溃上报、没有统计：本扩展不含任何上报代码，也不依赖任何上报库。它发出的请求只会去你配置的 Forgejo 实例（用你保存的 token），另外就是编辑器自身检查扩展更新时产生的请求。它的日志只留在你的机器上：打开 `forgejoToolkit.debug` 后运行 **Forgejo Toolkit: 查看日志** 即可查看，不会被上传。
+
+有两条边界值得知道，因为它们不在本扩展的控制范围内：
+
+- MCP server 只回答连上它的那个 MCP 客户端（Copilot agent mode、Cline 等）。那个客户端拿到内容后做什么——包括内容是否会离开你的机器——取决于它自己的设置，而不是本扩展；本扩展只负责响应收到的工具调用。
+- VS Code 自己的 `telemetry.telemetryLevel` 是平台设置。本扩展不调用任何遥测 API，因此无论该设置如何，它都不会往那条流里加任何东西。
+
 ## 设置
 
 ### 需要什么样的 access token 权限？
