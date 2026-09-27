@@ -1,4 +1,5 @@
 {
+  "x-readme-ref-name": "CreatePullReviewCommentOptions",
   "description": "CreatePullReviewComment represent a review comment for creation api",
   "type": "object",
   "properties": {
@@ -27,6 +28,5 @@
       "x-go-name": "Path"
     }
   },
-  "x-go-package": "forgejo.org/modules/structs",
-  "x-readme-ref-name": "CreatePullReviewComment"
+  "x-go-package": "forgejo.org/modules/structs"
 }

@@ -5,7 +5,7 @@
 
 import type { APINotFound } from './APINotFound';
 import type { APIValidationError } from './APIValidationError';
-import type { CreatePullReviewComment } from './CreatePullReviewComment';
+import type { CreatePullReviewCommentOptions } from './CreatePullReviewCommentOptions';
 import type { PullReviewComment } from './PullReviewComment';
 
 export type RepoCreatePullReviewCommentPathParams = {
@@ -46,7 +46,7 @@ export type RepoCreatePullReviewComment404 = APINotFound;
  */
 export type RepoCreatePullReviewComment422 = APIValidationError;
 
-export type RepoCreatePullReviewCommentMutationRequest = CreatePullReviewComment;
+export type RepoCreatePullReviewCommentMutationRequest = CreatePullReviewCommentOptions;
 
 export type RepoCreatePullReviewCommentMutationResponse = RepoCreatePullReviewComment200;
 
