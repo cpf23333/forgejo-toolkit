@@ -393,12 +393,19 @@ Output Channel 记一条结构化日志，格式与既有日志一致（`src/log
 
 ## 11. 会改变本决策的证据
 
-1. **VS Code 的审批实测缺失。** 本仓库记录了"只读工具不弹框"，但**没有**任何实测证据表明
-   "不标 `readOnlyHint` 时 VS Code 一定会弹框"，也没有证据表明它在"总是允许"设置下会怎样。
-   阶段 0 结束前必须用 `tools/ui-review/` 的隔离 dev host 实测一次（README：
-   `tools/ui-review/README.md` 的走查清单），把结果回填到本文与
-   `docs/architecture/mcp-server.md:562-570`。**如果实测表明它不弹框，整个阶段 1/2 必须停，
-   改为先做 broker 侧宿主确认（阶段 3）。**
+1. **~~VS Code 的审批实测缺失~~ → 已由官方文档回答（2026-09-27）。** 官方 MCP 开发者指南在
+   "Tools" 一节明确写着：_"Users can edit model-generated input parameters in the tool
+   confirmation dialog. **The confirmation dialog will be shown for all tools that are not
+   marked with the `readOnlyHint` annotation.**"_，注解一节又写着 _"`readOnlyHint`: … **VS Code
+   doesn't ask for confirmation to run read-only tools.**"_；Language Model Tool 指南补充
+   _"the user can also select to 'Always Allow' a certain tool"_。也就是说阶段 0 的假设成立：
+   **不标 `readOnlyHint` 就会被逐次拦截审批**（且参数可在对话框里改），只读工具不会。
+   依据：[MCP developer guide](https://code.visualstudio.com/api/extension-guides/ai/mcp)、
+   [Language Model Tool API](https://code.visualstudio.com/api/extension-guides/ai/tools)。
+   **证据强度**：官方文档，不是本机实测；"总是允许"的持久范围（是否可被用户永久放行）文档只
+   提到存在该选项，未说明有效范围，因此阶段 0 仍值得顺手做一次点击实测（不再是硬门槛）。
+   原先的要求——"若实测表明不弹框则阶段 1/2 必须停"——随之失效：文档与实现若不一致，以实测为准
+   并回落阶段 3（broker 侧宿主确认）。
 2. **如果 Codeberg 或上游明确表示"任何由扩展代发的公开文字都不可接受"**，那么正确做法是把
    首批工具从"直接提交"改成"生成 draft + 由用户在扩展的 UI 里点提交"，那是另一份设计。
 3. **如果 Forgejo ≥ 17 落地 rerun 端点**，把 `rerun_action_run` 提回首批（并同步改
