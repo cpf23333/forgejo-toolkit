@@ -4,6 +4,16 @@
 // that fails — a bad spec, a native crash — leaves the directory empty. This runner
 // delegates to the `generate` script (so the two steps stay in sync), refuses to
 // start on a dirty generated tree, and restores it from git when the run fails.
+//
+// If every plugin fails with `null byte is not allowed in input` naming some
+// unrelated executable (a CLI harness, an editor, an SDK manager), the cause is
+// the *environment*, not the spec: kubb's configuration loader reads variables
+// that such tools inject (their own install paths, sometimes with characters a
+// parser rejects), and one of them derails every plugin. Run the generator with a
+// cleaned environment — drop the tool's own variables and any `PATH` entry that
+// points at its installation — and it succeeds. Also remember that the generated
+// sources are formatted: a fresh run looks like a thousands-of-files diff until
+// `pnpm format:fix` has run, and then it should be a no-op on an up-to-date tree.
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

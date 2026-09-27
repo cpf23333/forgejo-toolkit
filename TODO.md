@@ -11,7 +11,8 @@
 ## 0.0.1 之后
 
 - [ ] P3 `IssueAddTime` 缺 422：**上游规格本身没有这个响应**（`packages/forgejo-api/spec/swagger.v1.json` 里 `POST /repos/{owner}/{repo}/issues/{index}/times` 只声明 `200/400/403/404`），所以重新生成补不上。`client.ts` 已注释服务端实际行为；要类型层面补齐得等上游 swagger 注解，或由我们本地手写类型（决定：暂不做）
-- [ ] P3 重新生成 kubb 客户端需要能跑通的环境：本机 Windows + Node 24.14.0/25.6.1 上 `kubb generate` 稳定崩溃（exit 134，V8/libuv abort，出现过 3 次，崩溃点在它已经清空输出目录之后）。已加防护 `pnpm --filter @cpf23333-forgejo-toolkit/api generate:safe`（脏树拒绝启动 + 失败自动 `git restore`）；CI 容器是 Node 22，优先在那里跑并核对 diff
+- [ ] **P2 kubb 5 迁移**（本机已可执行，见下）：`@kubb/cli`/`core` 4.39.2 → 5.3.19、`plugin-ts` → 5.0.2、`plugin-msw` → 5.0.4（`plugin-client`/`plugin-oas` 在 5.x 里只到 4.39.3，迁移时需确认 v5 的插件拆分/改名）；`packages/forgejo-api/package.json` 里是**精确 pin**，`pnpm up` 不会动。做法：改 pin → 清理环境后 `pnpm --filter @cpf23333-forgejo-toolkit/api generate` → `pnpm format:fix` → 逐块评审生成差异 → `pnpm check` + 两套测试
+- [x] ~~重新生成 kubb 客户端需要能跑通的环境~~ **已解决（2026-09-27）**：早先的 exit 134 / 四个插件全失败**不是**权限或 Node 版本问题，而是 **harness 注入的环境变量**（`DSH_*`、`VIPSHOME`、以及 PATH 里指向 `DSH Desktop` 的条目）让 kubb 的配置加载器读到含非法字符的路径，报 `null byte is not allowed in input in "…\DSH Desktop.exe"`。清理这些变量后本机生成成功；并且已验证 **`generate` + `pnpm format:fix` 在工作树上是幂等的（0 差异）**——生成器输出未格式化，直接看会像上千文件差异。配方已写进 `packages/forgejo-api/scripts/generate-safe.mjs` 的头注释
 - [ ] P5 低优先级（等上游）：`vscode-tree` 内按钮（IconActionButton）的 Enter/Space 被库自身 `keydown` 的 `preventDefault` 抑制（`@vscode-elements/elements` 2.5.1 既有行为）
 - [ ] 等上游版本：Forgejo v17（约 2026-10 底）的 workflow / job rerun（`forgejo#13924`，用 ≥17.0 版本闸门，并同步移除 `KNOWN_ISSUES` 对应条目）；Actions 日志 ndjson + 服务端过滤（#12820 / #12821，低优先级）
 - [ ] **P5** 供应商 chunk 仍是每个 webview 面的固定开销：Vue + vue-i18n + **中英两份消息目录**（154,768 B）由三个面共同加载，在面板只剩自己入口之后它成了主导成本。方向：按语言拆分目录（或把另一语言改成动态导入），需要构建核对，且要保证运行时切换语言仍可用
